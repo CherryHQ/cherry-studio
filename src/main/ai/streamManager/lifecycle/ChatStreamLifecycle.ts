@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import type { ActiveExecution, StallReason, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ActiveStream, ConversationCompletedEvent } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
@@ -21,6 +21,8 @@ export function createChatStreamLifecycle(
     try {
       const activeExecutions: ActiveExecution[] = []
       const awaitingApprovalAnchors: ActiveExecution[] = []
+      let stalled = false
+      let stalledReason: StallReason | undefined
 
       for (const [modelId, exec] of stream.executions) {
         const entry: ActiveExecution = {
@@ -33,6 +35,11 @@ export function createChatStreamLifecycle(
         // Main-side authoritative approval-anchor identity; renderer reads this
         // instead of inferring from `parts` / SWR-lagged status.
         if (exec.pendingApprovalToolCallIds?.size) awaitingApprovalAnchors.push(entry)
+        // Collect stall state from any stalled execution
+        if (exec.stalled) {
+          stalled = true
+          stalledReason = stalledReason ?? exec.stalledReason
+        }
       }
 
       const cacheService = application.get('CacheService')
@@ -44,7 +51,9 @@ export function createChatStreamLifecycle(
         turnId: stream.turnId,
         activeExecutions,
         awaitingApprovalAnchors,
-        lastCompletedAt
+        lastCompletedAt,
+        stalled: stalled || undefined,
+        stalledReason
       })
     } catch (error) {
       // Stream registration/execution is the commit point. Cache convergence is observational and
@@ -66,6 +75,9 @@ export function createChatStreamLifecycle(
       broadcast(stream, stream.status)
     },
     onActiveExecutionsChanged(stream) {
+      broadcast(stream, stream.status)
+    },
+    onStallChanged(stream) {
       broadcast(stream, stream.status)
     },
     onTerminal(stream) {
