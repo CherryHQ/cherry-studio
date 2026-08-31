@@ -1,4 +1,4 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EmojiIcon } from '@cherrystudio/ui'
 import type { AgentSessionStreamState } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -149,8 +149,7 @@ export function buildAgentSources(
             <EmojiIcon
               emoji={getAgentAvatarFromConfiguration(agent.configuration)}
               size={18}
-              fontSize={11}
-              className="mr-0 text-foreground"
+              className="text-foreground"
             />
           )
         }

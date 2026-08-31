@@ -129,9 +129,9 @@ vi.mock('@renderer/components/icons/miniAppsLogo', () => {
 const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
   key: `app:${item.id}`,
   label: item.label,
-  renderIcon: (size) => {
+  renderIcon: ({ glyphSize }) => {
     const Icon = item.icon
-    return <Icon size={size} strokeWidth={1.6} />
+    return <Icon size={glyphSize} strokeWidth={1.6} />
   },
   isActive: (active) => active.activeItem === item.id,
   onOpen: () => {},
@@ -143,7 +143,7 @@ const miniEntry = (
 ): ResolvedSidebarEntry => ({
   key: `mini_app:${tab.miniApp.id}`,
   label: tab.title,
-  renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
+  renderIcon: ({ slotSize }) => <MiniAppIcon tab={tab} size={slotSize === 24 ? 'lg' : 'md'} />,
   isActive: (active) => active.activeTabId === tab.miniApp.id,
   onOpen: () => {},
   contextMenuItems
@@ -717,5 +717,38 @@ describe('Sidebar resize handle', () => {
     expect(mouseDown.defaultPrevented).toBe(false)
     expect(onChatOpenNewTab).not.toHaveBeenCalled()
     expect(onChatOpen).not.toHaveBeenCalled()
+  })
+})
+
+describe('Sidebar icon presentation', () => {
+  it.each([
+    [SIDEBAR_FULL_THRESHOLD, { slotSize: 18, glyphSize: 16 }],
+    [SIDEBAR_ICON_WIDTH, { slotSize: 24, glyphSize: 18 }]
+  ])('uses one fixed icon slot at width %s', (width, expectedPresentation) => {
+    const presentations: unknown[] = []
+    const mixedEntries: ResolvedSidebarEntry[] = ['glyph', 'avatar'].map((kind) => ({
+      key: kind,
+      label: kind,
+      renderIcon: (presentation: unknown) => {
+        presentations.push(presentation)
+        return <span>{kind}</span>
+      },
+      isActive: () => false,
+      onOpen: vi.fn()
+    }))
+
+    const { container } = render(
+      <Sidebar width={width} setWidth={vi.fn()} active={{ activeItem: '' }} entries={mixedEntries} />
+    )
+
+    expect(presentations).toEqual([expectedPresentation, expectedPresentation])
+    const slots = [...container.querySelectorAll('[data-slot="sidebar-entry-icon"]')]
+    expect(slots).toHaveLength(2)
+    for (const slot of slots) {
+      expect(slot).toHaveStyle({
+        width: `${expectedPresentation.slotSize}px`,
+        height: `${expectedPresentation.slotSize}px`
+      })
+    }
   })
 })

@@ -23,7 +23,6 @@ import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
 
 const REVEAL_ACTIVATIONS = new Set<string | undefined>([undefined, 'reveal'])
-const ENTITY_ICON_SIZE = { md: 18, lg: 24 } as const
 
 function validates(providerId: string, target: SidebarShortcutTarget): boolean {
   return (
@@ -118,7 +117,7 @@ const appProvider: SidebarShortcutProvider = {
       const Icon = SIDEBAR_ICON_COMPONENTS[id]
       result.set(createSidebarShortcutId(target), {
         label: i18n.t(getSidebarIconLabelKey(id)),
-        renderIcon: (size) => <Icon size={size} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize }) => <Icon size={glyphSize} strokeWidth={1.6} />,
         supportsNewTab: true
       })
     }
@@ -159,9 +158,7 @@ const miniAppProvider: SidebarShortcutProvider = {
       (app) => app.appId,
       (app) => ({
         label: app.nameKey ? i18n.t(app.nameKey) : app.name,
-        renderIcon: (_size, miniAppSize) => (
-          <MiniAppIcon app={app} appearance="bare" size={ENTITY_ICON_SIZE[miniAppSize]} />
-        ),
+        renderIcon: ({ slotSize }) => <MiniAppIcon app={app} appearance="bare" size={slotSize} />,
         tabIcon: app.logoSrc ?? app.logo,
         supportsNewTab: true
       })
@@ -191,13 +188,8 @@ const agentProvider: SidebarShortcutProvider = {
       (agent) => agent.id,
       (agent) => ({
         label: agent.name,
-        renderIcon: (_size, entitySize) =>
-          renderAgentEntityIcon(
-            iconType === 'none' ? 'emoji' : iconType,
-            agent,
-            defaultModelId,
-            ENTITY_ICON_SIZE[entitySize]
-          ),
+        renderIcon: ({ slotSize }) =>
+          renderAgentEntityIcon(iconType === 'none' ? 'emoji' : iconType, agent, defaultModelId, slotSize),
         supportsNewTab: true
       })
     )
@@ -227,12 +219,13 @@ const assistantProvider: SidebarShortcutProvider = {
       (assistant) => assistant.id,
       (assistant) => ({
         label: assistant.name,
-        renderIcon: (_size, entitySize) =>
+        renderIcon: ({ slotSize, glyphSize }) =>
           renderAssistantEntityIcon(
             iconType === 'none' ? 'emoji' : iconType,
             assistant,
             defaultModelId,
-            ENTITY_ICON_SIZE[entitySize]
+            slotSize,
+            glyphSize
           ),
         supportsNewTab: true
       })
@@ -259,7 +252,7 @@ const knowledgeBaseProvider: SidebarShortcutProvider = {
       (base) => base.id,
       (base) => ({
         label: base.name,
-        renderIcon: (size) => <Database size={size} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize }) => <Database size={glyphSize} strokeWidth={1.6} />,
         supportsNewTab: true
       })
     ),
@@ -286,7 +279,7 @@ const topicProvider: SidebarShortcutProvider = {
       (topic) => topic.id,
       (topic) => ({
         label: topic.name.trim() || i18n.t('chat.conversation.new'),
-        renderIcon: (size) => <MessagesSquare size={size} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize }) => <MessagesSquare size={glyphSize} strokeWidth={1.6} />,
         supportsNewTab: true
       })
     ),
@@ -314,7 +307,7 @@ const agentSessionProvider: SidebarShortcutProvider = {
       (session) => session.id,
       (session) => ({
         label: session.name.trim() || i18n.t('agent.session.new'),
-        renderIcon: (size) => <BotMessageSquare size={size} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize }) => <BotMessageSquare size={glyphSize} strokeWidth={1.6} />,
         supportsNewTab: true
       })
     ),
@@ -344,7 +337,7 @@ const fileEntryProvider: SidebarShortcutProvider = {
       (entry) => entry.id,
       (entry) => ({
         label: entry.ext ? `${entry.name}.${entry.ext}` : entry.name,
-        renderIcon: (size) => <FileText size={size} strokeWidth={1.6} />,
+        renderIcon: ({ glyphSize }) => <FileText size={glyphSize} strokeWidth={1.6} />,
         supportsNewTab: true
       })
     ),
@@ -371,7 +364,7 @@ const skillProvider: SidebarShortcutProvider = {
       (skill) => skill.id,
       (skill) => ({
         label: skill.name,
-        renderIcon: (size) => <Sparkles size={size} strokeWidth={1.6} />
+        renderIcon: ({ glyphSize }) => <Sparkles size={glyphSize} strokeWidth={1.6} />
       })
     )
   },
@@ -397,7 +390,9 @@ const mcpServerProvider: SidebarShortcutProvider = {
       (server) => server.id,
       (server) => ({
         label: server.name,
-        renderIcon: (size) => <McpLogo width={size} height={size} aria-hidden />
+        renderIcon: ({ glyphSize }) => (
+          <McpLogo className="opacity-60" width={glyphSize} height={glyphSize} aria-hidden />
+        )
       })
     )
   },
@@ -421,12 +416,14 @@ const providerProvider: SidebarShortcutProvider = {
       (provider) => provider.id,
       (provider) => ({
         label: provider.name,
-        renderIcon: (_size, miniAppSize) => (
+        renderIcon: ({ slotSize, glyphSize }) => (
           <ProviderAvatarPrimitive
             providerId={provider.id}
             providerName={provider.name}
             logo={provider.logoSrc ?? provider.logo}
-            size={ENTITY_ICON_SIZE[miniAppSize]}
+            size={slotSize}
+            artworkSize={glyphSize - 2}
+            displayContext="sidebar"
           />
         )
       })

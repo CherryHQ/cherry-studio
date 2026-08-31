@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
+import { cleanup, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutTarget } from '../../../../utils/sidebar'
@@ -17,6 +18,24 @@ vi.mock('@renderer/data/PreferenceService', () => ({
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key, on: vi.fn(), off: vi.fn() }
 }))
+vi.mock('@renderer/components/ProviderAvatar', () => ({
+  ProviderAvatarPrimitive: ({
+    size,
+    artworkSize,
+    displayContext
+  }: {
+    size: number
+    artworkSize?: number
+    displayContext?: string
+  }) => (
+    <span
+      data-testid="provider-avatar"
+      data-size={size}
+      data-artwork-size={artworkSize}
+      data-display-context={displayContext}
+    />
+  )
+}))
 
 function provider(id: string) {
   const result = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === id)
@@ -30,6 +49,7 @@ describe('core sidebar shortcut providers', () => {
   const gateway: SidebarActivationGateway = { openWorkspace, openSettings }
 
   beforeEach(() => {
+    cleanup()
     vi.clearAllMocks()
     mocks.preferenceGet.mockResolvedValue('openai')
   })
@@ -64,6 +84,18 @@ describe('core sidebar shortcut providers', () => {
     const target: SidebarShortcutTarget = createSidebarShortcutTarget(shortcutProvider.id, 'resource', 'run')
 
     expect(shortcutProvider.validate(target)).toBe(false)
+  })
+
+  it('renders provider logos in the shared slot with a lighter artwork footprint', async () => {
+    mocks.dataGet.mockResolvedValue([{ id: 'deepseek', name: 'DeepSeek' }])
+    const target = createSidebarShortcutTarget('core.provider', 'deepseek')
+    const result = await provider('core.provider').resolveMany([target])
+
+    render(result.values().next().value?.renderIcon({ slotSize: 18, glyphSize: 16 }))
+
+    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-size', '18')
+    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-artwork-size', '14')
+    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-display-context', 'sidebar')
   })
 
   it('batch-resolves only requested topics through one exact-id query', async () => {

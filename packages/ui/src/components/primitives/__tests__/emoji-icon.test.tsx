@@ -27,24 +27,39 @@ describe('EmojiIcon', () => {
     expect(background).toHaveTextContent('⭐️')
   })
 
-  it('applies fixed sizing by default with the right margin', () => {
-    const { container } = render(<EmojiIcon emoji="🌟" size={40} fontSize={24} />)
-    const wrapper = container.firstChild as HTMLElement
+  it('derives fixed emoji artwork from the declared icon box', () => {
+    const { container } = render(<EmojiIcon emoji="🌟" size={14} />)
 
-    expect(wrapper).toHaveStyle({ width: '40px', height: '40px', fontSize: '24px' })
-    expect(wrapper).toHaveClass('mr-1')
-    expect(wrapper).not.toHaveClass('h-full', 'w-full')
+    const wrapper = container.querySelector<HTMLElement>('[data-slot="emoji-icon"]')
+    const foreground = container.querySelector<HTMLElement>('[data-slot="emoji-icon-foreground"]')
+    const background = container.querySelector<HTMLElement>('[data-slot="emoji-icon-background"]')
+
+    expect(wrapper).toHaveStyle({ width: '14px', height: '14px', containerType: 'inline-size' })
+    expect(wrapper).not.toHaveClass('mr-1')
+    expect(foreground).toHaveStyle({ fontSize: '70cqi', lineHeight: '1' })
+    expect(background).toHaveStyle({ fontSize: '120cqi' })
   })
 
-  it('fills the parent and drops the right margin when fluid', () => {
-    const { container } = render(<EmojiIcon emoji="🌟" fluid fontSize={10} />)
-    const wrapper = container.firstChild as HTMLElement
+  it('uses the same optical sizing contract while filling its parent', () => {
+    const { container } = render(<EmojiIcon emoji="🌟" fluid />)
+    const wrapper = container.querySelector<HTMLElement>('[data-slot="emoji-icon"]')
+    const foreground = container.querySelector<HTMLElement>('[data-slot="emoji-icon-foreground"]')
 
     expect(wrapper).toHaveClass('h-full', 'w-full')
     expect(wrapper).not.toHaveClass('mr-1')
-    // Fluid wrapper inherits its width/height from the parent, so it must not carry inline sizing.
-    expect(wrapper.style.width).toBe('')
-    expect(wrapper.style.height).toBe('')
-    expect(wrapper).toHaveStyle({ fontSize: '10px' })
+    expect(wrapper?.style.width).toBe('')
+    expect(wrapper?.style.height).toBe('')
+    expect(foreground).toHaveStyle({ fontSize: '70cqi', lineHeight: '1' })
+  })
+
+  it('keeps the legacy fontSize override compatible without changing the icon box', () => {
+    const { container } = render(<EmojiIcon emoji="🌟" size={40} fontSize={24} />)
+    const wrapper = container.querySelector<HTMLElement>('[data-slot="emoji-icon"]')
+    const foreground = container.querySelector<HTMLElement>('[data-slot="emoji-icon-foreground"]')
+    const background = container.querySelector<HTMLElement>('[data-slot="emoji-icon-background"]')
+
+    expect(wrapper).toHaveStyle({ width: '40px', height: '40px' })
+    expect(foreground).toHaveStyle({ fontSize: '24px', lineHeight: '1' })
+    expect(background).toHaveStyle({ fontSize: '48px' })
   })
 })

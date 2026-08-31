@@ -1,6 +1,8 @@
 import type { SidebarShortcutItem, SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import type { ReactNode } from 'react'
 
+import type { SidebarIconPresentation } from '../../Sidebar'
+
 export interface SidebarNavigationSnapshot {
   url: string
 }
@@ -15,7 +17,7 @@ export interface SidebarActivationGateway {
 
 export interface ResolvedShortcut {
   label: string
-  renderIcon: (size: number, miniAppSize: 'md' | 'lg') => ReactNode
+  renderIcon: (presentation: SidebarIconPresentation) => ReactNode
   tabIcon?: string
   supportsNewTab?: boolean
 }

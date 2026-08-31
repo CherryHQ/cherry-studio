@@ -53,6 +53,25 @@ vi.mock('@renderer/components/ActionIconButton', () => ({
   }
 }))
 
+vi.mock('@renderer/components/ProviderAvatar', () => ({
+  ProviderAvatarPrimitive: ({
+    size,
+    artworkSize,
+    displayContext
+  }: {
+    size: number
+    artworkSize?: number
+    displayContext?: string
+  }) => (
+    <span
+      data-slot="provider-avatar"
+      data-size={size}
+      data-artwork-size={artworkSize}
+      data-display-context={displayContext}
+    />
+  )
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children, content }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode }) => (
     <div data-testid="tooltip" data-content={String(content)}>
@@ -335,6 +354,19 @@ describe('WebSearchButton', () => {
     await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
     const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls.at(-1)![0]
     expect(webSearchLauncher.tooltip).toBe('chat.input.web_search.route.client')
+  })
+
+  it('uses the shared provider presentation with a lighter toolbar footprint', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+    mocks.assistant.settings.enableWebSearch = true
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const providerAvatar = document.querySelector('[data-slot="provider-avatar"]')
+    expect(providerAvatar).toHaveAttribute('data-size', '18')
+    expect(providerAvatar).toHaveAttribute('data-artwork-size', '14')
+    expect(providerAvatar).toHaveAttribute('data-display-context', 'toolbar')
   })
 
   it('registers web search only for the plus menu', async () => {

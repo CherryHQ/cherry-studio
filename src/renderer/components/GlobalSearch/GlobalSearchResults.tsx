@@ -1,4 +1,4 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EmojiIcon } from '@cherrystudio/ui'
 import HighlightText from '@renderer/components/HighlightText'
 import { cn } from '@renderer/utils/style'
 import { formatRelativeTime } from '@renderer/utils/time'
@@ -191,7 +191,7 @@ export function GlobalSearchRow({
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
       {emoji ? (
-        <EmojiIcon emoji={emoji} size={32} fontSize={15} className="mr-0 bg-muted/50" />
+        <EmojiIcon emoji={emoji} size={32} className="bg-muted/50" />
       ) : (
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
           <Icon className="size-4" />

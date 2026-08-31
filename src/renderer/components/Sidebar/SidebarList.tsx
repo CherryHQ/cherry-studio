@@ -6,7 +6,10 @@ import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
-import type { ResolvedSidebarEntry, SidebarActiveState, SidebarVisibleLayout } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarIconPresentation, SidebarVisibleLayout } from './types'
+
+const FULL_ICON_PRESENTATION = { slotSize: 18, glyphSize: 16 } as const
+const ICON_ICON_PRESENTATION = { slotSize: 24, glyphSize: 18 } as const
 
 export interface SidebarListProps {
   layout: SidebarVisibleLayout
@@ -60,6 +63,23 @@ function preventMiddleClickAutoscroll(e: React.MouseEvent) {
   if (e.button === 1) e.preventDefault()
 }
 
+function SidebarEntryIcon({
+  entry,
+  presentation
+}: {
+  entry: ResolvedSidebarEntry
+  presentation: SidebarIconPresentation
+}) {
+  return (
+    <span
+      data-slot="sidebar-entry-icon"
+      className="flex shrink-0 items-center justify-center"
+      style={{ width: presentation.slotSize, height: presentation.slotSize }}>
+      {entry.renderIcon(presentation)}
+    </span>
+  )
+}
+
 function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListProps) {
   return (
     <SidebarSortableList
@@ -88,7 +108,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-full" />}
-                {entry.renderIcon(18, 'lg')}
+                <SidebarEntryIcon entry={entry} presentation={ICON_ICON_PRESENTATION} />
               </button>
             </EntryContextMenu>
           </SidebarTooltip>
@@ -113,7 +133,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
             <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
               <MenuItem
                 variant="ghost"
-                icon={entry.renderIcon(16, 'md')}
+                icon={<SidebarEntryIcon entry={entry} presentation={FULL_ICON_PRESENTATION} />}
                 label={entry.label}
                 active={isActive}
                 aria-disabled={entry.disabled || undefined}

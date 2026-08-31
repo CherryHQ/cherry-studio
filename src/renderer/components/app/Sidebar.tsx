@@ -28,6 +28,7 @@ import {
   normalizeSidebarWidth,
   type ResolvedSidebarEntry,
   Sidebar as UISidebar,
+  type SidebarIconPresentation,
   type SidebarUser,
   type SidebarVisibleLayout,
   UserAvatar
@@ -114,12 +115,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           : shortcut.fallbackLabel || shortcut.target.locator.resourceId
         const renderIcon = isResolved
           ? resolution.resource.renderIcon
-          : (size: number) => {
+          : ({ glyphSize }: SidebarIconPresentation) => {
               const Icon =
                 resolution.status === 'loading' ? LoaderCircle : resolution.status === 'missing' ? CircleOff : WifiOff
               return (
                 <Icon
-                  size={size}
+                  size={glyphSize}
                   strokeWidth={1.6}
                   className={resolution.status === 'loading' ? 'animate-spin' : undefined}
                 />

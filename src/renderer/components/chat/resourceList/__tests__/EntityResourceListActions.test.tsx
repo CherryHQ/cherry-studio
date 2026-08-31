@@ -71,6 +71,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  EmojiIcon: ({ emoji }: { emoji: string }) => <span>{emoji}</span>,
   MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: ReactNode; onClick?: () => void }) => (
     <button type="button" onClick={onClick}>
       {icon}
@@ -135,10 +136,6 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => loggerMocks
   }
-}))
-
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({

@@ -21,6 +21,11 @@ export interface SidebarActiveState {
   activeTabId?: string
 }
 
+export interface SidebarIconPresentation {
+  slotSize: number
+  glyphSize: number
+}
+
 /**
  * A fully-resolved, type-agnostic sidebar row. The app shell produces these through
  * the shortcut registry; the presentation layer has no resource-domain dependencies.
@@ -29,7 +34,7 @@ export interface ResolvedSidebarEntry {
   /** Stable identity used as both React key and reorder key. */
   key: string
   label: string
-  renderIcon: (size: number, miniAppSize: 'md' | 'lg') => ReactNode
+  renderIcon: (presentation: SidebarIconPresentation) => ReactNode
   isActive: (active: SidebarActiveState) => boolean
   onOpen: () => void
   disabled?: boolean
