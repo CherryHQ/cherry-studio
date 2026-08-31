@@ -5,8 +5,8 @@
  * Claude Code's web search/fetch and image generation run identical logic against
  * the user's configured `WebSearchService` provider and painting model. Injected by
  * `settingsBuilder` as an `sdk`-type MCP server; Claude calls these tools as
- * `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__report_artifacts`, and
- * `…__generate_image`.
+ * `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__report_artifacts`,
+ * `…__runtime_info`, and `…__generate_image`.
  *
  * These stateless builtins carry no per-agent authorization, so their handlers take
  * only `(args, signal)`. Domain tools that act on behalf of the session's agent are
