@@ -586,10 +586,11 @@ describe('applyMigrations over a populated database', () => {
     ])
   })
 
-  it('backfills durable refs for existing agent-session attachments', () => {
-    // The backfill shipped in 0006. Pin its baseline explicitly so a later schema migration does
-    // not move the seed after the backfill and silently stop testing the populated upgrade path.
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0006_mean_morg'))
+  it('backfills durable refs for agent-session attachments imported after schema migrations', () => {
+    // The one-shot v1 -> v2 importer runs after schema migrations. In particular,
+    // 0006 has already attempted its populated-table backfill before AgentsMigrator
+    // inserts these messages, so the boot seeder must close that ordering gap.
+    applyMigrations(db, resolveMigrationsPath())
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
     const messageId = '88888888-8888-4888-8888-888888888888'
@@ -619,10 +620,10 @@ describe('applyMigrations over a populated database', () => {
       .run(now, now)
     sqlite
       .prepare(
-        `INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at)
-         VALUES ('session-attachment-migrate', 'Session', 'workspace-attachment-migrate', 'a0', ?, ?)`
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-attachment-migrate', 'Session', 'workspace-attachment-migrate', 'a0', ?, ?, ?)`
       )
-      .run(now, now)
+      .run(now, now, now)
 
     const filePart = {
       type: 'file',
@@ -644,7 +645,7 @@ describe('applyMigrations over a populated database', () => {
       )
       .run(messageId, JSON.stringify({ parts: [filePart, filePart, missingPart] }), now, now)
 
-    applyMigrations(db, resolveMigrationsPath())
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
     new LegacyFileCleanupPolicySeeder().run(db)
 
     const refs = sqlite

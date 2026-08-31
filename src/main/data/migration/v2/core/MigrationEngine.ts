@@ -64,7 +64,7 @@ import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
-import { MIGRATION_V2_STATUS } from './migrationStatus'
+import { MIGRATION_V2_STATUS, readMigrationV2Status } from './migrationStatus'
 
 const logger = loggerService.withContext('MigrationEngine')
 
@@ -193,10 +193,9 @@ export class MigrationEngine {
    */
   async needsMigration(): Promise<boolean> {
     const db = this.getDb()
-    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const statusValue = readMigrationV2Status(db)
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
+    if (statusValue) {
       return statusValue.status !== 'completed'
     }
 
@@ -234,10 +233,9 @@ export class MigrationEngine {
    */
   getLastError(): string | null {
     const db = this.getDb()
-    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const statusValue = readMigrationV2Status(db)
 
-    if (status?.value) {
-      const statusValue = status.value as MigrationStatusValue
+    if (statusValue) {
       if (statusValue.status === 'failed') {
         return statusValue.error || 'Unknown error'
       }

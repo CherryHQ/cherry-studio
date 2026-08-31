@@ -12,7 +12,7 @@ export {
   pinUserDataPath,
   resolveMigrationPaths
 } from './core/MigrationPaths'
-export { readMigrationV2CompletedAt } from './core/migrationStatus'
+export { readMigrationV2CompletedAt, readMigrationV2Status } from './core/migrationStatus'
 export {
   evaluateCandidateVersion,
   getBlockMessage,
