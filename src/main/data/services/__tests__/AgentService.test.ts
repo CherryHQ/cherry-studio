@@ -335,10 +335,22 @@ describe('AgentService', () => {
       expect(activeBuiltinRows()).toHaveLength(1)
     })
 
-    it('restores the assistant after the Agent delete endpoint removed its row', () => {
+    it('rejects the Agent delete endpoint for the built-in assistant', () => {
       const first = agentService.ensureBuiltinAgent(defaults)
 
-      expect(agentService.deleteAgent(first.id, { deleteSessions: true })).toMatchObject({ deleted: true })
+      const error = captureError(() => agentService.deleteAgent(first.id, { deleteSessions: true }))
+      expect(error).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringContaining('built-in agents cannot be deleted')
+      })
+      expect(agentService.getAgent(first.id)?.id).toBe(first.id)
+    })
+
+    it('restores the assistant after its row was hard-deleted', () => {
+      const first = agentService.ensureBuiltinAgent(defaults)
+      application.get('DbService').withWriteTx((tx) => {
+        agentService.deleteAgentTx(tx, first.id)
+      })
 
       const restored = agentService.ensureBuiltinAgent(defaults)
 
@@ -1073,6 +1085,41 @@ describe('AgentService', () => {
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+    })
+
+    it('rejects deleting a protected builtin agent', async () => {
+      const { id } = await insertAgent({
+        id: 'agent_builtin_delete',
+        configuration: { builtin_role: 'assistant' }
+      })
+
+      const error = captureError(() => agentService.deleteAgent(id))
+      expect(error).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringContaining('built-in agents cannot be deleted')
+      })
+      expect(agentService.getAgent(id)?.id).toBe(id)
+    })
+
+    it('rejects deleting the reserved support agent', async () => {
+      await insertAgent({
+        id: 'cherry-support',
+        configuration: { builtin_role: 'support' }
+      })
+
+      const error = captureError(() => agentService.deleteAgent('cherry-support'))
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(agentService.getAgent('cherry-support')?.id).toBe('cherry-support')
+    })
+
+    it('still deletes an ordinary agent that only has a leftover support marker', async () => {
+      const { id } = await insertAgent({
+        id: 'legacy-support-delete',
+        configuration: { builtin_role: 'support', avatar: 'U' }
+      })
+
+      expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+      expect(agentService.getAgent(id)).toBeNull()
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {

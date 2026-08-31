@@ -17,7 +17,12 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
-import { BUILTIN_AGENT_ROLE, type BuiltinAgentRole, CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
+import {
+  BUILTIN_AGENT_ROLE,
+  type BuiltinAgentRole,
+  CHERRY_SUPPORT_AGENT_ID,
+  isProtectedBuiltinAgentRole
+} from '@shared/ai/builtinAgent'
 import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -786,6 +791,14 @@ export class AgentService {
     affectedSessionIds: string[]
     deliveryResults: AgentSessionMessageEntity[]
   } {
+    const existing = this.findAgentRow(id)
+    if (
+      existing &&
+      isProtectedBuiltinAgentRole(getBuiltinRole(removeUntrustedSupportRole(id, existing.configuration)))
+    ) {
+      throw DataApiErrorFactory.invalidOperation('delete agent', 'built-in agents cannot be deleted')
+    }
+
     // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
