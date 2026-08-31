@@ -23,6 +23,7 @@ describe('SettingsFocusUrl', () => {
   beforeEach(() => {
     locationMock.pathname = '/settings/general'
     searchMock.q = undefined
+    searchMock.focusId = undefined
     searchMock.focus = undefined
     navigateMock.mockReset()
     setPendingFocus(undefined)
@@ -30,8 +31,8 @@ describe('SettingsFocusUrl', () => {
 
   const pendingFocusOf = () => renderHook(() => useSettingsSearchKeyboard()).result.current.pendingFocusId
 
-  it('forwards a ?focus= anchor into the store and strips only that key', () => {
-    searchMock.focus = 'setting-general-proxy'
+  it('forwards a ?focusId= anchor into the store and strips only that key', () => {
+    searchMock.focusId = 'setting-general-proxy'
     render(<SettingsFocusUrl />)
 
     expect(pendingFocusOf()).toBe('setting-general-proxy')
@@ -39,7 +40,17 @@ describe('SettingsFocusUrl', () => {
     const call = navigateMock.mock.calls[0][0]
     expect(call.to).toBe('/settings/general')
     expect(call.replace).toBe(true)
-    expect(call.search({ focus: 'setting-general-proxy', panel: 'data' })).toEqual({ panel: 'data' })
+    expect(call.search({ focusId: 'setting-general-proxy', panel: 'data' })).toEqual({ panel: 'data' })
+  })
+
+  it('leaves the model page legacy ?focus=default|translate param untouched', () => {
+    // /settings/model owns `focus` for its default/translate rows — the
+    // translator must not read, forward, or strip that key
+    searchMock.focus = 'default'
+    render(<SettingsFocusUrl />)
+
+    expect(pendingFocusOf()).toBeUndefined()
+    expect(navigateMock).not.toHaveBeenCalled()
   })
 
   it('does nothing without a focus param', () => {
@@ -50,7 +61,7 @@ describe('SettingsFocusUrl', () => {
   })
 
   it('ignores a non-string focus value', () => {
-    searchMock.focus = 42
+    searchMock.focusId = 42
     render(<SettingsFocusUrl />)
 
     expect(pendingFocusOf()).toBeUndefined()
@@ -58,7 +69,7 @@ describe('SettingsFocusUrl', () => {
   })
 
   it('ignores an empty-string focus (blank anchor must not reach the selector)', () => {
-    searchMock.focus = ''
+    searchMock.focusId = ''
     render(<SettingsFocusUrl />)
 
     expect(pendingFocusOf()).toBeUndefined()
@@ -66,18 +77,18 @@ describe('SettingsFocusUrl', () => {
   })
 
   it('re-injects when focus reappears (second agent deep link into the same tab)', () => {
-    searchMock.focus = 'setting-general-proxy'
+    searchMock.focusId = 'setting-general-proxy'
     const view = render(<SettingsFocusUrl />)
     expect(navigateMock).toHaveBeenCalledTimes(1)
     expect(pendingFocusOf()).toBe('setting-general-proxy')
 
     // Strip landed; the next render sees a search without focus
-    delete searchMock.focus
+    delete searchMock.focusId
     view.rerender(<SettingsFocusUrl />)
     expect(navigateMock).toHaveBeenCalledTimes(1)
 
     // A second deep link reintroduces focus — one more injection
-    searchMock.focus = 'setting-general-totray'
+    searchMock.focusId = 'setting-general-totray'
     view.rerender(<SettingsFocusUrl />)
     expect(navigateMock).toHaveBeenCalledTimes(2)
     expect(pendingFocusOf()).toBe('setting-general-totray')
@@ -85,11 +96,11 @@ describe('SettingsFocusUrl', () => {
 
   it('strips focus while preserving other params (q coexistence)', () => {
     searchMock.q = 'proxy'
-    searchMock.focus = 'setting-general-proxy'
+    searchMock.focusId = 'setting-general-proxy'
     render(<SettingsFocusUrl />)
 
     const call = navigateMock.mock.calls[0][0]
-    expect(call.search({ q: 'proxy', focus: 'setting-general-proxy' })).toEqual({ q: 'proxy' })
+    expect(call.search({ q: 'proxy', focusId: 'setting-general-proxy' })).toEqual({ q: 'proxy' })
   })
 
   it('drives the scroll pipeline end to end from a URL focus', () => {
@@ -100,7 +111,7 @@ describe('SettingsFocusUrl', () => {
     scope.appendChild(target)
     Element.prototype.scrollIntoView = vi.fn()
 
-    searchMock.focus = 'setting-general-proxy'
+    searchMock.focusId = 'setting-general-proxy'
     render(
       <>
         <SettingsFocusUrl />
