@@ -321,7 +321,7 @@ describe('HtmlArtifactView', () => {
     )
   })
 
-  it('does not re-render an unrelated iframe preview when another artifact opens', async () => {
+  it('keeps an unrelated inline preview mounted when another artifact opens', async () => {
     render(
       <HtmlArtifactPopupHost>
         <HtmlArtifactView artifactId="first" html="<main>First</main>" title="First preview" />
@@ -330,15 +330,12 @@ describe('HtmlArtifactView', () => {
     )
 
     const secondPreview = screen.getByTitle('Second preview')
-    mocks.HtmlPreviewFrame.mockClear()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'common.maximize' })[0])
     expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
 
     expect(screen.getByTitle('Second preview')).toBe(secondPreview)
-    expect(
-      mocks.HtmlPreviewFrame.mock.calls.filter(([props]) => (props as { title: string }).title === 'Second preview')
-    ).toHaveLength(0)
+    expect(secondPreview).toBeInTheDocument()
   })
 
   it('keeps the popup open and previews saved interactive HTML without another consent surface', async () => {
