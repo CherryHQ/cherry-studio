@@ -1,3 +1,5 @@
+import type * as fsPromises from 'node:fs/promises'
+
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,7 +10,7 @@ const { closeMock, openMock, readMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  const actual = await importOriginal<typeof fsPromises>()
   return { ...actual, open: openMock }
 })
 
