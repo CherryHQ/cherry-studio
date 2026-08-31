@@ -726,6 +726,7 @@
     },
     {
       "authOptional": true,
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2250,6 +2251,10 @@
       "defaultChatEndpoint": "openai-responses",
       "description": "Hugging Face - AI model provider",
       "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "https://router.huggingface.co/v1/"
+        },
         "openai-responses": {
           "adapterFamily": "open-responses",
           "baseUrl": "https://router.huggingface.co/v1/"
@@ -2410,5 +2415,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "d4aebe86a12ca8f8"
+  "version": "4a6f7225220e7a46"
 }

@@ -166,4 +166,28 @@ describe('assembleSystemPrompt', () => {
     })
     expect(out).toBe('base')
   })
+
+  it('anchors relative dates to the runtime local date when web search is enabled', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      webSearchEnabled: true,
+      now: new Date(2026, 7, 20, 23, 59)
+    })
+
+    expect(out).toContain('<current-date>2026-08-20</current-date>')
+    expect(out).toContain('this month')
+    expect(out).toContain('Do not substitute dates remembered from training')
+  })
+
+  it('does not add volatile date context when web search is unavailable', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      webSearchEnabled: false,
+      now: new Date(2026, 7, 20)
+    })
+
+    expect(out).toBe('base')
+  })
 })

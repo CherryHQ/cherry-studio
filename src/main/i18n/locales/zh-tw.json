@@ -1,186 +1,119 @@
 {
-  "agent": {
-    "builtin": {
-      "cherry_assistant": {
-        "description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。"
-      },
-      "cherry_support": {
-        "description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋"
-      }
-    },
-    "session": {
-      "new": "新任務",
-      "run_status": {
-        "busy": "Agent 工作階段忙碌中，請稍後再試。",
-        "unavailable": "Agent 工作階段已無法使用。"
-      },
-      "workspace_status": {
-        "inaccessible": "工作區路徑無法存取：{{path}}",
-        "missing": "工作區路徑不存在：{{path}}",
-        "not_directory": "工作區路徑不是資料夾：{{path}}"
-      }
-    }
-  },
-  "apiGateway": {
-    "docs": {
-      "description": "與 OpenAI、Anthropic 和 Gemini 相容的 Cherry Studio HTTP API，並提供 Cherry 專用端點（模型、知識庫）",
-      "language_switcher_label": "說明文件語言",
-      "operations": {
-        "chat_completions": "建立一次對話補全。請求與回應格式與 OpenAI Chat Completions 一致；設定 `stream: true` 可串流輸出。",
-        "count_tokens": "估算一組 Anthropic 格式訊息所佔用的輸入 Token 數量。",
-        "generate_content": "透過 Gemini 的 `generateContent` 方法產生內容。請求與回應格式與 Gemini API 一致；`streamGenerateContent` 走同一路徑。",
-        "get_knowledge_base": "依 ID 取得單一知識庫。",
-        "get_mcp_server": "取得 MCP 伺服器的詳細資料及其工具清單。",
-        "health": "服務健康狀態、目前時間與版本號。無需驗證。",
-        "info": "API 名稱、版本與主要端點清單。無需驗證。",
-        "list_knowledge_bases": "列出目前 Cherry Studio 執行個體中可用的知識庫。",
-        "list_mcp_servers": "列出 Cherry Studio 中已啟用的 MCP 伺服器，以及各自的連線 URL。",
-        "list_models": "以 OpenAI models 格式列出此閘道可用的模型。",
-        "mcp_proxy": "MCP 伺服器的 Model Context Protocol 端點 (Streamable HTTP)。將任何 MCP 用戶端指向此 URL，即可透過 Cherry Studio 使用該伺服器。",
-        "messages": "建立一則訊息。請求與回應格式與 Anthropic Messages 一致；設定 `stream: true` 可串流輸出。",
-        "responses": "建立一次回應。請求與回應格式與 OpenAI Responses 一致。",
-        "search_knowledge_bases": "在一個或多個知識庫中檢索，回傳相符的文件片段。"
-      },
-      "tags": {
-        "anthropic": "與 Anthropic 相容的端點。將 Anthropic SDK 的 base URL 指向此閘道即可使用。",
-        "cherry": "Cherry Studio 專用端點：知識庫、服務資訊與健康檢查。",
-        "gemini": "與 Gemini 相容的端點，和上游 API 一樣位於 `/v1beta` 下。",
-        "openai": "與 OpenAI 相容的端點。將 OpenAI SDK 的 base URL 指向此閘道即可使用。"
-      }
-    }
-  },
-  "appMenu": {
-    "about": "關於",
-    "close": "關閉視窗",
-    "copy": "複製",
-    "cut": "剪下",
-    "delete": "刪除",
-    "documentation": "說明文件",
-    "edit": "編輯",
-    "feedback": "回饋",
-    "file": "檔案",
-    "forceReload": "強制重新載入",
-    "front": "全部置於頂層",
-    "help": "說明",
-    "hide": "隱藏",
-    "hideOthers": "隱藏其他",
-    "minimize": "最小化",
-    "paste": "貼上",
-    "quit": "結束",
-    "redo": "重做",
-    "releases": "版本發布",
-    "reload": "重新載入",
-    "resetZoom": "實際大小",
-    "selectAll": "全選",
-    "services": "服務",
-    "toggleDevTools": "切換開發者工具",
-    "toggleFullscreen": "切換全螢幕",
-    "undo": "復原",
-    "unhide": "全部顯示",
-    "view": "檢視",
-    "website": "網站",
-    "window": "視窗",
-    "zoom": "縮放",
-    "zoomIn": "放大",
-    "zoomOut": "縮小"
-  },
-  "chat": {
-    "conversation": {
-      "new": "新對話"
-    }
-  },
-  "common": {
-    "channel_available_commands": "可用指令：",
-    "channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
-    "channel_message_processing_error": "⚠️ 處理您的訊息時發生錯誤。請稍後再試。",
-    "channel_new_session_created": "已建立新工作階段。",
-    "channel_no_active_session": "沒有作用中的工作階段。",
-    "channel_session_compacted": "工作階段已壓縮。",
-    "channel_session_resolution_error": "⚠️ 無法解析此代理程式的工作階段，請稍後再試。",
-    "copy": "複製",
-    "cut": "剪下",
-    "inspect": "檢查",
-    "paste": "貼上"
-  },
-  "dialog": {
-    "all_files": "所有檔案",
-    "data_reset": {
-      "cancel": "取消",
-      "confirm": "重設並重新啟動",
-      "message": "這會清除對話、助理、知識庫、檔案與設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
-      "title": "重設應用程式資料"
-    },
-    "diagnostic_bundle": {
-      "title": "儲存診斷包",
-      "zip_filter": "ZIP 壓縮檔"
-    },
-    "html_files": "HTML 檔案",
-    "open_file": "開啟檔案",
-    "pdf_files": "PDF 檔案",
-    "png_image": "PNG 影像",
-    "save_as_html": "儲存為 HTML",
-    "save_as_pdf": "儲存為 PDF",
-    "save_file": "儲存檔案",
-    "screen_capture_permission": {
-      "cancel": "取消",
-      "detail": "請在「系統設定 > 隱私權與安全性 > 螢幕錄製」中為「{{appName}}」開啟螢幕錄製權限，然後重新啟動應用程式。",
-      "message": "截圖需要螢幕錄製權限。",
-      "open_settings": "開啟系統設定",
-      "title": "螢幕錄製權限"
-    },
-    "screenshot_failed": {
-      "message": "無法擷取螢幕截圖。",
-      "ok": "好",
-      "title": "截圖失敗"
-    },
-    "select_folder": "選擇資料夾",
-    "word_document": "Word 文件"
-  },
-  "file_processing": {
-    "errors": {
-      "document_size_limit_exceeded": "目前的文件解析服務要求檔案小於 {{maxSize}}。請壓縮或分割此檔案，然後重新加入。",
-      "pdf_page_limit_exceeded": "此 PDF 超過目前文件解析服務的 {{maxPages}} 頁限制。請手動分割 PDF，然後重新加入。"
-    }
-  },
-  "notification": {
-    "action_required": {
-      "agent": "Agent 需要你的回應",
-      "assistant": "助手需要你的回應"
-    },
-    "completion": {
-      "agent": "Agent 任務已完成",
-      "assistant": "助手回覆已完成"
-    }
-  },
-  "openclaw": {
-    "errors": {
-      "binary_incompatible": "Cherry Studio 目前使用的 OpenClaw 與產生的設定不相容。請升級 OpenClaw。{{details}}",
-      "external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
-      "more_issues": "另有 {{count}} 個問題",
-      "preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。"
-    }
-  },
-  "paintings": {
-    "generate_failed": "無法產生圖片",
-    "image_mix_failed": "無法混合圖片"
-  },
-  "selection": {
-    "name": "選取文字助理"
-  },
-  "settings": {
-    "mcp": {
-      "oauth": {
-        "callback": {
-          "message": "關閉此頁面後即可回到 Cherry Studio",
-          "title": "認證成功"
-        }
-      }
-    },
-    "title": "設定"
-  },
-  "tray": {
-    "quit": "結束",
-    "show_quick_assistant": "快速助理",
-    "show_window": "顯示視窗"
-  }
+  "agent.builtin.cherry_assistant.description": "Cherry Studio 內建顧問，可診斷問題、引導操作、彙整 FAQ、提交錯誤或功能需求，以及搜尋或建立 Skill。",
+  "agent.builtin.cherry_support.description": "Cherry Studio 官方支援 Agent，提供設定引導、問題診斷、FAQ 與意見回饋",
+  "agent.session.new": "新任務",
+  "agent.session.run_status.busy": "Agent 工作階段忙碌中，請稍後再試。",
+  "agent.session.run_status.unavailable": "Agent 工作階段已無法使用。",
+  "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
+  "agent.session.workspace_status.missing": "工作區路徑不存在：{{path}}",
+  "agent.session.workspace_status.not_directory": "工作區路徑不是資料夾：{{path}}",
+  "apiGateway.docs.description": "與 OpenAI、Anthropic 和 Gemini 相容的 Cherry Studio HTTP API，並提供 Cherry 專用端點（模型、知識庫）",
+  "apiGateway.docs.language_switcher_label": "說明文件語言",
+  "apiGateway.docs.operations.chat_completions": "建立一次對話補全。請求與回應格式與 OpenAI Chat Completions 一致；設定 `stream: true` 可串流輸出。",
+  "apiGateway.docs.operations.count_tokens": "估算一組 Anthropic 格式訊息所佔用的輸入 Token 數量。",
+  "apiGateway.docs.operations.generate_content": "透過 Gemini 的 `generateContent` 方法產生內容。請求與回應格式與 Gemini API 一致；`streamGenerateContent` 走同一路徑。",
+  "apiGateway.docs.operations.get_knowledge_base": "依 ID 取得單一知識庫。",
+  "apiGateway.docs.operations.get_mcp_server": "取得 MCP 伺服器的詳細資料及其工具清單。",
+  "apiGateway.docs.operations.health": "服務健康狀態、目前時間與版本號。無需驗證。",
+  "apiGateway.docs.operations.info": "API 名稱、版本與主要端點清單。無需驗證。",
+  "apiGateway.docs.operations.list_knowledge_bases": "列出目前 Cherry Studio 執行個體中可用的知識庫。",
+  "apiGateway.docs.operations.list_mcp_servers": "列出 Cherry Studio 中已啟用的 MCP 伺服器，以及各自的連線 URL。",
+  "apiGateway.docs.operations.list_models": "以 OpenAI models 格式列出此閘道可用的模型。",
+  "apiGateway.docs.operations.mcp_proxy": "MCP 伺服器的 Model Context Protocol 端點 (Streamable HTTP)。將任何 MCP 用戶端指向此 URL，即可透過 Cherry Studio 使用該伺服器。",
+  "apiGateway.docs.operations.messages": "建立一則訊息。請求與回應格式與 Anthropic Messages 一致；設定 `stream: true` 可串流輸出。",
+  "apiGateway.docs.operations.responses": "建立一次回應。請求與回應格式與 OpenAI Responses 一致。",
+  "apiGateway.docs.operations.search_knowledge_bases": "在一個或多個知識庫中檢索，回傳相符的文件片段。",
+  "apiGateway.docs.tags.anthropic": "與 Anthropic 相容的端點。將 Anthropic SDK 的 base URL 指向此閘道即可使用。",
+  "apiGateway.docs.tags.cherry": "Cherry Studio 專用端點：知識庫、服務資訊與健康檢查。",
+  "apiGateway.docs.tags.gemini": "與 Gemini 相容的端點，和上游 API 一樣位於 `/v1beta` 下。",
+  "apiGateway.docs.tags.openai": "與 OpenAI 相容的端點。將 OpenAI SDK 的 base URL 指向此閘道即可使用。",
+  "appMenu.about": "關於",
+  "appMenu.close": "關閉視窗",
+  "appMenu.copy": "複製",
+  "appMenu.cut": "剪下",
+  "appMenu.delete": "刪除",
+  "appMenu.documentation": "說明文件",
+  "appMenu.edit": "編輯",
+  "appMenu.feedback": "回饋",
+  "appMenu.file": "檔案",
+  "appMenu.forceReload": "強制重新載入",
+  "appMenu.front": "全部置於頂層",
+  "appMenu.help": "說明",
+  "appMenu.hide": "隱藏",
+  "appMenu.hideOthers": "隱藏其他",
+  "appMenu.minimize": "最小化",
+  "appMenu.paste": "貼上",
+  "appMenu.quit": "結束",
+  "appMenu.redo": "重做",
+  "appMenu.releases": "版本發布",
+  "appMenu.reload": "重新載入",
+  "appMenu.resetZoom": "實際大小",
+  "appMenu.selectAll": "全選",
+  "appMenu.services": "服務",
+  "appMenu.toggleDevTools": "切換開發者工具",
+  "appMenu.toggleFullscreen": "切換全螢幕",
+  "appMenu.undo": "復原",
+  "appMenu.unhide": "全部顯示",
+  "appMenu.view": "檢視",
+  "appMenu.website": "網站",
+  "appMenu.window": "視窗",
+  "appMenu.zoom": "縮放",
+  "appMenu.zoomIn": "放大",
+  "appMenu.zoomOut": "縮小",
+  "chat.conversation.new": "新對話",
+  "common.channel_available_commands": "可用指令：",
+  "common.channel_command_processing_error": "⚠️ 處理指令時發生錯誤。請稍後再試。",
+  "common.channel_message_processing_error": "⚠️ 處理您的訊息時發生錯誤。請稍後再試。",
+  "common.channel_new_session_created": "已建立新工作階段。",
+  "common.channel_no_active_session": "沒有作用中的工作階段。",
+  "common.channel_session_compacted": "工作階段已壓縮。",
+  "common.channel_session_resolution_error": "⚠️ 無法解析此代理程式的工作階段，請稍後再試。",
+  "common.copy": "複製",
+  "common.cut": "剪下",
+  "common.inspect": "檢查",
+  "common.paste": "貼上",
+  "dialog.all_files": "所有檔案",
+  "dialog.data_reset.cancel": "取消",
+  "dialog.data_reset.confirm": "重設並重新啟動",
+  "dialog.data_reset.message": "這會清除對話、助理、知識庫、檔案與設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
+  "dialog.data_reset.title": "重設應用程式資料",
+  "dialog.diagnostic_bundle.title": "儲存診斷包",
+  "dialog.diagnostic_bundle.zip_filter": "ZIP 壓縮檔",
+  "dialog.html_files": "HTML 檔案",
+  "dialog.mini_app_export": "從 {{name}} 匯出",
+  "dialog.open_file": "開啟檔案",
+  "dialog.pdf_files": "PDF 檔案",
+  "dialog.png_image": "PNG 影像",
+  "dialog.save_as_html": "儲存為 HTML",
+  "dialog.save_as_pdf": "儲存為 PDF",
+  "dialog.save_file": "儲存檔案",
+  "dialog.screen_capture_permission.cancel": "取消",
+  "dialog.screen_capture_permission.detail": "請在「系統設定 > 隱私權與安全性 > 螢幕錄製」中為「{{appName}}」開啟螢幕錄製權限，然後重新啟動應用程式。",
+  "dialog.screen_capture_permission.message": "截圖需要螢幕錄製權限。",
+  "dialog.screen_capture_permission.open_settings": "開啟系統設定",
+  "dialog.screen_capture_permission.title": "螢幕錄製權限",
+  "dialog.screenshot_failed.message": "無法擷取螢幕截圖。",
+  "dialog.screenshot_failed.ok": "好",
+  "dialog.screenshot_failed.title": "截圖失敗",
+  "dialog.select_folder": "選擇資料夾",
+  "dialog.word_document": "Word 文件",
+  "file_processing.errors.document_size_limit_exceeded": "目前的文件解析服務要求檔案小於 {{maxSize}}。請壓縮或分割此檔案，然後重新加入。",
+  "file_processing.errors.pdf_page_limit_exceeded": "此 PDF 超過目前文件解析服務的 {{maxPages}} 頁限制。請手動分割 PDF，然後重新加入。",
+  "notification.action_required.agent": "Agent 需要你的回應",
+  "notification.action_required.assistant": "助手需要你的回應",
+  "notification.completion.agent": "Agent 任務已完成",
+  "notification.completion.assistant": "助手回覆已完成",
+  "openclaw.errors.binary_incompatible": "Cherry Studio 目前使用的 OpenClaw 與產生的設定不相容。請升級 OpenClaw。{{details}}",
+  "openclaw.errors.external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
+  "openclaw.errors.more_issues": "另有 {{count}} 個問題",
+  "openclaw.errors.preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。",
+  "paintings.generate_failed": "無法產生圖片",
+  "paintings.image_mix_failed": "無法混合圖片",
+  "selection.name": "選取文字助理",
+  "settings.mcp.oauth.callback.message": "關閉此頁面後即可回到 Cherry Studio",
+  "settings.mcp.oauth.callback.title": "認證成功",
+  "settings.title": "設定",
+  "tray.quit": "結束",
+  "tray.show_quick_assistant": "快速助理",
+  "tray.show_window": "顯示視窗"
 }

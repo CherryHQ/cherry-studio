@@ -122,8 +122,6 @@ export type QuickPanelListItem = {
   id?: string
   label: React.ReactNode | string
   description?: React.ReactNode | string
-  /** Render the description immediately after the label instead of in the trailing metadata column. */
-  inlineDescription?: boolean
   tooltip?: React.ReactNode | string
   /** In-row element used as the controlled Tooltip trigger. */
   tooltipAnchor?: React.ReactElement

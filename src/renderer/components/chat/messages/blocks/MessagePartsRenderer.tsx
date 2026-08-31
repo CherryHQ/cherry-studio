@@ -75,7 +75,7 @@ import {
   projectCompletedMessageParts,
   projectLiveMessageParts
 } from './messagePartLayouts'
-import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
+import { useMessageParts } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import RetryStatusBlock from './RetryStatusBlock'
@@ -504,7 +504,6 @@ function renderPart(
   partId: string,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean,
   options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
@@ -552,14 +551,7 @@ function renderPart(
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
-      return (
-        <TranslationBlock
-          key={partId}
-          id={partId}
-          content={translationData.content}
-          isStreaming={isStreaming || isTranslationOverlayActive}
-        />
-      )
+      return <TranslationBlock key={partId} id={partId} content={translationData.content} isStreaming={isStreaming} />
     }
 
     case 'text': {
@@ -814,7 +806,6 @@ function renderGroupedEntry(
   entry: GroupedEntry,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean,
   options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const enableAnimation = options?.enableAnimation ?? isStreaming
@@ -862,7 +853,7 @@ function renderGroupedEntry(
       const partId = `${message.id}-part-${firstEntry.index}`
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          {renderPart(firstEntry.part, partId, message, isStreaming, isTranslationOverlayActive)}
+          {renderPart(firstEntry.part, partId, message, isStreaming)}
         </AnimatedBlockWrapper>
       )
     }
@@ -871,7 +862,7 @@ function renderGroupedEntry(
   }
 
   const partId = `${message.id}-part-${entry.index}`
-  const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive, options)
+  const rendered = renderPart(entry.part, partId, message, isStreaming, options)
   if (!rendered) return null
 
   const wrapperClassName =
@@ -950,7 +941,6 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
 function renderNestedHistory(
   entries: readonly PartEntry[],
   message: MessageListItem,
-  isTranslationOverlayActive: boolean,
   options: RenderGroupedEntryOptions,
   liveProcessMode?: 'last' | 'settled'
 ): React.ReactNode {
@@ -967,15 +957,13 @@ function renderNestedHistory(
 
   return nestedItems.map((item, itemIndex) => {
     if (item.kind === 'content') {
-      return renderGroupedEntry(item.entry, message, false, isTranslationOverlayActive, options)
+      return renderGroupedEntry(item.entry, message, false, options)
     }
 
     if (options.toolDisplay !== 'disclosure') {
       return (
         <React.Fragment key={`process-${message.id}-${item.key}`}>
-          {groupPartEntries(item.entries).map((entry) =>
-            renderGroupedEntry(entry, message, false, isTranslationOverlayActive, options)
-          )}
+          {groupPartEntries(item.entries).map((entry) => renderGroupedEntry(entry, message, false, options))}
         </React.Fragment>
       )
     }
@@ -985,7 +973,7 @@ function renderNestedHistory(
       return (
         <React.Fragment key={`reasoning-${message.id}-${item.key}`}>
           {groupPartEntries(item.entries).map((entry) =>
-            renderGroupedEntry(entry, message, false, isTranslationOverlayActive, {
+            renderGroupedEntry(entry, message, false, {
               ...options,
               enableAnimation: false,
               reasoningDisplay: 'disclosure'
@@ -1010,7 +998,7 @@ function renderNestedHistory(
         <ToolBlockGroup items={toolItems} isLiveProgress={isLiveProgress} isThinking={isThinking}>
           <div className="flex w-full flex-col gap-1 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
             {groupPartEntries(item.entries).map((entry) =>
-              renderGroupedEntry(entry, message, false, isTranslationOverlayActive, {
+              renderGroupedEntry(entry, message, false, {
                 ...options,
                 enableAnimation: false,
                 reasoningDisplay: 'disclosure',
@@ -1061,18 +1049,16 @@ const MessageContentEntryView = React.memo(
     enableAnimation,
     entry,
     isStreaming,
-    isTranslationOverlayActive,
     message,
     renderOptions
   }: {
     enableAnimation: boolean
     entry: GroupedEntry
     isStreaming: boolean
-    isTranslationOverlayActive: boolean
     message: MessageListItem
     renderOptions: RenderGroupedEntryOptions
   }) {
-    return renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, {
+    return renderGroupedEntry(entry, message, isStreaming, {
       ...renderOptions,
       enableAnimation
     })
@@ -1080,7 +1066,6 @@ const MessageContentEntryView = React.memo(
   (previous, next) =>
     previous.enableAnimation === next.enableAnimation &&
     previous.isStreaming === next.isStreaming &&
-    previous.isTranslationOverlayActive === next.isTranslationOverlayActive &&
     previous.message.id === next.message.id &&
     previous.message.role === next.message.role &&
     previous.message.createdAt === next.message.createdAt &&
@@ -1095,14 +1080,12 @@ const ActiveMessageProcess = React.memo(
     items,
     hasResultContent,
     isStreamLive,
-    isTranslationOverlayActive,
     message,
     renderOptions
   }: {
     items: readonly LiveMessagePartLayoutItem[]
     hasResultContent: boolean
     isStreamLive: boolean
-    isTranslationOverlayActive: boolean
     message: MessageListItem
     renderOptions: RenderGroupedEntryOptions
   }) {
@@ -1126,7 +1109,6 @@ const ActiveMessageProcess = React.memo(
                 enableAnimation={false}
                 entry={item.entry}
                 isStreaming={false}
-                isTranslationOverlayActive={isTranslationOverlayActive}
                 message={message}
                 renderOptions={renderOptions}
               />
@@ -1139,7 +1121,6 @@ const ActiveMessageProcess = React.memo(
               {renderNestedHistory(
                 item.entries,
                 message,
-                isTranslationOverlayActive,
                 {
                   ...renderOptions,
                   enableAnimation: false,
@@ -1152,7 +1133,7 @@ const ActiveMessageProcess = React.memo(
           )
         })
       },
-      [hasResultContent, isStreamLive, isTranslationOverlayActive, items, message, renderOptions]
+      [hasResultContent, isStreamLive, items, message, renderOptions]
     )
 
     return (
@@ -1164,7 +1145,6 @@ const ActiveMessageProcess = React.memo(
   (previous, next) =>
     previous.hasResultContent === next.hasResultContent &&
     previous.isStreamLive === next.isStreamLive &&
-    previous.isTranslationOverlayActive === next.isTranslationOverlayActive &&
     previous.message.id === next.message.id &&
     previous.message.role === next.message.role &&
     previous.message.createdAt === next.message.createdAt &&
@@ -1184,7 +1164,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   entries,
   isActive,
   isStreamLive,
-  isTranslationOverlayActive,
   message,
   renderOptions
 }: {
@@ -1192,7 +1171,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
   entries: readonly PartEntry[]
   isActive: boolean
   isStreamLive: boolean
-  isTranslationOverlayActive: boolean
   message: MessageListItem
   renderOptions: RenderGroupedEntryOptions
 }) {
@@ -1231,7 +1209,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           enableAnimation={isStreamLive}
           entry={item.entry}
           isStreaming={openTextTailIndex === item.entry.index}
-          isTranslationOverlayActive={isTranslationOverlayActive}
           message={message}
           renderOptions={activeResultRenderOptions}
         />
@@ -1246,7 +1223,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
           items={liveProcessItems}
           hasResultContent={liveResultItems.length > 0}
           isStreamLive={isStreamLive}
-          isTranslationOverlayActive={isTranslationOverlayActive}
           message={message}
           renderOptions={renderOptions}
         />
@@ -1264,7 +1240,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
       ? renderNestedHistory(
           completedHistoryEntries,
           message,
-          isTranslationOverlayActive,
           collapseHistory
             ? {
                 ...completedRenderOptions,
@@ -1286,7 +1261,6 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
         enableAnimation={false}
         entry={entry}
         isStreaming={false}
-        isTranslationOverlayActive={isTranslationOverlayActive}
         message={message}
         renderOptions={completedRenderOptions}
       />
@@ -1357,7 +1331,6 @@ interface MessagePartsRendererContentProps extends Props {
   collapseCompletedToolHistory: boolean
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
-  isTranslationOverlayActive: boolean
   messageParts: CherryMessagePart[]
 }
 
@@ -1365,7 +1338,6 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   collapseCompletedToolHistory,
   isActiveTurnProcessing,
   isStreamLive,
-  isTranslationOverlayActive,
   message,
   messageParts
 }: MessagePartsRendererContentProps) {
@@ -1509,7 +1481,6 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         entries={displayEntries}
         isActive={isActiveTurnProcessing}
         isStreamLive={isStreamLive}
-        isTranslationOverlayActive={isTranslationOverlayActive}
         message={message}
         renderOptions={renderOptions}
       />
@@ -1537,7 +1508,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const isStreamLive =
     isActiveTurnProcessing &&
     (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
-  const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
   const { collapseCompletedToolHistory } = useMessageRenderConfig()
 
   return (
@@ -1545,7 +1515,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       collapseCompletedToolHistory={collapseCompletedToolHistory}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}
-      isTranslationOverlayActive={isTranslationOverlayActive}
       message={message}
       messageParts={messageParts}
     />

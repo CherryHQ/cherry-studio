@@ -1,186 +1,119 @@
 {
-  "agent": {
-    "builtin": {
-      "cherry_assistant": {
-        "description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități"
-      },
-      "cherry_support": {
-        "description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback"
-      }
-    },
-    "session": {
-      "new": "Sarcină nouă",
-      "run_status": {
-        "busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
-        "unavailable": "Sesiunea Agent nu mai este disponibilă."
-      },
-      "workspace_status": {
-        "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
-        "missing": "Calea către spațiul de lucru nu există: {{path}}",
-        "not_directory": "Calea spațiului de lucru nu este un director: {{path}}"
-      }
-    }
-  },
-  "apiGateway": {
-    "docs": {
-      "description": "API HTTP Cherry Studio compatibil cu OpenAI, Anthropic și Gemini, plus endpoint-urile proprii Cherry (modele, baze de cunoștințe)",
-      "language_switcher_label": "Limba documentației",
-      "operations": {
-        "chat_completions": "Creează o completare de conversație. Corpurile cererii și răspunsului respectă formatul OpenAI Chat Completions; cu `stream: true` rezultatul este transmis incremental.",
-        "count_tokens": "Estimează câte tokenuri de intrare consumă un set de mesaje în format Anthropic.",
-        "generate_content": "Generează conținut prin metoda `generateContent` a Gemini. Corpurile cererii și răspunsului respectă formatul API-ului Gemini; `streamGenerateContent` este servit pe aceeași cale.",
-        "get_knowledge_base": "Obține o bază de cunoștințe după ID.",
-        "get_mcp_server": "Obține detaliile unui server MCP și lista sa de instrumente.",
-        "health": "Starea serviciului, ora curentă și versiunea. Nu necesită autentificare.",
-        "info": "Numele și versiunea API-ului, precum și principalele endpoint-uri. Nu necesită autentificare.",
-        "list_knowledge_bases": "Listează bazele de cunoștințe disponibile în această instanță Cherry Studio.",
-        "list_mcp_servers": "Listează serverele MCP activate în Cherry Studio, fiecare cu URL-ul de conectare.",
-        "list_models": "Listează modelele disponibile prin acest gateway, în formatul models al OpenAI.",
-        "mcp_proxy": "Punct final Model Context Protocol pentru un server MCP (Streamable HTTP). Indică acest URL în orice client MCP pentru a utiliza serverul prin Cherry Studio.",
-        "messages": "Creează un mesaj. Corpurile cererii și răspunsului respectă formatul Anthropic Messages; cu `stream: true` rezultatul este transmis incremental.",
-        "responses": "Creează un răspuns. Corpurile cererii și răspunsului respectă formatul OpenAI Responses.",
-        "search_knowledge_bases": "Caută în una sau mai multe baze de cunoștințe și returnează fragmentele de document potrivite."
-      },
-      "tags": {
-        "anthropic": "Endpoint-uri compatibile cu Anthropic. Îndreaptă URL-ul de bază al unui SDK Anthropic către acest gateway pentru a le folosi.",
-        "cherry": "Endpoint-urile proprii Cherry Studio: baze de cunoștințe, informații despre serviciu și verificare de stare.",
-        "gemini": "Endpoint-uri compatibile cu Gemini, servite sub `/v1beta`, ca în API-ul original.",
-        "openai": "Endpoint-uri compatibile cu OpenAI. Îndreaptă URL-ul de bază al unui SDK OpenAI către acest gateway pentru a le folosi."
-      }
-    }
-  },
-  "appMenu": {
-    "about": "Despre",
-    "close": "Închide fereastra",
-    "copy": "Copiază",
-    "cut": "Decupează",
-    "delete": "Șterge",
-    "documentation": "Documentație",
-    "edit": "Editare",
-    "feedback": "Feedback",
-    "file": "Fișier",
-    "forceReload": "Reîncărcare forțată",
-    "front": "Adu toate în față",
-    "help": "Ajutor",
-    "hide": "Ascunde",
-    "hideOthers": "Ascunde celelalte",
-    "minimize": "Minimizează",
-    "paste": "Lipește",
-    "quit": "Ieșire",
-    "redo": "Refă",
-    "releases": "Lansări",
-    "reload": "Reîncarcă",
-    "resetZoom": "Dimensiune reală",
-    "selectAll": "Selectează tot",
-    "services": "Servicii",
-    "toggleDevTools": "Comută instrumentele pentru dezvoltatori",
-    "toggleFullscreen": "Comută ecranul complet",
-    "undo": "Anulează",
-    "unhide": "Afișează toate",
-    "view": "Vizualizare",
-    "website": "Site web",
-    "window": "Fereastră",
-    "zoom": "Zoom",
-    "zoomIn": "Mărește",
-    "zoomOut": "Micșorează"
-  },
-  "chat": {
-    "conversation": {
-      "new": "Conversație nouă"
-    }
-  },
-  "common": {
-    "channel_available_commands": "Comenzi disponibile:",
-    "channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",
-    "channel_message_processing_error": "⚠️ A apărut o eroare la procesarea mesajului dvs. Încercați din nou mai târziu.",
-    "channel_new_session_created": "Sesiune nouă creată.",
-    "channel_no_active_session": "Nu există nicio sesiune activă.",
-    "channel_session_compacted": "Sesiune compactată.",
-    "channel_session_resolution_error": "⚠️ Nu s-a putut rezolva o sesiune pentru acest agent. Încercați din nou mai târziu.",
-    "copy": "Copiază",
-    "cut": "Decupează",
-    "inspect": "Inspectează",
-    "paste": "Lipește"
-  },
-  "dialog": {
-    "all_files": "Toate fișierele",
-    "data_reset": {
-      "cancel": "Anulează",
-      "confirm": "Resetează și repornește",
-      "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
-      "title": "Resetarea datelor aplicației"
-    },
-    "diagnostic_bundle": {
-      "title": "Salvează pachetul de diagnosticare",
-      "zip_filter": "Arhivă ZIP"
-    },
-    "html_files": "Fișiere HTML",
-    "open_file": "Deschide fișier",
-    "pdf_files": "Fișiere PDF",
-    "png_image": "Imagine PNG",
-    "save_as_html": "Salvează ca HTML",
-    "save_as_pdf": "Salvează ca PDF",
-    "save_file": "Salvează fișier",
-    "screen_capture_permission": {
-      "cancel": "Anulează",
-      "detail": "Acordați aplicației „{{appName}}” permisiunea de înregistrare a ecranului în Configurări sistem > Confidențialitate și securitate > Înregistrare ecran, apoi reporniți aplicația.",
-      "message": "Este necesară permisiunea de înregistrare a ecranului pentru a realiza capturi de ecran.",
-      "open_settings": "Deschide Configurări sistem",
-      "title": "Permisiune de înregistrare a ecranului"
-    },
-    "screenshot_failed": {
-      "message": "Captura de ecran nu a putut fi realizată.",
-      "ok": "OK",
-      "title": "Captura de ecran a eșuat"
-    },
-    "select_folder": "Selectează directorul",
-    "word_document": "Document Word"
-  },
-  "file_processing": {
-    "errors": {
-      "document_size_limit_exceeded": "Serviciul curent de analiză a documentelor necesită fișiere mai mici de {{maxSize}}. Comprimă sau împarte acest fișier, apoi adaugă-l din nou.",
-      "pdf_page_limit_exceeded": "Acest PDF depășește limita de {{maxPages}} pagini pentru serviciul curent de analiză a documentelor. Împarte manual PDF-ul, apoi adaugă-l din nou."
-    }
-  },
-  "notification": {
-    "action_required": {
-      "agent": "Agentul are nevoie de intervenția ta",
-      "assistant": "Asistentul are nevoie de intervenția ta"
-    },
-    "completion": {
-      "agent": "Sarcina agentului a fost finalizată",
-      "assistant": "Răspunsul asistentului a fost finalizat"
-    }
-  },
-  "openclaw": {
-    "errors": {
-      "binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizează OpenClaw.{{details}}",
-      "external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectează configurația respectivă sau actualizează OpenClaw.{{details}}",
-      "more_issues": "și alte {{count}} probleme",
-      "preflight_failed": "Cherry Studio nu a putut valida configurația OpenClaw."
-    }
-  },
-  "paintings": {
-    "generate_failed": "Nu s-a putut genera imaginea",
-    "image_mix_failed": "Nu s-au putut combina imaginile"
-  },
-  "selection": {
-    "name": "Asistent de selecție"
-  },
-  "settings": {
-    "mcp": {
-      "oauth": {
-        "callback": {
-          "message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
-          "title": "Autentificare reușită"
-        }
-      }
-    },
-    "title": "Setări"
-  },
-  "tray": {
-    "quit": "Ieșire",
-    "show_quick_assistant": "Asistent rapid",
-    "show_window": "Afișează fereastra"
-  }
+  "agent.builtin.cherry_assistant.description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități",
+  "agent.builtin.cherry_support.description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback",
+  "agent.session.new": "Sarcină nouă",
+  "agent.session.run_status.busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
+  "agent.session.run_status.unavailable": "Sesiunea Agent nu mai este disponibilă.",
+  "agent.session.workspace_status.inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
+  "agent.session.workspace_status.missing": "Calea către spațiul de lucru nu există: {{path}}",
+  "agent.session.workspace_status.not_directory": "Calea spațiului de lucru nu este un director: {{path}}",
+  "apiGateway.docs.description": "API HTTP Cherry Studio compatibil cu OpenAI, Anthropic și Gemini, plus endpoint-urile proprii Cherry (modele, baze de cunoștințe)",
+  "apiGateway.docs.language_switcher_label": "Limba documentației",
+  "apiGateway.docs.operations.chat_completions": "Creează o completare de conversație. Corpurile cererii și răspunsului respectă formatul OpenAI Chat Completions; cu `stream: true` rezultatul este transmis incremental.",
+  "apiGateway.docs.operations.count_tokens": "Estimează câte tokenuri de intrare consumă un set de mesaje în format Anthropic.",
+  "apiGateway.docs.operations.generate_content": "Generează conținut prin metoda `generateContent` a Gemini. Corpurile cererii și răspunsului respectă formatul API-ului Gemini; `streamGenerateContent` este servit pe aceeași cale.",
+  "apiGateway.docs.operations.get_knowledge_base": "Obține o bază de cunoștințe după ID.",
+  "apiGateway.docs.operations.get_mcp_server": "Obține detaliile unui server MCP și lista sa de instrumente.",
+  "apiGateway.docs.operations.health": "Starea serviciului, ora curentă și versiunea. Nu necesită autentificare.",
+  "apiGateway.docs.operations.info": "Numele și versiunea API-ului, precum și principalele endpoint-uri. Nu necesită autentificare.",
+  "apiGateway.docs.operations.list_knowledge_bases": "Listează bazele de cunoștințe disponibile în această instanță Cherry Studio.",
+  "apiGateway.docs.operations.list_mcp_servers": "Listează serverele MCP activate în Cherry Studio, fiecare cu URL-ul de conectare.",
+  "apiGateway.docs.operations.list_models": "Listează modelele disponibile prin acest gateway, în formatul models al OpenAI.",
+  "apiGateway.docs.operations.mcp_proxy": "Punct final Model Context Protocol pentru un server MCP (Streamable HTTP). Indică acest URL în orice client MCP pentru a utiliza serverul prin Cherry Studio.",
+  "apiGateway.docs.operations.messages": "Creează un mesaj. Corpurile cererii și răspunsului respectă formatul Anthropic Messages; cu `stream: true` rezultatul este transmis incremental.",
+  "apiGateway.docs.operations.responses": "Creează un răspuns. Corpurile cererii și răspunsului respectă formatul OpenAI Responses.",
+  "apiGateway.docs.operations.search_knowledge_bases": "Caută în una sau mai multe baze de cunoștințe și returnează fragmentele de document potrivite.",
+  "apiGateway.docs.tags.anthropic": "Endpoint-uri compatibile cu Anthropic. Îndreaptă URL-ul de bază al unui SDK Anthropic către acest gateway pentru a le folosi.",
+  "apiGateway.docs.tags.cherry": "Endpoint-urile proprii Cherry Studio: baze de cunoștințe, informații despre serviciu și verificare de stare.",
+  "apiGateway.docs.tags.gemini": "Endpoint-uri compatibile cu Gemini, servite sub `/v1beta`, ca în API-ul original.",
+  "apiGateway.docs.tags.openai": "Endpoint-uri compatibile cu OpenAI. Îndreaptă URL-ul de bază al unui SDK OpenAI către acest gateway pentru a le folosi.",
+  "appMenu.about": "Despre",
+  "appMenu.close": "Închide fereastra",
+  "appMenu.copy": "Copiază",
+  "appMenu.cut": "Decupează",
+  "appMenu.delete": "Șterge",
+  "appMenu.documentation": "Documentație",
+  "appMenu.edit": "Editare",
+  "appMenu.feedback": "Feedback",
+  "appMenu.file": "Fișier",
+  "appMenu.forceReload": "Reîncărcare forțată",
+  "appMenu.front": "Adu toate în față",
+  "appMenu.help": "Ajutor",
+  "appMenu.hide": "Ascunde",
+  "appMenu.hideOthers": "Ascunde celelalte",
+  "appMenu.minimize": "Minimizează",
+  "appMenu.paste": "Lipește",
+  "appMenu.quit": "Ieșire",
+  "appMenu.redo": "Refă",
+  "appMenu.releases": "Lansări",
+  "appMenu.reload": "Reîncarcă",
+  "appMenu.resetZoom": "Dimensiune reală",
+  "appMenu.selectAll": "Selectează tot",
+  "appMenu.services": "Servicii",
+  "appMenu.toggleDevTools": "Comută instrumentele pentru dezvoltatori",
+  "appMenu.toggleFullscreen": "Comută ecranul complet",
+  "appMenu.undo": "Anulează",
+  "appMenu.unhide": "Afișează toate",
+  "appMenu.view": "Vizualizare",
+  "appMenu.website": "Site web",
+  "appMenu.window": "Fereastră",
+  "appMenu.zoom": "Zoom",
+  "appMenu.zoomIn": "Mărește",
+  "appMenu.zoomOut": "Micșorează",
+  "chat.conversation.new": "Conversație nouă",
+  "common.channel_available_commands": "Comenzi disponibile:",
+  "common.channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",
+  "common.channel_message_processing_error": "⚠️ A apărut o eroare la procesarea mesajului dvs. Încercați din nou mai târziu.",
+  "common.channel_new_session_created": "Sesiune nouă creată.",
+  "common.channel_no_active_session": "Nu există nicio sesiune activă.",
+  "common.channel_session_compacted": "Sesiune compactată.",
+  "common.channel_session_resolution_error": "⚠️ Nu s-a putut rezolva o sesiune pentru acest agent. Încercați din nou mai târziu.",
+  "common.copy": "Copiază",
+  "common.cut": "Decupează",
+  "common.inspect": "Inspectează",
+  "common.paste": "Lipește",
+  "dialog.all_files": "Toate fișierele",
+  "dialog.data_reset.cancel": "Anulează",
+  "dialog.data_reset.confirm": "Resetează și repornește",
+  "dialog.data_reset.message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
+  "dialog.data_reset.title": "Resetarea datelor aplicației",
+  "dialog.diagnostic_bundle.title": "Salvează pachetul de diagnosticare",
+  "dialog.diagnostic_bundle.zip_filter": "Arhivă ZIP",
+  "dialog.html_files": "Fișiere HTML",
+  "dialog.mini_app_export": "Exportă din {{name}}",
+  "dialog.open_file": "Deschide fișier",
+  "dialog.pdf_files": "Fișiere PDF",
+  "dialog.png_image": "Imagine PNG",
+  "dialog.save_as_html": "Salvează ca HTML",
+  "dialog.save_as_pdf": "Salvează ca PDF",
+  "dialog.save_file": "Salvează fișier",
+  "dialog.screen_capture_permission.cancel": "Anulează",
+  "dialog.screen_capture_permission.detail": "Acordați aplicației „{{appName}}” permisiunea de înregistrare a ecranului în Configurări sistem > Confidențialitate și securitate > Înregistrare ecran, apoi reporniți aplicația.",
+  "dialog.screen_capture_permission.message": "Este necesară permisiunea de înregistrare a ecranului pentru a realiza capturi de ecran.",
+  "dialog.screen_capture_permission.open_settings": "Deschide Configurări sistem",
+  "dialog.screen_capture_permission.title": "Permisiune de înregistrare a ecranului",
+  "dialog.screenshot_failed.message": "Captura de ecran nu a putut fi realizată.",
+  "dialog.screenshot_failed.ok": "OK",
+  "dialog.screenshot_failed.title": "Captura de ecran a eșuat",
+  "dialog.select_folder": "Selectează directorul",
+  "dialog.word_document": "Document Word",
+  "file_processing.errors.document_size_limit_exceeded": "Serviciul curent de analiză a documentelor necesită fișiere mai mici de {{maxSize}}. Comprimă sau împarte acest fișier, apoi adaugă-l din nou.",
+  "file_processing.errors.pdf_page_limit_exceeded": "Acest PDF depășește limita de {{maxPages}} pagini pentru serviciul curent de analiză a documentelor. Împarte manual PDF-ul, apoi adaugă-l din nou.",
+  "notification.action_required.agent": "Agentul are nevoie de intervenția ta",
+  "notification.action_required.assistant": "Asistentul are nevoie de intervenția ta",
+  "notification.completion.agent": "Sarcina agentului a fost finalizată",
+  "notification.completion.assistant": "Răspunsul asistentului a fost finalizat",
+  "openclaw.errors.binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizează OpenClaw.{{details}}",
+  "openclaw.errors.external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectează configurația respectivă sau actualizează OpenClaw.{{details}}",
+  "openclaw.errors.more_issues": "și alte {{count}} probleme",
+  "openclaw.errors.preflight_failed": "Cherry Studio nu a putut valida configurația OpenClaw.",
+  "paintings.generate_failed": "Nu s-a putut genera imaginea",
+  "paintings.image_mix_failed": "Nu s-au putut combina imaginile",
+  "selection.name": "Asistent de selecție",
+  "settings.mcp.oauth.callback.message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
+  "settings.mcp.oauth.callback.title": "Autentificare reușită",
+  "settings.title": "Setări",
+  "tray.quit": "Ieșire",
+  "tray.show_quick_assistant": "Asistent rapid",
+  "tray.show_window": "Afișează fereastra"
 }

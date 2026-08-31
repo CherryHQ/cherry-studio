@@ -7,7 +7,6 @@
 !cherry-pr-test
 !cherry-regression-test
 !create-skill
-!demand-first-review
 !gh-create-issue
 !gh-create-pr
 !gh-pr-review

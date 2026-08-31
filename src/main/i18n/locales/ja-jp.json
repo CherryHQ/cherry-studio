@@ -1,186 +1,119 @@
 {
-  "agent": {
-    "builtin": {
-      "cherry_assistant": {
-        "description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。"
-      },
-      "cherry_support": {
-        "description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent"
-      }
-    },
-    "session": {
-      "new": "新しいタスク",
-      "run_status": {
-        "busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
-        "unavailable": "Agent セッションは利用できなくなりました。"
-      },
-      "workspace_status": {
-        "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
-        "missing": "ワークスペースパスが存在しません: {{path}}",
-        "not_directory": "ワークスペースパスがフォルダーではありません: {{path}}"
-      }
-    }
-  },
-  "apiGateway": {
-    "docs": {
-      "description": "OpenAI・Anthropic・Gemini 互換の Cherry Studio HTTP API と、Cherry 独自のエンドポイント（モデル、ナレッジベース）",
-      "language_switcher_label": "ドキュメントの言語",
-      "operations": {
-        "chat_completions": "チャット補完を作成します。リクエストとレスポンスの形式は OpenAI Chat Completions と同じで、`stream: true` を指定すると逐次出力になります。",
-        "count_tokens": "Anthropic 形式のメッセージが消費する入力トークン数を見積もります。",
-        "generate_content": "Gemini の `generateContent` メソッドでコンテンツを生成します。リクエストとレスポンスの形式は Gemini API と同じで、`streamGenerateContent` も同じパスで提供されます。",
-        "get_knowledge_base": "ID を指定してナレッジベースを 1 件取得します。",
-        "get_mcp_server": "MCP サーバーの詳細とツール一覧を取得します。",
-        "health": "サービスの稼働状態、現在時刻、バージョンを返します。認証は不要です。",
-        "info": "API の名称・バージョンと主要なエンドポイントを返します。認証は不要です。",
-        "list_knowledge_bases": "この Cherry Studio で利用できるナレッジベースの一覧を返します。",
-        "list_mcp_servers": "Cherry Studio で有効になっている MCP サーバーを、接続用 URL とともに一覧表示します。",
-        "list_models": "このゲートウェイで利用できるモデルを OpenAI の models 形式で一覧表示します。",
-        "mcp_proxy": "MCP サーバー用の Model Context Protocol エンドポイント (Streamable HTTP)。任意の MCP クライアントでこの URL を指定すると、Cherry Studio 経由でサーバーを使用できます。",
-        "messages": "メッセージを作成します。リクエストとレスポンスの形式は Anthropic Messages と同じで、`stream: true` を指定すると逐次出力になります。",
-        "responses": "レスポンスを作成します。リクエストとレスポンスの形式は OpenAI Responses と同じです。",
-        "search_knowledge_bases": "1 つ以上のナレッジベースを検索し、該当するドキュメントの断片を返します。"
-      },
-      "tags": {
-        "anthropic": "Anthropic 互換のエンドポイントです。Anthropic SDK のベース URL をこのゲートウェイに向けると利用できます。",
-        "cherry": "Cherry Studio 独自のエンドポイント：ナレッジベース、サービス情報、ヘルスチェック。",
-        "gemini": "Gemini 互換のエンドポイントです。本家と同じく `/v1beta` 以下で提供されます。",
-        "openai": "OpenAI 互換のエンドポイントです。OpenAI SDK のベース URL をこのゲートウェイに向けると利用できます。"
-      }
-    }
-  },
-  "appMenu": {
-    "about": "について",
-    "close": "ウィンドウを閉じる",
-    "copy": "コピー",
-    "cut": "切り取り",
-    "delete": "削除",
-    "documentation": "ドキュメント",
-    "edit": "編集",
-    "feedback": "フィードバック",
-    "file": "ファイル",
-    "forceReload": "強制再読み込み",
-    "front": "すべてを前面に移動",
-    "help": "ヘルプ",
-    "hide": "Cherry Studio を隠す",
-    "hideOthers": "ほかを隠す",
-    "minimize": "最小化",
-    "paste": "ペースト",
-    "quit": "Cherry Studio を終了",
-    "redo": "やり直し",
-    "releases": "リリース",
-    "reload": "リロード",
-    "resetZoom": "実寸",
-    "selectAll": "すべて選択",
-    "services": "サービス",
-    "toggleDevTools": "開発者ツールを切り替え",
-    "toggleFullscreen": "全画面表示を切り替え",
-    "undo": "元に戻す",
-    "unhide": "すべて表示",
-    "view": "表示",
-    "website": "ウェブサイト",
-    "window": "ウィンドウ",
-    "zoom": "ズーム",
-    "zoomIn": "ズームイン",
-    "zoomOut": "ズームアウト"
-  },
-  "chat": {
-    "conversation": {
-      "new": "新しいチャット"
-    }
-  },
-  "common": {
-    "channel_available_commands": "利用可能なコマンド：",
-    "channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
-    "channel_message_processing_error": "⚠️ メッセージの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
-    "channel_new_session_created": "新しいセッションを作成しました。",
-    "channel_no_active_session": "アクティブなセッションがありません。",
-    "channel_session_compacted": "セッションを圧縮しました。",
-    "channel_session_resolution_error": "⚠️ このエージェントのセッションを解決できませんでした。しばらくしてからもう一度お試しください。",
-    "copy": "コピー",
-    "cut": "切り取り",
-    "inspect": "要素を調査",
-    "paste": "貼り付け"
-  },
-  "dialog": {
-    "all_files": "すべてのファイル",
-    "data_reset": {
-      "cancel": "キャンセル",
-      "confirm": "リセットして再起動",
-      "message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
-      "title": "アプリデータをリセット"
-    },
-    "diagnostic_bundle": {
-      "title": "診断バンドルを保存",
-      "zip_filter": "ZIP アーカイブ"
-    },
-    "html_files": "HTMLファイル",
-    "open_file": "ファイルを開く",
-    "pdf_files": "PDFファイル",
-    "png_image": "PNG画像",
-    "save_as_html": "HTMLとして保存",
-    "save_as_pdf": "PDFとして保存",
-    "save_file": "ファイルを保存",
-    "screen_capture_permission": {
-      "cancel": "キャンセル",
-      "detail": "システム設定の「プライバシーとセキュリティ」>「画面収録」で「{{appName}}」に画面収録の権限を付与し、アプリを再起動してください。",
-      "message": "スクリーンショットを撮るには画面収録の権限が必要です。",
-      "open_settings": "システム設定を開く",
-      "title": "画面収録の権限"
-    },
-    "screenshot_failed": {
-      "message": "スクリーンショットを撮れませんでした。",
-      "ok": "OK",
-      "title": "スクリーンショットに失敗しました"
-    },
-    "select_folder": "フォルダーを選択",
-    "word_document": "ワード文書"
-  },
-  "file_processing": {
-    "errors": {
-      "document_size_limit_exceeded": "現在のドキュメント解析サービスでは、{{maxSize}} 未満のファイルが必要です。このファイルを圧縮または分割してから、もう一度追加してください。",
-      "pdf_page_limit_exceeded": "この PDF は、現在のドキュメント解析サービスの {{maxPages}} ページ制限を超えています。PDF を手動で分割してから、もう一度追加してください。"
-    }
-  },
-  "notification": {
-    "action_required": {
-      "agent": "Agent があなたの入力を待っています",
-      "assistant": "アシスタントがあなたの入力を待っています"
-    },
-    "completion": {
-      "agent": "Agent タスクが完了しました",
-      "assistant": "アシスタントの応答が完了しました"
-    }
-  },
-  "openclaw": {
-    "errors": {
-      "binary_incompatible": "Cherry Studio が使用している OpenClaw バイナリは、生成された設定と互換性がありません。OpenClaw をアップグレードしてください。{{details}}",
-      "external_config_invalid": "OpenClaw は、Cherry Studio の管理対象プロバイダーセクション外の設定を拒否しました。その設定を修正するか、OpenClaw をアップグレードしてください。{{details}}",
-      "more_issues": "ほか {{count}} 件の問題",
-      "preflight_failed": "Cherry Studio は OpenClaw の設定を検証できませんでした。"
-    }
-  },
-  "paintings": {
-    "generate_failed": "画像の生成に失敗しました",
-    "image_mix_failed": "画像の混合に失敗しました"
-  },
-  "selection": {
-    "name": "テキスト選択ツール"
-  },
-  "settings": {
-    "mcp": {
-      "oauth": {
-        "callback": {
-          "message": "このページを閉じてCherry Studioに戻ることができます",
-          "title": "認証成功"
-        }
-      }
-    },
-    "title": "設定"
-  },
-  "tray": {
-    "quit": "終了",
-    "show_quick_assistant": "クイックアシスタント",
-    "show_window": "ウィンドウを表示"
-  }
+  "agent.builtin.cherry_assistant.description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。",
+  "agent.builtin.cherry_support.description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent",
+  "agent.session.new": "新しいタスク",
+  "agent.session.run_status.busy": "Agent セッションは処理中です。しばらくしてからもう一度お試しください。",
+  "agent.session.run_status.unavailable": "Agent セッションは利用できなくなりました。",
+  "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
+  "agent.session.workspace_status.missing": "ワークスペースパスが存在しません: {{path}}",
+  "agent.session.workspace_status.not_directory": "ワークスペースパスがフォルダーではありません: {{path}}",
+  "apiGateway.docs.description": "OpenAI・Anthropic・Gemini 互換の Cherry Studio HTTP API と、Cherry 独自のエンドポイント（モデル、ナレッジベース）",
+  "apiGateway.docs.language_switcher_label": "ドキュメントの言語",
+  "apiGateway.docs.operations.chat_completions": "チャット補完を作成します。リクエストとレスポンスの形式は OpenAI Chat Completions と同じで、`stream: true` を指定すると逐次出力になります。",
+  "apiGateway.docs.operations.count_tokens": "Anthropic 形式のメッセージが消費する入力トークン数を見積もります。",
+  "apiGateway.docs.operations.generate_content": "Gemini の `generateContent` メソッドでコンテンツを生成します。リクエストとレスポンスの形式は Gemini API と同じで、`streamGenerateContent` も同じパスで提供されます。",
+  "apiGateway.docs.operations.get_knowledge_base": "ID を指定してナレッジベースを 1 件取得します。",
+  "apiGateway.docs.operations.get_mcp_server": "MCP サーバーの詳細とツール一覧を取得します。",
+  "apiGateway.docs.operations.health": "サービスの稼働状態、現在時刻、バージョンを返します。認証は不要です。",
+  "apiGateway.docs.operations.info": "API の名称・バージョンと主要なエンドポイントを返します。認証は不要です。",
+  "apiGateway.docs.operations.list_knowledge_bases": "この Cherry Studio で利用できるナレッジベースの一覧を返します。",
+  "apiGateway.docs.operations.list_mcp_servers": "Cherry Studio で有効になっている MCP サーバーを、接続用 URL とともに一覧表示します。",
+  "apiGateway.docs.operations.list_models": "このゲートウェイで利用できるモデルを OpenAI の models 形式で一覧表示します。",
+  "apiGateway.docs.operations.mcp_proxy": "MCP サーバー用の Model Context Protocol エンドポイント (Streamable HTTP)。任意の MCP クライアントでこの URL を指定すると、Cherry Studio 経由でサーバーを使用できます。",
+  "apiGateway.docs.operations.messages": "メッセージを作成します。リクエストとレスポンスの形式は Anthropic Messages と同じで、`stream: true` を指定すると逐次出力になります。",
+  "apiGateway.docs.operations.responses": "レスポンスを作成します。リクエストとレスポンスの形式は OpenAI Responses と同じです。",
+  "apiGateway.docs.operations.search_knowledge_bases": "1 つ以上のナレッジベースを検索し、該当するドキュメントの断片を返します。",
+  "apiGateway.docs.tags.anthropic": "Anthropic 互換のエンドポイントです。Anthropic SDK のベース URL をこのゲートウェイに向けると利用できます。",
+  "apiGateway.docs.tags.cherry": "Cherry Studio 独自のエンドポイント：ナレッジベース、サービス情報、ヘルスチェック。",
+  "apiGateway.docs.tags.gemini": "Gemini 互換のエンドポイントです。本家と同じく `/v1beta` 以下で提供されます。",
+  "apiGateway.docs.tags.openai": "OpenAI 互換のエンドポイントです。OpenAI SDK のベース URL をこのゲートウェイに向けると利用できます。",
+  "appMenu.about": "について",
+  "appMenu.close": "ウィンドウを閉じる",
+  "appMenu.copy": "コピー",
+  "appMenu.cut": "切り取り",
+  "appMenu.delete": "削除",
+  "appMenu.documentation": "ドキュメント",
+  "appMenu.edit": "編集",
+  "appMenu.feedback": "フィードバック",
+  "appMenu.file": "ファイル",
+  "appMenu.forceReload": "強制再読み込み",
+  "appMenu.front": "すべてを前面に移動",
+  "appMenu.help": "ヘルプ",
+  "appMenu.hide": "Cherry Studio を隠す",
+  "appMenu.hideOthers": "ほかを隠す",
+  "appMenu.minimize": "最小化",
+  "appMenu.paste": "ペースト",
+  "appMenu.quit": "Cherry Studio を終了",
+  "appMenu.redo": "やり直し",
+  "appMenu.releases": "リリース",
+  "appMenu.reload": "リロード",
+  "appMenu.resetZoom": "実寸",
+  "appMenu.selectAll": "すべて選択",
+  "appMenu.services": "サービス",
+  "appMenu.toggleDevTools": "開発者ツールを切り替え",
+  "appMenu.toggleFullscreen": "全画面表示を切り替え",
+  "appMenu.undo": "元に戻す",
+  "appMenu.unhide": "すべて表示",
+  "appMenu.view": "表示",
+  "appMenu.website": "ウェブサイト",
+  "appMenu.window": "ウィンドウ",
+  "appMenu.zoom": "ズーム",
+  "appMenu.zoomIn": "ズームイン",
+  "appMenu.zoomOut": "ズームアウト",
+  "chat.conversation.new": "新しいチャット",
+  "common.channel_available_commands": "利用可能なコマンド：",
+  "common.channel_command_processing_error": "⚠️ コマンドの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+  "common.channel_message_processing_error": "⚠️ メッセージの処理中にエラーが発生しました。しばらくしてからもう一度お試しください。",
+  "common.channel_new_session_created": "新しいセッションを作成しました。",
+  "common.channel_no_active_session": "アクティブなセッションがありません。",
+  "common.channel_session_compacted": "セッションを圧縮しました。",
+  "common.channel_session_resolution_error": "⚠️ このエージェントのセッションを解決できませんでした。しばらくしてからもう一度お試しください。",
+  "common.copy": "コピー",
+  "common.cut": "切り取り",
+  "common.inspect": "要素を調査",
+  "common.paste": "貼り付け",
+  "dialog.all_files": "すべてのファイル",
+  "dialog.data_reset.cancel": "キャンセル",
+  "dialog.data_reset.confirm": "リセットして再起動",
+  "dialog.data_reset.message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
+  "dialog.data_reset.title": "アプリデータをリセット",
+  "dialog.diagnostic_bundle.title": "診断バンドルを保存",
+  "dialog.diagnostic_bundle.zip_filter": "ZIP アーカイブ",
+  "dialog.html_files": "HTMLファイル",
+  "dialog.mini_app_export": "{{name}} から書き出す",
+  "dialog.open_file": "ファイルを開く",
+  "dialog.pdf_files": "PDFファイル",
+  "dialog.png_image": "PNG画像",
+  "dialog.save_as_html": "HTMLとして保存",
+  "dialog.save_as_pdf": "PDFとして保存",
+  "dialog.save_file": "ファイルを保存",
+  "dialog.screen_capture_permission.cancel": "キャンセル",
+  "dialog.screen_capture_permission.detail": "システム設定の「プライバシーとセキュリティ」>「画面収録」で「{{appName}}」に画面収録の権限を付与し、アプリを再起動してください。",
+  "dialog.screen_capture_permission.message": "スクリーンショットを撮るには画面収録の権限が必要です。",
+  "dialog.screen_capture_permission.open_settings": "システム設定を開く",
+  "dialog.screen_capture_permission.title": "画面収録の権限",
+  "dialog.screenshot_failed.message": "スクリーンショットを撮れませんでした。",
+  "dialog.screenshot_failed.ok": "OK",
+  "dialog.screenshot_failed.title": "スクリーンショットに失敗しました",
+  "dialog.select_folder": "フォルダーを選択",
+  "dialog.word_document": "ワード文書",
+  "file_processing.errors.document_size_limit_exceeded": "現在のドキュメント解析サービスでは、{{maxSize}} 未満のファイルが必要です。このファイルを圧縮または分割してから、もう一度追加してください。",
+  "file_processing.errors.pdf_page_limit_exceeded": "この PDF は、現在のドキュメント解析サービスの {{maxPages}} ページ制限を超えています。PDF を手動で分割してから、もう一度追加してください。",
+  "notification.action_required.agent": "Agent があなたの入力を待っています",
+  "notification.action_required.assistant": "アシスタントがあなたの入力を待っています",
+  "notification.completion.agent": "Agent タスクが完了しました",
+  "notification.completion.assistant": "アシスタントの応答が完了しました",
+  "openclaw.errors.binary_incompatible": "Cherry Studio が使用している OpenClaw バイナリは、生成された設定と互換性がありません。OpenClaw をアップグレードしてください。{{details}}",
+  "openclaw.errors.external_config_invalid": "OpenClaw は、Cherry Studio の管理対象プロバイダーセクション外の設定を拒否しました。その設定を修正するか、OpenClaw をアップグレードしてください。{{details}}",
+  "openclaw.errors.more_issues": "ほか {{count}} 件の問題",
+  "openclaw.errors.preflight_failed": "Cherry Studio は OpenClaw の設定を検証できませんでした。",
+  "paintings.generate_failed": "画像の生成に失敗しました",
+  "paintings.image_mix_failed": "画像の混合に失敗しました",
+  "selection.name": "テキスト選択ツール",
+  "settings.mcp.oauth.callback.message": "このページを閉じてCherry Studioに戻ることができます",
+  "settings.mcp.oauth.callback.title": "認証成功",
+  "settings.title": "設定",
+  "tray.quit": "終了",
+  "tray.show_quick_assistant": "クイックアシスタント",
+  "tray.show_window": "ウィンドウを表示"
 }

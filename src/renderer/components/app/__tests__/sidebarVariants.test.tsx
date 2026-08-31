@@ -122,4 +122,78 @@ describe('sidebarVariants icons', () => {
 
     expect(screen.getByTestId('icon')).not.toHaveTextContent('⭐️')
   })
+
+  describe('onOpen and onOpenNewTab actions', () => {
+    it('wires openApp with and without inNewTab for app variant', () => {
+      const openApp = vi.fn()
+      const ctx = createContext({ openApp })
+      const appFavorite: SidebarFavoriteItem = { type: 'app', id: 'assistants' }
+
+      const entry = resolveSidebarEntry(appFavorite, ctx)
+      expect(entry).not.toBeNull()
+
+      entry?.onOpen()
+      expect(openApp).toHaveBeenCalledWith('assistants')
+
+      entry?.onOpenNewTab?.()
+      expect(openApp).toHaveBeenCalledWith('assistants', { inNewTab: true })
+    })
+
+    it('wires openMiniApp with and without inNewTab for mini_app variant', () => {
+      const openMiniApp = vi.fn()
+      const miniApp = {
+        appId: 'mini-1',
+        name: 'Mini App',
+        url: 'https://example.com'
+      } as MiniApp
+      const ctx = createContext({
+        openMiniApp,
+        installedMiniApps: new Map([['mini-1', miniApp]])
+      })
+      const favorite: SidebarFavoriteItem = { type: 'mini_app', id: 'mini-1' }
+
+      const entry = resolveSidebarEntry(favorite, ctx)
+      expect(entry).not.toBeNull()
+
+      entry?.onOpen()
+      expect(openMiniApp).toHaveBeenCalledWith('mini-1')
+
+      entry?.onOpenNewTab?.()
+      expect(openMiniApp).toHaveBeenCalledWith('mini-1', { inNewTab: true })
+    })
+
+    it('wires openAgent with and without inNewTab for agent variant', () => {
+      const openAgent = vi.fn()
+      const ctx = createContext({
+        openAgent,
+        installedAgents: new Map([['agent-1', createAgent()]])
+      })
+
+      const entry = resolveSidebarEntry(agentFavorite, ctx)
+      expect(entry).not.toBeNull()
+
+      entry?.onOpen()
+      expect(openAgent).toHaveBeenCalledWith('agent-1')
+
+      entry?.onOpenNewTab?.()
+      expect(openAgent).toHaveBeenCalledWith('agent-1', { inNewTab: true })
+    })
+
+    it('wires openAssistant with and without inNewTab for assistant variant', () => {
+      const openAssistant = vi.fn()
+      const ctx = createContext({
+        openAssistant,
+        installedAssistants: new Map([['assistant-1', createAssistant()]])
+      })
+
+      const entry = resolveSidebarEntry(assistantFavorite, ctx)
+      expect(entry).not.toBeNull()
+
+      entry?.onOpen()
+      expect(openAssistant).toHaveBeenCalledWith('assistant-1')
+
+      entry?.onOpenNewTab?.()
+      expect(openAssistant).toHaveBeenCalledWith('assistant-1', { inNewTab: true })
+    })
+  })
 })

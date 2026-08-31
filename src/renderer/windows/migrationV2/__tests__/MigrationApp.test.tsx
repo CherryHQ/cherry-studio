@@ -530,12 +530,12 @@ describe('MigrationApp', () => {
   })
 
   it('defines localized skip failures and Agent omission notices', () => {
-    expect(zhCN.migration.skip_dialog.failed).toBe('跳过迁移失败，请重试。')
-    expect(enUS.migration.skip_dialog.failed).toBe('Failed to skip migration. Please try again.')
-    expect(zhCN.migration.completed.agent_files_skipped_one).toContain('1')
-    expect(zhCN.migration.completed.agent_files_skipped_other).toContain('{{count}}')
-    expect(enUS.migration.completed.agent_files_skipped_one).toContain('target;')
-    expect(enUS.migration.completed.agent_files_skipped_other).toContain('targets;')
+    expect(zhCN['migration.skip_dialog.failed']).toBe('跳过迁移失败，请重试。')
+    expect(enUS['migration.skip_dialog.failed']).toBe('Failed to skip migration. Please try again.')
+    expect(zhCN['migration.completed.agent_files_skipped_one']).toContain('1')
+    expect(zhCN['migration.completed.agent_files_skipped_other']).toContain('{{count}}')
+    expect(enUS['migration.completed.agent_files_skipped_one']).toContain('target;')
+    expect(enUS['migration.completed.agent_files_skipped_other']).toContain('targets;')
   })
 
   it('drives the error stage when the migration handoff rejects', async () => {

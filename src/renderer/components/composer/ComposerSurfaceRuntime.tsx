@@ -39,7 +39,7 @@ import { createComposerInputAdapter, insertComposerTokenAtCursor } from './compo
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
-  LONG_TEXT_PASTE_THRESHOLD,
+  hasSupportedClipboardImage,
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
@@ -317,8 +317,18 @@ const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
     )
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(text: string, supportedExts: readonly string[]) {
-  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD && supportedExts.includes(PASTED_TEXT_FILE_EXTENSION))
+function shouldDelegateLongTextPasteToFileHandler(
+  text: string,
+  supportedExts: readonly string[],
+  pasteLongTextAsFile: boolean,
+  pasteLongTextThreshold: number
+) {
+  return Boolean(
+    pasteLongTextAsFile &&
+      text &&
+      text.length > pasteLongTextThreshold &&
+      supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
+  )
 }
 
 function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
@@ -523,6 +533,8 @@ export default function ComposerSurfaceRuntime({
   const sendMessageShortcut = _sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const composerOverridden = useActiveComposerOverride() !== null
@@ -661,9 +673,11 @@ export default function ComposerSurfaceRuntime({
       supportedExts,
       setFiles,
       onResize: undefined,
+      pasteLongTextAsFile,
+      pasteLongTextThreshold,
       t
     }),
-    [supportedExts, setFiles, t]
+    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
@@ -1634,18 +1648,27 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(pastedText, supportedExts)
+      const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(
+        pastedText,
+        supportedExts,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold
+      )
       if (shouldDelegateLongTextPaste) {
         event.preventDefault()
         void handlePaste(event)
         return true
       }
 
+      const shouldPreferClipboardImage = hasSupportedClipboardImage(
+        Array.from(event.clipboardData?.files ?? []),
+        supportedExts
+      )
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
         textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
-        if (!textToInsert) {
+        if (!textToInsert && !shouldPreferClipboardImage) {
           event.preventDefault()
           return true
         }
@@ -1672,6 +1695,12 @@ export default function ComposerSurfaceRuntime({
           }
           return true
         }
+      }
+
+      if (shouldPreferClipboardImage) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
@@ -1701,7 +1730,14 @@ export default function ComposerSurfaceRuntime({
       void handlePaste(event)
       return false
     },
-    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker, supportedExts]
+    [
+      handlePaste,
+      pasteLongTextAsFile,
+      pasteLongTextThreshold,
+      resolveSkillMarker,
+      resolveKnowledgeBaseMarker,
+      supportedExts
+    ]
   )
 
   const editor = useRichTextEditorKernel({

@@ -280,6 +280,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     group: dto.group ?? null,
     capabilities: (dto.capabilities ?? []) as ModelCapability[],
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
+    inputModalitiesExplicit: dto.inputModalities !== undefined,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
     contextWindow: dto.contextWindow ?? null,
@@ -344,6 +345,7 @@ function presetDeltaToNewUserModel(
     group: fields.has('group') ? (dto.group ?? null) : null,
     capabilities: fields.has('capabilities') ? ((dto.capabilities ?? null) as ModelCapability[] | null) : null,
     inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
+    inputModalitiesExplicit: fields.has('inputModalities'),
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
@@ -540,6 +542,7 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = value
       }
     }
+    if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
     return updates
   }
 
@@ -657,9 +660,9 @@ class ModelService {
   /**
    * Registry resolution shared by every row-serving path. Preset-backed rows
    * use the current registry as their baseline and apply every non-null sparse
-   * config column. Complete custom rows keep their row-owned capabilities and
-   * receive only the narrow metadata/reasoning enrichment used for recognized
-   * models. Nothing is written back.
+   * config column. Complete custom rows keep their row-owned identity and
+   * capabilities while recognized models receive narrow metadata/reasoning
+   * enrichment plus missing limits and pricing. Nothing is written back.
    */
   private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
     const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
@@ -700,9 +703,42 @@ class ModelService {
         const { presetModel, registryOverride, reasoningProfile, serviceTierControl } =
           providerRegistryService.lookupModel(model.providerId, modelId, reasoningConfigCache)
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+        const registryModel = presetModel
+          ? mergePresetModel(
+              presetModel,
+              registryOverride,
+              model.providerId,
+              reasoningProfile.wire,
+              reasoningProfile.support,
+              serviceTierControl
+            )
+          : undefined
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (model.description === undefined && registryModel?.description !== undefined) {
+          updates.description = registryModel.description
+        }
+        const hasExplicitInputModalities =
+          row.inputModalitiesExplicit || (row.inputModalities !== null && row.inputModalities.length > 0)
+        if (!hasExplicitInputModalities && registryModel?.inputModalities !== undefined) {
+          updates.inputModalities = registryModel.inputModalities
+        }
+        if (model.outputModalities === undefined && registryModel?.outputModalities !== undefined) {
+          updates.outputModalities = registryModel.outputModalities
+        }
+        if (model.contextWindow === undefined && registryModel?.contextWindow !== undefined) {
+          updates.contextWindow = registryModel.contextWindow
+        }
+        if (model.maxInputTokens === undefined && registryModel?.maxInputTokens !== undefined) {
+          updates.maxInputTokens = registryModel.maxInputTokens
+        }
+        if (model.maxOutputTokens === undefined && registryModel?.maxOutputTokens !== undefined) {
+          updates.maxOutputTokens = registryModel.maxOutputTokens
+        }
+        if (model.pricing === undefined && registryModel?.pricing !== undefined) {
+          updates.pricing = registryModel.pricing
+        }
         if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
         if (serviceTierControl) {
           updates.requestControls = {
@@ -712,15 +748,8 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (presetModel) {
-          reasoning = mergePresetModel(
-            presetModel,
-            registryOverride,
-            model.providerId,
-            reasoningProfile.wire,
-            reasoningProfile.support,
-            serviceTierControl
-          ).reasoning
+        if (registryModel) {
+          reasoning = registryModel.reasoning
         } else if (model.reasoning?.controls?.length) {
           reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
         } else {
