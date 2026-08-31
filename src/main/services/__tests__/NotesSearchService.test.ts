@@ -1,20 +1,17 @@
 import type { NotesTreeNode } from '@shared/types/note'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationGetPathMock, preferenceGetMock, readMock, realpathMock, statMock } = vi.hoisted(() => ({
-  applicationGetPathMock: vi.fn(),
+const { preferenceGetMock, readMock, realpathMock, statMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
   readMock: vi.fn(),
   realpathMock: vi.fn(),
   statMock: vi.fn()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: vi.fn(() => ({ get: preferenceGetMock })),
-    getPath: applicationGetPathMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ PreferenceService: { get: preferenceGetMock } })
+})
 
 vi.mock('@main/utils/file', () => ({
   isSameOrInside: (candidate: string, container: string) =>
@@ -27,6 +24,9 @@ vi.mock('@main/utils/file', () => ({
 import { BaseService } from '@main/core/lifecycle'
 
 import { NotesSearchService } from '../NotesSearchService'
+
+const { application } = await import('@application')
+const applicationGetPathMock = vi.mocked(application.getPath)
 
 const NOW = Date.parse('2026-08-25T00:00:00.000Z')
 
@@ -344,14 +344,14 @@ describe('NotesSearchService', () => {
     ])
   })
 
-  it('retains filename matches when an invalid content regex cannot be evaluated', async () => {
+  it('treats regex metacharacters as literal search text', async () => {
     readMock.mockResolvedValue('content')
 
     const results = await service.search(
       {
         nodes: [note('filename-match', { name: '[ archive' }), note('content-only', { name: 'journal' })],
         keyword: '[',
-        options: { useRegex: true },
+        options: {},
         maxResults: 10
       },
       requestContext('search-invalid-regex')

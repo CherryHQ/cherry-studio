@@ -36,7 +36,6 @@ export interface NotesSearchResult extends NotesTreeNode {
 
 export interface NotesSearchOptions {
   caseSensitive?: boolean
-  useRegex?: boolean
   maxFileSize?: number
   maxMatchesPerFile?: number
   contextLength?: number

@@ -5,11 +5,18 @@ const service = vi.hoisted(() => ({
   cancel: vi.fn(),
   search: vi.fn()
 }))
-const applicationGet = vi.hoisted(() => vi.fn(() => service))
 
-vi.mock('@application', () => ({ application: { get: applicationGet } }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    NotesSearchService: service
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 import { notesHandlers } from '../notes'
+
+const { application } = await import('@application')
+const applicationGet = vi.mocked(application.get)
 
 const node: NotesTreeNode = {
   id: 'note-1',

@@ -3,7 +3,7 @@ import type { NotesSearchOptions, NotesSearchResult, NotesTreeNode } from '@shar
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuid } from 'uuid'
 
-export interface UseFullTextSearchOptions extends Omit<NotesSearchOptions, 'useRegex'> {
+export interface UseFullTextSearchOptions extends NotesSearchOptions {
   debounceMs?: number
   maxResults?: number
   enabled?: boolean

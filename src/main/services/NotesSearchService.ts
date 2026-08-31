@@ -171,12 +171,11 @@ async function findMatches(
 ): Promise<NotesSearchMatch[]> {
   const {
     caseSensitive = false,
-    useRegex = false,
     maxMatchesPerFile = DEFAULT_MAX_MATCHES_PER_FILE,
     contextLength = DEFAULT_CONTEXT_LENGTH
   } = options
   const flags = caseSensitive ? 'g' : 'gi'
-  const pattern = useRegex ? new RegExp(keyword, flags) : new RegExp(escapeRegex(keyword), flags)
+  const pattern = new RegExp(escapeRegex(keyword), flags)
   const lines = content.split('\n')
   const matches: NotesSearchMatch[] = []
 

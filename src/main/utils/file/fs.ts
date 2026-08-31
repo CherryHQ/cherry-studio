@@ -112,25 +112,62 @@ export async function readChunk(
 ): Promise<Uint8Array<ArrayBuffer>> {
   signal?.throwIfAborted()
   const fileHandle = await fsOpen(path, 'r')
+  let closeInBackground = false
   try {
     const buffer = new Uint8Array(length)
     let totalBytesRead = 0
     while (totalBytesRead < length) {
       signal?.throwIfAborted()
-      const { bytesRead } = await fileHandle.read(
-        buffer,
-        totalBytesRead,
-        length - totalBytesRead,
-        offset + totalBytesRead
-      )
+      const readOperation = fileHandle.read(buffer, totalBytesRead, length - totalBytesRead, offset + totalBytesRead)
+      const { bytesRead } = await waitForFileRead(readOperation, signal)
       signal?.throwIfAborted()
       if (bytesRead === 0) break
       totalBytesRead += bytesRead
     }
     return totalBytesRead === buffer.byteLength ? buffer : buffer.slice(0, totalBytesRead)
+  } catch (error) {
+    // FileHandle.close() waits for in-flight reads. Do not make an aborted caller wait for a
+    // filesystem operation that the Node FileHandle API itself cannot cancel; close the handle
+    // as soon as that operation settles instead. waitForFileRead always observes the read promise,
+    // so neither a late read failure nor a close failure becomes an unhandled rejection.
+    if (signal?.aborted) {
+      closeInBackground = true
+      void fileHandle.close().catch((closeError) => {
+        logger.warn('readChunk: failed to close an aborted file handle', { path, closeError })
+      })
+    }
+    throw error
   } finally {
-    await fileHandle.close()
+    if (!closeInBackground) {
+      await fileHandle.close()
+    }
   }
+}
+
+function waitForFileRead<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation
+  if (signal.aborted) {
+    void operation.catch(() => undefined)
+    return Promise.reject(signal.reason)
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', handleAbort)
+      callback()
+    }
+    const handleAbort = (): void => finish(() => reject(signal.reason))
+
+    signal.addEventListener('abort', handleAbort, { once: true })
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (error) => finish(() => reject(error))
+    )
+    if (signal.aborted) handleAbort()
+  })
 }
 
 /** Returns true iff the path exists and is readable by the current process. */

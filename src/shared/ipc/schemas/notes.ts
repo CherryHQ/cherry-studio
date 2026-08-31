@@ -1,4 +1,5 @@
 import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
+import { validateNotesSearchTree } from '@shared/utils/notesSearch'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -38,44 +39,13 @@ const notesSearchTreeSchema = z
   .array(z.unknown())
   .max(MAX_SEARCH_NODES)
   .superRefine((nodes, context) => {
-    const stack: Array<{ depth: number; path: PropertyKey[]; value: unknown }> = nodes.map((value, index) => ({
-      value,
-      depth: 1,
-      path: [index]
-    }))
-    let nodeCount = 0
-
-    while (stack.length > 0) {
-      const current = stack.pop()!
-      nodeCount += 1
-      if (nodeCount > MAX_SEARCH_NODES) {
-        context.addIssue({
-          code: 'custom',
-          path: current.path,
-          message: `Notes search tree exceeds ${MAX_SEARCH_NODES} total nodes`
-        })
-        return
-      }
-      if (current.depth > MAX_SEARCH_TREE_DEPTH) {
-        context.addIssue({
-          code: 'custom',
-          path: current.path,
-          message: `Notes search tree exceeds depth ${MAX_SEARCH_TREE_DEPTH}`
-        })
-        return
-      }
-
-      const parsed = notesTreeNodeFieldsSchema.safeParse(current.value)
-      if (!parsed.success) {
-        for (const issue of parsed.error.issues) {
-          context.addIssue({ ...issue, path: [...current.path, ...issue.path] })
-        }
-        continue
-      }
-
-      parsed.data.children?.forEach((child, index) => {
-        stack.push({ value: child, depth: current.depth + 1, path: [...current.path, 'children', index] })
-      })
+    const validation = validateNotesSearchTree(nodes, {
+      maxDepth: MAX_SEARCH_TREE_DEPTH,
+      maxNodes: MAX_SEARCH_NODES,
+      parseNode: (value) => notesTreeNodeFieldsSchema.safeParse(value)
+    })
+    for (const issue of validation.issues) {
+      context.addIssue({ code: 'custom', path: [...issue.path], message: issue.message })
     }
   })
   .transform((nodes) => nodes as NotesTreeNode[])
@@ -106,7 +76,6 @@ const notesSearchResultSchema: z.ZodType<NotesSearchResult> = z.strictObject({
 
 const notesSearchOptionsSchema = z.strictObject({
   caseSensitive: z.boolean().optional(),
-  useRegex: z.literal(false).optional(),
   maxFileSize: z.number().int().nonnegative().max(MAX_SEARCH_FILE_SIZE).optional(),
   maxMatchesPerFile: z.number().int().positive().max(MAX_SEARCH_MATCHES_PER_FILE).optional(),
   contextLength: z.number().int().nonnegative().max(MAX_SEARCH_CONTEXT_LENGTH).optional()
