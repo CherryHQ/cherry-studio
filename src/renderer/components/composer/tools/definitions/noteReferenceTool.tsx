@@ -1,10 +1,11 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelFooterAction, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { projectNotesTree, resolveNotesPath } from '@renderer/services/NotesService'
 import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import { FILE_TYPE } from '@renderer/types/file'
@@ -12,7 +13,7 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { NotebookPen } from 'lucide-react'
+import { NotebookPen, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 export const NOTE_REFERENCE_LAUNCHER_ID = 'note-reference'
@@ -61,6 +62,17 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
     if (!root || !resolvedNotesPath) return []
     return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
   }, [resolvedNotesPath, root, version])
+  const manageNotesAction = useMemo<QuickPanelFooterAction>(() => {
+    const label = t('chat.input.note_reference.manage')
+    return {
+      id: 'note-reference:manage',
+      label,
+      ariaLabel: label,
+      tooltip: label,
+      icon: <Settings2 />,
+      action: () => openRoute('/app/notes')
+    }
+  }, [t])
 
   const panelItems = useMemo<QuickPanelListItem[]>(() => {
     if (!dataRequested || (!resolvedNotesPath && !pathError) || isLoading) {
@@ -134,6 +146,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         .catch((error) => setPathError(error instanceof Error ? error : new Error(String(error))))
 
       quickPanel.open({
+        footerActions: [manageNotesAction],
         title: t('chat.input.note_reference.title'),
         list: panelItems,
         symbol: ComposerPanelSymbol.Notes,
@@ -143,7 +156,7 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         trackInputQuery: true
       })
     },
-    [notesPath, panelItems, t]
+    [manageNotesAction, notesPath, panelItems, t]
   )
 
   useEffect(() => {

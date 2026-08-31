@@ -3,6 +3,8 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { act, render, waitFor } from '@testing-library/react'
+import { Globe2, Settings2 } from 'lucide-react'
+import { isValidElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   mcpServers: [] as McpServer[],
   mcpServerOptions: [] as Array<{ enabled?: boolean } | undefined>,
   open: vi.fn(),
+  openSettingsTab: vi.fn(),
   registerLaunchers: vi.fn<(launchers: unknown[]) => () => void>(() => () => undefined),
   toastError: vi.fn(),
   updateAgent: vi.fn(),
@@ -58,6 +61,10 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: mocks.toastError }
 }))
 
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
 const editDialogMocks = vi.hoisted(() => ({ openResourceEditDialog: vi.fn() }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   openResourceEditDialog: editDialogMocks.openResourceEditDialog
@@ -68,6 +75,7 @@ import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '../../types'
 import {
   buildMcpConfigFooterItem,
+  buildMcpGlobalConfigFooterItem,
   buildMcpStatusItems,
   createMcpStatusLauncher,
   McpStatusComposerRuntime,
@@ -393,7 +401,7 @@ describe('mcpStatusTool', () => {
 
   it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
     const footer = buildMcpConfigFooterItem({ kind: 'assistant', id: 'a1', initialTab: 'tools.mcp' }, t)!
-    const launcher = createMcpStatusLauncher([footer], t, 'disabled')
+    const launcher = createMcpStatusLauncher([], t, 'disabled', false, undefined, [footer])
 
     expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
     expect(launcher.disabled).toBeFalsy()
@@ -401,7 +409,9 @@ describe('mcpStatusTool', () => {
 
     const quickPanel = { open: vi.fn() }
     launcher.action?.({ quickPanel } as any)
-    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [footer] }))
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({ footerActions: [footer], readOnly: true, list: [] })
+    )
   })
 
   it('defers MCP server and session-agent reads until the launcher opens', async () => {
@@ -507,14 +517,35 @@ describe('mcpStatusTool', () => {
     expect(resolveMcpConfigTarget({ scope: TopicType.Chat })).toBeNull()
   })
 
-  it('builds a pinned MCP config footer that opens the edit dialog', () => {
+  it('builds an accessible MCP footer action that opens the edit dialog', () => {
     expect(buildMcpConfigFooterItem(null, t)).toBeNull()
 
     const target = { kind: 'agent', id: 'agent-1', initialTab: 'tools.mcp' } as const
     const footer = buildMcpConfigFooterItem(target, t)
-    expect(footer).toMatchObject({ id: 'mcp-status:open-config', fixedToBottom: true })
+    expect(footer).toMatchObject({
+      id: 'mcp-status:open-config',
+      ariaLabel: 'Manage current Agent MCP servers'
+    })
+    const footerIcon = footer?.icon
+    expect(isValidElement(footerIcon) && footerIcon.type === Settings2).toBe(true)
+    expect(footer).not.toHaveProperty('fixedToBottom')
 
     footer?.action?.({} as any)
     expect(editDialogMocks.openResourceEditDialog).toHaveBeenCalledWith(target)
+  })
+
+  it('opens the global MCP server settings from the global footer action', () => {
+    const action = buildMcpGlobalConfigFooterItem(t)
+
+    expect(action).toMatchObject({
+      id: 'mcp-status:open-global-config',
+      ariaLabel: 'Manage global MCP servers'
+    })
+    const globalIcon = action.icon
+    expect(isValidElement(globalIcon) && globalIcon.type === Globe2).toBe(true)
+
+    action.action({} as any)
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/mcp/servers')
   })
 })

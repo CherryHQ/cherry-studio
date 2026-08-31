@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
+  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
   QuickPanelListItem,
@@ -180,6 +181,7 @@ export interface ComposerSurfaceProps {
   queueContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
+  rootPanelFooterActions?: readonly QuickPanelFooterAction[]
   onRootPanelOpen?: () => void
   onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
   renderLeftControls?: (
@@ -514,6 +516,7 @@ export default function ComposerSurfaceRuntime({
   queueContent,
   rootPanelLeadingItems,
   rootPanelAdditionalItems,
+  rootPanelFooterActions,
   onRootPanelOpen,
   onToolLauncherSelect,
   renderLeftControls,
@@ -942,6 +945,7 @@ export default function ComposerSurfaceRuntime({
     resourceProvider,
     rootPanelLeadingItems,
     rootPanelAdditionalItems,
+    rootPanelFooterActions,
     pinnedLauncherIdSet,
     unifiedResourceItems
   })
@@ -955,6 +959,7 @@ export default function ComposerSurfaceRuntime({
       resourceProvider,
       rootPanelLeadingItems,
       rootPanelAdditionalItems,
+      rootPanelFooterActions,
       pinnedLauncherIdSet,
       unifiedResourceItems
     }
@@ -966,6 +971,7 @@ export default function ComposerSurfaceRuntime({
     quickPanel,
     resourceProvider,
     rootPanelAdditionalItems,
+    rootPanelFooterActions,
     rootPanelLeadingItems,
     unifiedResourceItems
   ])
@@ -992,6 +998,7 @@ export default function ComposerSurfaceRuntime({
         pinnedLauncherIdSet,
         quickPanel,
         rootPanelAdditionalItems,
+        rootPanelFooterActions,
         rootPanelLeadingItems
       } = rootSuggestionStateRef.current
       const launchers = getToolLaunchers?.() ?? []
@@ -1004,6 +1011,7 @@ export default function ComposerSurfaceRuntime({
         title: t('settings.quickPanel.title'),
         leadingItems: rootPanelLeadingItems,
         additionalItems: rootPanelAdditionalItems,
+        footerActions: rootPanelFooterActions,
         resourceItems,
         queryAnchor,
         triggerInfo,

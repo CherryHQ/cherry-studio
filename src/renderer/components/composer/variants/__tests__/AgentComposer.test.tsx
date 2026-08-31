@@ -717,15 +717,19 @@ function buildComposerEditorMock() {
 
 // Skills live in the registered `agent-skills` launcher submenu; invoke its action with a capturing
 // quickPanel to read the list it opens (skill rows followed by the pinned "manage skills" footer).
-function getAgentSkillsPanelItems() {
+function getAgentSkillsPanelOptions() {
   const launcher = mocks.registeredLaunchers.get('agent-skills')?.[0]
   if (!launcher) throw new Error('agent-skills launcher not registered')
-  let list: any[] = []
+  let options: any = {}
   launcher.action?.({
     source: 'root-panel',
-    quickPanel: { open: (options: { list: any[] }) => (list = options.list) }
+    quickPanel: { open: (nextOptions: unknown) => (options = nextOptions) }
   } as any)
-  return list
+  return options
+}
+
+function getAgentSkillsPanelItems() {
+  return getAgentSkillsPanelOptions().list ?? []
 }
 
 // `queueContent` is the whole above-input slot, so dock assertions locate the dock child instead of
@@ -1727,7 +1731,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
     })
     const newSessionSwitch = screen.getByRole('switch', { name: 'agent.session.new' })
     expect(newSessionSwitch).toBeChecked()
@@ -1757,7 +1761,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([expect.objectContaining({ id: 'composer:new-session' })])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('agent.session.new')
   })
@@ -3097,9 +3101,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    // Skills no longer render inline in the root panel; only the customize-toolbar footer does.
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([
-      expect.objectContaining({ id: 'composer:customize-toolbar', fixedToBottom: true })
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toBeUndefined()
+    expect(mocks.surfaceProps?.rootPanelFooterActions).toEqual([
+      expect.objectContaining({ id: 'composer:customize-toolbar', ariaLabel: 'chat.input.toolbar.customize' })
     ])
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
@@ -3109,7 +3113,8 @@ describe('AgentComposer', () => {
     ])
     expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
-    const items = getAgentSkillsPanelItems()
+    const panelOptions = getAgentSkillsPanelOptions()
+    const items = panelOptions.list
     expect(items).not.toContainEqual(expect.objectContaining({ id: 'composer:customize-toolbar' }))
     const skillItem = items[0]
     expect(skillItem).toEqual(
@@ -3122,9 +3127,11 @@ describe('AgentComposer', () => {
     )
     expect(skillItem?.suffix).toBeUndefined()
 
-    // The pinned footer opens the agent's skills config.
-    const manageItem = items.at(-1)
-    expect(manageItem).toEqual(expect.objectContaining({ id: 'agent-skills:manage', fixedToBottom: true }))
+    const manageItem = panelOptions.footerActions[0]
+    expect(items).not.toContainEqual(expect.objectContaining({ id: 'agent-skills:manage' }))
+    expect(manageItem).toEqual(
+      expect.objectContaining({ id: 'agent-skills:manage', ariaLabel: 'plugins.manage_skills' })
+    )
     manageItem?.action?.({} as any)
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
       kind: 'agent',

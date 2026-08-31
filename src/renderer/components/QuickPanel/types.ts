@@ -83,6 +83,8 @@ export type QuickPanelOpenOptions = {
   title?: string
   /** default: [] */
   list: QuickPanelListItem[]
+  /** Compact actions rendered in the panel footer, outside search and result scrolling. */
+  footerActions?: QuickPanelFooterAction[]
   /** default: 0 */
   defaultIndex?: number
   /** default: 7 */
@@ -147,15 +149,18 @@ export type QuickPanelListItem = {
    * when there are no matches.
    */
   alwaysVisible?: boolean
-  /**
-   * Keeps an action outside the virtualized result list and anchored at the
-   * bottom of the panel, immediately above the footer. Fixed items stay visible
-   * while filtering and remain part of keyboard navigation after regular rows.
-   */
-  fixedToBottom?: boolean
   /** Keep the current panel open after this item's action runs. */
   keepOpenOnAction?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
+}
+
+export type QuickPanelFooterAction = Pick<
+  QuickPanelListItem,
+  'action' | 'disabled' | 'icon' | 'keepOpenOnAction' | 'label' | 'tooltip'
+> & {
+  id: string
+  ariaLabel: string
+  action: NonNullable<QuickPanelListItem['action']>
 }
 
 // Context type definition.
@@ -167,6 +172,7 @@ export interface QuickPanelContextType {
   readonly isVisible: boolean
   readonly symbol: string
   readonly list: QuickPanelListItem[]
+  readonly footerActions?: QuickPanelFooterAction[]
   readonly title?: string
   readonly defaultIndex: number
   readonly pageSize: number

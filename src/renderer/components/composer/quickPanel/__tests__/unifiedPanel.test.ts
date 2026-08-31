@@ -163,16 +163,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           label: 'Skills',
           icon: 'skill',
           sources: ['root-panel'],
-          rootSearchItems: [
-            { id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill },
-            {
-              id: 'agent-skills:manage',
-              label: 'Manage skills',
-              icon: 'settings',
-              fixedToBottom: true,
-              action: vi.fn()
-            }
-          ],
+          rootSearchItems: [{ id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill }],
           action: vi.fn()
         },
         {
@@ -274,7 +265,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     )
   })
 
-  it('excludes persistent launchers while keeping the bare-root customize footer', () => {
+  it('excludes persistent launchers while keeping the bare-root footer action', () => {
     const launchers = [
       {
         id: 'thinking',
@@ -291,24 +282,28 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         sources: ['popover'] as const
       }
     ]
-    const additionalItems = [
+    const footerActions = [
       {
         id: 'composer:customize-toolbar',
         label: 'Customize toolbar',
+        ariaLabel: 'Customize toolbar',
+        tooltip: 'Customize toolbar',
         icon: 'settings',
-        fixedToBottom: true
+        action: vi.fn()
       }
     ]
 
     const pinned = createUnifiedQuickPanelOpenOptions(launchers, {
       quickPanel,
-      additionalItems,
+      footerActions,
       excludedLauncherIds: new Set(['thinking'])
     })
-    expect(pinned.list.map((item) => item.id)).toEqual(['attachment', 'composer:customize-toolbar'])
+    expect(pinned.list.map((item) => item.id)).toEqual(['attachment'])
+    expect(pinned.footerActions).toEqual(footerActions)
 
-    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel, additionalItems })
-    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment', 'composer:customize-toolbar'])
+    const unpinned = createUnifiedQuickPanelOpenOptions(launchers, { quickPanel, footerActions })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment'])
+    expect(unpinned.footerActions).toEqual(footerActions)
   })
 
   it('excludes leading items by the same excludedLauncherIds filter as launchers', () => {
@@ -325,24 +320,33 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(unpinned.list.map((item) => item.id)).toEqual(['new-topic'])
   })
 
-  it('drops bottom-pinned chrome from category views seeded with a search text', () => {
-    const additionalItems = [
-      { id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' },
-      { id: 'composer:customize-toolbar', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true }
+  it('keeps root footer actions out of category views seeded with a search text', () => {
+    const additionalItems = [{ id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' }]
+    const footerActions = [
+      {
+        id: 'composer:customize-toolbar',
+        label: 'Customize toolbar',
+        ariaLabel: 'Customize toolbar',
+        tooltip: 'Customize toolbar',
+        icon: 'settings',
+        action: vi.fn()
+      }
     ]
 
-    // Bare root panel keeps the fixedToBottom customize action.
-    const bareRoot = createUnifiedQuickPanelOpenOptions([], { quickPanel, additionalItems })
-    expect(labels(bareRoot.list)).toContain('Customize toolbar')
+    const bareRoot = createUnifiedQuickPanelOpenOptions([], { quickPanel, additionalItems, footerActions })
+    expect(labels(bareRoot.list)).toEqual(['Agent skill'])
+    expect(bareRoot.footerActions).toEqual(footerActions)
 
     // A category view (opened via a toolbar shortcut that seeds a search text) drops it so it does
     // not bypass the category filter.
     const categoryView = createUnifiedQuickPanelOpenOptions([], {
       quickPanel,
       additionalItems,
+      footerActions,
       initialSearchText: 'Skills'
     })
     expect(labels(categoryView.list)).toEqual(['Agent skill'])
+    expect(categoryView.footerActions).toBeUndefined()
   })
 
   it('does not reorder items when there is no search text', () => {
@@ -691,6 +695,11 @@ describe('hasUnifiedQuickPanelRootContent', () => {
     expect(hasUnifiedQuickPanelRootContent([], { leadingItems: [{ id: 'new', label: 'New', icon: 'plus' }] })).toBe(
       true
     )
+    expect(
+      hasUnifiedQuickPanelRootContent([], {
+        footerActions: [{ id: 'manage', label: 'Manage', ariaLabel: 'Manage', icon: 'settings', action: vi.fn() }]
+      })
+    ).toBe(true)
     expect(
       hasUnifiedQuickPanelRootContent([
         {

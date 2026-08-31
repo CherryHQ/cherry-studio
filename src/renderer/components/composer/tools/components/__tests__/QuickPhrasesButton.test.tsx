@@ -1,6 +1,7 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
+import { Globe2, Settings2 } from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
@@ -202,16 +203,21 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
-      'Prompt 1',
-      'settings.prompts.manageCurrentAssistant',
-      'settings.prompts.manageGlobal',
-      'settings.prompts.add'
+    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual(['Prompt 1'])
+    expect(panelOptions.footerActions.map((item: { label: string }) => item.label)).toEqual([
+      'settings.prompts.add',
+      'settings.quickPanel.scope.currentAssistant',
+      'settings.quickPanel.scope.global'
     ])
 
-    const manageCurrentItem = panelOptions.list.find(
-      (item: { label: string }) => item.label === 'settings.prompts.manageCurrentAssistant'
+    const manageCurrentItem = panelOptions.footerActions.find(
+      (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.manageCurrentAssistant'
     )
+    const manageGlobalItem = panelOptions.footerActions.find(
+      (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.manageGlobal'
+    )
+    expect(manageCurrentItem.icon.type).toBe(Settings2)
+    expect(manageGlobalItem.icon.type).toBe(Globe2)
     act(() => {
       manageCurrentItem.action({} as never)
     })
@@ -222,9 +228,6 @@ describe('QuickPhrasesToolRuntime', () => {
       initialTab: 'prompts'
     })
 
-    const manageGlobalItem = panelOptions.list.find(
-      (item: { label: string }) => item.label === 'settings.prompts.manageGlobal'
-    )
     act(() => {
       manageGlobalItem.action({} as never)
     })
@@ -265,14 +268,11 @@ describe('QuickPhrasesToolRuntime', () => {
       })
     )
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
-      'Prompt 1',
-      'settings.prompts.manageCurrentAssistant',
-      'settings.prompts.manageGlobal',
-      'settings.prompts.add'
-    ])
+    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual(['Prompt 1'])
 
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
+    const addItem = panelOptions.footerActions.find(
+      (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add'
+    )
     act(() => {
       addItem.action({} as never)
     })
@@ -323,8 +323,8 @@ describe('QuickPhrasesToolRuntime', () => {
     )
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const manageItem = panelOptions.list.find(
-      (item: { label: string }) => item.label === 'settings.prompts.manageCurrentAgent'
+    const manageItem = panelOptions.footerActions.find(
+      (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.manageCurrentAgent'
     )
     act(() => {
       manageItem.action({} as never)
@@ -357,7 +357,9 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
+    const addItem = panelOptions.footerActions.find(
+      (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add'
+    )
 
     act(() => {
       addItem.action({ inputAdapter } as never)
@@ -388,7 +390,9 @@ describe('QuickPhrasesToolRuntime', () => {
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
+    const addItem = panelOptions.footerActions.find(
+      (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.add'
+    )
 
     act(() => {
       addItem.action({} as never)

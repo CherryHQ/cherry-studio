@@ -6,6 +6,7 @@ import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/to
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
+  type QuickPanelFooterAction,
   type QuickPanelListItem,
   type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
@@ -18,7 +19,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ListPromptsQueryParams } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget, PromptVisibility } from '@shared/data/types/prompt'
-import { Plus, Settings, Zap } from 'lucide-react'
+import { Globe2, Plus, Settings2, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -179,51 +180,61 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
       )
     }
 
+    return newList
+  }, [handleItemSelect, isPromptsLoading, promptItems, promptsEnabled, promptsError, t])
+
+  const footerActions = useMemo<QuickPanelFooterAction[]>(() => {
+    const actions: QuickPanelFooterAction[] = [
+      {
+        id: 'quick-phrases:add',
+        label: t('settings.prompts.add'),
+        ariaLabel: t('settings.prompts.add'),
+        tooltip: t('settings.prompts.add'),
+        icon: <Plus />,
+        action: openAddModal
+      }
+    ]
+
     if (bindingTarget) {
-      newList.push({
+      const ariaLabel =
+        bindingTarget.type === 'assistant'
+          ? t('settings.prompts.manageCurrentAssistant')
+          : t('settings.prompts.manageCurrentAgent')
+      actions.push({
+        id: 'quick-phrases:manage-current',
         label:
           bindingTarget.type === 'assistant'
-            ? t('settings.prompts.manageCurrentAssistant')
-            : t('settings.prompts.manageCurrentAgent'),
-        icon: <Settings />,
+            ? t('settings.quickPanel.scope.currentAssistant')
+            : t('settings.quickPanel.scope.currentAgent'),
+        ariaLabel,
+        tooltip: ariaLabel,
+        icon: <Settings2 />,
         action: openCurrentPromptManagement
       })
     }
 
-    newList.push({
-      label: t('settings.prompts.manageGlobal'),
-      icon: <Settings />,
+    const globalAriaLabel = t('settings.prompts.manageGlobal')
+    actions.push({
+      id: 'quick-phrases:manage-global',
+      label: t('settings.quickPanel.scope.global'),
+      ariaLabel: globalAriaLabel,
+      tooltip: globalAriaLabel,
+      icon: <Globe2 />,
       action: openGlobalPromptManagement
     })
 
-    newList.push({
-      label: t('settings.prompts.add'),
-      icon: <Plus />,
-      action: openAddModal
-    })
-
-    return newList
-  }, [
-    handleItemSelect,
-    isPromptsLoading,
-    openAddModal,
-    openCurrentPromptManagement,
-    openGlobalPromptManagement,
-    promptItems,
-    promptsEnabled,
-    promptsError,
-    t,
-    bindingTarget
-  ])
+    return actions
+  }, [bindingTarget, openAddModal, openCurrentPromptManagement, openGlobalPromptManagement, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
       title: t('settings.prompts.title'),
+      footerActions,
       list: phraseItems,
       symbol: ComposerPanelSymbol.QuickPhrases,
       trackInputQuery: true
     }),
-    [phraseItems, t]
+    [footerActions, phraseItems, t]
   )
 
   const quickPanelOpenOptionsRef = useRef(quickPanelOpenOptions)

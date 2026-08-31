@@ -1,4 +1,4 @@
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelFooterAction } from '@renderer/components/QuickPanel'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
@@ -35,16 +35,17 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
   )
   const resetPinnedIds = useCallback(() => setPinnedIds([...defaultPinnedIds]), [defaultPinnedIds, setPinnedIds])
 
-  const customizePanelItem = useMemo<QuickPanelListItem>(() => {
+  const customizeFooterAction = useMemo<QuickPanelFooterAction>(() => {
     const label = t('chat.input.toolbar.customize')
     return {
       id: 'composer:customize-toolbar',
       label,
+      ariaLabel: label,
+      tooltip: label,
       icon: <Settings2 size={16} />,
-      fixedToBottom: true,
       action: () => setCustomizeOpen(true)
     }
   }, [t])
 
-  return { pinnedIds, setPinnedIds, resetPinnedIds, isDefault, customizeOpen, setCustomizeOpen, customizePanelItem }
+  return { pinnedIds, setPinnedIds, resetPinnedIds, isDefault, customizeOpen, setCustomizeOpen, customizeFooterAction }
 }

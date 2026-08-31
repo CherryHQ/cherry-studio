@@ -4,14 +4,16 @@ import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '@renderer/components/composer/t
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
+  type QuickPanelFooterAction,
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
   useQuickPanel
 } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { FileSearch } from 'lucide-react'
+import { FileSearch, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -122,6 +124,7 @@ const useKnowledgeBaseToolController = ({
   )
 
   const buildKnowledgeBaseItems = useCallback((): QuickPanelListItem[] => {
+    void language
     return configuredBases.map((base) => ({
       id: `knowledge-base:${base.id}`,
       label: base.name,
@@ -145,6 +148,17 @@ const useKnowledgeBaseToolController = ({
   }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
 
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
+  const manageKnowledgeBaseAction = useMemo<QuickPanelFooterAction>(() => {
+    const label = t('chat.input.knowledge_base_manage')
+    return {
+      id: 'knowledge-base:manage',
+      label,
+      ariaLabel: label,
+      tooltip: label,
+      icon: <Settings2 />,
+      action: () => openRoute('/app/knowledge')
+    }
+  }, [t])
 
   useEffect(() => {
     if (isQuickPanelVisible && quickPanelSymbol === ComposerPanelSymbol.KnowledgeBase) {
@@ -172,6 +186,7 @@ const useKnowledgeBaseToolController = ({
       const inputQueryCleared = clearKnowledgeBaseInputQuery(inputAdapter, queryAnchor, triggerInfo)
       actionQuickPanel.open({
         title: t('chat.input.knowledge_base'),
+        footerActions: [manageKnowledgeBaseAction],
         list: knowledgeBaseItems,
         symbol: ComposerPanelSymbol.KnowledgeBase,
         parentPanel,
@@ -182,7 +197,7 @@ const useKnowledgeBaseToolController = ({
         onClose: disposeCloseOnInputAfterSelection
       })
     },
-    [disposeCloseOnInputAfterSelection, isDisabled, knowledgeBaseItems, t]
+    [disposeCloseOnInputAfterSelection, isDisabled, knowledgeBaseItems, manageKnowledgeBaseAction, t]
   )
 
   useEffect(() => {

@@ -7,6 +7,7 @@ import { QuickPanelProvider } from '../QuickPanelProvider'
 import { QuickPanelView } from '../QuickPanelView'
 import type {
   QuickPanelContextType,
+  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
@@ -84,6 +85,7 @@ function createRect(top: number, bottom: number): DOMRect {
 
 function PanelHarness({
   captureDispatch,
+  footerActions,
   inputAdapter,
   items,
   manageListExternally,
@@ -98,6 +100,7 @@ function PanelHarness({
   fill = false
 }: {
   captureDispatch: (dispatch: QuickPanelContextType['dispatchKeyDown']) => void
+  footerActions?: QuickPanelFooterAction[]
   inputAdapter?: QuickPanelInputAdapter
   items: QuickPanelListItem[]
   manageListExternally?: boolean
@@ -125,6 +128,7 @@ function PanelHarness({
 
   useEffect(() => {
     open({
+      footerActions,
       list: items,
       readOnly,
       symbol,
@@ -141,6 +145,7 @@ function PanelHarness({
       onClose
     })
   }, [
+    footerActions,
     inputAdapter,
     initialSearchText,
     items,
@@ -906,6 +911,44 @@ describe('QuickPanelView', () => {
     }
   })
 
+  it('clears measured footer chrome when switching to a read-only panel without footer actions', async () => {
+    const footerHeight = 30
+    const clientHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+      .mockImplementation(function heightFor(this: HTMLElement) {
+        if (this.dataset.testid === 'quick-panel-footer') return footerHeight
+        return 0
+      })
+    const renderPanel = (readOnly: boolean) => (
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} items={measuredItems} readOnly={readOnly} />
+      </QuickPanelProvider>
+    )
+
+    try {
+      const { rerender } = render(renderPanel(false))
+      await screen.findByTestId('quick-panel-footer')
+
+      rerender(renderPanel(true))
+
+      const expected = getQuickPanelHeights({
+        isVisible: true,
+        collapsed: false,
+        readOnly: true,
+        pageSize: 7,
+        itemCount: measuredItems.length,
+        availableHeight: null,
+        fill: false
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('quick-panel-footer')).not.toBeInTheDocument()
+        expect(screen.getByTestId('quick-panel')).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
+      })
+    } finally {
+      clientHeightSpy.mockRestore()
+    }
+  })
+
   it('renders read-only panels without row selection or confirm footer actions', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()
@@ -1077,56 +1120,203 @@ describe('QuickPanelView', () => {
     expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
   })
 
-  it('anchors bottom-fixed items outside the virtual list and keeps them last in keyboard navigation', async () => {
-    const customizeAction = vi.fn()
+  it('keeps footer actions outside the searchable list and visible for empty results', async () => {
+    const manageAction = vi.fn()
     const captureDispatch = vi.fn()
-    const items: QuickPanelListItem[] = [
-      { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
-      { id: 'second', label: 'Second action', icon: '2', action: vi.fn() },
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+    const footerActions: QuickPanelFooterAction[] = [
       {
-        id: 'customize',
-        label: 'Customize toolbar',
+        id: 'manage-global',
+        label: 'Global',
+        ariaLabel: 'Manage global prompts',
+        tooltip: 'Manage global prompts',
         icon: 'settings',
-        fixedToBottom: true,
-        action: customizeAction
+        action: manageAction
       }
     ]
 
     render(
       <QuickPanelProvider>
-        <PanelHarness captureDispatch={captureDispatch} items={items} />
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          footerActions={footerActions}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'prompt', label: 'Daily summary', icon: 'prompt' }]}
+        />
       </QuickPanelProvider>
     )
 
-    const fixedBottom = await screen.findByTestId('quick-panel-fixed-bottom')
-    const virtualList = screen.getByTestId('quick-panel-virtual-list')
-    expect(fixedBottom).toHaveClass('absolute', 'bottom-0')
-    expect(within(fixedBottom).getByText('Customize toolbar')).toBeInTheDocument()
-    expect(within(virtualList).queryByText('Customize toolbar')).not.toBeInTheDocument()
+    await screen.findByText('No results')
+    const footer = screen.getByTestId('quick-panel-footer')
+    const action = within(footer).getByRole('button', { name: 'Manage global prompts' })
+
+    expect(action).toHaveTextContent('Global')
+    expect(screen.queryByTestId('quick-panel-virtual-list')).not.toBeInTheDocument()
+
+    fireEvent.click(action)
+
+    expect(manageAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps every footer action accessible when the panel uses its compact layout', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function widthFor(
+      this: HTMLElement
+    ) {
+      return this.dataset.testid === 'quick-panel-footer' ? 420 : 0
+    })
+    const footerActions: QuickPanelFooterAction[] = [
+      {
+        id: 'add',
+        label: 'Add',
+        ariaLabel: 'Add prompt',
+        tooltip: 'Add prompt',
+        icon: '+',
+        action: vi.fn()
+      },
+      {
+        id: 'current',
+        label: 'Current Assistant',
+        ariaLabel: 'Manage current Assistant prompts',
+        tooltip: 'Manage current Assistant prompts',
+        icon: 'settings',
+        action: vi.fn()
+      },
+      {
+        id: 'global',
+        label: 'Global',
+        ariaLabel: 'Manage global prompts',
+        tooltip: 'Manage global prompts',
+        icon: 'globe',
+        action: vi.fn()
+      }
+    ]
+
+    try {
+      render(
+        <QuickPanelProvider>
+          <PanelHarness captureDispatch={vi.fn()} footerActions={footerActions} items={[]} title="Prompts" />
+        </QuickPanelProvider>
+      )
+
+      const footer = await screen.findByTestId('quick-panel-footer')
+      const actionGroup = within(footer).getByTestId('quick-panel-footer-actions')
+      expect(within(actionGroup).getAllByRole('button')).toHaveLength(3)
+      expect(within(actionGroup).getByRole('button', { name: 'Add prompt' })).toBeEnabled()
+      expect(within(actionGroup).getByRole('button', { name: 'Manage current Assistant prompts' })).toBeEnabled()
+      expect(within(actionGroup).getByRole('button', { name: 'Manage global prompts' })).toBeEnabled()
+      await waitFor(() => expect(within(actionGroup).getByText('Current Assistant')).toHaveClass('sr-only'))
+      expect(within(footer).getAllByText('▲▼')).toHaveLength(2)
+      expect(within(footer).queryByText('settings.quickPanel.select')).not.toBeInTheDocument()
+      expect(within(footer).getByText(/^(⌘|Ctrl)$/)).toBeInTheDocument()
+      expect(within(footer).getByText('Tab/↩︎')).toBeInTheDocument()
+      for (const [testId, label] of [
+        ['quick-panel-hint-close', 'settings.quickPanel.close'],
+        ['quick-panel-hint-select', 'settings.quickPanel.select'],
+        ['quick-panel-hint-page', 'settings.quickPanel.page'],
+        ['quick-panel-hint-confirm', 'settings.quickPanel.confirm']
+      ] as const) {
+        expect(within(footer).getByTestId(testId)).toHaveAttribute('aria-label', label)
+      }
+    } finally {
+      clientWidthSpy.mockRestore()
+    }
+  })
+
+  it('keeps the active footer action selected when results load', async () => {
+    const footerAction = vi.fn()
+    const rowAction = vi.fn()
+    const captureDispatch = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          footerActions={[
+            {
+              id: 'configure',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              tooltip: 'Configure MCP servers',
+              icon: 'settings',
+              action: footerAction
+            }
+          ]}
+          items={[]}
+        />
+      </QuickPanelProvider>
+    )
+
+    const actionButton = await screen.findByRole('button', { name: 'Configure MCP servers' })
+    expect(actionButton).toHaveAttribute('aria-current', 'true')
+
+    act(() => {
+      quickPanel?.updateList([{ id: 'server', label: 'Loaded MCP server', icon: 'mcp', action: rowAction }])
+    })
+
+    await screen.findByText('Loaded MCP server')
+    expect(actionButton).toHaveAttribute('aria-current', 'true')
 
     const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
-    virtualListMocks.scrollToIndex.mockClear()
     act(() => {
-      dispatchKeyDown(createKeyDownEvent('ArrowUp').event)
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
     })
 
-    await waitFor(() => {
-      expect(screen.getByText('Customize toolbar').closest('[data-id="customize"]')).toHaveAttribute(
-        'data-active',
-        'true'
-      )
-    })
-    expect(virtualListMocks.scrollToIndex).not.toHaveBeenCalled()
+    expect(footerAction).toHaveBeenCalledTimes(1)
+    expect(rowAction).not.toHaveBeenCalled()
+  })
 
-    act(() => {
-      dispatchKeyDown(createKeyDownEvent('Tab').event)
-    })
-    expect(customizeAction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'enter',
-        item: expect.objectContaining({ id: 'customize' })
-      })
+  it('preserves a read-only footer selection when status rows refresh', async () => {
+    const footerAction = vi.fn()
+    const captureDispatch = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          footerActions={[
+            {
+              id: 'configure',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              tooltip: 'Configure MCP servers',
+              icon: 'settings',
+              action: footerAction
+            }
+          ]}
+          items={[{ id: 'server', label: 'MCP server', icon: 'mcp' }]}
+          readOnly
+        />
+      </QuickPanelProvider>
     )
+
+    const actionButton = await screen.findByRole('button', { name: 'Configure MCP servers' })
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowDown').event)
+    })
+    expect(actionButton).toHaveAttribute('aria-current', 'true')
+
+    act(() => {
+      quickPanel?.updateList([{ id: 'server', label: 'MCP server', description: 'Connected', icon: 'mcp' }])
+    })
+
+    await screen.findByText('Connected')
+    expect(actionButton).toHaveAttribute('aria-current', 'true')
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
+    })
+    expect(footerAction).toHaveBeenCalledTimes(1)
   })
 
   it('uses either mouse hover or keyboard active state, not both', async () => {
@@ -1255,34 +1445,6 @@ describe('QuickPanelView', () => {
 
     expect(handled).toBe(true)
     expect(action).not.toHaveBeenCalled()
-  })
-
-  it('keeps a bottom-fixed action visible when filtering has no results', async () => {
-    const action = vi.fn()
-    const inputAdapter: QuickPanelInputAdapter = {
-      deleteTriggerRange: vi.fn(),
-      focus: vi.fn(),
-      getCursorOffset: () => 8,
-      getText: () => '/missing',
-      insertText: vi.fn()
-    }
-    const items: QuickPanelListItem[] = [
-      { id: 'regular', label: 'Regular action', icon: 'r' },
-      { id: 'customize', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true, action }
-    ]
-
-    render(
-      <QuickPanelProvider>
-        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
-      </QuickPanelProvider>
-    )
-
-    await screen.findByText('No results')
-    expect(screen.queryByTestId('quick-panel-virtual-list')).not.toBeInTheDocument()
-    expect(within(screen.getByTestId('quick-panel-fixed-bottom')).getByText('Customize toolbar')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('Customize toolbar'))
-    expect(action).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the exit layout stable when closing', async () => {

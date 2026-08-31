@@ -545,7 +545,7 @@ const ChatComposerInner = ({
     isDefault: pinnedToolsAtDefault,
     customizeOpen: customizeToolbarOpen,
     setCustomizeOpen: setCustomizeToolbarOpen,
-    customizePanelItem
+    customizeFooterAction
   } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -1327,7 +1327,7 @@ const ChatComposerInner = ({
   )
 
   const rootPanelAdditionalItems = useMemo<QuickPanelListItem[]>(() => {
-    const items = [customizePanelItem]
+    const items: QuickPanelListItem[] = []
     if (!chatWrite || pinnedToolIds.includes(CHAT_CLEAR_CONTEXT_TOOL_ID)) return items
 
     const label = t('chat.input.new.context')
@@ -1341,7 +1341,8 @@ const ChatComposerInner = ({
       action: () => void handleStartNewContext()
     })
     return items
-  }, [chatWrite, clearContextDisabled, customizePanelItem, handleStartNewContext, pinnedToolIds, t])
+  }, [chatWrite, clearContextDisabled, handleStartNewContext, pinnedToolIds, t])
+  const rootPanelFooterActions = useMemo(() => [customizeFooterAction], [customizeFooterAction])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -1918,6 +1919,7 @@ const ChatComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelAdditionalItems}
+          rootPanelFooterActions={rootPanelFooterActions}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   language: 'en',
   knowledgeQueryOptions: vi.fn(),
   translationSuffix: '',
+  openRoute: vi.fn(),
   quickPanel: {
     isVisible: false,
     symbol: '',
@@ -28,6 +29,10 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
     mocks.knowledgeQueryOptions(options)
     return { bases: mocks.knowledgeBases, isLoading: false }
   }
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: mocks.openRoute
 }))
 
 vi.mock('lucide-react', async (importOriginal) => ({
@@ -141,6 +146,11 @@ describe('KnowledgeBaseToolRuntime', () => {
     )
     const openedOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
     expect(openedOptions.queryAnchor).toBeUndefined()
+    expect(openedOptions.footerActions).toEqual([
+      expect.objectContaining({ id: 'knowledge-base:manage', ariaLabel: 'chat.input.knowledge_base_manage' })
+    ])
+    openedOptions.footerActions[0].action()
+    expect(mocks.openRoute).toHaveBeenCalledWith('/app/knowledge')
 
     const panelList = openedOptions.list
     expect(panelList).toEqual([

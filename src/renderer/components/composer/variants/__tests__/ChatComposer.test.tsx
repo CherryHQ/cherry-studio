@@ -1130,13 +1130,11 @@ describe('ChatComposer', () => {
       disabled: false,
       searchAliases: ['clear context']
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual([
-      'composer:customize-toolbar',
-      'composer:clear-context'
-    ])
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:clear-context'])
+    expect(mocks.surfaceProps?.rootPanelFooterActions?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
     })
 
     const clearContextSwitch = screen.getByRole('switch', { name: 'chat.input.new.context' })
@@ -1171,7 +1169,8 @@ describe('ChatComposer', () => {
     const clearContextButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
       name: 'chat.input.new.context'
     })
-    expect(mocks.surfaceProps?.rootPanelAdditionalItems?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
+    expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([])
+    expect(mocks.surfaceProps?.rootPanelFooterActions?.map((item) => item.id)).toEqual(['composer:customize-toolbar'])
     const draftBefore = mocks.surfaceProps?.text
 
     fireEvent.click(clearContextButton)
@@ -1715,7 +1714,7 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
     })
     const newTopicSwitch = screen.getByRole('switch', { name: 'chat.conversation.new' })
     expect(newTopicSwitch).toBeChecked()
@@ -1736,7 +1735,7 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems?.map((item) => item.id)).toEqual(['composer:new-conversation'])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelAdditionalItems?.[0]?.action?.({} as any)
+      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('chat.conversation.new')
   })

@@ -1788,12 +1788,14 @@ describe('ComposerSurface', () => {
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
         rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
-        rootPanelAdditionalItems={[
+        rootPanelFooterActions={[
           {
             id: 'composer:customize-toolbar',
             label: 'Customize toolbar',
+            ariaLabel: 'Customize toolbar',
+            tooltip: 'Customize toolbar',
             icon: 'settings',
-            fixedToBottom: true
+            action: vi.fn()
           }
         ]}
         renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
@@ -1817,8 +1819,10 @@ describe('ComposerSurface', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
+    ])
+    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].footerActions).toEqual([
+      expect.objectContaining({ id: 'composer:customize-toolbar' })
     ])
 
     mocks.quickPanelOpen.mockClear()
@@ -1829,14 +1833,13 @@ describe('ComposerSurface', () => {
         list: [expect.objectContaining({ id: 'thinking-low' })],
         // Opening a launcher directly is an explicit request, so its parentPanel is the
         // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
-        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
-        // category view (seeded with the "Thinking" search text).
         parentPanel: expect.objectContaining({
           list: [
             expect.objectContaining({ id: 'new-topic' }),
             expect.objectContaining({ id: 'thinking' }),
             expect.objectContaining({ id: 'attachment' })
-          ]
+          ],
+          footerActions: undefined
         })
       })
     )
@@ -1849,8 +1852,7 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
       'new-topic',
       'thinking',
-      'attachment',
-      'composer:customize-toolbar'
+      'attachment'
     ])
   })
 
