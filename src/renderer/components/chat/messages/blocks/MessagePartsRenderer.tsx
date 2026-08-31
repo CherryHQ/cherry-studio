@@ -42,10 +42,11 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
-import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageListActions, useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import {
   getSessionToolTarget,
   isReportArtifactsToolResponse,
@@ -224,6 +225,7 @@ interface RenderGroupedEntryOptions {
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
+  onRemoveTranslation?: () => void
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
@@ -551,7 +553,15 @@ function renderPart(
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
-      return <TranslationBlock key={partId} id={partId} content={translationData.content} isStreaming={isStreaming} />
+      return (
+        <TranslationBlock
+          key={partId}
+          id={partId}
+          content={translationData.content}
+          isStreaming={isStreaming}
+          onDelete={options?.onRemoveTranslation}
+        />
+      )
     }
 
     case 'text': {
@@ -1344,6 +1354,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
+  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { t } = useTranslation()
+  const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
+  removeTranslationRef.current = { removeMessageTranslation, notifySuccess, t }
+  const handleRemoveTranslation = React.useCallback(async () => {
+    const { removeMessageTranslation, notifySuccess, t } = removeTranslationRef.current
+    await removeMessageTranslation?.(message.id)
+    notifySuccess?.(t('translate.closed'))
+  }, [message.id])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -1435,13 +1454,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       messageCitations,
       readOnlyFilePreviews,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
-      onTextPartExpandedChange: handleTextPartExpandedChange
+      onTextPartExpandedChange: handleTextPartExpandedChange,
+      onRemoveTranslation: handleRemoveTranslation
     }),
     [
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
+      handleRemoveTranslation,
       messageCitations,
       readOnlyFilePreviews
     ]

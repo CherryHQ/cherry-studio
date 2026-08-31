@@ -9,6 +9,7 @@ import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import {
   type MessageCitations,
   type ResolvedCitationMarkers,
+  stripCitationMarkers,
   withToolCitationTags
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
@@ -398,9 +399,12 @@ const MainTextBlock: React.FC<Props> = ({
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }
-      return rawText
+      // No citation at all in this message, so no marker in it can resolve — a model reusing an id
+      // minted by an earlier turn is the usual way here (#19771). Drop them rather than printing
+      // internal ids. User text is left alone: a literal `[cite:…]` there is the author's own.
+      return role === 'assistant' ? stripCitationMarkers(rawText) : rawText
     },
-    [citationReferences, citations, toolCitations]
+    [citationReferences, citations, role, toolCitations]
   )
   const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations
