@@ -1,5 +1,5 @@
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function shouldBlockAutosave(targetPath: string, pendingDelete: string | null): boolean {
   if (!pendingDelete) return false
@@ -137,6 +137,161 @@ describe('notes delete / autosave guards', () => {
         debouncedSave(lastContent, lastFilePath)
       }
       expect(debouncedSave).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('delete-failure with switch preserves snapshot', () => {
+    it('re-arms snapshot draft when user switched away before failure', () => {
+      const normalizedDelete = normalizePathValue('/notes/a.md')
+      const deleteType: 'file' | 'folder' = 'file'
+      // snapshot at delete start
+      const preDeleteContent = 'draft-a'
+      const preDeletePath = '/notes/a.md'
+      // simulate switch: refs now point to new note
+      let lastContent = 'draft-b'
+      let lastFilePath: string | undefined = '/notes/b.md'
+      const debouncedSave = vi.fn()
+
+      // production fix: use snapshot if snapshot was related
+      const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
+      const shouldRearmSnapshot =
+        snapNorm === normalizedDelete ||
+        (deleteType === 'folder' && snapNorm?.startsWith(`${normalizedDelete}/`))
+
+      if (shouldRearmSnapshot && preDeletePath != null) {
+        debouncedSave(preDeleteContent, preDeletePath)
+      } else if (lastFilePath != null) {
+        debouncedSave(lastContent, lastFilePath)
+      }
+
+      expect(debouncedSave).toHaveBeenCalledWith('draft-a', '/notes/a.md')
+      expect(debouncedSave).not.toHaveBeenCalledWith('draft-b', '/notes/b.md')
+      // current draft for b should be preserved by not overwriting refs
+      expect(lastFilePath).toBe('/notes/b.md')
+      expect(lastContent).toBe('draft-b')
+    })
+
+    it('does not re-arm with stale snapshot when snapshot was unrelated', () => {
+      const normalizedDelete = normalizePathValue('/notes/a.md')
+      const deleteType: 'file' | 'folder' = 'file'
+      const preDeleteContent = 'draft-unrelated'
+      const preDeletePath = '/notes/other.md'
+      const lastContent = 'draft-current'
+      const lastFilePath: string | undefined = '/notes/other.md'
+      const debouncedSave = vi.fn()
+
+      const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
+      const shouldRearmSnapshot =
+        snapNorm === normalizedDelete ||
+        (deleteType === 'folder' && snapNorm?.startsWith(`${normalizedDelete}/`))
+
+      if (shouldRearmSnapshot && preDeletePath != null) {
+        debouncedSave(preDeleteContent, preDeletePath)
+      } else if (lastFilePath != null) {
+        debouncedSave(lastContent, lastFilePath)
+      }
+
+      expect(debouncedSave).toHaveBeenCalledWith('draft-current', '/notes/other.md')
+    })
+  })
+
+  describe('same-path recreate race with in-flight autosave', () => {
+    let deleteEpoch: number
+    let pendingDelete: string | null
+    let lastRecreated: string | null
+    let fileWrite: ReturnType<typeof vi.fn>
+    let invalidate: ReturnType<typeof vi.fn>
+    let lastContentRef: string
+    let lastFilePathRef: string | undefined
+
+    beforeEach(() => {
+      deleteEpoch = 0
+      pendingDelete = null
+      lastRecreated = null
+      fileWrite = vi.fn().mockImplementation(() => Promise.resolve())
+      invalidate = vi.fn()
+      lastContentRef = ''
+      lastFilePathRef = undefined
+    })
+
+    async function saveCurrentNoteSim(content: string, targetPath: string, currentContent: string) {
+      if (!targetPath || content.trim() === currentContent.trim()) return
+      const pd = pendingDelete
+      if (pd) {
+        const nt = normalizePathValue(targetPath)
+        if (nt === pd || nt.startsWith(`${pd}/`)) return
+      }
+      const epochAtStart = deleteEpoch
+      await fileWrite(targetPath, content)
+      if (epochAtStart !== deleteEpoch) {
+        const na = normalizePathValue(targetPath)
+        if (lastRecreated && na === lastRecreated) {
+          const curLast = lastFilePathRef ? normalizePathValue(lastFilePathRef) : undefined
+          const correct = curLast === na ? lastContentRef : ''
+          if (correct !== content) {
+            await fileWrite(targetPath, correct)
+          }
+          invalidate(targetPath)
+          return
+        }
+        const ps = pendingDelete
+        if (ps) {
+          const ns = normalizePathValue(targetPath)
+          if (ns === ps || ns.startsWith(`${ps}/`)) {
+            return
+          }
+        }
+        return
+      }
+      const pa = pendingDelete
+      if (pa) {
+        const na = normalizePathValue(targetPath)
+        if (na === pa || na.startsWith(`${pa}/`)) return
+      }
+      invalidate(targetPath)
+    }
+
+    it('stale write after same-path recreate restores new content instead of leaving stale overwrite', async () => {
+      // user edits a.md
+      const staleContent = 'old content'
+      const recreatedCorrectContent = ''
+
+      // start autosave (epoch 0)
+      const savePromise = saveCurrentNoteSim(staleContent, '/notes/a.md', '')
+
+      // during await, user deletes a.md
+      pendingDelete = normalizePathValue('/notes/a.md')
+      deleteEpoch += 1
+
+      // then recreates same path
+      pendingDelete = null
+      deleteEpoch += 1
+      lastRecreated = normalizePathValue('/notes/a.md')
+      lastContentRef = recreatedCorrectContent
+      lastFilePathRef = '/notes/a.md'
+
+      await savePromise
+
+      // first write was stale, second write should restore correct content
+      expect(fileWrite).toHaveBeenCalledTimes(2)
+      expect(fileWrite).toHaveBeenNthCalledWith(1, '/notes/a.md', 'old content')
+      expect(fileWrite).toHaveBeenNthCalledWith(2, '/notes/a.md', '')
+      expect(invalidate).toHaveBeenCalledWith('/notes/a.md')
+    })
+
+    it('stale write without recreate does not trigger corrective rewrite', async () => {
+      const savePromise = saveCurrentNoteSim('stale', '/notes/a.md', '')
+
+      pendingDelete = normalizePathValue('/notes/a.md')
+      deleteEpoch += 1
+      // no recreate
+      lastRecreated = null
+
+      await savePromise
+
+      // stale write should be swallowed without corrective write
+      expect(fileWrite).toHaveBeenCalledTimes(1)
+      expect(invalidate).not.toHaveBeenCalled()
     })
   })
 })

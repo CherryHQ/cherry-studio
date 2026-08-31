@@ -84,6 +84,8 @@ const NotesPage: FC = () => {
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
   const pendingDeletePathRef = useRef<string | null>(null)
+  const deleteEpochRef = useRef(0)
+  const lastRecreatedPathRef = useRef<string | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
@@ -189,8 +191,40 @@ const NotesPage: FC = () => {
         }
       }
 
+      const epochAtStart = deleteEpochRef.current
+
       try {
         await window.api.file.write(targetPath, content)
+        // 若写入期间发生了删除/重建（epoch 变化），说明此次写入是过期写入
+        if (epochAtStart !== deleteEpochRef.current) {
+          const normalizedAfter = normalizePathValue(targetPath)
+          // 若目标路径是刚被重建的同路径笔记，旧内容已覆盖新文件，需恢复正确内容
+          if (lastRecreatedPathRef.current && normalizedAfter === lastRecreatedPathRef.current) {
+            const curLastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
+            const correctContent =
+              curLastPath === normalizedAfter ? lastContentRef.current : currentContentRef.current
+            if (correctContent !== content) {
+              try {
+                await window.api.file.write(targetPath, correctContent).catch(() => {})
+              } catch {}
+            }
+            invalidateFileContent(targetPath)
+            return
+          }
+          // 若仍处于待删除状态但未重建，已在 pendingAfter 分支处理；这里直接返回避免刷新已删除文件的缓存
+          const pendingStale = pendingDeletePathRef.current
+          if (pendingStale) {
+            const normalizedStale = normalizePathValue(targetPath)
+            if (normalizedStale === pendingStale || normalizedStale.startsWith(`${pendingStale}/`)) {
+              try {
+                await window.api.file.deleteExternalFile(targetPath).catch(() => {})
+                await window.api.file.deleteExternalDir(targetPath).catch(() => {})
+              } catch {}
+              return
+            }
+          }
+          return
+        }
         // 写入完成后再检查一次删除标记：若在此次写入等待期间文件已被删除，写入会“复活”文件，需立即清理
         const pendingAfter = pendingDeletePathRef.current
         if (pendingAfter) {
@@ -531,11 +565,20 @@ const NotesPage: FC = () => {
         const normalizedParent = normalizePathValue(targetPath)
         updateExpandedPaths((prev) => addUniquePath(prev, normalizedParent))
         // 若新笔记路径与待删除标记相同（用户删除后立即重建同名笔记），清除标记避免首个 autosave 被误拦截
+        // 同时推进 epoch 并记录重建路径，防止已开始的 autosave 用旧内容覆盖新文件或清理逻辑误删新文件
         const pendingCreate = pendingDeletePathRef.current
         if (pendingCreate) {
           const normalizedNote = normalizePathValue(notePath)
           if (normalizedNote === pendingCreate || normalizedNote.startsWith(`${pendingCreate}/`)) {
             pendingDeletePathRef.current = null
+            deleteEpochRef.current += 1
+            lastRecreatedPathRef.current = normalizedNote
+            const recreated = normalizedNote
+            setTimeout(() => {
+              if (lastRecreatedPathRef.current === recreated) {
+                lastRecreatedPathRef.current = null
+              }
+            }, 3000)
           }
         }
         dispatch(setActiveFilePath(notePath))
@@ -627,8 +670,12 @@ const NotesPage: FC = () => {
         // 删除正在编辑的笔记（或其所在文件夹）时，先标记为“待删除”并取消防抖，
         // 使已触发但尚未落盘的 autosave 在 saveCurrentNote 中被丢弃，避免文件被“复活”。
         // 失败时需撤销标记并重建防抖，否则已取消的保存不会自动恢复，编辑内容将丢失。
+        // 快照删除前的草稿，避免在删除等待期间用户切换笔记导致快照被覆盖
+        const preDeleteContent = lastContentRef.current
+        const preDeletePath = lastFilePathRef.current
         if (isActiveRelated) {
           pendingDeletePathRef.current = normalizedDeletePath
+          deleteEpochRef.current += 1
           debouncedSaveRef.current?.cancel()
         }
 
@@ -637,8 +684,16 @@ const NotesPage: FC = () => {
         } catch (error) {
           if (isActiveRelated) {
             pendingDeletePathRef.current = null
-            if (lastFilePathRef.current != null) {
+            const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
+            const shouldRearmSnapshot =
+              snapNorm === normalizedDeletePath ||
+              (nodeToDelete.type === 'folder' && snapNorm?.startsWith(`${normalizedDeletePath}/`))
+            if (shouldRearmSnapshot && preDeletePath != null) {
+              debouncedSaveRef.current?.(preDeleteContent, preDeletePath)
+            } else if (lastFilePathRef.current != null) {
               debouncedSaveRef.current?.(lastContentRef.current, lastFilePathRef.current)
+            } else if (preDeletePath != null) {
+              debouncedSaveRef.current?.(preDeleteContent, preDeletePath)
             }
           }
           throw error
