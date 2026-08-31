@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
 import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
+import { VercelGatewayModelsResponseSchema } from '../listModelsSchemas'
 
 // The fetchers resolve the rotated API key (and, for Vertex, the iam-gcp auth
 // config + signed auth headers) off main-process singletons, then perform the
@@ -467,6 +468,34 @@ describe('listModels — copilotFetcher (preset-aware routing)', () => {
   })
 })
 
+describe('listModels — togetherFetcher pricing', () => {
+  it('imports the published per-million token and cached-input rates', async () => {
+    const provider = makeProvider({
+      id: 'together',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.together.xyz/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: [
+        {
+          id: 'moonshotai/Kimi-K2.6',
+          pricing: { input: 1.2, output: 4.5, cached_input: 0.2 }
+        }
+      ]
+    })
+
+    const [model] = await listModels(provider)
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1.2 },
+      output: { currency: 'USD', perMillionTokens: 4.5 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.2 }
+    })
+  })
+})
+
 describe('listModels — ppioFetcher capability mapping', () => {
   it('keeps only RERANK when the same model id appears in chat and reranker endpoints', async () => {
     const provider = makeProvider({
@@ -577,6 +606,64 @@ describe('listModels — openRouterFetcher image models', () => {
     })
   })
 
+  it('converts the per-token price strings into per-1M rates', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            {
+              id: 'anthropic/claude-sonnet-4',
+              pricing: { prompt: '0.000003', completion: '0.000015', input_cache_read: '0.0000003' }
+            },
+            { id: 'meta/llama-free', pricing: { prompt: '0', completion: '0' } },
+            { id: 'openai/quote-only', pricing: { prompt: '0.000001' } }
+          ]
+        }
+      })
+    })
+
+    const models = await listModels(makeOpenRouterProvider())
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('anthropic/claude-sonnet-4')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 3 },
+      output: { currency: 'USD', perMillionTokens: 15 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.3 }
+    })
+    expect(priceOf('meta/llama-free')?.output.perMillionTokens).toBe(0)
+    expect(priceOf('openai/quote-only')).toBeUndefined()
+  })
+
+  it('separates a blank rate from a free one and keeps a variable-rate sentinel unknown', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models') || url.endsWith('/images/models')) {
+        return Promise.resolve({ value: { data: [] } })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            // `Number('')` is 0, so a blank quote must be rejected before it reads as free.
+            { id: 'vendor/blank-quote', pricing: { prompt: '', completion: '  ' } },
+            // OpenRouter's "varies" sentinel: the rate exists but has no fixed value.
+            { id: 'vendor/variable-rate', pricing: { prompt: '-1', completion: '-1' } }
+          ]
+        }
+      })
+    })
+
+    const models = await listModels(makeOpenRouterProvider())
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('vendor/blank-quote')).toBeUndefined()
+    expect(priceOf('vendor/variable-rate')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+  })
+
   it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
     const apiKey = 'sk-should-not-reach-logs'
     const provider = makeOpenRouterProvider()
@@ -680,7 +767,7 @@ describe('listModels — newApiFetcher endpoint types', () => {
     const provider = makeProvider({
       id: 'aionly',
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aionly.com/v1' }
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.aiionly.com/v1' }
       }
     })
     aiSdkGetFromApiMock.mockResolvedValue({
@@ -697,10 +784,12 @@ describe('listModels — newApiFetcher endpoint types', () => {
     const models = await listModels(provider)
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual(['https://api.aiionly.com/v1/models'])
+    expect(models[0].pricing).toBeUndefined()
   })
 })
 
-describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
+describe('listModels — gatewayFetcher (Vercel AI Gateway /v1/models)', () => {
   function makeGatewayProvider() {
     return makeProvider({
       id: 'gateway',
@@ -711,19 +800,19 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
     })
   }
 
-  it('hits /v3/ai/config with the protocol-version header (not the @ai-sdk/gateway path)', async () => {
+  it('uses the public model catalog instead of the SDK internal config endpoint', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
-        models: [{ id: 'openai/gpt-4o', name: 'GPT-4o', description: 'omni', specification: { provider: 'openai' } }]
+        data: [{ id: 'openai/gpt-4o', name: 'GPT-4o', description: 'omni', owned_by: 'openai' }]
       }
     })
 
-    const models = await listModels(makeGatewayProvider())
+    const models = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
 
     expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
-    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
-    expect(call.url).toBe('https://ai-gateway.vercel.sh/v3/ai/config')
-    expect(call.headers['ai-gateway-protocol-version']).toBe('0.0.1')
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers?: Record<string, string> }
+    expect(call.url).toBe('https://ai-gateway.vercel.sh/v1/models')
+    expect(call.headers).toBeUndefined()
 
     expect(models).toHaveLength(1)
     expect(models[0].apiModelId).toBe('openai/gpt-4o')
@@ -734,15 +823,113 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
   it('dedups models returned with duplicate ids', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
-        models: [
+        data: [
           { id: 'openai/gpt-4o', name: 'GPT-4o' },
           { id: 'openai/gpt-4o', name: 'GPT-4o (dup)' }
         ]
       }
     })
 
-    const models = await listModels(makeGatewayProvider())
+    const models = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
     expect(models).toHaveLength(1)
+  })
+
+  it('converts published token, cache, and context-tier rates from per-token USD', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: VercelGatewayModelsResponseSchema.parse({
+        data: [
+          {
+            id: 'alibaba/qwen3.5-plus',
+            pricing: {
+              input: '0.0000004',
+              output: '0.0000024',
+              input_cache_read: '0.00000004',
+              input_cache_write: '0.0000005',
+              input_tiers: [
+                { cost: '0.0000004', min: 0, max: 256_001 },
+                { cost: '0.0000012', min: 256_001 }
+              ],
+              output_tiers: [
+                { cost: '0.0000024', min: 0, max: 256_001 },
+                { cost: '0.0000072', min: 256_001 }
+              ],
+              input_cache_read_tiers: [
+                { cost: '0.00000004', max: 256_001 },
+                { cost: '0.00000012', min: 256_001 }
+              ],
+              input_cache_write_tiers: [
+                { cost: '0.0000005', min: 0, max: 256_001 },
+                { cost: '0.0000015', min: 256_001 }
+              ]
+            }
+          }
+        ]
+      })
+    })
+
+    const [model] = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0.4 },
+      output: { currency: 'USD', perMillionTokens: 2.4 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.04 },
+      cacheWrite: { currency: 'USD', perMillionTokens: 0.5 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 256_001,
+          input: { currency: 'USD', perMillionTokens: 1.2 },
+          output: { currency: 'USD', perMillionTokens: 7.2 },
+          cacheRead: { currency: 'USD', perMillionTokens: 0.12 },
+          cacheWrite: { currency: 'USD', perMillionTokens: 1.5 }
+        }
+      ]
+    })
+  })
+
+  it('carries the published per-image price for image models', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'bfl/flux-kontext-max',
+            type: 'image',
+            pricing: { image: '0.08' }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null },
+      perImage: { price: 0.08, unit: 'image' }
+    })
+  })
+
+  it('keeps input-only embedding and reranking rates without inventing an output charge', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'openai/text-embedding-3-small', type: 'embedding', pricing: { input: '0.00000002' } },
+          { id: 'cohere/rerank-v3.5', type: 'reranking', pricing: { input: '0.00000005' } }
+        ]
+      }
+    })
+
+    const models = await listModels(makeGatewayProvider(), undefined, { throwOnError: true })
+
+    expect(models.map((model) => model.pricing)).toEqual([
+      {
+        input: { currency: 'USD', perMillionTokens: 0.02 },
+        output: { currency: 'USD', perMillionTokens: 0 }
+      },
+      {
+        input: { currency: 'USD', perMillionTokens: 0.05 },
+        output: { currency: 'USD', perMillionTokens: 0 }
+      }
+    ])
   })
 })
 
@@ -766,6 +953,315 @@ describe('listModels — aiHubMixFetcher (configured base URL)', () => {
     expect(call.url).toBe('https://custom.example.com/api/v1/models')
     expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
   })
+
+  it('carries the listed USD-per-1M rates, including the cache tiers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            model_id: 'gpt-4o-mini',
+            model_name: 'GPT-4o mini',
+            pricing: { input: 0.135, output: 0.54, cache_read: 0.0675 }
+          },
+          // A free SKU prices at a real 0 — it must not be mistaken for a missing rate.
+          { model_id: 'gemini-3.6-flash-free', pricing: { input: 0, output: 0 } },
+          // Half a pair is no rate at all.
+          { model_id: 'half-priced', pricing: { input: 1 } },
+          { model_id: 'unpriced' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeProvider({ id: 'aihubmix' }))
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    expect(priceOf('gpt-4o-mini')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0.135 },
+      output: { currency: 'USD', perMillionTokens: 0.54 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.0675 }
+    })
+    expect(priceOf('gemini-3.6-flash-free')?.input.perMillionTokens).toBe(0)
+    expect(priceOf('half-priced')).toBeUndefined()
+    expect(priceOf('unpriced')).toBeUndefined()
+  })
+})
+
+describe('listModels — provider-published pricing', () => {
+  it.each([
+    ['sophnet', 'CNY'],
+    ['jina', 'USD'],
+    ['poe', 'USD']
+  ])('imports %s per-token rates in the provider billing currency', async (providerId, currency) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'priced-model',
+            pricing: {
+              prompt: '0.00000125',
+              completion: '0.000005',
+              input_cache_read: '0.00000025'
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: providerId }))
+
+    expect(model.pricing).toEqual({
+      input: { currency, perMillionTokens: 1.25 },
+      output: { currency, perMillionTokens: 5 },
+      cacheRead: { currency, perMillionTokens: 0.25 }
+    })
+  })
+
+  it('imports Poe context tiers and inherits omitted tier fields from the base rate', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'tiered-model',
+            pricing: {
+              prompt: '0.000001',
+              completion: '0.000002',
+              input_cache_read: '0.0000001',
+              context_pricing: {
+                tiers: [{ min_tokens: 64_000, max_tokens: null, prompt: '0.000003', completion: '0.000004' }]
+              }
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'poe' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1 },
+      output: { currency: 'USD', perMillionTokens: 2 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.1 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 64_000,
+          input: { currency: 'USD', perMillionTokens: 3 },
+          output: { currency: 'USD', perMillionTokens: 4 },
+          cacheRead: { currency: 'USD', perMillionTokens: 0.1 }
+        }
+      ]
+    })
+  })
+
+  it('does not turn Poe request-priced or ambiguous-null entries into a token rate', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'request-priced', pricing: { prompt: null, completion: null, request: '0.01' } },
+          { id: 'ambiguous-null', pricing: null }
+        ]
+      }
+    })
+
+    const models = await listModels(makeProvider({ id: 'poe' }))
+
+    for (const model of models) {
+      expect(model.pricing).toEqual({
+        input: { currency: 'USD', perMillionTokens: null },
+        output: { currency: 'USD', perMillionTokens: null }
+      })
+    }
+  })
+
+  it('imports PPIO per-million CNY decimals, cache rates, and input-token tiers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'vendor/tiered-model',
+            pricing: {
+              prompt: { price_per_m_decimal: '1' },
+              completion: { price_per_m_decimal: '2' },
+              input_cache_read: { price_per_m_decimal: '0.1' }
+            },
+            tiered_billing_configs: [
+              {
+                min_tokens: 100_000,
+                max_tokens: null,
+                pricing: {
+                  prompt: { price_per_m_decimal: '3' },
+                  completion: { price_per_m_decimal: '4' },
+                  input_cache_read: { price_per_m_decimal: '0.3' }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'ppio' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'CNY', perMillionTokens: 1 },
+      output: { currency: 'CNY', perMillionTokens: 2 },
+      cacheRead: { currency: 'CNY', perMillionTokens: 0.1 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 100_000,
+          input: { currency: 'CNY', perMillionTokens: 3 },
+          output: { currency: 'CNY', perMillionTokens: 4 },
+          cacheRead: { currency: 'CNY', perMillionTokens: 0.3 }
+        }
+      ]
+    })
+  })
+
+  it('converts Baidu prices from CNY per thousand tokens and preserves context tiers', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'ernie-tiered',
+            pricing: {
+              prompt: [
+                { up_to: 32, price: '0.006' },
+                { up_to: null, price: '0.01' }
+              ],
+              completion: [
+                { up_to: 32, price: '0.024' },
+                { up_to: null, price: '0.04' }
+              ]
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'baidu-cloud' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'CNY', perMillionTokens: 6 },
+      output: { currency: 'CNY', perMillionTokens: 24 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 32_001,
+          input: { currency: 'CNY', perMillionTokens: 10 },
+          output: { currency: 'CNY', perMillionTokens: 40 }
+        }
+      ]
+    })
+  })
+
+  it('does not treat Baidu negative image sentinels as a usable rate', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'ernie-image-variable', pricing: { image: '-1' } }] }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'baidu-cloud' }))
+
+    expect(model.pricing).toBeUndefined()
+  })
+
+  it('converts LANYUN text rates from CNY per thousand tokens', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'lanyun-tiered',
+            x_lanyun: {
+              price_rules: [
+                {
+                  token_range_start: null,
+                  input_text_token_price: 0.0022,
+                  output_text_token_price: 0.0133,
+                  cached_text_token_price: 0.00022
+                },
+                { token_range_start: 100_001, input_text_token_price: 0.0044, output_text_token_price: 0.0266 }
+              ]
+            }
+          }
+        ]
+      }
+    })
+
+    const [model] = await listModels(makeProvider({ id: 'lanyun' }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'CNY', perMillionTokens: 2.2 },
+      output: { currency: 'CNY', perMillionTokens: 13.3 },
+      cacheRead: { currency: 'CNY', perMillionTokens: 0.22 },
+      inputTokenTiers: [
+        {
+          minInputTokens: 100_001,
+          input: { currency: 'CNY', perMillionTokens: 4.4 },
+          output: { currency: 'CNY', perMillionTokens: 26.6 }
+        }
+      ]
+    })
+  })
+
+  it('uses Hugging Face rates only when every possible upstream publishes the same price', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          {
+            id: 'stable-price',
+            providers: [
+              { provider: 'one', pricing: { input: 1, output: 2 } },
+              { provider: 'two', pricing: { input: 1, output: 2 } }
+            ]
+          },
+          {
+            id: 'variable-price',
+            providers: [
+              { provider: 'one', pricing: { input: 1, output: 2 } },
+              { provider: 'two', pricing: { input: 3, output: 4 } }
+            ]
+          },
+          {
+            id: 'incomplete-price',
+            providers: [
+              { provider: 'one', pricing: { input: 1, output: 2 } },
+              { provider: 'two', pricing: null }
+            ]
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeProvider({ id: 'huggingface' }))
+    const priceOf = (id: string) => models.find((model) => model.apiModelId === id)?.pricing
+
+    expect(priceOf('stable-price')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1 },
+      output: { currency: 'USD', perMillionTokens: 2 }
+    })
+    expect(priceOf('variable-price')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+    expect(priceOf('incomplete-price')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+  })
+
+  it.each(['ocoolai', 'burncloud'])('imports the authenticated NewAPI rate card for %s', async (providerId) => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({
+            value: { data: [{ model_name: 'priced-model', model_ratio: 0.5, completion_ratio: 4 }] }
+          })
+        : Promise.resolve({ value: { data: [{ id: 'priced-model' }] } })
+    )
+
+    const [model] = await listModels(makeProvider({ id: providerId }))
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1 },
+      output: { currency: 'USD', perMillionTokens: 4 }
+    })
+  })
 })
 
 describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
@@ -778,6 +1274,170 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
       }
     })
   }
+
+  it('converts the gateway ratios into per-1M rates and refuses to guess a time-tiered one', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/api/pricing')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              // ratio 1 = $2 / 1M; output and cache are multiples of the input rate.
+              { model_name: 'deepseek/deepseek-v3.2', model_ratio: 0.142857, completion_ratio: 1.5, cache_ratio: 0.1 },
+              {
+                // Billed against the Shanghai clock — no single rate to quote.
+                model_name: 'deepseek/deepseek-v4-pro',
+                model_ratio: 0.3375,
+                completion_ratio: 3,
+                billing_mode: 'tiered_expr',
+                billing_expr: 'hour("Asia/Shanghai") >= 9 ? tier("peak", p * 1.35) : tier("off_peak", p * 0.675)'
+              },
+              // Priced per request, which the per-token model cannot hold.
+              { model_name: 'openai/dall-e-3', quota_type: 1, model_price: 0.04 },
+              { model_name: 'unlisted-in-models', model_ratio: 1 }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({
+        value: {
+          data: [
+            { id: 'deepseek/deepseek-v3.2' },
+            { id: 'deepseek/deepseek-v4-pro' },
+            { id: 'openai/dall-e-3' },
+            { id: 'no-price-published' }
+          ]
+        }
+      })
+    })
+
+    const models = await listModels(makeNewApiProvider())
+    const priceOf = (id: string) => models.find((m) => m.apiModelId === id)?.pricing
+
+    // The rate card hangs off the host root, not under the OpenAI-compatible /v1 namespace.
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual(
+      expect.arrayContaining(['https://new-api.example.com/api/pricing'])
+    )
+    expect(priceOf('deepseek/deepseek-v3.2')).toEqual({
+      input: { currency: 'USD', perMillionTokens: 0.285714 },
+      output: { currency: 'USD', perMillionTokens: 0.428571 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.0285714 }
+    })
+    expect(priceOf('deepseek/deepseek-v4-pro')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+    expect(priceOf('openai/dall-e-3')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+    expect(priceOf('no-price-published')).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+  })
+
+  it('bills the caller at their own group rate, not the default group', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({
+            value: {
+              // The token belongs to `vip`, which bills at half the base ratio.
+              group_ratio: { default: 1, vip: 0.5 },
+              usable_group: { vip: 'VIP 分组' },
+              data: [{ model_name: 'gpt-4o', model_ratio: 1.25, completion_ratio: 4, cache_ratio: 0.1 }]
+            }
+          })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    const [model] = await listModels(makeNewApiProvider())
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: 1.25 },
+      output: { currency: 'USD', perMillionTokens: 5 },
+      cacheRead: { currency: 'USD', perMillionTokens: 0.125 }
+    })
+  })
+
+  it('uses one selected credential for the model list and its authenticated rate card', async () => {
+    getRotatedApiKeyMock.mockReturnValueOnce('sk-group-a').mockReturnValueOnce('sk-group-b')
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({ value: { data: [{ model_name: 'gpt-4o', model_ratio: 1 }] } })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    await listModels(
+      makeProvider({
+        ...makeNewApiProvider(),
+        apiKeys: [{ id: 'key-a', isEnabled: true }]
+      })
+    )
+
+    expect(getRotatedApiKeyMock).toHaveBeenCalledTimes(1)
+    const requestHeaders = aiSdkGetFromApiMock.mock.calls.map(([request]) => request.headers)
+    expect(requestHeaders).toHaveLength(2)
+    expect(
+      requestHeaders.every((headers) =>
+        Object.entries(headers).some(
+          ([name, value]) => name.toLowerCase() === 'authorization' && value === 'Bearer sk-group-a'
+        )
+      )
+    ).toBe(true)
+  })
+
+  it('reports unknown pricing when enabled keys may belong to different billing groups', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({ value: { data: [{ model_name: 'gpt-4o', model_ratio: 1 }] } })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+    const provider = makeProvider({
+      ...makeNewApiProvider(),
+      apiKeys: [
+        { id: 'key-a', isEnabled: true },
+        { id: 'key-b', isEnabled: true }
+      ]
+    })
+
+    const [model] = await listModels(provider)
+
+    expect(model.pricing).toEqual({
+      input: { currency: 'USD', perMillionTokens: null },
+      output: { currency: 'USD', perMillionTokens: null }
+    })
+  })
+
+  it('falls back to the default group when the response names several usable groups', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.resolve({
+            value: {
+              group_ratio: { default: 1, vip: 0.5 },
+              usable_group: { default: '默认分组', vip: 'VIP 分组' },
+              data: [{ model_name: 'gpt-4o', model_ratio: 1.25, completion_ratio: 4 }]
+            }
+          })
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    const [model] = await listModels(makeNewApiProvider())
+
+    expect(model.pricing?.input.perMillionTokens).toBe(2.5)
+  })
+
+  it('still lists models when the gateway publishes no pricing endpoint', async () => {
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) =>
+      url.endsWith('/api/pricing')
+        ? Promise.reject(new Error('404 not found'))
+        : Promise.resolve({ value: { data: [{ id: 'gpt-4o' }] } })
+    )
+
+    const models = await listModels(makeProvider({ id: 'cherryin' }))
+
+    expect(models.map((m) => m.apiModelId)).toEqual(['gpt-4o'])
+    expect(models[0].pricing).toBeUndefined()
+  })
 
   it('marks normalized primary jina-rerank models while ignoring unknown endpoint routing metadata', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({

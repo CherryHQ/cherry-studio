@@ -512,5 +512,34 @@ describe('ProviderModelMappings', () => {
         expect(result.pricing).toBeNull()
       }
     })
+
+    it('drops the legacy 0/0 echo so an unset price never migrates as free', () => {
+      const result = transformModel(
+        {
+          id: 'unpriced',
+          name: 'Unpriced',
+          pricing: { input_per_million_tokens: 0, output_per_million_tokens: 0, currencySymbol: '$' }
+        } as never,
+        'custom'
+      )
+
+      expect(result.pricing).toBeNull()
+    })
+
+    it('keeps a half-free price that only zeroes one direction', () => {
+      const result = transformModel(
+        {
+          id: 'free-input',
+          name: 'Free input',
+          pricing: { input_per_million_tokens: 0, output_per_million_tokens: 15, currencySymbol: '$' }
+        } as never,
+        'custom'
+      )
+
+      expect(result.pricing).toEqual({
+        input: { perMillionTokens: 0, currency: 'USD' },
+        output: { perMillionTokens: 15, currency: 'USD' }
+      })
+    })
   })
 })

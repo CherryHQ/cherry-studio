@@ -32,7 +32,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { type Model, ModelSchema, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
@@ -84,6 +84,7 @@ const logger = loggerService.withContext('AiService')
  * throughput for far fewer 429s.
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
+const ListedModelsSchema = ModelSchema.array()
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
@@ -109,22 +110,6 @@ export function resolveRequiredNativeFileSupport(
     }
   }
   return required
-}
-
-// ── Model listing ──────────────────────────────────────────────────
-
-/**
- * Bare model id used to dedup a live API list against the registry catalog: the
- * upstream `/models` strips the publisher prefix (`deepseek-v3.1-maas`) while the
- * registry keeps it (`deepseek-ai/deepseek-v3.1-maas`), so both collapse to the
- * last path segment, lowercased.
- * ponytail: last-segment + lowercase covers the known convention gap (publisher
- * prefix); widen (e.g. `.`→`-`) only if a real collision surfaces.
- */
-function bareModelKey(apiModelId: string | undefined): string {
-  const id = apiModelId ?? ''
-  const afterSlash = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id
-  return afterSlash.toLowerCase()
 }
 
 function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSnapshot | undefined {
@@ -182,19 +167,6 @@ function createProviderCallHandler(context: AiUsageCaptureContext): RuntimeProvi
       completedAt: event.completedAt
     })
   }
-}
-
-/**
- * Union a provider's live API models with its registry catalog. Live models win;
- * registry models the API never returns are appended — vendor-exclusive entries
- * the upstream `/models` doesn't list (ppio's Z-Image/Jimeng image models,
- * Claude-on-Vertex). Enrichment-type overrides collapse onto their live twin via
- * `bareModelKey`, so only genuinely-missing models are added.
- */
-export function mergeProviderModelsWithRegistry(remote: Partial<Model>[], registry: Model[]): Partial<Model>[] {
-  const seen = new Set(remote.map((m) => bareModelKey(m.apiModelId)))
-  const missing = registry.filter((m) => !seen.has(bareModelKey(m.apiModelId)))
-  return missing.length > 0 ? [...remote, ...missing] : remote
 }
 
 // ── Request types ──────────────────────────────────────────────────
@@ -1083,7 +1055,7 @@ export class AiService extends BaseService {
   }
 
   // ── Model listing ──
-  async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
+  async listModels(request: ListModelsRequest): Promise<Model[]> {
     let providerId = request.providerId
     if (!providerId && request.assistantId) {
       let assistant: Assistant | undefined
@@ -1104,20 +1076,26 @@ export class AiService extends BaseService {
     // shipped catalog instead of calling the upstream API. The rest of the pull
     // flow (enrich → reconcile → enable) is unchanged.
     if (provider.modelListSource === 'registry') {
-      return providerRegistryService.listProviderRegistryModels({
-        providerId,
-        presetProviderId: provider.presetProviderId ?? null
-      })
+      return ListedModelsSchema.parse(
+        providerRegistryService.listProviderRegistryModels({
+          providerId,
+          presetProviderId: provider.presetProviderId ?? null
+        })
+      )
     }
     // Union the live API list with the registry catalog so vendor-exclusive models
     // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
     // still surface for the user to enable.
+    const pricingGeneration = providerRegistryService.captureRuntimePricingGeneration(providerId)
     const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
-    const registryModels = providerRegistryService.listProviderRegistryModels({
-      providerId,
-      presetProviderId: provider.presetProviderId ?? null
-    })
-    return mergeProviderModelsWithRegistry(remoteModels, registryModels)
+    return ListedModelsSchema.parse(
+      providerRegistryService.resolveFetchedModels(
+        providerId,
+        provider.presetProviderId ?? null,
+        remoteModels,
+        pricingGeneration
+      )
+    )
   }
 
   // ── API validation ──

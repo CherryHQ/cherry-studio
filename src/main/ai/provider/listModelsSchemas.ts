@@ -22,6 +22,134 @@ export const OpenAIModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+const NullablePriceStringSchema = z.string().nullable().optional()
+
+export const OpenAITokenPricingSchema = z.looseObject({
+  prompt: NullablePriceStringSchema,
+  completion: NullablePriceStringSchema,
+  input_cache_read: NullablePriceStringSchema,
+  input_cache_reads: NullablePriceStringSchema,
+  input_cache_write: NullablePriceStringSchema,
+  image: NullablePriceStringSchema,
+  request: NullablePriceStringSchema,
+  context_pricing: z
+    .looseObject({
+      tiers: z.array(
+        z.looseObject({
+          min_tokens: z.number(),
+          max_tokens: z.number().nullable().optional(),
+          prompt: NullablePriceStringSchema,
+          completion: NullablePriceStringSchema,
+          input_cache_read: NullablePriceStringSchema,
+          input_cache_reads: NullablePriceStringSchema,
+          input_cache_write: NullablePriceStringSchema
+        })
+      )
+    })
+    .optional()
+})
+
+const PPIOPriceBucketSchema = z.looseObject({
+  price_per_m_decimal: z.string().optional()
+})
+
+const PPIOPricingSchema = z.looseObject({
+  prompt: PPIOPriceBucketSchema.optional(),
+  completion: PPIOPriceBucketSchema.optional(),
+  input_cache_read: PPIOPriceBucketSchema.optional(),
+  input_cache_write: PPIOPriceBucketSchema.optional()
+})
+
+export const PPIOModelPricingSchema = z.looseObject({
+  pricing: PPIOPricingSchema.optional(),
+  tiered_billing_configs: z
+    .array(
+      z.looseObject({
+        min_tokens: z.number(),
+        max_tokens: z.number().nullable().optional(),
+        pricing: PPIOPricingSchema
+      })
+    )
+    .optional()
+})
+
+const BaiduPriceTierSchema = z.looseObject({
+  up_to: z.number().nullable().optional(),
+  price: z.string()
+})
+const BaiduTokenPriceSchema = z
+  .union([z.string(), z.array(BaiduPriceTierSchema)])
+  .nullable()
+  .optional()
+
+export const BaiduModelPricingSchema = z.looseObject({
+  pricing: z
+    .looseObject({
+      prompt: BaiduTokenPriceSchema,
+      completion: BaiduTokenPriceSchema,
+      image: NullablePriceStringSchema
+    })
+    .optional()
+})
+
+export const LanyunModelPricingSchema = z.looseObject({
+  x_lanyun: z
+    .looseObject({
+      price_rules: z
+        .array(
+          z.looseObject({
+            token_range_start: z.number().nullable().optional(),
+            input_text_token_price: z.number().nullable().optional(),
+            output_text_token_price: z.number().nullable().optional(),
+            cached_text_token_price: z.number().nullable().optional(),
+            cache_creation_5m_token: z.number().nullable().optional()
+          })
+        )
+        .optional()
+    })
+    .optional()
+})
+
+export const HuggingFaceModelPricingSchema = z.looseObject({
+  providers: z
+    .array(
+      z.looseObject({
+        pricing: z
+          .looseObject({
+            input: z.number(),
+            output: z.number()
+          })
+          .nullable()
+          .optional()
+      })
+    )
+    .optional()
+})
+
+// === OpenRouter (OpenAI-compatible + a per-token price string) ===
+
+export const OpenRouterModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      object: z.string().optional().default('model'),
+      created: z.number().optional(),
+      owned_by: z.string().optional(),
+      /** Decimal strings, USD per SINGLE token — `"0.0000025"` is $2.50 / 1M. */
+      pricing: z
+        .looseObject({
+          prompt: z.string().optional(),
+          completion: z.string().optional(),
+          input_cache_read: z.string().optional(),
+          input_cache_write: z.string().optional()
+        })
+        .optional()
+    })
+  ),
+  object: z.string().optional()
+})
+
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
   data: z.array(
@@ -132,6 +260,7 @@ export const TogetherModelsResponseSchema = z.array(
     context_length: z.number().optional(),
     pricing: z
       .looseObject({
+        cached_input: z.number().optional(),
         input: z.number().optional(),
         output: z.number().optional()
       })
@@ -179,25 +308,39 @@ export const OVMSConfigResponseSchema = z.record(
   })
 )
 
-// === Vercel AI Gateway (/v3/ai/config) ===
+// === Vercel AI Gateway (/v1/models) ===
+
+const VercelGatewayPricingTierSchema = z.looseObject({
+  cost: z.string(),
+  // The live catalog may omit min on the first tier; that bucket starts at zero.
+  min: z.number().optional().default(0),
+  max: z.number().optional()
+})
 
 export const VercelGatewayModelsResponseSchema = z.object({
-  models: z.array(
+  data: z.array(
     z.looseObject({
       id: z.string(),
       name: z.string().optional(),
       description: z.string().optional(),
-      modelType: z.string().optional(),
-      specification: z
+      owned_by: z.string().optional(),
+      type: z.string().optional(),
+      pricing: z
         .looseObject({
-          specificationVersion: z.string().optional(),
-          provider: z.string().optional(),
-          modelId: z.string().optional(),
-          type: z.string().optional()
+          input: z.string().optional(),
+          output: z.string().optional(),
+          input_cache_read: z.string().optional(),
+          input_cache_write: z.string().optional(),
+          input_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          output_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          input_cache_read_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          input_cache_write_tiers: z.array(VercelGatewayPricingTierSchema).optional(),
+          image: z.string().optional()
         })
         .optional()
     })
-  )
+  ),
+  object: z.string().optional()
 })
 
 // === Anthropic (/v1/models) ===
@@ -211,6 +354,30 @@ export const AnthropicModelsResponseSchema = z.object({
     })
   ),
   has_more: z.boolean().optional()
+})
+
+// === NewAPI (/api/pricing — public on every deployment of the gateway) ===
+
+export const NewApiPricingResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      model_name: z.string(),
+      /** 0 = metered per token, 1 = a flat price per request (`model_price`). */
+      quota_type: z.number().optional(),
+      /** Multiplier over the gateway's quota unit, not a currency amount. */
+      model_ratio: z.number().optional(),
+      completion_ratio: z.number().optional(),
+      cache_ratio: z.number().optional(),
+      /** Present when the rate depends on something the ratios can't express, e.g. time of day. */
+      billing_mode: z.string().optional(),
+      billing_expr: z.string().optional()
+    })
+  ),
+  /** Per-group multiplier applied on top of every ratio. */
+  group_ratio: z.record(z.string(), z.number()).optional(),
+  /** Groups the caller may bill against — a single entry identifies which `group_ratio` applies. */
+  usable_group: z.record(z.string(), z.string()).optional(),
+  success: z.boolean().optional()
 })
 
 // === AIHubMix ===

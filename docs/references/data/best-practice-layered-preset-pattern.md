@@ -79,6 +79,29 @@ Keep the merge in the main-process owner. Returning a row from one endpoint and
 preset metadata from another would make every renderer consumer reconstruct the
 same entity and let merge semantics drift.
 
+### Transient Runtime Facts
+
+Remote facts that can be regenerated, such as a gateway's current model rate
+card, are neither preset data nor user overrides. Keep them in the owning Main
+service's process-memory cache and apply them without writing the SQLite row:
+
+```text
+preset -> transient runtime fact -> persisted user override -> runtime entity
+```
+
+`ProviderRegistryService` follows this shape for runtime model pricing. A
+successful explicit model-list refresh publishes provider-scoped prices to the
+Main `CacheService`; provider endpoint, authentication, header, or serving-key
+changes invalidate that entry. A generation check prevents a refresh started
+against the old provider configuration from republishing stale prices after the
+invalidation. Missing prices retain the last value from the same generation,
+while process restart safely drops the whole overlay.
+
+The owner returns the complete resolved `Model`. Renderer consumers must not
+fetch registry metadata separately or repeat pricing precedence. Normal model
+invocation reads the current runtime entity and freezes its pricing snapshot; it
+does not call the model-list or pricing endpoints.
+
 ## Preset Files
 
 Preset modules live under `src/shared/data/presets/` and follow the repository's
@@ -96,6 +119,7 @@ while the owning service or hook applies overrides and validation.
 - Is there a current consumer that needs presets plus persisted user changes?
 - Is Preference or SQLite the actual owner of those changes?
 - Does persistence store a delta rather than a copied preset snapshot?
+- Are regenerable remote facts kept out of the persisted user delta?
 - Is there one authoritative merge per process that needs the effective value?
 - Do reset operations delete the delta instead of writing the current default?
 - Do tests cover preset updates, user overrides, and reset behavior?

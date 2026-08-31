@@ -58,6 +58,7 @@ const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
   modelId: string
   apiModelId?: string
+  modelVariants?: string[]
   name?: string
   pricing?: unknown
 }>
@@ -271,17 +272,22 @@ describe('catalog invariants (data/*.json)', () => {
     expect(offenders).toEqual([])
   })
 
-  // The loader's canonical override index (`overrideByKey`) resolves a duplicated key to the self
-  // variant (`apiModelId === modelId`) — see registry-loader.ts `buildOverrideIndex`. A duplicated key
-  // with NO self variant makes the winning override file-order-dependent, so forbid it.
-  it('every duplicated providerId::modelId key contains a self variant', () => {
+  // The loader's canonical override index (`overrideByKey`) resolves a duplicated key by rank: the self
+  // variant (`apiModelId === modelId`), else the single untagged row (a paid tier next to its `free`
+  // sibling) — see registry-loader.ts `canonicalRank`. Neither → the winner is file-order-dependent.
+  it('every duplicated providerId::modelId key contains a self variant or one untagged row', () => {
     const byKey = new Map<string, Array<(typeof overrides)[number]>>()
     for (const o of overrides) {
       const key = `${o.providerId}::${o.modelId}`
       byKey.set(key, [...(byKey.get(key) ?? []), o])
     }
     const orderDependent = [...byKey.entries()]
-      .filter(([, rows]) => rows.length > 1 && !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId))
+      .filter(
+        ([, rows]) =>
+          rows.length > 1 &&
+          !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId) &&
+          rows.filter((r) => !r.modelVariants?.length).length !== 1
+      )
       .map(([key]) => key)
     expect(orderDependent).toEqual([])
   })

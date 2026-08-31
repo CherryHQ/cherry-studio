@@ -39,31 +39,28 @@ const CURRENCY_CODE_TO_SYMBOL = {
   [CURRENCY.CNY]: '¥'
 } as const satisfies Record<Currency, ModelPricingCurrencySymbol>
 
-function priceToDraft(price: { perMillionTokens: number | null } | undefined, fallback: string): string {
-  return price?.perMillionTokens == null ? fallback : String(price.perMillionTokens)
-}
-
-function optionalPriceToDraft(price: { perMillionTokens: number | null } | undefined): string {
+/** A blank field means "no known rate", which the schema stores as `null` — never as a free 0. */
+function priceToDraft(price: { perMillionTokens: number | null } | undefined): string {
   return price?.perMillionTokens == null ? '' : String(price.perMillionTokens)
 }
 
 function createTierDraft(
   minInputTokens: number,
-  prices: Pick<ModelPricing, 'input' | 'output' | 'cacheRead' | 'cacheWrite'>
+  prices: Partial<Pick<ModelPricing, 'input' | 'output' | 'cacheRead' | 'cacheWrite'>>
 ): ModelPricingTierDraft {
   return {
     minInputTokens: String(minInputTokens),
-    inputPrice: priceToDraft(prices.input, '0'),
-    outputPrice: priceToDraft(prices.output, '0'),
-    cacheReadPrice: optionalPriceToDraft(prices.cacheRead),
-    cacheWritePrice: optionalPriceToDraft(prices.cacheWrite)
+    inputPrice: priceToDraft(prices.input),
+    outputPrice: priceToDraft(prices.output),
+    cacheReadPrice: priceToDraft(prices.cacheRead),
+    cacheWritePrice: priceToDraft(prices.cacheWrite)
   }
 }
 
 export function createModelPricingDraft(pricing: Model['pricing']): ModelPricingDraft {
   const baseTier = createTierDraft(0, {
-    input: pricing?.input ?? { perMillionTokens: 0 },
-    output: pricing?.output ?? { perMillionTokens: 0 },
+    input: pricing?.input,
+    output: pricing?.output,
     cacheRead: pricing?.cacheRead,
     cacheWrite: pricing?.cacheWrite
   })
@@ -153,20 +150,20 @@ export function getModelPricingCurrencySymbol(pricing: Model['pricing']): ModelP
 
 interface ParsedModelPricingTier {
   minInputTokens: number
-  inputPrice: number
-  outputPrice: number
+  inputPrice: number | null
+  outputPrice: number | null
   cacheReadPrice?: number
   cacheWritePrice?: number
 }
 
-function parsePrice(value: string, optional: boolean): { error?: ModelPricingDraftError; value?: number } {
+function parsePrice(value: string): { error?: ModelPricingDraftError; value?: number } {
   const trimmedValue = value.trim()
-  if (optional && trimmedValue === '') {
+  if (trimmedValue === '') {
     return {}
   }
 
   const parsedValue = Number(trimmedValue)
-  if (trimmedValue === '' || !Number.isFinite(parsedValue) || parsedValue < 0) {
+  if (!Number.isFinite(parsedValue) || parsedValue < 0) {
     return { error: 'invalidPrice' }
   }
 
@@ -206,10 +203,10 @@ function parseModelPricingDraft(draft: ModelPricingDraft): {
       }
     }
 
-    const inputPrice = parsePrice(tier.inputPrice, false)
-    const outputPrice = parsePrice(tier.outputPrice, false)
-    const cacheReadPrice = parsePrice(tier.cacheReadPrice, true)
-    const cacheWritePrice = parsePrice(tier.cacheWritePrice, true)
+    const inputPrice = parsePrice(tier.inputPrice)
+    const outputPrice = parsePrice(tier.outputPrice)
+    const cacheReadPrice = parsePrice(tier.cacheReadPrice)
+    const cacheWritePrice = parsePrice(tier.cacheWritePrice)
 
     if (inputPrice.error) tierErrors.inputPrice = inputPrice.error
     if (outputPrice.error) tierErrors.outputPrice = outputPrice.error
@@ -218,8 +215,8 @@ function parseModelPricingDraft(draft: ModelPricingDraft): {
 
     parsedTiers.push({
       minInputTokens,
-      inputPrice: inputPrice.value ?? 0,
-      outputPrice: outputPrice.value ?? 0,
+      inputPrice: inputPrice.value ?? null,
+      outputPrice: outputPrice.value ?? null,
       ...(cacheReadPrice.value !== undefined ? { cacheReadPrice: cacheReadPrice.value } : {}),
       ...(cacheWritePrice.value !== undefined ? { cacheWritePrice: cacheWritePrice.value } : {})
     })
@@ -232,7 +229,7 @@ function parseModelPricingDraft(draft: ModelPricingDraft): {
   return { errors, tiers: parsedTiers }
 }
 
-function createPrice(perMillionTokens: number, currency: Currency) {
+function createPrice(perMillionTokens: number | null, currency: Currency) {
   return { perMillionTokens, currency }
 }
 

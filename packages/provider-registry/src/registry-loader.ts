@@ -128,6 +128,16 @@ export interface RegistryPaths {
 const DEFAULT_IDLE_TTL_MS = 30_000
 
 /**
+ * Who owns the canonical `provider::modelId` slot when several rows share it: the self variant
+ * (`apiModelId === modelId`) first, then the untagged row (the paid tier next to a `free` sibling).
+ * A tagged row never claims the slot, so the winner never depends on file order.
+ */
+const canonicalRank = (row?: ProviderModelOverride): number => {
+  if (!row || row.modelVariants?.length) return -1
+  return row.apiModelId === undefined || row.apiModelId === row.modelId ? 2 : 1
+}
+
+/**
  * Cached registry data with pre-computed indexes and idle auto-expiry.
  *
  * Data is lazily loaded on first access, indexes are built once after load,
@@ -248,34 +258,38 @@ export class RegistryLoader {
     for (const pm of this.providerModels!) {
       const key = `${pm.providerId}::${pm.modelId}`
       // `modelId` is NOT unique: a provider may serve one canonical model under several apiModelIds
-      // (tokenhub's dated 原厂直供 variants share `deepseek-v4-flash`). The canonical key must resolve to
-      // the undated/self variant (`apiModelId === modelId`) — the dated ones stay reachable only via the
-      // apiModelId index below. Order-independent: a self variant claims the slot whenever it appears.
-      if (!this.overrideByKey.has(key) || pm.apiModelId === pm.modelId) {
+      // (tokenhub's dated 原厂直供 variants share `deepseek-v4-flash`; cherryin's free tier shares
+      // `deepseek-v3-2` with the paid row). The canonical key must resolve to the default variant —
+      // the others stay reachable only via the apiModelId index below. Order-independent by rank.
+      if (canonicalRank(pm) > canonicalRank(this.overrideByKey.get(key))) {
         this.overrideByKey.set(key, pm)
       }
+      // Same rank rule as the exact key: without it this map alone stays first-wins, so a free twin
+      // authored before its paid row would quietly own the normalized canonical slot.
       const normKey = `${pm.providerId}::${normalizeModelId(pm.modelId)}`
-      if (!this.overrideByNormKey.has(normKey)) {
+      if (canonicalRank(pm) > canonicalRank(this.overrideByNormKey.get(normKey))) {
         this.overrideByNormKey.set(normKey, pm)
       }
       // Size-preserving normalized key (mirror of `modelBySizedNorm`). Size siblings collapse to one
       // size-agnostic key (`gpt-oss-20b`/`gpt-oss-120b` both → `gpt-oss`), so a fetch id that misses the
       // exact keys — a gateway re-namespacing a model (`nvidia/gpt-oss-20b`) — must resolve to its OWN
-      // size's row, never the first sibling to claim the family key. Same self-variant rule as the exact
-      // key so a dated row never claims the sized slot either.
+      // size's row, never the first sibling to claim the family key. Same rank rule as the exact key so
+      // neither a dated nor a variant-tagged row claims the sized slot.
       const sizedNormKey = `${pm.providerId}::${normalizeModelId(pm.modelId, { keepParameterSize: true })}`
-      if (!this.overrideBySizedNormKey.has(sizedNormKey) || pm.apiModelId === pm.modelId) {
+      if (canonicalRank(pm) > canonicalRank(this.overrideBySizedNormKey.get(sizedNormKey))) {
         this.overrideBySizedNormKey.set(sizedNormKey, pm)
       }
       if (pm.apiModelId) {
         const apiKey = `${pm.providerId}::${pm.apiModelId}`
         this.overrideByApiKey.set(apiKey, pm)
+        // Normalization erases the variant tag (`…v3.2(free)` → `deepseek-v3-2`), so a tagged row would
+        // otherwise be free to claim the fallback slot and bill a paid alias at the free tier.
         const normApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId)}`
-        if (!this.overrideByNormApiKey.has(normApiKey)) {
+        if (canonicalRank(pm) > canonicalRank(this.overrideByNormApiKey.get(normApiKey))) {
           this.overrideByNormApiKey.set(normApiKey, pm)
         }
         const sizedNormApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId, { keepParameterSize: true })}`
-        if (!this.overrideBySizedNormApiKey.has(sizedNormApiKey)) {
+        if (canonicalRank(pm) > canonicalRank(this.overrideBySizedNormApiKey.get(sizedNormApiKey))) {
           this.overrideBySizedNormApiKey.set(sizedNormApiKey, pm)
         }
       }

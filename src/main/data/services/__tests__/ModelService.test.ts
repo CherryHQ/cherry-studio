@@ -399,6 +399,36 @@ describe('ModelService.update', () => {
     expect(row.pricing).toBeNull()
   })
 
+  it('keeps a blanked price as a user delta over registry pricing', async () => {
+    await seedExistingModel()
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const updated = modelService.update('openai', 'gpt-4o', {
+      pricing: {
+        input: { perMillionTokens: null, currency: 'USD' },
+        output: { perMillionTokens: null, currency: 'USD' }
+      }
+    })
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.pricing).toEqual({
+      input: { perMillionTokens: null, currency: 'USD' },
+      output: { perMillionTokens: null, currency: 'USD' }
+    })
+    expect(updated.pricing?.input.perMillionTokens).toBeNull()
+  })
+
   it('keeps an input-token tier as a sparse pricing delta over a flat registry baseline', async () => {
     await seedExistingModel()
     lookupModelMock.mockReturnValue({
@@ -1400,6 +1430,70 @@ describe('ModelService.list — registry enrichment', () => {
       isDeprecated: true,
       notes: 'keep me'
     })
+  })
+
+  it('layers runtime provider pricing over the registry without storing it as a user delta', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIN'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'openai/gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null,
+        pricing: null
+      })
+    )
+    const runtimePricing = {
+      input: { currency: 'USD' as const, perMillionTokens: 1 },
+      output: { currency: 'USD' as const, perMillionTokens: 2 }
+    }
+    lookupModelMock.mockReturnValue({
+      presetModel: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        pricing: {
+          input: { currency: 'USD', perMillionTokens: 5 },
+          output: { currency: 'USD', perMillionTokens: 15 }
+        }
+      },
+      registryOverride: { apiModelId: 'openai/gpt-4o', modelId: 'gpt-4o' },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE,
+      runtimePricing
+    })
+
+    const [model] = modelService.list({ providerId: 'cherryin' })
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'cherryin::openai/gpt-4o'))
+
+    expect(model.pricing).toEqual(runtimePricing)
+    expect(row.pricing).toBeNull()
+  })
+
+  it('keeps explicit user pricing above the runtime provider price', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIN'))
+    const userPricing = {
+      input: { currency: 'USD' as const, perMillionTokens: 7 },
+      output: { currency: 'USD' as const, perMillionTokens: 8 }
+    }
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'openai/gpt-4o', {
+        presetModelId: 'gpt-4o',
+        name: null,
+        capabilities: null,
+        supportsStreaming: null,
+        pricing: userPricing
+      })
+    )
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: { apiModelId: 'openai/gpt-4o', modelId: 'gpt-4o' },
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE,
+      runtimePricing: {
+        input: { currency: 'USD', perMillionTokens: 1 },
+        output: { currency: 'USD', perMillionTokens: 2 }
+      }
+    })
+
+    expect(modelService.list({ providerId: 'cherryin' })[0].pricing).toEqual(userPricing)
   })
 
   it('applies exact stored values only for explicitly overridden fields', async () => {

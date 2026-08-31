@@ -19,6 +19,7 @@ import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import {
   createUniqueModelId,
+  CURRENCY,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   MODEL_CAPABILITY
@@ -39,6 +40,20 @@ import * as z from 'zod'
 import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import {
+  baiduModelPricing,
+  huggingFaceModelPricing,
+  lanyunModelPricing,
+  newApiGroupMultiplier,
+  newApiPricing,
+  type NewApiPricingItem,
+  openAITokenPricing,
+  perMillion,
+  ppioModelPricing,
+  unknownUsdPricing,
+  usdPricing,
+  vercelGatewayPricing
+} from './listModels/pricing'
+import {
   createVertexModelListRequest,
   DEFAULT_VERTEX_MODEL_PUBLISHERS,
   getVertexModelId,
@@ -51,9 +66,11 @@ import {
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   NewApiModelsResponseSchema,
+  NewApiPricingResponseSchema,
   OllamaShowResponseSchema,
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
+  OpenRouterModelsResponseSchema,
   OVMSConfigResponseSchema,
   TogetherModelsResponseSchema,
   VercelGatewayModelsResponseSchema,
@@ -438,13 +455,19 @@ const togetherFetcher: ModelFetcher = {
       responseSchema: TogetherModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    return dedup(response, (m) => m.id).map((m) => {
+      const pricing = usdPricing({
+        input: m.pricing?.input,
+        output: m.pricing?.output,
+        cacheRead: m.pricing?.cached_input
+      })
+      return toModel(m.id, provider, {
         name: m.display_name || m.id,
         description: m.description,
-        ownedBy: m.organization
+        ownedBy: m.organization,
+        ...(pricing ? { pricing } : {})
       })
-    )
+    })
   }
 }
 
@@ -492,30 +515,79 @@ function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | 
   return endpointTypes.length > 0 ? endpointTypes : undefined
 }
 
+function buildNewApiModels(
+  provider: Provider,
+  models: NewApiModelResponseItem[],
+  pricingByModel: Map<string, Model['pricing']> = new Map(),
+  missingPricing?: Model['pricing']
+): Partial<Model>[] {
+  return dedup(models, (model) => model.id).map((model) => {
+    const endpointTypes = normalizeEndpointTypes(model.supported_endpoint_types)
+    const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+    const pricing = pricingByModel.get(model.id) ?? missingPricing
+
+    return toModel(model.id, provider, {
+      ownedBy: model.owned_by,
+      endpointTypes,
+      ...(pricing ? { pricing } : {}),
+      ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+    })
+  })
+}
+
 const newApiFetcher: ModelFetcher = {
   match: (p) =>
-    p.id === SystemProviderIds['new-api'] ||
-    p.presetProviderId === 'new-api' ||
-    p.id === SystemProviderIds.cherryin ||
-    p.id === SystemProviderIds.aionly,
+    matchesPreset(p, SystemProviderIds['new-api']) ||
+    matchesPreset(p, SystemProviderIds.cherryin) ||
+    matchesPreset(p, SystemProviderIds.ocoolai) ||
+    matchesPreset(p, SystemProviderIds.burncloud),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
+    const headers = defaultHeaders(provider)
+    const pricingRequest = getFromApi({
+      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/pricing`,
+      headers,
+      responseSchema: NewApiPricingResponseSchema,
+      abortSignal: signal
+    })
+      .then((data) => ({ data, available: true }))
+      .catch((error) => ({
+        data: recoverOptionalModelListFailure<NewApiPricingItem>(error, {
+          providerId: provider.id,
+          endpoint: 'new-api-pricing'
+        }),
+        available: false
+      }))
+    const [response, pricingResult] = await Promise.all([
+      getFromApi({
+        url: `${baseUrl}/models`,
+        headers,
+        responseSchema: NewApiModelsResponseSchema,
+        abortSignal: signal
+      }),
+      pricingRequest
+    ])
+    const pricingResponse = pricingResult.data
+    const groupMultiplier = newApiGroupMultiplier(pricingResponse)
+    const hasAmbiguousCredential = provider.apiKeys.filter((key) => key.isEnabled).length > 1
+    const pricingByModel = hasAmbiguousCredential
+      ? new Map<string, Model['pricing']>()
+      : new Map(pricingResponse.data.map((entry) => [entry.model_name, newApiPricing(entry, groupMultiplier)]))
+    const missingPricing = pricingResult.available ? unknownUsdPricing() : undefined
+    return buildNewApiModels(provider, response.data, pricingByModel, missingPricing)
+  }
+}
+
+const aiOnlyFetcher: ModelFetcher = {
+  match: (provider) => matchesPreset(provider, SystemProviderIds.aionly),
+  fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: `${baseUrl}/models`,
+      url: `${formatApiHost(getBaseUrl(provider))}/models`,
       headers: defaultHeaders(provider),
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
-      const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
-      const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
-
-      return toModel(m.id, provider, {
-        ownedBy: m.owned_by,
-        endpointTypes,
-        ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
-      })
-    })
+    return buildNewApiModels(provider, response.data)
   }
 }
 
@@ -528,7 +600,7 @@ const openRouterFetcher: ModelFetcher = {
       getFromApi({
         url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
-        responseSchema: OpenAIModelsResponseSchema,
+        responseSchema: OpenRouterModelsResponseSchema,
         abortSignal: signal
       }),
       getFromApi({
@@ -555,12 +627,26 @@ const openRouterFetcher: ModelFetcher = {
       )
     ])
     const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    // Only the chat listing quotes rates; the embedding/image listings share the plain OpenAI shape.
+    const pricingById = new Map(
+      modelsResponse.data.map((model) => [
+        model.id,
+        usdPricing({
+          input: perMillion(model.pricing?.prompt),
+          output: perMillion(model.pricing?.completion),
+          cacheRead: perMillion(model.pricing?.input_cache_read),
+          cacheWrite: perMillion(model.pricing?.input_cache_write)
+        })
+      ])
+    )
     const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => {
       const imageModel = imageModelsById.get(m.id)
+      const pricing = pricingById.get(m.id)
       return toModel(m.id, provider, {
         name: imageModel?.name ?? m.name,
         ownedBy: m.owned_by,
+        ...(pricing ? { pricing } : {}),
         ...(imageModel
           ? {
               capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
@@ -573,7 +659,7 @@ const openRouterFetcher: ModelFetcher = {
 }
 
 const ppioFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.ppio,
+  match: (provider) => matchesPreset(provider, SystemProviderIds.ppio),
   fetch: async (provider, signal, options) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const headers = defaultHeaders(provider)
@@ -611,16 +697,25 @@ const ppioFetcher: ModelFetcher = {
     const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
       const id = model.id?.trim()
       if (!id) return
+      const pricing = ppioModelPricing(model)
 
       const existing = modelsById.get(id)
       if (!existing) {
-        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+        modelsById.set(
+          id,
+          toModel(id, provider, {
+            ownedBy: model.owned_by,
+            capabilities: capability ?? [],
+            ...(pricing ? { pricing } : {})
+          })
+        )
         return
       }
 
       if (capability) {
         existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), ...capability]))
       }
+      if (pricing && !existing.pricing) existing.pricing = pricing
     }
 
     for (const model of chat.data) mergeModel(model)
@@ -640,38 +735,40 @@ const aiHubMixFetcher: ModelFetcher = {
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.model_id).map((m) =>
-      toModel(m.model_id, provider, {
-        name: m.model_name || m.model_id,
-        description: m.desc
+    return dedup(response.data, (m) => m.model_id).map((m) => {
+      const pricing = usdPricing({
+        input: m.pricing?.input,
+        output: m.pricing?.output,
+        cacheRead: m.pricing?.cache_read,
+        cacheWrite: m.pricing?.cache_write
       })
-    )
+      return toModel(m.model_id, provider, {
+        name: m.model_name || m.model_id,
+        description: m.desc,
+        ...(pricing ? { pricing } : {})
+      })
+    })
   }
 }
 
-/** Vercel AI Gateway: hits /v3/ai/config directly with `ai-gateway-protocol-version` header
- *  instead of going through `@ai-sdk/gateway`'s `getAvailableModels()`. The SDK validates the
- *  response against a strict schema that breaks whenever Vercel evolves the registry, so we
- *  parse with `z.looseObject` here to keep listing resilient. Inference still uses the SDK. */
+/** Vercel AI Gateway publishes its current catalog and rates at the unauthenticated /v1/models endpoint. */
 const gatewayFetcher: ModelFetcher = {
   match: (p) => isAIGatewayProvider(p),
   fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: `https://ai-gateway.vercel.sh/v3/ai/config`,
-      headers: {
-        ...defaultHeaders(provider),
-        'ai-gateway-protocol-version': '0.0.1'
-      },
+      url: `https://ai-gateway.vercel.sh/v1/models`,
       responseSchema: VercelGatewayModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const pricing = vercelGatewayPricing(m.pricing, m.type)
+      return toModel(m.id, provider, {
         name: m.name || m.id,
         description: m.description,
-        ownedBy: m.specification?.provider
+        ownedBy: m.owned_by,
+        ...(pricing ? { pricing } : {})
       })
-    )
+    })
   }
 }
 
@@ -721,10 +818,69 @@ const jinaFetcher: ModelFetcher = {
     })
     return dedup(response.data, (m) => m.id).map((m) => {
       const apiModelId = m.id.replace(/^jina-ai\//, '')
-      return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
+      const pricing = openAITokenPricing(m.pricing, CURRENCY.USD)
+      return toModel(apiModelId, provider, {
+        name: m.name || apiModelId,
+        ownedBy: m.owned_by,
+        ...(pricing ? { pricing } : {})
+      })
     })
   }
 }
+
+type OpenAICompatiblePricing = (model: OpenAIModelResponseItem) => Model['pricing'] | undefined
+
+function createOpenAICompatibleFetcher(
+  match: ModelFetcher['match'],
+  resolvePricing?: OpenAICompatiblePricing
+): ModelFetcher {
+  return {
+    match,
+    fetch: async (provider, signal) => {
+      const baseUrl = formatApiHost(getBaseUrl(provider))
+      const response = await getFromApi({
+        url: `${baseUrl}/models`,
+        headers: defaultHeaders(provider),
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      })
+      return dedup(response.data, (model) => model.id).map((model) => {
+        const pricing = resolvePricing?.(model)
+        return toModel(model.id, provider, {
+          name: model.name || model.id,
+          ownedBy: model.owned_by,
+          ...(pricing ? { pricing } : {})
+        })
+      })
+    }
+  }
+}
+
+const baiduCloudFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds['baidu-cloud']),
+  baiduModelPricing
+)
+
+const lanyunFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.lanyun),
+  lanyunModelPricing
+)
+
+const huggingFaceFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.huggingface),
+  huggingFaceModelPricing
+)
+
+const sophnetFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.sophnet),
+  (model) => openAITokenPricing(model.pricing, CURRENCY.CNY)
+)
+
+const poeFetcher = createOpenAICompatibleFetcher(
+  (provider) => matchesPreset(provider, SystemProviderIds.poe),
+  (model) =>
+    model.pricing === undefined ? undefined : (openAITokenPricing(model.pricing, CURRENCY.USD) ?? unknownUsdPricing())
+)
 
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
@@ -742,24 +898,7 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
-const openAICompatibleFetcher: ModelFetcher = {
-  match: () => true,
-  fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(getBaseUrl(provider))
-    const response = await getFromApi({
-      url: `${baseUrl}/models`,
-      headers: defaultHeaders(provider),
-      responseSchema: OpenAIModelsResponseSchema,
-      abortSignal: signal
-    })
-    return dedup(response.data, (m) => m.id).map((m) =>
-      toModel(m.id, provider, {
-        name: m.name || m.id,
-        ownedBy: m.owned_by
-      })
-    )
-  }
-}
+const openAICompatibleFetcher = createOpenAICompatibleFetcher(() => true)
 
 // ── Ollama probe ──
 
@@ -800,12 +939,18 @@ const fetchers: ModelFetcher[] = [
   copilotFetcher,
   ovmsFetcher,
   togetherFetcher,
+  aiOnlyFetcher,
   newApiFetcher,
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
   anthropicFetcher,
   jinaFetcher,
+  baiduCloudFetcher,
+  lanyunFetcher,
+  huggingFaceFetcher,
+  sophnetFetcher,
+  poeFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]

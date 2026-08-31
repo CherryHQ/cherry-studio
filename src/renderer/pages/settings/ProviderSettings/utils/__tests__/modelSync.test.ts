@@ -53,115 +53,26 @@ describe('fetchResolvedProviderModels', () => {
     }
   })
 
-  it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'new-api::agent/deepseek-v3.2',
-        providerId: 'new-api',
-        apiModelId: 'agent/deepseek-v3.2',
-        name: 'agent/deepseek-v3.2',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'new-api::agent/deepseek-v3.2',
-        providerId: 'new-api',
-        apiModelId: 'agent/deepseek-v3.2',
-        name: 'DeepSeek V3.2',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-      }
-    ])
+  it('returns the complete models owned by Main without a renderer-side resolve request', async () => {
+    const model: Model = {
+      id: 'openai::gpt-4o-mini',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o-mini',
+      presetModelId: 'gpt-4o-mini',
+      name: 'GPT-4o mini',
+      capabilities: [],
+      supportsStreaming: true,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.135 },
+        output: { currency: 'USD', perMillionTokens: 0.54 }
+      },
+      isEnabled: true,
+      isHidden: false
+    }
+    listModelsMock.mockResolvedValueOnce([model])
 
-    const models = await fetchResolvedProviderModels('new-api')
-
-    expect(models[0]).toMatchObject({
-      name: 'DeepSeek V3.2',
-      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-    })
-  })
-
-  it('uses registry reasoning controls while preserving discovered thinking support', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'ollama::qwen3:32b',
-        providerId: 'ollama',
-        apiModelId: 'qwen3:32b',
-        name: 'qwen3:32b',
-        capabilities: [MODEL_CAPABILITY.REASONING]
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'ollama::qwen3:32b',
-        providerId: 'ollama',
-        apiModelId: 'qwen3:32b',
-        presetModelId: 'qwen3-32b',
-        name: 'Qwen3 32B',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
-        reasoning: {
-          controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
-          selectableEfforts: ['none', 'low', 'medium', 'high']
-        }
-      }
-    ])
-
-    const [model] = await fetchResolvedProviderModels('ollama')
-
-    expect(model).toMatchObject({
-      presetModelId: 'qwen3-32b',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
-      reasoning: {
-        controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
-        selectableEfforts: ['none', 'low', 'medium', 'high']
-      }
-    })
-  })
-
-  it('uses the resolved friendly name when the provider only echoes the raw id', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'dashscope::qwen1.5-1.8b-chat',
-        providerId: 'dashscope',
-        apiModelId: 'qwen1.5-1.8b-chat',
-        name: 'qwen1.5-1.8b-chat'
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'dashscope::qwen1.5-1.8b-chat',
-        providerId: 'dashscope',
-        apiModelId: 'qwen1.5-1.8b-chat',
-        name: 'Qwen1.5 1.8b Chat'
-      }
-    ])
-
-    const models = await fetchResolvedProviderModels('dashscope')
-
-    expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
-  })
-
-  it('keeps a provider display name for an unmatched custom model', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'custom::custom-model',
-        providerId: 'custom',
-        apiModelId: 'custom-model',
-        name: 'Provider Display Name'
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'custom::custom-model',
-        providerId: 'custom',
-        apiModelId: 'custom-model',
-        name: 'Custom Model'
-      }
-    ])
-
-    const models = await fetchResolvedProviderModels('custom')
-
-    expect(models[0].name).toBe('Provider Display Name')
+    await expect(fetchResolvedProviderModels('openai')).resolves.toEqual([model])
+    expect(dataApiGetMock).not.toHaveBeenCalled()
   })
 })
 
@@ -248,6 +159,22 @@ describe('toCreateModelDto', () => {
       modelId: 'gpt-4o',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
+  })
+
+  it('does not persist provider-reported pricing as a user override', () => {
+    const pricing = {
+      input: { currency: 'USD' as const, perMillionTokens: 0.135 },
+      output: { currency: 'USD' as const, perMillionTokens: 0.54 }
+    }
+    const dto = toCreateModelDto('aihubmix', {
+      id: 'aihubmix::gpt-4o-mini' as UniqueModelId,
+      providerId: 'aihubmix',
+      apiModelId: 'gpt-4o-mini',
+      name: 'GPT-4o mini',
+      pricing
+    } as Model)
+
+    expect(dto.pricing).toBeUndefined()
   })
 
   it('does not forward capabilities for a preset-backed model', () => {

@@ -13,6 +13,7 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import { application } from '@application'
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -61,7 +62,7 @@ import type {
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
-import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY, parseUniqueModelId, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -69,6 +70,43 @@ import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
+
+interface RuntimePricingCacheEntry {
+  generation: number
+  pricingByModel: Map<string, RuntimeModelPricing>
+}
+
+const RESOLVED_MODEL_FIELDS = [
+  'name',
+  'presetModelId',
+  'description',
+  'group',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'contextWindow',
+  'maxOutputTokens',
+  'maxInputTokens',
+  'reasoning',
+  'pricing',
+  'family',
+  'ownedBy'
+] as const
+
+function runtimePricingCacheKey(providerId: string): string {
+  return `provider.runtime_pricing.${providerId}`
+}
+
+function rawModelId(model: Partial<Model>): string {
+  return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
+}
+
+function bareModelKey(apiModelId: string | undefined): string {
+  const id = apiModelId ?? ''
+  const afterSlash = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id
+  return afterSlash.toLowerCase()
+}
 
 export interface ProviderDisplayMetadata {
   description?: string
@@ -536,9 +574,18 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
-  const mergedPricing = presetModel.pricing
-    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
-    : catalogOverride?.pricing
+  // A provider that publishes both sides of the token pair has published its whole rate card, so it
+  // REPLACES the vendor's rather than inheriting the fields it left out: the vendor's absolute cache
+  // rate means nothing next to a reseller's own input price, and it would even re-fill a rate the
+  // provider deliberately declared unknown. An unpaired block is still a patch over the vendor's.
+  // Cache reads/writes left unstated fall back to the provider's own input rate when cost is computed.
+  const overridePricing = catalogOverride?.pricing
+  const mergedPricing =
+    overridePricing?.input && overridePricing.output
+      ? overridePricing
+      : presetModel.pricing
+        ? { ...presetModel.pricing, ...overridePricing }
+        : overridePricing
   let pricing: RuntimeModelPricing | undefined
   const parameterSupport = presetModel.parameterSupport
     ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }
@@ -694,6 +741,103 @@ class ProviderRegistryService {
 
   clearCache(): void {
     this.loader = null
+  }
+
+  /** Capture the provider pricing generation before starting an asynchronous catalog refresh. */
+  captureRuntimePricingGeneration(providerId: string): number {
+    return this.getRuntimePricingState(providerId).generation
+  }
+
+  /** Clear provider runtime prices and reject publications started against the previous source configuration. */
+  invalidateRuntimePricing(providerId: string): void {
+    const state = this.getRuntimePricingState(providerId)
+    application.get('CacheService').set<RuntimePricingCacheEntry>(runtimePricingCacheKey(providerId), {
+      generation: state.generation + 1,
+      pricingByModel: new Map()
+    })
+  }
+
+  /** Publish current-generation rates and return fully resolved remote plus registry-only models. */
+  resolveFetchedModels(
+    providerId: string,
+    presetProviderId: string | null,
+    models: Partial<Model>[],
+    expectedGeneration: number
+  ): Model[] {
+    const remoteModels = this.syncRuntimePricing(providerId, models, expectedGeneration)
+    const resolvedModels = this.resolveModels(providerId, remoteModels.map(rawModelId).filter(Boolean))
+    const resolvedById = new Map(resolvedModels.map((model) => [model.apiModelId ?? '', model]))
+
+    const enriched = remoteModels.flatMap((fetched) => {
+      const modelId = rawModelId(fetched)
+      const resolved = resolvedById.get(modelId)
+      if (!modelId || !resolved) return []
+
+      const merged = { ...resolved, ...fetched } as Model
+      const keepFetchedName = !resolved.presetModelId && !!fetched.name && fetched.name !== modelId
+
+      for (const field of RESOLVED_MODEL_FIELDS) {
+        if (field === 'endpointTypes' && fetched.endpointTypes?.length) continue
+        if (field === 'name' && keepFetchedName) continue
+
+        const value = resolved[field]
+        if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
+          ;(merged as Record<string, unknown>)[field] = value
+        }
+      }
+
+      return [merged]
+    })
+
+    const registryModels = this.listProviderRegistryModels({ providerId, presetProviderId })
+    const seen = new Set(enriched.map((model) => bareModelKey(model.apiModelId)))
+    return [...enriched, ...registryModels.filter((model) => !seen.has(bareModelKey(model.apiModelId)))]
+  }
+
+  private getRuntimePricingState(providerId: string): RuntimePricingCacheEntry {
+    return (
+      application.get('CacheService').get<RuntimePricingCacheEntry>(runtimePricingCacheKey(providerId)) ?? {
+        generation: 0,
+        pricingByModel: new Map()
+      }
+    )
+  }
+
+  private syncRuntimePricing(
+    providerId: string,
+    models: Partial<Model>[],
+    expectedGeneration: number
+  ): Partial<Model>[] {
+    if (models.length === 0) return models
+
+    const state = this.getRuntimePricingState(providerId)
+    const pricingByModel = new Map(state.pricingByModel)
+    if (state.generation === expectedGeneration) {
+      for (const model of models) {
+        const modelId = rawModelId(model)
+        if (modelId && model.pricing) pricingByModel.set(modelId, model.pricing)
+      }
+      application.get('CacheService').set<RuntimePricingCacheEntry>(runtimePricingCacheKey(providerId), {
+        generation: state.generation,
+        pricingByModel
+      })
+    }
+
+    return models.map((model) => {
+      const withoutPricing = { ...model }
+      delete withoutPricing.pricing
+      const pricing = pricingByModel.get(rawModelId(model))
+      return pricing ? { ...withoutPricing, pricing } : withoutPricing
+    })
+  }
+
+  private getRuntimePricing(providerId: string, modelId: string): RuntimeModelPricing | undefined {
+    return this.getRuntimePricingState(providerId).pricingByModel.get(modelId)
+  }
+
+  private applyRuntimePricing(providerId: string, model: Model): Model {
+    const pricing = model.apiModelId ? this.getRuntimePricing(providerId, model.apiModelId) : undefined
+    return pricing ? { ...model, pricing } : model
   }
 
   /**
@@ -1095,6 +1239,7 @@ class ProviderRegistryService {
     registryOverride: ProtoProviderModelOverride | null
     reasoningProfile: ResolvedReasoningProfile
     serviceTierControl?: ResolvedServiceTierControl
+    runtimePricing?: RuntimeModelPricing
   } {
     const loader = this.getLoader()
     const providerContext = providerContextCache?.get(providerId) ?? this.getEffectiveProviderContext(providerId)
@@ -1109,7 +1254,8 @@ class ProviderRegistryService {
       presetModel,
       registryOverride,
       reasoningProfile: this.resolveProfileForModelData(providerContext, presetModel, registryOverride, modelId),
-      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride)
+      serviceTierControl: this.resolveServiceTierControlForModelData(providerContext, registryOverride),
+      runtimePricing: this.getRuntimePricing(providerId, modelId)
     }
   }
 
@@ -1166,16 +1312,20 @@ class ProviderRegistryService {
         // ids. `presetModelId` keeps the canonical link for metadata; `deriveResolvedModelName` keeps the
         // display name distinguishable between siblings that share one canonical entry.
         const canonicalApiId = model.apiModelId ?? registryOverride?.apiModelId ?? null
-        results.push({
-          ...model,
-          id: createUniqueModelId(providerId, modelId),
-          apiModelId: modelId,
-          name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
-          presetModelId: presetModel.id
-        })
+        results.push(
+          this.applyRuntimePricing(providerId, {
+            ...model,
+            id: createUniqueModelId(providerId, modelId),
+            apiModelId: modelId,
+            name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
+            presetModelId: presetModel.id
+          })
+        )
       } else {
         const custom = createCustomModel(providerId, modelId, reasoningProfile.wire, serviceTierControl)
-        results.push({ ...custom, name: deriveResolvedModelName(modelId, null, null) })
+        results.push(
+          this.applyRuntimePricing(providerId, { ...custom, name: deriveResolvedModelName(modelId, null, null) })
+        )
       }
     }
 
@@ -1216,13 +1366,15 @@ class ProviderRegistryService {
         serviceTierControl
       )
       const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
-      results.push({
-        ...model,
-        id: createUniqueModelId(providerId, apiModelId),
-        providerId,
-        apiModelId,
-        presetModelId: presetModel.id
-      })
+      results.push(
+        this.applyRuntimePricing(providerId, {
+          ...model,
+          id: createUniqueModelId(providerId, apiModelId),
+          providerId,
+          apiModelId,
+          presetModelId: presetModel.id
+        })
+      )
     }
 
     return results
@@ -1283,12 +1435,14 @@ class ProviderRegistryService {
       )
 
       const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
-      results.push({
-        ...model,
-        id: createUniqueModelId(override.providerId, apiModelId),
-        apiModelId,
-        presetModelId: presetModel.id
-      })
+      results.push(
+        this.applyRuntimePricing(override.providerId, {
+          ...model,
+          id: createUniqueModelId(override.providerId, apiModelId),
+          apiModelId,
+          presetModelId: presetModel.id
+        })
+      )
     }
 
     return results

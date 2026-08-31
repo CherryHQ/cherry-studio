@@ -59,6 +59,7 @@ const chatEffortModels: Array<{
     }
   },
   { modelId: 'hy3', values: ['none', 'low', 'high'] },
+  { modelId: 'hy4-preview', values: ['none', 'high'] },
   { modelId: 'kimi-k3', values: ['max'] },
   // Stealth model, no creator entry: models.dev routes it through `@ai-sdk/openai-compatible`
   // and prints an effort ladder, so pin chat/completions rather than let it fall back unpinned.
@@ -72,6 +73,7 @@ const qwenBudgetModels = [
   { max: 81_920, modelId: 'qwen3-6-plus' },
   { max: 262_144, modelId: 'qwen3-7-max' },
   { max: 262_144, modelId: 'qwen3-7-plus' },
+  { max: 38_912, modelId: 'qwen3-8-flash' },
   { max: 262_144, modelId: 'qwen3-8-max' }
 ]
 

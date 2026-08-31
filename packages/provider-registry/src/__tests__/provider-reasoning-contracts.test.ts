@@ -77,7 +77,10 @@ describe('provider reasoning contracts', () => {
   })
 
   it('binds CherryIN DeepSeek reasoning to a currently served API identity', () => {
-    const deepSeekOverrides = provider('cherryin').overrides?.filter(({ modelId }) => modelId?.startsWith('deepseek'))
+    // Only the rows that carry a contract matter here — the provider also lists priced DeepSeek rows.
+    const deepSeekOverrides = provider('cherryin').overrides?.filter(
+      ({ modelId, reasoningContracts }) => modelId?.startsWith('deepseek') && reasoningContracts
+    )
 
     expect(deepSeekOverrides?.map(({ apiModelId, modelId }) => ({ apiModelId, modelId }))).toEqual([
       { apiModelId: 'deepseek/deepseek-v3.2', modelId: 'deepseek-v3-2' }

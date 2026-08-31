@@ -87,6 +87,37 @@ describe('ProviderService API keys', () => {
     expect(keys.filter((entry) => entry.key === 'sk-new')).toHaveLength(1)
   })
 
+  it('invalidates runtime pricing only when the serving key set changes', async () => {
+    await seedProvider()
+    const initialGeneration = providerRegistryService.captureRuntimePricingGeneration('openai')
+
+    providerService.updateApiKey('openai', 'key-a', { label: 'Renamed A' })
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration)
+
+    providerService.updateApiKey('openai', 'key-a', { key: 'sk-a-next' })
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration + 1)
+
+    providerService.addApiKey('openai', 'sk-a-next', 'Duplicate')
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration + 1)
+
+    providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration + 2)
+
+    const sameServingKeys = providerService
+      .getApiKeys('openai')
+      .map((entry) => ({ ...entry, label: entry.label ? `${entry.label} renamed` : 'renamed' }))
+    providerService.replaceApiKeys('openai', sameServingKeys)
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration + 2)
+
+    providerService.deleteApiKey('openai', 'key-b')
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration + 3)
+
+    expect(captureError(() => providerService.deleteApiKey('openai', 'missing-key'))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    expect(providerRegistryService.captureRuntimePricingGeneration('openai')).toBe(initialGeneration + 3)
+  })
+
   it('preserves all API keys added by concurrent calls', async () => {
     await seedProvider()
 

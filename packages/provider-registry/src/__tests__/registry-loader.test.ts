@@ -71,6 +71,45 @@ describe('RegistryLoader override index — duplicate canonical modelId', () => 
   })
 })
 
+describe('RegistryLoader override index — free tier alongside its paid row', () => {
+  // A gateway's free tier is the same canonical model at a different rate (cherryin's
+  // `deepseek/deepseek-v3.2(free)`), and normalization erases the `(free)` tag — so the tagged row must
+  // never claim a slot an alias of the PAID id falls back to, or paid traffic gets billed at 0.
+  const paid = {
+    providerId: 'cherryin',
+    modelId: 'deepseek-v3-2',
+    apiModelId: 'deepseek/deepseek-v3.2',
+    pricing: { input: { currency: 'USD', perMillionTokens: 0.286 } }
+  }
+  const free = {
+    providerId: 'cherryin',
+    modelId: 'deepseek-v3-2',
+    apiModelId: 'deepseek/deepseek-v3.2(free)',
+    modelVariants: ['free'],
+    pricing: { input: { currency: 'USD', perMillionTokens: 0 } }
+  }
+
+  it('bills a paid alias at the paid rate even when the free row is listed first', () => {
+    const loader = newLoader([free, paid])
+    // `agent/deepseek-v3.2` is a CherryIN alias with no row of its own — it lands via normalization.
+    expect(loader.findOverride('cherryin', 'agent/deepseek-v3.2')?.apiModelId).toBe('deepseek/deepseek-v3.2')
+    expect(loader.findOverride('cherryin', 'deepseek-v3-2')?.apiModelId).toBe('deepseek/deepseek-v3.2')
+  })
+
+  it('keeps the free tier reachable by its exact apiModelId', () => {
+    const loader = newLoader([paid, free])
+    expect(loader.findOverride('cherryin', 'deepseek/deepseek-v3.2(free)')?.pricing?.input?.perMillionTokens).toBe(0)
+  })
+
+  it('does not let a sole free tier claim canonical or paid-alias lookups', () => {
+    const loader = newLoader([free])
+
+    expect(loader.findOverride('cherryin', 'deepseek-v3-2')).toBeNull()
+    expect(loader.findOverride('cherryin', 'agent/deepseek-v3.2')).toBeNull()
+    expect(loader.findOverride('cherryin', 'deepseek/deepseek-v3.2(free)')).toEqual(free)
+  })
+})
+
 describe('RegistryLoader override index — exact apiModelId vs normalized collision', () => {
   // normalizeModelId strips the size suffix, so every size collapses to one normalized key
   // (`google.gemma-3-27b-it` and `gemma-3-12b-it` both → `gemma-3-it`). An exact provider SDK id must

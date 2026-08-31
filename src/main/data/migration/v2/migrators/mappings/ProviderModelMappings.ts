@@ -520,6 +520,9 @@ function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | nul
     return null
   }
 
+  // The v1 editor materialized an unset price as 0/0; that echo means "unknown", not free.
+  if (!pricing.input_per_million_tokens && !pricing.output_per_million_tokens) return null
+
   const currency = mapPricingCurrency(pricing.currencySymbol)
   if (!currency) return null
   return {

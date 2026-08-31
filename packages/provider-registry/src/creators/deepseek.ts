@@ -23,6 +23,7 @@ export default defineCreator({
   idPrefixes: ['deepseek'],
   models: [
     {
+      // Upstream reports a 1.25M window for Flash; DeepSeek publishes the same 1M/384K limits as Pro.
       id: 'deepseek-v4-flash',
       name: 'DeepSeek V4 Flash',
       family: 'deepseek-flash',
