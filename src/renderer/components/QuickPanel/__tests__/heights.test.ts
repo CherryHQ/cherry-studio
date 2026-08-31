@@ -54,6 +54,19 @@ describe('getQuickPanelHeights', () => {
         base.pageSize * ITEM + READONLY_CHROME
       )
     })
+
+    it('keeps a measured read-only footer visible when search results collapse', () => {
+      const measuredChrome = 82
+
+      expect(
+        getQuickPanelHeights({
+          ...base,
+          readOnly: true,
+          collapsed: true,
+          chromeHeight: measuredChrome
+        })
+      ).toEqual({ panelMaxHeight: measuredChrome, listHeight: 0 })
+    })
   })
 
   describe('fill (welcome / placement=home): panel prefers content height until it exceeds the available space', () => {
