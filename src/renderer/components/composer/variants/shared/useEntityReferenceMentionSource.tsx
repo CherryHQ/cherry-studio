@@ -12,7 +12,8 @@ import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../qui
 import {
   AGENT_REFERENCE_PREVIEW_MAX_CHARS,
   buildAgentSessionReferencePointer,
-  fetchEntityReferencePromptText
+  fetchEntityReferencePromptText,
+  fitEntityReferencePromptText
 } from './entityReferenceContext'
 
 const REFERENCE_RESULT_LIMIT = 50
@@ -207,7 +208,9 @@ export function useEntityReferenceMentionItems({
                     settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText)
                   } else {
                     const promptText = await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
-                    settlePendingReferenceToken(editor, tokenId, promptText)
+                    const fitPromptText = (maxTotalChars: number) =>
+                      fitEntityReferencePromptText(promptText, maxTotalChars)
+                    settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText)
                   }
                 } catch {
                   settlePendingReferenceToken(editor, tokenId, null)

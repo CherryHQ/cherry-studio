@@ -179,7 +179,8 @@ and exposes nine autonomy tools:
 - `session_deliveries` — inspect incoming and outgoing request/result state.
 
 `session_read` is available only from an interactive user turn after the runtime verifies that its
-trusted current Session still belongs to the trusted Agent. The requested target must be an
+trusted current Session still belongs to the trusted Agent. Every call requires live user approval,
+including when the Agent otherwise runs in Full Access mode. The requested target must be an
 addressable Session: it must exist, belong to an Agent, and that Agent must not be soft-deleted;
 knowing an orphaned, deleted-Agent, or missing Session id does not expose its messages. The default
 page size is 10 and the accepted range is 1–100. Reads start at the newest page, return turns in

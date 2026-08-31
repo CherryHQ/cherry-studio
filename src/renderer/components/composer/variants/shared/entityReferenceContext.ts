@@ -60,6 +60,38 @@ export function buildEntityReferencePromptText(options: {
 }
 
 /**
+ * Fits an already-built conversation reference to a live composer budget while preserving the
+ * opening boundary and closing tag. Returns an empty string when even the structural envelope no
+ * longer fits, allowing the caller to remove the pending reference instead of storing malformed
+ * markup.
+ */
+export function fitEntityReferencePromptText(promptText: string, maxTotalChars: number): string {
+  if (promptText.length <= maxTotalChars) return promptText
+
+  const closingTag = '\n</referenced-conversation>'
+  if (!promptText.endsWith(closingTag)) return ''
+  const openingLineEnd = promptText.indexOf('\n')
+  const boundaryLineEnd = promptText.indexOf('\n', openingLineEnd + 1)
+  if (openingLineEnd < 0 || boundaryLineEnd < 0) return ''
+
+  let bodyStart = boundaryLineEnd + 1
+  if (promptText.startsWith('[showing the ', bodyStart)) {
+    const noteLineEnd = promptText.indexOf('\n', bodyStart)
+    if (noteLineEnd < 0) return ''
+    bodyStart = noteLineEnd + 1
+  }
+
+  const envelope = promptText.slice(0, bodyStart)
+  const availableBodyChars = maxTotalChars - envelope.length - closingTag.length
+  if (availableBodyChars <= 0) return ''
+
+  const body = promptText.slice(bodyStart, -closingTag.length)
+  if (body.length <= availableBodyChars) return `${envelope}${body}${closingTag}`
+  const clippedBody = availableBodyChars === 1 ? '…' : `${body.slice(0, availableBodyChars - 1)}…`
+  return `${envelope}${clippedBody}${closingTag}`
+}
+
+/**
  * Fetches the referenced conversation's newest messages and formats them into token prompt text.
  * `maxTotalChars` lets the caller shrink the block to the composer's remaining input budget.
  */
@@ -127,15 +159,4 @@ export function buildAgentSessionReferencePointer(
     else high = middle - 1
   }
   return serialize(low > 0 ? normalizedPreview.slice(0, low) : null)
-}
-
-export async function fetchAgentSessionReferencePointer(
-  target: Extract<EntityReferenceTarget, { entityType: 'session' }>,
-  options: { maxTotalChars?: number } = {}
-) {
-  const maxTotalChars = options.maxTotalChars ?? Number.POSITIVE_INFINITY
-  const preview = await fetchEntityReferencePromptText(target, {
-    maxTotalChars: Math.min(maxTotalChars, AGENT_REFERENCE_PREVIEW_MAX_CHARS)
-  })
-  return buildAgentSessionReferencePointer(target, preview || null, maxTotalChars)
 }
