@@ -35,7 +35,30 @@ interface PopupMessageOAuthOptions<T> {
   onError?: (error: unknown) => void
 }
 
-const activePopupFlowCleanups = new Map<string, () => void>()
+class PopupFlowRegistry {
+  readonly #cleanups = new Map<string, () => void>()
+
+  retire(popupName: string): void {
+    this.#cleanups.get(popupName)?.()
+  }
+
+  register(popupName: string, cleanup: () => void): void {
+    this.retire(popupName)
+    this.#cleanups.set(popupName, cleanup)
+  }
+
+  release(popupName: string, cleanup: () => void): void {
+    if (this.#cleanups.get(popupName) === cleanup) this.#cleanups.delete(popupName)
+  }
+}
+
+const popupFlowRegistry = new PopupFlowRegistry()
+
+function openNamedPopup(authUrl: string, popupName: string, features: string): Window | null {
+  // Reusing a named window is terminal for any message flow that owned it.
+  popupFlowRegistry.retire(popupName)
+  return window.open(authUrl, popupName, features)
+}
 
 function isSecretKeyOAuthPayload(data: unknown): data is SecretKeyOAuthPayload {
   return (
@@ -69,11 +92,9 @@ function startPopupMessageOAuth<T>({
   setKey,
   onError
 }: PopupMessageOAuthOptions<T>): void {
-  const popup = window.open(authUrl, popupName, OAUTH_POPUP_FEATURES)
+  const popup = openNamedPopup(authUrl, popupName, OAUTH_POPUP_FEATURES)
   if (!popup) return
   const openedPopup = popup
-
-  activePopupFlowCleanups.get(popupName)?.()
 
   const expectedOrigin = new URL(authUrl.trim()).origin
   let active = true
@@ -91,9 +112,7 @@ function startPopupMessageOAuth<T>({
     stopListening()
     window.clearInterval(closePollId)
     window.clearTimeout(timeoutId)
-    if (activePopupFlowCleanups.get(popupName) === finish) {
-      activePopupFlowCleanups.delete(popupName)
-    }
+    popupFlowRegistry.release(popupName, finish)
   }
 
   function messageHandler(event: MessageEvent): void {
@@ -126,7 +145,7 @@ function startPopupMessageOAuth<T>({
   }, OAUTH_POPUP_CLOSE_POLL_MS)
   const timeoutId = window.setTimeout(finish, OAUTH_POPUP_TIMEOUT_MS)
 
-  activePopupFlowCleanups.set(popupName, finish)
+  popupFlowRegistry.register(popupName, finish)
   window.addEventListener('message', messageHandler)
 }
 
@@ -178,7 +197,7 @@ export const oauthWithPPIO = async (setKey) => {
   const redirectUri = 'cherrystudio://'
   const authUrl = `https://ppio.com/oauth/authorize?invited_by=JYT9GD&client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
-  window.open(
+  openNamedPopup(
     authUrl,
     'oauth',
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
@@ -302,7 +321,7 @@ export const oauthWithCherryIn = async (
 
   logger.debug('Opening authorization URL')
 
-  window.open(
+  openNamedPopup(
     authUrl,
     'oauth',
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
@@ -391,7 +410,7 @@ export const providerCharge = async (provider: string) => {
 
   const { url, width, height } = chargeUrlMap[provider]
 
-  window.open(
+  openNamedPopup(
     url,
     'oauth',
     `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
@@ -430,7 +449,7 @@ export const providerBills = async (provider: string) => {
 
   const { url, width, height } = billsUrlMap[provider]
 
-  window.open(
+  openNamedPopup(
     url,
     'oauth',
     `width=${width},height=${height},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes`
