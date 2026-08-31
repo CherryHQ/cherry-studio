@@ -164,6 +164,55 @@ describe('SettingsSearchBox', () => {
     )
   })
 
+  it('replaces, not pushes, the mirrored navigate after a back/forward re-entry', async () => {
+    const view = render(<SettingsSearchBox />)
+    const input = screen.getByTestId('search-input')
+
+    // First session on general pushes the search entry
+    fireEvent.change(input, { target: { value: 'proxy' } })
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1), { timeout: 1000 })
+
+    // The push lands; jumping to a result leaves, then browser-forward returns
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    view.rerender(<SettingsSearchBox />)
+    locationMock.pathname = '/settings/provider'
+    searchMock.q = undefined
+    view.rerender(<SettingsSearchBox />)
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    view.rerender(<SettingsSearchBox />)
+
+    // The URL seed re-fires the debounced mirror — landing on an existing
+    // entry again must replace it, not push a duplicate behind it
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(2), { timeout: 1000 })
+    expect(navigateMock).toHaveBeenLastCalledWith(expect.objectContaining({ replace: true }))
+  })
+
+  it('leaves exactly once on Escape (the empty-pass must not navigate again)', () => {
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    render(<SettingsSearchBox />)
+
+    fireEvent.keyDown(screen.getByTestId('search-input'), { key: 'Escape' })
+
+    // exitSearch's back() and the debounced empty-pass race: one clear, one leave
+    expect(routerMock.history.back).toHaveBeenCalledTimes(1)
+    expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('fires the fallback navigation only once when back is unavailable', () => {
+    routerMock.history.canGoBack.mockReturnValue(false)
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    render(<SettingsSearchBox />)
+
+    fireEvent.keyDown(screen.getByTestId('search-input'), { key: 'Escape' })
+
+    expect(navigateMock).toHaveBeenCalledTimes(1)
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: '/settings/general' }))
+  })
+
   it('keeps input typed during the hide window across an <Activity> show', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'

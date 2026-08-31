@@ -1,7 +1,7 @@
 import { SearchInput } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useSettingsSearchDomIds } from './SettingsSearchDomIds'
@@ -37,6 +37,9 @@ const SettingsSearchBox = () => {
   // Distinguishes a new external URL value from an <Activity> re-show re-run
   // (unchanged urlQuery) that must not clobber input typed during the hide
   const appliedUrlRef = useRef(urlQuery)
+  // One leave per clear: Escape and the debounced empty-pass both want to
+  // leave; a second navigation would overwrite the panel back() returns to
+  const leaveInFlightRef = useRef(false)
 
   // Navigation that does not end on the search page (menu click, result jump)
   // drops pending keystrokes — else the debounce timer hijacks the trip later
@@ -44,10 +47,18 @@ const SettingsSearchBox = () => {
   useEffect(() => {
     const pathnameChanged = prevPathnameRef.current !== location.pathname
     prevPathnameRef.current = location.pathname
-    if (!pathnameChanged || isSearchPage) return
+    if (!pathnameChanged) return
+    if (isSearchPage) {
+      // Any arrival here (own push, back/forward) has the URL on the stack
+      // already: the mirrored debounced navigate must replace, not duplicate
+      hasPushedRef.current = true
+      leaveInFlightRef.current = false
+      return
+    }
     // Reset even on empty-value exits (the back path skips the value check):
     // a stale true downgrades the next session's first entry to replace
     hasPushedRef.current = false
+    leaveInFlightRef.current = false
     if (value) {
       setValue('')
       setLiveQuery('')
@@ -75,6 +86,15 @@ const SettingsSearchBox = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Single leave funnel: only one navigation may leave per clear — the
+  // fallback push after back() would overwrite the panel back() returns to
+  const performLeave = useCallback(() => {
+    if (leaveInFlightRef.current) return
+    leaveInFlightRef.current = true
+    if (router.history.canGoBack()) router.history.back()
+    else void navigate({ to: '/settings/general' })
+  }, [router, navigate])
+
   const exitSearch = () => {
     // Only leave when the user actually searched: an empty-box Esc or one
     // before the debounce pushed must not walk the history back.
@@ -83,8 +103,7 @@ const SettingsSearchBox = () => {
     setLiveQuery('')
     hasPushedRef.current = false
     if (!shouldLeave) return
-    if (router.history.canGoBack()) router.history.back()
-    else void navigate({ to: '/settings/general' })
+    performLeave()
   }
 
   useEffect(() => {
@@ -95,11 +114,12 @@ const SettingsSearchBox = () => {
       // Guard: a deep-link dispatch lands with the seed setValue still in
       // flight (value reads '' for one pass); only a real user clear may go back.
       if (isSearchPage && wasNonEmpty) {
-        if (router.history.canGoBack()) router.history.back()
-        else void navigate({ to: '/settings/general' })
+        performLeave()
       }
       return
     }
+    // Typing again abandons any leave still in flight
+    leaveInFlightRef.current = false
 
     const handle = setTimeout(() => {
       void navigate({
@@ -110,7 +130,7 @@ const SettingsSearchBox = () => {
       hasPushedRef.current = true
     }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(handle)
-  }, [value, navigate, isSearchPage, router])
+  }, [value, navigate, isSearchPage, router, performLeave])
 
   return (
     <div className="px-2.5 pb-1">
