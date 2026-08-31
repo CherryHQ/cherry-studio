@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { lstat, readdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { atomicWriteFile } from '@main/utils/file'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { posixQuote } from './shellQuote'
 
@@ -11,6 +12,7 @@ const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 const UUID_PATTERN = '[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
 const SECRET_ENV_ARTIFACT_PATTERN = new RegExp(`^${UUID_PATTERN}\\.env(?:\\.tmp-${UUID_PATTERN})?$`, 'i')
 const DEFAULT_STALE_AFTER_MS = 60 * 60_000
+const logger = loggerService.withContext('SecretEnvHandoff')
 
 export interface SecretEnvSpec {
   readonly values: Readonly<Record<string, string>>
@@ -39,11 +41,13 @@ function escapeBatchEchoText(text: string): string {
 /** One launch's credential lease, consumed by exactly that launch's shell. */
 export class SecretEnvHandoff {
   readonly launchId: string
-  readonly path: string
+  readonly path: AbsoluteFilePath
+  private state: 'prepared' | 'handing-off' | 'transferred' = 'prepared'
 
   private constructor(
     launchId: string,
-    filePath: string,
+    filePath: AbsoluteFilePath,
+    private readonly payload: string,
     private readonly requiredNames: readonly string[],
     private readonly clearNames: readonly string[]
   ) {
@@ -51,7 +55,7 @@ export class SecretEnvHandoff {
     this.path = filePath
   }
 
-  static async create(dir: string, spec: SecretEnvSpec): Promise<SecretEnvHandoff> {
+  static prepare(dir: string, spec: SecretEnvSpec): SecretEnvHandoff {
     const entries = Object.entries(spec.values)
     if (entries.length === 0) throw new Error('Secret environment handoff requires at least one variable')
 
@@ -68,20 +72,27 @@ export class SecretEnvHandoff {
     const requiredNames = entries.map(([name]) => name)
     const clearNames = [...new Set([...spec.clearNames, ...requiredNames])]
     const filePath = AbsoluteFilePathSchema.parse(path.join(dir, `${launchId}.env`))
+    const payload = `${entries.map(([name, value]) => `${name}=${value}`).join('\n')}\n`
 
-    // POSIX gets 0600; Windows relies on the userData directory's inherited per-user ACL.
-    await atomicWriteFile(filePath, `${entries.map(([name, value]) => `${name}=${value}`).join('\n')}\n`, {
-      mode: 0o600
-    })
-    return new SecretEnvHandoff(launchId, filePath, requiredNames, clearNames)
+    return new SecretEnvHandoff(launchId, filePath, payload, requiredNames, clearNames)
   }
 
-  /** Removes a lease that no terminal owns, or tolerates one the shell already consumed. */
-  async dispose(): Promise<void> {
+  /** Materializes the lease immediately before launch and transfers ownership only when launch succeeds. */
+  async handoff<T>(startTerminal: () => Promise<T>): Promise<T> {
+    if (this.state !== 'prepared') throw new Error('Secret environment handoff can only be attempted once')
+    this.state = 'handing-off'
+
     try {
-      await unlink(this.path)
+      // POSIX gets 0600; Windows relies on the userData directory's inherited per-user ACL.
+      await atomicWriteFile(this.path, this.payload, { mode: 0o600 })
+      const result = await startTerminal()
+      this.state = 'transferred'
+      return result
     } catch (error) {
-      if (!isMissing(error)) throw error
+      await unlink(this.path).catch((cleanupError) => {
+        if (!isMissing(cleanupError)) logger.warn('Failed to remove an unclaimed credential handoff', cleanupError)
+      })
+      throw error
     }
   }
 

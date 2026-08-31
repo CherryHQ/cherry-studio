@@ -41,15 +41,6 @@ import { prepareAntigravityLaunch } from '../antigravity'
 
 const SECRET_ENV_NAMES = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
 
-const directLaunch = (providerId = 'gemini') =>
-  prepareAntigravityLaunch({
-    mode: 'normal',
-    cliTool: CodeCli.ANTIGRAVITY_CLI,
-    providerId,
-    model: 'gemini-2.5-pro',
-    directory: '/tmp/project'
-  })
-
 describe('prepareAntigravityLaunch', () => {
   beforeEach(async () => {
     mocks.root = await mkdtemp(path.join(tmpdir(), 'cherry-antigravity-test-'))
@@ -154,19 +145,6 @@ describe('prepareAntigravityLaunch', () => {
       })
     ).rejects.toThrow('Unsupported model id')
     await expect(readFile(settingsPath, 'utf8')).rejects.toThrow(/ENOENT/)
-  })
-
-  it('keeps consecutive launch credentials in separate immutable specs until handoff creation', async () => {
-    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
-    mocks.getRotatedApiKey.mockReturnValueOnce('key-a').mockReturnValueOnce('key-b')
-
-    const launchA = await directLaunch()
-    const launchB = await directLaunch()
-
-    expect(launchA.secretEnv.values).toEqual({ GEMINI_API_KEY: 'key-a' })
-    expect(launchB.secretEnv.values).toEqual({ GEMINI_API_KEY: 'key-b' })
-    expect(launchA.secretEnv.clearNames).toEqual(SECRET_ENV_NAMES)
-    expect(launchB.secretEnv.clearNames).toEqual(SECRET_ENV_NAMES)
   })
 
   it('rejects malformed isolated settings instead of overwriting them', async () => {

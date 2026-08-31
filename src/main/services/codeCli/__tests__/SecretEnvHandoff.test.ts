@@ -17,8 +17,8 @@ const runShell = (script: string) => execFileAsync('/bin/sh', ['-c', script], { 
 
 let launchDir: string
 
-const createHandoff = (values: Record<string, string>, clearNames = CLEAR_NAMES) =>
-  SecretEnvHandoff.create(launchDir, { values, clearNames })
+const prepareHandoff = (values: Record<string, string>, clearNames = CLEAR_NAMES) =>
+  SecretEnvHandoff.prepare(launchDir, { values, clearNames })
 
 beforeEach(async () => {
   launchDir = await mkdtemp(path.join(tmpdir(), 'cherry-secret-env-test-'))
@@ -28,18 +28,23 @@ afterEach(async () => {
   await rm(launchDir, { recursive: true, force: true })
 })
 
-describe('SecretEnvHandoff.create', () => {
+describe('SecretEnvHandoff.prepare', () => {
   it('gives every launch a separate file and immutable launch identity', async () => {
-    const first = await createHandoff({
+    const first = prepareHandoff({
       GEMINI_API_KEY: 'key-a',
       GOOGLE_GEMINI_BASE_URL: 'https://a.example.test'
     })
-    const second = await createHandoff({ GEMINI_API_KEY: 'key-b' })
+    const second = prepareHandoff({ GEMINI_API_KEY: 'key-b' })
 
     expect(first.launchId).not.toBe(second.launchId)
     expect(first.path).not.toBe(second.path)
     expect(path.basename(first.path)).toMatch(ENV_FILE_NAME)
     expect(path.basename(first.path, '.env')).toBe(first.launchId)
+    expect(await readdir(launchDir)).toEqual([])
+
+    await first.handoff(async () => undefined)
+    await second.handoff(async () => undefined)
+
     expect(await readFile(first.path, 'utf8')).toBe(
       'GEMINI_API_KEY=key-a\nGOOGLE_GEMINI_BASE_URL=https://a.example.test\n'
     )
@@ -64,24 +69,32 @@ describe('SecretEnvHandoff.create', () => {
       variable: 'GEMINI_API_KEY; touch injected'
     }
   ])('rejects $label before writing an artifact', async ({ spec, variable }) => {
-    await expect(SecretEnvHandoff.create(launchDir, spec)).rejects.toThrow(variable)
+    expect(() => SecretEnvHandoff.prepare(launchDir, spec)).toThrow(variable)
     expect(await readdir(launchDir)).toEqual([])
   })
 })
 
 describe('SecretEnvHandoff lifecycle', () => {
-  it('dispose removes an unowned lease and tolerates one already consumed', async () => {
-    const handoff = await createHandoff({ GEMINI_API_KEY: 'unused' })
+  it('removes the lease when terminal startup fails and preserves the launch error', async () => {
+    const handoff = prepareHandoff({ GEMINI_API_KEY: 'unused' })
+    const launchError = new Error('terminal failed')
 
-    await handoff.dispose()
+    await expect(
+      handoff.handoff(async () => {
+        expect(await readFile(handoff.path, 'utf8')).toBe('GEMINI_API_KEY=unused\n')
+        throw launchError
+      })
+    ).rejects.toBe(launchError)
 
     await expect(stat(handoff.path)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(handoff.dispose()).resolves.toBeUndefined()
+    await expect(handoff.handoff(async () => undefined)).rejects.toThrow('can only be attempted once')
   })
 
   it('removeExpired collects only expired handoffs and their atomic-write remnants', async () => {
-    const stale = await createHandoff({ GEMINI_API_KEY: 'stale' })
-    const pending = await createHandoff({ GEMINI_API_KEY: 'pending' })
+    const stale = prepareHandoff({ GEMINI_API_KEY: 'stale' })
+    const pending = prepareHandoff({ GEMINI_API_KEY: 'pending' })
+    await stale.handoff(async () => undefined)
+    await pending.handoff(async () => undefined)
     const atomicTmp = `${stale.path}.tmp-${randomUUID()}`
     const unrelatedEnv = path.join(launchDir, 'notes.env')
     const unrelatedText = path.join(launchDir, 'notes.txt')
@@ -103,7 +116,8 @@ describe('SecretEnvHandoff lifecycle', () => {
   })
 
   it('removeAll invalidates current and crash-left leases without touching unrelated files', async () => {
-    const handoff = await createHandoff({ GEMINI_API_KEY: 'pending' })
+    const handoff = prepareHandoff({ GEMINI_API_KEY: 'pending' })
+    await handoff.handoff(async () => undefined)
     const atomicTmp = `${handoff.path}.tmp-${randomUUID()}`
     await writeFile(atomicTmp, 'GEMINI_API_KEY=tmp-secret\n')
     await writeFile(path.join(launchDir, 'keep.txt'), 'keep')
@@ -116,16 +130,18 @@ describe('SecretEnvHandoff lifecycle', () => {
 
 describe.skipIf(process.platform === 'win32')('SecretEnvHandoff.wrapPosixCommand', () => {
   it('keeps delayed concurrent launches isolated even when they consume in reverse order', async () => {
-    const launchA = await createHandoff({
+    const launchA = prepareHandoff({
       GEMINI_API_KEY: 'key-a',
       GOOGLE_GEMINI_BASE_URL: 'https://a.example.test'
     })
     const commandA = launchA.wrapPosixCommand(printEnv)
-    const launchB = await createHandoff({
+    const launchB = prepareHandoff({
       GEMINI_API_KEY: 'key-b',
       GOOGLE_GEMINI_BASE_URL: 'https://b.example.test'
     })
     const commandB = launchB.wrapPosixCommand(printEnv)
+    await launchA.handoff(async () => undefined)
+    await launchB.handoff(async () => undefined)
 
     const resultB = await runShell(commandB)
     const resultA = await runShell(commandA)
@@ -138,12 +154,14 @@ describe.skipIf(process.platform === 'win32')('SecretEnvHandoff.wrapPosixCommand
 
   it('preserves exact values in a traced subshell and clears an ambient value the lease omits', async () => {
     const apiKey = 'secret $HOME $(touch nope) \' " = value'
-    const handoff = await createHandoff({ GEMINI_API_KEY: apiKey })
+    const handoff = prepareHandoff({ GEMINI_API_KEY: apiKey })
     const wrapped = handoff.wrapPosixCommand(printEnv)
     expect(wrapped).not.toContain(apiKey)
 
-    const result = await runShell(
-      `GEMINI_API_KEY=ambient-wrong-key GOOGLE_GEMINI_BASE_URL=https://stale.example.test; export GEMINI_API_KEY GOOGLE_GEMINI_BASE_URL; set -x; ${wrapped}; printf '|%s' "$GOOGLE_GEMINI_BASE_URL"`
+    const result = await handoff.handoff(() =>
+      runShell(
+        `GEMINI_API_KEY=ambient-wrong-key GOOGLE_GEMINI_BASE_URL=https://stale.example.test; export GEMINI_API_KEY GOOGLE_GEMINI_BASE_URL; set -x; ${wrapped}; printf '|%s' "$GOOGLE_GEMINI_BASE_URL"`
+      )
     )
 
     expect(result.stdout).toBe(`${apiKey}|unset|https://stale.example.test`)
@@ -152,34 +170,40 @@ describe.skipIf(process.platform === 'win32')('SecretEnvHandoff.wrapPosixCommand
 
   it('deletes a corrupted lease before failing closed on a missing required variable', async () => {
     const marker = path.join(launchDir, 'ran')
-    const handoff = await createHandoff({
+    const handoff = prepareHandoff({
       GEMINI_API_KEY: 'key',
       GOOGLE_GEMINI_BASE_URL: 'https://example.test'
     })
-    await writeFile(handoff.path, 'GEMINI_API_KEY=key\n', { mode: 0o600 })
 
-    await expect(runShell(handoff.wrapPosixCommand(`touch '${marker}'`))).rejects.toMatchObject({
-      code: expect.any(Number)
-    })
+    await expect(
+      handoff.handoff(async () => {
+        await writeFile(handoff.path, 'GEMINI_API_KEY=key\n', { mode: 0o600 })
+        return runShell(handoff.wrapPosixCommand(`touch '${marker}'`))
+      })
+    ).rejects.toMatchObject({ code: expect.any(Number) })
     await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(stat(handoff.path)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('does not run the CLI when the lease is missing or cannot be deleted', async () => {
     const missingMarker = path.join(launchDir, 'missing-ran')
-    const missing = await createHandoff({ GEMINI_API_KEY: 'key' })
-    await missing.dispose()
-    await expect(runShell(missing.wrapPosixCommand(`touch '${missingMarker}'`))).rejects.toMatchObject({
-      code: expect.any(Number)
-    })
+    const missing = prepareHandoff({ GEMINI_API_KEY: 'key' })
+    await expect(
+      missing.handoff(async () => {
+        await unlink(missing.path)
+        return runShell(missing.wrapPosixCommand(`touch '${missingMarker}'`))
+      })
+    ).rejects.toMatchObject({ code: expect.any(Number) })
 
     const undeletedMarker = path.join(launchDir, 'undeleted-ran')
-    const undeleted = await createHandoff({ GEMINI_API_KEY: 'key' })
-    await unlink(undeleted.path)
-    await mkdir(undeleted.path)
-    await expect(runShell(undeleted.wrapPosixCommand(`touch '${undeletedMarker}'`))).rejects.toMatchObject({
-      code: expect.any(Number)
-    })
+    const undeleted = prepareHandoff({ GEMINI_API_KEY: 'key' })
+    await expect(
+      undeleted.handoff(async () => {
+        await unlink(undeleted.path)
+        await mkdir(undeleted.path)
+        return runShell(undeleted.wrapPosixCommand(`touch '${undeletedMarker}'`))
+      })
+    ).rejects.toMatchObject({ code: expect.any(Number) })
 
     await expect(stat(missingMarker)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(stat(undeletedMarker)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -190,7 +214,7 @@ describe('SecretEnvHandoff.wrapWindowsCommand', () => {
   it('clears, imports, deletes, verifies deletion, then guards and executes', async () => {
     const dir = path.join(launchDir, '100% data')
     await mkdir(dir)
-    const handoff = await SecretEnvHandoff.create(dir, {
+    const handoff = SecretEnvHandoff.prepare(dir, {
       values: { GEMINI_API_KEY: 'key' },
       clearNames: CLEAR_NAMES
     })
@@ -237,7 +261,7 @@ describe.skipIf(process.platform !== 'win32')('SecretEnvHandoff under cmd.exe', 
   it('preserves !, %, and & verbatim and consumes the lease', async () => {
     const dir = path.join(launchDir, '100% data')
     await mkdir(dir)
-    const handoff = await SecretEnvHandoff.create(dir, {
+    const handoff = SecretEnvHandoff.prepare(dir, {
       values: {
         GEMINI_API_KEY: 'abc!PATH!def',
         GOOGLE_GEMINI_BASE_URL: 'https://x.example.test/%TEMP%?a=1&b=2'
@@ -245,7 +269,8 @@ describe.skipIf(process.platform !== 'win32')('SecretEnvHandoff under cmd.exe', 
       clearNames: CLEAR_NAMES
     })
 
-    const result = await runBat(await writeLaunchBat(handoff))
+    const batPath = await writeLaunchBat(handoff)
+    const result = await handoff.handoff(() => runBat(batPath))
 
     expect(result.stdout.replace(/\r\n/g, '\n').trim().split('\n')).toEqual([
       'GEMINI_API_KEY=abc!PATH!def',
@@ -256,14 +281,17 @@ describe.skipIf(process.platform !== 'win32')('SecretEnvHandoff under cmd.exe', 
 
   it('fails closed and deletes an incomplete lease even with ambient variables present', async () => {
     const marker = path.join(launchDir, 'cli-ran')
-    const handoff = await createHandoff({
+    const handoff = prepareHandoff({
       GEMINI_API_KEY: 'key',
       GOOGLE_GEMINI_BASE_URL: 'https://example.test'
     })
-    await writeFile(handoff.path, 'GEMINI_API_KEY=key\n', { mode: 0o600 })
+    const batPath = await writeLaunchBat(handoff, `echo ran>"${marker.replace(/%/g, '%%')}"`)
 
     await expect(
-      runBat(await writeLaunchBat(handoff, `echo ran>"${marker.replace(/%/g, '%%')}"`))
+      handoff.handoff(async () => {
+        await writeFile(handoff.path, 'GEMINI_API_KEY=key\n', { mode: 0o600 })
+        return runBat(batPath)
+      })
     ).rejects.toMatchObject({ code: 1 })
     await expect(stat(marker)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(stat(handoff.path)).rejects.toMatchObject({ code: 'ENOENT' })
