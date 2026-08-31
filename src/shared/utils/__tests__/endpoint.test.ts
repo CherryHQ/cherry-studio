@@ -31,6 +31,12 @@ describe('resolveCanonicalEndpoint', () => {
     expect(resolveCanonicalEndpoint(provider(), model()).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   })
 
+  it('supports legacy model rows without a capabilities array', () => {
+    const legacyModel = model({ capabilities: undefined as unknown as Model['capabilities'] })
+
+    expect(resolveCanonicalEndpoint(provider(), legacyModel).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
   it('skips a stale default whose endpoint configuration is missing', () => {
     const stale = provider({
       endpointConfigs: {
@@ -93,6 +99,22 @@ describe('resolveCanonicalEndpoint', () => {
     })
 
     expect(resolveCanonicalEndpoint(mismatchedProvider, embeddingModel).endpointType).toBeUndefined()
+  })
+
+  it('allows an explicitly declared general-purpose protocol to serve a non-chat capability', () => {
+    const geminiProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://relay.example/gemini' }
+      }
+    })
+    const imageModel = model({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+    })
+
+    expect(resolveCanonicalEndpoint(geminiProvider, imageModel).endpointType).toBe(
+      ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    )
   })
 
   it('returns the configured gateway route and its provider-options key together', () => {

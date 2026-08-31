@@ -28,7 +28,8 @@ export function resolveCanonicalEndpoint(
 ): CanonicalEndpointSelection {
   // Persisted/custom rows created before capabilities became required can still omit the array.
   // Classify them as ordinary chat models unless another explicit non-chat signal is present.
-  const nonChat = isNonChatModel({ ...model, capabilities: model.capabilities ?? [] })
+  const capabilities = model.capabilities ?? []
+  const nonChat = isNonChatModel({ ...model, capabilities })
   const isAllowed = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
     Boolean(endpointType && (!allowedEndpointTypes || allowedEndpointTypes.includes(endpointType)))
   const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
@@ -38,15 +39,15 @@ export function resolveCanonicalEndpoint(
       .map(endpointImpliedCapability)
       .filter((capability) => capability !== undefined)
   )
-  const hasExplicitEndpointCapability = model.capabilities.some((capability) =>
-    endpointBackedCapabilities.has(capability)
-  )
-  const matchesModelMode = (endpointType: EndpointType): boolean => {
+  const hasExplicitEndpointCapability = capabilities.some((capability) => endpointBackedCapabilities.has(capability))
+  const endpointMatchesExplicitCapability = (endpointType: EndpointType): boolean => {
     const impliedCapability = endpointImpliedCapability(endpointType)
-    if (!nonChat) return impliedCapability === undefined
-    if (impliedCapability === undefined) return false
-    return !hasExplicitEndpointCapability || model.capabilities.includes(impliedCapability)
+    return impliedCapability !== undefined && capabilities.includes(impliedCapability)
   }
+  const hasMismatchedDedicatedEndpoint = model.endpointTypes?.some(
+    (endpointType) =>
+      endpointImpliedCapability(endpointType) !== undefined && !endpointMatchesExplicitCapability(endpointType)
+  )
   const defaultEndpoint = provider.defaultChatEndpoint
   const preferred =
     !nonChat &&
@@ -59,9 +60,24 @@ export function resolveCanonicalEndpoint(
     !nonChat && defaultEndpoint && model.endpointTypes?.includes(defaultEndpoint) && hasEndpointConfig(defaultEndpoint)
       ? defaultEndpoint
       : undefined
-  const modelEndpoint = model.endpointTypes?.find(
-    (endpointType) => hasEndpointConfig(endpointType) && matchesModelMode(endpointType)
-  )
+  const capabilityEndpoint =
+    nonChat && hasExplicitEndpointCapability
+      ? model.endpointTypes?.find(
+          (endpointType) => hasEndpointConfig(endpointType) && endpointMatchesExplicitCapability(endpointType)
+        )
+      : undefined
+  const modelEndpoint =
+    capabilityEndpoint ??
+    model.endpointTypes?.find((endpointType) => {
+      if (!hasEndpointConfig(endpointType)) return false
+      const impliedCapability = endpointImpliedCapability(endpointType)
+      if (!nonChat) return impliedCapability === undefined
+      if (!hasExplicitEndpointCapability) return true
+      // General-purpose protocols such as Gemini generateContent can also serve
+      // non-chat capabilities. Trust that explicit declaration only when the row
+      // does not simultaneously advertise an incompatible dedicated protocol.
+      return impliedCapability === undefined && !hasMismatchedDedicatedEndpoint
+    })
   const gatewayRoute = nonChat ? undefined : resolveGatewayChatRoute(provider, model)
   const fallback =
     !nonChat && !model.endpointTypes?.length && hasEndpointConfig(defaultEndpoint) ? defaultEndpoint : undefined
