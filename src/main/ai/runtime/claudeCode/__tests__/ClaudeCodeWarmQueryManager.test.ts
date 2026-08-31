@@ -345,39 +345,18 @@ describe('ClaudeCodeWarmQueryManager', () => {
       key: 'session-1',
       options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
       credentialsFingerprint: 'set-1',
-      usageCapture: {
-        owner: 'agent-sdk',
-        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
-        providerId: 'anthropic',
-        providerName: 'Anthropic',
-        source: null,
-        frozenModels: [
-          { modelId: 'sonnet', apiModelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }
-        ]
-      }
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' }
     })
     const consumed = await manager.consume({
       key: 'session-1',
       options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
       credentialsFingerprint: 'set-1',
-      usageCapture: {
-        owner: 'agent-sdk',
-        credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'key-***' },
-        providerId: 'anthropic',
-        providerName: 'Anthropic',
-        source: null,
-        frozenModels: [
-          { modelId: 'sonnet', apiModelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }
-        ]
-      }
+      credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'key-***' }
     })
 
     expect(consumed).toMatchObject({
       warmQuery: warm,
-      usageCapture: {
-        owner: 'agent-sdk',
-        credentialReceipt: { attribution: 'explicit', id: 'key-a' }
-      }
+      credentialReceipt: { attribution: 'explicit', id: 'key-a' }
     })
   })
 

@@ -13,42 +13,25 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
+  HTMLElement.prototype.hasPointerCapture ??= () => false
+  HTMLElement.prototype.releasePointerCapture ??= () => {}
+  HTMLElement.prototype.setPointerCapture ??= () => {}
 })
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
-
   return {
     ...actual,
-    useTranslation: () => ({
-      t: (key: string, options?: Record<string, string | number>) => {
-        if (key === 'models.price.field_for_tier') {
-          return `${options?.field}, tier ${options?.index}`
-        }
-        if (key === 'models.price.remove_tier') {
-          return `Remove pricing tier ${options?.index}`
-        }
-        if (key === 'models.price.tier') {
-          return `Tier ${options?.index}`
-        }
-        if (key === 'models.price.tier_from') {
-          return `From ${options?.boundary} input tokens (inclusive)`
-        }
-        return key
-      }
-    })
+    useTranslation: () => ({ t: (key: string) => key })
   }
 })
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
-  const React = await import('react')
-  const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
-
   return {
     ...actual,
-    Button: ({ children, onClick, type = 'button', ...props }: any) => (
-      <button type={type} onClick={onClick} {...props}>
+    Button: ({ children, loading, type = 'button', ...props }: any) => (
+      <button {...props} type={type} disabled={props.disabled || loading}>
         {children}
       </button>
     ),
@@ -58,345 +41,149 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </button>
     ),
     Tooltip: ({ children, content }: any) => <span aria-label={content}>{children}</span>,
-    WarnTooltip: () => <span>warn</span>,
-    // Radix's select cannot be opened in jsdom, so the option list is flattened
-    // into buttons to make the currency switch clickable.
-    Select: ({ children, onValueChange }: any) => <SelectContext value={{ onValueChange }}>{children}</SelectContext>,
-    SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    SelectValue: () => null,
-    SelectContent: ({ children }: any) => <div>{children}</div>,
-    SelectItem: ({ children, value }: any) => {
-      const { onValueChange } = React.use(SelectContext)
-      return (
-        <button type="button" aria-label={`currency-${value}`} onClick={() => onValueChange?.(value)}>
-          {children}
-        </button>
-      )
-    }
+    WarnTooltip: () => <span>warn</span>
   }
 })
 
-vi.mock('@renderer/services/toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn() }
-}))
-
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args)
-}))
-
+vi.mock('@renderer/services/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('@renderer/hooks/useProvider', () => ({ useProvider: (...args: any[]) => useProviderMock(...args) }))
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelMutations: () => ({
-    updateModel: (...args: any[]) => updateModelMock(...args)
-  })
+  useModelMutations: () => ({ updateModel: (...args: any[]) => updateModelMock(...args) })
 }))
+vi.mock('@renderer/components/icons/CopyIcon', () => ({ default: () => <span>copy-icon</span> }))
 
-vi.mock('@renderer/components/tags/Model', () => ({
-  VisionTag: () => <span>vision</span>,
-  WebSearchTag: () => <span>web_search</span>,
-  ReasoningTag: () => <span>reasoning</span>,
-  ToolsCallingTag: () => <span>function_calling</span>,
-  RerankerTag: () => <span>rerank</span>,
-  EmbeddingTag: () => <span>embedding</span>
-}))
-
-vi.mock('@renderer/components/icons/CopyIcon', () => ({
-  default: () => <span>copy-icon</span>
-}))
-
-vi.mock('../../../primitives/ProviderSettingsDrawer', () => ({
-  default: ({ open, title, children }: any) =>
-    open ? (
-      <div data-testid="provider-settings-drawer">
-        <div>{title}</div>
-        {children}
-      </div>
-    ) : null
-}))
-
-interface PricingModelOptions {
-  cacheReadPrice?: number
-  cacheWritePrice?: number | null
-  includeHiddenRates?: boolean
-  inputTokenTiers?: NonNullable<NonNullable<Model['pricing']>['inputTokenTiers']>
-}
-
-function makePricingModel({
-  cacheReadPrice,
-  cacheWritePrice = 3.75,
-  includeHiddenRates = false,
-  inputTokenTiers
-}: PricingModelOptions = {}): Model {
+function makeModel(overrides: Partial<Model> = {}): Model {
   return {
     id: 'openai::claude-4-sonnet',
     providerId: 'openai',
-    name: 'claude-4-sonnet',
+    name: 'Claude 4 Sonnet',
     group: 'Anthropic',
     capabilities: [],
     supportsStreaming: true,
     pricing: {
       input: { perMillionTokens: 3, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      ...(cacheReadPrice !== undefined
-        ? { cacheRead: { perMillionTokens: cacheReadPrice, currency: CURRENCY.USD } }
-        : {}),
-      ...(cacheWritePrice !== null
-        ? { cacheWrite: { perMillionTokens: cacheWritePrice, currency: CURRENCY.USD } }
-        : {}),
-      ...(inputTokenTiers ? { inputTokenTiers } : {}),
-      ...(includeHiddenRates
-        ? {
-            perImage: { price: 0.04, unit: 'image' as const },
-            perMinute: { price: 0.2 }
-          }
-        : {})
-    }
-  } as unknown as Model
+      output: { perMillionTokens: 15, currency: CURRENCY.USD }
+    },
+    ...overrides
+  } as Model
 }
 
-function makeTieredPricingModel(): Model {
-  return makePricingModel({
-    cacheReadPrice: 0.3,
-    includeHiddenRates: true,
-    inputTokenTiers: [
-      {
-        minInputTokens: 100_000,
-        input: { perMillionTokens: 2.5, currency: CURRENCY.USD },
-        output: { perMillionTokens: 12, currency: CURRENCY.USD },
-        cacheRead: { perMillionTokens: 0.2, currency: CURRENCY.USD },
-        cacheWrite: { perMillionTokens: 0, currency: CURRENCY.USD }
-      }
-    ]
-  })
-}
-
-const modelWithFullPricing = makePricingModel({ cacheReadPrice: 0.3 })
-
-describe('EditModelDrawer pricing', () => {
+describe('EditModelDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ipcRequest.mockResolvedValue(undefined)
+    updateModelMock.mockResolvedValue(undefined)
     useProviderMock.mockReturnValue({ provider: { id: 'openai', name: 'OpenAI' } })
   })
 
-  it('keeps every pricing tier untouched when an unrelated field is edited', async () => {
+  it('discards edits when the user cancels', async () => {
     const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    const onClose = vi.fn()
+    render(<EditModelDrawer providerId="openai" open onClose={onClose} model={makeModel()} />)
 
-    const modelName = screen.getByLabelText('settings.models.add.model_name.label')
-    await user.clear(modelName)
-    await user.type(modelName, 'Claude 4 Sonnet Renamed')
-    await user.tab()
+    const nameInput = screen.getByLabelText('settings.models.add.model_name.label')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Renamed model')
+    await user.click(screen.getByRole('button', { name: 'common.cancel' }))
 
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ name: 'Claude 4 Sonnet Renamed' }))
-    expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('pricing')
+    expect(updateModelMock).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps a queued pricing save when a later unrelated field is edited', async () => {
+  it('saves cross-section edits atomically, including a visual time rule', async () => {
     const user = userEvent.setup()
-    let resolveFirstSave!: () => void
-    updateModelMock
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveFirstSave = resolve
-          })
-      )
-      .mockResolvedValue(undefined)
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    const onClose = vi.fn()
+    render(<EditModelDrawer providerId="openai" open onClose={onClose} model={makeModel()} />)
 
-    const modelName = screen.getByLabelText('settings.models.add.model_name.label')
-    await user.clear(modelName)
-    await user.type(modelName, 'Claude 4 Sonnet Renamed')
-    await user.tab()
-    await user.click(screen.getByLabelText('currency-¥'))
-    await user.click(screen.getByRole('switch', { name: 'settings.models.add.supported_text_delta.label' }))
+    const nameInput = screen.getByLabelText('settings.models.add.model_name.label')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Renamed model')
+    await user.click(screen.getByRole('button', { name: 'models.price.title' }))
+    await user.click(screen.getByRole('tab', { name: 'models.price.rule.title' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.schedule.add_rule' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.rule.time_template' }))
+    await user.click(screen.getByRole('combobox', { name: 'models.price.rule.add_condition' }))
+    await user.click(screen.getByRole('option', { name: 'models.price.rule.tier_template' }))
 
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    resolveFirstSave()
+    const ruleInputPrice = screen.getAllByLabelText('models.price.input').at(-1)!
+    await user.type(ruleInputPrice, '1.5')
+    await user.click(screen.getByRole('tab', { name: 'models.price.base_title' }))
+    await user.click(screen.getByRole('tab', { name: 'settings.general.title' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.title' }))
+    await user.click(screen.getByRole('tab', { name: 'models.price.rule.title' }))
+    expect(ruleInputPrice).toHaveValue('1.5')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
 
-    await waitFor(() => expect(updateModelMock).toHaveBeenCalledTimes(2))
-    expect(updateModelMock.mock.calls[1][2]).toEqual(
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalledTimes(1))
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'openai',
+      'claude-4-sonnet',
       expect.objectContaining({
-        supportsStreaming: false,
+        name: 'Renamed model',
         pricing: expect.objectContaining({
-          input: { perMillionTokens: 3, currency: CURRENCY.CNY },
-          inputTokenTiers: expect.arrayContaining([
-            expect.objectContaining({ input: { perMillionTokens: 2.5, currency: CURRENCY.CNY } })
-          ])
+          rules: [
+            expect.objectContaining({
+              when: expect.objectContaining({
+                minInputTokens: 100000,
+                time: expect.objectContaining({
+                  cron: ['* 9-16 * * 1,2,3,4,5']
+                })
+              }),
+              pricing: expect.objectContaining({
+                input: { perMillionTokens: 1.5, currency: CURRENCY.USD }
+              })
+            })
+          ]
         })
       })
     )
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('rejects non-numeric characters and a second decimal point in price inputs', async () => {
+  it('blocks saving a rule without a price override', async () => {
     const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeModel()} />)
 
-    const cacheReadPrice = screen.getByLabelText('models.price.cache_read')
-    await user.clear(cacheReadPrice)
-    await user.type(cacheReadPrice, '1a.2.5')
+    await user.click(screen.getByRole('button', { name: 'models.price.title' }))
+    await user.click(screen.getByRole('tab', { name: 'models.price.rule.title' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.schedule.add_rule' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.rule.time_template' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
 
-    expect(cacheReadPrice).toHaveValue('1.25')
+    expect(updateModelMock).not.toHaveBeenCalled()
+    expect(screen.getByText('models.price.rule.validation')).toBeInTheDocument()
   })
 
-  it('rejects non-digits in a tier boundary input', async () => {
-    const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
-
-    const minInputTokens = screen.getByLabelText(/models\.price\.min_input_tokens/)
-    await user.clear(minInputTokens)
-    await user.type(minInputTokens, '12a.8')
-
-    expect(minInputTokens).toHaveValue('128')
-  })
-
-  it('preserves explicit zero cache rates and unedited pricing fields when a price is saved', async () => {
-    const user = userEvent.setup()
-    const model = makeTieredPricingModel()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
-
-    const cacheReadPrice = screen.getByLabelText('models.price.cache_read')
-    await user.clear(cacheReadPrice)
-    await user.type(cacheReadPrice, '0')
-    await user.tab()
-
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
-      input: { perMillionTokens: 3, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      cacheRead: { perMillionTokens: 0, currency: CURRENCY.USD },
-      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
-      inputTokenTiers: model.pricing?.inputTokenTiers,
-      perImage: { price: 0.04, unit: 'image' },
-      perMinute: { price: 0.2 }
-    })
-  })
-
-  it('keeps blank cache prices absent when another price is saved', async () => {
+  it('clears a user pricing override only after Save is confirmed', async () => {
     const user = userEvent.setup()
     render(
       <EditModelDrawer
         providerId="openai"
         open
         onClose={vi.fn()}
-        model={makePricingModel({ cacheWritePrice: null, includeHiddenRates: true })}
+        model={makeModel({ presetModelId: 'claude-4-sonnet', pricingSource: 'user' })}
       />
     )
 
-    const inputPrice = screen.getByLabelText('models.price.input')
-    await user.clear(inputPrice)
-    await user.type(inputPrice, '4')
-    await user.tab()
-
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
-      input: { perMillionTokens: 4, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      perImage: { price: 0.04, unit: 'image' },
-      perMinute: { price: 0.2 }
-    })
-  })
-
-  it('moves every pricing tier to the newly selected currency', async () => {
-    const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
-
-    await user.click(screen.getByLabelText('currency-¥'))
-
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
-      input: { perMillionTokens: 3, currency: CURRENCY.CNY },
-      output: { perMillionTokens: 15, currency: CURRENCY.CNY },
-      cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.CNY },
-      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.CNY },
-      inputTokenTiers: [
-        {
-          minInputTokens: 100_000,
-          input: { perMillionTokens: 2.5, currency: CURRENCY.CNY },
-          output: { perMillionTokens: 12, currency: CURRENCY.CNY },
-          cacheRead: { perMillionTokens: 0.2, currency: CURRENCY.CNY },
-          cacheWrite: { perMillionTokens: 0, currency: CURRENCY.CNY }
-        }
-      ],
-      perImage: { price: 0.04, unit: 'image' },
-      perMinute: { price: 0.2 }
-    })
-  })
-
-  it('waits for a valid inclusive boundary before saving a new tier', async () => {
-    const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={modelWithFullPricing} />)
-
-    await user.click(screen.getByRole('button', { name: 'models.price.add_tier' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.title' }))
+    await user.click(screen.getByRole('button', { name: 'models.price.restore_provider' }))
     expect(updateModelMock).not.toHaveBeenCalled()
 
-    await user.type(screen.getByLabelText('models.price.min_input_tokens, tier 2'), '100000')
-    await user.tab()
-
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
-      input: { perMillionTokens: 3, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
-      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
-      inputTokenTiers: [
-        {
-          minInputTokens: 100_000,
-          input: { perMillionTokens: 3, currency: CURRENCY.USD },
-          output: { perMillionTokens: 15, currency: CURRENCY.USD },
-          cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
-          cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
-        }
-      ]
-    })
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalledTimes(1))
+    expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ pricing: null }))
   })
 
-  it('saves valid base pricing while a new trailing tier is incomplete', async () => {
+  it('keeps the dialog open and reports a save failure', async () => {
     const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={modelWithFullPricing} />)
+    const onClose = vi.fn()
+    updateModelMock.mockRejectedValue(new Error('save failed'))
+    render(<EditModelDrawer providerId="openai" open onClose={onClose} model={makeModel()} />)
 
-    await user.click(screen.getByRole('button', { name: 'models.price.add_tier' }))
-    const inputPrice = screen.getByLabelText('models.price.input')
-    await user.clear(inputPrice)
-    await user.type(inputPrice, '4')
-    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
 
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
-      input: { perMillionTokens: 4, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
-      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD }
-    })
-  })
-
-  it('does not save an additional tier with a duplicate boundary', async () => {
-    const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
-
-    await user.click(screen.getByRole('button', { name: 'models.price.add_tier' }))
-    await user.type(screen.getByLabelText('models.price.min_input_tokens, tier 3'), '100000')
-    await user.tab()
-
-    expect(screen.getByRole('alert')).toHaveTextContent('models.price.validation_min_input_tokens_order')
-    expect(updateModelMock).not.toHaveBeenCalled()
-  })
-
-  it('saves a valid tier removal while preserving unedited pricing fields', async () => {
-    const user = userEvent.setup()
-    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
-
-    await user.click(screen.getByRole('button', { name: 'Remove pricing tier 2' }))
-
-    expect(updateModelMock).toHaveBeenCalledTimes(1)
-    expect(updateModelMock.mock.calls[0][2].pricing).toEqual({
-      input: { perMillionTokens: 3, currency: CURRENCY.USD },
-      output: { perMillionTokens: 15, currency: CURRENCY.USD },
-      cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
-      cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
-      perImage: { price: 0.04, unit: 'image' },
-      perMinute: { price: 0.2 }
-    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('settings.models.manage.operation_failed')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })

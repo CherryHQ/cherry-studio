@@ -547,7 +547,7 @@ describe('AgentSessionRuntimeService', () => {
             modelId: 'configured-sonnet',
             apiModelId: 'claude-sonnet-4-5',
             modelName: 'Claude Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
             aliases: ['configured-sonnet', 'claude-sonnet-4-5']
           }
         ]
@@ -588,6 +588,7 @@ describe('AgentSessionRuntimeService', () => {
         requestId: 'claude-agent:sdk-request-1',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'current-turn',
+        startedAt: Date.parse('2026-08-31T01:30:00.000Z'),
         usage: {
           inputTokens: 10,
           outputTokens: 5,
@@ -609,7 +610,8 @@ describe('AgentSessionRuntimeService', () => {
             providerName: 'Claude Code',
             modelId: 'configured-sonnet',
             modelName: 'Claude Sonnet',
-            pricingSnapshot: null,
+            pricing: null,
+            capturedAt: '2026-08-31T01:30:00.000Z',
             credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
             source: {
               type: 'agent',
@@ -650,6 +652,7 @@ describe('AgentSessionRuntimeService', () => {
         requestId: 'claude-agent:background-request',
         model: 'claude-sonnet-4-5',
         messageAssociation: 'stateless',
+        startedAt: Date.parse('2026-08-31T02:00:00.000Z'),
         usage: {
           inputTokens: 4,
           outputTokens: 2,
@@ -4776,7 +4779,7 @@ describe('AgentSessionRuntimeService', () => {
               modelId: 'claude-sonnet-4-5',
               apiModelId: 'claude-sonnet-4-5',
               modelName: 'Claude Sonnet',
-              pricingSnapshot: null,
+              pricing: null,
               aliases: ['claude-sonnet-4-5']
             }
           ]
@@ -4813,6 +4816,7 @@ describe('AgentSessionRuntimeService', () => {
           requestId: 'claude-agent:pre-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
+          startedAt: Date.parse('2026-08-31T02:00:00.000Z'),
           usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
         }
       })
@@ -4876,6 +4880,7 @@ describe('AgentSessionRuntimeService', () => {
           requestId: 'claude-agent:post-steer-request',
           model: 'claude-sonnet-4-5',
           messageAssociation: 'current-turn',
+          startedAt: Date.parse('2026-08-31T02:01:00.000Z'),
           usage: { inputTokens: 7, outputTokens: 3, totalTokens: 10 }
         }
       })

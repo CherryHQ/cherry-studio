@@ -51,6 +51,7 @@ export interface DshStreamSink {
   onAssistantUsage(info: {
     turn: number
     seq: number
+    startedAt: number
     usage: TokenUsage
     model?: string
     metrics?: DshInvocationMetrics
@@ -107,6 +108,7 @@ export class DshStreamAdapter {
     turn: number
     step: number
     seq: number
+    startedAt: number
     usage: TokenUsage
     metrics?: DshInvocationMetrics
   }
@@ -172,11 +174,11 @@ export class DshStreamAdapter {
         this.resetStepTiming()
         return
       case 'step/start':
-        this.startProviderAttempt(event.data, true)
+        this.startProviderAttempt(event.data, event.time, true)
         return
       case 'assistant/chunk':
         this.ensureTurnOpen()
-        this.handleAssistantChunk(event.data, event.seq)
+        this.handleAssistantChunk(event.data, event.seq, event.time)
         return
       case 'tool/call':
         this.ensureTurnOpen()
@@ -209,14 +211,14 @@ export class DshStreamAdapter {
         this.handleRetry(event.data)
         return
       case 'llm/retry-started':
-        this.startProviderAttempt(event.data, false)
+        this.startProviderAttempt(event.data, event.time, false)
         return
       case 'step/end':
         this.flushPendingProviderUsage()
         this.resetStepTiming()
         return
       case 'compaction/start':
-        this.handleCompactionStart(event.data)
+        this.handleCompactionStart(event.data, event.time)
         return
       case 'compaction/summary':
         this.handleCompactionSummary(event.data, event.seq)
@@ -240,11 +242,11 @@ export class DshStreamAdapter {
     return `dsh-${this.turnSeq}-${index}`
   }
 
-  private handleAssistantChunk(data: SessionEventMap['assistant/chunk'], seq: number): void {
+  private handleAssistantChunk(data: SessionEventMap['assistant/chunk'], seq: number, eventTime: number): void {
     const stepKey = `${data.turn}:${data.step}`
     if (stepKey !== this.lastStepKey) {
       // Compatibility fallback for logs produced without a visible step/start.
-      this.startProviderAttempt(data, true)
+      this.startProviderAttempt(data, eventTime, true)
     }
     const chunk = data.chunk
     switch (chunk.type) {
@@ -286,7 +288,7 @@ export class DshStreamAdapter {
     }
   }
 
-  private startProviderAttempt(data: { turn: number; step: number }, newStep: boolean): void {
+  private startProviderAttempt(data: { turn: number; step: number }, startedAt: number, newStep: boolean): void {
     if (newStep) {
       this.flushPendingProviderUsage()
       const stepKey = `${data.turn}:${data.step}`
@@ -297,7 +299,7 @@ export class DshStreamAdapter {
       }
     }
     this.resetStepTiming()
-    this.stepStartedAt = Date.now()
+    this.stepStartedAt = startedAt
   }
 
   private openBlock(index: number, kind: 'text' | 'reasoning'): void {
@@ -313,8 +315,8 @@ export class DshStreamAdapter {
     this.reasoningOpenedAt.clear()
   }
 
-  /** Provider-call timing for the step this `assistant/message` closes; undefined when no chunk streamed. */
-  private takeStepMetrics(): DshInvocationMetrics | undefined {
+  /** Provider-call timing for the step this `assistant/message` closes. */
+  private takeStepTiming(): { startedAt: number; metrics: DshInvocationMetrics } | undefined {
     const startedAt = this.stepStartedAt
     if (startedAt === undefined) return undefined
     const now = Date.now()
@@ -326,7 +328,7 @@ export class DshStreamAdapter {
       ...(thinkingMs > 0 ? { timeThinkingMs: thinkingMs } : {})
     }
     this.resetStepTiming()
-    return metrics
+    return { startedAt, metrics }
   }
 
   private handleToolCall(data: Pick<SessionEventMap['tool/call'], 'callId' | 'name' | 'arguments'>): void {
@@ -417,25 +419,29 @@ export class DshStreamAdapter {
     const pending = this.takePendingProviderUsage(data.turn, data.step)
     const usage = pending?.usage ?? messageUsage
     if (!usage) return
-    const metrics = pending?.metrics ?? this.takeStepMetrics()
+    const timing = pending ?? this.takeStepTiming()
+    if (!timing) return
     this.sink.onAssistantUsage({
       turn: data.turn,
       seq: pending?.seq ?? seq,
+      startedAt: timing.startedAt,
       usage,
       model: data.message.source.model,
-      ...(metrics ? { metrics } : {})
+      metrics: timing.metrics
     })
   }
 
   private captureProviderUsage(data: { turn: number; step: number }, seq: number, usage: TokenUsage): void {
     this.flushPendingProviderUsage()
-    const metrics = this.takeStepMetrics()
+    const timing = this.takeStepTiming()
+    if (!timing) return
     this.pendingProviderUsage = {
       turn: data.turn,
       step: data.step,
       seq,
+      startedAt: timing.startedAt,
       usage,
-      ...(metrics ? { metrics } : {})
+      metrics: timing.metrics
     }
   }
 
@@ -464,10 +470,10 @@ export class DshStreamAdapter {
     })
   }
 
-  private handleCompactionStart(data: SessionEventMap['compaction/start']): void {
+  private handleCompactionStart(data: SessionEventMap['compaction/start'], startedAt: number): void {
     const trigger = data.sourceCommandId !== undefined ? 'manual' : 'auto'
     this.activeCompactions.set(data.compactionId, {
-      startedAt: Date.now(),
+      startedAt,
       turn: data.turn,
       trigger
     })
@@ -485,6 +491,7 @@ export class DshStreamAdapter {
     this.sink.onAssistantUsage({
       turn: state.turn ?? 0,
       seq,
+      startedAt: state.startedAt,
       usage: data.usage,
       model: data.model
     })

@@ -91,6 +91,7 @@ export const UpdateModelSchema = CreateModelSchema.omit({
 })
   .partial()
   .extend({
+    pricing: RuntimeModelPricingSchema.nullable().optional(),
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),

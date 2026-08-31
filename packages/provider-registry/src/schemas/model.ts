@@ -3,6 +3,7 @@
  * Defines the structure for model metadata, capabilities, and configurations
  */
 
+import { Cron } from 'croner'
 import * as z from 'zod'
 
 import {
@@ -390,6 +391,81 @@ export const ParameterSupportSchema = z.object({
   systemMessage: z.boolean().default(true)
 })
 
+export const ModelPricingOverrideSchema = z
+  .object({
+    input: PricePerTokenSchema.optional(),
+    output: PricePerTokenSchema.optional(),
+    cacheRead: PricePerTokenSchema.optional(),
+    cacheWrite: PricePerTokenSchema.optional()
+  })
+  .refine((pricing) => Object.values(pricing).some((rate) => rate !== undefined), {
+    message: 'pricing rule must override at least one rate'
+  })
+
+const IanaTimezoneSchema = z.stringFormat(
+  'iana-timezone',
+  (timezone) => {
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format()
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'invalid IANA timezone' }
+)
+
+const FivePartCronSchema = z.stringFormat(
+  'cron-5-part',
+  (expression) => {
+    try {
+      new Cron(expression, { mode: '5-part', paused: true, timezone: 'UTC' })
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'invalid five-part cron expression' }
+)
+
+const ModelPricingTimeConditionSchema = z
+  .object({
+    timezone: IanaTimezoneSchema,
+    cron: z.array(FivePartCronSchema).min(1).optional(),
+    startsAt: z.iso.datetime({ offset: true }).optional(),
+    endsAt: z.iso.datetime({ offset: true }).optional()
+  })
+  .superRefine((time, ctx) => {
+    if (!time.cron && !time.startsAt && !time.endsAt) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'time condition must contain cron or an absolute boundary'
+      })
+    }
+    if (time.startsAt && time.endsAt && Date.parse(time.startsAt) >= Date.parse(time.endsAt)) {
+      ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'endsAt must be after startsAt' })
+    }
+    for (const [index, expression] of (time.cron ?? []).entries()) {
+      try {
+        new Cron(expression, { mode: '5-part', paused: true, timezone: time.timezone })
+      } catch {
+        ctx.addIssue({ code: 'custom', path: ['cron', index], message: 'invalid five-part cron expression' })
+      }
+    }
+  })
+
+export const ModelPricingRuleSchema = z.object({
+  when: z
+    .object({
+      minInputTokens: z.number().int().positive().refine(Number.isSafeInteger).optional(),
+      time: ModelPricingTimeConditionSchema.optional()
+    })
+    .refine((when) => when.minInputTokens !== undefined || when.time !== undefined, {
+      message: 'pricing rule must contain at least one condition'
+    }),
+  pricing: ModelPricingOverrideSchema
+})
+
 /**
  * Model pricing configuration.
  *
@@ -402,7 +478,6 @@ export const ParameterSupportSchema = z.object({
 export const ModelPricingSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
-
   cacheRead: PricePerTokenSchema.optional(),
   cacheWrite: PricePerTokenSchema.optional(),
 
@@ -419,7 +494,9 @@ export const ModelPricingSchema = z.object({
       price: z.number(),
       currency: ZodCurrencySchema
     })
-    .optional()
+    .optional(),
+
+  rules: z.array(ModelPricingRuleSchema).optional()
 })
 
 // Model configuration schema
@@ -497,6 +574,7 @@ export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
 export type SupportSpec = z.infer<typeof SupportSpecSchema>
 export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
+export type ModelPricingRule = z.infer<typeof ModelPricingRuleSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>
 export type ModelList = z.infer<typeof ModelListSchema>

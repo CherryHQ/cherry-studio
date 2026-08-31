@@ -68,7 +68,8 @@ vi.mock('@main/ai/utils/usageCapture', () => ({
           capturedAt: '2026-01-01T00:00:00.000Z'
         }
       : null
-  })
+  }),
+  captureAiUsagePricingAt: (context: Record<string, unknown>) => context
 }))
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 

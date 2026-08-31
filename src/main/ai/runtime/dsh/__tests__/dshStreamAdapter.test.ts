@@ -69,8 +69,8 @@ function makeAdapter() {
 }
 
 let seq = 0
-const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T]): SessionEvent =>
-  ({ type, seq: ++seq, time: Date.now(), data }) as SessionEvent
+const envelope = <T extends SessionEventType>(type: T, data: SessionEventMap[T], time = Date.now()): SessionEvent =>
+  ({ type, seq: ++seq, time, data }) as SessionEvent
 /** An event outside the compile-time union (merge-extended or lifecycle-only shape). */
 const rawEvent = (type: string, data: unknown): SessionEvent =>
   ({ type, seq: ++seq, time: Date.now(), data }) as unknown as SessionEvent
@@ -299,6 +299,7 @@ describe('DshStreamAdapter', () => {
   it('accumulates usage across the assistant messages of one turn', () => {
     const { adapter, chunks, onAssistantUsage } = makeAdapter()
     adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+    adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
     adapter.handleEvent(
       envelope('assistant/message', {
         turn: 1,
@@ -307,6 +308,7 @@ describe('DshStreamAdapter', () => {
         usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 2, reasoningTokens: 1 }
       })
     )
+    adapter.handleEvent(envelope('step/start', { turn: 1, step: 2 }))
     adapter.handleEvent(
       envelope('assistant/message', {
         turn: 1,
@@ -380,7 +382,7 @@ describe('DshStreamAdapter', () => {
       const { adapter, onAssistantUsage } = makeAdapter()
       adapter.beginTurn()
       adapter.handleEvent(envelope('turn/start', { turn: 1 }))
-      adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }))
+      adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }, 0))
       vi.advanceTimersByTime(400)
       adapter.handleEvent(chunkEnvelope(1, 1, { type: 'block-start', index: 0, blockType: 'text' }))
       vi.advanceTimersByTime(50)
@@ -397,6 +399,7 @@ describe('DshStreamAdapter', () => {
       )
 
       expect(onAssistantUsage).toHaveBeenCalledOnce()
+      expect(onAssistantUsage.mock.calls[0][0].startedAt).toBe(0)
       expect(onAssistantUsage.mock.calls[0][0].metrics).toEqual({
         timeFirstTokenMs: 450,
         timeCompletionMs: 500
@@ -465,8 +468,9 @@ describe('DshStreamAdapter', () => {
     expect(onAssistantUsage.mock.calls[0][0].usage).toMatchObject({ inputTokens: 30, outputTokens: 2 })
   })
 
-  it('omits metrics when no chunk streamed before the assistant message', () => {
+  it('records usage from step/start when no content chunk streamed', () => {
     const { adapter, onAssistantUsage } = makeAdapter()
+    adapter.handleEvent(envelope('step/start', { turn: 1, step: 1 }, 123))
     adapter.handleEvent(
       envelope('assistant/message', {
         turn: 1,
@@ -476,7 +480,7 @@ describe('DshStreamAdapter', () => {
       })
     )
     expect(onAssistantUsage).toHaveBeenCalledTimes(1)
-    expect(onAssistantUsage.mock.calls[0][0].metrics).toBeUndefined()
+    expect(onAssistantUsage.mock.calls[0][0].startedAt).toBe(123)
   })
 
   it('ignores unknown and lifecycle-only events', () => {

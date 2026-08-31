@@ -204,6 +204,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
           {
             turn: info.turn,
             seq: info.seq,
+            startedAt: info.startedAt,
             usage: info.usage,
             ...(info.model !== undefined ? { model: info.model } : {})
           },
@@ -760,6 +761,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     info: {
       turn: number
       seq: number
+      startedAt: number
       usage: TokenUsage
       model?: string
       metrics?: DshInvocationMetrics
@@ -784,6 +786,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         requestId,
         model: info.model?.trim() || this.modelId,
         messageAssociation: 'current-turn',
+        startedAt: info.startedAt,
         usage: {
           inputTokens,
           outputTokens,

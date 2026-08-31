@@ -6,6 +6,7 @@ import type {
 } from '@data/services/AiUsageRecordService'
 import { type AiUsagePricingSnapshot, AiUsagePricingSnapshotSchema } from '@shared/data/types/aiUsageRecord'
 import type { Currency, RuntimeModelPricing } from '@shared/data/types/model'
+import { compileModelPricingPolicy, projectModelPricingAt, type TokenPricing } from '@shared/utils/modelPricing'
 
 export interface CreateAiUsageCaptureContextInput {
   providerId: string
@@ -34,14 +35,14 @@ function cloneAndFreeze<T>(value: T): Readonly<T> {
   return deepFreeze(structuredClone(value))
 }
 
-function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['currency'] | undefined {
-  const tokenRates = [
-    pricing.input,
-    pricing.output,
-    pricing.cacheRead,
-    pricing.cacheWrite,
-    ...(pricing.inputTokenTiers ?? []).flatMap((tier) => [tier.input, tier.output, tier.cacheRead, tier.cacheWrite])
-  ].filter((rate) => rate !== undefined)
+export function freezeAiUsagePricing(pricing: RuntimeModelPricing | null | undefined): RuntimeModelPricing | null {
+  return pricing ? (cloneAndFreeze(pricing) as RuntimeModelPricing) : null
+}
+
+function pricingCurrency(pricing: TokenPricing[]): AiUsagePricingSnapshot['currency'] | undefined {
+  const tokenRates = pricing
+    .flatMap((rates) => [rates.input, rates.output, rates.cacheRead, rates.cacheWrite])
+    .filter((rate) => rate !== undefined)
   const explicitCurrencies = tokenRates
     .map((rate) => rate.currency)
     .filter((currency): currency is AiUsagePricingSnapshot['currency'] => currency !== undefined)
@@ -52,46 +53,59 @@ function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['
 
 export function createAiUsagePricingSnapshot(
   pricing: RuntimeModelPricing | null | undefined,
-  capturedAt = new Date().toISOString()
+  startedAt: string
 ): AiUsagePricingSnapshot | null {
   if (!pricing) return null
-  const currency = pricingCurrency(pricing)
+  const startedDate = new Date(startedAt)
+  if (Number.isNaN(startedDate.getTime())) return null
+  const policy = compileModelPricingPolicy(pricing)
+  const projection = projectModelPricingAt(policy, startedDate)
+  const effectivePricing = projection.base.rates
+  const currency = pricingCurrency([effectivePricing, ...projection.tiers.map((tier) => tier.resolution.rates)])
   if (!currency) return null
 
   const snapshot = {
     currency,
-    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: pricing.input.perMillionTokens } : {}),
-    ...(pricing.output?.perMillionTokens != null ? { outputPerMillionTokens: pricing.output.perMillionTokens } : {}),
-    ...(pricing.cacheRead?.perMillionTokens != null
-      ? { cacheReadPerMillionTokens: pricing.cacheRead.perMillionTokens }
+    ...(effectivePricing.input?.perMillionTokens != null
+      ? { inputPerMillionTokens: effectivePricing.input.perMillionTokens }
       : {}),
-    ...(pricing.cacheWrite?.perMillionTokens != null
-      ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
+    ...(effectivePricing.output?.perMillionTokens != null
+      ? { outputPerMillionTokens: effectivePricing.output.perMillionTokens }
       : {}),
-    ...(pricing.inputTokenTiers?.length
+    ...(effectivePricing.cacheRead?.perMillionTokens != null
+      ? { cacheReadPerMillionTokens: effectivePricing.cacheRead.perMillionTokens }
+      : {}),
+    ...(effectivePricing.cacheWrite?.perMillionTokens != null
+      ? { cacheWritePerMillionTokens: effectivePricing.cacheWrite.perMillionTokens }
+      : {}),
+    ...(projection.tiers.length
       ? {
-          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
-            minInputTokens: tier.minInputTokens,
-            ...(tier.input.perMillionTokens != null ? { inputPerMillionTokens: tier.input.perMillionTokens } : {}),
-            ...(tier.output.perMillionTokens != null ? { outputPerMillionTokens: tier.output.perMillionTokens } : {}),
-            ...(tier.cacheRead?.perMillionTokens != null
-              ? { cacheReadPerMillionTokens: tier.cacheRead.perMillionTokens }
+          inputTokenTiers: projection.tiers.map(({ minInputTokens, resolution }) => ({
+            minInputTokens,
+            ...(resolution.rates.input.perMillionTokens != null
+              ? { inputPerMillionTokens: resolution.rates.input.perMillionTokens }
               : {}),
-            ...(tier.cacheWrite?.perMillionTokens != null
-              ? { cacheWritePerMillionTokens: tier.cacheWrite.perMillionTokens }
+            ...(resolution.rates.output.perMillionTokens != null
+              ? { outputPerMillionTokens: resolution.rates.output.perMillionTokens }
+              : {}),
+            ...(resolution.rates.cacheRead?.perMillionTokens != null
+              ? { cacheReadPerMillionTokens: resolution.rates.cacheRead.perMillionTokens }
+              : {}),
+            ...(resolution.rates.cacheWrite?.perMillionTokens != null
+              ? { cacheWritePerMillionTokens: resolution.rates.cacheWrite.perMillionTokens }
               : {})
           }))
         }
       : {}),
-    ...(pricing.perImage
+    ...(policy.pricing.perImage
       ? {
           perImage: {
-            price: pricing.perImage.price,
-            unit: pricing.perImage.unit ?? 'image'
+            price: policy.pricing.perImage.price,
+            unit: policy.pricing.perImage.unit ?? 'image'
           }
         }
       : {}),
-    capturedAt
+    capturedAt: startedAt
   }
   const parsed = AiUsagePricingSnapshotSchema.safeParse(snapshot)
   return parsed.success ? cloneAndFreeze(parsed.data) : null
@@ -103,6 +117,7 @@ export function createAiUsagePricingSnapshot(
  * provider, model, source, or rotation state.
  */
 export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextInput): AiUsageCaptureContext {
+  const frozenPricing = freezeAiUsagePricing(input.pricing)
   return cloneAndFreeze({
     providerId: input.providerId,
     providerName: input.providerName ?? null,
@@ -110,7 +125,9 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
     modelName: input.modelName ?? null,
     pricingSnapshot:
       input.pricingSnapshot === undefined
-        ? createAiUsagePricingSnapshot(input.pricing, input.capturedAt)
+        ? input.capturedAt
+          ? createAiUsagePricingSnapshot(frozenPricing, input.capturedAt)
+          : null
         : input.pricingSnapshot === null
           ? null
           : (() => {
@@ -122,6 +139,17 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
     credentialReceipt: cloneAndFreeze(input.credentialReceipt ?? { attribution: 'unknown' }),
     source: input.source === undefined ? null : input.source === null ? null : cloneAndFreeze(input.source),
     messageRef:
-      input.messageRef === undefined ? null : input.messageRef === null ? null : cloneAndFreeze(input.messageRef)
+      input.messageRef === undefined ? null : input.messageRef === null ? null : cloneAndFreeze(input.messageRef),
+    frozenPricing
+  })
+}
+
+export function captureAiUsagePricingAt(context: AiUsageCaptureContext, startedAt: number): AiUsageCaptureContext {
+  if (!Number.isFinite(startedAt) || startedAt < 0) return context
+  return cloneAndFreeze({
+    ...context,
+    pricingSnapshot: context.frozenPricing
+      ? createAiUsagePricingSnapshot(context.frozenPricing, new Date(startedAt).toISOString())
+      : context.pricingSnapshot
   })
 }

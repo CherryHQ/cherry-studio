@@ -431,6 +431,38 @@ describe('ModelService.update', () => {
     expect(row.pricing).toEqual(pricing)
   })
 
+  it('restores provider pricing after clearing a manual pricing override', async () => {
+    await seedExistingModel()
+    const providerPricing = {
+      input: { perMillionTokens: 1, currency: 'USD' as const },
+      output: { perMillionTokens: 2, currency: 'USD' as const },
+      rules: [
+        {
+          when: { time: { timezone: 'UTC', cron: ['* * * * 1'] } },
+          pricing: { input: { perMillionTokens: 0.5, currency: 'USD' as const } }
+        }
+      ]
+    }
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o', pricing: providerPricing },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const overridden = modelService.update('openai', 'gpt-4o', {
+      pricing: {
+        input: { perMillionTokens: 3, currency: 'USD' },
+        output: { perMillionTokens: 4, currency: 'USD' }
+      }
+    })
+    const restored = modelService.update('openai', 'gpt-4o', { pricing: null })
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+
+    expect(overridden.pricingSource).toBe('user')
+    expect(row.pricing).toBeNull()
+    expect(restored).toMatchObject({ pricing: providerPricing, pricingSource: 'provider' })
+  })
+
   it('stores model group edits in the sparse group column', async () => {
     await seedExistingModel()
 

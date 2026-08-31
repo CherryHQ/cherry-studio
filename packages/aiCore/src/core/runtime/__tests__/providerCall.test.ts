@@ -46,7 +46,9 @@ describe('RuntimeExecutor provider-call observation', () => {
         modality: 'embedding',
         providerId: 'openai',
         modelId: 'text-embedding',
-        metrics: { timeCompletionMs: expect.any(Number) }
+        metrics: { timeCompletionMs: expect.any(Number) },
+        startedAt: expect.any(Number),
+        completedAt: expect.any(Number)
       }),
       expect.any(Object),
       expect.any(Object)
@@ -100,7 +102,9 @@ describe('RuntimeExecutor provider-call observation', () => {
         modality: 'rerank',
         providerId: 'openai',
         modelId: 'reranker',
-        metrics: { timeCompletionMs: expect.any(Number) }
+        metrics: { timeCompletionMs: expect.any(Number) },
+        startedAt: expect.any(Number),
+        completedAt: expect.any(Number)
       })
     ])
 

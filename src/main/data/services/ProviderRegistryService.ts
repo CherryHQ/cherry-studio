@@ -63,6 +63,7 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import { normalizeModelPricing } from '@shared/utils/modelPricing'
 import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -158,35 +159,40 @@ function isEmptyPricingEcho(value: unknown): boolean {
     !pricing.cacheRead &&
     !pricing.cacheWrite &&
     !pricing.inputTokenTiers?.length &&
+    !pricing.rules?.length &&
     !pricing.perImage &&
     !pricing.perMinute
   )
 }
 
 function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
+  const canonical = normalizeModelPricing(pricing)
   const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
     perMillionTokens: tier.perMillionTokens,
     currency: tier.currency ?? CURRENCY.USD
   })
+  const normalizeRuleOverride = (override: NonNullable<RuntimeModelPricing['rules']>[number]['pricing']) => ({
+    ...(override.input ? { input: normalizeTier(override.input) } : {}),
+    ...(override.output ? { output: normalizeTier(override.output) } : {}),
+    ...(override.cacheRead ? { cacheRead: normalizeTier(override.cacheRead) } : {}),
+    ...(override.cacheWrite ? { cacheWrite: normalizeTier(override.cacheWrite) } : {})
+  })
 
   return {
-    input: normalizeTier(pricing.input),
-    output: normalizeTier(pricing.output),
-    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
-    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
-    ...(pricing.inputTokenTiers?.length
+    input: normalizeTier(canonical.input),
+    output: normalizeTier(canonical.output),
+    ...(canonical.cacheRead ? { cacheRead: normalizeTier(canonical.cacheRead) } : {}),
+    ...(canonical.cacheWrite ? { cacheWrite: normalizeTier(canonical.cacheWrite) } : {}),
+    ...(canonical.rules.length
       ? {
-          inputTokenTiers: pricing.inputTokenTiers.map((tier) => ({
-            minInputTokens: tier.minInputTokens,
-            input: normalizeTier(tier.input),
-            output: normalizeTier(tier.output),
-            ...(tier.cacheRead ? { cacheRead: normalizeTier(tier.cacheRead) } : {}),
-            ...(tier.cacheWrite ? { cacheWrite: normalizeTier(tier.cacheWrite) } : {})
+          rules: canonical.rules.map((rule) => ({
+            when: rule.when,
+            pricing: normalizeRuleOverride(rule.pricing)
           }))
         }
       : {}),
-    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
-    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+    ...(canonical.perImage ? { perImage: canonical.perImage } : {}),
+    ...(canonical.perMinute ? { perMinute: canonical.perMinute } : {})
   }
 }
 
@@ -567,6 +573,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
             currency: mergedPricing.cacheWrite.currency
           }
         : undefined,
+      rules: mergedPricing.rules,
       perImage: mergedPricing.perImage
         ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
         : undefined,

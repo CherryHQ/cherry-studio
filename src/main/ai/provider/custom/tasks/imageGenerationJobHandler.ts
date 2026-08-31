@@ -2,7 +2,7 @@ import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { loggerService } from '@logger'
-import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
+import { captureAiUsagePricingAt, createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -115,7 +115,7 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       const completedAt = Date.now()
       aiUsageRecordService.recordInvocation({
         requestId: `custom-image:${ctx.jobId}`,
-        context: captureContext,
+        context: captureAiUsagePricingAt(captureContext, usageStartedAt),
         modality: 'image',
         imageCount: urls.length,
         metrics: { timeCompletionMs: Math.max(0, completedAt - usageStartedAt) },

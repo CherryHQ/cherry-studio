@@ -8,9 +8,8 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
 import type { MessageSnapshot } from '@shared/data/types/message'
-import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import type { RuntimeModelPricing, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
@@ -34,7 +33,7 @@ export type AgentSessionUsageCapture =
         apiModelId: string
         modelName: string | null
         aliases: readonly string[]
-        pricingSnapshot: AiUsagePricingSnapshot | null
+        pricing: RuntimeModelPricing | null
       }>
     }
   | { owner: 'provider-calls' }
@@ -111,6 +110,8 @@ export type AgentRuntimeEvent =
         model: string
         /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
         messageAssociation: 'current-turn' | 'stateless'
+        /** Epoch milliseconds when this provider invocation began, used to resolve conditional pricing. */
+        startedAt: number
         usage?: {
           inputTokens: number
           outputTokens: number

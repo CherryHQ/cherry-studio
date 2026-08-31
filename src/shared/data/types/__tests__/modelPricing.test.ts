@@ -70,3 +70,62 @@ describe('RuntimeModelPricingSchema input-token tiers', () => {
     ).toBe(false)
   })
 })
+
+describe('conditional model pricing', () => {
+  it('accepts absolute boundaries with an explicit UTC offset', () => {
+    expect(
+      RuntimeModelPricingSchema.safeParse({
+        ...basePricing,
+        rules: [
+          {
+            when: {
+              time: {
+                timezone: 'Asia/Shanghai',
+                startsAt: '2026-08-30T09:00:00+08:00',
+                endsAt: '2026-08-30T18:00:00+08:00'
+              }
+            },
+            pricing: { input: basePricing.input }
+          }
+        ]
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects invalid cron, timezones, boundaries, empty conditions, and empty overrides', () => {
+    const parseRule = (rule: object) =>
+      RuntimeModelPricingSchema.safeParse({
+        ...basePricing,
+        rules: [rule]
+      }).success
+
+    expect(parseRule({ when: {}, pricing: { input: basePricing.input } })).toBe(false)
+    expect(parseRule({ when: { minInputTokens: 1 }, pricing: {} })).toBe(false)
+    expect(parseRule({ when: { time: { timezone: 'UTC', cron: ['not cron'] } }, pricing: basePricing })).toBe(false)
+    expect(
+      parseRule({ when: { time: { timezone: 'Not/A_Timezone', cron: ['* * * * *'] } }, pricing: basePricing })
+    ).toBe(false)
+    expect(
+      parseRule({
+        when: {
+          time: {
+            timezone: 'UTC',
+            startsAt: '2026-09-01T00:00:00.000Z',
+            endsAt: '2026-08-31T00:00:00.000Z'
+          }
+        },
+        pricing: basePricing
+      })
+    ).toBe(false)
+  })
+
+  it('rejects legacy tiers and unified rules stored together', () => {
+    expect(
+      RuntimeModelPricingSchema.safeParse({
+        ...basePricing,
+        inputTokenTiers: [inputTokenTier(1_000)],
+        rules: [{ when: { minInputTokens: 2_000 }, pricing: { input: basePricing.input } }]
+      }).success
+    ).toBe(false)
+  })
+})

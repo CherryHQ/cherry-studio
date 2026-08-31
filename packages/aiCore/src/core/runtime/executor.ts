@@ -177,6 +177,7 @@ export class RuntimeExecutor<
                 middleware: {
                   specificationVersion: 'v3',
                   wrapGenerate: async ({ doGenerate, model: activeModel }) => {
+                    const epochStartedAt = Date.now()
                     const startedAt = performance.now()
                     const result = await doGenerate()
                     emitProviderCall(onProviderCall, {
@@ -187,6 +188,7 @@ export class RuntimeExecutor<
                       imageCount: result.images.length,
                       ...(result.usage ? { usage: result.usage } : {}),
                       metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                      startedAt: epochStartedAt,
                       completedAt: Date.now()
                     })
                     return result
@@ -229,6 +231,7 @@ export class RuntimeExecutor<
           middleware: {
             specificationVersion: 'v3',
             wrapEmbed: async ({ doEmbed, model }) => {
+              const epochStartedAt = Date.now()
               const startedAt = performance.now()
               const result = await doEmbed()
               emitProviderCall(onProviderCall, {
@@ -238,6 +241,7 @@ export class RuntimeExecutor<
                 modelId: model.modelId,
                 ...(result.usage ? { usage: result.usage } : {}),
                 metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+                startedAt: epochStartedAt,
                 completedAt: Date.now()
               })
               return result
@@ -260,6 +264,7 @@ export class RuntimeExecutor<
         ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
+    const epochStartedAt = Date.now()
     const startedAt = performance.now()
     const result = await _rerank<VALUE>({
       model: rerankingModel,
@@ -271,6 +276,7 @@ export class RuntimeExecutor<
       providerId: this.config.providerId,
       modelId: rerankingModel.modelId,
       metrics: { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
+      startedAt: epochStartedAt,
       completedAt: Date.now()
     })
     return result

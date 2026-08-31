@@ -361,9 +361,7 @@ beforeEach(() => {
       providerId: 'p',
       providerName: 'P',
       source: null,
-      frozenModels: [
-        { modelId: 'p::m', apiModelId: 'm', modelName: 'M', aliases: ['p::m', 'm'], pricingSnapshot: null }
-      ]
+      frozenModels: [{ modelId: 'p::m', apiModelId: 'm', modelName: 'M', aliases: ['p::m', 'm'], pricing: null }]
     }
   })
   mocks.getPath.mockImplementation((key: string) => {
@@ -826,6 +824,7 @@ describe('PiRuntimeConnection', () => {
           requestId: 'pi-agent:sess-1:response-1',
           model: 'm',
           messageAssociation: 'current-turn',
+          startedAt: 123,
           usage: {
             inputTokens: 15,
             outputTokens: 4,

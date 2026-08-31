@@ -1,18 +1,30 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  MenuItem,
+  MenuList,
+  Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { type EndpointType, type Model } from '@shared/data/types/model'
-import { parseUniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { UpdateModelDto } from '@shared/data/api/schemas/models'
+import { type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { CircleHelp } from 'lucide-react'
+import { type FormEvent, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../../primitives/ProviderActions'
-import ProviderSection from '../../primitives/ProviderSection'
-import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
   areModelClassificationsEqual,
@@ -49,49 +61,39 @@ interface EditModelDrawerProps {
   onClose: () => void
 }
 
-interface BuildPatchOverrides {
-  name?: string
-  group?: string
-  endpointTypes?: EndpointType[]
-  purposeFields?: ModelPurposeFields
-  classification?: ModelClassificationState
-  supportsStreaming?: boolean
-  pricing?: Model['pricing']
-  contextWindow?: string
-  maxInputTokens?: string
-  maxOutputTokens?: string
-}
+type ModelPricingSection = 'base' | 'rules' | 'preview'
+type ModelDialogTab = 'general' | 'capabilities' | 'limits' | `pricing.${ModelPricingSection}`
 
-interface AutoSaveQueueItem {
-  providerId: string
-  modelId: string
-  patch: Partial<Model>
-}
+const railItemClassName =
+  'h-8 flex-none justify-start rounded-[10px] border-transparent px-2.5 font-normal text-muted-foreground text-sm shadow-none hover:!bg-foreground/[0.04] hover:!text-foreground focus-visible:!border-transparent focus-visible:!ring-1 focus-visible:!ring-foreground/20 focus-visible:!ring-offset-0 data-[active=true]:!border-transparent data-[active=true]:!bg-foreground/[0.08] data-[active=true]:!font-medium data-[active=true]:!text-foreground data-[state=active]:!shadow-none'
+const railSecondaryItemClassName =
+  'h-7 flex-none justify-start rounded-lg border-transparent px-2.5 pl-5 font-normal text-muted-foreground text-xs shadow-none hover:!bg-foreground/[0.04] hover:!text-foreground focus-visible:!border-transparent focus-visible:!ring-1 focus-visible:!ring-foreground/20 focus-visible:!ring-offset-0 data-[active=true]:!border-transparent data-[active=true]:!bg-foreground/[0.08] data-[active=true]:!font-medium data-[active=true]:!text-foreground data-[state=active]:!shadow-none'
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { updateModel } = useModelMutations()
-  // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
-  // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
-  if (modelProp) {
-    previousModelRef.current = modelProp
-  }
+  if (modelProp) previousModelRef.current = modelProp
+
   const model = modelProp ?? previousModelRef.current
+  const [activeTab, setActiveTab] = useState<ModelDialogTab>('general')
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
-  const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [pricingOverride, setPricingOverride] = useState<Model['pricing'] | null | undefined>(undefined)
+  const [isPricingValid, setIsPricingValid] = useState(true)
+  const [showPricingValidation, setShowPricingValidation] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
-  const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
-  const autoSaveRunningRef = useRef(false)
+  const saveInFlightRef = useRef(false)
 
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
@@ -103,10 +105,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
   useLayoutEffect(() => {
-    if (!open || !model) {
-      return
-    }
+    if (!open || !model) return
 
+    setActiveTab('general')
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
@@ -116,390 +117,373 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       inputModalities: model.inputModalities,
       outputModalities: model.outputModalities
     })
-    setShowMoreSettings(true)
     setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    setPricingOverride(undefined)
+    setIsPricingValid(true)
+    setShowPricingValidation(false)
+    setSaveError(null)
     setInitializedModel(model)
   }, [model, open])
 
-  const handleUpdateModel = useCallback(
-    async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
-      await updateModel(providerId, modelId, {
-        name: patch.name,
-        group: patch.group,
-        capabilities: patch.capabilities,
-        inputModalities: patch.inputModalities,
-        outputModalities: patch.outputModalities,
-        supportsStreaming: patch.supportsStreaming,
-        endpointTypes: patch.endpointTypes,
-        contextWindow: patch.contextWindow,
-        maxInputTokens: patch.maxInputTokens,
-        maxOutputTokens: patch.maxOutputTokens,
-        ...(Object.hasOwn(patch, 'pricing') ? { pricing: patch.pricing } : {})
-      })
-    },
-    [updateModel]
-  )
+  const buildPatch = useCallback((): UpdateModelDto => {
+    if (!model) return {}
 
-  const buildPatch = useCallback(
-    (overrides?: BuildPatchOverrides): Partial<Model> => {
-      if (!model) {
-        return {}
-      }
-
-      const nextName = overrides?.name ?? name
-      const nextGroup = overrides?.group ?? group
-      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
-      const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
-      const hasPricingOverride = overrides != null && Object.hasOwn(overrides, 'pricing')
-      const nextPurposeFields = overrides?.purposeFields ?? purposeFields
-      const nextClassification = overrides?.classification
-      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
-      const effectiveClassification = nextClassification ?? classification
-      const classifiedCapabilities =
-        shouldApplyPurpose || nextClassification
-          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
-          : undefined
-      const classifiedInputModalities =
-        shouldApplyPurpose || nextClassification
-          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
-          : undefined
-      const resolvedPurposeFields =
-        shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
-          ? applyModelPurpose(
-              {
-                ...nextPurposeFields,
-                capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
-              },
-              inferModelPurpose(nextPurposeFields),
-              {
-                previousPurpose: inferModelPurpose(nextPurposeFields),
-                chatEndpointType: getInitialChatEndpointType(nextPurposeFields, defaultChatEndpoint)
-              }
-            )
-          : null
-
-      return {
-        name: nextName || model.name,
-        group: nextGroup || model.group,
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
-          : hasEndpointTypesOverride
-            ? {
-                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
-              }
-            : {}),
-        ...(resolvedPurposeFields
-          ? {
-              capabilities: resolvedPurposeFields.capabilities,
-              inputModalities: resolvedPurposeFields.inputModalities
+    const classifiedCapabilities = buildModelCapabilities(model.capabilities ?? [], classification)
+    const classifiedInputModalities = buildModelInputModalities(model.inputModalities ?? [], classification)
+    const resolvedPurposeFields =
+      mode === 'purpose'
+        ? applyModelPurpose(
+            {
+              ...purposeFields,
+              capabilities: classifiedCapabilities,
+              inputModalities: classifiedInputModalities
+            },
+            modelPurpose,
+            {
+              previousPurpose: modelPurpose,
+              chatEndpointType
             }
-          : nextClassification && classifiedCapabilities && classifiedInputModalities
-            ? {
-                capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
-              }
-            : {}),
-        ...(hasPurposeFieldsOverride && resolvedPurposeFields
-          ? { outputModalities: resolvedPurposeFields.outputModalities }
-          : {}),
-        supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
-        contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
-        maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
-        maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
-        ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
-      }
-    },
-    [
-      group,
-      contextWindow,
-      maxInputTokens,
-      maxOutputTokens,
-      mode,
-      model,
-      name,
-      purposeFields,
-      classification,
-      defaultChatEndpoint,
-      supportsStreaming
-    ]
-  )
+          )
+        : null
 
-  const processAutoSaveQueue = useCallback(async () => {
-    if (autoSaveRunningRef.current) {
-      return
+    return {
+      name: name || model.name,
+      group: group || model.group,
+      ...(resolvedPurposeFields
+        ? {
+            endpointTypes: [...resolvedPurposeFields.endpointTypes],
+            capabilities: resolvedPurposeFields.capabilities,
+            inputModalities: resolvedPurposeFields.inputModalities,
+            outputModalities: resolvedPurposeFields.outputModalities
+          }
+        : {
+            ...(mode === 'endpoint-types' ? { endpointTypes: [...endpointTypes] } : {}),
+            capabilities: classifiedCapabilities,
+            inputModalities: classifiedInputModalities
+          }),
+      supportsStreaming,
+      contextWindow: Number(contextWindow) || undefined,
+      maxInputTokens: Number(maxInputTokens) || undefined,
+      maxOutputTokens: Number(maxOutputTokens) || undefined,
+      ...(pricingOverride !== undefined ? { pricing: pricingOverride } : {})
     }
+  }, [
+    chatEndpointType,
+    classification,
+    contextWindow,
+    endpointTypes,
+    group,
+    maxInputTokens,
+    maxOutputTokens,
+    mode,
+    model,
+    modelPurpose,
+    name,
+    pricingOverride,
+    purposeFields,
+    supportsStreaming
+  ])
 
-    autoSaveRunningRef.current = true
-    try {
-      while (autoSavePendingItemsRef.current.size > 0) {
-        const [key, item] = autoSavePendingItemsRef.current.entries().next().value!
-        autoSavePendingItemsRef.current.delete(key)
-
-        try {
-          await handleUpdateModel(item)
-        } catch {
-          toast.error(t('common.error'))
-        }
-      }
-    } finally {
-      autoSaveRunningRef.current = false
-    }
-  }, [handleUpdateModel, t])
-
-  const autoSave = useCallback(
-    (overrides?: BuildPatchOverrides) => {
-      if (!model) {
+  const handleSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      if (!model || saveInFlightRef.current) return
+      if (!isPricingValid) {
+        setShowPricingValidation(true)
+        setActiveTab('pricing.rules')
         return
       }
 
+      saveInFlightRef.current = true
+      setIsSaving(true)
+      setSaveError(null)
       const { modelId } = parseUniqueModelId(model.id)
-      const item: AutoSaveQueueItem = {
-        providerId: model.providerId ?? providerId,
-        modelId,
-        patch: buildPatch(overrides)
+
+      try {
+        await updateModel(model.providerId ?? providerId, modelId, buildPatch())
+        onClose()
+      } catch {
+        setSaveError(t('settings.models.manage.operation_failed'))
+      } finally {
+        saveInFlightRef.current = false
+        setIsSaving(false)
       }
-      const queueKey = `${item.providerId}/${item.modelId}`
-      const pendingItem = autoSavePendingItemsRef.current.get(queueKey)
-      autoSavePendingItemsRef.current.set(
-        queueKey,
-        pendingItem ? { ...item, patch: { ...pendingItem.patch, ...item.patch } } : item
-      )
-      void processAutoSaveQueue()
     },
-    [buildPatch, model, processAutoSaveQueue, providerId]
+    [buildPatch, isPricingValid, model, onClose, providerId, t, updateModel]
   )
 
-  const handlePricingCommit = useCallback(
-    (pricing: NonNullable<Model['pricing']>) => {
-      autoSave({ pricing })
-    },
-    [autoSave]
-  )
+  const handleClose = useCallback(() => {
+    if (!isSaving) onClose()
+  }, [isSaving, onClose])
 
-  const commitClassification = useCallback(
-    (next: ModelClassificationState) => {
-      setClassification(next)
-      autoSave({ classification: next })
-    },
-    [autoSave]
-  )
+  const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
+    setClassification((current) => ({ ...current, primaryType }))
+  }, [])
 
-  const handlePrimaryTypeChange = useCallback(
-    (primaryType: ModelPrimaryType) => {
-      commitClassification({ ...classification, primaryType })
-    },
-    [classification, commitClassification]
-  )
+  const handleToggleCapability = useCallback((capability: ModelCapabilityToggle) => {
+    setClassification((current) => {
+      const capabilities = new Set(current.capabilities)
+      if (capabilities.has(capability)) capabilities.delete(capability)
+      else capabilities.add(capability)
+      return { ...current, capabilities }
+    })
+  }, [])
 
-  const handleToggleCapability = useCallback(
-    (capability: ModelCapabilityToggle) => {
-      const capabilities = new Set(classification.capabilities)
-      if (capabilities.has(capability)) {
-        capabilities.delete(capability)
-      } else {
-        capabilities.add(capability)
-      }
-      commitClassification({ ...classification, capabilities })
-    },
-    [classification, commitClassification]
-  )
-
-  const handleToggleInputModality = useCallback(
-    (modality: ModelInputModality) => {
-      const inputModalities = new Set(classification.inputModalities)
-      if (inputModalities.has(modality)) {
-        inputModalities.delete(modality)
-      } else {
-        inputModalities.add(modality)
-      }
-      commitClassification({ ...classification, inputModalities })
-    },
-    [classification, commitClassification]
-  )
+  const handleToggleInputModality = useCallback((modality: ModelInputModality) => {
+    setClassification((current) => {
+      const inputModalities = new Set(current.inputModalities)
+      if (inputModalities.has(modality)) inputModalities.delete(modality)
+      else inputModalities.add(modality)
+      return { ...current, inputModalities }
+    })
+  }, [])
 
   const handleResetClassification = useCallback(() => {
-    const nextClassification = {
+    setClassification({
       ...savedClassification,
       capabilities: new Set(savedClassification.capabilities),
       inputModalities: new Set(savedClassification.inputModalities)
-    }
-    setClassification(nextClassification)
-    autoSave({ classification: nextClassification })
-  }, [autoSave, savedClassification])
+    })
+  }, [savedClassification])
 
-  if (!provider || !model) {
-    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
+  if (!provider || !model || initializedModel !== model) {
+    return <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()} />
   }
 
-  if (initializedModel !== model) {
-    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
-  }
+  const effectivePricingSource =
+    pricingOverride === undefined ? model.pricingSource : pricingOverride === null ? 'provider' : 'user'
+  const pricingSection = activeTab.startsWith('pricing.')
+    ? (activeTab.slice('pricing.'.length) as ModelPricingSection)
+    : null
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')}>
-      <form
-        id="provider-settings-model-edit-form"
-        data-testid="provider-settings-model-edit-drawer-content"
-        className="flex min-h-0 flex-col gap-4 py-0"
-        onSubmit={(event) => event.preventDefault()}>
-        <ProviderSection className={drawerClasses.section}>
-          <div className={drawerClasses.fieldList}>
-            <ModelBasicFields
-              values={{
-                modelId: apiModelId,
-                name,
-                group,
-                contextWindow,
-                maxInputTokens,
-                maxOutputTokens,
-                endpointTypes
-              }}
-              showEndpointType={mode === 'endpoint-types'}
-              endpointTypeControl="chips"
-              modelIdDisabled
-              modelIdAction={
-                <button
-                  type="button"
-                  aria-label={t('message.copied')}
-                  className={fieldClasses.inputActionButton}
-                  onClick={() => {
-                    void navigator.clipboard.writeText(apiModelId)
-                    toast.success(t('message.copied'))
-                  }}>
-                  <CopyIcon size={14} />
-                </button>
-              }
-              onModelIdChange={(value) => {
-                setName(value)
-                setGroup(getDefaultGroupName(value))
-              }}
-              onNameChange={setName}
-              onNameBlur={() => autoSave({ name })}
-              onGroupChange={setGroup}
-              onGroupBlur={() => autoSave({ group })}
-              onEndpointTypesChange={(next) => {
-                const nextEndpointTypes = [...next]
-                setEndpointTypes(nextEndpointTypes)
-                autoSave({ endpointTypes: nextEndpointTypes })
-              }}
-            />
-            {mode === 'purpose' && (
-              <ModelPurposeFieldsControl
-                purpose={modelPurpose}
-                chatEndpointType={chatEndpointType}
-                chatEndpointTypes={providerChatEndpointTypes}
-                onPurposeChange={(nextPurpose) => {
-                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
-                    previousPurpose: modelPurpose,
-                    chatEndpointType
-                  })
-                  const nextClassification = {
-                    ...classification,
-                    primaryType:
-                      nextPurpose === 'chat'
-                        ? classification.primaryType === 'image'
-                          ? ('text' as const)
-                          : classification.primaryType
-                        : ('image' as const)
-                  }
-                  setPurposeFields(nextPurposeFields)
-                  setEndpointTypes(nextPurposeFields.endpointTypes)
-                  setClassification(nextClassification)
-                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
-                }}
-                onChatEndpointTypeChange={(nextEndpointType) => {
-                  const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
-                    previousPurpose: modelPurpose,
-                    chatEndpointType: nextEndpointType
-                  })
-                  setPurposeFields(nextPurposeFields)
-                  setEndpointTypes(nextPurposeFields.endpointTypes)
-                  autoSave({ purposeFields: nextPurposeFields })
-                }}
-              />
-            )}
-          </div>
-        </ProviderSection>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && handleClose()}>
+      <DialogContent
+        size="xl"
+        aria-describedby={undefined}
+        closeOnOverlayClick={!isSaving}
+        data-testid="provider-settings-model-edit-dialog"
+        className="flex h-[min(640px,calc(100vh-4rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[800px]">
+        <form
+          id="provider-settings-model-edit-form"
+          data-testid="provider-settings-model-edit-dialog-content"
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => void handleSubmit(event)}>
+          <DialogHeader className="shrink-0 border-border-subtle border-b px-6 py-4 pr-12">
+            <DialogTitle className="text-base leading-5">{t('models.edit')}</DialogTitle>
+          </DialogHeader>
 
-        <ProviderActions>
-          <Button
-            type="button"
-            variant="ghost"
-            className={drawerClasses.toggleButton}
-            onClick={() => setShowMoreSettings((current) => !current)}>
-            {t('settings.moresetting.label')}
-            {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </Button>
-        </ProviderActions>
-
-        {showMoreSettings && (
-          <ProviderSection className={drawerClasses.section}>
-            <div data-testid="provider-settings-model-more-settings" className="space-y-4">
-              <div className={drawerClasses.sectionCard}>
-                <ModelClassificationControls
-                  value={classification}
-                  hasChanges={hasClassificationChanges}
-                  onPrimaryTypeChange={handlePrimaryTypeChange}
-                  onCapabilityToggle={handleToggleCapability}
-                  onInputModalityToggle={handleToggleInputModality}
-                  onReset={handleResetClassification}
-                />
+          <fieldset disabled={isSaving} className="min-h-0 flex-1 border-0 p-0">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as ModelDialogTab)}
+              orientation="vertical"
+              className="h-full min-h-0 gap-0 overflow-hidden">
+              <div className="flex w-44 shrink-0 flex-col border-border border-r-[0.5px] bg-background-subtle">
+                <TabsList asChild className="h-auto w-full items-stretch justify-start rounded-none bg-transparent p-3">
+                  <MenuList aria-label={t('models.edit')}>
+                    {(
+                      [
+                        ['general', t('settings.general.title')],
+                        ['capabilities', t('settings.models.add.capabilities.label')],
+                        ['limits', t('settings.models.add.context_window.label')]
+                      ] as const
+                    ).map(([value, label]) => (
+                      <TabsTrigger key={value} value={value} asChild>
+                        <MenuItem label={label} active={activeTab === value} className={railItemClassName} />
+                      </TabsTrigger>
+                    ))}
+                    <div className="grid gap-1">
+                      <MenuItem
+                        label={t('models.price.title')}
+                        aria-expanded={pricingSection != null}
+                        className={railItemClassName}
+                        onClick={() => {
+                          if (!pricingSection) setActiveTab('pricing.base')
+                        }}
+                      />
+                      {pricingSection ? (
+                        <div className="grid gap-0.5">
+                          {(
+                            [
+                              ['base', t('models.price.base_title')],
+                              ['rules', t('models.price.rule.title')],
+                              ['preview', t('models.price.preview.title')]
+                            ] as const
+                          ).map(([section, label]) => {
+                            const value = `pricing.${section}` as const
+                            return (
+                              <TabsTrigger key={value} value={value} asChild>
+                                <MenuItem
+                                  label={label}
+                                  active={activeTab === value}
+                                  className={railSecondaryItemClassName}
+                                />
+                              </TabsTrigger>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  </MenuList>
+                </TabsList>
               </div>
 
-              <div className={drawerClasses.sectionCard}>
-                <ModelContextWindowFields
-                  contextWindow={contextWindow}
-                  maxInputTokens={maxInputTokens}
-                  maxOutputTokens={maxOutputTokens}
-                  onContextWindowChange={setContextWindow}
-                  onContextWindowCommit={(value) => autoSave({ contextWindow: value })}
-                  onMaxInputTokensChange={setMaxInputTokens}
-                  onMaxInputTokensCommit={(value) => autoSave({ maxInputTokens: value })}
-                  onMaxOutputTokensChange={setMaxOutputTokens}
-                  onMaxOutputTokensCommit={(value) => autoSave({ maxOutputTokens: value })}
-                />
-              </div>
-
-              <div className={drawerClasses.switchCard}>
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
-                      {t('settings.models.add.supported_text_delta.label')}
-                    </span>
-                    <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
-                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
-                        <CircleHelp aria-hidden className="size-3" />
-                      </span>
-                    </Tooltip>
+              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-5">
+                <TabsContent forceMount value="general" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+                  <div className={drawerClasses.fieldList}>
+                    <ModelBasicFields
+                      values={{
+                        modelId: apiModelId,
+                        name,
+                        group,
+                        contextWindow,
+                        maxInputTokens,
+                        maxOutputTokens,
+                        endpointTypes
+                      }}
+                      showEndpointType={mode === 'endpoint-types'}
+                      endpointTypeControl="chips"
+                      layout="horizontal"
+                      modelIdDisabled
+                      modelIdAction={
+                        <button
+                          type="button"
+                          aria-label={t('message.copied')}
+                          className={fieldClasses.inputActionButton}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(apiModelId)
+                            toast.success(t('message.copied'))
+                          }}>
+                          <CopyIcon size={14} />
+                        </button>
+                      }
+                      onModelIdChange={(value) => {
+                        setName(value)
+                        setGroup(getDefaultGroupName(value))
+                      }}
+                      onNameChange={setName}
+                      onGroupChange={setGroup}
+                      onEndpointTypesChange={(next) => setEndpointTypes([...next])}
+                    />
+                    {mode === 'purpose' ? (
+                      <ModelPurposeFieldsControl
+                        purpose={modelPurpose}
+                        chatEndpointType={chatEndpointType}
+                        chatEndpointTypes={providerChatEndpointTypes}
+                        onPurposeChange={(nextPurpose) => {
+                          setPurposeFields((current) =>
+                            applyModelPurpose(current, nextPurpose, {
+                              previousPurpose: inferModelPurpose(current),
+                              chatEndpointType
+                            })
+                          )
+                          if (nextPurpose !== 'chat') {
+                            setClassification((current) => ({ ...current, primaryType: 'image' }))
+                          }
+                        }}
+                        onChatEndpointTypeChange={(nextEndpointType) => {
+                          setPurposeFields((current) =>
+                            applyModelPurpose(current, 'chat', {
+                              previousPurpose: inferModelPurpose(current),
+                              chatEndpointType: nextEndpointType
+                            })
+                          )
+                        }}
+                      />
+                    ) : null}
                   </div>
-                  <Switch
-                    size="sm"
-                    aria-label={t('settings.models.add.supported_text_delta.label')}
-                    checked={supportsStreaming ?? false}
-                    onCheckedChange={(checked) => {
-                      setSupportsStreaming(checked)
-                      autoSave({ supportsStreaming: checked })
+                </TabsContent>
+
+                <TabsContent forceMount value="capabilities" className="mt-0 space-y-4 data-[state=inactive]:hidden">
+                  <ModelClassificationControls
+                    value={classification}
+                    hasChanges={hasClassificationChanges}
+                    onPrimaryTypeChange={handlePrimaryTypeChange}
+                    onCapabilityToggle={handleToggleCapability}
+                    onInputModalityToggle={handleToggleInputModality}
+                    onReset={handleResetClassification}
+                  />
+
+                  <div className="border-border-subtle border-t pt-4">
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="font-normal text-[13px] text-muted-foreground leading-5">
+                          {t('settings.models.add.supported_text_delta.label')}
+                        </span>
+                        <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
+                          <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                            <CircleHelp aria-hidden className="size-3" />
+                          </span>
+                        </Tooltip>
+                      </div>
+                      <Switch
+                        size="sm"
+                        aria-label={t('settings.models.add.supported_text_delta.label')}
+                        checked={supportsStreaming ?? false}
+                        onCheckedChange={setSupportsStreaming}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent forceMount value="limits" className="mt-0 space-y-3.5 data-[state=inactive]:hidden">
+                  <ModelContextWindowFields
+                    contextWindow={contextWindow}
+                    maxInputTokens={maxInputTokens}
+                    maxOutputTokens={maxOutputTokens}
+                    onContextWindowChange={setContextWindow}
+                    onMaxInputTokensChange={setMaxInputTokens}
+                    onMaxOutputTokensChange={setMaxOutputTokens}
+                  />
+                </TabsContent>
+
+                <div className={pricingSection ? 'block' : 'hidden'}>
+                  <ModelPricingFields
+                    key={`${providerId}:${model.id}`}
+                    pricing={model.pricing}
+                    pricingSource={effectivePricingSource}
+                    section={pricingSection ?? 'base'}
+                    showValidation={showPricingValidation}
+                    onCommit={setPricingOverride}
+                    onValidityChange={(valid) => {
+                      setIsPricingValid(valid)
+                      if (valid) setShowPricingValidation(false)
                     }}
+                    onRestoreProviderPricing={
+                      model.presetModelId != null && effectivePricingSource === 'user'
+                        ? () => {
+                            setPricingOverride(null)
+                            setIsPricingValid(true)
+                            setShowPricingValidation(false)
+                          }
+                        : undefined
+                    }
                   />
                 </div>
               </div>
+            </Tabs>
+          </fieldset>
 
-              <div className={drawerClasses.sectionCard}>
-                <ModelPricingFields
-                  key={`${providerId}:${model.id}`}
-                  pricing={model.pricing}
-                  onCommit={handlePricingCommit}
-                />
+          <DialogFooter className="shrink-0 border-border-subtle border-t px-6 py-4">
+            {saveError ? (
+              <div role="alert" className="mr-auto self-center text-error-subtle-foreground text-xs leading-4">
+                {saveError}
               </div>
-            </div>
-          </ProviderSection>
-        )}
-      </form>
-    </ProviderSettingsDrawer>
+            ) : null}
+            <Button type="button" variant="outline" disabled={isSaving} onClick={handleClose}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" loading={isSaving} aria-busy={isSaving || undefined}>
+              {t('common.save')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

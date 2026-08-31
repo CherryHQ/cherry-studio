@@ -8,6 +8,7 @@ import {
 import type { LanguageModelMiddleware } from 'ai'
 
 import { extractProviderCostWithCurrency } from '../utils/billingCost'
+import { captureAiUsagePricingAt } from '../utils/usageCapture'
 
 export const BILLABLE_AI_OPERATIONS = ['streamText', 'generateText', 'embedMany', 'generateImage', 'rerank'] as const
 export type BillableAiOperation = (typeof BILLABLE_AI_OPERATIONS)[number]
@@ -56,12 +57,13 @@ function recordLanguageInvocation(
   requestId: string,
   usage: LanguageModelV3Usage,
   metrics: RecordAiInvocationInput['metrics'],
-  completedAt: number
+  completedAt: number,
+  startedAt: number
 ): void {
   const providerCost = extractProviderCostWithCurrency(usage.raw, context.reportedCostCurrency)
   aiUsageRecordService.recordInvocation({
     requestId,
-    context,
+    context: captureAiUsagePricingAt(context, startedAt),
     modality: 'language',
     usage: usageToRecord(usage),
     ...(providerCost ? { providerCost } : {}),
@@ -75,6 +77,7 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
     specificationVersion: 'v3',
     wrapGenerate: async ({ doGenerate }) => {
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
+      const epochStartedAt = Date.now()
       const startedAt = performance.now()
       const result = await doGenerate()
       recordLanguageInvocation(
@@ -82,12 +85,14 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
         requestId,
         result.usage,
         { timeCompletionMs: Math.max(0, Math.round(performance.now() - startedAt)) },
-        Date.now()
+        Date.now(),
+        epochStartedAt
       )
       return result
     },
     wrapStream: async ({ doStream }) => {
       const requestId = `ai-sdk:${context.providerId}:${crypto.randomUUID()}`
+      const epochStartedAt = Date.now()
       const startedAt = performance.now()
       const result = await doStream()
       let firstTokenAt: number | undefined
@@ -127,7 +132,8 @@ export function createLanguageUsageMiddleware(context: AiUsageCaptureContext): L
                   timeCompletionMs: Math.max(0, Math.round(now - startedAt)),
                   ...(thinkingDurationMs !== undefined ? { timeThinkingMs: thinkingDurationMs } : {})
                 },
-                Date.now()
+                Date.now(),
+                epochStartedAt
               )
             }
 

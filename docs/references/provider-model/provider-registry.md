@@ -124,6 +124,28 @@ Custom rows store their complete config. This lets catalog changes reach
 existing rows without a data migration. Explicit empty strings and arrays
 remain valid overrides.
 
+### Conditional pricing
+
+Provider pricing is a required base `input` / `output` price plus an ordered
+`rules` array. A rule may require a minimum input-token count, a time condition,
+or both. Time conditions use a fixed IANA timezone, one or more five-part Cron
+expressions, and optional absolute ISO boundaries. Token and time conditions are
+combined with AND; Cron expressions within one condition are alternatives.
+Absolute intervals are half-open: `[startsAt, endsAt)`.
+
+Every matching rule is applied in declaration order, and a later rule replaces
+only the price fields it declares. A temporary adjustment is therefore an
+ordinary rule with absolute boundaries placed after the recurring rule it
+overrides. `inputTokenTiers` remains readable for legacy user data, but new
+writes normalize tiers into rules and never persist both structures together.
+
+`src/shared/utils/modelPricing.ts` owns normalization, Cron compilation, and
+single-instant resolution for both main and renderer. It creates paused Croner
+matchers only; pricing does not register tasks with `SchedulerService`. At the
+real provider-call boundary, main projects the time-filtered policy into an
+immutable usage snapshot. Cost calculation consumes that snapshot and never
+re-reads the catalog or user settings after the request starts.
+
 ### User Override Protection
 
 When a user changes a registry-enrichable field (for example `name`), the value

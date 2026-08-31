@@ -453,6 +453,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(warmRequest?.notificationContext).toEqual(notificationContext)
+    expect(warmRequest?.credentialReceipt).toEqual({ attribution: 'explicit', id: 'key-a', masked: 'api-****-key' })
+    expect(warmRequest).not.toHaveProperty('usageCapture')
   })
 
   it('captures provider and model facts from the route materialized before a connect-time edit', async () => {
@@ -637,7 +639,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
           modelId: 'model-1',
           apiModelId: 'claude-sonnet',
           modelName: 'model-1',
-          pricingSnapshot: null,
+          pricing: null,
           aliases: ['claude-sonnet', 'model-1']
         }
       ]
@@ -1061,7 +1063,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
           modelId: 'sonnet',
           apiModelId: 'sonnet-api',
           modelName: 'sonnet',
-          pricingSnapshot: null,
+          pricing: null,
           aliases: ['sonnet-api', 'sonnet']
         }
       ]

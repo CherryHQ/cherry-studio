@@ -32,6 +32,7 @@ import {
   ImageGenerationSupportSchema,
   MODALITY,
   MODEL_CAPABILITY,
+  ModelPricingRuleSchema,
   objectValues,
   REASONING_EFFORT,
   ReasoningControlSchema,
@@ -306,6 +307,7 @@ export const RuntimeModelPricingSchema = z
     cacheRead: PricePerTokenSchema.optional(),
     cacheWrite: PricePerTokenSchema.optional(),
     inputTokenTiers: z.array(InputTokenPricingTierSchema).optional(),
+    rules: z.array(ModelPricingRuleSchema).optional(),
     perImage: z
       .object({
         price: z.number(),
@@ -331,7 +333,15 @@ export const RuntimeModelPricingSchema = z
       }
     }
 
-    if (!pricing.inputTokenTiers?.length) return
+    if (pricing.inputTokenTiers?.length && pricing.rules?.length) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rules'],
+        message: 'inputTokenTiers and rules cannot be stored together'
+      })
+    }
+
+    if (!pricing.inputTokenTiers?.length && !pricing.rules?.length) return
 
     const rates = [
       { rate: pricing.input, path: ['input'] },
@@ -343,7 +353,13 @@ export const RuntimeModelPricingSchema = z
         { rate: tier.output, path: ['inputTokenTiers', index, 'output'] },
         ...(tier.cacheRead ? [{ rate: tier.cacheRead, path: ['inputTokenTiers', index, 'cacheRead'] }] : []),
         ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
-      ])
+      ]),
+      ...(pricing.rules ?? []).flatMap((rule, index) =>
+        Object.entries(rule.pricing).map(([field, rate]) => ({
+          rate,
+          path: ['rules', index, 'pricing', field]
+        }))
+      )
     ]
     const currency = pricing.input.currency ?? CURRENCY.USD
     for (const { rate, path } of rates) {
@@ -418,6 +434,8 @@ export const ModelSchema = z.object({
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
+  /** Whether pricing is inherited from the provider catalog or stored as a user override. */
+  pricingSource: z.enum(['provider', 'user']).optional(),
 
   /**
    * Painting-page metadata (per-mode `supports.*` widget specs).

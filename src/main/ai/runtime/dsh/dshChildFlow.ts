@@ -55,7 +55,14 @@ export interface DshSubagentSink {
   /** REPLACE list of children with a live residency epoch. */
   emitTasks(tasks: AgentSessionBackgroundTasks): void
   emitWorkState(active: boolean): void
-  recordChildUsage(info: { childSessionId: string; turn: number; seq: number; usage: TokenUsage; model?: string }): void
+  recordChildUsage(info: {
+    childSessionId: string
+    turn: number
+    seq: number
+    startedAt: number
+    usage: TokenUsage
+    model?: string
+  }): void
 }
 
 interface ChildState {
@@ -279,6 +286,7 @@ class DshChildProjection {
   private readonly blockTurnTokens = new Map<string, number | null>()
   /** Destination pinned when a tool call's input was emitted, keyed by call id. */
   private readonly toolTurnTokens = new Map<string, number | null>()
+  private providerAttempt?: { stepKey: string; startedAt: number }
   private readonly idPrefix: string
 
   constructor(
@@ -291,8 +299,17 @@ class DshChildProjection {
 
   handleEvent(event: SessionEvent): void {
     switch (event.type) {
+      case 'turn/start':
+        this.providerAttempt = undefined
+        return
+      case 'step/start':
+        this.providerAttempt = {
+          stepKey: `${event.data.turn}:${event.data.step}`,
+          startedAt: event.time
+        }
+        return
       case 'assistant/chunk':
-        this.handleAssistantChunk(event.data)
+        this.handleAssistantChunk(event.data, event.time)
         return
       case 'tool/call':
         this.handleToolCall(event.data)
@@ -302,13 +319,23 @@ class DshChildProjection {
         return
       case 'assistant/message': {
         const usage = event.data.usage
-        if (usage) {
+        const stepKey = `${event.data.turn}:${event.data.step}`
+        const startedAt = this.providerAttempt?.stepKey === stepKey ? this.providerAttempt.startedAt : undefined
+        this.providerAttempt = undefined
+        if (usage && startedAt !== undefined) {
           this.sink.recordChildUsage({
             childSessionId: this.childSessionId,
             turn: event.data.turn,
             seq: event.seq,
+            startedAt,
             usage,
             model: event.data.message.source.model
+          })
+        } else if (usage) {
+          logger.warn('dsh child usage is missing its step/start event; skipping usage capture', {
+            childSessionId: this.childSessionId,
+            turn: event.data.turn,
+            step: event.data.step
           })
         }
         return
@@ -346,13 +373,14 @@ class DshChildProjection {
     }
   }
 
-  private handleAssistantChunk(data: SessionEventMap['assistant/chunk']): void {
+  private handleAssistantChunk(data: SessionEventMap['assistant/chunk'], eventTime: number): void {
     const stepKey = `${data.turn}:${data.step}`
     if (stepKey !== this.lastStepKey) {
       this.lastStepKey = stepKey
       this.turnSeq += 1
       this.openBlocks.clear()
     }
+    if (this.providerAttempt?.stepKey !== stepKey) this.providerAttempt = { stepKey, startedAt: eventTime }
     const chunk = data.chunk
     switch (chunk.type) {
       case 'block-start':

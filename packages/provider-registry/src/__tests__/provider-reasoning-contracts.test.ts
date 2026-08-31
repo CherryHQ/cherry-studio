@@ -15,19 +15,6 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
-    expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
-      input: { currency: 'USD', perMillionTokens: 0.44 },
-      output: { currency: 'USD', perMillionTokens: 1.32 }
-    })
-    expect(override('deepseek', 'deepseek-v4-pro').pricing).toEqual({
-      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
-      input: { currency: 'USD', perMillionTokens: 1.32 },
-      output: { currency: 'USD', perMillionTokens: 3.96 }
-    })
-  })
-
   // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
   // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
   // degrades to `high`.

@@ -29,6 +29,7 @@ import type { OperationResult } from '@shared/types/codeTools'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
+import { compileModelPricingPolicy, resolveModelPricing } from '@shared/utils/modelPricing'
 import { redactSecretText } from '@shared/utils/redaction'
 
 import { vertexAiService } from './VertexAiService'
@@ -1227,8 +1228,11 @@ export class OpenClawService extends BaseService {
   }
 
   private toOpenClawCost(model: DataModel): OpenClawModelConfig['cost'] | undefined {
-    const pricing = model.pricing
-    if (!pricing) return undefined
+    if (!model.pricing) return undefined
+    const pricing = resolveModelPricing(compileModelPricingPolicy(model.pricing), {
+      at: new Date(),
+      inputTokens: 0
+    }).rates
     const isUsd = (currency?: string) => currency === undefined || currency === CURRENCY.USD
     if (!isUsd(pricing.input.currency) || !isUsd(pricing.output.currency)) return undefined
     if (pricing.input.perMillionTokens === null || pricing.output.perMillionTokens === null) return undefined
