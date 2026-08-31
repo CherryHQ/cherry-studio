@@ -14,7 +14,8 @@ import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
  * All seeders in execution order.
  *
  * PreferenceSeeder runs first so invalid-JSON preference repair finishes before
- * any later seeder may read preferences.
+ * any later seeder may read preferences. CherryAiDefaultModelSeeder then
+ * overwrites null DefaultPreferences for its three default model keys.
  *
  * Keep CherryAiDefaultModelSeeder before DefaultAssistantSeeder because the
  * seeded assistant references the CherryAI default model (FK to user_model).

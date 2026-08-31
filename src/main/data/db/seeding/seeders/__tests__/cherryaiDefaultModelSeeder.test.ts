@@ -5,6 +5,7 @@ import {
   CherryAiDefaultModelSeeder,
   DEFAULT_MODEL_PREFERENCE_KEYS
 } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
+import { PreferenceSeeder } from '@data/db/seeding/seeders/preferenceSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import {
   CHERRYAI_API_BASE_URL,
@@ -113,7 +114,18 @@ describe('CherryAiDefaultModelSeeder', () => {
     expect(await readPreferenceValue('feature.translate.model_id')).toBe('google::gemini-2.5-flash')
   })
 
-  it('preserves existing null default model preferences', async () => {
+  it('overwrites PreferenceSeeder null defaults so fresh seed order keeps CherryAI UniqueModelIds', async () => {
+    new PreferenceSeeder().run(dbh.db)
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      expect(await readPreferenceValue(key)).toBeNull()
+    }
+
+    new CherryAiDefaultModelSeeder().run(dbh.db)
+
+    await expectSeededDefaultModelPreferences()
+  })
+
+  it('replaces null default model preferences with CherryAI UniqueModelId defaults', async () => {
     await dbh.db.insert(preferenceTable).values(
       DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
         scope: 'default',
@@ -124,9 +136,11 @@ describe('CherryAiDefaultModelSeeder', () => {
 
     new CherryAiDefaultModelSeeder().run(dbh.db)
 
-    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
-      expect(await readPreferenceValue(key)).toBeNull()
-    }
+    await expectSeededDefaultModelPreferences()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed null default model preference', {
+      key: 'chat.default_model_id',
+      value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    })
   })
 
   it('preserves existing empty default model preferences', async () => {
