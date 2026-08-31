@@ -528,8 +528,7 @@ describe('CherryAutonomyTools', () => {
       [{ session_id: 'session_b', title: '   ' }, "'title' is required"],
       [{ session_id: 'session_b', title: 42 }, "'title' is required"],
       [{ session_id: 'session_b', title: 'x'.repeat(256) }, "'title' must be at most 255 characters"],
-      [{ session_id: 'session_b', title: '🍒'.repeat(256) }, "'title' must be at most 255 characters"],
-      [{ session_id: 'session_b', title: ` ${'x'.repeat(254)} ` }, "'title' must be at most 255 characters"]
+      [{ session_id: 'session_b', title: '🍒'.repeat(128) }, "'title' must be at most 255 characters"]
     ])('rejects invalid session rename input %#', async (args, message) => {
       const result = await callTool(createServer(), args, 'session_rename')
 
@@ -538,8 +537,8 @@ describe('CherryAutonomyTools', () => {
       expect(mockRenameSession).not.toHaveBeenCalled()
     })
 
-    it('accepts a 255-code-point Unicode title', async () => {
-      const title = '🍒'.repeat(255)
+    it('accepts a Unicode title within the shared 255-code-unit schema limit', async () => {
+      const title = '🍒'.repeat(127)
       mockRenameSession.mockReturnValue({ id: 'session_b', agentId: 'agent_test', name: title })
 
       const result = await callTool(createServer('agent_test'), { session_id: 'session_b', title }, 'session_rename')

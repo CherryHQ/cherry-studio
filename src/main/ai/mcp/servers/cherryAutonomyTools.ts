@@ -29,6 +29,7 @@ import {
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
+import { SessionNameEntitySchema } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
@@ -642,7 +643,7 @@ export class CherryAutonomyTools {
     const title = rawTitle.trim()
     if (!sessionId) throw new McpError(ErrorCode.InvalidParams, "'session_id' is required")
     if (!title) throw new McpError(ErrorCode.InvalidParams, "'title' is required")
-    if (Array.from(rawTitle).length > 255) {
+    if (!SessionNameEntitySchema.safeParse(title).success) {
       throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
     }
 
