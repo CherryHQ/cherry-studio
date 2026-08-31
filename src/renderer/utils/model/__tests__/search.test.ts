@@ -24,6 +24,23 @@ describe('search', () => {
     expect(score).not.toBeNull()
   })
 
+  it('should treat explicit query structure as literal text', () => {
+    const searchFields = (value: string): ModelSearchField[] => [{ value, weight: 0, allowAbbreviation: true }]
+    const cases = [
+      ['3.8', 'GPT-3.8', true],
+      ['3.8', 'Qwen3 8B', false],
+      ['3.8', 'MiniMax-M2.7', false],
+      ['org/model', 'org/model', true],
+      ['org/model', 'org-model', false],
+      ['c++', 'C++', true],
+      ['c++', 'C--', false]
+    ] as const
+
+    for (const [query, value, matches] of cases) {
+      expect(getSearchMatchScore(query, searchFields(value)) !== null).toBe(matches)
+    }
+  })
+
   it('should return null for punctuation-only keyword', () => {
     expect(getSearchMatchScore(':', fields)).toBeNull()
     expect(getSearchMatchScore('---', fields)).toBeNull()

@@ -43,6 +43,7 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
@@ -55,7 +56,7 @@ import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@rendere
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -758,7 +759,8 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         selection: undefined,
         renderConfig: {
           ...providerValue.state.renderConfig,
-          collapseCompletedToolHistory: false
+          collapseCompletedToolHistory: true,
+          messageStyle: 'bubble' as const
         }
       }
     }),
@@ -767,7 +769,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
+      <div className="h-full min-h-0 bg-muted/15 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
     </MessageListProvider>
@@ -1014,29 +1016,29 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-/** Foreground runs belong to one assistant row; detached runs use the SDK's per-task edge state. */
-function useAgentRunLiveness(messages: CherryUIMessage[], taskEvents: AgentSessionTaskEvents): AgentRunLiveness {
+/** Foreground runs belong to one assistant row; detached runs use the runtime's current membership snapshot. */
+function useAgentRunLiveness(
+  messages: CherryUIMessage[],
+  backgroundTasks: AgentSessionBackgroundTasks
+): AgentRunLiveness {
   return useMemo(() => {
     const activeMessageIds = new Set(
       messages
         .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
         .map((message) => message.id)
     )
-    const liveBackgroundTaskIds = new Set(
-      Object.values(taskEvents)
-        .filter((event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error')
-        .map((event) => event.taskId)
-    )
+    const liveBackgroundTaskIds = new Set(backgroundTasks.map((task) => task.id))
     return { activeMessageIds, liveBackgroundTaskIds }
-  }, [messages, taskEvents])
+  }, [backgroundTasks, messages])
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
+  const backgroundTasks = useAgentSessionBackgroundTasks(meta.sessionId)
   // Current-process per-task lifecycle edges.
   const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const liveness = useAgentRunLiveness(runtime.messages, lateTaskEvents)
+  const liveness = useAgentRunLiveness(runtime.messages, backgroundTasks)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>

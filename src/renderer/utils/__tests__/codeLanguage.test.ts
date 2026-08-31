@@ -15,6 +15,7 @@ describe('codeLanguage', () => {
       expect(getLanguageByExtension('sql')).toBe('SQL')
       expect(getLanguageByExtension('rs')).toBe('Rust')
       expect(getLanguageByExtension('txt')).toBe('Text')
+      expect(getLanguageByExtension('php')).toBe('PHP')
     })
 
     it('falls through to the cache for non-overridden extensions', () => {

@@ -8,6 +8,8 @@ import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  agentPinReadMock,
+  agentReadMock,
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
@@ -18,6 +20,8 @@ const {
   useProvidersMock,
   useQueryMock
 } = vi.hoisted(() => ({
+  agentPinReadMock: vi.fn(),
+  agentReadMock: vi.fn(),
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
@@ -176,6 +180,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.common.unpin': 'Unpin',
           'library.config.dialogs.create.agent_title': 'New Agent',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.avatar_name_label': 'Avatar and name',
           'library.config.dialogs.create.description_placeholder': 'Describe this resource',
           'library.config.dialogs.create.name_placeholder': 'Name this resource',
           'library.config.dialogs.create.submit': 'Create',
@@ -272,8 +277,10 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockImplementation((path: string) => {
-    const data = path === '/agents/:agentId' ? AGENTS_RESPONSE.items[0] : AGENTS_RESPONSE
+  useQueryMock.mockImplementation((path: string, options?: { enabled?: boolean }) => {
+    const enabled = path !== '/agents' || options?.enabled !== false
+    if (path === '/agents' && enabled) agentReadMock()
+    const data = enabled ? (path === '/agents/:agentId' ? AGENTS_RESPONSE.items[0] : AGENTS_RESPONSE) : undefined
     return {
       data,
       isLoading: false,
@@ -309,14 +316,17 @@ beforeEach(() => {
     ...AGENTS_RESPONSE.items[0],
     name: 'Renamed Agent'
   })
-  usePinsMock.mockReturnValue({
-    isLoading: false,
-    isRefreshing: false,
-    isMutating: false,
-    error: undefined,
-    pinnedIds: [],
-    refetch: refetchPinsMock,
-    togglePin: togglePinMock
+  usePinsMock.mockImplementation((_entityType: string, options?: { enabled?: boolean }) => {
+    if (options?.enabled !== false) agentPinReadMock()
+    return {
+      isLoading: false,
+      isRefreshing: false,
+      isMutating: false,
+      error: undefined,
+      pinnedIds: [],
+      refetch: refetchPinsMock,
+      togglePin: togglePinMock
+    }
   })
   useProvidersMock.mockReturnValue({
     providers: [{ id: 'provider', endpointConfigs: { 'anthropic-messages': {} } }]
@@ -345,11 +355,23 @@ async function openCreateDialog() {
 }
 
 describe('AgentSelector', () => {
+  it('defers selector reads until the popover opens', () => {
+    renderSelector()
+
+    expect(agentReadMock).not.toHaveBeenCalled()
+    expect(agentPinReadMock).not.toHaveBeenCalled()
+
+    openPopover()
+
+    expect(agentReadMock).toHaveBeenCalled()
+    expect(agentPinReadMock).toHaveBeenCalled()
+    expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
+  })
+
   it('fetches agents from DataApi and renders returned rows', () => {
     renderSelector()
     openPopover()
 
-    expect(useQueryMock).toHaveBeenCalledWith('/agents', { query: { limit: 500 } })
     expect(screen.getByRole('option', { name: /Alpha Agent/ })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Beta Agent/ })).toBeInTheDocument()
     const options = screen.getAllByRole('option')
@@ -448,7 +470,6 @@ describe('AgentSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(usePinsMock).toHaveBeenCalledWith('agent')
     expect(screen.getByText('Pinned')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Unpin' }))
@@ -509,7 +530,7 @@ describe('AgentSelector', () => {
         skillIds: [],
         configuration: {
           avatar: '🤖',
-          permission_mode: 'default'
+          permission_mode: 'auto'
         }
       })
     )
@@ -567,7 +588,7 @@ describe('AgentSelector', () => {
 
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Renamed Agent' } })
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
@@ -609,7 +630,7 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Saved Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())

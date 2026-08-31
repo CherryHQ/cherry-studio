@@ -45,8 +45,6 @@ type ShortcutRegistrationConflictPayload = {
 
 // Custom APIs for renderer
 const api = {
-  setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
-  setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),

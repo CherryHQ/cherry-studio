@@ -517,10 +517,13 @@ export const captureScrollableIframeAsBlob = async (
  */
 export const svgToCanvas = (svgElement: SVGElement, scale = 3): Promise<HTMLCanvasElement> => {
   // 获取 SVG 尺寸信息
+  // 优先使用 viewBox；ECharts 等 SVG 渲染器可能直接设置 width/height 属性且没有 viewBox
   const viewBox = svgElement.getAttribute('viewBox')?.split(' ').map(Number) || []
+  const attrWidth = parseFloat(svgElement.getAttribute('width') || '')
+  const attrHeight = parseFloat(svgElement.getAttribute('height') || '')
   const rect = svgElement.getBoundingClientRect()
-  const width = viewBox[2] || svgElement.clientWidth || rect.width
-  const height = viewBox[3] || svgElement.clientHeight || rect.height
+  const width = viewBox[2] || svgElement.clientWidth || rect.width || attrWidth
+  const height = viewBox[3] || svgElement.clientHeight || rect.height || attrHeight
 
   // 序列化 SVG 内容
   const svgData = new XMLSerializer().serializeToString(svgElement)
@@ -854,7 +857,7 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const byteArray = parseResult.isBase64
       ? Base64.toUint8Array(parseResult.data)
       : decodeDataUrlBytes(parseResult.data)
-    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+    return assertImageBlob(new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType }), src)
   }
 
   if (src.startsWith('file://')) {
@@ -863,11 +866,29 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
       handle: createFilePathHandle(path),
       options: { mode: 'full', encoding: 'binary' }
     })
-    return new Blob([content.slice() as unknown as BlobPart], { type: mime })
+    return assertImageBlob(new Blob([content.slice() as unknown as BlobPart], { type: mime }), src)
   }
 
   const response = await fetch(src)
-  return response.blob()
+  // An error page (404/500 HTML) is not an image — fail so callers can skip/report it.
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${src}`)
+  }
+  const blob = await response.blob()
+  return assertImageBlob(blob, src)
+}
+
+/** A 200 response is still not an image when its content type says otherwise (proxy/login pages). */
+function assertImageBlob(blob: Blob, src: string): Blob {
+  // octet-stream is a mislabel, not a non-image verdict: extension-less local entries and
+  // remote servers that skip MIME land here, and the bytes still decode like <img> does.
+  // Trim first — header params ('text/html; charset=utf-8') and stray OWS must not bypass the check.
+  const type = blob.type.trim()
+  const unknown = type === 'application/octet-stream'
+  if (type && !unknown && !type.startsWith('image/')) {
+    throw new Error(`Source is not an image (content type ${type}): ${src}`)
+  }
+  return blob
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {

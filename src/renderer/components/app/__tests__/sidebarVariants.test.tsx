@@ -17,7 +17,7 @@ function createContext(overrides: Partial<SidebarVariantContext> = {}): SidebarV
     assistantIconType: 'emoji',
     agentIconType: 'emoji',
     defaultModelId: null,
-    isRequiredApp: () => false,
+    visibleAppCount: 2,
     openApp: vi.fn(),
     openMiniApp: vi.fn(),
     openAgent: vi.fn(),

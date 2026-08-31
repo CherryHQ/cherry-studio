@@ -8,20 +8,21 @@ import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
-import { deepSeekHarnessRequestSchemas } from './deepSeekHarness'
+import { type DeepSeekHarnessEventSchemas, deepSeekHarnessRequestSchemas } from './deepSeekHarness'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { exportRequestSchemas } from './export'
 import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
+import { type HermesDashboardEventSchemas, hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
-import { miniAppRequestSchemas } from './miniApp'
+import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
 import { type NotificationEventSchemas, notificationRequestSchemas } from './notification'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
-import { openclawRequestSchemas } from './openclaw'
+import { type OpenClawEventSchemas, openclawRequestSchemas } from './openclaw'
 import { ovmsRequestSchemas } from './ovms'
 import { printRequestSchemas } from './print'
 import { profileRequestSchemas } from './profile'
@@ -58,6 +59,7 @@ export const ipcRequestSchemas = {
   ...diagnosticsRequestSchemas,
   ...exportRequestSchemas,
   ...externalAppRequestSchemas,
+  ...hermesDashboardRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
@@ -99,12 +101,16 @@ export type IpcEventSchemas = AiEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  DeepSeekHarnessEventSchemas &
   FileEventSchemas &
+  HermesDashboardEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
+  MiniAppEventSchemas &
   NavigationEventSchemas &
   NotificationEventSchemas &
   OAuthEventSchemas &
+  OpenClawEventSchemas &
   QuickAssistantEventSchemas &
   ScreenshotEventSchemas &
   SelectionEventSchemas &

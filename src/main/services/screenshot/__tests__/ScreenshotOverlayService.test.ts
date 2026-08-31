@@ -847,7 +847,7 @@ describe('ScreenshotOverlayService', () => {
       expect(initDataOf('overlay-0-0').imageUrl).toContain(secondMediaId)
     })
 
-    it('re-applies the all-workspaces flag when a pooled overlay is reused on macOS', async () => {
+    it('re-applies fullscreen coverage without joining all Spaces when a pooled overlay is reused on macOS', async () => {
       singleDisplaySetup()
       await service.startCapture()
       service.dismiss()
@@ -856,9 +856,9 @@ describe('ScreenshotOverlayService', () => {
 
       await service.startCapture()
 
-      // The window behavior applies this only at creation and macOS drops the flag when a pooled
-      // overlay is hidden, so from the second capture on it neither covers a fullscreen Space nor takes Esc.
-      expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(true, {
+      // macOS drops the fullscreen-auxiliary behavior when a pooled overlay is hidden.
+      // Reapply it without canJoinAllSpaces so the frozen image cannot follow a Space switch.
+      expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(false, {
         visibleOnFullScreen: true,
         skipTransformProcessType: true
       })
@@ -1087,7 +1087,10 @@ describe('ScreenshotOverlayService', () => {
       // re-entrance guard still blocks every new capture.
       const window = fakeWindow('overlay-0-0')
       expect(window.show).toHaveBeenCalled()
-      expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalled()
+      expect(window.setVisibleOnAllWorkspaces).toHaveBeenCalledWith(false, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true
+      })
       expect(service.isSessionOverlay('overlay-0-0')).toBe(true)
     })
 
