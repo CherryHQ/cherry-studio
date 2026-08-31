@@ -574,7 +574,16 @@ export class AgentService extends BaseService {
     rawOldAgent: Record<string, unknown>,
     serializedUpdates: Record<string, unknown>
   ): Promise<void> {
-    const syncFields = ['model', 'plan_model', 'small_model', 'allowed_tools', 'configuration', 'mcps', 'instructions']
+    const syncFields = [
+      'model',
+      'plan_model',
+      'small_model',
+      'allowed_tools',
+      'configuration',
+      'mcps',
+      'instructions',
+      'accessible_paths'
+    ]
 
     // rawOldAgent is already in DB-serialized form (JSON strings), so we can
     // compare directly against session rows without normalization mismatch.
