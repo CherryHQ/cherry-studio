@@ -25,6 +25,7 @@ export {
   imageParamsSchema,
   normalizeImageParamNumber,
   paramCatalogEntry,
+  parseImageParamValue,
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'

@@ -2,10 +2,10 @@ import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } f
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
-import { booleanOr, controlValue, finiteNumberOr, stringOr } from './fieldValue'
-import { resolveOptions } from './resolveOptions'
+import { booleanOr, controlValue, finiteParamNumberOr, stringOr } from './fieldValue'
+import { resolveOptions, resolveOptionValue } from './resolveOptions'
 
 export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
@@ -21,7 +21,9 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
   const fieldKey = item.key
 
   const disabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
-  const currentValue = painting[fieldKey] ?? item.initialValue
+  const currentValue = isOptionsConfigItem(item)
+    ? resolveOptionValue(item, painting[fieldKey], painting, t)
+    : (painting[fieldKey] ?? item.initialValue)
 
   switch (item.type) {
     case 'select': {
@@ -96,7 +98,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'slider': {
-      const numericValue = finiteNumberOr(currentValue, item.initialValue)
+      const numericValue = finiteParamNumberOr(item.key, currentValue, item.initialValue)
       const { min, max } = item
       // Degenerate single-value range (e.g. numImages 1..1): the slider has
       // nowhere to move and Radix renders its thumb flush to the rail edge,

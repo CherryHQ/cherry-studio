@@ -404,6 +404,16 @@ describe('PaintingComposer', () => {
     expect(summaryParts).not.toContain('true')
   })
 
+  it('uses typed catalog fallbacks for wrong-typed option and integer values', () => {
+    renderComposer({ painting: makePainting({ params: { size: true, numImages: '2.5' } }) })
+    const summaryParts = paramsButton().textContent?.split(' · ') ?? []
+
+    expect(summaryParts).toContain('1024×1024')
+    expect(summaryParts).toContain('1')
+    expect(summaryParts).not.toContain('true')
+    expect(summaryParts).not.toContain('2.5')
+  })
+
   it('folds the summary into the params button accessible name', () => {
     renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
     // Summary (incl. registry defaults) is appended after the settings label.

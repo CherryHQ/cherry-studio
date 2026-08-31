@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
-import { controlValue, optionalFiniteNumber } from '../form/fieldValue'
+import { controlValue, optionalParamNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
@@ -120,7 +120,7 @@ export async function computeModelFieldReset(input: {
     }
 
     if (item.type === 'slider') {
-      const numeric = optionalFiniteNumber(currentValue)
+      const numeric = optionalParamNumber(item.key, currentValue)
       const outOfRange = numeric === null || numeric < item.min || numeric > item.max
       if (outOfRange) patch[item.key] = item.initialValue
     }

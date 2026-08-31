@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
 import { CANONICAL_PARAM_KEY } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema } from '../schemas/imageParamCatalog'
+import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema, parseImageParamValue } from '../schemas/imageParamCatalog'
 import type { ImageGenerationSupport } from '../schemas/model'
 import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 describe('IMAGE_PARAM_CATALOG', () => {
   it('is exhaustive over CANONICAL_PARAM_KEY (no missing / extra keys)', () => {
     expect([...IMAGE_PARAM_CATALOG_KEYS].sort()).toEqual(Object.values(CANONICAL_PARAM_KEY).sort())
+  })
+
+  it('parses dynamic values through the canonical per-key value type', () => {
+    expect(parseImageParamValue('numImages', '2')).toBe(2)
+    expect(parseImageParamValue('numImages', '2.5')).toBeUndefined()
+    expect(parseImageParamValue('strength', '2.5')).toBe(2.5)
+    expect(parseImageParamValue('size', true)).toBeUndefined()
+    expect(parseImageParamValue('unknown', 'value')).toBeUndefined()
   })
 })
 

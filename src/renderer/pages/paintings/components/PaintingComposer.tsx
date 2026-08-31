@@ -29,10 +29,10 @@ import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
-import { controlValue, finiteNumberOr, optionalFiniteNumber } from '../form/fieldValue'
+import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
-import { resolveOptions } from '../form/resolveOptions'
+import { resolveOptions, resolveOptionValue } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
@@ -86,7 +86,7 @@ function formatSummaryValue(
     // and the artboard prompt bar do, instead of formatting the raw enum.
     return isOptionsConfigItem(item) ? sizeOptionLabel(item, controlValue(value), params, translate) : undefined
   }
-  if (item.type === 'slider') return `${finiteNumberOr(value, item.initialValue)}`
+  if (item.type === 'slider') return `${finiteParamNumberOr(item.key, value, item.initialValue)}`
   // Option-based: show the selected option's localized label.
   const formattedValue = controlValue(value)
   const match = resolveOptions(item, params ?? {}, translate).find((opt) => controlValue(opt.value) === formattedValue)
@@ -108,7 +108,16 @@ function paramsSummary(
   for (const item of items) {
     if (!isSummaryConfigItem(item)) continue
     if (item.condition && !item.condition(params ?? {})) continue
-    const value = params?.[item.key] ?? item.initialValue
+    const storedValue = params?.[item.key]
+    // Preserve the custom-size sentinel even for older registry snapshots that
+    // did not yet append it to the option list. Its dimensions are validated in
+    // formatSummaryValue; every other option still goes through the typed
+    // catalog + declared-option boundary below.
+    const value = isOptionsConfigItem(item)
+      ? storedValue === 'custom' && (SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)
+        ? storedValue
+        : resolveOptionValue(item, storedValue, params ?? {}, translate)
+      : (params?.[item.key] ?? item.initialValue)
     if (value === undefined || value === null || value === '') continue
     const formatted = formatSummaryValue(item, value, params, translate)
     if (formatted) parts.push(formatted)

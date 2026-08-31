@@ -103,6 +103,14 @@ export const IMAGE_PARAM_CATALOG = {
   upscaleFactor: { schema: optNumber }
 } as const satisfies Record<CanonicalParamKey, ImageParamCatalogEntry>
 
+/** Parse one dynamic form value through its canonical catalog schema. */
+export function parseImageParamValue(key: string, value: unknown): unknown {
+  const entry = (IMAGE_PARAM_CATALOG as Record<string, ImageParamCatalogEntry>)[key]
+  if (!entry) return undefined
+  const parsed = entry.schema.safeParse(value)
+  return parsed.success ? parsed.data : undefined
+}
+
 /** Static value type of a canonical param, derived from its catalog schema. */
 export type ParamValue<K extends CanonicalParamKey> = z.infer<(typeof IMAGE_PARAM_CATALOG)[K]['schema']>
 

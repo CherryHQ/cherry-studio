@@ -1,4 +1,4 @@
-import { normalizeImageParamNumber } from '@cherrystudio/provider-registry'
+import { normalizeImageParamNumber, parseImageParamValue } from '@cherrystudio/provider-registry'
 
 /** Match the submit schema's strict numeric-input normalization. */
 function finiteNumber(value: unknown): number | null {
@@ -13,6 +13,20 @@ export function finiteNumberOr(value: unknown, fallback: number): number {
 
 export function optionalFiniteNumber(value: unknown): number | null {
   return finiteNumber(value)
+}
+
+export function finiteParamNumberOr(key: string, value: unknown, fallback: number): number {
+  const parsed = parseImageParamValue(key, value)
+  return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : fallback
+}
+
+export function optionalParamNumber(key: string, value: unknown): number | null {
+  const parsed = parseImageParamValue(key, value)
+  return typeof parsed === 'number' && Number.isFinite(parsed) ? parsed : null
+}
+
+export function catalogValueOr(key: string, value: unknown, fallback: unknown): unknown {
+  return parseImageParamValue(key, value) ?? fallback
 }
 
 export function stringOr(value: unknown, fallback = ''): string {

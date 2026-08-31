@@ -74,4 +74,43 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
 
     expect(screen.getByRole('textbox')).toHaveValue('fallback')
   })
+
+  it('falls back to the typed option default for a wrong-typed persisted value', () => {
+    render(
+      <PaintingFieldRenderer
+        item={{
+          type: 'select',
+          key: 'size',
+          initialValue: '1024x1024',
+          options: [{ value: '1024x1024', label: '1024' }]
+        }}
+        painting={{ size: true }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('select')).toHaveAttribute('data-value', '1024x1024')
+  })
+
+  it('rejects a decimal persisted value for an integer-backed slider', () => {
+    const support = {
+      modes: {
+        generate: {
+          supports: { numImages: { type: 'range' as const, min: 1, max: 10, default: 1 } }
+        }
+      }
+    }
+    const submitted = buildParamsSchema(support, 'generate').parse({ numImages: '2.5' })
+
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'slider', key: 'numImages', min: 1, max: 10, initialValue: 1 }}
+        painting={{ numImages: '2.5' }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('spinbutton')).toHaveValue(1)
+    expect(submitted.numImages).toBeUndefined()
+  })
 })
