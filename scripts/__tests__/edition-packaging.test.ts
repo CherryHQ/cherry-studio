@@ -8,6 +8,7 @@ import createChinaEditionConfig from '../../electron-builder.cn.config.cjs'
 import { CHINA_EDITION, getExpectedReleaseArtifacts, getReleaseChannel, GLOBAL_EDITION } from '../release/edition'
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
+const packageMetadata = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
 
 describe('edition packaging', () => {
   it('keeps the existing global product and update identity', () => {
@@ -38,8 +39,6 @@ describe('edition packaging', () => {
       appId: 'com.cherryai.cherrystudio.cn',
       productName: 'Cherry Studio 中国版',
       extraMetadata: {
-        name: 'CherryStudioCN',
-        productName: 'Cherry Studio 中国版',
         cherryEdition: CHINA_EDITION
       },
       protocols: [{ name: 'Cherry Studio 中国版', schemes: ['cherrystudio-cn'] }],
@@ -55,6 +54,16 @@ describe('edition packaging', () => {
       },
       publish: { provider: 'generic', url: 'https://releases.cherry-ai.com', channel: 'latest-cn' }
     })
+  })
+
+  it('shares the global Electron application name used for userData', async () => {
+    const config = await createChinaEditionConfig({
+      packageMetadata: { value: Promise.resolve(packageMetadata) }
+    })
+    const chinaPackageMetadata = { ...packageMetadata, ...config.extraMetadata }
+
+    expect(packageMetadata.productName ?? packageMetadata.name).toBe('CherryStudio')
+    expect(chinaPackageMetadata.productName ?? chinaPackageMetadata.name).toBe('CherryStudio')
   })
 
   it.each([

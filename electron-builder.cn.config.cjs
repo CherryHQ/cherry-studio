@@ -8,8 +8,6 @@ module.exports = async function createChinaEditionConfig({ packageMetadata }) {
     appId: 'com.cherryai.cherrystudio.cn',
     productName: 'Cherry Studio 中国版',
     extraMetadata: {
-      name: 'CherryStudioCN',
-      productName: 'Cherry Studio 中国版',
       cherryEdition: CHINA_EDITION
     },
     protocols: [
