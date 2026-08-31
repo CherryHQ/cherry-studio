@@ -433,6 +433,8 @@ function FilesPage() {
   })
 
   const viewKey = isTrash ? 'trash' : 'active'
+  const hydrationScopeKey = `${viewKey}:${serverSortKey}:${sortDir}:${activeFileType ?? ''}`
+  const hydrationScopeRef = useRef(hydrationScopeKey)
   const currentFilePages = isTrash ? trashedFilePages : activeFilePages
   const entries = useStableFileEntries(useInfiniteFlatItems(currentFilePages))
   const activeFilesTotal =
@@ -486,6 +488,12 @@ function FilesPage() {
     setDanglingStateById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
     setHydrationGeneration(nextGeneration)
   }, [])
+
+  useEffect(() => {
+    if (hydrationScopeRef.current === hydrationScopeKey) return
+    hydrationScopeRef.current = hydrationScopeKey
+    invalidateFileHydration()
+  }, [hydrationScopeKey, invalidateFileHydration])
 
   useEffect(() => {
     isHydrationMountedRef.current = true

@@ -837,12 +837,16 @@ describe('FilesPage incremental hydration', () => {
 
     const resolveRequestsFor = async (id: string) => {
       for (const request of requests.filter(({ ids }) => ids.includes(id))) {
-        const value =
-          request.route === 'file.batch_get_metadata'
-            ? { [id]: null }
-            : request.route === 'file.batch_get_physical_paths'
-              ? { [id]: `/tmp/${id}.png` }
-              : { [id]: 'present' }
+        const value = Object.fromEntries(
+          request.ids.map((requestId) => [
+            requestId,
+            request.route === 'file.batch_get_metadata'
+              ? null
+              : request.route === 'file.batch_get_physical_paths'
+                ? `/tmp/${requestId}.png`
+                : 'present'
+          ])
+        )
         request.deferred.resolve(value)
       }
       await act(async () => {
@@ -853,6 +857,8 @@ describe('FilesPage incremental hydration', () => {
     await resolveRequestsFor(secondImageEntry.id)
     await resolveRequestsFor(imageEntry.id)
     fireEvent.click(screen.getByText('files.image'))
+    await waitFor(() => expect(requests).toHaveLength(9))
+    await resolveRequestsFor(imageEntry.id)
 
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
     expect(screen.getByAltText('photo-2.png')).toBeInTheDocument()
@@ -926,6 +932,107 @@ describe('FilesPage incremental hydration', () => {
 
     expect(screen.getByText('2.0 KB')).toBeInTheDocument()
     expect(screen.queryByText('1.0 KB')).not.toBeInTheDocument()
+  })
+
+  it('invalidates hydration when the list query changes and ignores the previous response', async () => {
+    const staleMetadata = deferred<Record<string, unknown>>()
+    let metadataRequestCount = 0
+    const activePages = [{ items: [externalEntry] }]
+    const emptyPages: typeof activePages = []
+    mockFiles([externalEntry])
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? emptyPages : activePages,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    ipcMocks.request.mockImplementation((route: string) => {
+      if (route === 'file.batch_get_metadata') {
+        metadataRequestCount += 1
+        if (metadataRequestCount === 1) return staleMetadata.promise
+        return Promise.resolve({
+          [externalEntry.id]: {
+            kind: 'file',
+            type: 'text',
+            mime: 'text/plain',
+            size: 2048,
+            createdAt: externalEntry.createdAt,
+            modifiedAt: externalEntry.updatedAt
+          }
+        })
+      }
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({ [externalEntry.id]: 'present' })
+      return Promise.resolve({})
+    })
+    render(<FilesPage />)
+
+    await waitFor(() => expect(metadataRequestCount).toBe(1))
+    const typeHeader = screen.getAllByRole('button').find((button) => button.textContent?.includes('files.type'))
+    expect(typeHeader).toBeDefined()
+    fireEvent.click(typeHeader as HTMLButtonElement)
+
+    await waitFor(() => expect(metadataRequestCount).toBe(2))
+    expect(await screen.findByText('2.0 KB')).toBeInTheDocument()
+
+    staleMetadata.resolve({
+      [externalEntry.id]: {
+        kind: 'file',
+        type: 'text',
+        mime: 'text/plain',
+        size: 1024,
+        createdAt: externalEntry.createdAt,
+        modifiedAt: externalEntry.updatedAt
+      }
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('2.0 KB')).toBeInTheDocument()
+    expect(screen.queryByText('1.0 KB')).not.toBeInTheDocument()
+  })
+
+  it('retries pending hydration after leaving and re-entering a view', async () => {
+    const firstActiveMetadata = deferred<Record<string, unknown>>()
+    let activeMetadataRequestCount = 0
+    mockFileStats(statsForEntries([externalEntry, trashedEntry]))
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash
+        ? [{ items: [trashedEntry] }]
+        : [{ items: [externalEntry] }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    ipcMocks.request.mockImplementation((route: string, input: unknown) => {
+      const ids =
+        route === 'file.batch_get_metadata'
+          ? (input as { items: Array<{ key: string }> }).items.map(({ key }) => key)
+          : (input as { ids: string[] }).ids
+      if (route === 'file.batch_get_metadata' && ids.includes(externalEntry.id)) {
+        activeMetadataRequestCount += 1
+        if (activeMetadataRequestCount === 1) return firstActiveMetadata.promise
+      }
+      return Promise.resolve(Object.fromEntries(ids.map((id) => [id, null])))
+    })
+    render(<FilesPage />)
+
+    await waitFor(() => expect(activeMetadataRequestCount).toBe(1))
+    fireEvent.click(screen.getByText('files.trash'))
+    await screen.findByText('trashed.txt')
+    fireEvent.click(screen.getByText('files.all'))
+
+    await waitFor(() => expect(activeMetadataRequestCount).toBe(2))
   })
 
   it('applies a pending hydration response after StrictMode replays effects', async () => {
