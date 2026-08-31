@@ -117,7 +117,7 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-vi.mock('@main/utils/claudeProjectDirectory', () => ({
+vi.mock('../claudeProjectDirectory', () => ({
   ensureTranscriptAvailableForWorkspace: mocks.ensureTranscriptAvailableForWorkspace
 }))
 

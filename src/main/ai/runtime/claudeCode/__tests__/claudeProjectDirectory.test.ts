@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { claudeProjectDirectoryName, ensureTranscriptAvailableForWorkspace } from '@main/utils/claudeProjectDirectory'
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { claudeProjectDirectoryName, ensureTranscriptAvailableForWorkspace } from '../claudeProjectDirectory'
 
 const roots: string[] = []
 
@@ -68,6 +69,26 @@ describe('ensureTranscriptAvailableForWorkspace', () => {
 
     expect(results).toContain('copied')
     expect(results.every((result) => result === 'copied' || result === 'present')).toBe(true)
+  })
+
+  it('atomically repairs an interrupted destination copy', async () => {
+    const fixture = await createFixture()
+    const oldDirectory = path.join(fixture.projectsDirectory, 'old-workspace-key')
+    const targetDirectory = path.join(
+      fixture.projectsDirectory,
+      claudeProjectDirectoryName(path.resolve(fixture.workspacePath))
+    )
+    await mkdir(oldDirectory)
+    await mkdir(targetDirectory)
+    await writeFile(path.join(oldDirectory, 'session-1.jsonl'), 'complete restored history')
+    await writeFile(path.join(targetDirectory, 'session-1.jsonl'), 'partial')
+
+    await expect(
+      ensureTranscriptAvailableForWorkspace(fixture.claudeRoot, fixture.workspacePath, 'session-1')
+    ).resolves.toBe('copied')
+    await expect(readFile(path.join(targetDirectory, 'session-1.jsonl'), 'utf8')).resolves.toBe(
+      'complete restored history'
+    )
   })
 
   it('returns missing when no matching transcript exists', async () => {
