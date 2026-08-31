@@ -1,10 +1,10 @@
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { getWebSearchCapabilityTitleKey } from '@renderer/utils/webSearchProviderMeta'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ToolSourceSettings } from './components/ToolSourceSettings'
 import { WebSearchGeneralSettings } from './components/WebSearchGeneralSettings'
 import { WebSearchProviderSetting } from './components/WebSearchProviderSetting'
 import { useWebSearchProviderLists } from './hooks/useWebSearchProviderLists'
@@ -21,7 +21,6 @@ const webSearchFieldClassName =
 const WebSearchSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { searchClientToolsPreferred, fetchClientToolsPreferred } = useWebSearchSettings()
   const {
     defaultFetchUrlsProvider,
     defaultSearchKeywordsProvider,
@@ -49,13 +48,6 @@ const WebSearchSettings: FC = () => {
 
         const sectionTitle = t(getWebSearchCapabilityTitleKey(section.capability))
         const sectionTitleId = `web-search-${section.capability}-title`
-        const clientToolsPreferred =
-          section.capability === 'fetchUrls' ? fetchClientToolsPreferred : searchClientToolsPreferred
-        const sourcePolicySummary = t(
-          clientToolsPreferred
-            ? 'settings.tool.websearch.source_policy.configured_first'
-            : 'settings.tool.websearch.source_policy.model_first'
-        )
 
         return (
           <section key={section.capability} className="mt-4 first:mt-0" aria-labelledby={sectionTitleId}>
@@ -66,7 +58,6 @@ const WebSearchSettings: FC = () => {
               providerOverrides={providerOverrides}
               sectionTitle={sectionTitle}
               sectionTitleId={sectionTitleId}
-              sourcePolicySummary={sourcePolicySummary}
               onSetApiKeys={setApiKeys}
               onSetBasicAuth={setBasicAuth}
               onSetCapabilityApiHost={setCapabilityApiHost}
@@ -74,11 +65,12 @@ const WebSearchSettings: FC = () => {
                 section.capability === 'fetchUrls' ? setDefaultFetchUrlsProvider : setDefaultSearchKeywordsProvider
               }
               onUpdateProvider={updateProvider}>
-              <WebSearchGeneralSettings capability={section.capability} variant="plain" />
+              {section.capability === 'searchKeywords' ? <WebSearchGeneralSettings variant="plain" /> : null}
             </WebSearchProviderSetting>
           </section>
         )
       })}
+      <ToolSourceSettings />
     </SettingsContentColumn>
   )
 }

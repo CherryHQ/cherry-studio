@@ -32,11 +32,6 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
   })
 
-  it('defaults each web capability to model-native tools', () => {
-    expect(DefaultPreferences.default['chat.web_search.search_keywords.client_tools_preferred']).toBe(false)
-    expect(DefaultPreferences.default['chat.web_search.fetch_urls.client_tools_preferred']).toBe(false)
-  })
-
   it('groups conversations and agent sessions by the assistant and agent defaults for new users', () => {
     const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
     const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'

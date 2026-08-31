@@ -169,8 +169,7 @@ describe('WebSearchButton', () => {
     mocks.provider = undefined
     mocks.providerLookupId = undefined
     MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_keywords.client_tools_preferred', true)
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.fetch_urls.client_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
@@ -332,8 +331,7 @@ describe('WebSearchButton', () => {
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
     unmount()
 
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_keywords.client_tools_preferred', false)
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.fetch_urls.client_tools_preferred', false)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', false)
     mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
     mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
 
