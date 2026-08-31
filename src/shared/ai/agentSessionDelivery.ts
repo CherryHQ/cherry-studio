@@ -52,7 +52,6 @@ export type AgentSessionDelivery = z.infer<typeof AgentSessionDeliverySchema>
 
 export const SESSION_LIST_TOOL_NAME = 'session_list'
 export const SESSION_SEARCH_TOOL_NAME = 'session_search'
-export const SESSION_RENAME_TOOL_NAME = 'session_rename'
 export const SESSION_CREATE_TOOL_NAME = 'session_create'
 export const SESSION_DELIVERIES_TOOL_NAME = 'session_deliveries'
 export const SESSION_SEND_TOOL_NAME = 'session_send'

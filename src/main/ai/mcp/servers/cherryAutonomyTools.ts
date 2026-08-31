@@ -25,7 +25,6 @@ import {
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
-  SESSION_RENAME_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
@@ -34,6 +33,8 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
+
+import { SESSION_RENAME_TOOL_NAME } from './cherryAutonomyToolNames'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
 
