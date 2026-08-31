@@ -128,8 +128,8 @@ interface ConnectionMaterializationFacts {
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
-  /** Whether trace variables were actually materialized into this subprocess request. */
-  developerTracingEnabled: boolean
+  /** Exact trace-runtime lifecycle that materialized this subprocess request. */
+  developerTracingGeneration: number | null
 }
 
 /**
@@ -391,8 +391,8 @@ async function deriveConnectionConfigFromSnapshot(
     language: getAppLanguage(),
     // Claude Code receives telemetry variables only when the subprocess is spawned. Prefer the
     // exact materialized result; pure reconciles use the bridge's synchronous admission snapshot.
-    developerTracingEnabled:
-      materialized?.developerTracingEnabled ?? application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled(),
+    developerTracingGeneration:
+      materialized?.developerTracingGeneration ?? application.get('ClaudeCodeTraceBridgeService').getTraceGeneration(),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -546,7 +546,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   // Prepare tracing before freezing the connection baseline so the signature describes the exact
   // environment handed to the child, even when developer mode toggles during async materialization.
-  const traceEnv = trace ? await application.get('ClaudeCodeTraceBridgeService').prepareTrace(trace) : undefined
+  const preparedTrace = trace ? await application.get('ClaudeCodeTraceBridgeService').prepareTrace(trace) : undefined
+  const traceEnv = preparedTrace?.env
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
@@ -564,7 +565,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
-      developerTracingEnabled: Boolean(traceEnv),
+      developerTracingGeneration: preparedTrace?.generation ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       })

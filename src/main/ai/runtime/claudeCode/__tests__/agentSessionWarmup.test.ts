@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   getClaudeCodeLoginShellEnvironment: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   isTraceModeEnabled: vi.fn(),
+  getTraceGeneration: vi.fn(),
   prepareTrace: vi.fn()
 }))
 
@@ -90,7 +91,11 @@ vi.mock('@application', () => ({
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
       }
       if (name === 'ClaudeCodeTraceBridgeService') {
-        return { isTraceModeEnabled: mocks.isTraceModeEnabled, prepareTrace: mocks.prepareTrace }
+        return {
+          isTraceModeEnabled: mocks.isTraceModeEnabled,
+          getTraceGeneration: mocks.getTraceGeneration,
+          prepareTrace: mocks.prepareTrace
+        }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -188,6 +193,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getTraceGeneration.mockReturnValue(null)
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
@@ -252,7 +258,10 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       sessionId: 'session-1',
       turnId: 'turn-1'
     }
-    mocks.prepareTrace.mockResolvedValue({ TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` })
+    mocks.prepareTrace.mockResolvedValue({
+      generation: 1,
+      env: { TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` }
+    })
 
     const traced = await buildClaudeCodeQueryRequestForAgentSession(
       'session-1',
@@ -275,8 +284,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
 
     expect(traced?.options.env).toMatchObject({ TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` })
-    expect(traced?.connectionConfig.rebuildFactFingerprints.developerTracingEnabled).not.toBe(
-      untraced?.connectionConfig.rebuildFactFingerprints.developerTracingEnabled
+    expect(traced?.connectionConfig.rebuildFactFingerprints.developerTracingGeneration).not.toBe(
+      untraced?.connectionConfig.rebuildFactFingerprints.developerTracingGeneration
     )
   })
 
@@ -1204,6 +1213,7 @@ describe('deriveConnectionConfig', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
     mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getTraceGeneration.mockReturnValue(null)
     mocks.prepareTrace.mockResolvedValue(undefined)
   })
 
@@ -1255,14 +1265,30 @@ describe('deriveConnectionConfig', () => {
 
   it('rebuilds a persisted Claude Code connection when developer tracing changes', async () => {
     mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getTraceGeneration.mockReturnValue(null)
     const disabled = await deriveSignature()
 
     mocks.isTraceModeEnabled.mockReturnValue(true)
+    mocks.getTraceGeneration.mockReturnValue(1)
     const enabled = await deriveSignature()
 
     expect(enabled.rebuildSignature).not.toBe(disabled.rebuildSignature)
-    expect(enabled.rebuildFactFingerprints.developerTracingEnabled).not.toBe(
-      disabled.rebuildFactFingerprints.developerTracingEnabled
+    expect(enabled.rebuildFactFingerprints.developerTracingGeneration).not.toBe(
+      disabled.rebuildFactFingerprints.developerTracingGeneration
+    )
+  })
+
+  it('rebuilds when tracing is re-enabled with a new collector generation', async () => {
+    mocks.isTraceModeEnabled.mockReturnValue(true)
+    mocks.getTraceGeneration.mockReturnValue(1)
+    const firstEnabled = await deriveSignature()
+
+    mocks.getTraceGeneration.mockReturnValue(2)
+    const reenabled = await deriveSignature()
+
+    expect(reenabled.rebuildSignature).not.toBe(firstEnabled.rebuildSignature)
+    expect(reenabled.rebuildFactFingerprints.developerTracingGeneration).not.toBe(
+      firstEnabled.rebuildFactFingerprints.developerTracingGeneration
     )
   })
 

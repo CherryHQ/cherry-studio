@@ -463,7 +463,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`
     }
-    prepareTraceMock.mockResolvedValue(traceEnv)
+    prepareTraceMock.mockResolvedValue({ generation: 1, env: traceEnv })
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
     buildWarmRequestMock.mockResolvedValueOnce({

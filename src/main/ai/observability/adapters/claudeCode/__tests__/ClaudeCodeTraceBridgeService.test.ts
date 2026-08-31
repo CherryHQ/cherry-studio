@@ -49,6 +49,13 @@ async function createActivatedService(): Promise<InstanceType<typeof ClaudeCodeT
   return service
 }
 
+async function prepareEnv(
+  service: InstanceType<typeof ClaudeCodeTraceBridgeService>,
+  context = traceContext
+): Promise<Record<string, string> | undefined> {
+  return (await service.prepareTrace(context))?.env
+}
+
 describe('ClaudeCodeTraceBridgeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -72,8 +79,10 @@ describe('ClaudeCodeTraceBridgeService', () => {
   it('lazily starts the collector and returns Claude Code telemetry env', async () => {
     const service = await createActivatedService()
 
-    const env = await service.prepareTrace(traceContext)
+    const prepared = await service.prepareTrace(traceContext)
+    const env = prepared?.env
 
+    expect(prepared?.generation).toBe(1)
     expect(env).toMatchObject({
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
@@ -99,7 +108,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
   it('ingests trace and log payloads through the local OTLP endpoints', async () => {
     const service = await createActivatedService()
-    const env = await service.prepareTrace(traceContext)
+    const env = await prepareEnv(service)
 
     await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
       method: 'POST',
@@ -165,7 +174,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
   it('uses the admitted turn after a primed connection refreshes its trace context', async () => {
     const service = await createActivatedService()
-    const env = await service.prepareTrace({ ...traceContext, turnId: '' })
+    const env = await prepareEnv(service, { ...traceContext, turnId: '' })
 
     service.refreshTraceContext(traceContext)
     await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
@@ -204,7 +213,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
   it('requires JSON content type for OTLP endpoints', async () => {
     const service = await createActivatedService()
-    const env = await service.prepareTrace(traceContext)
+    const env = await prepareEnv(service)
 
     const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
       method: 'POST',
@@ -220,7 +229,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
   it('matches OTLP endpoint pathname and accepts gzip JSON payloads', async () => {
     const service = await createActivatedService()
-    const env = await service.prepareTrace(traceContext)
+    const env = await prepareEnv(service)
 
     const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces?ignored=1`, {
       method: 'POST',
@@ -259,7 +268,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
   it('rejects a gzip payload that decompresses beyond the size cap (gzip bomb)', async () => {
     const service = await createActivatedService()
-    const env = await service.prepareTrace(traceContext)
+    const env = await prepareEnv(service)
 
     // ~11 MiB of repeating bytes gzips to a few KB (well under the 10 MiB input cap), but
     // decompresses past the 10 MiB output cap — must be rejected without inflating it fully.
@@ -304,6 +313,20 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
     await expect(service.prepareTrace(traceContext)).resolves.toBeUndefined()
     expect((service as any).server).toBeUndefined()
+  })
+
+  it('changes generation after tracing is disabled and re-enabled', async () => {
+    const service = await createActivatedService()
+    const first = await service.prepareTrace(traceContext)
+
+    await service._doDeactivate()
+    await service._doActivate()
+    const second = await service.prepareTrace({ ...traceContext, turnId: 'turn-2' })
+
+    expect(first?.generation).toBe(1)
+    expect(second?.generation).toBe(2)
+    expect(second?.env.BETA_TRACING_ENDPOINT).not.toBe(first?.env.BETA_TRACING_ENDPOINT)
+    await service._doStop()
   })
 
   it('closes admission synchronously and drains an in-flight lazy start during deactivation', async () => {

@@ -184,16 +184,16 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (!traceBridge.isTraceModeEnabled()) return request
 
     const traceId = agentSessionService.ensureTraceId(sessionId)
-    const traceEnv = await traceBridge.prepareTrace({
+    const preparedTrace = await traceBridge.prepareTrace({
       topicId: buildAgentSessionTopicId(sessionId),
       traceId,
       rootSpanId: deriveRootSpanId(traceId),
       sessionId,
       turnId: ''
     })
-    if (!traceEnv) return request
+    if (!preparedTrace) return request
 
-    return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
+    return { ...request, options: { ...request.options, env: { ...request.options.env, ...preparedTrace.env } } }
   }
 
   closeAgentSessionWarm(sessionId: string): void {
