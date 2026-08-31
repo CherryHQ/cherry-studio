@@ -4,6 +4,7 @@ import type * as CherryStudioUi from '@cherrystudio/ui'
 import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -236,6 +237,7 @@ describe('WebSearchSettings', () => {
   })
 
   it('persists search and fetch source priorities independently', async () => {
+    const user = userEvent.setup()
     render(<WebSearchSettings />)
 
     const keywordProviderSection = getKeywordProviderSection()
@@ -247,8 +249,8 @@ describe('WebSearchSettings', () => {
       within(fetchProviderSection).getByText('settings.tool.websearch.source_policy.configured_first')
     ).toBeVisible()
 
-    fireEvent.click(getAdvancedSettingsTrigger(keywordProviderSection))
-    fireEvent.click(getAdvancedSettingsTrigger(fetchProviderSection))
+    await user.click(getAdvancedSettingsTrigger(keywordProviderSection))
+    await user.click(getAdvancedSettingsTrigger(fetchProviderSection))
 
     const searchPrioritySwitch = within(keywordProviderSection).getByRole('switch', {
       name: 'settings.tool.websearch.search_client_tools_preferred.label'
@@ -259,7 +261,7 @@ describe('WebSearchSettings', () => {
     expect(searchPrioritySwitch).toHaveAttribute('aria-checked', 'true')
     expect(fetchPrioritySwitch).toHaveAttribute('aria-checked', 'true')
 
-    fireEvent.click(searchPrioritySwitch)
+    await user.click(searchPrioritySwitch)
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.search_keywords.client_tools_preferred')).toBe(
