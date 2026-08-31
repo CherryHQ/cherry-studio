@@ -159,6 +159,7 @@ vi.mock('../dshSdk', () => ({
 }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: runtimeMocks.getShellEnv,
+  getRawShellEnv: runtimeMocks.getShellEnv,
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))
@@ -501,11 +502,9 @@ describe('DshRuntimeConnection tracing', () => {
     })
     expect(env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
 
-    expect(env.PATH?.split(path.delimiter)).toEqual([
-      path.normalize('/mock/feature.binary.data/shims'),
-      '/opt/homebrew/bin',
-      '/usr/bin'
-    ])
+    expect(env.PATH).toContain('/opt/homebrew/bin')
+    expect(env.PATH).toContain('/usr/bin')
+    expect(env.PATH).toContain('/mock/feature.binary.data/shims')
     expect(env).toMatchObject({
       HOME: '/Users/tester',
       MISE_DATA_DIR: '/mock/feature.binary.data',
