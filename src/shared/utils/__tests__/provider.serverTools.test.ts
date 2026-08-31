@@ -64,7 +64,8 @@ describe('server-tool model eligibility', () => {
         webSearchEnabled: true,
         clientSearchAvailable: true,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false,
         endpointType
       })
 
@@ -121,7 +122,8 @@ describe('server-tool model eligibility', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false,
         hasFunctionToolSignals: true
       })
     ).toMatchObject({ webSearch: 'none', reasons: { webSearch: 'gemini-function-tool-conflict' } })
@@ -137,7 +139,8 @@ describe('server-tool model eligibility', () => {
           webSearchEnabled: true,
           clientSearchAvailable: false,
           clientFetchAvailable: false,
-          clientToolsPreferred: false,
+          clientSearchPreferred: false,
+          clientFetchPreferred: false,
           hasFunctionToolSignals: true
         }
       )
@@ -167,21 +170,51 @@ describe('web-tool routing', () => {
   }
 
   it('selects the preferred side for both search and fetch when both sides are available', () => {
-    expect(resolveWebToolRoutes(claude, serverProvider, { ...bothEnabled, clientToolsPreferred: true })).toEqual({
+    expect(
+      resolveWebToolRoutes(claude, serverProvider, {
+        ...bothEnabled,
+        clientSearchPreferred: true,
+        clientFetchPreferred: true
+      })
+    ).toEqual({
       webSearch: 'client',
       webFetch: 'client'
     })
-    expect(resolveWebToolRoutes(claude, serverProvider, { ...bothEnabled, clientToolsPreferred: false })).toEqual({
+    expect(
+      resolveWebToolRoutes(claude, serverProvider, {
+        ...bothEnabled,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false
+      })
+    ).toEqual({
       webSearch: 'server',
       webFetch: 'server'
     })
+  })
+
+  it('selects search and fetch sources independently when the model supports mixed tools', () => {
+    expect(
+      resolveWebToolRoutes(claude, serverProvider, {
+        ...bothEnabled,
+        clientSearchPreferred: false,
+        clientFetchPreferred: true
+      })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
+    expect(
+      resolveWebToolRoutes(claude, serverProvider, {
+        ...bothEnabled,
+        clientSearchPreferred: true,
+        clientFetchPreferred: false
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'server' })
   })
 
   it('falls back only when the preferred side has no enabled capability', () => {
     expect(
       resolveWebToolRoutes(claude, { serverTools: [] } as unknown as Provider, {
         ...bothEnabled,
-        clientToolsPreferred: false
+        clientSearchPreferred: false,
+        clientFetchPreferred: false
       })
     ).toEqual({
       webSearch: 'client',
@@ -189,20 +222,22 @@ describe('web-tool routing', () => {
     })
   })
 
-  it('never mixes client and server tools when the selected side lacks one capability', () => {
+  it('falls back each capability without changing the other route', () => {
     expect(
       resolveWebToolRoutes(claude, provider('all-chat-models'), {
         ...bothEnabled,
-        clientToolsPreferred: false
+        clientSearchPreferred: false,
+        clientFetchPreferred: false
       })
-    ).toEqual({ webSearch: 'server', webFetch: 'none', reasons: { webFetch: 'no-backend' } })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
     expect(
       resolveWebToolRoutes(claude, serverProvider, {
         ...bothEnabled,
         clientSearchAvailable: false,
-        clientToolsPreferred: true
+        clientSearchPreferred: true,
+        clientFetchPreferred: true
       })
-    ).toEqual({ webSearch: 'none', webFetch: 'client', reasons: { webSearch: 'no-backend' } })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
   })
 
   it('recognizes provider-native URL fetch for supported model families', () => {
@@ -237,7 +272,8 @@ describe('web-tool routing', () => {
     expect(
       resolveWebToolRoutes(model('private-model'), { serverTools: [] } as unknown as Provider, {
         ...bothEnabled,
-        clientToolsPreferred: true
+        clientSearchPreferred: true,
+        clientFetchPreferred: true
       })
     ).toEqual({
       webSearch: 'none',
@@ -263,8 +299,21 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: true,
         clientFetchAvailable: true,
-        clientToolsPreferred: false,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false,
         hasFunctionToolSignals: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'client' })
+  })
+
+  it('reconciles mixed source preferences to client tools for incompatible Gemini models', () => {
+    expect(
+      resolveWebToolRoutes(gemini25, geminiProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: true,
+        clientSearchPreferred: false,
+        clientFetchPreferred: true
       })
     ).toEqual({ webSearch: 'client', webFetch: 'client' })
   })
@@ -275,7 +324,8 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false,
         hasFunctionToolSignals: true
       })
     ).toEqual({
@@ -297,7 +347,8 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false,
         reasoningEffort: 'minimal'
       })
     ).toEqual({
@@ -310,7 +361,8 @@ describe('conflict-aware routing', () => {
         webSearchEnabled: true,
         clientSearchAvailable: false,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        clientSearchPreferred: false,
+        clientFetchPreferred: false,
         reasoningEffort: 'high'
       })
     ).toMatchObject({ webSearch: 'server' })

@@ -302,8 +302,8 @@ export function isBuiltinWebFetchAvailable(
 }
 
 /**
- * Select one web-tool side for a request, then expose only the capabilities
- * available on that side.
+ * Select the preferred source for each web capability, then reconcile model
+ * protocols that cannot mix native tools with function tools.
  *
  * Provider/model conflicts (pre-3 Gemini native tools × function tools, OpenAI
  * GPT-5 minimal reasoning × native web_search) enter here as availability
@@ -318,7 +318,8 @@ export function resolveWebToolRoutes(
     webSearchEnabled: boolean
     clientSearchAvailable: boolean
     clientFetchAvailable: boolean
-    clientToolsPreferred: boolean
+    clientSearchPreferred: boolean
+    clientFetchPreferred: boolean
     /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive in the renderer. */
     hasFunctionToolSignals?: boolean
     /** Effective reasoning effort selection for the request. */
@@ -350,38 +351,47 @@ export function resolveWebToolRoutes(
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
   const serverFetchAvailable = serverFetchEligible && !googleToolConflict
-  const clientAvailable = clientSearchAvailable || clientFetchAvailable
-  const serverAvailable = serverSearchAvailable || serverFetchAvailable
-
-  const selectedSide: Exclude<WebToolRoute, 'none'> | undefined = options.clientToolsPreferred
-    ? clientAvailable
-      ? 'client'
+  const selectRoute = (clientPreferred: boolean, clientAvailable: boolean, serverAvailable: boolean): WebToolRoute =>
+    clientPreferred
+      ? clientAvailable
+        ? 'client'
+        : serverAvailable
+          ? 'server'
+          : 'none'
       : serverAvailable
         ? 'server'
-        : undefined
-    : serverAvailable
-      ? 'server'
-      : clientAvailable
-        ? 'client'
-        : undefined
+        : clientAvailable
+          ? 'client'
+          : 'none'
 
-  const webSearch: WebToolRoute =
-    selectedSide === 'client' && clientSearchAvailable
-      ? 'client'
-      : selectedSide === 'server' && serverSearchAvailable
-        ? 'server'
-        : 'none'
-  const webFetch: WebToolRoute =
-    selectedSide === 'client' && clientFetchAvailable
-      ? 'client'
-      : selectedSide === 'server' && serverFetchAvailable
-        ? 'server'
-        : 'none'
+  let webSearch = selectRoute(options.clientSearchPreferred, clientSearchAvailable, serverSearchAvailable)
+  let webFetch = selectRoute(options.clientFetchPreferred, clientFetchAvailable, serverFetchAvailable)
+  let searchHasMixedToolConflict = false
+  let fetchHasMixedToolConflict = false
+
+  const mixesClientAndServer =
+    (webSearch === 'client' && webFetch === 'server') || (webSearch === 'server' && webFetch === 'client')
+  if (
+    mixesClientAndServer &&
+    provider !== undefined &&
+    servesGeminiNativeWebTools(provider) &&
+    isGeminiModel(model) &&
+    !supportsServerToolFunctionMixing(getRawModelId(model))
+  ) {
+    if (webSearch === 'server') {
+      webSearch = clientSearchAvailable ? 'client' : 'none'
+      searchHasMixedToolConflict = webSearch === 'none'
+    }
+    if (webFetch === 'server') {
+      webFetch = clientFetchAvailable ? 'client' : 'none'
+      fetchHasMixedToolConflict = webFetch === 'none'
+    }
+  }
 
   const reasons: NonNullable<WebToolRoutes['reasons']> = {}
   if (webSearch === 'none') {
     reasons.webSearch =
-      serverSearchEligible && googleToolConflict
+      searchHasMixedToolConflict || (serverSearchEligible && googleToolConflict)
         ? 'gemini-function-tool-conflict'
         : serverSearchEligible && openaiMinimalConflict
           ? 'openai-minimal-reasoning'
@@ -391,7 +401,7 @@ export function resolveWebToolRoutes(
   }
   if (webFetch === 'none') {
     reasons.webFetch =
-      serverFetchEligible && googleToolConflict
+      fetchHasMixedToolConflict || (serverFetchEligible && googleToolConflict)
         ? 'gemini-function-tool-conflict'
         : options.clientFetchAvailable && !supportsClientTools
           ? 'model-unsupported'

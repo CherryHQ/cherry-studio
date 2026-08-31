@@ -724,14 +724,15 @@ describe('buildAgentParams web-tool routing', () => {
   })
 
   it.each([
-    { clientToolsPreferred: true, expectedRoute: 'client' },
-    { clientToolsPreferred: false, expectedRoute: 'server' }
+    { clientPreferred: true, expectedRoute: 'client' },
+    { clientPreferred: false, expectedRoute: 'server' }
   ])(
-    'injects only $expectedRoute implementations when preference is $clientToolsPreferred',
-    async ({ clientToolsPreferred, expectedRoute }) => {
+    'injects only $expectedRoute implementations when both preferences are $clientPreferred',
+    async ({ clientPreferred, expectedRoute }) => {
       const preferences = new Map<string, unknown>([
         ['app.developer_mode.enabled', false],
-        ['chat.web_search.client_tools_preferred', clientToolsPreferred],
+        ['chat.web_search.search_keywords.client_tools_preferred', clientPreferred],
+        ['chat.web_search.fetch_urls.client_tools_preferred', clientPreferred],
         ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
         ['chat.web_search.default_fetch_urls_provider', 'jina'],
         ['chat.web_search.provider_overrides', {}],
@@ -756,6 +757,29 @@ describe('buildAgentParams web-tool routing', () => {
       expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
     }
   )
+
+  it('injects mixed search and fetch sources when their preferences differ', async () => {
+    const preferences = new Map<string, unknown>([
+      ['app.developer_mode.enabled', false],
+      ['chat.web_search.search_keywords.client_tools_preferred', false],
+      ['chat.web_search.fetch_urls.client_tools_preferred', true],
+      ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+      ['chat.web_search.default_fetch_urls_provider', 'jina'],
+      ['chat.web_search.provider_overrides', {}],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+    registry.register(clientFetchEntry)
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
+    expect(result.plugins.some((plugin) => plugin.name === 'urlContext')).toBe(false)
+    expect(result.tools?.web_search).toBeUndefined()
+    expect(result.tools?.web_fetch).toBe(clientFetchEntry.tool)
+  })
 
   it('disables Responses storage for assistant-backed calls too', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
@@ -821,7 +845,8 @@ describe('buildAgentParams web-tool routing', () => {
       })
       const preferences = new Map<string, unknown>([
         ['app.developer_mode.enabled', false],
-        ['chat.web_search.client_tools_preferred', false],
+        ['chat.web_search.search_keywords.client_tools_preferred', false],
+        ['chat.web_search.fetch_urls.client_tools_preferred', false],
         ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
         ['chat.web_search.provider_overrides', {}],
         ['chat.web_search.max_results', 5],
@@ -867,7 +892,8 @@ describe('buildAgentParams web-tool routing', () => {
         capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
       })
       preferenceGetMock.mockImplementation((key: string) => {
-        if (key === 'chat.web_search.client_tools_preferred') return false
+        if (key === 'chat.web_search.search_keywords.client_tools_preferred') return false
+        if (key === 'chat.web_search.fetch_urls.client_tools_preferred') return false
         if (key === 'chat.web_search.max_results') return 5
         if (key === 'chat.web_search.exclude_domains') return []
         return null
@@ -908,9 +934,11 @@ describe('buildAgentParams web-tool routing', () => {
       apiModelId: 'gemini-2.5-pro',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
-    preferenceGetMock.mockImplementation((key: string) =>
-      key === 'chat.web_search.client_tools_preferred' ? false : null
-    )
+    preferenceGetMock.mockImplementation((key: string) => {
+      if (key === 'chat.web_search.search_keywords.client_tools_preferred') return false
+      if (key === 'chat.web_search.fetch_urls.client_tools_preferred') return false
+      return null
+    })
     registry.register(clientSearchEntry)
 
     const result = await buildAgentParams({
