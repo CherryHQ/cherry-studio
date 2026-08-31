@@ -25,12 +25,7 @@ import {
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import {
-  finalizeWebToolRoutes,
-  isOllamaProvider,
-  resolveWebToolRoutes,
-  type WebToolRoutes
-} from '@shared/utils/provider'
+import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -39,7 +34,6 @@ import { collectRetainedContext, type RetainedContext } from '../../../messages/
 import { createHttpTraceFetch } from '../../../observability'
 import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
-import { resolveOllamaModelContextWindow } from '../../../provider/custom/ollama/modelInfo'
 import {
   resolveAiSdkProviderId,
   type ResolvedEndpoint,
@@ -47,6 +41,7 @@ import {
   resolveProviderOptionsKey,
   resolveWireModelId
 } from '../../../provider/endpoint'
+import { resolveRuntimeModel } from '../../../provider/runtimeModel'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -142,13 +137,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride,
     request.chatId
   )
-  const model = await resolveRuntimeModel(
-    provider,
-    configuredModel,
+  const model = await resolveRuntimeModel(provider, configuredModel, {
     signal,
-    getSdkApiKey(sdkConfig),
-    resolvedEndpoint.baseUrl
-  )
+    apiKey: getSdkApiKey(sdkConfig),
+    baseUrl: resolvedEndpoint.baseUrl,
+    fetch: getSdkFetch(sdkConfig)
+  })
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
@@ -334,36 +328,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-async function resolveRuntimeModel(
-  provider: Provider,
-  model: Model,
-  signal: AbortSignal | undefined,
-  apiKey: string | undefined,
-  baseUrl: string
-): Promise<Model> {
-  if (!isOllamaProvider(provider) || model.contextWindow || !model.apiModelId) return model
-
-  try {
-    const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId, {
-      signal,
-      apiKey,
-      baseUrl
-    })
-    return contextWindow ? { ...model, contextWindow } : model
-  } catch (error) {
-    if (signal?.aborted) throw error
-    logger.warn('Failed to resolve Ollama context window; continuing with configured model metadata', {
-      providerId: provider.id,
-      modelId: model.apiModelId,
-      error
-    })
-    return model
-  }
-}
-
 function getSdkApiKey(sdkConfig: SdkConfig): string | undefined {
   const apiKey = (sdkConfig.providerSettings as { apiKey?: unknown }).apiKey
   return typeof apiKey === 'string' ? apiKey : undefined
+}
+
+function getSdkFetch(sdkConfig: SdkConfig): typeof fetch | undefined {
+  const configuredFetch = (sdkConfig.providerSettings as { fetch?: unknown }).fetch
+  return typeof configuredFetch === 'function' ? (configuredFetch as typeof fetch) : undefined
 }
 
 /**

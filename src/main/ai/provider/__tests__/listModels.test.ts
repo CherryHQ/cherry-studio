@@ -243,18 +243,21 @@ describe('listModels — Ollama capabilities', () => {
   })
 
   it('uses the already-selected credential when resolving runtime model metadata', async () => {
+    const configuredFetch = vi.fn()
     postJsonToApiMock.mockResolvedValueOnce({
       value: { model_info: { 'llama.context_length': 32_768 } }
     })
     const provider = makeOllamaProvider()
 
     await resolveOllamaModelContextWindow(provider, 'runtime-only:latest', {
-      apiKey: 'selected-secret-key'
+      apiKey: 'selected-secret-key',
+      fetch: configuredFetch
     })
 
     expect(resolveApiKeyMock).not.toHaveBeenCalled()
     expect(postJsonToApiMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        fetch: configuredFetch,
         headers: expect.objectContaining({
           authorization: 'Bearer selected-secret-key',
           'x-api-key': 'selected-secret-key'

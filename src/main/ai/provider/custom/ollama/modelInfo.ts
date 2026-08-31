@@ -1,6 +1,7 @@
 import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
+  type FetchFunction,
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
@@ -50,7 +51,7 @@ export function extractOllamaContextWindow(modelInfo: Record<string, unknown> | 
 export async function resolveOllamaModelContextWindow(
   provider: Provider,
   modelApiId: string,
-  options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string }
+  options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string; fetch?: FetchFunction }
 ): Promise<number | undefined> {
   const baseUrl = formatOllamaApiHost(options?.baseUrl ?? getBaseUrl(provider))
   const cacheKey = `${baseUrl}\n${modelApiId}`
@@ -72,7 +73,7 @@ async function fetchOllamaModelContextWindow(
   provider: Provider,
   modelApiId: string,
   baseUrl: string,
-  options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string }
+  options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string; fetch?: FetchFunction }
 ): Promise<number | undefined> {
   const { value } = await postJsonToApi({
     url: `${baseUrl}/show`,
@@ -83,7 +84,8 @@ async function fetchOllamaModelContextWindow(
       errorSchema: zodSchema(OllamaErrorSchema),
       errorToMessage: (error) => error.error ?? error.message ?? 'Unknown Ollama error'
     }),
-    abortSignal: options?.signal
+    abortSignal: options?.signal,
+    fetch: options?.fetch
   })
 
   return extractOllamaContextWindow(value.model_info)
