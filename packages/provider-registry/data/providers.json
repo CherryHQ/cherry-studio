@@ -727,6 +727,33 @@
     {
       "authOptional": true,
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "llmman - AI model provider",
+      "endpointConfigs": {
+        "anthropic-messages": {
+          "adapterFamily": "anthropic",
+          "baseUrl": "http://localhost:17434"
+        },
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "http://localhost:17434",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        }
+      },
+      "id": "llmman",
+      "metadata": {
+        "website": {
+          "docs": "https://github.com/llmmanorg/llmman",
+          "models": "https://hub.docker.com/catalogs/models",
+          "official": "https://github.com/llmmanorg/llmman"
+        }
+      },
+      "name": "llmman"
+    },
+    {
+      "authOptional": true,
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2415,5 +2442,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4a6f7225220e7a46"
+  "version": "66ed54a3f01207c8"
 }
