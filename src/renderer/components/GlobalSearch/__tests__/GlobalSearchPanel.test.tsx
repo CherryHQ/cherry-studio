@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import type {
   EntitySearchResponse,
   SessionMessageContentSearchItem,
@@ -73,7 +74,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<typeof CherryStudioUI>()
   const React = await vi.importActual<ReactModule>('react')
   const DropdownMenuContext = React.createContext<{
     open: boolean

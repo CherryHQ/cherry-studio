@@ -1,3 +1,4 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
@@ -46,7 +47,7 @@ const hookMocks = vi.hoisted(() => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
   return {
-    ...(await importOriginal<typeof import('@cherrystudio/ui')>()),
+    ...(await importOriginal<typeof CherryStudioUI>()),
     ...MockCherrystudioUI
   }
 })

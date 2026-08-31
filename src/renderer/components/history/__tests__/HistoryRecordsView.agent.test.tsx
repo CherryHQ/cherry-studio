@@ -1,3 +1,4 @@
+import type * as CherryStudioUI from '@cherrystudio/ui'
 import { cacheService } from '@renderer/data/CacheService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -30,7 +31,7 @@ const hookMocks = vi.hoisted(() => ({
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
   return {
-    ...(await importOriginal<typeof import('@cherrystudio/ui')>()),
+    ...(await importOriginal<typeof CherryStudioUI>()),
     ...MockCherrystudioUI
   }
 })

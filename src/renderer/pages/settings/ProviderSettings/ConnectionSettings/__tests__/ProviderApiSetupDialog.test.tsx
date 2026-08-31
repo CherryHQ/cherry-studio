@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUIIcons from '@cherrystudio/ui/icons'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type { Model } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -57,7 +58,7 @@ vi.mock('@renderer/utils/model', async (importOriginal) => ({
 }))
 
 vi.mock('@cherrystudio/ui/icons', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@cherrystudio/ui/icons')>()),
+  ...(await importOriginal<typeof CherryStudioUIIcons>()),
   resolveProviderIconRef: () => undefined,
   useIcon: () => undefined
 }))
