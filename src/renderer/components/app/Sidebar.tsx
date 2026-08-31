@@ -43,6 +43,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const {
     favorites,
+    appFavorites,
     miniAppFavoriteIds,
     agentFavoriteIds,
     assistantFavoriteIds,
@@ -269,6 +270,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
+      visibleAppCount: appFavorites.length,
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
       openAgent: handleOpenAgentTab,
@@ -287,6 +289,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
+      appFavorites.length,
       handleNavigate,
       handleOpenMiniAppTab,
       handleOpenAgentTab,

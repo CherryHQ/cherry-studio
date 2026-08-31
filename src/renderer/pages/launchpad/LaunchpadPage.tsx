@@ -126,6 +126,7 @@ export default function LaunchpadPage() {
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
       if (!visibleSidebarFavoriteSet.has(favorite)) return
+      if (visibleSidebarFavoriteSet.size <= 1) return
       setAppPinned(favorite, false)
     },
     [setAppPinned, visibleSidebarFavoriteSet]
@@ -134,12 +135,14 @@ export default function LaunchpadPage() {
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
       const isPinned = visibleSidebarFavoriteSet.has(favorite)
+      const isLastPinned = isPinned && visibleSidebarFavoriteSet.size <= 1
 
       return [
         {
           type: 'item',
           id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+          enabled: !isLastPinned,
           onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]

@@ -344,6 +344,8 @@ export function reorderSidebarFavorites(
 /**
  * Pin or unpin a built-in app, preserving everything else in place. Pinning
  * appends to the end of the list; unpinning removes the app from the list.
+ * At least one built-in app is always retained so the sidebar never becomes
+ * empty with no recovery entry.
  */
 export function setSidebarAppPinned(
   favorites: readonly SidebarFavoriteItem[] | undefined,
@@ -355,6 +357,10 @@ export function setSidebarAppPinned(
   const isTarget = (item: SidebarFavoriteItem) => item.type === 'app' && item.id === id
 
   if (!pinned) {
+    const visibleAppIds = getOrderedVisibleSidebarFavorites(favorites)
+    if (visibleAppIds.length === 1 && visibleAppIds[0] === id) {
+      return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+    }
     return preserveForwardCompatibleSidebarFavoriteItems(
       favorites,
       items.filter((item) => !isTarget(item))

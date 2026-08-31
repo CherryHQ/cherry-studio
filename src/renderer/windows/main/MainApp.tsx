@@ -91,7 +91,7 @@ export function MainWindowContent(): React.ReactElement {
     () => ({
       id: 'home',
       type: 'route',
-      url: getSidebarDefaultLandingUrl(sidebarFavorites, defaultPaintingProvider) || '/app/chat',
+      url: getSidebarDefaultLandingUrl(sidebarFavorites, defaultPaintingProvider) || '/app/launchpad',
       title: '',
       lastAccessTime: Date.now(),
       isDormant: false
