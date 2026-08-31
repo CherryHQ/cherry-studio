@@ -43,9 +43,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
-  const { assistant: fallbackAssistant } = useAssistant(
-    !action.assistantId && quickAssistantId ? quickAssistantId : ''
-  )
+  const { assistant: fallbackAssistant } = useAssistant(!action.assistantId && quickAssistantId ? quickAssistantId : '')
   const chosenAssistantId = chosenAssistant?.id ?? fallbackAssistant?.id
   const waitingForConfiguredAssistant =
     (Boolean(action.assistantId) && !chosenAssistant?.id) ||
