@@ -12,8 +12,9 @@ import {
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
 import { defaultAppHeaders } from '@main/utils/http'
+import { getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
@@ -160,8 +161,13 @@ async function createStdio(
   // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
   const connectEnv: Record<string, string> = { ...server.env }
 
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
+  // Use the raw shell env so a user's own mise installation keeps its
+  // MISE_DATA_DIR / MISE_* contract. Overriding with Cherry's isolated
+  // MISE_DATA_DIR redirects system mise shims (e.g. pnpx) to the wrong
+  // data dir and surfaces as "not a valid shim" (#19738). Cherry's own
+  // bundled binaries still resolve via PATH tails added below.
+  const rawShellEnv = await getRawShellEnv()
+  const loginShellEnv = mergePathSuffixes(rawShellEnv, getBinarySearchDirs())
 
   // For package servers, use resolved configuration with platform overrides and variable substitution
   if (server.dxtPath) {

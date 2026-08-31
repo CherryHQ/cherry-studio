@@ -25,8 +25,8 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
+import { getBinaryExecutionEnv, getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getPathFromEnvironment, getRawShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -385,9 +385,24 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       await this.bridge.listen()
 
       const sdk = await loadDshSdk()
-      const loginShellEnv = await getShellEnv()
-      const loginPath = getPathFromEnvironment(loginShellEnv)
-      const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
+      const rawShellEnv = await getRawShellEnv()
+      const loginPath = getPathFromEnvironment(rawShellEnv)
+      // Preserve the user's MISE_* contract so system mise shims (e.g. pnpx)
+      // don't get redirected to Cherry's isolated data dir (#19738).
+      // Cherry-managed shims remain reachable as PATH tails; Cherry's
+      // MISE vars are added only where the user has no value of their own.
+      const rawMiseEnv = Object.fromEntries(
+        Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+      )
+      const binaryExecutionEnv = mergePathSuffixes(
+        loginPath !== undefined ? { PATH: loginPath } : {},
+        getBinarySearchDirs()
+      )
+      const cherryMiseEnv = getBinaryExecutionEnv()
+      const miseEnv =
+        Object.keys(rawMiseEnv).length > 0
+          ? rawMiseEnv
+          : cherryMiseEnv
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
@@ -396,8 +411,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         processCwd: workspacePath,
         env: {
           ...binaryExecutionEnv,
-          ...(loginShellEnv.HOME !== undefined
-            ? { HOME: loginShellEnv.HOME }
+          ...miseEnv,
+          ...(rawShellEnv.HOME !== undefined
+            ? { HOME: rawShellEnv.HOME }
             : process.env.HOME !== undefined
               ? { HOME: process.env.HOME }
               : {}),

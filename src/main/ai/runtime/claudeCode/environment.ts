@@ -15,7 +15,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
-import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv, getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -134,7 +134,27 @@ export async function getClaudeCodeLoginShellEnvironment(
   if (hasStaleCherryProxyMarkers(loginShellEnv, currentProxyEnvironment)) {
     loginShellEnv = await refreshShellEnv()
   }
-  return stripInheritedCherryProxyMarkers(loginShellEnv)
+  const stripped = stripInheritedCherryProxyMarkers(loginShellEnv)
+  // Restore the user's MISE_* contract over Cherry's isolated values so
+  // system mise shims (e.g. pnpx) inside the agent bash don't get
+  // redirected to Cherry's data dir (#19738).
+  const rawShellEnv = await getRawShellEnv()
+  const rawMiseEntries = Object.entries(rawShellEnv).filter(([key]) => key.toUpperCase().startsWith('MISE_'))
+  if (rawMiseEntries.length > 0) {
+    // User has mise activated — replace the contract wholesale: drop
+    // Cherry-only MISE keys, then restore the user's values.
+    const { getBinaryExecutionEnv } = await import('@main/utils/binaryEnv')
+    const cherryMiseEnv = getBinaryExecutionEnv()
+    for (const key of Object.keys(cherryMiseEnv)) {
+      if (!rawMiseEntries.some(([k]) => k === key || k.toUpperCase() === key.toUpperCase())) {
+        delete stripped[key]
+      }
+    }
+    for (const [key, value] of rawMiseEntries) {
+      stripped[key] = value
+    }
+  }
+  return stripped
 }
 
 export async function buildEnvironment(
