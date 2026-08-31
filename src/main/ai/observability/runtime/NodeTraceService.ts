@@ -11,10 +11,12 @@ const logger = loggerService.withContext('NodeTraceService')
 
 @Injectable('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['TraceStorageService'])
+@DependsOn(['TraceStorageService', 'ClaudeCodeTraceBridgeService'])
 export class NodeTraceService extends BaseService implements Activatable {
   // Stored from dynamic import, needed for shutdown in onDeactivate()
   private nodeTracer: { shutdown(): Promise<void> } | null = null
+  /** Invalidates a deferred dynamic import when this service starts shutting down. */
+  private activationGeneration = 0
   /** Latest desired state from app.developer_mode.enabled. */
   private desiredEnabled = false
 
@@ -116,11 +118,13 @@ export class NodeTraceService extends BaseService implements Activatable {
   }
 
   async onActivate() {
-    await this.initTracer()
+    const generation = ++this.activationGeneration
+    await this.initTracer(generation)
   }
 
   /** Flush spans and unregister the active OpenTelemetry runtime. */
   async onDeactivate() {
+    this.activationGeneration++
     if (this.nodeTracer) {
       const nodeTracer = this.nodeTracer
       this.nodeTracer = null
@@ -134,6 +138,13 @@ export class NodeTraceService extends BaseService implements Activatable {
     }
   }
 
+  protected onStop(): void {
+    // `_doStop` cannot call onDeactivate while activation is still pending,
+    // because BaseService has not marked the service active yet. Invalidate the
+    // pending load here so it cannot publish an OTel provider after shutdown.
+    this.activationGeneration++
+  }
+
   /**
    * Initialize the OpenTelemetry tracer with a CacheBatchSpanProcessor
    * that feeds span data into TraceStorageService.
@@ -142,12 +153,15 @@ export class NodeTraceService extends BaseService implements Activatable {
    * modules (NodeTracerProvider, BatchSpanProcessor, OTLPTraceExporter, etc.)
    * at file evaluation time — keeping startup fast when developer_mode is off.
    */
-  private async initTracer() {
-    const [{ FunctionSpanExporter }, { CacheBatchSpanProcessor }, { NodeTracer }] = await Promise.all([
-      import('./FunctionSpanExporter'),
-      import('./CacheBatchSpanProcessor'),
-      import('./NodeTracer')
-    ])
+  private loadTracerDependencies() {
+    return Promise.all([import('./FunctionSpanExporter'), import('./CacheBatchSpanProcessor'), import('./NodeTracer')])
+  }
+
+  private async initTracer(generation: number) {
+    const [{ FunctionSpanExporter }, { CacheBatchSpanProcessor }, { NodeTracer }] = await this.loadTracerDependencies()
+    if (generation !== this.activationGeneration) {
+      throw new Error('Node tracing activation was cancelled during shutdown')
+    }
 
     const traceStorageService = application.get('TraceStorageService')
     const exporter = new FunctionSpanExporter(async (spans) => {

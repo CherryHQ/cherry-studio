@@ -42,6 +42,13 @@ const traceContext = {
   rootSpanId: '1'.repeat(16)
 }
 
+async function createActivatedService(): Promise<InstanceType<typeof ClaudeCodeTraceBridgeService>> {
+  const service = new ClaudeCodeTraceBridgeService()
+  await service._doInit()
+  await service._doActivate()
+  return service
+}
+
 describe('ClaudeCodeTraceBridgeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -50,18 +57,20 @@ describe('ClaudeCodeTraceBridgeService', () => {
     vi.clearAllMocks()
   })
 
-  it('activates without binding a collector port', async () => {
+  it('waits for the tracing coordinator and activates without binding a collector port', async () => {
     const service = new ClaudeCodeTraceBridgeService()
 
     await service._doInit()
+
+    expect(service.isTraceModeEnabled()).toBe(false)
+    await service._doActivate()
 
     expect(service.isTraceModeEnabled()).toBe(true)
     expect((service as any).server).toBeUndefined()
   })
 
   it('lazily starts the collector and returns Claude Code telemetry env', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
 
     const env = await service.prepareTrace(traceContext)
 
@@ -89,8 +98,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('ingests trace and log payloads through the local OTLP endpoints', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
     const env = await service.prepareTrace(traceContext)
 
     await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
@@ -156,8 +164,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('uses the admitted turn after a primed connection refreshes its trace context', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
     const env = await service.prepareTrace({ ...traceContext, turnId: '' })
 
     service.refreshTraceContext(traceContext)
@@ -196,8 +203,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('requires JSON content type for OTLP endpoints', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
     const env = await service.prepareTrace(traceContext)
 
     const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
@@ -213,8 +219,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('matches OTLP endpoint pathname and accepts gzip JSON payloads', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
     const env = await service.prepareTrace(traceContext)
 
     const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces?ignored=1`, {
@@ -253,8 +258,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('rejects a gzip payload that decompresses beyond the size cap (gzip bomb)', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
     const env = await service.prepareTrace(traceContext)
 
     // ~11 MiB of repeating bytes gzips to a few KB (well under the 10 MiB input cap), but
@@ -281,8 +285,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('skips trace preparation when traceparent ids are invalid', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
 
     await expect(
       service.prepareTrace({
@@ -304,8 +307,7 @@ describe('ClaudeCodeTraceBridgeService', () => {
   })
 
   it('closes admission synchronously and drains an in-flight lazy start during deactivation', async () => {
-    const service = new ClaudeCodeTraceBridgeService()
-    await service._doInit()
+    const service = await createActivatedService()
 
     const preparing = service.prepareTrace(traceContext)
     const stopping = service._doStop()

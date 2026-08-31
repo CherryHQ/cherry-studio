@@ -28,16 +28,11 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   private acceptingTraces = false
   private readonly traceContexts = new Map<string, TraceContextEntry>()
 
-  protected async onReady(): Promise<void> {
+  protected onReady(): void {
     const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
     logger.info(
-      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, Claude Code trace bridge ${
-        enabled ? 'activated' : 'skipped'
-      }`
+      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, Claude Code trace bridge awaiting tracing coordinator`
     )
-    if (enabled) {
-      await this.activate()
-    }
   }
 
   async onActivate(): Promise<void> {

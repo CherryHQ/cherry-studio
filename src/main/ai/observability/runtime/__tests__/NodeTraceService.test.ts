@@ -217,6 +217,36 @@ describe('NodeTraceService runtime preference', () => {
     expect(captured.transitions).toEqual(['activate:TraceStorageService', 'deactivate:TraceStorageService'])
   })
 
+  it('does not publish a tracer when shutdown overtakes dependency loading', async () => {
+    const service = new NodeTraceService()
+    captured.service = service
+    await service._doInit()
+
+    let markLoading!: () => void
+    const loading = new Promise<void>((resolve) => {
+      markLoading = resolve
+    })
+    let releaseDependencies!: () => void
+    const dependenciesReleased = new Promise<void>((resolve) => {
+      releaseDependencies = resolve
+    })
+    const originalLoader = (service as any).loadTracerDependencies.bind(service)
+    ;(service as any).loadTracerDependencies = async () => {
+      markLoading()
+      await dependenciesReleased
+      return originalLoader()
+    }
+
+    const activation = service._doActivate()
+    await loading
+    await service._doStop()
+    releaseDependencies()
+
+    await expect(activation).rejects.toThrow('activation was cancelled during shutdown')
+    expect(service.isActivated).toBe(false)
+    expect(mockTracerInit).not.toHaveBeenCalled()
+  })
+
   it('finishes deactivation when flushing the old tracer fails', async () => {
     captured.enabled = true
     const service = new NodeTraceService()
