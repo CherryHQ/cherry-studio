@@ -155,7 +155,7 @@ describe('notes delete / autosave guards', () => {
       // production fix: use snapshot if snapshot was related
       const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
       const shouldRearmSnapshot =
-        snapNorm === normalizedDelete || (deleteType === 'folder' && snapNorm?.startsWith(`${normalizedDelete}/`))
+        snapNorm === normalizedDelete || ((deleteType as string) === 'folder' && snapNorm?.startsWith(`${normalizedDelete}/`))
 
       if (shouldRearmSnapshot && preDeletePath != null) {
         debouncedSave(preDeleteContent, preDeletePath)
@@ -181,7 +181,7 @@ describe('notes delete / autosave guards', () => {
 
       const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
       const shouldRearmSnapshot =
-        snapNorm === normalizedDelete || (deleteType === 'folder' && snapNorm?.startsWith(`${normalizedDelete}/`))
+        snapNorm === normalizedDelete || ((deleteType as string) === 'folder' && snapNorm?.startsWith(`${normalizedDelete}/`))
 
       if (shouldRearmSnapshot && preDeletePath != null) {
         debouncedSave(preDeleteContent, preDeletePath)
