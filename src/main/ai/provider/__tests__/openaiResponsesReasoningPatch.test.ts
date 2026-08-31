@@ -50,6 +50,45 @@ describe('patched @ai-sdk/openai Responses reasoning parser', () => {
     ])
   })
 
+  it('falls back to the reasoning summary when raw content contains only empty text', async () => {
+    const model = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            id: 'resp_1',
+            created_at: 0,
+            model: 'deepseek-v4-flash',
+            status: 'completed',
+            output: [
+              {
+                type: 'reasoning',
+                id: 'reasoning-item',
+                encrypted_content: null,
+                content: [{ type: 'reasoning_text', text: '' }],
+                summary: [{ type: 'summary_text', text: 'The visible reasoning summary.' }]
+              }
+            ],
+            usage: { input_tokens: 1, output_tokens: 1 }
+          }),
+          { headers: { 'content-type': 'application/json' } }
+        )
+    }).responses('deepseek-v4-flash')
+
+    const result = await model.doGenerate({ prompt })
+
+    expect(result.content).toEqual([
+      {
+        type: 'reasoning',
+        text: 'The visible reasoning summary.',
+        providerMetadata: {
+          openai: { itemId: 'reasoning-item', reasoningEncryptedContent: null }
+        }
+      }
+    ])
+  })
+
   it('normalizes response.reasoning_text.delta into reasoning stream parts', async () => {
     const events = [
       {
