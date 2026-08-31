@@ -9,7 +9,11 @@ import { useTranslation } from 'react-i18next'
 import { COMPOSER_INPUT_MAX_LENGTH, serializeComposerDocument } from '../../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../quickPanel'
-import { fetchAgentSessionReferencePointer, fetchEntityReferencePromptText } from './entityReferenceContext'
+import {
+  AGENT_REFERENCE_PREVIEW_MAX_CHARS,
+  buildAgentSessionReferencePointer,
+  fetchEntityReferencePromptText
+} from './entityReferenceContext'
 
 const REFERENCE_RESULT_LIMIT = 50
 // List endpoints page pinned-first in manual order, so recency sorting happens client-side
@@ -70,7 +74,12 @@ async function fetchReferenceHits(entityType: 'topic' | 'session', q: string): P
  * sent, the draft was cleared, or the user deleted the chip — so a late transcript can never
  * land in an unrelated draft.
  */
-function settlePendingReferenceToken(editor: Editor, tokenId: string, promptText: string | null) {
+function settlePendingReferenceToken(
+  editor: Editor,
+  tokenId: string,
+  promptText: string | null,
+  fitPromptText?: (maxTotalChars: number) => string
+) {
   if (editor.isDestroyed) return
 
   const matches: Array<{ position: number; node: ProseMirrorNode }> = []
@@ -90,7 +99,7 @@ function settlePendingReferenceToken(editor: Editor, tokenId: string, promptText
     // of trusting the insertion-time budget, otherwise those edits plus the settled transcript can
     // exceed the composer's hard limit.
     const remainingChars = Math.max(0, COMPOSER_INPUT_MAX_LENGTH - serializeComposerDocument(editor).text.length)
-    const boundedPromptText = promptText.slice(0, remainingChars)
+    const boundedPromptText = fitPromptText ? fitPromptText(remainingChars) : promptText.slice(0, remainingChars)
     if (!boundedPromptText) {
       transaction.delete(match.position, match.position + match.node.nodeSize)
     } else {
@@ -189,11 +198,17 @@ export function useEntityReferenceMentionItems({
                     entityType === 'topic'
                       ? ({ entityType, id: hit.id, name: title } as const)
                       : ({ entityType, id: hit.id, name: title, agentId: hit.agentId } as const)
-                  const promptText =
-                    target.entityType === 'session'
-                      ? await fetchAgentSessionReferencePointer(target, { maxTotalChars: remainingChars })
-                      : await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
-                  settlePendingReferenceToken(editor, tokenId, promptText)
+                  if (target.entityType === 'session') {
+                    const preview = await fetchEntityReferencePromptText(target, {
+                      maxTotalChars: Math.min(remainingChars, AGENT_REFERENCE_PREVIEW_MAX_CHARS)
+                    })
+                    const fitPromptText = (maxTotalChars: number) =>
+                      buildAgentSessionReferencePointer(target, preview || null, maxTotalChars)
+                    settlePendingReferenceToken(editor, tokenId, fitPromptText(remainingChars), fitPromptText)
+                  } else {
+                    const promptText = await fetchEntityReferencePromptText(target, { maxTotalChars: remainingChars })
+                    settlePendingReferenceToken(editor, tokenId, promptText)
+                  }
                 } catch {
                   settlePendingReferenceToken(editor, tokenId, null)
                   toast.error(t('chat.input.reference_panel.load_failed'))

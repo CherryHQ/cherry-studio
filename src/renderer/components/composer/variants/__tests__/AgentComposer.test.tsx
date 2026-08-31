@@ -2891,7 +2891,7 @@ describe('AgentComposer', () => {
         ? // Insertion sees enough space for a useful reference (including the separator).
           { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 1001), tokens: [] }
         : // The user adds more text while the transcript is loading.
-          { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 100), tokens: [] }
+          { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 500), tokens: [] }
     })
     const items = await source?.items({ query: '', editor: {} as any })
     const item = items?.find((entry) => entry.id === 'reference:session:s1')
@@ -2903,9 +2903,11 @@ describe('AgentComposer', () => {
 
     const promptText = transaction.setNodeMarkup.mock.calls[0]?.[2]?.promptText as string
     expect(promptText).toBeTruthy()
-    expect(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 100 + promptText.length).toBeLessThanOrEqual(
+    expect(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 500 + promptText.length).toBeLessThanOrEqual(
       ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH
     )
+    expect(promptText).toContain('session_read')
+    expect(JSON.parse(promptText.split('\n').at(-1)!)).toMatchObject({ sessionId: 's1', title: 'Session One' })
   })
 
   it('drops the reference chip when its transcript fails to load', async () => {
