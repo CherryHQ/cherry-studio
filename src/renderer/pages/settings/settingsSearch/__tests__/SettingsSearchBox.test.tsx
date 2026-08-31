@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import SettingsSearchBox from '../SettingsSearchBox'
 import { SettingsSearchDomIdsProvider, useSettingsSearchDomIds } from '../SettingsSearchDomIds'
-import { setLiveQuery, useSettingsSearchKeyboard } from '../store'
+import { publishResults, setLiveQuery, useSettingsSearchKeyboard } from '../store'
 
 const { locationMock, navigateMock, routerMock, searchMock } = vi.hoisted(() => ({
   locationMock: { pathname: '/settings/general' },
@@ -59,6 +59,7 @@ describe('SettingsSearchBox', () => {
     routerMock.history.back.mockReset()
     routerMock.history.canGoBack.mockReturnValue(true)
     setLiveQuery(undefined)
+    publishResults(0)
   })
 
   it('does not walk history back when a deep-link dispatch lands on the search page', async () => {
@@ -277,6 +278,7 @@ describe('SettingsSearchBox', () => {
   it('wires aria-controls to the shared per-instance listbox id', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
+    publishResults(3)
     render(
       <SettingsSearchDomIdsProvider>
         <SettingsSearchBox />
@@ -288,9 +290,31 @@ describe('SettingsSearchBox', () => {
     expect(listboxId).not.toBe('settings-search-results-listbox')
   })
 
+  it('gates aria-controls on the listbox actually being rendered', () => {
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    const view = render(
+      <SettingsSearchDomIdsProvider>
+        <SettingsSearchBox />
+      </SettingsSearchDomIdsProvider>
+    )
+    // Zero results: the results page renders no listbox — the reference must
+    // not dangle on an id that is not in the DOM
+    expect(screen.getByTestId('search-input').getAttribute('aria-controls')).toBeNull()
+
+    publishResults(3)
+    view.rerender(
+      <SettingsSearchDomIdsProvider>
+        <SettingsSearchBox />
+      </SettingsSearchDomIdsProvider>
+    )
+    expect(screen.getByTestId('search-input').getAttribute('aria-controls')).toMatch(/^settings-search-listbox-/)
+  })
+
   it('shares one id set between the box and a results-listbox consumer', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
+    publishResults(3)
     const ListboxProbe = () => {
       const { listboxId } = useSettingsSearchDomIds()
       return <div role="listbox" id={listboxId} data-testid="probe-listbox" />

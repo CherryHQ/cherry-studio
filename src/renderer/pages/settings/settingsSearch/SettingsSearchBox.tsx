@@ -142,7 +142,7 @@ const SettingsSearchBox = () => {
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={hasResults}
-        aria-controls={isSearchPage ? listboxId : undefined}
+        aria-controls={hasResults ? listboxId : undefined}
         aria-activedescendant={hasResults ? optionDomId(activeIndex) : undefined}
         className={cn(isSearchPage && 'border-primary')}
         onChange={(e) => {
