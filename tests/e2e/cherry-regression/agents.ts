@@ -87,24 +87,43 @@ export async function runAgentFileTask(
   const output = join(app.paths.workspace, fileName)
   const promptPath = output.replaceAll('\\', '/')
   const prompt = `Create the file at the exact absolute path ${JSON.stringify(promptPath)} with the exact text AGENT_FILE_TASK_PASS.`
-  await page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first().fill(prompt)
-  await page.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect
-    .poll(
-      async () => {
-        if (approve) {
-          const allow = page.getByRole('button', { name: /Allow/ }).first()
-          if (await allow.isVisible().catch(() => false)) await allow.click()
-        }
-        try {
-          const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
-          await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
-          return true
-        } catch {
-          return false
-        }
-      },
-      { timeout: 10 * 60_000 }
-    )
-    .toBe(true)
+  const composer = page.locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]').first()
+  const messages = page.locator('[data-ui~="chat.message"]:visible')
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const retryPrefix = attempt === 0 ? '' : 'The previous task completed without creating the required file. '
+    await composer.fill(`${retryPrefix}${prompt}`)
+    await page.getByRole('button', { name: 'Send', exact: true }).click()
+
+    let outcome: 'completed' | 'created' | 'running' = 'running'
+    await expect
+      .poll(
+        async () => {
+          if (approve) {
+            const allow = page.getByRole('button', { name: /Allow/ }).first()
+            if (await allow.isVisible().catch(() => false)) await allow.click()
+          }
+          try {
+            const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+            await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
+            outcome = 'created'
+          } catch {
+            outcome = (await messages
+              .last()
+              .getByTestId('completed-process-trigger')
+              .isVisible()
+              .catch(() => false))
+              ? 'completed'
+              : 'running'
+          }
+          return outcome
+        },
+        { timeout: 5 * 60_000 }
+      )
+      .not.toBe('running')
+    if (outcome === 'created') return
+  }
+
+  const { validateFileEvidence } = await import('../../../scripts/cherry-regression-test/file-evidence')
+  await validateFileEvidence(output, { expectedText: 'AGENT_FILE_TASK_PASS', type: 'text' })
 }

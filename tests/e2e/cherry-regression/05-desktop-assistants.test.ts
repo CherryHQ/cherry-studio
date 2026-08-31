@@ -89,7 +89,7 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
 
   await page.getByRole('button', { name: 'Selection Assistant', exact: true }).click()
   await page.evaluate(
-    async ({ model, platform, providerId }) => {
+    async ({ model, providerId }) => {
       await window.api.preference.setMultiple({
         'chat.default_model_id': `${providerId}::${model}`,
         'feature.selection.action_items': [
@@ -102,14 +102,14 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
           }
         ],
         'feature.selection.enabled': true,
-        'feature.selection.trigger_mode': platform === 'windows' ? 'selected' : 'shortcut',
+        'feature.selection.trigger_mode': 'shortcut',
         'shortcut.selection.capture_text': {
           binding: ['CommandOrControl', 'Shift', 'K'],
-          enabled: platform !== 'windows'
+          enabled: true
         }
       })
     },
-    { model: app.config.customProvider.chatModel, platform: app.record.platform, providerId }
+    { model: app.config.customProvider.chatModel, providerId }
   )
   await expect(page.getByRole('switch').first()).toHaveAttribute('aria-checked', 'true')
   await closeSettings(page)
@@ -131,8 +131,8 @@ test('[C-03] 使用划词助手处理跨应用选中文本 @selection-assistant'
   await expect
     .poll(
       async () => {
-        if (app.record.platform === 'macos') sendSystemHotkey(app.record.platform, ['Meta', 'Shift', 'k'])
-        else selectExternalText(app.record.platform)
+        selectExternalText(app.record.platform)
+        sendSystemHotkey(app.record.platform, [app.record.platform === 'macos' ? 'Meta' : 'Control', 'Shift', 'k'])
         await selection.waitForTimeout(1_000)
         return selection.locator('body').getAttribute('data-selected-text')
       },
