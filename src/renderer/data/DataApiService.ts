@@ -36,7 +36,7 @@ import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/d
 import type { ApiClient, ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import type { DataRequest, DataResponse, HttpMethod } from '@shared/data/api/types'
 
-import { dataApiInstrumentationService } from './utils/DataApiInstrumentationService'
+import { dataApiInstrumentationService } from './services/DataApiInstrumentationService'
 
 const logger = loggerService.withContext('DataApiService')
 
