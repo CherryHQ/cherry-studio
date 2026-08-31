@@ -237,7 +237,7 @@ export type CacheMiniAppAttention = {
  */
 export type FollowupQueueToken = {
   id: string
-  kind: string
+  kind: ComposerMessageTokenKind | 'promptVariable'
   label: string
   icon?: string
   description?: string
