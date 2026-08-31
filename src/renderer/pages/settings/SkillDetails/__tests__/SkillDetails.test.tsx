@@ -74,7 +74,6 @@ vi.mock('../SkillFileBrowser', async () => {
     }
   }
 })
-vi.mock('@renderer/utils/time', () => ({ formatRelativeTime: () => 'recently' }))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() } }))
 vi.mock('react-i18next', () => ({
@@ -204,19 +203,16 @@ describe('SkillDetails', () => {
     expect(screen.queryByTestId('skill-file-browser')).not.toBeInTheDocument()
   })
 
-  it('shows metadata separately from source and stacks actions below it on narrow layouts', () => {
-    const { container } = render(<SkillDetails skillId="skill-1" />)
+  it('keeps source and editability in the compact identity without repeating frontmatter tags', () => {
+    render(<SkillDetails skillId="skill-1" />)
 
     expect(screen.getByRole('heading', { name: 'Writer' })).toBeInTheDocument()
     expect(screen.getByText('1.2.3')).toBeInTheDocument()
     expect(screen.getByTestId('source-badge')).toHaveTextContent('builtin')
-    expect(screen.getByText('writing')).toBeInTheDocument()
     expect(screen.getByText('settings.skills.readOnly')).toBeInTheDocument()
+    expect(screen.getByRole('switch')).toBeInTheDocument()
+    expect(screen.queryByText('writing')).not.toBeInTheDocument()
     expect(screen.getByTestId('skill-file-browser')).toHaveAttribute('data-root-path', '/managed/skills/writer')
-    expect(container.querySelector('[data-ui="skill-detail-header"] > div:last-of-type')).toHaveClass(
-      'w-full',
-      'lg:w-auto'
-    )
   })
 
   it('launches, toggles, opens, and removes the current Skill from explicit actions', async () => {

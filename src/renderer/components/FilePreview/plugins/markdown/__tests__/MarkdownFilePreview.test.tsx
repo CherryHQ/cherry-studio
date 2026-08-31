@@ -148,10 +148,15 @@ describe('MarkdownFilePreview', () => {
     expect(screen.getByTestId('markdown-preview')).toBeInTheDocument()
   })
 
-  it('hides the source switch for artifact previews whose host owns editing', async () => {
+  it('hides frontmatter and the source switch when the artifact host owns editing', async () => {
+    mocks.readText.mockResolvedValueOnce(
+      '---\r\nname: Writer\r\ndescription: Draft clear prose\r\n---\r\n# File preview'
+    )
     renderPreview({ type: 'artifact' })
 
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
+    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('name: Writer')
+    expect(screen.getByTestId('markdown-preview')).not.toHaveTextContent('description: Draft clear prose')
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.preview' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.markdown.mode.source' })).not.toBeInTheDocument()
   })

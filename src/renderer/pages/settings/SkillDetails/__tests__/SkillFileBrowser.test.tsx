@@ -6,7 +6,6 @@ import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  cancel: vi.fn(),
   blocker: {
     status: 'idle' as 'idle' | 'blocked',
     proceed: vi.fn(),
@@ -17,7 +16,6 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   ipcRequest: vi.fn(),
   onTreeMutation: undefined as ((event: unknown) => void) | undefined,
-  translate: vi.fn(),
   tree: {
     error: null as Error | null,
     isLoading: false,
@@ -39,21 +37,12 @@ vi.mock('@tanstack/react-router', () => ({
     return mocks.blocker
   }
 }))
-vi.mock('@renderer/hooks/translate', () => ({
-  useTranslate: () => ({ cancel: mocks.cancel, isTranslating: false, translate: mocks.translate })
-}))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
-vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn() }) } }))
+vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/services/toast', () => ({ toast: { error: vi.fn() } }))
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) =>
-      ({
-        'library.skill_detail.select_file': 'Select a file',
-        'library.skill_detail.translate_to_chinese': 'Translate',
-        'library.skill_detail.show_original': 'Original',
-        'library.skill_detail.show_translation': 'Translation'
-      })[key] ?? key
+    t: (key: string) => ({ 'library.skill_detail.select_file': 'Select a file' })[key] ?? key
   })
 }))
 vi.mock('@cherrystudio/ui', () => ({
@@ -73,7 +62,33 @@ vi.mock('@cherrystudio/ui', () => ({
   ConfirmDialog: ({ open, title }: { open: boolean; title: ReactNode }) =>
     open ? <div role="dialog">{title}</div> : null,
   EmptyState: ({ title }: { title: ReactNode }) => <div>{title}</div>,
-  Markdown: ({ children }: { children?: ReactNode }) => <article>{children}</article>,
+  SegmentedControl: ({
+    'aria-label': ariaLabel,
+    disabled,
+    onValueChange,
+    options,
+    value
+  }: {
+    'aria-label': string
+    disabled?: boolean
+    onValueChange: (value: 'preview' | 'edit') => void
+    options: Array<{ label: ReactNode; value: 'preview' | 'edit' }>
+    value: 'preview' | 'edit'
+  }) => (
+    <div role="radiogroup" aria-label={ariaLabel}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          disabled={disabled}
+          onClick={() => onValueChange(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
   Skeleton: () => <div data-testid="skeleton" />
 }))
 vi.mock('@renderer/components/FileTree', () => ({
@@ -94,8 +109,22 @@ vi.mock('@renderer/components/FileTree', () => ({
   )
 }))
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: ({ filePath, header, refreshKey }: { filePath: string; header: ReactNode; refreshKey: number }) => (
-    <section data-file-path={filePath} data-refresh-key={refreshKey} data-testid="file-preview">
+  FilePreview: ({
+    filePath,
+    header,
+    refreshKey,
+    type
+  }: {
+    filePath: string
+    header: ReactNode
+    refreshKey: number
+    type: string
+  }) => (
+    <section
+      data-file-path={filePath}
+      data-preview-type={type}
+      data-refresh-key={refreshKey}
+      data-testid="file-preview">
       {header}
     </section>
   )
@@ -148,7 +177,6 @@ describe('SkillFileBrowser', () => {
       if (route === 'file.write_if_unchanged') return { mtime: 2, size: 16 }
       return undefined
     })
-    mocks.translate.mockResolvedValue('# 写作助手')
   })
 
   it('selects SKILL.md from the generic directory tree and previews its absolute path', async () => {
@@ -158,21 +186,17 @@ describe('SkillFileBrowser', () => {
       expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/managed/writer/SKILL.md')
     )
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '7')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
     expect(screen.getByRole('button', { name: 'SKILL.md' })).toBeInTheDocument()
   })
 
-  it('reads Markdown through file.read only when translation is requested', async () => {
-    renderBrowser()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Translate' })).toBeInTheDocument())
+  it('uses one authoring mode control for an editable Markdown file', async () => {
+    renderBrowser('read_write')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Translate' }))
-
-    await waitFor(() => expect(screen.getByText('# 写作助手')).toBeInTheDocument())
-    expect(mocks.ipcRequest).toHaveBeenCalledExactlyOnceWith('file.read', {
-      handle: { kind: 'path', path: '/managed/writer/SKILL.md' },
-      options: { mode: 'full', encoding: 'binary' }
-    })
-    expect(mocks.translate).toHaveBeenCalledWith('# Writer', 'zh-cn')
+    await waitFor(() => expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact'))
+    expect(screen.getByRole('radiogroup', { name: 'preview.label' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'settings.skills.editor.preview' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeChecked()
   })
 
   it('autosaves editable text through generic file IPC and scopes the following reconcile', async () => {
@@ -182,7 +206,7 @@ describe('SkillFileBrowser', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0)
       })
-      fireEvent.click(screen.getByRole('button', { name: 'settings.skills.editor.edit' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'settings.skills.editor.edit' }))
       fireEvent.change(screen.getByRole('textbox', { name: 'code-editor' }), { target: { value: '# Updated Writer' } })
 
       await act(async () => {
@@ -236,7 +260,7 @@ describe('SkillFileBrowser', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0)
       })
-      fireEvent.click(screen.getByRole('button', { name: 'settings.skills.editor.edit' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'settings.skills.editor.edit' }))
       fireEvent.change(screen.getByRole('textbox', { name: 'code-editor' }), { target: { value: '# Updated Writer' } })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(800)
@@ -279,7 +303,7 @@ describe('SkillFileBrowser', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0)
     })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.skills.editor.edit' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'settings.skills.editor.edit' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'code-editor' }), {
       target: { value: '# Current draft' }
     })
@@ -302,7 +326,7 @@ describe('SkillFileBrowser', () => {
     renderBrowser('read_only')
 
     await waitFor(() => expect(screen.getByTestId('file-preview')).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: 'settings.skills.editor.edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'settings.skills.editor.edit' })).not.toBeInTheDocument()
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith('file.read', expect.anything())
   })
 })

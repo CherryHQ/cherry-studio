@@ -16,6 +16,7 @@ const logger = loggerService.withContext('MarkdownFilePreview')
 const MARKDOWN_PREVIEW_MAX_SIZE_MIB = 2
 const MARKDOWN_PREVIEW_MAX_SIZE_BYTES = MARKDOWN_PREVIEW_MAX_SIZE_MIB * 1024 * 1024
 const MARKDOWN_PLUGINS = withFullMarkdown()
+const YAML_FRONTMATTER_PATTERN = /^(?:\uFEFF)?---[^\S\r\n]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[^\S\r\n]*(?:\r?\n|$)/
 const LazyCodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 
 type MarkdownFileLoadState =
@@ -79,12 +80,18 @@ function MarkdownPreviewEmpty() {
 }
 
 interface MarkdownPreviewContentProps {
+  hideFrontmatter: boolean
   loadState: MarkdownFileLoadState
   markdownId: string
   mode: MarkdownFilePreviewMode
 }
 
-function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreviewContentProps): ReactNode {
+function MarkdownPreviewContent({
+  hideFrontmatter,
+  loadState,
+  markdownId,
+  mode
+}: MarkdownPreviewContentProps): ReactNode {
   const { t } = useTranslation()
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
@@ -106,12 +113,13 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
     )
   }
 
-  if (loadState.content.trim().length === 0) return <MarkdownPreviewEmpty />
+  const content = hideFrontmatter ? loadState.content.replace(YAML_FRONTMATTER_PATTERN, '') : loadState.content
+  if (content.trim().length === 0) return <MarkdownPreviewEmpty />
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4">
       <Markdown id={markdownId} plugins={MARKDOWN_PLUGINS} footnoteLabel={t('common.footnotes')}>
-        {loadState.content}
+        {content}
       </Markdown>
     </div>
   )
@@ -155,7 +163,12 @@ export default function MarkdownFilePreview({ filePath, metadata, refreshKey, ty
         <MarkdownFilePreviewToolbar disabled={loadState.status !== 'ready'} mode={mode} onModeChange={setMode} />
       ) : null}
       <FilePreviewLayout.Content>
-        <MarkdownPreviewContent loadState={loadState} markdownId={markdownId} mode={effectiveMode} />
+        <MarkdownPreviewContent
+          hideFrontmatter={type === 'artifact'}
+          loadState={loadState}
+          markdownId={markdownId}
+          mode={effectiveMode}
+        />
       </FilePreviewLayout.Content>
     </FilePreviewLayout.Frame>
   )

@@ -1,24 +1,20 @@
-import { Button, CodeEditor, ConfirmDialog, EmptyState, Markdown, Skeleton } from '@cherrystudio/ui'
+import { Button, CodeEditor, ConfirmDialog, EmptyState, SegmentedControl, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { useTranslate } from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { decodeFileText } from '@renderer/utils/fileTextSnapshot'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDir, type TreeMutationEvent, type TreeNode } from '@shared/utils/file'
 import { useBlocker } from '@tanstack/react-router'
-import { AlertTriangle, Check, FileText, Languages, Loader2, Pencil, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Check, FileText, Loader2, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SkillFileBrowser')
-const TEXT_PREVIEW_MAX_BYTES = 2 * 1024 * 1024
 const MARKDOWN_EXTENSIONS = new Set(['md', 'mdx', 'markdown'])
 
 interface Props {
@@ -92,13 +88,10 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<AbsoluteFilePath | null>(null)
   const [pendingFile, setPendingFile] = useState<AbsoluteFilePath | null>(null)
-  const [translatedContent, setTranslatedContent] = useState<string | null>(null)
-  const [showTranslation, setShowTranslation] = useState(false)
   const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview')
   const [syncError, setSyncError] = useState<Error | null>(null)
   const [isSyncing, setIsSyncing] = useState(false)
   const [previewRevision, setPreviewRevision] = useState(0)
-  const { translate, isTranslating, cancel } = useTranslate({ loggerContext: 'SkillFileBrowser' })
 
   const editableHandle = useMemo(
     () => (access === 'read_write' && selectedFile ? createFilePathHandle(selectedFile) : undefined),
@@ -172,12 +165,6 @@ export const SkillFileBrowser = function SkillFileBrowser({
     setSelectedFile(next)
     setViewMode(next && !isMarkdownFile(next) ? 'edit' : 'preview')
   }, [filePaths, fileSession.conflict, fileSession.isDirty, selectedFile, tree])
-
-  useEffect(() => {
-    cancel()
-    setTranslatedContent(null)
-    setShowTranslation(false)
-  }, [cancel, selectedFile, fileSession.savedContent])
 
   const observedSaveRef = useRef<{ path: string; content: string } | null>(null)
   useEffect(() => {
@@ -287,35 +274,11 @@ export const SkillFileBrowser = function SkillFileBrowser({
     }
   }, [keepCurrentDraft, selectedFile, skillId, t])
 
-  const handleTranslate = async () => {
-    if (!selectedFile) return
-    if (translatedContent !== null) {
-      setShowTranslation((current) => !current)
-      return
-    }
-
-    try {
-      const { content } = await ipcApi.request('file.read', {
-        handle: createFilePathHandle(selectedFile),
-        options: { mode: 'full', encoding: 'binary' }
-      })
-      if (content.byteLength > TEXT_PREVIEW_MAX_BYTES) throw new Error('Skill file is too large to translate')
-      const result = await translate(decodeFileText(content).content, BUILTIN_LANGUAGE.zhCN.langCode)
-      if (result) {
-        setTranslatedContent(result)
-        setShowTranslation(true)
-      }
-    } catch (error) {
-      logger.warn('Failed to translate Skill file', { skillId, selectedFile, error })
-      toast.error(t('library.skill_detail.file_load_failed'))
-    }
-  }
-
   if (isLoading) {
     return (
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <Skeleton className="h-48 rounded-xl lg:h-full" />
-        <Skeleton className="min-h-80 rounded-xl" />
+      <div className="flex h-full min-h-0 flex-1 flex-col gap-3 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <Skeleton className="h-40 shrink-0 rounded-lg lg:h-full" />
+        <Skeleton className="min-h-0 flex-1 rounded-lg" />
       </div>
     )
   }
@@ -334,56 +297,6 @@ export const SkillFileBrowser = function SkillFileBrowser({
   const selectedFileName = selectedFile?.split('/').pop() ?? ''
   const selectedIsMarkdown = selectedFile ? isMarkdownFile(selectedFile) : false
   const canEdit = access === 'read_write' && fileSession.status === 'ready'
-  const previewHeader = (
-    <>
-      <div className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground text-xs">
-        <FileText className="size-3.5 shrink-0" aria-hidden />
-        <span className="truncate">{selectedFileName || t('library.skill_detail.select_file')}</span>
-      </div>
-      {canEdit ? (
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('preview')}>
-            {t('settings.skills.editor.preview')}
-          </Button>
-          <Button
-            type="button"
-            variant={viewMode === 'edit' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setViewMode('edit')}>
-            <Pencil className="size-3.5" aria-hidden />
-            {t('settings.skills.editor.edit')}
-          </Button>
-        </div>
-      ) : null}
-      {selectedIsMarkdown && viewMode === 'preview' ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={isTranslating}
-          onClick={() => void handleTranslate()}
-          className="shrink-0 gap-1.5">
-          {isTranslating ? (
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
-          ) : (
-            <Languages className="size-3.5" aria-hidden />
-          )}
-          {isTranslating
-            ? t('library.skill_detail.translating')
-            : translatedContent === null
-              ? t('library.skill_detail.translate_to_chinese')
-              : showTranslation
-                ? t('library.skill_detail.show_original')
-                : t('library.skill_detail.show_translation')}
-        </Button>
-      ) : null}
-    </>
-  )
-
   let saveStatus = t('settings.skills.editor.saved')
   let statusIcon = <Check className="size-3.5" aria-hidden />
   if (fileSession.conflict) {
@@ -413,42 +326,82 @@ export const SkillFileBrowser = function SkillFileBrowser({
     saveStatus = t('settings.skills.editor.loadFailed')
     statusIcon = <AlertTriangle className="size-3.5" aria-hidden />
   }
+  const showRecovery = fileSession.conflict || syncError !== null
+  const previewHeader = (
+    <>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="truncate font-medium text-foreground text-sm">
+          {selectedFileName || t('library.skill_detail.select_file')}
+        </span>
+        {access === 'read_write' && !showRecovery ? (
+          <span
+            role="status"
+            aria-live="polite"
+            className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+            {statusIcon}
+            <span className="truncate">{saveStatus}</span>
+          </span>
+        ) : null}
+      </div>
+      {canEdit ? (
+        <SegmentedControl
+          size="sm"
+          aria-label={t('preview.label')}
+          disabled={disabled}
+          value={viewMode}
+          onValueChange={setViewMode}
+          options={[
+            { value: 'preview', label: t('settings.skills.editor.preview') },
+            { value: 'edit', label: t('settings.skills.editor.edit') }
+          ]}
+          className="shrink-0 rounded-md [&>button]:rounded-sm"
+        />
+      ) : null}
+    </>
+  )
+  const customPreviewHeader = (
+    <div className="relative flex h-11 min-h-11 shrink-0 items-center gap-2 px-3 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']">
+      {previewHeader}
+    </div>
+  )
 
   return (
     <>
-      <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-background lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <div className="h-48 min-h-0 overflow-hidden border-border-subtle border-b bg-background-subtle lg:h-auto lg:border-r lg:border-b-0">
-          {tree.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-4 text-center text-foreground-tertiary text-xs">
-              {t('library.skill_detail.no_files')}
-            </div>
-          ) : (
-            <FileTree
-              nodes={tree}
-              ariaLabel={t('library.skill_detail.source_files')}
-              expandedIds={expandedIds}
-              onExpandedChange={setExpandedIds}
-              selectedId={selectedFile}
-              onSelectedChange={(id) => {
-                if (id && filePaths.has(id)) void selectFile(AbsoluteFilePathSchema.parse(id))
-              }}
-              stickyFolders={false}
-            />
-          )}
+      <div
+        data-ui="skill-file-workspace"
+        className="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden lg:grid lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <div className="flex h-40 min-h-0 shrink-0 flex-col overflow-hidden rounded-lg bg-background-subtle lg:h-full">
+          <div className="flex h-10 shrink-0 items-center px-3 font-medium text-muted-foreground text-xs">
+            {t('library.skill_detail.source_files')}
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            {tree.length === 0 ? (
+              <div className="flex h-full items-center justify-center px-4 text-center text-foreground-tertiary text-xs">
+                {t('library.skill_detail.no_files')}
+              </div>
+            ) : (
+              <FileTree
+                nodes={tree}
+                ariaLabel={t('library.skill_detail.source_files')}
+                expandedIds={expandedIds}
+                onExpandedChange={setExpandedIds}
+                selectedId={selectedFile}
+                onSelectedChange={(id) => {
+                  if (id && filePaths.has(id)) void selectFile(AbsoluteFilePathSchema.parse(id))
+                }}
+                stickyFolders={false}
+              />
+            )}
+          </div>
         </div>
 
-        <div className="flex min-h-80 min-w-0 flex-col overflow-hidden lg:min-h-0">
-          {selectedFile ? (
-            <>
-              <div className="flex h-11 shrink-0 items-center gap-2 border-border border-b px-3">{previewHeader}</div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {showTranslation && translatedContent !== null && viewMode === 'preview' ? (
-                  <div className="h-full overflow-auto px-4 py-3">
-                    <Markdown id={`${skillId}:${selectedFile}:translation`} footnoteLabel={t('common.footnotes')}>
-                      {translatedContent}
-                    </Markdown>
-                  </div>
-                ) : viewMode === 'edit' && canEdit ? (
+        <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg bg-background-subtle">
+            {selectedFile ? (
+              viewMode === 'edit' && canEdit ? (
+                <div className="flex h-full min-h-0 flex-col">
+                  {customPreviewHeader}
                   <CodeEditor
                     value={fileSession.draft}
                     language={getEditorLanguage(selectedFile)}
@@ -459,49 +412,57 @@ export const SkillFileBrowser = function SkillFileBrowser({
                     editable={!disabled}
                     readOnly={disabled}
                     options={{ keymap: true }}
-                    className="h-full"
+                    className="min-h-0 flex-1"
                   />
-                ) : viewMode === 'edit' && fileSession.status === 'loading' ? (
+                </div>
+              ) : viewMode === 'edit' && fileSession.status === 'loading' ? (
+                <div className="flex h-full min-h-0 flex-col">
+                  {customPreviewHeader}
                   <div className="space-y-3 p-4">
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-4 w-5/6" />
                     <Skeleton className="h-4 w-2/3" />
                   </div>
-                ) : (
-                  <FilePreview filePath={selectedFile} refreshKey={version + previewRevision} />
-                )}
-              </div>
-              {access === 'read_write' ? (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="flex min-h-9 shrink-0 items-center gap-2 border-border border-t px-3 text-muted-foreground text-xs">
-                  {statusIcon}
-                  <span>{saveStatus}</span>
-                  {fileSession.conflict ? (
-                    <div className="ml-auto flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => void reloadConflictedFile()}>
-                        {t('settings.skills.editor.reload')}
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => void saveCurrentDraft()}>
-                        {t('settings.skills.editor.keepDraft')}
-                      </Button>
-                    </div>
-                  ) : syncError ? (
-                    <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void reconcileSkill()}>
-                      <RotateCcw className="size-3.5" aria-hidden />
-                      {t('common.retry')}
-                    </Button>
-                  ) : null}
                 </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="flex h-full min-h-80 flex-col items-center justify-center gap-2 text-foreground-tertiary">
-              <FileText className="size-7" strokeWidth={1.2} aria-hidden />
-              <span className="text-xs">{t('library.skill_detail.select_file')}</span>
+              ) : (
+                <FilePreview
+                  filePath={selectedFile}
+                  header={previewHeader}
+                  refreshKey={version + previewRevision}
+                  type={selectedIsMarkdown ? 'artifact' : 'file'}
+                />
+              )
+            ) : (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-foreground-tertiary">
+                <FileText className="size-7" strokeWidth={1.2} aria-hidden />
+                <span className="text-xs">{t('library.skill_detail.select_file')}</span>
+              </div>
+            )}
+          </div>
+          {access === 'read_write' && showRecovery ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-warning-subtle px-3 text-warning-subtle-foreground text-xs">
+              {statusIcon}
+              <span>{saveStatus}</span>
+              {fileSession.conflict ? (
+                <div className="ml-auto flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => void reloadConflictedFile()}>
+                    {t('settings.skills.editor.reload')}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void saveCurrentDraft()}>
+                    {t('settings.skills.editor.keepDraft')}
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="ghost" size="sm" className="ml-auto" onClick={() => void reconcileSkill()}>
+                  <RotateCcw className="size-3.5" aria-hidden />
+                  {t('common.retry')}
+                </Button>
+              )}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
