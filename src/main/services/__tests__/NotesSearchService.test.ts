@@ -16,7 +16,7 @@ vi.mock('@application', async () => {
 vi.mock('@main/utils/file', () => ({
   isSameOrInside: (candidate: string, container: string) =>
     candidate === container || candidate.startsWith(`${container}/`),
-  read: readMock,
+  readTextFileWithinRoots: (filePath: string, _roots: string[], options: unknown) => readMock(filePath, options),
   realpath: realpathMock,
   stat: statMock
 }))
@@ -186,7 +186,6 @@ describe('NotesSearchService', () => {
       expect.objectContaining({ id: 'growing', matchType: 'filename', matches: [], score: 100 })
     ])
     expect(readMock).toHaveBeenCalledWith('/notes/growing.md', {
-      encoding: 'text',
       maxBytes: 5,
       signal: expect.any(AbortSignal)
     })

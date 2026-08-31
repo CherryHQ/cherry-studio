@@ -40,10 +40,3 @@ export interface NotesSearchOptions {
   maxMatchesPerFile?: number
   contextLength?: number
 }
-
-export interface NotesSearchQuery {
-  nodes: NotesTreeNode[]
-  keyword: string
-  options: NotesSearchOptions
-  maxResults: number
-}

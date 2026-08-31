@@ -2,17 +2,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { isSameOrInside, read, realpath, stat } from '@main/utils/file'
+import { isSameOrInside, readTextFileWithinRoots, realpath, stat } from '@main/utils/file'
 import type { WindowId } from '@shared/ipc/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type {
-  NotesSearchMatch,
-  NotesSearchOptions,
-  NotesSearchQuery,
-  NotesSearchResult,
-  NotesTreeNode
-} from '@shared/types/note'
+import type { NotesSearchMatch, NotesSearchOptions, NotesSearchResult, NotesTreeNode } from '@shared/types/note'
 
 const logger = loggerService.withContext('NotesSearchService')
 
@@ -43,6 +37,13 @@ interface SearchCandidate {
 interface RankedSearchResult {
   readonly ordinal: number
   readonly result: NotesSearchResult
+}
+
+interface NotesSearchQuery {
+  nodes: NotesTreeNode[]
+  keyword: string
+  options: NotesSearchOptions
+  maxResults: number
 }
 
 function createAbortError(message: string): Error {
@@ -248,7 +249,10 @@ async function searchFileContent(
       return null
     }
 
-    const content = await read(realPath, { encoding: 'text', maxBytes: maxFileSize, signal })
+    // Read through a validated open handle. The earlier realpath/stat checks are only cheap
+    // filters; this operation revalidates the opened inode against the trusted roots so a
+    // concurrent path or parent replacement cannot redirect the actual content read.
+    const content = await readTextFileWithinRoots(parsedPath.data, notesRoots, { maxBytes: maxFileSize, signal })
     throwIfAborted(signal)
     if (!content || Buffer.byteLength(content, 'utf8') > maxFileSize) {
       return null

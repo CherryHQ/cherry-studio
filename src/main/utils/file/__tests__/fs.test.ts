@@ -1,4 +1,16 @@
-import { mkdir, mkdtemp, open, readdir, readFile, rm, stat as fsStatPromise, utimes, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  realpath as fsRealpath,
+  rm,
+  stat as fsStatPromise,
+  symlink,
+  utimes,
+  writeFile
+} from 'node:fs/promises'
 import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -26,6 +38,7 @@ import {
   probeReadable,
   read,
   readChunk,
+  readTextFileWithinRoots,
   remove as fsRemove,
   removeDir,
   shouldSilenceFsyncDirError,
@@ -240,6 +253,40 @@ describe('read (text)', () => {
       name: 'AbortError'
     })
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'reads an in-root symlink target through a fixed opened snapshot',
+    async () => {
+      const root = path.join(tmp, 'root')
+      await mkdir(root)
+      const note = path.join(root, 'note.md')
+      const link = path.join(root, 'linked.md')
+      await writeFile(note, 'trusted note')
+      await symlink(note, link)
+      const canonicalRoot = await fsRealpath(root)
+
+      await expect(
+        readTextFileWithinRoots(link as AbsoluteFilePath, [canonicalRoot as AbsoluteFilePath], { maxBytes: 1_000 })
+      ).resolves.toBe('trusted note')
+    }
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects a symlink whose opened target is outside every trusted root',
+    async () => {
+      const root = path.join(tmp, 'root')
+      await mkdir(root)
+      const outside = path.join(tmp, 'outside.md')
+      const link = path.join(root, 'linked.md')
+      await writeFile(outside, 'secret outside note')
+      await symlink(outside, link)
+      const canonicalRoot = await fsRealpath(root)
+
+      await expect(
+        readTextFileWithinRoots(link as AbsoluteFilePath, [canonicalRoot as AbsoluteFilePath], { maxBytes: 1_000 })
+      ).resolves.toBeNull()
+    }
+  )
 })
 
 describe('read (base64)', () => {

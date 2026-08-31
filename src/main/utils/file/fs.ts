@@ -51,6 +51,7 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import mime from 'mime'
 
 import { createContentHasher } from './contentHash'
+import { isSameOrInside } from './path'
 
 const logger = loggerService.withContext('utils/file/fs')
 
@@ -415,6 +416,54 @@ export async function openReadableFileSnapshot(target: AbsoluteFilePath): Promis
   } catch (error) {
     await handle.close().catch(() => undefined)
     throw error
+  }
+}
+
+/**
+ * Read a fixed regular-file snapshot only when the opened inode is still reachable through a path
+ * inside one of the trusted roots. Both path resolutions are treated as hints: acceptance depends
+ * on a second safely-opened snapshot matching the source `(dev, ino)`, which closes the
+ * realpath/stat/read TOCTOU window when a parent or leaf is replaced concurrently.
+ */
+export async function readTextFileWithinRoots(
+  target: AbsoluteFilePath,
+  roots: readonly AbsoluteFilePath[],
+  options: { maxBytes: number; signal?: AbortSignal }
+): Promise<string | null> {
+  const { maxBytes, signal } = options
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes >= Number.MAX_SAFE_INTEGER) {
+    throw new RangeError('maxBytes must be a non-negative safe integer below Number.MAX_SAFE_INTEGER')
+  }
+  signal?.throwIfAborted()
+
+  const resolvedBefore = AbsoluteFilePathSchema.parse(await fsRealpath(target))
+  if (!roots.some((root) => isSameOrInside(resolvedBefore, root))) return null
+
+  const source = await openReadableFileSnapshot(resolvedBefore)
+  try {
+    if (source.size > maxBytes) return null
+
+    const resolvedAfter = AbsoluteFilePathSchema.parse(await fsRealpath(target))
+    if (!roots.some((root) => isSameOrInside(resolvedAfter, root))) return null
+
+    const verifier = await openReadableFileSnapshot(resolvedAfter)
+    try {
+      if (source.dev !== verifier.dev || source.ino !== verifier.ino) return null
+    } finally {
+      await verifier.close()
+    }
+
+    signal?.throwIfAborted()
+    const stream = source.createReadStream()
+    if (signal) addAbortSignal(signal, stream)
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      signal?.throwIfAborted()
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    return Buffer.concat(chunks).toString('utf8')
+  } finally {
+    await source.close()
   }
 }
 

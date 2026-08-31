@@ -1,5 +1,4 @@
 import type { NotesSearchResult, NotesTreeNode } from '@shared/types/note'
-import { validateNotesSearchTree } from '@shared/utils/notesSearch'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -17,6 +16,62 @@ const MAX_NOTE_PATH_LENGTH = 32_768
 const MAX_NOTE_TIMESTAMP_LENGTH = 100
 const MAX_NOTE_CHILDREN = 10_000
 const MAX_SEARCH_TREE_DEPTH = 100
+
+interface NodeParseSuccess {
+  readonly success: true
+  readonly data: { readonly children?: unknown[] }
+}
+
+interface NodeParseFailure {
+  readonly success: false
+  readonly error: {
+    readonly issues: ReadonlyArray<{ readonly message: string; readonly path: readonly PropertyKey[] }>
+  }
+}
+
+/** Iteratively validate this IPC payload without recursive stack growth. */
+function validateNotesSearchTree(
+  nodes: unknown[],
+  options: {
+    readonly maxDepth: number
+    readonly maxNodes: number
+    readonly parseNode: (value: unknown) => NodeParseSuccess | NodeParseFailure
+  }
+): { readonly issues: ReadonlyArray<{ readonly message: string; readonly path: readonly PropertyKey[] }> } {
+  const stack: Array<{ depth: number; path: PropertyKey[]; value: unknown }> = nodes.map((value, index) => ({
+    value,
+    depth: 1,
+    path: [index]
+  }))
+  let nodeCount = 0
+
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    nodeCount += 1
+    if (nodeCount > options.maxNodes) {
+      return { issues: [{ path: current.path, message: `Notes search tree exceeds ${options.maxNodes} total nodes` }] }
+    }
+    if (current.depth > options.maxDepth) {
+      return { issues: [{ path: current.path, message: `Notes search tree exceeds depth ${options.maxDepth}` }] }
+    }
+
+    const parsed = options.parseNode(current.value)
+    if (!parsed.success) {
+      return {
+        issues: parsed.error.issues.map((issue) => ({
+          path: [...current.path, ...issue.path],
+          message: issue.message
+        }))
+      }
+    }
+
+    parsed.data.children?.forEach((child, index) => {
+      stack.push({ value: child, depth: current.depth + 1, path: [...current.path, 'children', index] })
+    })
+  }
+
+  return { issues: [] }
+}
 
 const notesTreeNodeFieldsSchema = z.strictObject({
   id: z.string().max(MAX_NOTE_ID_LENGTH),
