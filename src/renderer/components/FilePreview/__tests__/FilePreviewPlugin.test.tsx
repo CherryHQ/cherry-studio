@@ -1,13 +1,14 @@
+/* eslint-disable simple-import-sort/imports */
 import '@testing-library/jest-dom/vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
+import { FilePreview, __filePreviewInternal } from '../FilePreview'
 import { FilePreviewLayout } from '../FilePreviewLayout'
-import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 import { FilePreviewToolbar } from '../FilePreviewToolbar'
+import type * as FilePreviewRegistryModule from '../filePreviewRegistry'
 
 const mocks = vi.hoisted(() => ({
   ipcApiRequest: vi.fn(),
@@ -45,8 +46,6 @@ vi.mock('../filePreviewRegistry', async (importOriginal) => {
     filePreviewRegistry: actual.createFilePreviewRegistry({ extensionPlugins: [plugin] })
   }
 })
-
-import { FilePreview } from '../FilePreview'
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -93,6 +92,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  __filePreviewInternal.resetLoadedModules()
   cleanup()
   vi.clearAllMocks()
   vi.restoreAllMocks()

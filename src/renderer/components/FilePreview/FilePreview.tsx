@@ -1,3 +1,4 @@
+/* eslint-disable simple-import-sort/imports */
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
@@ -7,18 +8,33 @@ import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/util
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, FolderOpen, LoaderCircle } from 'lucide-react'
-import { lazy, type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
+import { createElement, Suspense, type ComponentType, type ReactNode, useEffect, useMemo, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from './FilePreviewLayout'
-import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
+import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewType } from './types'
+import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
+
+// Cache for pre-loaded plugin modules. Each plugin's load() is called at most once.
+// The WeakMap key is the plugin object (stable identity from the registry).
+// The cache lives behind a mutable binding so test code can clear it between cases
+// via `__filePreviewInternal.resetLoadedModules()`. Production code never calls reset.
+let loadedModules: WeakMap<
+  FilePreviewPlugin,
+  Promise<{ default: ComponentType<FilePreviewPluginProps> }>
+> = new WeakMap()
+
+export const __filePreviewInternal = {
+  resetLoadedModules(): void {
+    loadedModules = new WeakMap()
+  }
+}
 
 type FilePreviewStateKind = 'directory' | 'invalid_path' | 'load_error' | 'unavailable' | 'unsupported'
 
@@ -110,6 +126,7 @@ interface FilePreviewPluginRendererProps {
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
   plugin: FilePreviewPlugin
+  pluginComponent: (props: FilePreviewPluginProps) => ReactNode
   refreshKey: number
   type: FilePreviewType
 }
@@ -142,10 +159,11 @@ function FilePreviewPluginRenderer({
   filePath,
   metadata,
   plugin,
+  pluginComponent,
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
+  const PluginComponent = pluginComponent
 
   return (
     <ErrorBoundary
@@ -153,7 +171,7 @@ function FilePreviewPluginRenderer({
       FallbackComponent={PluginErrorFallback}
       onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
-        <PluginPreview
+        <PluginComponent
           filePath={filePath}
           fileName={fileName}
           metadata={metadata}
@@ -180,11 +198,13 @@ interface NormalizedFilePreviewTarget {
 type FilePreviewResolution =
   | { requestKey: string; status: 'directory' }
   | { requestKey: string; status: 'loading' }
+  | { requestKey: string; status: 'load_error' }
   | { requestKey: string; status: 'unavailable' }
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
       plugin: FilePreviewPlugin | null
+      pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null
       requestKey: string
       status: 'ready'
     }
@@ -207,12 +227,54 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     let cancelled = false
     setResolution({ requestKey, status: 'loading' })
 
+    // Resolve the plugin synchronously from the file path — no IPC needed.
+    const candidatePlugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+
     void (async () => {
       try {
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        // Run metadata IPC and plugin chunk loading in parallel.
+        // Use WeakMap cache so load() is called at most once per plugin instance.
+        // For unknown extensions we may need textFilePreviewPlugin as a fallback,
+        // so load it too alongside the candidate plugin.
+        const needsTextFallback = !candidatePlugin || TEXT_CONTENT_PLUGIN_IDS.has(candidatePlugin.id)
+        const textPluginLoad =
+          needsTextFallback && !loadedModules.has(textFilePreviewPlugin)
+            ? (() => {
+                const p = textFilePreviewPlugin.load()
+                loadedModules.set(textFilePreviewPlugin, p)
+                return p
+              })()
+            : (loadedModules.get(textFilePreviewPlugin) ?? Promise.resolve(null))
+
+        const candidateLoad = (() => {
+          if (!candidatePlugin) return null
+          const existing = loadedModules.get(candidatePlugin)
+          if (existing) return existing
+          const promise = candidatePlugin.load()
+          loadedModules.set(candidatePlugin, promise)
+          return promise
+        })()
+
+        // Race metadata with the candidate plugin chunk load. Use Promise.allSettled
+        // so a plugin chunk failure does not swallow the metadata result; the original
+        // behavior surfaced plugin load failures through the ErrorBoundary (load_error),
+        // not as an unavailable preview.
+        const [metadataResult, candidateResult] = await Promise.allSettled([
+          ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath)),
+          candidateLoad
+        ])
+        const metadata = metadataResult.status === 'fulfilled' ? metadataResult.value : null
+        const candidateModule = candidateResult && candidateResult.status === 'fulfilled' ? candidateResult.value : null
+        const candidateLoadError =
+          candidateResult && candidateResult.status === 'rejected' ? candidateResult.reason : null
+
+        // Load text plugin in parallel if needed (runs independently).
+        if (needsTextFallback) {
+          void textPluginLoad // fire and forget — we await it only when we need the result
+        }
         if (cancelled) return
 
-        if (!metadata) {
+        if (metadataResult.status === 'rejected' || !metadata) {
           setResolution({ requestKey, status: 'unavailable' })
           return
         }
@@ -222,18 +284,44 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           return
         }
 
-        let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+        // Accept/reject the candidate plugin based on metadata exactly as before.
+        let plugin: FilePreviewPlugin | null = candidatePlugin
+        let pluginModule = candidateModule
+        let pluginLoadError: unknown = candidateLoadError
         if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
           const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
             plugin = textFilePreviewPlugin
+            const textResult = await Promise.allSettled([textPluginLoad])
+            if (textResult[0].status === 'fulfilled') {
+              pluginModule = textResult[0].value
+              pluginLoadError = null
+            } else {
+              pluginModule = null
+              pluginLoadError = textResult[0].reason
+            }
           } else if (plugin && !isText) {
             plugin = null
+            pluginModule = null
+            pluginLoadError = null
           }
         }
 
-        setResolution({ file, metadata, plugin, requestKey, status: 'ready' })
+        // A plugin load failure produces a load_error state, mirroring the previous
+        // ErrorBoundary fallback so existing tests still observe load_error.title.
+        if (plugin && pluginLoadError) {
+          logger.error(`Failed to load file preview plugin: ${plugin.id}`, pluginLoadError)
+          setResolution({ requestKey, status: 'load_error' })
+          return
+        }
+
+        // Pre-create a render-bound element factory so we never invoke lazy()
+        // again on re-render — the chunk is already in `pluginModule`.
+        const pluginComponent: ((props: FilePreviewPluginProps) => ReactNode) | null =
+          plugin && pluginModule ? (props) => createElement(pluginModule.default, props) : null
+
+        setResolution({ file, metadata, plugin, pluginComponent, requestKey, status: 'ready' })
       } catch {
         if (!cancelled) setResolution({ requestKey, status: 'unavailable' })
       }
@@ -252,14 +340,17 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
     preview = <FilePreviewLoading />
   } else if (resolution.status === 'directory') {
     preview = <FilePreviewState kind="directory" />
+  } else if (resolution.status === 'load_error') {
+    preview = <FilePreviewState kind="load_error" />
   } else if (resolution.status === 'unavailable') {
     preview = <FilePreviewState kind="unavailable" />
-  } else if (resolution.plugin) {
+  } else if (resolution.plugin && resolution.pluginComponent) {
     preview = (
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
         plugin={resolution.plugin}
+        pluginComponent={resolution.pluginComponent}
         refreshKey={refreshKey}
         type={type}
       />
