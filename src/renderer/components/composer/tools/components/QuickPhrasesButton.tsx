@@ -144,14 +144,14 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     restoreInputFocus()
   }, [restoreInputFocus])
 
-  const openPromptManagement = useCallback(() => {
-    if (bindingTarget) {
-      openResourceEditDialog({ kind: bindingTarget.type, id: bindingTarget.id, initialTab: 'prompts' })
-      return
-    }
-
-    openSettingsTab('/settings/prompts')
+  const openCurrentPromptManagement = useCallback(() => {
+    if (!bindingTarget) return
+    openResourceEditDialog({ kind: bindingTarget.type, id: bindingTarget.id, initialTab: 'prompts' })
   }, [bindingTarget])
+
+  const openGlobalPromptManagement = useCallback(() => {
+    openSettingsTab('/settings/prompts')
+  }, [])
 
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
@@ -179,10 +179,21 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
       )
     }
 
+    if (bindingTarget) {
+      newList.push({
+        label:
+          bindingTarget.type === 'assistant'
+            ? t('settings.prompts.manageCurrentAssistant')
+            : t('settings.prompts.manageCurrentAgent'),
+        icon: <Settings />,
+        action: openCurrentPromptManagement
+      })
+    }
+
     newList.push({
-      label: t('settings.prompts.manage'),
+      label: t('settings.prompts.manageGlobal'),
       icon: <Settings />,
-      action: openPromptManagement
+      action: openGlobalPromptManagement
     })
 
     newList.push({
@@ -196,11 +207,13 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     handleItemSelect,
     isPromptsLoading,
     openAddModal,
-    openPromptManagement,
+    openCurrentPromptManagement,
+    openGlobalPromptManagement,
     promptItems,
     promptsEnabled,
     promptsError,
-    t
+    t,
+    bindingTarget
   ])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(

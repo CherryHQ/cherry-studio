@@ -182,7 +182,7 @@ describe('QuickPhrasesToolRuntime', () => {
     )
   })
 
-  it('opens the current Assistant prompt tab from the management action without replacing the add action', async () => {
+  it('offers separate current Assistant and global prompt management actions', async () => {
     const launcher = createLauncherApi()
     const assistantId = ASSISTANT_ID
 
@@ -204,13 +204,16 @@ describe('QuickPhrasesToolRuntime', () => {
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
     expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
       'Prompt 1',
-      'settings.prompts.manage',
+      'settings.prompts.manageCurrentAssistant',
+      'settings.prompts.manageGlobal',
       'settings.prompts.add'
     ])
 
-    const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
+    const manageCurrentItem = panelOptions.list.find(
+      (item: { label: string }) => item.label === 'settings.prompts.manageCurrentAssistant'
+    )
     act(() => {
-      manageItem.action({} as never)
+      manageCurrentItem.action({} as never)
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -218,7 +221,15 @@ describe('QuickPhrasesToolRuntime', () => {
       id: assistantId,
       initialTab: 'prompts'
     })
-    expect(mocks.openSettingsTab).not.toHaveBeenCalled()
+
+    const manageGlobalItem = panelOptions.list.find(
+      (item: { label: string }) => item.label === 'settings.prompts.manageGlobal'
+    )
+    act(() => {
+      manageGlobalItem.action({} as never)
+    })
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/prompts')
     expect(screen.queryByTestId('prompt-edit-dialog')).not.toBeInTheDocument()
   })
 
@@ -256,7 +267,8 @@ describe('QuickPhrasesToolRuntime', () => {
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
     expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
       'Prompt 1',
-      'settings.prompts.manage',
+      'settings.prompts.manageCurrentAssistant',
+      'settings.prompts.manageGlobal',
       'settings.prompts.add'
     ])
 
@@ -278,7 +290,7 @@ describe('QuickPhrasesToolRuntime', () => {
     )
   })
 
-  it('lists global and linked Agent prompts', async () => {
+  it('labels the current Agent prompt management action without changing its target', async () => {
     const launcher = createLauncherApi()
     const agentId = 'agent-1'
 
@@ -311,7 +323,9 @@ describe('QuickPhrasesToolRuntime', () => {
     )
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
-    const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
+    const manageItem = panelOptions.list.find(
+      (item: { label: string }) => item.label === 'settings.prompts.manageCurrentAgent'
+    )
     act(() => {
       manageItem.action({} as never)
     })
