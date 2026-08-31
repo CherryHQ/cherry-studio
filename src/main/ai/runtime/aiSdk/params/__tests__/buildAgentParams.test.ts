@@ -147,6 +147,10 @@ describe('buildAgentParams provider resolution', () => {
     expect(result.options.providerOptions).toMatchObject({
       ollama: { options: { num_ctx: 131_072 } }
     })
+    expect(result.model).toMatchObject({
+      id: model.id,
+      contextWindow: 131_072
+    })
   })
 
   it('maps Groq service tiers after assistant custom parameters and before call overrides', async () => {

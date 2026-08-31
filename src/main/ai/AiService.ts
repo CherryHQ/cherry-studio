@@ -1206,7 +1206,7 @@ export class AiService extends BaseService {
       getRepairUsagePlugins,
       compactionSink: request.compactionSink
     })
-    return { ...built, provider, model, assistant }
+    return { ...built, provider, assistant }
   }
 
   // ── Token usage tracking ──

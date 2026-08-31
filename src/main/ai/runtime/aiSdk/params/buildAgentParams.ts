@@ -113,6 +113,8 @@ export interface BuildAgentParamsInput {
 }
 
 export interface BuiltAgentParams {
+  /** Effective runtime model after provider-specific metadata discovery. */
+  model: Model
   sdkConfig: SdkConfig
   /** Non-secret receipt for the credential path selected for this request. */
   credentialReceipt: ServingCredentialReceipt
@@ -316,6 +318,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
   return {
+    model,
     sdkConfig,
     credentialReceipt,
     tools,
