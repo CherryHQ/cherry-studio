@@ -1195,7 +1195,7 @@ export class CacheService {
         ) {
           const existing = this.persistCache.get(persistKey) as Record<string, unknown>
           if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
-            const merged = { ...(existing as Record<string, unknown>), ...(message.value as Record<string, unknown>) }
+            const merged = { ...existing, ...(message.value as Record<string, unknown>) }
             this.persistCache.set(persistKey, merged as never)
             this.notifySubscribers(message.key)
             return
