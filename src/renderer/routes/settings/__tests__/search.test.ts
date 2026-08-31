@@ -7,7 +7,8 @@ vi.mock('@renderer/pages/settings/settingsSearch/SearchResultsPage', () => ({
 
 import { Route } from '../search'
 
-const validate = Route.options.validateSearch
+// Options type unions every validator shape; the route under test passes a plain function
+const validate = Route.options.validateSearch as (search: Record<string, unknown>) => Record<string, unknown>
 
 describe('settings search route validateSearch', () => {
   it('keeps a q within the byte budget', () => {
