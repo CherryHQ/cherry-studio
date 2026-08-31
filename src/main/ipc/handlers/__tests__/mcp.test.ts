@@ -1,4 +1,3 @@
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
@@ -18,7 +17,6 @@ const runtime = {
   getServerLogs: vi.fn()
 }
 const catalog = { refreshTools: vi.fn() }
-const pkg = { uploadDxt: vi.fn(), uploadMcpb: vi.fn() }
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -26,7 +24,6 @@ beforeEach(() => {
   appGetMock.mockImplementation((name: string) => {
     if (name === 'McpRuntimeService') return runtime
     if (name === 'McpCatalogService') return catalog
-    if (name === 'McpPackageService') return pkg
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -60,16 +57,5 @@ describe('mcpHandlers', () => {
   it('get_server_version returns string | null', async () => {
     runtime.getServerVersion.mockResolvedValue(null)
     expect(await mcpHandlers['mcp.server.get_version']({ serverId: 's' }, ctx)).toBeNull()
-  })
-
-  it('upload_dxt / upload_mcpb delegate the selected path without transferring package bytes', async () => {
-    const dxtPath = AbsoluteFilePathSchema.parse('/tmp/a.dxt')
-    const mcpbPath = AbsoluteFilePathSchema.parse('/tmp/b.mcpb')
-    pkg.uploadDxt.mockResolvedValue({ success: true })
-    pkg.uploadMcpb.mockResolvedValue({ success: true })
-    await mcpHandlers['mcp.package.upload_dxt']({ filePath: dxtPath }, ctx)
-    await mcpHandlers['mcp.package.upload_mcpb']({ filePath: mcpbPath }, ctx)
-    expect(pkg.uploadDxt).toHaveBeenCalledWith(dxtPath)
-    expect(pkg.uploadMcpb).toHaveBeenCalledWith(mcpbPath)
   })
 })

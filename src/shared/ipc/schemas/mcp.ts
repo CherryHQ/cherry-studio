@@ -1,6 +1,5 @@
 import { ProtocolMcpInstallRequestSchema } from '@shared/data/types/mcpProtocolInstall'
 import { McpServerSchema } from '@shared/data/types/mcpServer'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { McpProgressEvent, McpServerLogEntry } from '@shared/types/mcp'
 import * as z from 'zod'
 
@@ -11,21 +10,18 @@ import { defineRoute } from '../define'
  *   - `mcp.protocol_install.*` — one-shot external install preview handoff
  *   - `mcp.server.*` — server lifecycle + per-server queries (all serverId-scoped)
  *   - `mcp.tool.*`   — in-flight tool-call control
- *   - `mcp.package.*`— .dxt/.mcpb package upload
  * plus three push events. Handlers span three services (McpRuntimeService /
- * McpCatalogService / McpPackageService); see handlers/mcp.ts.
+ * McpCatalogService); see handlers/mcp.ts. Package uploads deliberately remain
+ * on a dedicated preload capability so an untrusted renderer cannot forge a
+ * native path; the preload derives it from an actual user-selected File.
  *
  * `server.list_prompts` / `server.list_resources` / `server.get_prompt` keep `z.any()` outputs: they
  * hand back raw MCP protocol shapes (`GetPromptResult`) whose types live in the SDK / src/main, and
  * the renderer consumes them untyped — same contract the legacy preload had.
- * `server.read_resource_preview` is typed, since its shape exists for the composer alone. Package-upload inputs carry
- * only an absolute native path; the main process validates and copies the selected file through a bounded stream.
+ * `server.read_resource_preview` is typed, since its shape exists for the composer alone.
  */
 const serverId = z.object({ serverId: z.string() })
 const serverIdNonEmpty = z.object({ serverId: z.string().min(1) })
-// Native file paths keep package bytes out of Electron's structured-clone IPC transport.
-// The main-process service validates and copies the selected file through a bounded stream.
-const uploadInput = z.strictObject({ filePath: AbsoluteFilePathSchema })
 const protocolInstallRequestId = z.object({ requestId: z.uuid() })
 
 export const mcpRequestSchemas = {
@@ -76,12 +72,7 @@ export const mcpRequestSchemas = {
   'mcp.tool.abort_call': defineRoute({
     input: z.object({ callId: z.string().min(1), scope: z.string().min(1).optional() }),
     output: z.boolean()
-  }),
-  // Package upload. Output kept as `z.any()` (McpPackageUploadResult, whose `data.manifest`
-  // type lives in src/main): matches the legacy preload's `Promise<any>` and avoids hoisting
-  // the manifest type into @shared for this transport migration.
-  'mcp.package.upload_dxt': defineRoute({ input: uploadInput, output: z.any() }),
-  'mcp.package.upload_mcpb': defineRoute({ input: uploadInput, output: z.any() })
+  })
 }
 
 export type McpEventSchemas = {

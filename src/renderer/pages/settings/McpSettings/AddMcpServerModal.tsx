@@ -29,7 +29,6 @@ import { parseJSON } from '@renderer/utils/json'
 import { objectKeys } from '@renderer/utils/object'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
 import { ImportIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -194,10 +193,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // Process package file
         try {
           const installTimestamp = Date.now()
-          const filePath = AbsoluteFilePathSchema.parse(window.api.file.getPathForFile(packageFile))
           const result = isMcpbImport
-            ? await ipcApi.request('mcp.package.upload_mcpb', { filePath })
-            : await ipcApi.request('mcp.package.upload_dxt', { filePath })
+            ? await window.api.mcp.uploadMcpb(packageFile)
+            : await window.api.mcp.uploadDxt(packageFile)
 
           if (!result.success) {
             toast.error(

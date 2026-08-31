@@ -82,6 +82,11 @@ export enum IpcChannel {
   File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
 
+  // MCP package selection. These stay off generic IpcApi so the preload can
+  // derive the native path from an actual user-selected File.
+  Mcp_UploadDxt = 'mcp:uploadDxt',
+  Mcp_UploadMcpb = 'mcp:uploadMcpb',
+
   // backup
   Backup_Backup = 'backup:backup',
   Backup_Restore = 'backup:restore',

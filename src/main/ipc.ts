@@ -156,6 +156,13 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
   handleGuarded(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
+  handleGuarded(IpcChannel.Mcp_UploadDxt, (_event, filePath: string) =>
+    application.get('McpPackageService').uploadDxt(filePath)
+  )
+  handleGuarded(IpcChannel.Mcp_UploadMcpb, (_event, filePath: string) =>
+    application.get('McpPackageService').uploadMcpb(filePath)
+  )
+
   // fs
   handleGuarded(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
   handleGuarded(IpcChannel.Fs_ReadText, FileService.readTextFileWithAutoEncoding.bind(FileService))

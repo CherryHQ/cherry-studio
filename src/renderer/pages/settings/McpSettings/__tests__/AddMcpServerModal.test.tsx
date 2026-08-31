@@ -10,9 +10,10 @@ import AddMcpServerModal from '../AddMcpServerModal'
 
 const mocks = vi.hoisted(() => ({
   checkConnectivity: vi.fn().mockResolvedValue(false),
-  getPathForFile: vi.fn((file: File) => `/tmp/${file.name}`),
   patch: vi.fn().mockResolvedValue(undefined),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  uploadDxt: vi.fn(),
+  uploadMcpb: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -78,7 +79,10 @@ function getPackageInput(): HTMLInputElement {
 describe('AddMcpServerModal', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    window.api.file.getPathForFile = mocks.getPathForFile
+    window.api.mcp = {
+      uploadDxt: mocks.uploadDxt,
+      uploadMcpb: mocks.uploadMcpb
+    }
   })
 
   it('imports every server from a multi-server JSON config', async () => {
@@ -171,16 +175,17 @@ describe('AddMcpServerModal', () => {
     await userEvent.upload(getPackageInput(), packageFile)
 
     expect(screen.getByRole('button', { name: 'common.confirm' })).toBeDisabled()
-    expect(mocks.getPathForFile).not.toHaveBeenCalled()
+    expect(mocks.uploadDxt).not.toHaveBeenCalled()
+    expect(mocks.uploadMcpb).not.toHaveBeenCalled()
     expect(mocks.checkConnectivity).not.toHaveBeenCalled()
   })
 
-  it('sends only the native path for an accepted package', async () => {
+  it('passes an accepted package File through the privileged preload upload capability', async () => {
     const onSuccess = vi.fn(async (dtos: CreateMcpServerDto[]) => toCreatedServers(dtos))
     const packageFile = new File(['package'], 'server.dxt', { type: 'application/octet-stream' })
     const arrayBuffer = vi.fn()
     Object.defineProperty(packageFile, 'arrayBuffer', { value: arrayBuffer })
-    mocks.checkConnectivity.mockResolvedValueOnce({ success: false, error: 'test stop' })
+    mocks.uploadDxt.mockResolvedValueOnce({ success: false, error: 'test stop' })
 
     render(
       <AddMcpServerModal
@@ -195,12 +200,7 @@ describe('AddMcpServerModal', () => {
     await userEvent.upload(getPackageInput(), packageFile)
     await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
-    await waitFor(() =>
-      expect(mocks.checkConnectivity).toHaveBeenCalledWith('mcp.package.upload_dxt', {
-        filePath: '/tmp/server.dxt'
-      })
-    )
-    expect(mocks.getPathForFile).toHaveBeenCalledWith(packageFile)
+    await waitFor(() => expect(mocks.uploadDxt).toHaveBeenCalledWith(packageFile))
     expect(arrayBuffer).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()
   })
@@ -226,6 +226,7 @@ describe('AddMcpServerModal', () => {
 
     expect(mocks.toastError).toHaveBeenCalledWith('settings.mcp.addServer.importFrom.packageEmpty')
     expect(arrayBuffer).not.toHaveBeenCalled()
+    expect(mocks.uploadMcpb).not.toHaveBeenCalled()
     expect(mocks.checkConnectivity).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()
   })
