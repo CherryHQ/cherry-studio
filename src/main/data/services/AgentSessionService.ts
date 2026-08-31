@@ -165,19 +165,6 @@ export class AgentSessionService {
     return { items, nextCursor: hasNext ? items.at(-1)?.sessionId : undefined }
   }
 
-  isAddressable(sessionId: string): boolean {
-    const [row] = application
-      .get('DbService')
-      .getDb()
-      .select({ id: sessionsTable.id })
-      .from(sessionsTable)
-      .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(eq(sessionsTable.id, sessionId))
-      .limit(1)
-      .all()
-    return row !== undefined
-  }
-
   search(query: { q: string; limit: number; updatedAtFrom?: number; agentId?: string }): SessionEntitySearchItem[] {
     return this.searchWithMetadataEvidence(query).map((result) => result.item)
   }

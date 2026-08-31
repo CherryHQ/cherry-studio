@@ -293,10 +293,6 @@ describe('AgentSessionService', () => {
 
     expect([...first.items, ...second.items].map((item) => item.sessionId)).toEqual(['addressable-a', 'addressable-b'])
     expect(second.nextCursor).toBeUndefined()
-    expect(agentSessionService.isAddressable('addressable-a')).toBe(true)
-    expect(agentSessionService.isAddressable('orphan')).toBe(false)
-    expect(agentSessionService.isAddressable('soft-deleted-agent')).toBe(false)
-    expect(agentSessionService.isAddressable('missing')).toBe(false)
   })
 
   describe('getLatestActive', () => {
