@@ -10,7 +10,9 @@ import {
   createUnusedI18nResult,
   findSourceFiles,
   type I18N,
+  type I18nCatalogConfig,
   removeI18nKeys,
+  runCli,
   selectKeysByGroups
 } from '../i18n-check-unused'
 
@@ -137,6 +139,73 @@ describe('i18n-check-unused', () => {
       expect(findSourceFiles(root).map((file) => path.relative(root, file))).toEqual([
         path.join('pages', 'translate', 'TranslatePage.tsx')
       ])
+    })
+  })
+
+  describe('runCli', () => {
+    it('checks and cleans renderer and main catalogs against their own source scopes', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'i18n-unused-catalogs-'))
+      const rendererLocalesDir = path.join(root, 'renderer/locales')
+      const rendererSourceDir = path.join(root, 'renderer/source')
+      const mainLocalesDir = path.join(root, 'main/locales')
+      const mainSourceDir = path.join(root, 'main/source')
+      const rendererLocale = {
+        'catalog.shared': 'Renderer shared',
+        'renderer.unused': 'Renderer unused'
+      }
+      const mainLocale = {
+        'catalog.shared': 'Main shared',
+        'main.unused': 'Main unused',
+        'main.used': 'Main used',
+        'main.used_one': 'Main used singular'
+      }
+
+      for (const [localesDir, locale] of [
+        [rendererLocalesDir, rendererLocale],
+        [mainLocalesDir, mainLocale]
+      ] as const) {
+        fs.mkdirSync(localesDir, { recursive: true })
+        fs.writeFileSync(path.join(localesDir, 'en-us.json'), JSON.stringify(locale), 'utf-8')
+        fs.writeFileSync(path.join(localesDir, 'zh-cn.json'), JSON.stringify(locale), 'utf-8')
+      }
+      fs.mkdirSync(rendererSourceDir, { recursive: true })
+      fs.mkdirSync(mainSourceDir, { recursive: true })
+      const rendererSourceFile = path.join(rendererSourceDir, 'renderer.ts')
+      fs.writeFileSync(rendererSourceFile, "t('catalog.shared'); t('renderer.unused')", 'utf-8')
+      fs.writeFileSync(path.join(mainSourceDir, 'main.ts'), "import { t } from '@main/i18n'; t('main.used')", 'utf-8')
+      fs.writeFileSync(path.join(mainSourceDir, 'unrelated.ts'), "const key = 'catalog.shared'", 'utf-8')
+      const mainTestsDir = path.join(mainSourceDir, '__tests__')
+      fs.mkdirSync(mainTestsDir, { recursive: true })
+      fs.writeFileSync(
+        path.join(mainTestsDir, 'main.test.ts'),
+        "import { t } from '@main/i18n'; t('main.unused')",
+        'utf-8'
+      )
+
+      const catalogs: I18nCatalogConfig[] = [
+        { name: 'renderer', localesDir: rendererLocalesDir, sourceDirs: [rendererSourceDir] },
+        { name: 'main', localesDir: mainLocalesDir, sourceDirs: [mainSourceDir] }
+      ]
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+
+      try {
+        await expect(runCli({ failOnUnused: true }, catalogs)).rejects.toThrow(
+          'Found 3 unused i18n keys in the main catalog.'
+        )
+        fs.writeFileSync(rendererSourceFile, "t('catalog.shared')", 'utf-8')
+        await runCli({ all: true, clean: true }, catalogs)
+      } finally {
+        consoleSpy.mockRestore()
+      }
+
+      for (const locale of ['en-us', 'zh-cn']) {
+        expect(JSON.parse(fs.readFileSync(path.join(rendererLocalesDir, `${locale}.json`), 'utf-8'))).toEqual({
+          'catalog.shared': 'Renderer shared'
+        })
+        expect(JSON.parse(fs.readFileSync(path.join(mainLocalesDir, `${locale}.json`), 'utf-8'))).toEqual({
+          'main.used': 'Main used'
+        })
+      }
     })
   })
 
