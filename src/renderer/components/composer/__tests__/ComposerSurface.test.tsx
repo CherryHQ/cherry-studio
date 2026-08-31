@@ -4319,7 +4319,7 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions.handlePaste(mocks.currentView, event)).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
-    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event, expect.any(Object))
     expect(mocks.insertContent).not.toHaveBeenCalled()
   })
 
@@ -4386,7 +4386,7 @@ describe('ComposerSurface', () => {
     expect(mocks.deleteSelection).not.toHaveBeenCalled()
   })
 
-  it('reconciles selected managed tokens before adding an accepted clipboard file', async () => {
+  it('reconciles selected managed tokens before adding a clipboard image that also exposes text', async () => {
     const onTokensChange = vi.fn()
     const fileToken = {
       id: 'file:old-image',
@@ -4430,7 +4430,7 @@ describe('ComposerSurface', () => {
     const event = {
       preventDefault: vi.fn(),
       clipboardData: {
-        getData: vi.fn(() => ''),
+        getData: vi.fn((type: string) => (type === 'text' || type === 'text/plain' ? 'screenshot text flavor' : '')),
         files: [{ name: 'new-image.png', type: 'image/png' }],
         items: [{ kind: 'file', type: 'image/png' }]
       }

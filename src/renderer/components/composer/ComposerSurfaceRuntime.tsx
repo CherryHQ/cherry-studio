@@ -1718,7 +1718,7 @@ export default function ComposerSurfaceRuntime({
 
       if (shouldPreferClipboardImage) {
         event.preventDefault()
-        void handlePaste(event)
+        void handlePaste(event, filePasteLifecycle)
         return true
       }
 
