@@ -138,10 +138,14 @@ const MessageGroup = ({
     const activeBranchMessage = messages.find((message) => message.isActiveBranch)
     let nextSelectedMessage: MessageListItem | undefined
 
-    if (
+    if (pendingBranchTargetRef.current !== null) {
+      // A branch switch is in flight — suppress all auto-sync so streaming
+      // updates and newly added assistant messages cannot override the user's
+      // model selection.  The pending ref is cleared in setSelectedMessage's
+      // finally block once the switch settles.
+    } else if (
       activeBranchMessage &&
-      activeBranchMessage.id !== selectedMessageId &&
-      pendingBranchTargetRef.current === null
+      activeBranchMessage.id !== selectedMessageId
     ) {
       nextSelectedMessage = activeBranchMessage
     } else if (!hasSelected) {
