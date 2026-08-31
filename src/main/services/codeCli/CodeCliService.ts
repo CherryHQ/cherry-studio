@@ -41,7 +41,13 @@ import { promisify } from 'util'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
-import { batchLinesReadingSecretEnv, type SecretEnvFile, wrapPosixCommandWithSecretEnv } from './secretEnvFile'
+import {
+  batchLinesReadingSecretEnv,
+  removeSecretEnvFile,
+  removeStaleSecretEnvFiles,
+  type SecretEnvFile,
+  wrapPosixCommandWithSecretEnv
+} from './secretEnvFile'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -95,6 +101,9 @@ export class CodeCliService extends BaseService {
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
+    await removeStaleSecretEnvFiles(application.getPath('feature.cli.antigravity.launch')).catch((error) => {
+      logger.warn('Failed to remove stale Antigravity launch credentials', error as Error)
+    })
   }
 
   protected override async onAllReady(): Promise<void> {
@@ -676,7 +685,7 @@ export class CodeCliService extends BaseService {
       }
 
       secretEnv = launchConfig.secretEnv
-      logger.debug('Antigravity environment variables:', launchConfig.secretEnv.names)
+      logger.debug('Antigravity environment variables:', launchConfig.secretEnv.requiredNames)
       const geminiDirArg =
         platform === 'win32'
           ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
@@ -965,6 +974,11 @@ export class CodeCliService extends BaseService {
 
       return { success: true }
     } catch (error) {
+      if (secretEnv) {
+        await removeSecretEnvFile(secretEnv).catch((cleanupError) => {
+          logger.warn('Failed to remove unused Antigravity launch credentials', cleanupError as Error)
+        })
+      }
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to launch terminal: ${errorMessage}`
       logger.error(failureMessage, error as Error)

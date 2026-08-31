@@ -147,8 +147,9 @@ export function buildPathRegistry() {
       'antigravity-cli',
       'settings.json'
     ),
-    // Launch credentials; Cherry's launch script exports them — the CLI never reads this file.
-    'feature.cli.antigravity.env.file': path.join(appUserDataData, 'CodeCli', 'Antigravity', '.env'),
+    // Per-launch credential files (`<uuid>.env`): each launch's shell imports and deletes its
+    // own; the CLI never reads them.
+    'feature.cli.antigravity.launch': path.join(appUserDataData, 'CodeCli', 'Antigravity', 'launch'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),

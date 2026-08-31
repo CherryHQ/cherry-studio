@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -20,7 +20,11 @@ vi.mock('@application', async () => {
     application: {
       // Mirrors Application.getPath: a `…file` key auto-creates its parent directory.
       getPath: vi.fn((key: string) => {
-        if (key === 'feature.cli.antigravity.env.file') return nodePath.join(mocks.root, '.env')
+        if (key === 'feature.cli.antigravity.launch') {
+          const launchDir = nodePath.join(mocks.root, 'launch')
+          mkdirSync(launchDir, { recursive: true })
+          return launchDir
+        }
         if (key !== 'feature.cli.antigravity.settings.file') return mocks.root
         const settingsPath = nodePath.join(mocks.root, 'antigravity-cli', 'settings.json')
         mkdirSync(nodePath.dirname(settingsPath), { recursive: true })
@@ -39,6 +43,18 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 import { prepareAntigravityLaunch } from '../antigravity'
+
+const SECRET_ENV_NAMES = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
+const launchFiles = () => readdir(path.join(mocks.root, 'launch')).catch(() => [] as string[])
+
+const directLaunch = (providerId = 'gemini') =>
+  prepareAntigravityLaunch({
+    mode: 'normal',
+    cliTool: CodeCli.ANTIGRAVITY_CLI,
+    providerId,
+    model: 'gemini-2.5-pro',
+    directory: '/tmp/project'
+  })
 
 describe('prepareAntigravityLaunch', () => {
   beforeEach(async () => {
@@ -74,9 +90,11 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
-    const envPath = path.join(mocks.root, '.env')
+    const [envFileName] = await launchFiles()
+    const envPath = path.join(mocks.root, 'launch', envFileName)
+    expect(envFileName).toMatch(/\.env$/)
     expect(result).toEqual({
-      secretEnv: { path: envPath, names: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'] },
+      secretEnv: { path: envPath, requiredNames: SECRET_ENV_NAMES, clearNames: SECRET_ENV_NAMES },
       geminiDir: mocks.root,
       model: 'gemini-2.5-pro'
     })
@@ -142,7 +160,38 @@ describe('prepareAntigravityLaunch', () => {
       })
     ).rejects.toThrow('Unsupported model id')
     await expect(readFile(settingsPath, 'utf8')).rejects.toThrow(/ENOENT/)
-    await expect(readFile(path.join(mocks.root, '.env'), 'utf8')).rejects.toThrow(/ENOENT/)
+    expect(await launchFiles()).toEqual([])
+  })
+
+  it('gives consecutive launches separate files so a pending launch keeps its own credentials', async () => {
+    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
+    mocks.getRotatedApiKey.mockReturnValueOnce('key-a').mockReturnValueOnce('key-b')
+
+    const launchA = await directLaunch()
+    const launchB = await directLaunch()
+
+    expect(launchA.secretEnv.path).not.toBe(launchB.secretEnv.path)
+    expect(await readFile(launchA.secretEnv.path, 'utf8')).toBe('GEMINI_API_KEY=key-a\n')
+    expect(await readFile(launchB.secretEnv.path, 'utf8')).toBe('GEMINI_API_KEY=key-b\n')
+    // A never received a base URL, so its shell must still clear an ambient one.
+    expect(launchA.secretEnv).toMatchObject({ requiredNames: ['GEMINI_API_KEY'], clearNames: SECRET_ENV_NAMES })
+  })
+
+  it('removes stale launch files left by terminals that never started, keeping recent ones', async () => {
+    const launchDir = path.join(mocks.root, 'launch')
+    await mkdir(launchDir, { recursive: true })
+    const stalePath = path.join(launchDir, 'stale.env')
+    const pendingPath = path.join(launchDir, 'pending.env')
+    await writeFile(stalePath, 'GEMINI_API_KEY=old\n')
+    await writeFile(pendingPath, 'GEMINI_API_KEY=pending\n')
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000)
+    await utimes(stalePath, twoHoursAgo, twoHoursAgo)
+    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
+    mocks.getRotatedApiKey.mockReturnValue('fresh')
+
+    const result = await directLaunch()
+
+    expect((await launchFiles()).sort()).toEqual(['pending.env', path.basename(result.secretEnv.path)].sort())
   })
 
   it('rejects malformed isolated settings instead of overwriting them', async () => {
