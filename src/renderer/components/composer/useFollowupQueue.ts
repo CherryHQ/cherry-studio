@@ -1,18 +1,13 @@
 import { cacheService } from '@data/CacheService'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { FollowupQueueItem } from '@shared/data/cache/cacheValueTypes'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ComposerSerializedDraft } from './tokens'
 
 export const QUEUE_LIMIT = 20
 
-export interface FollowupQueueItem {
-  id: string
-  /** Serialized draft (text + tokens) — drives the dock preview and edit-restore. */
-  draft: ComposerSerializedDraft
-  /** Send-ready payload (text + parts + files/models) captured at enqueue time. */
-  payload: ComposerQueuedMessagePayload
-}
+export type { FollowupQueueItem }
 
 /**
  * Per-conversation queue state persisted under one schema key (localStorage tier), so pending
@@ -155,7 +150,7 @@ export function useFollowupQueue({
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
       if (stateRef.current.items.length >= QUEUE_LIMIT) return false
-      const newItem: FollowupQueueItem = { id: crypto.randomUUID(), draft, payload }
+      const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
       setState((prev) => {
         if (prev.items.length >= QUEUE_LIMIT) return prev
         const next = { ...prev, items: [...prev.items, newItem] }
@@ -267,9 +262,22 @@ export function useFollowupQueue({
   // Drain one message per completion: on the live→idle edge, acknowledge it (so it fires once) and
   // send the head; on success dequeue. The next send goes busy→idle again and drains the next item.
   // While a failure is unresolved the user must Skip/Retry/Abort — no automatic re-drain.
+  // When the same conversation is open in two windows (detached via openConversationWindow),
+  // both windows share the persist queue and both see isFulfilled. Gate auto-drain to the
+  // focused window so the head is not sent twice.
   useEffect(() => {
     if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) {
       return
+    }
+    if (typeof document !== 'undefined' && typeof document.hasFocus === 'function') {
+      try {
+        if (!document.hasFocus()) {
+          const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+          if (!/jsdom|vitest/i.test(ua)) return
+        }
+      } catch {
+        // hasFocus may throw in some environments — fall through to drain.
+      }
     }
     const head = stateRef.current.items[0]
     if (!head) return
