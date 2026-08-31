@@ -30,6 +30,7 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinAgentListVisibility'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -388,7 +389,7 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
+  const { hiddenBuiltinAgentIds, hideBuiltinAgent } = useBuiltinAgentListVisibility()
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -562,8 +563,10 @@ const Sessions = ({
   )
   const hiddenBuiltinAgentIdSet = useMemo(() => new Set(hiddenBuiltinAgentIds), [hiddenBuiltinAgentIds])
   const handleHideBuiltinAgent = useCallback(
-    (agentId: string) => setHiddenBuiltinAgentIds([...new Set([...hiddenBuiltinAgentIds, agentId])]),
-    [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds]
+    async (agentId: string) => {
+      await hideBuiltinAgent(agentId)
+    },
+    [hideBuiltinAgent]
   )
   const hiddenProtectedAgentIdSet = useMemo(
     () =>

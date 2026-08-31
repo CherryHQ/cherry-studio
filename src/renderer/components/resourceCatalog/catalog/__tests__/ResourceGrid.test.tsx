@@ -29,8 +29,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
     preferenceMocks.values.get(key) ?? [],
     (value: unknown) => {
       preferenceMocks.values.set(key, value)
-      preferenceMocks.setPreference(key, value)
-      return Promise.resolve()
+      return Promise.resolve(preferenceMocks.setPreference(key, value))
     }
   ]
 }))
@@ -893,6 +892,26 @@ describe('ResourceGrid card actions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cherry Support' }))
     expect(onEdit).toHaveBeenCalledWith(resource)
+  })
+
+  it('reports a protected Agent list visibility failure without opening or deleting the card', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource({
+      id: 'cherry-support',
+      name: 'Cherry Support',
+      raw: { configuration: { builtin_role: 'support' } } as Extract<ResourceItem, { type: 'agent' }>['raw']
+    })
+    const onDelete = vi.fn()
+    const onEdit = vi.fn()
+    preferenceMocks.setPreference.mockRejectedValueOnce(new Error('preference unavailable'))
+
+    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
+
+    await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.error'))
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(onEdit).not.toHaveBeenCalled()
   })
 
   it('shows only one assistant group in the compact card layout', () => {

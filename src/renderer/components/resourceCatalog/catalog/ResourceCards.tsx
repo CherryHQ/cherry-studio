@@ -1,5 +1,5 @@
 import { Badge, Button, Switch } from '@cherrystudio/ui'
-import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinAgentListVisibility'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -64,17 +64,12 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
 
 function ProtectedBuiltinAgentListAction({ resource }: { resource: Extract<ResourceItem, { type: 'agent' }> }) {
   const { t } = useTranslation()
-  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
+  const { hiddenBuiltinAgentIds, hideBuiltinAgent, showBuiltinAgent } = useBuiltinAgentListVisibility()
   const hidden = hiddenBuiltinAgentIds.includes(resource.id)
   const label = t(hidden ? 'agent.session.agent.add_to_list' : 'agent.session.agent.hide_from_list')
   const Icon = hidden ? ListPlus : EyeOff
 
-  const handleClick = () => {
-    const nextIds = hidden
-      ? hiddenBuiltinAgentIds.filter((agentId) => agentId !== resource.id)
-      : [...new Set([...hiddenBuiltinAgentIds, resource.id])]
-    void setHiddenBuiltinAgentIds(nextIds)
-  }
+  const handleClick = () => void (hidden ? showBuiltinAgent(resource.id) : hideBuiltinAgent(resource.id))
 
   return (
     <Button

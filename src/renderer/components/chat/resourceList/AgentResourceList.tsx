@@ -9,6 +9,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useBuiltinAgentListVisibility } from '@renderer/hooks/agent/useBuiltinAgentListVisibility'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
@@ -88,7 +89,7 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
+  const { hiddenBuiltinAgentIds, hideBuiltinAgent } = useBuiltinAgentListVisibility()
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
@@ -119,6 +120,12 @@ export function AgentResourceList({
   const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
   const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
   const hiddenBuiltinAgentIdSet = useMemo(() => new Set(hiddenBuiltinAgentIds), [hiddenBuiltinAgentIds])
+  const handleHideBuiltinAgent = useCallback(
+    async (agentId: string) => {
+      await hideBuiltinAgent(agentId)
+    },
+    [hideBuiltinAgent]
+  )
   const hiddenProtectedAgentIdSet = useMemo(
     () =>
       new Set(
@@ -246,11 +253,6 @@ export function AgentResourceList({
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
-  )
-
-  const handleHideBuiltinAgent = useCallback(
-    (agentId: string) => setHiddenBuiltinAgentIds([...new Set([...hiddenBuiltinAgentIds, agentId])]),
-    [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds]
   )
 
   const handleDeleteAgent = useCallback(

@@ -110,7 +110,12 @@ describe('FeedbackDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('settings.about.feedback.agent_error'))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('common.error'))
+    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to update built-in Agent list visibility', {
+      agentId: 'cherry-support',
+      error: expect.any(Error),
+      visible: true
+    })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.openRoute).not.toHaveBeenCalled()
   })
