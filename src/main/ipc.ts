@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { handleGuarded } from '@main/core/security/guardedIpc'
 import {
