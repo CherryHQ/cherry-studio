@@ -19,10 +19,7 @@ function resolveBackupErrorKey(error: unknown): string | null {
   if (error.message.includes(BACKUP_NEWER_VERSION_ERROR_CODE)) {
     return 'backup.error.newer_version'
   }
-  if (
-    error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) ||
-    (error as Error).name === 'BackupOperationBusyError'
-  ) {
+  if (error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) || error.name === 'BackupOperationBusyError') {
     return 'backup.error.operation_busy'
   }
   if (error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {

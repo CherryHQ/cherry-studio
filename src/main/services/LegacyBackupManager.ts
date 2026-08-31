@@ -1198,7 +1198,10 @@ class BackupManager {
     try {
       bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
     } catch (error) {
-      logger.warn('[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide', error as Error)
+      logger.warn(
+        '[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide',
+        error as Error
+      )
       return true
     }
     if (chain.length > bundled.length) {
