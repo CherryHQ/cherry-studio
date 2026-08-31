@@ -16,7 +16,7 @@ export async function deleteAgentAndRefresh(
 ): Promise<void> {
   await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: false })
   try {
-    await refresh(['/agents', `/agents/${agentId}`, '/agent-sessions', '/pins'])
+    await refresh(['/agents', `/agents/${agentId}`, '/agent-sessions', '/agent-channels', '/pins'])
   } catch (error) {
     logger.warn('Failed to refresh after deleting Agent', { agentId, error })
   }
