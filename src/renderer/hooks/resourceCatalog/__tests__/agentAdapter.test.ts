@@ -46,9 +46,7 @@ describe('useAgentMutationsById', () => {
       agentId: 'cherry-support',
       deleteSessions: false
     })
-    expect(invalidateMock).toHaveBeenCalledWith('/agents')
-    expect(invalidateMock).toHaveBeenCalledWith('/agent-sessions')
-    expect(invalidateMock).toHaveBeenCalledWith('/pins')
+    expect(invalidateMock).toHaveBeenCalledWith(['/agents', '/agents/cherry-support', '/agent-sessions', '/pins'])
   })
 
   it('does not hide a committed deletion when cache refresh fails', async () => {

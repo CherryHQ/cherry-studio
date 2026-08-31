@@ -262,7 +262,7 @@ describe('useAgents', () => {
         agentId: 'agent-1',
         deleteSessions: false
       })
-      expect(invalidateSpy).toHaveBeenCalledWith('/agents')
+      expect(invalidateSpy).toHaveBeenCalledWith(['/agents', '/agents/agent-1', '/agent-sessions', '/pins'])
       expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 

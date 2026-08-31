@@ -1,15 +1,12 @@
 import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
-import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
+import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import { useCallback, useState } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
-
-const logger = loggerService.withContext('agentAdapter')
 
 /**
  * List hook for agent resources — mirrors `assistantAdapter.useAssistantList`.
@@ -84,12 +81,7 @@ export function useAgentMutationsById(id: string) {
     [updateTrigger]
   )
   const deleteAgent = useCallback(async (): Promise<void> => {
-    await ipcApi.request('ai.agent.delete', { agentId: id, deleteSessions: false })
-    try {
-      await Promise.all([invalidate('/agents'), invalidate('/agent-sessions'), invalidate('/pins')])
-    } catch (error) {
-      logger.warn('Failed to refresh after deleting Agent', { agentId: id, error })
-    }
+    await deleteAgentAndRefresh(id, invalidate)
   }, [id, invalidate])
 
   return { updateAgent, deleteAgent }
