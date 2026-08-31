@@ -72,7 +72,8 @@ const mocks = vi.hoisted(() => ({
   updateTab: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
   const React = await vi.importActual<ReactModule>('react')
   const DropdownMenuContext = React.createContext<{
     open: boolean
@@ -84,6 +85,7 @@ vi.mock('@cherrystudio/ui', async () => {
   } | null>(null)
 
   return {
+    ...actual,
     Button: ({
       children,
       type = 'button',

@@ -56,7 +56,8 @@ vi.mock('@renderer/utils/model', async (importOriginal) => ({
   getModelLogoRef: () => undefined
 }))
 
-vi.mock('@cherrystudio/ui/icons', () => ({
+vi.mock('@cherrystudio/ui/icons', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@cherrystudio/ui/icons')>()),
   resolveProviderIconRef: () => undefined,
   useIcon: () => undefined
 }))

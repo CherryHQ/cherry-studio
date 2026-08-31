@@ -43,9 +43,12 @@ const hookMocks = vi.hoisted(() => ({
   useUpdateSession: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
-  return MockCherrystudioUI
+  return {
+    ...(await importOriginal<typeof import('@cherrystudio/ui')>()),
+    ...MockCherrystudioUI
+  }
 })
 
 vi.mock('@renderer/components/VirtualList', () => ({
