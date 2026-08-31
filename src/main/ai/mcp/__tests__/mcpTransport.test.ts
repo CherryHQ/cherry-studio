@@ -23,7 +23,10 @@ vi.mock('@application', async () => {
   >)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
-vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: async () => ({ PATH: '/shell/bin' }),
+  getRawShellEnv: async () => ({ PATH: '/shell/bin' })
+}))
 vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: async () => '/usr/local/bin/npx',
   findCommandInShellEnv: async () => null
@@ -165,7 +168,7 @@ describe('createTransport', () => {
 
     expect(transport.params.command).toBe('/usr/local/bin/npx')
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
-    expect(transport.params.env.PATH).toBe('/shell/bin')
+    expect(transport.params.env.PATH).toContain('/shell/bin')
     expect(transport.params.stderr).toBe('pipe')
   })
 

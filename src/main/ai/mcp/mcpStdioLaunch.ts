@@ -1,6 +1,7 @@
 import { application } from '@application'
 import type { LoggerService } from '@logger'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 import {
@@ -49,7 +50,13 @@ export async function resolveStdioLaunch({
     }
   }
 
-  const loginShellEnv = await getShellEnv(signal)
+  // Use the raw shell env so a user's own mise installation keeps its
+  // MISE_DATA_DIR / MISE_* contract. Overriding with Cherry's isolated
+  // MISE_DATA_DIR redirects system mise shims (e.g. pnpx) to the wrong
+  // data dir and surfaces as "not a valid shim" (#19738). Cherry's own
+  // bundled binaries still resolve via PATH tails added below.
+  const rawShellEnv = await getRawShellEnv(signal)
+  const loginShellEnv = mergePathSuffixes(rawShellEnv, getBinarySearchDirs())
   const launch = await resolveLaunchCommand({
     command,
     args: launchArgs,
