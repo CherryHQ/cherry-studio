@@ -67,6 +67,21 @@ describe('getQuickPanelHeights', () => {
         })
       ).toEqual({ panelMaxHeight: measuredChrome, listHeight: 0 })
     })
+
+    it('includes the rendered empty state when search results collapse', () => {
+      const measuredChrome = 82
+      const emptyStateHeight = 48
+
+      expect(
+        getQuickPanelHeights({
+          ...base,
+          readOnly: true,
+          collapsed: true,
+          chromeHeight: measuredChrome,
+          emptyStateHeight
+        })
+      ).toEqual({ panelMaxHeight: measuredChrome + emptyStateHeight, listHeight: 0 })
+    })
   })
 
   describe('fill (welcome / placement=home): panel prefers content height until it exceeds the available space', () => {

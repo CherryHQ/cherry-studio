@@ -31,6 +31,8 @@ export interface QuickPanelHeightOptions {
   fill?: boolean
   /** Runtime-measured footer plus body chrome height for home/fill; docked/readOnly use defaults. */
   chromeHeight?: number
+  /** Runtime-measured empty-state height when the searchable list has no matches. */
+  emptyStateHeight?: number
 }
 
 export interface QuickPanelHeights {
@@ -54,13 +56,14 @@ export function getQuickPanelHeights({
   itemCount,
   availableHeight,
   fill = false,
-  chromeHeight: measuredChromeHeight
+  chromeHeight: measuredChromeHeight,
+  emptyStateHeight = 0
 }: QuickPanelHeightOptions): QuickPanelHeights {
   const defaultChromeHeight = readOnly ? READONLY_CHROME_HEIGHT : DEFAULT_CHROME_HEIGHT
   const chromeHeight = (fill || readOnly) && measuredChromeHeight != null ? measuredChromeHeight : defaultChromeHeight
 
   if (!isVisible) return { panelMaxHeight: 0, listHeight: 0 }
-  if (collapsed) return { panelMaxHeight: chromeHeight, listHeight: 0 }
+  if (collapsed) return { panelMaxHeight: chromeHeight + emptyStateHeight, listHeight: 0 }
 
   const listContentHeight = Math.min(pageSize, itemCount) * QUICK_PANEL_ITEM_HEIGHT
   const contentHeight = chromeHeight + listContentHeight

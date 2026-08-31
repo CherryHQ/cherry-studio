@@ -106,6 +106,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const listRef = useRef<DynamicVirtualListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
   const readOnlyHeaderRef = useRef<HTMLDivElement>(null)
+  const emptyStateRef = useRef<HTMLDivElement>(null)
   // Home placement only: the available height cap between the input and frame top.
   const [availableHeight, setAvailableHeight] = useState<number | null>(null)
   // Fill (home placement) is pushed in explicitly by the composer via context.
@@ -806,6 +807,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const [footerWidth, setFooterWidth] = useState(0)
   const [measuredChromeHeight, setMeasuredChromeHeight] = useState<number | null>(null)
+  const [measuredEmptyStateHeight, setMeasuredEmptyStateHeight] = useState(0)
 
   useLayoutEffect(() => {
     if (!isPanelPresent) {
@@ -886,6 +888,26 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   // Collapse is based only on regular matches. Pinned-only results still count as no match.
   const visibleNonPinnedCount = useMemo(() => list.filter((item) => !item.alwaysVisible).length, [list])
   const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
+  useLayoutEffect(() => {
+    if (!isPanelPresent || !collapsed || !emptyStateRef.current) {
+      setMeasuredEmptyStateHeight(0)
+      return
+    }
+
+    const emptyStateElement = emptyStateRef.current
+    const updateEmptyStateHeight = () => {
+      setMeasuredEmptyStateHeight((prev) =>
+        prev === emptyStateElement.clientHeight ? prev : emptyStateElement.clientHeight
+      )
+    }
+
+    updateEmptyStateHeight()
+    if (typeof ResizeObserver === 'undefined') return
+
+    const resizeObserver = new ResizeObserver(updateEmptyStateHeight)
+    resizeObserver.observe(emptyStateElement)
+    return () => resizeObserver.disconnect()
+  }, [collapsed, isPanelPresent])
   // Read-only panels keep the original fixed height to avoid header offset changes.
   const fillEffective = fill && !ctx.readOnly
   const { panelMaxHeight, listHeight } = getQuickPanelHeights({
@@ -896,7 +918,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     itemCount: list.length,
     availableHeight,
     fill: fillEffective,
-    chromeHeight: measuredChromeHeight ?? undefined
+    chromeHeight: measuredChromeHeight ?? undefined,
+    emptyStateHeight: measuredEmptyStateHeight
   })
   const listContentHeight = Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   // Home/fill constrains the body only when content overflows and the list shrinks.
@@ -975,7 +998,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           />
         ) : null}
         {collapsed ? (
-          <div className="p-4 text-center text-[13px] text-muted-foreground">
+          <div ref={emptyStateRef} className="p-4 text-center text-[13px] text-muted-foreground">
             {t('settings.quickPanel.noResult', 'No results')}
           </div>
         ) : null}

@@ -1164,6 +1164,56 @@ describe('QuickPanelView', () => {
     expect(manageAction).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the measured empty state inside a collapsed read-only panel', async () => {
+    const footerHeight = 30
+    const emptyStateHeight = 48
+    const clientHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
+      .mockImplementation(function heightFor(this: HTMLElement) {
+        if (this.dataset.testid === 'quick-panel-footer') return footerHeight
+        if (this.textContent === 'No results') return emptyStateHeight
+        return 0
+      })
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+
+    try {
+      render(
+        <QuickPanelProvider>
+          <PanelHarness
+            captureDispatch={vi.fn()}
+            footerActions={[
+              {
+                id: 'manage-global',
+                label: 'Global',
+                ariaLabel: 'Manage global prompts',
+                icon: 'settings',
+                action: vi.fn()
+              }
+            ]}
+            inputAdapter={inputAdapter}
+            items={[{ id: 'prompt', label: 'Daily summary', icon: 'prompt' }]}
+            readOnly
+          />
+        </QuickPanelProvider>
+      )
+
+      await screen.findByText('No results')
+      await waitFor(() => {
+        expect(screen.getByTestId('quick-panel')).toHaveStyle({
+          maxHeight: `${footerHeight + emptyStateHeight}px`
+        })
+      })
+    } finally {
+      clientHeightSpy.mockRestore()
+    }
+  })
+
   it('keeps every footer action accessible when the panel uses its compact layout', async () => {
     const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function widthFor(
       this: HTMLElement
