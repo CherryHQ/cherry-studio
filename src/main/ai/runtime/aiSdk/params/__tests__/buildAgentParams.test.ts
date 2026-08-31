@@ -758,6 +758,26 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it('keeps client search available through ExaMCP when the selected provider has no key', async () => {
+    const preferences = new Map<string, unknown>([
+      ['app.developer_mode.enabled', false],
+      ['chat.web_search.search_keywords.client_tools_preferred', true],
+      ['chat.web_search.fetch_urls.client_tools_preferred', false],
+      ['chat.web_search.default_search_keywords_provider', 'tavily'],
+      ['chat.web_search.default_fetch_urls_provider', null],
+      ['chat.web_search.provider_overrides', { tavily: { apiKeys: [] } }],
+      ['chat.web_search.max_results', 5],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+    registry.register(clientSearchEntry)
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.tools?.web_search).toBe(clientSearchEntry.tool)
+    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(false)
+  })
+
   it('injects mixed search and fetch sources when their preferences differ', async () => {
     const preferences = new Map<string, unknown>([
       ['app.developer_mode.enabled', false],

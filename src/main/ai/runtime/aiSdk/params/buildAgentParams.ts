@@ -5,7 +5,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -15,7 +15,10 @@ import {
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
+import {
+  resolveReadyWebSearchProvider,
+  WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY
+} from '@shared/data/presets/webSearchProviders'
 import {
   type Assistant,
   DEFAULT_ASSISTANT_SETTINGS,
@@ -541,7 +544,19 @@ async function resolveRequestWebToolRoutes(
   async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
     try {
       const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
-      return isWebSearchProviderReady(clientProvider, capability)
+      const fallbackProviderId = WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY[capability]
+      const fallbackProvider =
+        fallbackProviderId === clientProvider.id
+          ? undefined
+          : await getProviderById(fallbackProviderId, preferenceService)
+
+      return Boolean(
+        resolveReadyWebSearchProvider(
+          fallbackProvider ? [clientProvider, fallbackProvider] : [clientProvider],
+          clientProvider,
+          capability
+        )
+      )
     } catch (error) {
       if (!isPermanentWebSearchConfigError(error)) {
         logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })

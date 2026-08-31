@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
   assistant: undefined as any,
   model: undefined as Model | undefined,
   provider: undefined as any,
-  providerLookupId: undefined as string | undefined
+  providerLookupId: undefined as string | undefined,
+  getWebSearchProviderIconRef: vi.fn()
 }))
 
 const launcherApi: ToolLauncherApi = {
@@ -78,6 +79,10 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/utils/api', () => ({
   splitApiKeyString: (value: string) => value.split(',').map((item) => item.trim())
+}))
+
+vi.mock('@renderer/utils/webSearchProviderMeta', () => ({
+  getWebSearchProviderIconRef: mocks.getWebSearchProviderIconRef
 }))
 
 vi.mock('@renderer/utils/model', () => {
@@ -184,6 +189,9 @@ describe('WebSearchButton', () => {
   })
 
   it('opens web search settings and restores trigger focus when external providers are missing', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
+    })
     vi.mocked(popup.confirm).mockResolvedValue(false)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
@@ -204,6 +212,9 @@ describe('WebSearchButton', () => {
   })
 
   it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
+    })
     vi.mocked(popup.confirm).mockResolvedValue(true)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
@@ -271,9 +282,8 @@ describe('WebSearchButton', () => {
     expect(popup.confirm).not.toHaveBeenCalled()
   })
 
-  it('keeps the settings prompt when Zhipu has no enabled model provider API key', async () => {
+  it('enables web search through ExaMCP when Zhipu has no enabled model provider API key', async () => {
     const user = userEvent.setup()
-    vi.mocked(popup.confirm).mockResolvedValue(false)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
     MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
     mocks.model = {
@@ -285,10 +295,21 @@ describe('WebSearchButton', () => {
 
     await user.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
 
-    expect(popup.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'settings.tool.websearch.search_provider' })
-    )
-    expect(mocks.updateAssistant).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
+    expect(popup.confirm).not.toHaveBeenCalled()
+  })
+
+  it('shows the effective ExaMCP provider icon while a keyless primary is selected', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
+    mocks.assistant.settings.enableWebSearch = true
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(mocks.getWebSearchProviderIconRef).toHaveBeenCalledWith('exa-mcp')
   })
 
   it('disables Zhipu web search while model provider API keys are loading', async () => {
@@ -319,7 +340,13 @@ describe('WebSearchButton', () => {
 
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_keywords.client_tools_preferred', false)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.fetch_urls.client_tools_preferred', false)
-    mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
+    mocks.provider = {
+      id: 'gemini',
+      serverTools: [
+        { id: 'web-search', modelScope: 'model-dependent' },
+        { id: 'url-context', modelScope: 'model-dependent' }
+      ]
+    }
     mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
@@ -352,6 +379,9 @@ describe('WebSearchButton', () => {
   })
 
   it('restores composer focus after the missing-provider confirmation closes from the tool menu', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
+    })
     vi.mocked(popup.confirm).mockResolvedValue(false)
     const inputAdapter = {
       getText: vi.fn(() => ''),
