@@ -15,10 +15,7 @@ function normalizeAgentLanguage(value: unknown): string | null {
  *   explicitly opts out; anything else inherits the global value.
  * - Global `agent.language` preference: valid label = default; null/invalid = none.
  */
-export function resolveEffectiveAgentLanguage(
-  agent: AgentEntity,
-  globalLanguage: string | null | undefined
-): string | null {
+function resolveEffectiveAgentLanguage(agent: AgentEntity, globalLanguage: string | null | undefined): string | null {
   const perAgent = agent.configuration?.language
 
   if (perAgent === null) return null

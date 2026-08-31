@@ -1,3 +1,5 @@
+// TODO: Move this contract into types/agent.ts once that module no longer
+// re-exports from api/schemas/agents.ts.
 import * as z from 'zod'
 
 /**
