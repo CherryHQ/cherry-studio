@@ -2,7 +2,7 @@
 title: Model-native web tools are used by default
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#19784"
 date: 2026-08-31
 ---
 
