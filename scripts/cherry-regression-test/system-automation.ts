@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { readAppRecord } from './lifecycle'
 import type { RunPaths } from './paths'
@@ -12,6 +13,10 @@ let activeWindowsTextFixturePid: number | undefined
 
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''")
+}
+
+function escapeHtml(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
 function runMacHotkey(keys: string[]): void {
@@ -115,40 +120,39 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       { stdio: 'ignore', timeout: 10_000 }
     )
   } else {
-    const fixtureScriptPath = join(paths.fixtures, 'windows-selection-fixture.ps1')
+    const fixtureHtmlPath = join(paths.fixtures, 'windows-selection-fixture.html')
+    const browserProfilePath = join(paths.fixtures, 'windows-selection-browser-profile')
+    mkdirSync(browserProfilePath, { recursive: true })
     writeFileSync(
-      fixtureScriptPath,
+      fixtureHtmlPath,
       [
-        'param([Parameter(Mandatory = $true)][string]$FixturePath)',
-        'Add-Type -AssemblyName PresentationCore',
-        'Add-Type -AssemblyName PresentationFramework',
-        'Add-Type -AssemblyName WindowsBase',
-        '$window = [System.Windows.Window]::new()',
-        '$window.Title = "Cherry Regression Selection Fixture"',
-        '$window.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterScreen',
-        '$window.Width = 800',
-        '$window.Height = 320',
-        '$textArea = [System.Windows.Controls.TextBox]::new()',
-        '$textArea.AcceptsReturn = $true',
-        '$textArea.FontFamily = [System.Windows.Media.FontFamily]::new("Segoe UI")',
-        '$textArea.FontSize = 16',
-        '$textArea.Text = (Get-Content -Raw -LiteralPath $FixturePath).Trim()',
-        '$window.Content = $textArea',
-        '$window.Add_ContentRendered({ $textArea.Focus(); $textArea.SelectAll() })',
-        '$window.Add_Activated({ $textArea.Focus() })',
-        '$null = $window.ShowDialog()'
-      ].join('\r\n'),
+        '<!doctype html>',
+        '<meta charset="utf-8">',
+        '<title>Cherry Regression Selection Fixture</title>',
+        '<style>html,body,textarea{box-sizing:border-box;width:100%;height:100%;margin:0}textarea{padding:24px;font:24px sans-serif}</style>',
+        `<textarea autofocus>${escapeHtml(readFileSync(filePath, 'utf8').trim())}</textarea>`,
+        '<script>addEventListener("load",()=>{const area=document.querySelector("textarea");area.focus();area.select()})</script>'
+      ].join('\n'),
       'utf8'
     )
+    const fixtureUrl = pathToFileURL(fixtureHtmlPath).href
     const script = [
-      `$fixtureArgs = @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-File', '"${escapePowerShell(fixtureScriptPath)}"', '"${escapePowerShell(filePath)}"')`,
-      '$fixture = Start-Process powershell.exe -ArgumentList $fixtureArgs -PassThru',
+      '$browserCandidates = @(',
+      '  "${env:ProgramFiles}\\Google\\Chrome\\Application\\chrome.exe",',
+      '  "${env:ProgramFiles(x86)}\\Google\\Chrome\\Application\\chrome.exe",',
+      '  "${env:ProgramFiles}\\Microsoft\\Edge\\Application\\msedge.exe",',
+      '  "${env:ProgramFiles(x86)}\\Microsoft\\Edge\\Application\\msedge.exe"',
+      ')',
+      '$browserPath = $browserCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1',
+      'if (-not $browserPath) { throw "Chrome or Edge was not found" }',
+      `$fixtureArgs = @('--user-data-dir="${escapePowerShell(browserProfilePath)}"', '--no-first-run', '--disable-default-apps', '--disable-extensions', '--new-window', '--window-size=800,400', '--window-position=100,100', '"${escapePowerShell(fixtureUrl)}"')`,
+      '$fixture = Start-Process -FilePath $browserPath -ArgumentList $fixtureArgs -PassThru',
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
       'do { $fixture.Refresh(); if ($fixture.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 } } while ($fixture.MainWindowHandle -eq 0 -and -not $fixture.HasExited -and [DateTime]::UtcNow -lt $deadline)',
       'if ($fixture.MainWindowHandle -eq 0) { throw "External text window was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
       'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
-      'Start-Sleep -Milliseconds 300',
+      'Start-Sleep -Milliseconds 1000',
       '$shell.SendKeys("^a")',
       'Start-Sleep -Milliseconds 500',
       '$fixture.Id'
@@ -173,30 +177,19 @@ export function selectExternalText(platform: Platform): void {
   if (!activeWindowsTextFixturePid) throw new Error('No external text window is active')
 
   const script = [
-    'Add-Type -AssemblyName UIAutomationClient',
-    'Add-Type -AssemblyName UIAutomationTypes',
     `$fixture = Get-Process -Id ${activeWindowsTextFixturePid} -ErrorAction Stop`,
     '$shell = New-Object -ComObject WScript.Shell',
     'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
     'Start-Sleep -Milliseconds 200',
-    '$window = [System.Windows.Automation.AutomationElement]::FromHandle($fixture.MainWindowHandle)',
-    'if (-not $window) { throw "External text automation window was not found" }',
-    '$documentType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)',
-    '$editType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
-    '$textAreaTypes = [System.Windows.Automation.Condition[]]@($documentType, $editType)',
-    '$textAreaCondition = [System.Windows.Automation.OrCondition]::new($textAreaTypes)',
-    '$textArea = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $textAreaCondition)',
-    'if (-not $textArea) { throw "External text automation control was not found" }',
-    '$textArea.SetFocus()',
-    'Start-Sleep -Milliseconds 200',
+    'Set-Clipboard -Value ""',
     '$shell.SendKeys("^a")',
-    'Start-Sleep -Milliseconds 500',
-    '$textPattern = $textArea.GetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern)',
-    'if (-not $textPattern) { throw "External text control does not expose UIA TextPattern" }',
-    '$ranges = $textPattern.GetSelection()',
-    'if ($ranges.Count -eq 0 -or [string]::IsNullOrWhiteSpace($ranges[0].GetText(-1))) { throw "External text control has no UIA selection" }',
-    '$bounds = $ranges[0].GetBoundingRectangles()',
-    'if ($bounds.Count -lt 4) { throw "External text UIA selection has no bounds" }'
+    'Start-Sleep -Milliseconds 200',
+    '$shell.SendKeys("^c")',
+    'Start-Sleep -Milliseconds 300',
+    '$selectedText = Get-Clipboard -Raw',
+    'if ([string]::IsNullOrWhiteSpace($selectedText)) { throw "External browser text selection is empty" }',
+    '$shell.SendKeys("^a")',
+    'Start-Sleep -Milliseconds 300'
   ].join('\n')
   execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
     encoding: 'utf8',
