@@ -27,7 +27,7 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
  */
 export type DshApi = 'anthropic-messages' | 'google-generative-ai' | 'openai-completions' | 'openai-responses'
 
-const DSH_ENDPOINT_TYPES = [
+export const DSH_ENDPOINT_TYPES = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.OPENAI_RESPONSES,
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,

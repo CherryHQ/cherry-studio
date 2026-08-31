@@ -15,7 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
+import { DSH_ENDPOINT_TYPES, type DshApi, mapEndpointToDshApi } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -148,7 +148,7 @@ export interface DshProviderInjection {
 }
 
 function resolveDshEndpoint(provider: Provider, model: Model) {
-  return resolveEffectiveEndpoint(provider, model, resolveDshEndpointType(provider, model))
+  return resolveEffectiveEndpoint(provider, model, undefined, DSH_ENDPOINT_TYPES)
 }
 
 /**
@@ -183,7 +183,12 @@ export function buildDshProviderInjection(
   // subprocess with no per-request transport injection, so every login-based
   // provider is undrivable (parity with shared `resolveDshApi`).
   const resolvedEndpoint = resolveDshEndpoint(provider, model)
-  const api = resolveDshInjectionApi(provider, model)
+  const adapterFamily = resolvedEndpoint.endpointType
+    ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
+    : undefined
+  const api = isLoginBasedProvider(provider)
+    ? undefined
+    : mapEndpointToDshApi(resolvedEndpoint.endpointType, adapterFamily)
   if (!api) {
     throw new DshUnsupportedProviderError(provider.id)
   }

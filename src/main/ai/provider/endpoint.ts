@@ -54,9 +54,15 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  preferredEndpointType?: EndpointType
+  preferredEndpointType?: EndpointType,
+  allowedEndpointTypes?: readonly EndpointType[]
 ): ResolvedEndpoint {
-  const { endpointType, gatewayProviderOptionsKey } = resolveCanonicalEndpoint(provider, model, preferredEndpointType)
+  const { endpointType, gatewayProviderOptionsKey } = resolveCanonicalEndpoint(
+    provider,
+    model,
+    preferredEndpointType,
+    allowedEndpointTypes
+  )
   const normalizedModel = { ...model, capabilities: model.capabilities ?? [] }
   const allowsHostFallback = !isEmbeddingModel(normalizedModel) && !isRerankModel(normalizedModel)
   return {

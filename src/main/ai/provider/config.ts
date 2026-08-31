@@ -174,7 +174,7 @@ function withoutCredential(build: ProviderConfigBuilder): ConfigBuilderEntry['bu
   })
 }
 
-/** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
+/** Build SDK config from the canonical effective endpoint (supported provider default before model fallback order). */
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
