@@ -478,6 +478,7 @@ const AppearanceSettings: FC = () => {
           <SettingRowTitle>{t('settings.display.sidebar.chat.visible')}</SettingRowTitle>
           <Switch
             checked={isChatAssistantVisible}
+            disabled={isChatAssistantVisible && appFavorites.length <= 1}
             onCheckedChange={(checked) => setAppPinned('assistants', checked)}
             aria-label={t('settings.display.sidebar.chat.visible')}
           />
