@@ -41,8 +41,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-// The globally installed @cherrystudio/ui mock (tests/renderer.setup.ts) has no
-// DescriptionSwitch, and a file-level vi.mock replaces it wholesale, not merges.
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
   return MockCherrystudioUI
@@ -73,7 +71,9 @@ function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrSt
 
 const requestedRoutes = () => mockRequest.mock.calls.map((call) => call[0] as string)
 
-const autoOcrSwitch = () => screen.getByRole('switch', { name: 'settings.screenshot.ocr.auto.title' })
+const screenshotEnabledSwitchName = /^settings\.screenshot\.enable\.title\b/
+const autoOcrSwitchName = /^settings\.screenshot\.ocr\.auto\.title\b/
+const autoOcrSwitch = () => screen.getByRole('switch', { name: autoOcrSwitchName })
 
 describe('ScreenshotSettings', () => {
   beforeEach(() => {
@@ -133,7 +133,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     // macOS renders the accelerator as symbols; the mocked binding is CommandOrControl+Shift+A.
     expect(screen.getByText('⌘⇧A')).toBeInTheDocument()
@@ -150,7 +150,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     expect(screen.getByText('⌘⇧A')).toBeInTheDocument()
     expect(screen.getByText('settings.screenshot.shortcut.disabled')).toBeInTheDocument()
@@ -160,7 +160,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
 
     // Another application already owns the accelerator. The binding is still displayed,
@@ -176,7 +176,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
     act(() => conflictListener?.({ key: 'shortcut.app.search', hasConflict: true }))
 
     expect(screen.queryByLabelText('settings.shortcuts.occupied_by_other_application')).not.toBeInTheDocument()
@@ -187,7 +187,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'authorized' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     expect(screen.getByText('settings.screenshot.shortcut.unset')).toBeInTheDocument()
   })
@@ -197,7 +197,7 @@ describe('ScreenshotSettings', () => {
     stubIpc({ permission: 'denied' })
     render(<ScreenshotSettings />)
 
-    await screen.findByRole('switch', { name: 'settings.screenshot.enable.title' })
+    await screen.findByRole('switch', { name: screenshotEnabledSwitchName })
 
     expect(screen.queryByText('settings.screenshot.permission.title')).not.toBeInTheDocument()
     expect(requestedRoutes()).not.toContain('system.mac.screen_capture_status')

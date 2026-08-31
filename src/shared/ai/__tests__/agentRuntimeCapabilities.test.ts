@@ -84,20 +84,16 @@ describe('AGENT_RUNTIME_CAPABILITIES', () => {
     })
   })
 
-  describe('dsh model input compatibility', () => {
+  describe('dsh model compatibility', () => {
     const isCompatible = AGENT_RUNTIME_CAPABILITIES.dsh.isModelCompatible
     const provider = makeProvider({})
 
-    it('accepts undeclared and text-capable multimodal inputs', () => {
+    it('does not filter models by their declared input modalities', () => {
       expect(isCompatible(provider, makeModel({}))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.AUDIO] }))).toBe(true)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.TEXT, MODALITY.VIDEO] }))).toBe(true)
-    })
-
-    it('rejects models that explicitly cannot accept text', () => {
-      expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(false)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(false)
-      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(false)
+      expect(isCompatible(provider, makeModel({ inputModalities: [] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.IMAGE] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.AUDIO] }))).toBe(true)
+      expect(isCompatible(provider, makeModel({ inputModalities: [MODALITY.VIDEO] }))).toBe(true)
     })
   })
 })

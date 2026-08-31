@@ -197,15 +197,28 @@ export function normalizeCitationMarks(
 }
 
 /**
+ * A `[cite:id]` marker together with the space that separates it from the
+ * preceding sentence, so a dropped marker takes that space with it instead of
+ * leaving `Claim .` behind. Shared with the export/strip paths in
+ * `utils/message/citations.ts`.
+ */
+export const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
+
+/**
  * Map every `[cite:<id>]` mark to a rendered `[<sup>…</sup>](url)` tag. Keys
  * are wire ids as strings: legacy numeric marks stringify to their number,
  * tool-result ids keep their `<prefix>-<n>` form.
+ *
+ * An id that resolves to nothing is dropped rather than echoed: the id is an
+ * internal, message-scoped handle, so printing it puts implementation detail on
+ * screen (#19771). A model that reuses an id minted in an earlier turn is the
+ * common way to get here, and its markers cannot be resolved from this message.
  */
 export function mapCitationMarksToTags(content: string, citationMap: Map<string, Citation>): string {
   return mapMarkdownOutsideCode(content, (text) =>
-    text.replace(/\[cite:([\w-]+)\]/g, (match, id) => {
+    text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
       const citation = citationMap.get(id)
-      return citation ? generateCitationTag(citation) : match
+      return citation ? `${space}${generateCitationTag(citation)}` : ''
     })
   )
 }

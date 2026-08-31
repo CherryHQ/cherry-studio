@@ -1,0 +1,51 @@
+diff --git a/lib/index.js b/lib/index.js
+index 88204d4ad..4e7717af1 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1107,3 +1107,4 @@ function resolveModelCompat(provider, entry, route, base, api) {
+-	if (thinkingFormat === void 0 && supportsReasoningEffort === void 0) return {};
+-	if (api !== "openai-completions") {
+-		if (entry.compat?.thinkingFormat !== void 0 || entry.compat?.supportsReasoningEffort !== void 0) invalid(provider, `model "${entry.id}" sets compat reasoning switches, but its api is "${api}"; thinkingFormat and supportsReasoningEffort exist only on openai-completions`);
++	const supportsDeveloperRole = entry.compat?.supportsDeveloperRole ?? route?.supportsDeveloperRole;
++	if (thinkingFormat === void 0 && supportsReasoningEffort === void 0 && supportsDeveloperRole === void 0) return {};
++	if (api !== "openai-completions" && api !== "openai-responses") {
++		if (entry.compat !== void 0) invalid(provider, `model "${entry.id}" sets OpenAI compatibility switches, but its api is "${api}"`);
+@@ -1111,0 +1113 @@ function resolveModelCompat(provider, entry, route, base, api) {
++	if (api !== "openai-completions" && (entry.compat?.thinkingFormat !== void 0 || entry.compat?.supportsReasoningEffort !== void 0)) invalid(provider, `model "${entry.id}" sets compat reasoning switches, but its api is "${api}"; thinkingFormat and supportsReasoningEffort exist only on openai-completions`);
+@@ -1114,2 +1116,3 @@ function resolveModelCompat(provider, entry, route, base, api) {
+-		...thinkingFormat === void 0 ? {} : { thinkingFormat },
+-		...supportsReasoningEffort === void 0 ? {} : { supportsReasoningEffort }
++		...api === "openai-completions" && thinkingFormat !== void 0 ? { thinkingFormat } : {},
++		...api === "openai-completions" && supportsReasoningEffort !== void 0 ? { supportsReasoningEffort } : {},
++		...supportsDeveloperRole === void 0 ? {} : { supportsDeveloperRole }
+@@ -1145 +1148,2 @@ function resolveRouteModels(request) {
+-	const routeCompatDefined = request.compat?.thinkingFormat !== void 0 || request.compat?.supportsReasoningEffort !== void 0;
++	const routeReasoningCompatDefined = request.compat?.thinkingFormat !== void 0 || request.compat?.supportsReasoningEffort !== void 0;
++	const routeDeveloperRoleDefined = request.compat?.supportsDeveloperRole !== void 0;
+@@ -1177 +1181,2 @@ function resolveRouteModels(request) {
+-	if (routeCompatDefined && !models.some((model) => model.api === "openai-completions")) invalid(provider, "sets compat reasoning switches, but no model on the route speaks openai-completions; thinkingFormat and supportsReasoningEffort exist only on that protocol");
++	if (routeReasoningCompatDefined && !models.some((model) => model.api === "openai-completions")) invalid(provider, "sets compat reasoning switches, but no model on the route speaks openai-completions; thinkingFormat and supportsReasoningEffort exist only on that protocol");
++	if (routeDeveloperRoleDefined && !models.some((model) => model.api === "openai-completions" || model.api === "openai-responses")) invalid(provider, "sets supportsDeveloperRole, but no model on the route speaks an OpenAI-compatible protocol");
+@@ -1371 +1376,2 @@ const compatProfile = z.object({
+-	supportsReasoningEffort: z.boolean()
++	supportsReasoningEffort: z.boolean(),
++	supportsDeveloperRole: z.boolean()
+diff --git a/lib/types/catalog.d.ts b/lib/types/catalog.d.ts
+index 9b5a13969..933c20ffa 100644
+--- a/lib/types/catalog.d.ts
++++ b/lib/types/catalog.d.ts
+@@ -88,0 +89,2 @@ export interface PiAiCompatProfile {
++    /** Whether the endpoint accepts the OpenAI `developer` message role; false sends the system prompt with `system` instead. */
++    supportsDeveloperRole?: boolean;
+diff --git a/lib/types/config.d.ts b/lib/types/config.d.ts
+index 38f122ebb..7e9a5c991 100644
+--- a/lib/types/config.d.ts
++++ b/lib/types/config.d.ts
+@@ -69,4 +69,3 @@ export interface PiAiProviderProfile {
+-     * Reasoning-dispatch switches for every `openai-completions` model on this
+-     * route; each model's own `compat` overrides per field. What neither sets
+-     * keeps the installed catalog entry's value, then pi-ai's baseURL-derived
+-     * detection.
++     * OpenAI protocol compatibility switches for this route; each model's own
++     * `compat` overrides per field. What neither sets keeps the installed
++     * catalog entry's value, then pi-ai's baseURL-derived detection.

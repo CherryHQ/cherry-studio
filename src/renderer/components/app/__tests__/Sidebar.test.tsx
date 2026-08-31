@@ -536,7 +536,21 @@ describe('app Sidebar', () => {
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('files')])
   })
 
-  it('keeps required sidebar favorites protected in the context menu', () => {
+  it('allows removing the chat assistant from the sidebar when other apps remain', () => {
+    mocks.sidebarFavorites = [
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'knowledge' }
+    ]
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).not.toBeDisabled()
+
+    fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants'))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([{ type: 'app', id: 'knowledge' }])
+  })
+
+  it('disables removing the last sidebar app', () => {
     render(<Sidebar />)
 
     expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).toBeDisabled()
@@ -1033,7 +1047,7 @@ describe('app Sidebar', () => {
     })
   })
 
-  it('reuses an existing mini app tab on middle-click instead of creating a duplicate', () => {
+  it('creates a new mini app tab on middle-click even when a tab already exists', () => {
     mocks.sidebarFavorites = []
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('mini-1')]
     mocks.allApps = [{ appId: 'mini-1', name: 'Mini One', logo: 'logo-1.png', url: 'https://example.com/1' }]
@@ -1047,8 +1061,12 @@ describe('app Sidebar', () => {
     const button = screen.getByTestId('sidebar-mini-app-mini-1')
     fireEvent(button, new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true }))
 
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('mini-existing')
-    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/mini-1', {
+      forceNew: true,
+      title: 'Mini One',
+      icon: 'logo-1.png'
+    })
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 

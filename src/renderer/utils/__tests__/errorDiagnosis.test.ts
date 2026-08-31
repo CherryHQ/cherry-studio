@@ -199,6 +199,18 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.content).toContain('401')
     })
 
+    it('requires all diagnosis fields to use the language selected in settings', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'summary', category: 'category', explanation: 'explanation', steps: [] })
+      )
+
+      await diagnoseError(makeError(), 'preferred-language')
+
+      expect(mockFetchGenerate.mock.calls[0][0].prompt).toContain(
+        'Write all values for summary, category, explanation, and steps[].text in preferred-language'
+      )
+    })
+
     it('defaults category to unknown when missing', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({

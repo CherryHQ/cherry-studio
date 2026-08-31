@@ -2415,18 +2415,18 @@
     },
     {
       "capabilities": [
-        "function-call",
         "reasoning",
+        "function-call",
         "image-recognition",
         "video-recognition",
         "structured-output",
-        "file-input",
         "text-generation"
       ],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-flash",
       "inputModalities": ["text", "image", "video"],
+      "maxInputTokens": 991808,
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Qwen3.8 Flash",
@@ -2461,14 +2461,14 @@
           },
           {
             "kind": "budget",
-            "max": 38912,
-            "min": 1024
+            "max": 262144,
+            "min": 0
           }
         ],
         "supportedEfforts": ["low", "medium", "xhigh", "none"],
         "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
+          "max": 262144,
+          "min": 0
         }
       }
     },
@@ -7920,47 +7920,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "high", "max", "low", "xhigh"]
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
-      "contextWindow": 1310720,
-      "id": "deepseek-v4-flash-latest",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "DeepSeek V4 Flash Latest",
-      "outputModalities": ["text"],
-      "ownedBy": "deepseek",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 1.32
         }
       },
       "reasoning": {
@@ -7988,28 +7956,25 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.014
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.44
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 1.32
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "high", "max", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["low", "high", "max", "xhigh", "none"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -8027,28 +7992,25 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.003625
+          "perMillionTokens": 0.044
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.96
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
-          },
-          {
-            "kind": "toggle"
+            "values": ["none", "low", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "low", "high", "max"]
       }
     },
     {
@@ -15031,10 +14993,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+            "values": ["none", "minimal", "low", "medium", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max"]
       }
     },
     {
@@ -19496,14 +19458,15 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
+      "capabilities": ["reasoning", "function-call", "structured-output", "text-generation"],
       "contextWindow": 1048576,
       "family": "Hy",
       "id": "hy4-preview",
       "inputModalities": ["text"],
-      "maxOutputTokens": 64000,
+      "maxInputTokens": 983040,
+      "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Tencent Hy4 Preview",
+      "name": "Hunyuan 4 Preview",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
@@ -22170,13 +22133,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+            "values": ["high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -22268,13 +22231,14 @@
         "file-input",
         "text-generation"
       ],
-      "contextWindow": 1310720,
+      "contextWindow": 1000000,
       "family": "glm",
       "id": "glm-5-3-flash",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "GLM-5.3-Flash",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -22503,5 +22467,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "b5eee00819389de9"
+  "version": "338c6e050298800a"
 }

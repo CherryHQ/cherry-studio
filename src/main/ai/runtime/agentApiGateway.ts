@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 
 import { application } from '@application'
 import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
+import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 
 /**
  * Gateway state a materialized connection is pinned to. It is part of the credentials fingerprint,
@@ -77,7 +78,7 @@ export async function resolveApiGatewayRuntime(sessionId: string): Promise<{
   const host = config.host || '127.0.0.1'
   const port = config.port || 23333
   return {
-    baseUrl: `http://${host}:${port}`,
+    baseUrl: gatewayClientOrigin(host, port),
     apiKey,
     stateTag: gatewayStateTag(config.enabled, apiGatewayService.isRunning()),
     usageHeaders: apiGatewayService.getAgentSessionUsageHeaders(sessionId),

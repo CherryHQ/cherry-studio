@@ -40,7 +40,7 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
 
-  it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
+  it('defaults sidebar favorites to Chat before Agent for new users', () => {
     const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
       { id: 'assistants', type: 'app' },
       { id: 'agents', type: 'app' },

@@ -12,6 +12,7 @@ import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   copy as fsCopy,
+  copyNew as fsCopyNew,
   createAtomicWriteStream,
   createPreparedAtomicWriteStream,
   download as fsDownload,
@@ -705,6 +706,25 @@ describe('copy', () => {
     await fsCopy(src as AbsoluteFilePath, dest as AbsoluteFilePath)
     const out = await readFile(dest)
     expect(out.equals(bytes)).toBe(true)
+  })
+
+  it('copyNew copies content to a fresh destination', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
+  })
+
+  it('copyNew refuses an existing destination (EEXIST) and leaves it untouched', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'new')
+    await writeFile(dest, 'old')
+    await expect(fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)).rejects.toMatchObject({
+      code: 'EEXIST'
+    })
+    expect(await readFile(dest, 'utf-8')).toBe('old')
   })
 
   it('rejects with an AbortError when the signal is already aborted', async () => {

@@ -1165,6 +1165,42 @@ describe('buildAgentParams assistant-less reasoning', () => {
     expect(result.options.providerOptions).toBeUndefined()
   })
 
+  it.each([
+    { providerId: 'opencode', runtimeProviderId: 'openai-compatible', adapterFamily: 'openai-compatible' },
+    { providerId: 'openrouter', runtimeProviderId: 'openrouter', adapterFamily: 'openrouter' }
+  ])('treats stale Auto as Default for mandatory-thinking GLM on $providerId', async (providerConfig) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: providerConfig.runtimeProviderId, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const endpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const provider = makeProvider({
+      id: providerConfig.providerId,
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: { [endpointType]: { adapterFamily: providerConfig.adapterFamily } }
+    })
+    const model = makeModel({
+      id: `${providerConfig.providerId}::glm-5.3-flash`,
+      providerId: providerConfig.providerId,
+      apiModelId: 'glm-5.3-flash',
+      presetModelId: 'glm-5-3-flash',
+      endpointTypes: [endpointType],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'auto' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const providerOptions = result.options.providerOptions?.[result.sdkConfig.providerOptionsKey] ?? {}
+    expect(providerOptions).not.toHaveProperty('reasoning')
+    expect(providerOptions).not.toHaveProperty('reasoningEffort')
+    expect(providerOptions).not.toHaveProperty('reasoning_effort')
+  })
+
   it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {

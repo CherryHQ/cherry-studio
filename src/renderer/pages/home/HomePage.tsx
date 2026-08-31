@@ -22,7 +22,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
@@ -51,6 +51,7 @@ import {
   AssistantConversationPickerDialog,
   type AssistantConversationSelection
 } from './components/AssistantConversationPickerDialog'
+import { HomeTabRuntime } from './components/HomeTabRuntime'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
@@ -80,7 +81,6 @@ const HomePage: FC = () => {
   const isCreatingTopicRef = useRef(false)
   const ownerFallbackRequestIdRef = useRef(0)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
@@ -275,10 +275,8 @@ const HomePage: FC = () => {
   }, [activeTopic, setLastUsedAssistantId])
 
   // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its
-  // own HomePage. `currentTabId` is *this* tab; `useIsActiveTab` answers "am I the
-  // globally-focused tab".
+  // own HomePage. `currentTabId` is *this* tab's id.
   const currentTabId = useCurrentTabId()
-  const isActiveTab = useIsActiveTab()
 
   const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
     const clear = () => {
@@ -315,17 +313,6 @@ const HomePage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest topic without resubscribing.
   }, [currentTabId])
 
-  useEffect(() => {
-    // Track "last focused topic" for persisted topics. Drives the sidebar `assistants`
-    // dedupe key (mirror of agent's last_used_session).
-    // Gated on the active tab: `last_used` is a single global "what I'm looking
-    // at now", so background tabs (also mounted) must not clobber it.
-    if (!isActiveTab) return
-    if (activeTopic?.id && activeTopicSource === 'query') {
-      setLastUsedTopicId(activeTopic.id)
-    }
-  }, [isActiveTab, activeTopic, activeTopicSource, setLastUsedTopicId])
-
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
@@ -348,12 +335,7 @@ const HomePage: FC = () => {
     visibleConversationId: visibleTopic?.id
   })
   const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
-  useTabSelfVisuals({
-    title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
-    emoji: visibleAssistant?.emoji,
-    appId: 'assistants',
-    preserveVisuals: preserveTabVisuals
-  })
+  const tabTitle = visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat')
 
   useEffect(() => {
     if (activeTopic) lastVisibleTopicRef.current = activeTopic
@@ -673,15 +655,24 @@ const HomePage: FC = () => {
   // the rail visible) instead of returning a blank frame.
   if (isMessageOnlyView && !visibleTopic && !resourceCenter) {
     return (
-      <Container id="home-page">
-        <ContentContainer>
-          <MessageOnlyStatus
-            loading={isRouteTopicLoading}
-            loadingLabel={t('common.loading')}
-            missingTitle={t('history.error.topic_not_found')}
-          />
-        </ContentContainer>
-      </Container>
+      <>
+        <HomeTabRuntime
+          title={tabTitle}
+          emoji={visibleAssistant?.emoji}
+          preserveVisuals={preserveTabVisuals}
+          activeTopicId={activeTopic?.id}
+          activeTopicSource={activeTopicSource}
+        />
+        <Container id="home-page">
+          <ContentContainer>
+            <MessageOnlyStatus
+              loading={isRouteTopicLoading}
+              loadingLabel={t('common.loading')}
+              missingTitle={t('history.error.topic_not_found')}
+            />
+          </ContentContainer>
+        </Container>
+      </>
     )
   }
 
@@ -780,6 +771,13 @@ const HomePage: FC = () => {
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
+      <HomeTabRuntime
+        title={tabTitle}
+        emoji={visibleAssistant?.emoji}
+        preserveVisuals={preserveTabVisuals}
+        activeTopicId={activeTopic?.id}
+        activeTopicSource={activeTopicSource}
+      />
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <Chat

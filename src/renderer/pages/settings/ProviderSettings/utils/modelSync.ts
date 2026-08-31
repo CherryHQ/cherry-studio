@@ -165,7 +165,10 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
     return await enrichFetchedModels(providerId, fetched)
   } catch (error) {
-    logger.error('Failed to fetch and resolve provider models', { providerId, error })
+    logger.error('Failed to fetch and resolve provider models', {
+      providerId,
+      errorType: error instanceof Error ? error.name : typeof error
+    })
     throw error
   }
 }

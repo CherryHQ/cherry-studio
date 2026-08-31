@@ -57,6 +57,7 @@ import {
   FileEntryOriginSchema,
   FileRefSourceTypeSchema
 } from '@shared/data/types/file'
+import { FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 /**
@@ -90,6 +91,7 @@ export const ListFilesQuerySchema = z
   .strictObject({
     origin: FileEntryOriginSchema.optional(),
     inTrash: z.boolean().optional(),
+    fileType: FileTypeSchema.optional(),
     sortBy: z.enum(['name', 'createdAt', 'updatedAt', 'size', 'ext']).optional(),
     sortOrder: z.enum(['asc', 'desc']).optional(),
     cursor: z.string().optional(),

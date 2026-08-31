@@ -133,6 +133,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     'acme-reasoner-v1', // unknown family
     'deepseek-r1', // fixed reasoning — no knob
     'grok-4-fast', // the on/off knob is OpenRouter-only, not a model property
+    'ling-3.0-flash', // the on/off wire is serving-provider specific
     'minimax-m2.1' // no documented knob
   ])('returns undefined for %s', (id) => {
     expect(inferReasoningControls(id)).toBeUndefined()

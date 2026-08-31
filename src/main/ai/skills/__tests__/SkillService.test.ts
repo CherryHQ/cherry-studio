@@ -1535,6 +1535,40 @@ describe('SkillService', () => {
       expect(installed?.isEnabled).toBe(true)
     })
 
+    it('records conditional builtin ownership and preserves it across updates', async () => {
+      const skillService = new SkillService()
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:test')
+      const initial = await skillService.getByFolderName(FOLDER_NAME)
+      await fs.promises.writeFile(path.join(sourcePath, 'SKILL.md'), '# Updated Builtin')
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:test')
+      const updated = await skillService.getByFolderName(FOLDER_NAME)
+
+      expect(updated).toMatchObject({ id: initial?.id, namespace: 'code-cli:test', source: 'builtin' })
+    })
+
+    it('refuses to replace a builtin owned by another namespace', async () => {
+      const skillService = new SkillService()
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:first')
+
+      await expect(
+        skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:second')
+      ).rejects.toThrow(/belongs to builtin namespace/)
+    })
+
+    it('only uninstalls a conditional builtin for its owning namespace', async () => {
+      const skillService = new SkillService()
+      await skillService.syncBuiltinSkill(FOLDER_NAME, sourcePath, APP_VERSION, 'code-cli:test')
+
+      await expect(skillService.uninstallBuiltinSkill(FOLDER_NAME, 'code-cli:other')).rejects.toThrow(
+        /not owned by builtin namespace/
+      )
+      await expect(skillService.getByFolderName(FOLDER_NAME)).resolves.not.toBeNull()
+
+      await expect(skillService.uninstallBuiltinSkill(FOLDER_NAME, 'code-cli:test')).resolves.toBe(true)
+      await expect(skillService.getByFolderName(FOLDER_NAME)).resolves.toBeNull()
+    })
+
     it('rejects a cross-source builtin collision before overwriting user content', async () => {
       const skillService = new SkillService()
       await fs.promises.mkdir(destPath, { recursive: true })

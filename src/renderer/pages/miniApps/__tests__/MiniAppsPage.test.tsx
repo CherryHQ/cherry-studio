@@ -1,12 +1,15 @@
 import type * as CherryStudioUI from '@cherrystudio/ui'
-import type { MiniApp } from '@shared/data/types/miniApp'
+import type * as UseCacheModule from '@data/hooks/useCache'
+import type * as MiniAppPresets from '@shared/data/presets/miniApps'
+import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MiniAppsPage from '../MiniAppsPage'
 
-const stubApp = (overrides: Partial<MiniApp> & Pick<MiniApp, 'appId' | 'name' | 'url'>): MiniApp => ({
+const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | 'name' | 'url'>): MiniApp => ({
+  kind: 'site',
   appId: overrides.appId,
   presetMiniAppId: 'presetMiniAppId' in overrides ? (overrides.presetMiniAppId ?? null) : overrides.appId,
   status: overrides.status ?? 'enabled',
@@ -22,6 +25,7 @@ const stubApp = (overrides: Partial<MiniApp> & Pick<MiniApp, 'appId' | 'name' | 
 
 const mocks = vi.hoisted(() => ({
   apps: [] as MiniApp[],
+  allApps: [] as MiniApp[],
   pinned: [] as MiniApp[],
   openedKeepAliveMiniApps: [] as MiniApp[],
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +45,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
+    allApps: mocks.allApps,
     miniApps: mocks.apps,
     pinned: mocks.pinned,
     openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
@@ -58,6 +63,21 @@ vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     openTab: mocks.openTab
   })
+}))
+
+// Partial: the installed tile reads `useSharedCacheValue` from the same module.
+vi.mock('@data/hooks/useCache', async (importOriginal) => ({
+  ...(await importOriginal<typeof UseCacheModule>()),
+  useCache: () => ['/opt/cherry/resources']
+}))
+
+// The shipped catalog is empty this release; the offer section needs entries to render.
+vi.mock('@shared/data/presets/miniApps', async (importOriginal) => ({
+  ...(await importOriginal<typeof MiniAppPresets>()),
+  BUILTIN_MINI_APPS: [
+    { appId: 'com.cherrystudio.miniapp.notes', name: { en: 'Notes' }, icon: 'icon.webp' },
+    { appId: 'com.cherrystudio.miniapp.draw', name: { en: 'Draw' }, icon: 'icon.webp' }
+  ]
 }))
 
 vi.mock('@renderer/components/command', () => ({
@@ -170,9 +190,19 @@ vi.mock('../NewMiniAppPanel', () => ({
     open ? <div data-testid="new-mini-app-panel" data-app-id={app?.appId ?? ''} /> : null
 }))
 
+vi.mock('../InstallMiniAppPanel', () => ({
+  default: ({ builtinAppId, onClose }: { builtinAppId?: string; onClose?: () => void }) => (
+    <div data-testid="install-mini-app-panel" data-builtin-app-id={builtinAppId}>
+      <button type="button" onClick={onClose}>
+        close-install
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => {} },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en', resolvedLanguage: 'en' } })
 }))
 
 describe('MiniAppsPage', () => {
@@ -181,6 +211,7 @@ describe('MiniAppsPage', () => {
       stubApp({ appId: 'chatgpt', name: 'ChatGPT', url: 'https://chat.openai.com', logo: 'chat-logo' }),
       stubApp({ appId: 'gemini', name: 'Gemini', url: 'https://gemini.google.com', logo: 'gemini-logo' })
     ]
+    mocks.allApps = []
     mocks.pinned = []
     mocks.openedKeepAliveMiniApps = []
     mocks.updateAppStatus.mockClear()
@@ -249,5 +280,64 @@ describe('MiniAppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.delete' }))
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
+  })
+
+  it('has one add entry, and it opens the add dialog in create mode', () => {
+    render(<MiniAppsPage />)
+    // The install panel has no toolbar entry of its own any more: packages are a tab of
+    // the add dialog, and only a builtin tile mounts the standalone panel.
+    expect(screen.queryByRole('button', { name: 'miniApp.install.title' })).toBeNull()
+    expect(screen.queryByTestId('new-mini-app-panel')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.title' }))
+    expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-app-id', '')
+  })
+
+  it('offers an uninstalled builtin, and routes it to consent rather than open', () => {
+    mocks.apps = []
+    mocks.allApps = []
+    render(<MiniAppsPage />)
+
+    expect(screen.getByText('miniApp.builtin.not_installed')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes' }))
+
+    // The id goes to the CONSENT flow (the panel requests `preview_builtin` itself);
+    // the installed tile's handler would open a tab for an app with no files on disk.
+    expect(screen.getByTestId('install-mini-app-panel')).toHaveAttribute(
+      'data-builtin-app-id',
+      'com.cherrystudio.miniapp.notes'
+    )
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('drops installed builtins from the offer', () => {
+    // `stubApp` defaults `presetMiniAppId` to `appId`, which is what the installer
+    // writes for an official package — the real predicate, not a stand-in.
+    const installed = ['com.cherrystudio.miniapp.notes', 'com.cherrystudio.miniapp.draw'].map((appId) =>
+      stubApp({ appId, name: appId, url: `cherry-miniapp://${appId}/index.html` })
+    )
+    mocks.apps = installed
+    mocks.allApps = installed
+
+    render(<MiniAppsPage />)
+
+    // BOTH catalog entries installed, or the section stays up for the remaining offer
+    // and the assertion tests the fixture, not the filter.
+    expect(screen.queryByText('miniApp.builtin.not_installed')).toBeNull()
+  })
+
+  it('does not re-offer an installed builtin the user disabled', () => {
+    // `allApps` is the load-bearing choice: `miniApps` omits disabled rows, so a
+    // disabled official app would be re-offered an install that must fail on its id.
+    const hidden = ['com.cherrystudio.miniapp.notes', 'com.cherrystudio.miniapp.draw'].map((appId) =>
+      stubApp({ appId, name: appId, url: `cherry-miniapp://${appId}/index.html`, status: 'disabled' })
+    )
+    mocks.apps = []
+    mocks.allApps = hidden
+
+    render(<MiniAppsPage />)
+
+    expect(screen.queryByText('miniApp.builtin.not_installed')).toBeNull()
   })
 })

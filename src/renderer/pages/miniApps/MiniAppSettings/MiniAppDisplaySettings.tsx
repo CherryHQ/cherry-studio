@@ -19,6 +19,7 @@ const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
+  const [checkUpdatesOnOpen, setCheckUpdatesOnOpen] = usePreference('feature.mini_app.check_updates_on_open')
   const [region = 'auto', setRegion] = usePreference('feature.mini_app.region')
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -73,6 +74,12 @@ const MiniAppDisplaySettings: FC = () => {
           title={t('settings.miniApps.open_link_external.title')}
           description={t('settings.miniApps.open_link_external.description')}
           action={<Switch checked={openLinkExternal} onCheckedChange={(v) => setOpenLinkExternal(v)} />}
+        />
+
+        <PageSidePanelItem
+          title={t('settings.miniApps.check_updates_on_open.title')}
+          description={t('settings.miniApps.check_updates_on_open.description')}
+          action={<Switch checked={checkUpdatesOnOpen} onCheckedChange={(v) => setCheckUpdatesOnOpen(v)} />}
         />
 
         <PageSidePanelItem

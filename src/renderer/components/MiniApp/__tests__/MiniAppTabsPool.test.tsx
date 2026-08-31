@@ -1,5 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,7 +24,10 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
     // visibility through `ref.style.display`.
     <div
       ref={(el) => {
-        onSetRefCallback(appid, el)
+        // A local app's <webview> mounts only after `runtime.prepare`; `deferAttach`
+        // replays that late attach when the test says so.
+        if (el && mocks.deferAttach.has(appid)) mocks.pendingAttach.set(appid, () => onSetRefCallback(appid, el))
+        else onSetRefCallback(appid, el)
         if (onLoadedCallback) mocks.loadHandlers.set(appid, onLoadedCallback)
         if (onFocusChange) mocks.focusHandlers.set(appid, onFocusChange)
       }}
@@ -36,6 +39,7 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
 }))
 
 const stubApp = (id: string): MiniApp => ({
+  kind: 'site',
   appId: id,
   name: id,
   url: `https://${id}.example.com`,
@@ -56,11 +60,30 @@ const mocks = vi.hoisted(() => ({
   setMiniAppShow: vi.fn(),
   tabs: [] as { id: string; url: string; isDormant?: boolean; isPinned?: boolean }[],
   activeTabId: '',
+  closeTab: vi.fn(),
+  setSplitOpen: vi.fn(),
+  setSplitMiniAppId: vi.fn(),
   clearWebviewState: vi.fn(),
   focusHandlers: new Map<string, (appid: string, focused: boolean) => void>(),
   loadHandlers: new Map<string, (appid: string) => void>(),
-  contextKeys: [] as Array<{ key: string; value: unknown }>
+  contextKeys: [] as Array<{ key: string; value: unknown }>,
+  deferAttach: new Set<string>(),
+  pendingAttach: new Map<string, () => void>()
 }))
+
+// `vi.hoisted` is required, not stylistic: `vi.mock` is hoisted above every `const`,
+// so a factory closing over a plain one hits the TDZ on first import.
+const ipc = vi.hoisted(() => ({
+  handlers: new Map<string, (payload: unknown) => void>(),
+  request: vi.fn(() => Promise.resolve())
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipc.request },
+  useIpcOn: (event: string, handler: (payload: unknown) => void) => {
+    ipc.handlers.set(event, handler)
+  }
+}))
+const emitIpc = (event: string, payload: unknown) => act(() => ipc.handlers.get(event)?.(payload))
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandContextKey: (key: string, value: unknown) => {
@@ -77,7 +100,9 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     openedOneOffMiniApp: mocks.openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId: mocks.setCurrentMiniAppId,
-    setMiniAppShow: mocks.setMiniAppShow
+    setMiniAppShow: mocks.setMiniAppShow,
+    setSplitOpen: mocks.setSplitOpen,
+    setSplitMiniAppId: mocks.setSplitMiniAppId
   })
 }))
 
@@ -88,7 +113,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     tabs: mocks.tabs,
-    activeTabId: mocks.activeTabId
+    activeTabId: mocks.activeTabId,
+    closeTab: mocks.closeTab
   })
 }))
 
@@ -141,6 +167,9 @@ describe('MiniAppTabsPool', () => {
       mocks.currentMiniAppId = value
     })
     mocks.setMiniAppShow.mockImplementation(() => undefined)
+    mocks.closeTab.mockReset()
+    mocks.setSplitOpen.mockReset()
+    mocks.setSplitMiniAppId.mockReset()
     mocks.clearWebviewState.mockReset()
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
@@ -553,6 +582,207 @@ describe('MiniAppTabsPool', () => {
     )
 
     expect(effectOrder).toEqual(['pool', 'page'])
+  })
+
+  describe('pane visibility reports', () => {
+    const localApp = (id: string): MiniApp => ({
+      kind: 'app',
+      appId: id,
+      name: id,
+      url: `cherry-miniapp://${id}/index.html`,
+      presetMiniAppId: null,
+      status: 'enabled',
+      orderKey: 'a0',
+      version: '1.0.0',
+      nameI18n: { en: id },
+      aiModelId: null,
+      aiQuickModelId: null
+    })
+    const reports = () =>
+      ipc.request.mock.calls
+        .filter((c: unknown[]) => c[0] === 'mini_app.runtime.set_visible')
+        .map((c: unknown[]) => c[1])
+
+    it('tells main when a local app pane is shown or hidden, once per change', () => {
+      // The bug this guards: `app.visibilityChange` documented and subscribed to, with
+      // nothing in the host ever producing it — a guest cannot see `display: none`.
+      mocks.openedKeepAliveMiniApps = [localApp('alpha'), localApp('bravo')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      mocks.activeTabId = 'alpha-tab'
+      const { rerender } = render(<MiniAppTabsPool />)
+      expect(reports()).toEqual(
+        expect.arrayContaining([
+          { appId: 'alpha', visible: true },
+          { appId: 'bravo', visible: false }
+        ])
+      )
+
+      ipc.request.mockClear()
+      mocks.currentMiniAppId = 'bravo'
+      mocks.activeTabId = 'bravo-tab'
+      rerender(<MiniAppTabsPool />)
+      expect(reports()).toEqual(
+        expect.arrayContaining([
+          { appId: 'alpha', visible: false },
+          { appId: 'bravo', visible: true }
+        ])
+      )
+
+      ipc.request.mockClear()
+      rerender(<MiniAppTabsPool />)
+      expect(reports()).toEqual([])
+    })
+
+    it('hides and reports a pane whose webview attaches after the user moved on', () => {
+      // The bug this guards: the visibility effect runs on dependency changes only. A
+      // local app's <webview> mounts once `runtime.prepare` resolves; if the user switched
+      // away meanwhile, nothing changes again and the new pane stays shown — and main,
+      // never told otherwise, treats the guest as visible for `clipboard.read` and friends.
+      mocks.openedKeepAliveMiniApps = [localApp('alpha'), localApp('bravo')]
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.activeTabId = 'alpha-tab'
+      mocks.deferAttach.add('alpha')
+      try {
+        const { rerender } = render(<MiniAppTabsPool />)
+        mocks.currentMiniAppId = 'bravo'
+        mocks.activeTabId = 'bravo-tab'
+        rerender(<MiniAppTabsPool />)
+        ipc.request.mockClear()
+
+        act(() => mocks.pendingAttach.get('alpha')!())
+
+        expect(screen.getByTestId('webview-alpha').style.display).toBe('none')
+        expect(reports()).toEqual([{ appId: 'alpha', visible: false }])
+      } finally {
+        mocks.deferAttach.clear()
+        mocks.pendingAttach.clear()
+      }
+    })
+
+    it('reports nothing for site webviews, which have no guest bridge to tell', () => {
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [{ id: 'alpha-tab', url: '/app/mini-app/alpha' }]
+      mocks.activeTabId = 'alpha-tab'
+      render(<MiniAppTabsPool />)
+
+      expect(reports()).toEqual([])
+    })
+  })
+
+  describe('host-initiated eviction', () => {
+    it('drops the evicted app from the pool', () => {
+      // The bug this guards: shipping only the broadcast. With no consumer the host
+      // waits out its timeout and turns an ordinary update into a hard kill.
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+      // Every pooled app needs a tab: the pool evicts unreferenced entries on its own.
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      const { container, rerender } = render(<MiniAppTabsPool />)
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'alpha' })
+
+      // Asserts the RESOLVED list, not the argument: the implementation passes an
+      // updater, so `toHaveBeenCalledWith([...])` would compare against a function.
+      expect(mocks.openedKeepAliveMiniApps.map((a) => a.appId)).toEqual(['bravo'])
+      expect(mocks.clearWebviewState).toHaveBeenCalledWith('alpha')
+      // The `useMiniApps` stand-in is not reactive: rerender to see the pool react.
+      rerender(<MiniAppTabsPool />)
+      expect(renderedAppIds(container)).toEqual(['bravo'])
+    })
+
+    it('ignores an eviction for an app it is not showing', () => {
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+      mocks.tabs = [{ id: 'alpha-tab', url: '/app/mini-app/alpha' }]
+      render(<MiniAppTabsPool />)
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'charlie' })
+
+      expect(mocks.clearWebviewState).not.toHaveBeenCalledWith('charlie')
+    })
+
+    it('closes the active tab so the launcher can reopen the evicted app', () => {
+      // Nothing re-adds an evicted app while its tab stays active: MiniAppPage only
+      // opens on tab/app changes, and clear-data/reset change neither. Without the
+      // close the pane stays blank until the user happens to switch tabs.
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      mocks.activeTabId = 'alpha-tab'
+      const { container, rerender } = render(<MiniAppTabsPool />)
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'alpha' })
+
+      expect(mocks.closeTab).toHaveBeenCalledTimes(1)
+      expect(mocks.closeTab).toHaveBeenCalledWith('alpha-tab')
+      // The mocked hook is not reactive: rerender to observe the updated pool list.
+      rerender(<MiniAppTabsPool />)
+      expect(renderedAppIds(container)).toEqual(['bravo'])
+
+      // The user reopens from the launcher: a fresh tab plus a fresh pool entry, and
+      // the launcher (useMiniAppPopup) makes the reopened app current again.
+      mocks.openedKeepAliveMiniApps = [stubApp('bravo'), stubApp('alpha')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' },
+        { id: 'alpha-tab-2', url: '/app/mini-app/alpha' }
+      ]
+      mocks.activeTabId = 'alpha-tab-2'
+      rerender(<MiniAppTabsPool />)
+
+      expect(webviewOf(container, 'alpha').style.display).toBe('inline-flex')
+    })
+
+    it('leaves a background tab open when its app is evicted', () => {
+      // Switching back re-activates MiniAppPage, which re-adds the app itself, so
+      // only the pool entry goes; closing the tab would throw away the user's place.
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.tabs = [
+        { id: 'alpha-tab', url: '/app/mini-app/alpha' },
+        { id: 'bravo-tab', url: '/app/mini-app/bravo' }
+      ]
+      mocks.activeTabId = 'alpha-tab'
+      const { container, rerender } = render(<MiniAppTabsPool />)
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'bravo' })
+
+      expect(mocks.closeTab).not.toHaveBeenCalled()
+      rerender(<MiniAppTabsPool />)
+      expect(renderedAppIds(container)).toEqual(['alpha'])
+      expect(mocks.clearWebviewState).toHaveBeenCalledWith('bravo')
+    })
+
+    it('closes the split pane when its app is evicted', () => {
+      // The split pane owns no tab, so no MiniAppPage re-adds its app: without
+      // this the pane keeps its toolbar over an empty webview slot.
+      mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+      mocks.currentMiniAppId = 'alpha'
+      mocks.splitOpen = true
+      mocks.splitMiniAppId = 'bravo'
+      mocks.tabs = [{ id: 'alpha-tab', url: '/app/mini-app/alpha' }]
+      mocks.activeTabId = 'alpha-tab'
+      render(<MiniAppTabsPool />)
+
+      emitIpc('mini_app.runtime.evicted', { appId: 'bravo' })
+
+      expect(mocks.setSplitMiniAppId).toHaveBeenCalledWith('')
+      expect(mocks.setSplitOpen).toHaveBeenCalledWith(false)
+      expect(mocks.closeTab).not.toHaveBeenCalled()
+    })
   })
 
   describe('split panes', () => {

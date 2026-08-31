@@ -16,7 +16,6 @@ import {
   getSidebarFavoriteKey,
   getSidebarMenuPath,
   isMessageOnlyConversationUrl,
-  REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -38,13 +37,13 @@ import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
     favorites,
+    appFavorites,
     miniAppFavoriteIds,
     agentFavoriteIds,
     assistantFavoriteIds,
@@ -142,7 +141,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleRemoveSidebarFavorite = useCallback(
     (favorite: SidebarAppId) => {
-      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
     },
     [setAppPinned]
@@ -220,6 +218,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       if (!app) return
 
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
+      const title = app.nameKey ? t(app.nameKey) : app.name
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      const icon = app.logoSrc ?? app.logo
+      if (options?.inNewTab) {
+        navigateRouteTab(path, title, { ...options, icon })
+        return
+      }
+
       if (activeTab?.url === path) return
 
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
@@ -228,9 +234,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
-      const title = app.nameKey ? t(app.nameKey) : app.name
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      const icon = app.logoSrc ?? app.logo
       navigateRouteTab(path, title, { ...options, icon })
     },
     [activeTab, navigateRouteTab, openableMiniAppById, setActiveTab, t, tabs]
@@ -267,7 +270,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
-      isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
+      visibleAppCount: appFavorites.length,
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
       openAgent: handleOpenAgentTab,
@@ -286,6 +289,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       assistantIconType,
       agentIconType,
       defaultModelId,
+      appFavorites.length,
       handleNavigate,
       handleOpenMiniAppTab,
       handleOpenAgentTab,

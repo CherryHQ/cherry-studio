@@ -152,7 +152,7 @@ const ChannelLogModal: FC<{
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-150">
+      <DialogContent className="max-w-150" closeLabel={t('common.close')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>{`${channelName} — ${t('agent.channels.logs')}`}</span>
@@ -260,7 +260,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-125">
+      <DialogContent closeOnOverlayClick={false} className="max-w-125" closeLabel={t('common.close')}>
         {renderedChannel && (
           <>
             <DialogHeader>

@@ -183,6 +183,78 @@ describe('applyMigrations over a populated database', () => {
     expect(() => insert.run('88888888-8888-7888-8888-888888888888', 'bogus', 'whatever', now, now)).toThrow()
   })
 
+  it('carries mini_app rows through the kind rebuild and calls every pre-existing one a site', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    const insert = sqlite.prepare(
+      `INSERT INTO mini_app (app_id, name, url, order_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    insert.run('com.example.alpha', 'Alpha', 'https://example.com/alpha', 'a0', now, now)
+    insert.run('com.example.beta', 'Beta', 'https://example.com/beta', 'a1', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    // The rebuild is `INSERT … SELECT` into a new table and a `DROP`: an unqualified
+    // column list, a wrong literal or a failed statement each lose every row silently.
+    expect(sqlite.prepare('SELECT app_id, name, url, kind FROM mini_app ORDER BY app_id').all()).toEqual([
+      { app_id: 'com.example.alpha', name: 'Alpha', url: 'https://example.com/alpha', kind: 'site' },
+      { app_id: 'com.example.beta', name: 'Beta', url: 'https://example.com/beta', kind: 'site' }
+    ])
+    // The value the migration exists to allow, and the check that bounds it — a local
+    // package is the only thing that may claim `app`.
+    const typed = sqlite.prepare(
+      `INSERT INTO mini_app (app_id, kind, name, url, order_key, created_at, updated_at)
+       VALUES (?, ?, 'Local', 'cherry-miniapp://com.example.local/index.html', 'a2', ?, ?)`
+    )
+    expect(() => typed.run('com.example.local', 'app', now, now)).not.toThrow()
+    expect(() => typed.run('com.example.bogus', 'webapp', now, now)).toThrow()
+  })
+
+  it('widens the ai_usage_record source_type check to accept mini-app without dropping records', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    // A REALISTIC row, because the table carries four composite identity checks: an
+    // `invocation` needs a provider and model, a non-null `source_type` needs a
+    // `source_id`, and `explicit` attribution needs a key id and no auth method.
+    const insert = sqlite.prepare(
+      `INSERT INTO ai_usage_record (id, request_id, record_kind, request_count, provider_id, model_id,
+                                    source_type, source_id, source_name, modality, api_key_id,
+                                    api_key_attribution, total_tokens, created_at)
+       VALUES (?, ?, 'invocation', 1, 'openai', 'gpt-4o', ?, ?, ?, 'language', 'key-1', 'explicit', ?, ?)`
+    )
+    insert.run('99999999-9999-7999-8999-999999999999', 'req-assistant', 'assistant', 'asst-1', 'Chat', 120, now)
+    insert.run('aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', 'req-agent', 'agent', 'agent-1', 'Agent', 340, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    // 37 columns copied by hand in the generated SQL — the ledger is what the user reads
+    // to see what each provider cost them, so a dropped row is money that never happened.
+    expect(
+      sqlite
+        .prepare(
+          'SELECT request_id, source_type, source_name, model_id, total_tokens FROM ai_usage_record ORDER BY request_id'
+        )
+        .all()
+    ).toEqual([
+      { request_id: 'req-agent', source_type: 'agent', source_name: 'Agent', model_id: 'gpt-4o', total_tokens: 340 },
+      {
+        request_id: 'req-assistant',
+        source_type: 'assistant',
+        source_name: 'Chat',
+        model_id: 'gpt-4o',
+        total_tokens: 120
+      }
+    ])
+    // `billingHook` writes exactly this value for every mini app call that reaches `finish`.
+    expect(() =>
+      insert.run('bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', 'req-mini', 'mini-app', 'com.example.alpha', 'Alpha', 90, now)
+    ).not.toThrow()
+    expect(() =>
+      insert.run('cccccccc-cccc-7ccc-8ccc-cccccccccccc', 'req-bogus', 'plugin', 'plugin-1', 'Plugin', 10, now)
+    ).toThrow()
+  })
+
   it('moves provider dialect overrides to their endpoints before dropping api_features', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0012_sink_endpoint_dialect'))
     const now = Date.now()

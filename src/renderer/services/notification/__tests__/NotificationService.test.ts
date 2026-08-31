@@ -22,7 +22,8 @@ const PREF_BY_SOURCE: Record<NotificationSource, UnifiedPreferenceKeyType> = {
   assistant: 'app.notification.assistant.enabled',
   backup: 'app.notification.backup.enabled',
   knowledge: 'app.notification.knowledge.enabled',
-  update: 'app.notification.update.enabled'
+  update: 'app.notification.update.enabled',
+  'mini-app': 'app.notification.mini_app.enabled'
 }
 
 const buildNotification = (source: NotificationSource): Notification => ({

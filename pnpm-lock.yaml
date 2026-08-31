@@ -67,6 +67,7 @@ patchedDependencies:
   '@ai-sdk/openai-compatible@2.0.72': e1c53c511799253d3cc69a6a2bdcba7cb2ea5792b27b243fd82cb8f086d50480
   '@ai-sdk/openai@3.0.53': 9d370fa143fdb495dc3e197872be775853e61aa51fc2d3b3e1afd8279883e55c
   '@ai-sdk/react@3.0.187': 8182f09c37c2d080e4794d30401712c0605e986e985380ea76699758f2ed7230
+  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7': 9c4deb543997ef0b40cf4a39f177e8edbb42c486c74e756bfdd451b0620c28ed
   '@earendil-works/pi-ai@0.80.6': ba8ed726a49dbae25d6871297718ce26e45a491ec81e2183810cf018c0ec0206
   '@napi-rs/system-ocr@1.1.0': aa1a73e445ee644774745b620589bb99d85bee6c95cc2a91fe9137e580da5bde
   '@openrouter/ai-sdk-provider@2.10.0': fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009
@@ -1626,7 +1627,7 @@ importers:
         version: 0.1.0-rc.7(1b165c0b687652478be7b7375cfce4e5)
       '@deepseek-ai/dsh-llm-pi-ai':
         specifier: 0.1.0-rc.7
-        version: 0.1.0-rc.7(284c2d357a47f7362b3cfd8c90b5bc37)
+        version: 0.1.0-rc.7(patch_hash=9c4deb543997ef0b40cf4a39f177e8edbb42c486c74e756bfdd451b0620c28ed)(284c2d357a47f7362b3cfd8c90b5bc37)
       '@deepseek-ai/dsh-llm-retry':
         specifier: 0.1.0-rc.7
         version: 0.1.0-rc.7(f6ee553b5544017c93f5bcbec0012ce3)
@@ -17926,7 +17927,7 @@ snapshots:
       '@deepseek-ai/schemastery': 3.18.1
       eventsource-parser: 3.1.1
 
-  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7(284c2d357a47f7362b3cfd8c90b5bc37)':
+  '@deepseek-ai/dsh-llm-pi-ai@0.1.0-rc.7(patch_hash=9c4deb543997ef0b40cf4a39f177e8edbb42c486c74e756bfdd451b0620c28ed)(284c2d357a47f7362b3cfd8c90b5bc37)':
     dependencies:
       '@deepseek-ai/cordis': 4.0.1(@deepseek-ai/cordis-plugin-include@1.0.6)(@deepseek-ai/cordis-plugin-loader@1.0.2)
       '@deepseek-ai/dsh-attachment': 0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-brand@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1)))(@deepseek-ai/dsh-invariants@0.1.0-rc.7(@deepseek-ai/cordis@4.0.1))

@@ -18,6 +18,7 @@ import {
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
+import { ToolApprovalOutcome } from '../shared/ToolApprovalOutcome'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 
@@ -171,6 +172,7 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         className="message-tools-container"
         items={getDisclosureItems()}
       />
+      <ToolApprovalOutcome approval={toolResponse.approval} />
     </ToolContainer>
   )
 }

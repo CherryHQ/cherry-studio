@@ -10,7 +10,8 @@ import { QuickPanelRow } from '../QuickPanel/list'
 
 vi.mock('@cherrystudio/ui', () => vi.importActual('@cherrystudio/ui'))
 
-const { PermissionModeOptionLabel, PermissionModeSelect, PermissionModeWarning } = PermissionModeComponents
+const { PermissionModeIcon, PermissionModeOptionLabel, PermissionModeSelect, PermissionModeWarning } =
+  PermissionModeComponents
 
 // The component only ever calls t(key, fallback); rendering the fallback keeps these
 // assertions about layout rather than about the locale files.
@@ -84,6 +85,21 @@ function renderOpenPermissionSelect() {
   fireEvent.pointerDown(trigger)
   fireEvent.click(trigger)
 }
+
+describe('PermissionModeIcon', () => {
+  it('marks only Full Access as a custom destructive toolbar icon', () => {
+    const { container, rerender } = render(<PermissionModeIcon mode="default" />)
+    const defaultIcon = container.querySelector('svg')
+
+    expect(defaultIcon).toHaveClass('text-muted-foreground')
+    expect(defaultIcon).not.toHaveClass('lucide-custom')
+
+    rerender(<PermissionModeIcon mode="bypassPermissions" />)
+    const fullAccessIcon = container.querySelector('svg')
+
+    expect(fullAccessIcon).toHaveClass('text-destructive', 'lucide-custom')
+  })
+})
 
 describe('PermissionModeOptionLabel', () => {
   it('keeps permanent copy to the title and optional description', () => {

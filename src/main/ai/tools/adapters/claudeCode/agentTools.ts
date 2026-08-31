@@ -16,6 +16,20 @@ import type { Tool } from '@shared/ai/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
+function sanitizeDescription(value: string): string {
+  let out = ''
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i)
+    if (code === 0x09 || code === 0x0a || code === 0x0d) {
+      out += value[i]
+      continue
+    }
+    if ((code >= 0x00 && code <= 0x1f) || code === 0x7f) continue
+    out += value[i]
+  }
+  return out
+}
+
 const logger = loggerService.withContext('ClaudeCodeAgentTools')
 
 export function descriptorToTool(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): Tool {
@@ -65,7 +79,7 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
         descriptors.push({
           id: buildClaudeMcpToolName(server.name, tool.name),
           name: tool.name,
-          description: tool.description || '',
+          description: sanitizeDescription(tool.description || ''),
           origin: 'mcp',
           sourceId: server.id,
           sourceName: server.name,

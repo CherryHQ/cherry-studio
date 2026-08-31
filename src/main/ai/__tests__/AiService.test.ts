@@ -1,7 +1,7 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'
@@ -2245,6 +2245,10 @@ describe('AiService.listModels', () => {
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
     const service = createService()
     const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
@@ -2272,11 +2276,32 @@ describe('AiService.listModels', () => {
     const result = await service.listModels({ providerId: 'openai' })
 
     expect(result).toBe(apiModels)
-    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
+      throwOnError: undefined
+    })
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'openai',
       presetProviderId: null
     })
+  })
+
+  it('does not impose a service-level timeout on model listing', async () => {
+    vi.useFakeTimers()
+    const service = createService()
+    const provider = { id: 'openai', modelListSource: 'api' }
+    const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
+    )
+    mockListProviderRegistryModels.mockReturnValue([])
+
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+
+    await vi.advanceTimersByTimeAsync(31_000)
+    await result
+
+    expect(mockListProviderRegistryModels).toHaveBeenCalledTimes(1)
   })
 
   it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {

@@ -141,4 +141,28 @@ describe('MiniAppSeeder', () => {
     expect(row.url).toBe('https://custom.example/path')
     expect(row.logoKey).toBe('custom-logo')
   })
+
+  it('leaves installed local apps untouched on reseed', () => {
+    dbh.db
+      .insert(miniAppTable)
+      .values({
+        appId: 'com.example.mygame',
+        kind: 'app',
+        presetMiniAppId: null,
+        name: 'My Game',
+        url: 'cherry-miniapp://com.example.mygame/index.html',
+        status: 'enabled',
+        orderKey: 'a0'
+      })
+      .run()
+
+    new MiniAppSeeder().run(dbh.db)
+
+    const [row] = dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'com.example.mygame')).all()
+    expect(row).toMatchObject({
+      kind: 'app',
+      name: 'My Game',
+      url: 'cherry-miniapp://com.example.mygame/index.html'
+    })
+  })
 })
