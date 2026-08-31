@@ -104,11 +104,18 @@
       "description": "Default Web Search provider for URL fetch capability"
     },
     {
-      "targetKey": "chat.web_search.client_tools_preferred",
+      "targetKey": "chat.web_search.search_keywords.client_tools_preferred",
       "type": "boolean",
       "defaultValue": false,
       "status": "classified",
-      "description": "Prefer configured web search and fetch services over equivalent model-native tools when both are available"
+      "description": "Prefer configured keyword-search services over model-native search when both are available"
+    },
+    {
+      "targetKey": "chat.web_search.fetch_urls.client_tools_preferred",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Prefer configured URL-fetch services over model-native URL context when both are available"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_limit",

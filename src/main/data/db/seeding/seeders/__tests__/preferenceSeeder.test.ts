@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest'
 describe('PreferenceSeeder', () => {
   const dbh = setupTestDatabase()
   const toolbarKey = 'chat.input.toolbar.pinned_tools'
-  const clientWebToolsPreferredKey = 'chat.web_search.client_tools_preferred'
+  const searchClientToolsPreferredKey = 'chat.web_search.search_keywords.client_tools_preferred'
+  const fetchClientToolsPreferredKey = 'chat.web_search.fetch_urls.client_tools_preferred'
 
   it('should insert all default preferences into empty table', async () => {
     const seed = new PreferenceSeeder()
@@ -78,14 +79,13 @@ describe('PreferenceSeeder', () => {
     expect(toolbar.value).toEqual(['composer:new-conversation', 'web-search'])
   })
 
-  it('defaults web tools to model-native capabilities', async () => {
+  it('defaults each web capability to model-native tools', async () => {
     new PreferenceSeeder().run(dbh.db)
 
-    const [preference] = await dbh.db
-      .select()
-      .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, clientWebToolsPreferredKey)))
-    expect(preference.value).toBe(false)
+    const preferences = await dbh.db.select().from(preferenceTable).where(eq(preferenceTable.scope, 'default'))
+
+    expect(preferences.find(({ key }) => key === searchClientToolsPreferredKey)?.value).toBe(false)
+    expect(preferences.find(({ key }) => key === fetchClientToolsPreferredKey)?.value).toBe(false)
   })
 
   it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
