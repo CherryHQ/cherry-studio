@@ -93,7 +93,13 @@ const translations: Record<string, string> = {
   'library.config.tools.mode.manual.label': 'Manual',
   'agent.settings.tooling.mcp.toggle': 'Toggle MCP server',
   'common.save_failed': 'Save failed',
-  'settings.quickPanel.mcp.disabled': 'MCP is disabled for this assistant'
+  'settings.quickPanel.mcp.disabled': 'MCP is disabled for this assistant',
+  'settings.quickPanel.mcp.manageCurrentAgent': 'Manage current Agent MCP servers',
+  'settings.quickPanel.mcp.manageCurrentAssistant': 'Manage current Assistant MCP servers',
+  'settings.quickPanel.mcp.manageGlobal': 'Manage global MCP servers',
+  'settings.quickPanel.scope.currentAgent': 'Current Agent',
+  'settings.quickPanel.scope.currentAssistant': 'Current Assistant',
+  'settings.quickPanel.scope.global': 'Global'
 }
 
 const t = ((key: string, fallback?: string) => translations[key] ?? fallback ?? key) as any

@@ -222,16 +222,16 @@ export function buildMcpConfigFooterItem(
   if (!target) return null
   const ariaLabel =
     target.kind === 'assistant'
-      ? t('settings.quickPanel.mcp.manageCurrentAssistant', 'Manage current Assistant MCP servers')
-      : t('settings.quickPanel.mcp.manageCurrentAgent', 'Manage current Agent MCP servers')
+      ? t('settings.quickPanel.mcp.manageCurrentAssistant')
+      : t('settings.quickPanel.mcp.manageCurrentAgent')
   return {
     id: 'mcp-status:open-config',
     panelSymbol: ComposerPanelSymbol.McpStatus,
     order: 10,
     label:
       target.kind === 'assistant'
-        ? t('settings.quickPanel.scope.currentAssistant', 'Current Assistant')
-        : t('settings.quickPanel.scope.currentAgent', 'Current Agent'),
+        ? t('settings.quickPanel.scope.currentAssistant')
+        : t('settings.quickPanel.scope.currentAgent'),
     ariaLabel,
     tooltip: ariaLabel,
     icon: <Settings2 />,
@@ -240,12 +240,12 @@ export function buildMcpConfigFooterItem(
 }
 
 export function buildMcpGlobalConfigFooterItem(t: TFunction): ComposerToolFooterAction {
-  const ariaLabel = t('settings.quickPanel.mcp.manageGlobal', 'Manage global MCP servers')
+  const ariaLabel = t('settings.quickPanel.mcp.manageGlobal')
   return {
     id: 'mcp-status:open-global-config',
     panelSymbol: ComposerPanelSymbol.McpStatus,
     order: 20,
-    label: t('settings.quickPanel.scope.global', 'Global'),
+    label: t('settings.quickPanel.scope.global'),
     ariaLabel,
     tooltip: ariaLabel,
     icon: <Globe2 />,
