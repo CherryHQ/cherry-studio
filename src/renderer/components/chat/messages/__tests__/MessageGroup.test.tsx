@@ -277,6 +277,9 @@ const expectEveryMessageHeaderToShowModelIdentity = (expected: boolean) => {
   expect(mocks.MessageHeader.mock.calls.every(([props]) => props.showModelIdentity === expected)).toBe(true)
 }
 
+const getLatestMessageGroupMenuProps = () =>
+  (mocks.MessageGroupMenuBar.mock.calls as unknown as [{ selectMessageId: string }][]).at(-1)?.[0]
+
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1110,6 +1113,57 @@ describe('MessageGroup', () => {
     expect(updateMessageUiState).toHaveBeenCalledWith('model-b', { foldSelected: true })
   })
 
+  it('keeps a newer model selection pending until its branch request settles', async () => {
+    const firstSelection = createDeferred()
+    const secondSelection = createDeferred()
+    const setActiveBranch = vi.fn((messageId: string) =>
+      messageId === 'model-b' ? firstSelection.promise : secondSelection.promise
+    )
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: vi.fn()
+    })
+    const messages = [
+      { ...createMessage('model-a', 0, 'fold'), isActiveBranch: true },
+      { ...createMessage('model-b', 1, 'fold'), isActiveBranch: false },
+      { ...createMessage('model-c', 2, 'fold'), isActiveBranch: false }
+    ]
+
+    const { rerender } = render(<MessageGroup messages={messages} />)
+    const menuProps = (
+      mocks.MessageGroupMenuBar.mock.calls.at(-1) as unknown as [
+        {
+          selectMessageId: string
+          setSelectedMessage: (message: MessageListItem) => void
+        }
+      ]
+    )[0]
+
+    act(() => {
+      menuProps.setSelectedMessage(messages[1])
+      menuProps.setSelectedMessage(messages[2])
+    })
+
+    await waitFor(() => expect(setActiveBranch).toHaveBeenCalledTimes(2))
+    await act(async () => firstSelection.resolve())
+
+    rerender(
+      <MessageGroup
+        messages={[
+          { ...messages[0], isActiveBranch: false },
+          { ...messages[1], isActiveBranch: true },
+          { ...messages[2], isActiveBranch: false }
+        ]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(getLatestMessageGroupMenuProps()).toEqual(expect.objectContaining({ selectMessageId: 'model-c' }))
+    })
+
+    await act(async () => secondSelection.resolve())
+  })
+
   it('shows the context indicator on the active branch instead of stale useful UI state', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'grid',
@@ -1194,5 +1248,50 @@ describe('MessageGroup', () => {
     await waitFor(() => {
       expect(setActiveBranch).toHaveBeenNthCalledWith(2, 'model-a')
     })
+  })
+
+  it('keeps a queued context selection pending until its branch request settles', async () => {
+    const firstSelection = createDeferred()
+    const secondSelection = createDeferred()
+    const setActiveBranch = vi.fn((messageId: string) =>
+      messageId === 'model-b' ? firstSelection.promise : secondSelection.promise
+    )
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch,
+      updateMessageUiState: vi.fn()
+    })
+    const messages = [
+      { ...createMessage('model-a', 0, 'grid'), isActiveBranch: true },
+      { ...createMessage('model-b', 1, 'grid'), isActiveBranch: false }
+    ]
+
+    const { rerender } = render(<MessageGroup messages={messages} />)
+    const menuPropsByMessageId = new Map(
+      mocks.MessageMenuBar.mock.calls.map(([props]) => [props.message.id, props] as const)
+    )
+
+    act(() => menuPropsByMessageId.get('model-b')?.onSelectContext?.('model-b'))
+    act(() => menuPropsByMessageId.get('model-a')?.onSelectContext?.('model-a'))
+
+    await waitFor(() => {
+      expect(setActiveBranch).toHaveBeenCalledTimes(1)
+      expect(setActiveBranch).toHaveBeenLastCalledWith('model-b')
+    })
+    await act(async () => firstSelection.resolve())
+
+    rerender(
+      <MessageGroup
+        messages={[
+          { ...messages[0], isActiveBranch: false },
+          { ...messages[1], isActiveBranch: true }
+        ]}
+      />
+    )
+
+    await waitFor(() => {
+      expect(getLatestMessageGroupMenuProps()).toEqual(expect.objectContaining({ selectMessageId: 'model-a' }))
+    })
+
+    await act(async () => secondSelection.resolve())
   })
 })

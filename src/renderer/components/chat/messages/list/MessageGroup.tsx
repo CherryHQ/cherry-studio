@@ -177,7 +177,7 @@ const MessageGroup = ({
             actions.notifyError?.(error instanceof Error ? error.message : String(error))
           })
           .finally(() => {
-            pendingBranchTargetRef.current = null
+            if (pendingBranchTargetRef.current === message.id) pendingBranchTargetRef.current = null
           })
       }
 
@@ -233,11 +233,15 @@ const MessageGroup = ({
       const setActiveBranch = actions.setActiveBranch
       if (!setActiveBranch) return
 
+      pendingBranchTargetRef.current = message.id
       activeBranchSelectionQueueRef.current = activeBranchSelectionQueueRef.current
         .then(() => setActiveBranch(message.id))
         .catch((error) => {
           logger.error('Failed to set active branch from context selection', error as Error, { messageId: message.id })
           actions.notifyError?.(error instanceof Error ? error.message : String(error))
+        })
+        .finally(() => {
+          if (pendingBranchTargetRef.current === message.id) pendingBranchTargetRef.current = null
         })
     },
     [actions, messages]
