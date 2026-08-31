@@ -120,7 +120,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(assistant.content[1]).toEqual({ type: 'text', text: 'answer' })
     })
 
-    it('leaves reasoning parts with a native OpenAI round-trip alone', async () => {
+    it('uses raw replay for item-id-only stream metadata but preserves encrypted native replay', async () => {
       const prompt: LanguageModelV3Prompt = [
         {
           role: 'assistant',
@@ -134,7 +134,7 @@ describe('deepseekResponsesReasoningReplay', () => {
       expect(result[0].content[0]).toEqual({
         type: 'reasoning',
         text: 'a',
-        providerOptions: { openai: { itemId: 'rs_1' } }
+        providerOptions: { openai: { itemId: undefined, rawReasoningContent: true } }
       })
       expect(result[0].content[1]).toEqual({
         type: 'reasoning',
@@ -210,6 +210,37 @@ describe('deepseekResponsesReasoningReplay', () => {
           expect.objectContaining({ message: expect.stringContaining('without encrypted content') })
         ])
       )
+    })
+
+    it('keeps streamed item-id reasoning in a store:false continuation request', async () => {
+      const prompt: LanguageModelV3Prompt = [
+        { role: 'user', content: [{ type: 'text', text: 'Continue.' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'reasoning',
+              text: 'Reasoning emitted by response.reasoning_text.delta.',
+              providerOptions: { openai: { itemId: 'rs_stream_1' } }
+            },
+            { type: 'text', text: 'First answer.' }
+          ]
+        },
+        { role: 'user', content: [{ type: 'text', text: 'Now continue.' }] }
+      ]
+
+      const { input } = await captureResponsesRequest(await transform(prompt))
+
+      expect(input).toEqual(
+        expect.arrayContaining([
+          {
+            type: 'reasoning',
+            summary: [],
+            content: [{ type: 'reasoning_text', text: 'Reasoning emitted by response.reasoning_text.delta.' }]
+          }
+        ])
+      )
+      expect(input).not.toEqual(expect.arrayContaining([{ type: 'reasoning', id: 'rs_stream_1' }]))
     })
 
     it('keeps tagged replay content while filtering an untagged reasoning item', async () => {
