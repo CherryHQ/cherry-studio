@@ -198,6 +198,10 @@ describe('buildPathRegistry', () => {
       path.join(registry['feature.cli.antigravity.root'], 'antigravity-cli', 'settings.json')
     )
     expect(shouldAutoEnsure('feature.cli.antigravity.settings.file')).toBe(true)
+    expect(registry['feature.cli.antigravity.env.file']).toBe(
+      path.join(registry['feature.cli.antigravity.root'], '.env')
+    )
+    expect(shouldAutoEnsure('feature.cli.antigravity.env.file')).toBe(true)
   })
 })
 

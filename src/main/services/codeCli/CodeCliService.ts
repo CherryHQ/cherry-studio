@@ -41,7 +41,7 @@ import { promisify } from 'util'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
-import { createSecretEnvHandoff, type SecretEnvHandoff } from './secretEnvHandoff'
+import { batchLinesReadingSecretEnv, type SecretEnvFile, wrapPosixCommandWithSecretEnv } from './secretEnvFile'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -69,19 +69,6 @@ function appendBundledGitPathTail(env: Record<string, string>): void {
   for (const key of pathKeys) env[key] = updated
   if (pathKeys.length === 0) env[canonicalKey] = updated
 }
-
-function appendWslEnvNames(env: Record<string, string>, names: readonly string[]): void {
-  const wslEnvKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'wslenv')
-  const canonicalKey = wslEnvKeys[0] ?? 'WSLENV'
-  const bridgedNames = new Set(names.map((name) => name.toLowerCase()))
-  const existingEntries = wslEnvKeys.flatMap((key) => (env[key] ?? '').split(':')).filter(Boolean)
-  const preservedEntries = existingEntries.filter(
-    (entry) => !bridgedNames.has((entry.split('/', 1)[0] ?? '').toLowerCase())
-  )
-
-  for (const duplicateKey of wslEnvKeys.slice(1)) delete env[duplicateKey]
-  env[canonicalKey] = [...preservedEntries, ...names].join(':')
-}
 const MACOS_APPLICATION_LOOKUP_SCRIPT = [
   'ObjC.import("AppKit")',
   'function run(argv) {',
@@ -102,7 +89,6 @@ export class CodeCliService extends BaseService {
     terminals: TerminalConfig[]
     timestamp: number
   } | null = null
-  private readonly secretEnvHandoffs = new Set<SecretEnvHandoff>()
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
   protected async onInit(): Promise<void> {
@@ -226,9 +212,6 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.terminalsCache = null
-    const handoffs = [...this.secretEnvHandoffs]
-    this.secretEnvHandoffs.clear()
-    await Promise.allSettled(handoffs.map((handoff) => handoff.dispose()))
   }
 
   /**
@@ -583,25 +566,7 @@ export class CodeCliService extends BaseService {
     const platform = process.platform
     let terminalCommand: string
     let terminalArgs: string[]
-    let secretEnv: Record<string, string> = {}
-    let secretEnvHandoff: SecretEnvHandoff | undefined
-    let usesWslEnvBridge = false
-
-    const failTerminalLaunch = async (error: unknown): Promise<OperationResult> => {
-      const handoff = secretEnvHandoff
-      secretEnvHandoff = undefined
-      if (handoff) {
-        this.secretEnvHandoffs.delete(handoff)
-        await handoff.dispose().catch((cleanupError) => {
-          logger.warn('Failed to dispose Antigravity environment handoff', cleanupError as Error)
-        })
-      }
-
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const failureMessage = `Failed to launch terminal: ${errorMessage}`
-      logger.error(failureMessage, error as Error)
-      return { success: false, message: failureMessage }
-    }
+    let secretEnv: SecretEnvFile | undefined
 
     // Build environment variable prefix (based on platform)
     const buildEnvPrefix = (isWindows: boolean) => {
@@ -710,8 +675,8 @@ export class CodeCliService extends BaseService {
         return { success: false, message }
       }
 
-      secretEnv = launchConfig.env
-      logger.debug('Antigravity environment variables:', Object.keys(secretEnv))
+      secretEnv = launchConfig.secretEnv
+      logger.debug('Antigravity environment variables:', launchConfig.secretEnv.names)
       const geminiDirArg =
         platform === 'win32'
           ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
@@ -729,40 +694,25 @@ export class CodeCliService extends BaseService {
       baseCommand = `${baseCommand} /login`
     }
 
-    if ((platform === 'darwin' || platform === 'linux') && Object.keys(secretEnv).length > 0) {
-      try {
-        secretEnvHandoff = await createSecretEnvHandoff(application.getPath('feature.cli.temp'), secretEnv)
-        this.secretEnvHandoffs.add(secretEnvHandoff)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        logger.error('Failed to prepare secure Antigravity environment handoff', error as Error)
-        return { success: false, message }
-      }
-    }
-
     switch (platform) {
       case 'darwin': {
         // macOS - Support multiple terminals
         const envPrefix = buildEnvPrefix(false)
 
         let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-        if (secretEnvHandoff) command = secretEnvHandoff.wrapCommand(command)
+        if (secretEnv) command = wrapPosixCommandWithSecretEnv(secretEnv, command)
 
         // Combine directory change with the main command to ensure they execute in the same shell session.
         // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
         // (double-quoting it only blocks `"`, leaving command substitution live).
         const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
 
-        try {
-          const terminalConfig = await this.getTerminalConfig(input.terminal)
-          logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
+        const terminalConfig = await this.getTerminalConfig(input.terminal)
+        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
 
-          const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
-          terminalCommand = cmd
-          terminalArgs = args
-        } catch (error) {
-          return failTerminalLaunch(error)
-        }
+        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+        terminalCommand = cmd
+        terminalArgs = args
         break
       }
       case 'win32': {
@@ -783,10 +733,6 @@ export class CodeCliService extends BaseService {
 
         // Escape special characters in paths for Windows batch scripting
         // Using double quotes for compatibility with CMD
-
-        // Secrets reach the CLI only by process-environment inheritance, and `wt` hands its
-        // commandline to an already-running WindowsTerminal.exe whose environment carries none.
-        const secretNames = Object.keys(secretEnv)
 
         // Build bat file content, including debug information
         // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
@@ -811,10 +757,10 @@ export class CodeCliService extends BaseService {
           ':: Clear screen before running CLI',
           'cls',
           '',
-          ...(secretNames.length > 0
+          ...(secretEnv
             ? [
-                ':: Verify the credentials handed over by Cherry Studio actually arrived',
-                ...secretNames.map((name) => `if not defined ${name} goto :secret_env_missing`),
+                ':: Load the credentials Cherry Studio wrote for this launch',
+                ...batchLinesReadingSecretEnv(secretEnv, 'secret_env_missing'),
                 ''
               ]
             : []),
@@ -835,12 +781,12 @@ export class CodeCliService extends BaseService {
           'pause',
           'exit /b 1',
           '',
-          ...(secretNames.length > 0
+          ...(secretEnv
             ? [
                 ':secret_env_missing',
-                'echo ERROR: This terminal did not receive the credentials from Cherry Studio.',
-                'echo Your terminal reused an existing window instead of starting a fresh one.',
-                'echo Close every open window of this terminal app, then launch again from Cherry Studio.',
+                'echo ERROR: Could not load the credentials Cherry Studio prepared for this launch.',
+                `echo Expected file: ${CodeCliService.escapeBatchTextForEcho(secretEnv.path)}`,
+                'echo Launch again from Cherry Studio.',
                 'pause',
                 'exit /b 1',
                 ''
@@ -864,7 +810,6 @@ export class CodeCliService extends BaseService {
         // Use selected terminal configuration
         const terminalConfig = await this.getTerminalConfig(input.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
-        usesWslEnvBridge = terminalConfig.id === TerminalApp.WSL
 
         // Get command and args from terminal configuration
         // Pass the bat file path as the command to execute
@@ -918,7 +863,7 @@ export class CodeCliService extends BaseService {
         // Linux - Prefer the XDG-configured default terminal, then try common emulators.
         const envPrefix = buildEnvPrefix(false)
         let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-        if (secretEnvHandoff) command = secretEnvHandoff.wrapCommand(command)
+        if (secretEnv) command = wrapPosixCommandWithSecretEnv(secretEnv, command)
 
         const linuxTerminals = [
           'xdg-terminal-exec',
@@ -977,12 +922,7 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    let baseProcessEnv: Record<string, string>
-    try {
-      baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
-    } catch (error) {
-      return failTerminalLaunch(error)
-    }
+    const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
     const processEnv = Object.fromEntries(
       Object.entries(baseProcessEnv).filter(
         ([key]) =>
@@ -991,29 +931,12 @@ export class CodeCliService extends BaseService {
       )
     )
     Object.assign(processEnv, env)
-    if (platform === 'win32') {
-      for (const secretKey of Object.keys(secretEnv)) {
-        for (const existingKey of Object.keys(processEnv)) {
-          if (existingKey.toLowerCase() === secretKey.toLowerCase()) delete processEnv[existingKey]
-        }
-      }
-      Object.assign(processEnv, secretEnv)
-      if (usesWslEnvBridge && Object.keys(secretEnv).length > 0) {
-        appendWslEnvNames(processEnv, Object.keys(secretEnv))
-      }
-    } else {
-      for (const key of Object.keys(secretEnv)) delete processEnv[key]
-    }
     // Bundled MinGit rides at the very tail of every Windows launch PATH so a
     // bare `git` resolves even with no system git, while any real git ahead
     // still wins (#16402). The tail is the only Cherry addition a system CLI
     // receives — it must not reintroduce MISE_* redirection into the user's env.
-    try {
-      if (platform === 'win32') appendBundledGitPathTail(processEnv)
-      removeEnvProxy(processEnv)
-    } catch (error) {
-      return failTerminalLaunch(error)
-    }
+    if (platform === 'win32') appendBundledGitPathTail(processEnv)
+    removeEnvProxy(processEnv)
 
     // Launch terminal process
     try {
@@ -1038,19 +961,17 @@ export class CodeCliService extends BaseService {
       })
       child.on('error', (error) => logger.error('Terminal process error after launch', error))
 
-      if (secretEnvHandoff) {
-        const handoff = secretEnvHandoff
-        void handoff
-          .deliver()
-          .catch((error) => logger.warn('Failed to deliver Antigravity environment to terminal', error as Error))
-          .finally(() => this.secretEnvHandoffs.delete(handoff))
-      }
-
       logger.info(`Launched ${cliTool} in new terminal window`)
 
       return { success: true }
     } catch (error) {
-      return failTerminalLaunch(error)
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const failureMessage = `Failed to launch terminal: ${errorMessage}`
+      logger.error(failureMessage, error as Error)
+      return {
+        success: false,
+        message: failureMessage
+      }
     }
   }
 

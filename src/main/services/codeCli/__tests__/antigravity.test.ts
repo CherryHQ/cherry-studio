@@ -20,6 +20,7 @@ vi.mock('@application', async () => {
     application: {
       // Mirrors Application.getPath: a `…file` key auto-creates its parent directory.
       getPath: vi.fn((key: string) => {
+        if (key === 'feature.cli.antigravity.env.file') return nodePath.join(mocks.root, '.env')
         if (key !== 'feature.cli.antigravity.settings.file') return mocks.root
         const settingsPath = nodePath.join(mocks.root, 'antigravity-cli', 'settings.json')
         mkdirSync(nodePath.dirname(settingsPath), { recursive: true })
@@ -52,7 +53,7 @@ describe('prepareAntigravityLaunch', () => {
     await rm(mocks.root, { recursive: true, force: true })
   })
 
-  it('resolves a direct Gemini provider and preserves isolated settings with mode 0600', async () => {
+  it('resolves a direct Gemini provider into an owner-only credential file and preserves isolated settings', async () => {
     const settingsDir = path.join(mocks.root, 'antigravity-cli')
     const settingsPath = path.join(settingsDir, 'settings.json')
     await mkdir(settingsDir, { recursive: true })
@@ -73,16 +74,20 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
+    const envPath = path.join(mocks.root, '.env')
     expect(result).toEqual({
-      env: {
-        GEMINI_API_KEY: 'direct-secret',
-        GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
-      },
+      secretEnv: { path: envPath, names: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'] },
       geminiDir: mocks.root,
       model: 'gemini-2.5-pro'
     })
+    expect(await readFile(envPath, 'utf8')).toBe(
+      'GEMINI_API_KEY=direct-secret\nGOOGLE_GEMINI_BASE_URL=https://gemini.example.test\n'
+    )
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toEqual({ theme: 'system', modelProvider: 'gemini' })
-    if (process.platform !== 'win32') expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') {
+      expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
+      expect((await stat(envPath)).mode & 0o777).toBe(0o600)
+    }
   })
 
   it('reads gateway credentials in main and uses an Antigravity custom model URL without the Gemini sentinel', async () => {
@@ -97,10 +102,9 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
-    expect(result.env).toEqual({
-      GEMINI_API_KEY: 'gateway-secret',
-      GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:24444'
-    })
+    expect(await readFile(result.secretEnv.path, 'utf8')).toBe(
+      'GEMINI_API_KEY=gateway-secret\nGOOGLE_GEMINI_BASE_URL=http://127.0.0.1:24444\n'
+    )
     expect(result.model).toBe('gemini-api://provider-a/models/models/gemini-flash')
     expect(result.model).not.toContain('@cherry')
     expect(mocks.getByProviderId).not.toHaveBeenCalled()
@@ -123,7 +127,7 @@ describe('prepareAntigravityLaunch', () => {
     ).rejects.toThrow(/cannot be addressed by antigravity-cli/)
   })
 
-  it('rejects an unsafe model id without touching the isolated settings', async () => {
+  it('rejects an unsafe model id without touching the isolated settings or writing credentials', async () => {
     const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
     mocks.getRotatedApiKey.mockReturnValue('direct-secret')
@@ -138,6 +142,7 @@ describe('prepareAntigravityLaunch', () => {
       })
     ).rejects.toThrow('Unsupported model id')
     await expect(readFile(settingsPath, 'utf8')).rejects.toThrow(/ENOENT/)
+    await expect(readFile(path.join(mocks.root, '.env'), 'utf8')).rejects.toThrow(/ENOENT/)
   })
 
   it('rejects malformed isolated settings instead of overwriting them', async () => {
