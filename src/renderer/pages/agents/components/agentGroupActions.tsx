@@ -8,15 +8,16 @@ import {
 } from '@renderer/components/chat/resourceList/base'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
-import { Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { EyeOff, Pin, PinOff, Smile, SquarePen, Trash2 } from 'lucide-react'
 
 export interface AgentGroupActionContext {
   agentId: string
   assistantIconType: AssistantIconType
-  deleteTasksOnly?: boolean
+  protectedBuiltin?: boolean
   deleteAgentDisabled?: boolean
   onEdit: (agentId: string) => void
   onDeleteAgent: (agentId: string) => void | Promise<void>
+  onHideFromList: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void
@@ -57,9 +58,28 @@ for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
 
 agentGroupActionRegistry.registerCommand({
   id: 'agent-group.delete-agent',
-  availability: ({ deleteAgentDisabled }) => ({ enabled: !deleteAgentDisabled }),
+  availability: ({ deleteAgentDisabled, protectedBuiltin }) => ({
+    enabled: !deleteAgentDisabled,
+    visible: !protectedBuiltin
+  }),
   run: ({ agentId, onDeleteAgent }) => onDeleteAgent(agentId)
 })
+
+agentGroupActionRegistry.registerCommand({
+  id: 'agent-group.hide-from-list',
+  availability: ({ protectedBuiltin }) => ({ visible: !!protectedBuiltin }),
+  run: ({ agentId, onHideFromList }) => onHideFromList(agentId)
+})
+
+agentGroupActionRegistry.registerAction(
+  buildResourceEntityMenuActionDescriptor({
+    id: 'agent-group.hide-from-list',
+    commandId: 'agent-group.hide-from-list',
+    label: ({ t }) => t('agent.session.agent.hide_from_list'),
+    icon: () => <EyeOff size={14} />,
+    order: 40
+  })
+)
 
 agentGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
@@ -106,7 +126,7 @@ agentGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
     id: 'agent-group.delete-agent',
     commandId: 'agent-group.delete-agent',
-    label: ({ deleteTasksOnly, t }) => t(deleteTasksOnly ? 'agent.session.agent.delete.trigger' : 'agent.delete.title'),
+    label: ({ t }) => t('agent.delete.title'),
     icon: () => <Trash2 size={14} className="lucide-custom text-destructive" />,
     group: 'danger',
     order: 40,

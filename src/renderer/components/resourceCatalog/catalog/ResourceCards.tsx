@@ -1,11 +1,13 @@
 import { Badge, Button, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { Group } from '@shared/data/types/group'
-import { Trash2 } from 'lucide-react'
+import { EyeOff, ListPlus, Trash2 } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -60,6 +62,33 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
   )
 }
 
+function ProtectedBuiltinAgentListAction({ resource }: { resource: Extract<ResourceItem, { type: 'agent' }> }) {
+  const { t } = useTranslation()
+  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
+  const hidden = hiddenBuiltinAgentIds.includes(resource.id)
+  const label = t(hidden ? 'agent.session.agent.add_to_list' : 'agent.session.agent.hide_from_list')
+  const Icon = hidden ? ListPlus : EyeOff
+
+  const handleClick = () => {
+    const nextIds = hidden
+      ? hiddenBuiltinAgentIds.filter((agentId) => agentId !== resource.id)
+      : [...new Set([...hiddenBuiltinAgentIds, resource.id])]
+    void setHiddenBuiltinAgentIds(nextIds)
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      aria-label={label}
+      onClick={handleClick}
+      className="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100">
+      <Icon size={12} className="lucide-custom" />
+      <span>{label}</span>
+    </Button>
+  )
+}
+
 export function ResourceCard({
   resource: r,
   variant = 'library',
@@ -75,6 +104,8 @@ export function ResourceCard({
   const showTypeIcon = r.type === 'skill'
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
+  const protectedBuiltinAgent =
+    r.type === 'agent' && isProtectedBuiltinAgentRole(r.raw.configuration?.builtin_role) ? r : null
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
   const skillVersion = r.type === 'skill' ? r.raw.version?.trim() : undefined
 
@@ -130,7 +161,9 @@ export function ResourceCard({
             )}
           </div>
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {r.type === 'skill' && isSettings ? (
+            {protectedBuiltinAgent ? (
+              <ProtectedBuiltinAgentListAction resource={protectedBuiltinAgent} />
+            ) : r.type === 'skill' && isSettings ? (
               <div className="flex items-center gap-1">
                 <SkillGlobalToggle resource={r} />
                 <Button

@@ -563,6 +563,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.agent.delete.content': 'Delete all tasks for this agent. The agent itself will not be deleted.',
         'agent.session.agent.delete.title': 'Delete agent tasks',
         'agent.session.agent.delete.trigger': 'Delete agent tasks',
+        'agent.session.agent.hide_from_list': 'Hide from list',
         'agent.edit.title': 'Edit Agent',
         'agent.icon.type': 'Agent icon',
         'agent.session.auto_rename': 'Generate task name',
@@ -3647,12 +3648,44 @@ describe('Sessions', () => {
     expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
+  it('hides protected built-in Agent tasks without hiding ordinary Agents', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support', 'agent-b'])
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'cherry-support',
+          model: 'model-a',
+          name: 'Cherry Support',
+          configuration: { builtin_role: 'support' }
+        },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
+      ],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByRole('button', { name: 'Cherry Support' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Beta agent' })).toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
   it.each([
     { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
     { builtinRole: 'support' as const, name: 'Cherry Support' }
-  ])('deletes only tasks from the protected built-in $name group', async ({ builtinRole, name }) => {
-    const onActiveAgentDeleted = vi.fn()
+  ])('hides the protected built-in $name group without deleting its tasks', async ({ builtinRole, name }) => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', [])
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         {
@@ -3669,33 +3702,30 @@ describe('Sessions', () => {
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
     })
-    dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-a', 'session-not-loaded'] })
-
-    render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
+    const view = render(<SessionsForTest />)
 
     const agentGroup = screen.getByRole('button', { name }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteTasksMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete agent tasks' })
+    const hideMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Hide from list' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
-    expect(deleteTasksMenuItem).toBeDefined()
+    expect(hideMenuItem).toBeDefined()
     expect(screen.queryByRole('menuitem', { name: 'Delete Agent' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'Delete agent tasks' })).not.toBeInTheDocument()
 
-    fireEvent.click(deleteTasksMenuItem as HTMLElement)
+    fireEvent.click(hideMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
-      expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', ['agent-a'])
     )
     expect(dataApiMocks.deleteAgent).not.toHaveBeenCalled()
-    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a', 'session-not-loaded'])
-    expect(popup.confirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        content: 'Delete all tasks for this agent. The agent itself will not be deleted.',
-        title: 'Delete agent tasks'
-      })
-    )
-    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
+    expect(dataApiMocks.deleteAgentSessions).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
+
+    view.rerender(<SessionsForTest historyRecordsActive={false} />)
+    expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
   it('collapses agent groups from the display options menu', async () => {

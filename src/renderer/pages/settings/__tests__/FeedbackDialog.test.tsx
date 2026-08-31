@@ -8,7 +8,12 @@ const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
+  setPreference: vi.fn(),
   toastError: vi.fn()
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [['other-agent', 'cherry-support'], mocks.setPreference]
 }))
 
 vi.mock('@logger', () => ({
@@ -50,6 +55,7 @@ describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
+    mocks.setPreference.mockResolvedValue(undefined)
   })
 
   it('shows diagnostics, Cherry Support, and GitHub in the requested order', () => {
@@ -80,6 +86,33 @@ describe('FeedbackDialog', () => {
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
     await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('adds Cherry Support back to the task list before opening feedback', async () => {
+    let finishPreferenceUpdate: (() => void) | undefined
+    mocks.setPreference.mockImplementationOnce(() => new Promise<void>((resolve) => (finishPreferenceUpdate = resolve)))
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.setPreference).toHaveBeenCalledWith(['other-agent']))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.openRoute).not.toHaveBeenCalled()
+
+    finishPreferenceUpdate?.()
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
+    await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
+  })
+
+  it('does not create an orphan feedback session when restoring Cherry Support fails', async () => {
+    mocks.setPreference.mockRejectedValueOnce(new Error('restore failed'))
+    render(<ControlledFeedbackDialog />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('settings.about.feedback.agent_error'))
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+    expect(mocks.openRoute).not.toHaveBeenCalled()
   })
 
   it('opens the one-step diagnostic upload dialog', async () => {

@@ -19,6 +19,22 @@ const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobal
   updateSkillGlobalEnabledMock: vi.fn()
 }))
 
+const preferenceMocks = vi.hoisted(() => ({
+  setPreference: vi.fn(),
+  values: new Map<string, unknown>()
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: (key: string) => [
+    preferenceMocks.values.get(key) ?? [],
+    (value: unknown) => {
+      preferenceMocks.values.set(key, value)
+      preferenceMocks.setPreference(key, value)
+      return Promise.resolve()
+    }
+  ]
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -48,6 +64,8 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能',
+          'agent.session.agent.add_to_list': '添加到列表',
+          'agent.session.agent.hide_from_list': '从列表隐藏',
           'settings.skills.globalToggle': '全局启用技能',
           'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
@@ -409,7 +427,7 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
   }
 }
 
-function createAgentResource(): ResourceItem {
+function createAgentResource(overrides: Partial<Extract<ResourceItem, { type: 'agent' }>> = {}): ResourceItem {
   return {
     id: 'agent-1',
     type: 'agent',
@@ -418,7 +436,8 @@ function createAgentResource(): ResourceItem {
     avatar: 'A',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
+    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw'],
+    ...overrides
   }
 }
 
@@ -790,6 +809,11 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  beforeEach(() => {
+    preferenceMocks.values.clear()
+    preferenceMocks.setPreference.mockClear()
+  })
+
   it('toggles a Skill globally from its settings card without opening the card', async () => {
     const user = userEvent.setup()
     const onEdit = vi.fn()
@@ -839,6 +863,36 @@ describe('ResourceGrid card actions', () => {
     await user.click(screen.getByRole('button', { name: '删除' }))
 
     expect(onDelete).toHaveBeenCalledWith(resource)
+  })
+
+  it('adds a hidden protected Agent back to the list without replacing card editing', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource({
+      id: 'cherry-support',
+      name: 'Cherry Support',
+      raw: { configuration: { builtin_role: 'support' } } as Extract<ResourceItem, { type: 'agent' }>['raw']
+    })
+    const onDelete = vi.fn()
+    const onEdit = vi.fn()
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['other-agent', resource.id])
+
+    const view = render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
+
+    await user.click(screen.getByRole('button', { name: '添加到列表' }))
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', ['other-agent'])
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(onEdit).not.toHaveBeenCalled()
+
+    view.rerender(<ResourceCard resource={{ ...resource }} {...getResourceCardProps({ onDelete, onEdit })} />)
+    await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
+    expect(preferenceMocks.setPreference).toHaveBeenLastCalledWith('agent.session.hidden_builtin_ids', [
+      'other-agent',
+      resource.id
+    ])
+    expect(onDelete).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cherry Support' }))
+    expect(onEdit).toHaveBeenCalledWith(resource)
   })
 
   it('shows only one assistant group in the compact card layout', () => {

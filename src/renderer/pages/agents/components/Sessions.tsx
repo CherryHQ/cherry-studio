@@ -154,11 +154,12 @@ function AgentGroupMoreMenu({
   agentId,
   assistantIconType,
   deleteAgentDisabled,
-  deleteTasksOnly,
+  protectedBuiltin,
   pinDisabled,
   pinned,
   onDeleteAgent,
   onEdit,
+  onHideFromList,
   onSetAgentIconType,
   onTogglePin,
   onToggleSidebar,
@@ -167,12 +168,13 @@ function AgentGroupMoreMenu({
   agentId: string
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
-  deleteTasksOnly?: boolean
+  protectedBuiltin?: boolean
   pinDisabled?: boolean
   pinned: boolean
   sidebarPinned: boolean
   onDeleteAgent: (agentId: string) => void | Promise<void>
   onEdit: (agentId: string) => void
+  onHideFromList: (agentId: string) => void | Promise<void>
   onSetAgentIconType: (iconType: AssistantIconType) => void | Promise<void>
   onTogglePin: (agentId: string) => void | Promise<void>
   onToggleSidebar: (agentId: string) => void | Promise<void>
@@ -182,9 +184,10 @@ function AgentGroupMoreMenu({
     agentId,
     assistantIconType,
     deleteAgentDisabled,
-    deleteTasksOnly,
+    protectedBuiltin,
     onDeleteAgent,
     onEdit,
+    onHideFromList,
     onSetAgentIconType,
     onTogglePin,
     onToggleSidebar,
@@ -385,6 +388,7 @@ const Sessions = ({
     yuque: 'data.export.menus.yuque'
   })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
@@ -556,24 +560,42 @@ const Sessions = ({
     },
     [removeSidebarAgent, sidebarAgentFavoriteIdSet, toggleSidebarAgent]
   )
+  const hiddenBuiltinAgentIdSet = useMemo(() => new Set(hiddenBuiltinAgentIds), [hiddenBuiltinAgentIds])
+  const handleHideBuiltinAgent = useCallback(
+    (agentId: string) => setHiddenBuiltinAgentIds([...new Set([...hiddenBuiltinAgentIds, agentId])]),
+    [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds]
+  )
+  const hiddenProtectedAgentIdSet = useMemo(
+    () =>
+      new Set(
+        agents
+          .filter(
+            (agent) =>
+              hiddenBuiltinAgentIdSet.has(agent.id) && isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
+          )
+          .map((agent) => agent.id)
+      ),
+    [agents, hiddenBuiltinAgentIdSet]
+  )
   const agentsForDisplay = useMemo(() => {
-    if (!optimisticAgentOrderIds) return agents
+    const visibleAgents = agents.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id))
+    if (!optimisticAgentOrderIds) return visibleAgents
 
-    const agentById = new Map(agents.map((agent) => [agent.id, agent]))
+    const agentById = new Map(visibleAgents.map((agent) => [agent.id, agent]))
     const orderedAgents = optimisticAgentOrderIds.flatMap((agentId) => {
       const agent = agentById.get(agentId)
       return agent ? [agent] : []
     })
     const optimisticIds = new Set(optimisticAgentOrderIds)
 
-    for (const agent of agents) {
+    for (const agent of visibleAgents) {
       if (!optimisticIds.has(agent.id)) {
         orderedAgents.push(agent)
       }
     }
 
     return orderedAgents
-  }, [agents, optimisticAgentOrderIds])
+  }, [agents, hiddenProtectedAgentIdSet, optimisticAgentOrderIds])
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
   const getSessionExportOptions = useCallback(
     (session: AgentSessionEntity): AgentSessionExportOptions => ({
@@ -630,13 +652,16 @@ const Sessions = ({
 
   const baseGroupedSessions = useMemo(
     () =>
-      sortSessionsForDisplayGroups(sessionItems, {
-        agentRankById,
-        mode: displayMode,
-        now: groupNow,
-        workdirDisplay
-      }),
-    [agentRankById, displayMode, groupNow, sessionItems, workdirDisplay]
+      sortSessionsForDisplayGroups(
+        sessionItems.filter((session) => !session.agentId || !hiddenProtectedAgentIdSet.has(session.agentId)),
+        {
+          agentRankById,
+          mode: displayMode,
+          now: groupNow,
+          workdirDisplay
+        }
+      ),
+    [agentRankById, displayMode, groupNow, hiddenProtectedAgentIdSet, sessionItems, workdirDisplay]
   )
 
   const groupedSessions = useMemo(
@@ -1212,8 +1237,6 @@ const Sessions = ({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role)
-
       const currentActiveSessionId = activeSessionIdRef.current
       const currentActiveSession = currentActiveSessionId
         ? sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
@@ -1222,8 +1245,8 @@ const Sessions = ({
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
-          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
+          title: t('agent.delete.title'),
+          content: t('agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -1233,13 +1256,8 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        if (deleteTasksOnly) {
-          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-          closeConversationTabs('agents', result.deletedIds)
-        } else {
-          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          closeConversationTabs('agents', result.deletedSessionIds ?? [])
-        }
+        const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
+        closeConversationTabs('agents', result.deletedSessionIds ?? [])
         try {
           await Promise.all(
             ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
@@ -1265,7 +1283,7 @@ const Sessions = ({
         }
 
         try {
-          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload(), refetchWorkspaces()])
+          await Promise.all([refetchAgents(), reload(), refetchWorkspaces()])
         } catch (err) {
           logger.warn('Failed to reload resources after deleting Agent from session group', { agentId, err })
         }
@@ -1279,7 +1297,6 @@ const Sessions = ({
     },
     [
       closeConversationTabs,
-      agentById,
       deletingAgentId,
       invalidate,
       onActiveAgentDeleted,
@@ -1660,11 +1677,12 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
-                deleteTasksOnly={isProtectedBuiltinAgentRole(agentById.get(agentGroupId)?.configuration?.builtin_role)}
+                protectedBuiltin={isProtectedBuiltinAgentRole(agentById.get(agentGroupId)?.configuration?.builtin_role)}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
                 onEdit={openAgentEditor}
+                onHideFromList={handleHideBuiltinAgent}
                 onSetAgentIconType={setAssistantIconType}
                 onTogglePin={handleToggleAgentPin}
                 onToggleSidebar={handleToggleAgentSidebar}
@@ -1715,6 +1733,7 @@ const Sessions = ({
       displayMode,
       createSessionSeedIndex,
       handleDeleteAgent,
+      handleHideBuiltinAgent,
       handleToggleAgentPin,
       handleToggleAgentSidebar,
       handleDeleteWorkdirGroup,
@@ -1829,9 +1848,10 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
-          deleteTasksOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
+          protectedBuiltin: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
+          onHideFromList: handleHideBuiltinAgent,
           onSetAgentIconType: setAssistantIconType,
           onTogglePin: handleToggleAgentPin,
           onToggleSidebar: handleToggleAgentSidebar,
@@ -1878,6 +1898,7 @@ const Sessions = ({
       deletingWorkspaceGroupId,
       displayMode,
       handleDeleteAgent,
+      handleHideBuiltinAgent,
       handleDeleteWorkdirGroup,
       handleOpenWorkdirGroup,
       handleStartRenameWorkdirGroup,

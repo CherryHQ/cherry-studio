@@ -14,9 +14,11 @@ import {
   ItemTitle
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { Bot, ChevronRight, FileArchive, Github } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -77,6 +79,7 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
 export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   const { t } = useTranslation()
   const [diagnosticUploadOpen, setDiagnosticUploadOpen] = useState(false)
+  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
 
   const selectOption = (action: () => void | Promise<void>) => {
     onOpenChange(false)
@@ -89,10 +92,13 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const openAgentFeedback = async () => {
     try {
+      if (hiddenBuiltinAgentIds.includes(CHERRY_SUPPORT_AGENT_ID)) {
+        await setHiddenBuiltinAgentIds(hiddenBuiltinAgentIds.filter((agentId) => agentId !== CHERRY_SUPPORT_AGENT_ID))
+      }
       const { sessionId } = await ipcApi.request('ai.agent.support_session.create')
       openRoute(getFeedbackAgentRoute(sessionId))
     } catch (error) {
-      logger.error('Failed to create Cherry Support feedback session', error as Error)
+      logger.error('Failed to open Cherry Support feedback', error as Error)
       toast.error(t('settings.about.feedback.agent_error'))
     }
   }
