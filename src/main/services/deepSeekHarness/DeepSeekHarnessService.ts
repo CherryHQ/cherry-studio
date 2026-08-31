@@ -295,7 +295,7 @@ export class DeepSeekHarnessService extends BaseService {
     const handle = pm.register({
       id: DEEPSEEK_HARNESS_PROCESS_ID,
       command: runtime.path,
-      args: ['web', '--host', '127.0.0.1', '--port', '0'],
+      args: ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'],
       cwd: application.getPath('feature.deepseek_harness.workspace'),
       env,
       detached: !isWin,

@@ -221,7 +221,7 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.writeConfig).toHaveBeenCalledTimes(2)
     expect(mocks.spawn).toHaveBeenCalledWith(
       '/usr/local/bin/dsh',
-      ['web', '--host', '127.0.0.1', '--port', '0'],
+      ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'],
       expect.objectContaining({ cwd: '/mock/userData/Data/DeepSeekHarness/Workspace', detached: true })
     )
     expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY')
