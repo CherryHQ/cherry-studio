@@ -156,7 +156,10 @@ export class ProtocolService extends BaseService {
   private handleProtocolUrl(url: string) {
     if (!url) return
 
-    if (!this.areServicesReady || !this.isMainRendererReady) {
+    if (
+      !this.areServicesReady ||
+      (!this.isMainRendererReady && (this.pendingProtocolUrls.length > 0 || !this.isMainWindowNavigationUrl(url)))
+    ) {
       this.pendingProtocolUrls.push(url)
       return
     }
@@ -165,13 +168,29 @@ export class ProtocolService extends BaseService {
   }
 
   private flushPendingProtocolUrls() {
-    if (!this.areServicesReady || !this.isMainRendererReady) {
-      return
-    }
+    if (!this.areServicesReady) return
 
     const pendingUrls = this.pendingProtocolUrls.splice(0)
+    let blockedOnRenderer = false
     for (const url of pendingUrls) {
-      this.dispatchProtocolUrl(url)
+      // Navigate deep links can enter the unified main-window delivery queue
+      // before the renderer mounts. Dispatch them here so their order relative
+      // to routes requested through IPC/menu sources is decided by one queue.
+      // Other protocol hosts still require a live renderer for broadcast or UI.
+      if (this.isMainRendererReady || (!blockedOnRenderer && this.isMainWindowNavigationUrl(url))) {
+        this.dispatchProtocolUrl(url)
+      } else {
+        blockedOnRenderer = true
+        this.pendingProtocolUrls.push(url)
+      }
+    }
+  }
+
+  private isMainWindowNavigationUrl(url: string): boolean {
+    try {
+      return new URL(url).hostname.toLowerCase() === 'navigate'
+    } catch {
+      return false
     }
   }
 

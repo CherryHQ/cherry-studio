@@ -298,7 +298,7 @@ describe('ProtocolService', () => {
       expect(service.listPendingMcpInstallRequests('main-1')).toEqual([])
     })
 
-    it('queues URLs again while the main renderer reloads or recovers from a crash', async () => {
+    it('routes main-window navigation into its delivery queue while the renderer reloads', async () => {
       await (service as any).onInit()
       const listeners = new Map<string, () => void>()
       const onWindowCreated = windowManagerMock.onWindowCreatedByType.mock.calls[0][1] as (managed: {
@@ -315,17 +315,30 @@ describe('ProtocolService', () => {
 
       listeners.get('did-start-loading')?.()
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
-      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
       service.onMainRendererReady('main-1')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
 
       listeners.get('render-process-gone')?.()
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/knowledge')
-      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(2)
 
       service.onMainRendererReady('main-1')
       expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(2)
+    })
+
+    it('moves a service-ready navigate URL ahead of a later renderer-ready protocol URL', async () => {
+      await (service as any).onAllReady()
+
+      ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
+
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+
+      service.onMainRendererReady('main-1')
+      expect(ipcApiServiceMock.broadcast).toHaveBeenCalledTimes(1)
     })
 
     it('replays queued URLs in order and continues after an invalid URL', async () => {
@@ -365,10 +378,12 @@ describe('ProtocolService', () => {
       windowManagerMock.getWindowType.mockReturnValueOnce('subWindow')
       await (service as any).onAllReady()
       ;(service as any).handleProtocolUrl('cherrystudio://navigate/agents')
+      ;(service as any).handleProtocolUrl('cherrystudio://unknown/path?foo=bar')
 
       service.onMainRendererReady('subwindow-1')
 
-      expect(handlersMock.handleNavigateProtocolUrl).not.toHaveBeenCalled()
+      expect(handlersMock.handleNavigateProtocolUrl).toHaveBeenCalledTimes(1)
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
   })
 

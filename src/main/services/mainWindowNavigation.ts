@@ -51,15 +51,16 @@ type PendingMainWindowDelivery = { kind: 'route'; path: string } | { kind: 'tab-
  * Commands awaiting a main renderer that has not mounted its listeners yet
  * (cold boot, reload, or crash recovery). Electron does not buffer directed
  * sends, so preserve their real order and flush after
- * `navigation.protocol_dispatch_ready`. Exact duplicates are coalesced in
- * place, while distinct routes and tab attaches remain ordered and lossless.
+ * `navigation.protocol_dispatch_ready`. Only adjacent exact route duplicates
+ * are coalesced; repeating a route after another command is a distinct user
+ * intent and must retain its place in the sequence.
  */
 const pendingMainWindowDeliveries: PendingMainWindowDelivery[] = []
 let isMainRendererReadyForDelivery = false
 
 function enqueueRouteNavigation(path: string): void {
-  const existing = pendingMainWindowDeliveries.some((delivery) => delivery.kind === 'route' && delivery.path === path)
-  if (existing) return
+  const previous = pendingMainWindowDeliveries.at(-1)
+  if (previous?.kind === 'route' && previous.path === path) return
   pendingMainWindowDeliveries.push({ kind: 'route', path })
 }
 

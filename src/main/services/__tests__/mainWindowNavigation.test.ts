@@ -136,7 +136,7 @@ describe('mainWindowNavigation', () => {
       ])
     })
 
-    it('coalesces an exact duplicate route without changing cross-kind order', () => {
+    it('preserves a repeated route when another command occurs between the requests', () => {
       const queuedTab = { id: 'queued-tab', type: 'route', url: '/app/chat', title: 'Chat' } as const
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
@@ -147,7 +147,20 @@ describe('mainWindowNavigation', () => {
 
       expect(ipcApiServiceMock.send.mock.calls).toEqual([
         ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }],
-        ['main-1', 'tab.attached', queuedTab]
+        ['main-1', 'tab.attached', queuedTab],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
+    })
+
+    it('coalesces only adjacent exact duplicate routes', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openRouteInMainWindow('/app/agents')
+      openRouteInMainWindow('/app/agents')
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
       ])
     })
 
