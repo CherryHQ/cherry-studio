@@ -117,7 +117,7 @@ describe('ensureTranscriptAvailableForWorkspace', () => {
     expect(results.every((result) => result === 'copied' || result === 'present')).toBe(true)
   })
 
-  it('atomically repairs an interrupted destination copy', async () => {
+  it('preserves a divergent existing destination instead of replacing it', async () => {
     const fixture = await createFixture()
     const oldDirectory = path.join(fixture.projectsDirectory, 'old-workspace-key')
     const targetDirectory = path.join(
@@ -141,10 +141,28 @@ describe('ensureTranscriptAvailableForWorkspace', () => {
 
     await expect(
       ensureTranscriptAvailableForWorkspace(fixture.claudeRoot, fixture.workspacePath, 'session-1')
-    ).resolves.toBe('copied')
-    await expect(readFile(path.join(targetDirectory, 'session-1.jsonl'), 'utf8')).resolves.toBe(
-      'complete restored history'
+    ).resolves.toBe('present')
+    await expect(readFile(path.join(targetDirectory, 'session-1.jsonl'), 'utf8')).resolves.toBe('partial')
+  })
+
+  it.runIf(process.platform !== 'win32')('rejects a symlinked current project directory', async () => {
+    const fixture = await createFixture()
+    const oldDirectory = path.join(fixture.projectsDirectory, 'old-workspace-key')
+    const outsideDirectory = path.join(path.dirname(fixture.claudeRoot), 'outside-project')
+    const targetDirectory = path.join(
+      fixture.projectsDirectory,
+      claudeProjectDirectoryName(path.resolve(fixture.workspacePath))
     )
+    await mkdir(oldDirectory)
+    await mkdir(outsideDirectory)
+    await writeFile(path.join(oldDirectory, 'session-1.jsonl'), 'restored history')
+    await writeFile(path.join(outsideDirectory, 'session-1.jsonl'), 'outside history')
+    await symlink(outsideDirectory, targetDirectory, 'dir')
+
+    await expect(
+      ensureTranscriptAvailableForWorkspace(fixture.claudeRoot, fixture.workspacePath, 'session-1')
+    ).resolves.toBe('unsafe')
+    await expect(readFile(path.join(outsideDirectory, 'session-1.jsonl'), 'utf8')).resolves.toBe('outside history')
   })
 
   it('returns missing when no matching transcript exists', async () => {

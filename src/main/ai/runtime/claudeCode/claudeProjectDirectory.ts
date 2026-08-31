@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
-import { copyFile, lstat, mkdir, readdir, realpath, rename, unlink } from 'node:fs/promises'
+import { copyFile, link, lstat, mkdir, readdir, realpath, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 const CLAUDE_PROJECT_DIRECTORY_NAME_MAX_LENGTH = 200
@@ -161,7 +161,7 @@ export type ClaudeTranscriptAvailability = 'present' | 'copied' | 'missing' | 'u
 
 /**
  * Make a restored Claude transcript visible under the current workspace key.
- * A discovered source is staged and verified before atomically replacing a stale or partial destination.
+ * A discovered source is staged and verified before being published without replacing current history.
  */
 export async function ensureTranscriptAvailableForWorkspace(
   claudeRoot: string,
@@ -173,6 +173,10 @@ export async function ensureTranscriptAvailableForWorkspace(
   const projectsStat = await lstatIfExists(projectsDirectory)
   if (!projectsStat?.isDirectory() || projectsStat.isSymbolicLink()) return 'missing'
   const projectDirectory = await claudeProjectDirectoryPath(projectsDirectory, workspacePath)
+  const projectDirectoryStat = await lstatIfExists(projectDirectory)
+  if (projectDirectoryStat && (!projectDirectoryStat.isDirectory() || projectDirectoryStat.isSymbolicLink())) {
+    return 'unsafe'
+  }
   const destinationPath = path.join(projectDirectory, `${runtimeResumeToken}.jsonl`)
   const destinationStat = await lstatIfExists(destinationPath)
   if (destinationStat && (!destinationStat.isFile() || destinationStat.isSymbolicLink())) return 'unsafe'
@@ -181,10 +185,9 @@ export async function ensureTranscriptAvailableForWorkspace(
   ).get(runtimeResumeToken)
   if (!source) return destinationStat ? 'present' : 'missing'
   // A transcript may continue receiving messages after a workspace relocation.
-  // Never replace that current history with an older copy discovered under a
-  // stale project key merely because their contents differ.
-  if (destinationStat && destinationStat.mtimeMs >= source.modifiedAtMs) return 'present'
-  if (destinationStat && (await transcriptsMatch(source.transcriptPath, destinationPath))) return 'present'
+  // Once the destination exists, never replace it with a copy from a stale
+  // project key: timestamps cannot prove which divergent history is complete.
+  if (destinationStat) return 'present'
   if (!(await ensureRegularDirectory(projectDirectory))) return 'unsafe'
   const stagingPath = path.join(projectDirectory, `.${runtimeResumeToken}.restore-${randomUUID()}`)
   try {
@@ -192,11 +195,18 @@ export async function ensureTranscriptAvailableForWorkspace(
     if (!(await transcriptsMatch(source.transcriptPath, stagingPath))) {
       throw new Error(`Claude transcript staging verification failed: ${source.transcriptPath}`)
     }
-    const racedDestinationStat = await lstatIfExists(destinationPath)
-    if (racedDestinationStat && (!racedDestinationStat.isFile() || racedDestinationStat.isSymbolicLink()))
-      return 'unsafe'
-    if (racedDestinationStat && (await transcriptsMatch(source.transcriptPath, destinationPath))) return 'present'
-    await rename(stagingPath, destinationPath)
+    try {
+      // A hard-link publish is atomic and cannot overwrite a destination that
+      // appears after the checks above. Both files live under the same Claude
+      // projects root, so they are on the same volume.
+      await link(stagingPath, destinationPath)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'EEXIST') throw error
+      const racedDestinationStat = await lstatIfExists(destinationPath)
+      if (!racedDestinationStat?.isFile() || racedDestinationStat.isSymbolicLink()) return 'unsafe'
+      return 'present'
+    }
     return 'copied'
   } finally {
     await unlink(stagingPath).catch((error: NodeJS.ErrnoException) => {

@@ -536,7 +536,7 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(transcriptPath, 'utf8')).toBe('{"only":"source"}\n')
   })
 
-  it('does not overwrite a Claude session cache target created after cleanup', async () => {
+  it('does not overwrite a Claude session cache target created during staging', async () => {
     const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
     const legacyProjectsDirectory = path.join(tempRoot, '.claude', 'projects')
     const destinationProjectsDirectory = path.join(agentsDataRoot, '.claude', 'projects')
@@ -575,6 +575,46 @@ describe('agentsFilesystemMigration', () => {
     ).rejects.toThrow(/Claude session cache destination conflict/)
 
     expect(await readFile(destinationTranscript, 'utf8')).toBe('{"concurrent":true}\n')
+    expect(await readFile(sourceTranscript, 'utf8')).toBe('{"source":true}\n')
+  })
+
+  it('preserves a divergent Claude session cache destination on migration retry', async () => {
+    const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+    const legacyProjectsDirectory = path.join(tempRoot, '.claude', 'projects')
+    const destinationProjectsDirectory = path.join(agentsDataRoot, '.claude', 'projects')
+    const sourceProjectDirectory = path.join(
+      legacyProjectsDirectory,
+      claudeProjectDirectoryName(path.resolve(legacyWorkspace))
+    )
+    const sourceTranscript = path.join(sourceProjectDirectory, `${CLAUDE_SESSION_ID}.jsonl`)
+    await mkdir(sourceProjectDirectory, { recursive: true })
+    await writeFile(sourceTranscript, '{"source":true}\n')
+
+    const session = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z'),
+      runtimeResumeTokens: [CLAUDE_SESSION_ID]
+    })
+    const destinationTranscript = path.join(
+      destinationProjectsDirectory,
+      claudeProjectDirectoryName(path.resolve(session.systemWorkspacePath!)),
+      `${CLAUDE_SESSION_ID}.jsonl`
+    )
+    await mkdir(path.dirname(destinationTranscript), { recursive: true })
+    await writeFile(destinationTranscript, '{"newer":"history"}\n')
+
+    await expect(
+      copyLegacyClaudeSessionData({
+        agentsDataRoot,
+        sourceProjectsDirectories: [legacyProjectsDirectory],
+        destinationProjectsDirectory,
+        sessions: [session]
+      })
+    ).rejects.toThrow(/Claude session cache destination conflict/)
+
+    expect(await readFile(destinationTranscript, 'utf8')).toBe('{"newer":"history"}\n')
     expect(await readFile(sourceTranscript, 'utf8')).toBe('{"source":true}\n')
   })
 

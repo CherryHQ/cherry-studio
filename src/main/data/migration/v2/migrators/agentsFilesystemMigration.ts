@@ -595,13 +595,12 @@ async function copyClaudeSessionEntry(
     }
   }
 
-  await removeTreeWithoutFollowing(destinationPath)
-  const cleanedDestinationRace = await filesystemEntrySnapshot(destinationPath)
-  if (cleanedDestinationRace) {
-    if (cleanedDestinationRace.fingerprint !== sourceSnapshot.fingerprint) {
+  const existingDestinationSnapshot = await filesystemEntrySnapshot(destinationPath)
+  if (existingDestinationSnapshot) {
+    if (existingDestinationSnapshot.fingerprint !== sourceSnapshot.fingerprint) {
       throw new Error(`Legacy Claude session cache destination conflict: ${destinationPath}`)
     }
-    logger.info('Reusing identical Claude session cache entry created after target cleanup', {
+    logger.info('Reusing identical Claude session cache entry from an earlier migration attempt', {
       sourcePath,
       destinationPath
     })
