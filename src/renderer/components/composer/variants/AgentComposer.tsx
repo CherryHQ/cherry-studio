@@ -66,7 +66,7 @@ import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ServiceTierSelection } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -116,7 +116,11 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
+import {
+  ComposerSpeedControl,
+  resolveComposerReasoningEffort,
+  resolveComposerServiceTier
+} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -267,7 +271,6 @@ const createSkillQuickPanelItems = (
     label: skill.name,
     description: skill.description ?? undefined,
     icon: <ToolCase size={16} />,
-    suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
     searchAliases: [options.skillLabel],
@@ -287,6 +290,7 @@ export interface AgentComposerSendBody {
   sessionId: string
   userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
   reasoningEffort?: ThinkingOption
+  serviceTier?: ServiceTierSelection
   fastMode?: boolean
 }
 
@@ -814,6 +818,15 @@ const AgentComposerInner = ({
     setReasoningOverride((current) => (current === reasoningOverride ? null : current))
   }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
   const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
+  const canonicalServiceTier = agent?.configuration?.service_tier ?? 'standard'
+  const [serviceTierOverride, setServiceTierOverride] = useState<{
+    agentId: string
+    value: ServiceTierSelection
+    version: number
+  } | null>(null)
+  const serviceTierMutationVersionRef = useRef(0)
+  const activeServiceTierOverride = serviceTierOverride?.agentId === agent?.id ? serviceTierOverride : null
+  const serviceTier = activeServiceTierOverride?.value ?? canonicalServiceTier
   const [fastMode, setFastMode] = useState(false)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
@@ -1124,18 +1137,18 @@ const AgentComposerInner = ({
     [agentId, t]
   )
 
+  const skillLabel = t('plugins.skills')
   const skillItems = useMemo<QuickPanelListItem[]>(
     () =>
       createSkillQuickPanelItems(availableSkills, {
-        skillLabel: t('plugins.skills'),
+        skillLabel,
         onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillToken, t]
+    [availableSkills, insertSkillToken, skillLabel]
   )
   const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
 
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
-    const skillLabel = t('plugins.skills')
     return {
       id: AGENT_SKILLS_LAUNCHER_ID,
       kind: 'panel',
@@ -1145,8 +1158,8 @@ const AgentComposerInner = ({
       icon: <ToolCase />,
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
-      rootSearchItems: skillItems,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),
+      action: ({ parentPanel, queryAnchor, quickPanel }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
         })
@@ -1156,11 +1169,12 @@ const AgentComposerInner = ({
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: { type: 'button' },
+          trackInputQuery: true
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillPanelItems, t])
+  }, [refreshAvailableSkills, skillItems, skillLabel, skillPanelItems])
 
   useEffect(
     () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
@@ -1188,7 +1202,11 @@ const AgentComposerInner = ({
 
   const abortAgentSession = useCallback(async () => {
     logger.info('Aborting agent session', { sessionTopicId })
-    await chatStop()
+    try {
+      await chatStop()
+    } catch (error) {
+      logger.error('Failed to abort agent session', { sessionTopicId, error })
+    }
   }, [chatStop, sessionTopicId])
 
   const handleAgentChange = useCallback(
@@ -1315,6 +1333,21 @@ const AgentComposerInner = ({
     },
     [agent, canonicalReasoningEffort, updateAgent]
   )
+  const handleServiceTierChange = useCallback(
+    (tier: ServiceTierSelection) => {
+      if (!agent) return
+      const version = ++serviceTierMutationVersionRef.current
+      setServiceTierOverride({ agentId: agent.id, value: tier, version })
+      void updateAgent({ id: agent.id, configuration: { service_tier: tier } }, { showSuccessToast: false }).then(
+        () => {
+          setServiceTierOverride((current) =>
+            current?.agentId === agent.id && current.version === version ? null : current
+          )
+        }
+      )
+    },
+    [agent, updateAgent]
+  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1375,6 +1408,7 @@ const AgentComposerInner = ({
         fileTokenId: agentComposerTokenId.file,
         extra: () => ({
           reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          serviceTier: model ? resolveComposerServiceTier(model, serviceTier) : serviceTier,
           ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
         })
       })
@@ -1389,7 +1423,7 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope, serviceTier]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1405,6 +1439,7 @@ const AgentComposerInner = ({
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
               reasoningEffort: payload.reasoningEffort,
+              serviceTier: payload.serviceTier,
               ...(payload.fastMode ? { fastMode: true } : {})
             }
           }
@@ -1489,9 +1524,18 @@ const AgentComposerInner = ({
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
       handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      handleServiceTierChange(item.payload.serviceTier ?? 'standard')
       setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [
+      actionsRef,
+      handleReasoningEffortChange,
+      handleServiceTierChange,
+      resetHistoryIndex,
+      restoreKnowledgeBaseSelection,
+      setFiles,
+      setText
+    ]
   )
 
   const handleSendDraft = useCallback(
@@ -1656,8 +1700,10 @@ const AgentComposerInner = ({
         <ComposerSpeedControl
           model={model}
           reasoningEffort={reasoningEffort}
+          serviceTier={serviceTier}
           fastMode={fastMode}
           onReasoningEffortChange={handleReasoningEffortChange}
+          onServiceTierChange={handleServiceTierChange}
           onFastModeChange={setFastMode}
         />
       ) : null}

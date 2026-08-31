@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { PROVIDERS } from '../providers'
-import { REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
+import { configureOpenAIResponsesSummary, REASONING_FORMAT_PROFILES, selectFormatWire } from '../reasoningProfiles'
 import type { ModelConfig, ReasoningWireDialect } from '../schemas/model'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 
@@ -144,5 +144,25 @@ describe('native-protocol reasoning dialect', () => {
       }
     }
     expect(leftovers).toEqual([])
+  })
+})
+
+describe('OpenAI Responses summary compatibility', () => {
+  it('adds and removes summary operations without changing the effort wire', () => {
+    const base = REASONING_FORMAT_PROFILES['openai-responses'].wire
+    const enabled = configureOpenAIResponsesSummary(base, true)
+    const disabled = configureOpenAIResponsesSummary(enabled, false)
+
+    expect(enabled.default?.operations).toContainEqual({
+      target: 'reasoningSummary',
+      value: { source: 'assistant-summary' }
+    })
+    expect(enabled.effort?.operations).toContainEqual({
+      target: 'reasoningEffort',
+      value: { source: 'effort' }
+    })
+    expect(targetsOf(disabled)).not.toContain('reasoningSummary')
+    expect(disabled.default).toBeUndefined()
+    expect(disabled.effort).toEqual(base.effort)
   })
 })

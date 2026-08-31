@@ -35,14 +35,7 @@ describe('useProviderMeta', () => {
         name: 'OpenAI',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true,
         websites: {
@@ -69,14 +62,7 @@ describe('useProviderMeta', () => {
         name: 'My OpenAI',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true,
         websites: {
@@ -99,14 +85,7 @@ describe('useProviderMeta', () => {
         name: 'Custom Provider',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
@@ -129,14 +108,7 @@ describe('useProviderMeta', () => {
         defaultChatEndpoint: 'openai-responses',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: true,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
@@ -162,14 +134,7 @@ describe('useProviderMeta', () => {
         },
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }
@@ -189,14 +154,7 @@ describe('useProviderMeta', () => {
         defaultChatEndpoint: 'google-generate-content',
         authType: 'api-key',
         apiKeys: [],
-        apiFeatures: {
-          arrayContent: true,
-          streamOptions: true,
-          developerRole: false,
-          serviceTier: false,
-          verbosity: false,
-          enableThinking: true
-        },
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       }

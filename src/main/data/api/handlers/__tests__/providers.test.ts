@@ -71,7 +71,7 @@ describe('providerHandlers', () => {
         defaultChatEndpoint: 'openai-chat-completions',
         apiKeys: [],
         authType: 'api-key',
-        apiFeatures: {},
+        reportsActualCost: false,
         settings: {},
         isEnabled: true
       })

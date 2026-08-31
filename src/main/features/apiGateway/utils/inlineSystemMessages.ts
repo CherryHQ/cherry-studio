@@ -22,19 +22,22 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
  * Verified against the installed SDKs:
  * - `@ai-sdk/anthropic` 3.0.103 pushes `{ role: 'system' }` and adds the
  *   `mid-conversation-system-2026-04-07` beta itself (`dist/index.mjs:2380`)
- * - `@ai-sdk/openai` 3.0.53 pushes it on both the chat and responses paths (`:114`, `:2761`)
- * - `@ai-sdk/openai-compatible` 2.0.62 pushes it (`:114`)
+ * - `@ai-sdk/openai` 3.0.53 pushes it on the responses path (`:2761`)
  *
  * Deliberately excluded: `@ai-sdk/google` throws `system messages are only supported at
  * the beginning of the conversation` (`:523`), and the `*-text-completions` /
- * `ollama-generate` converters throw `Unexpected system message in prompt`. Ollama chat
- * serializes the message, but renderer behavior varies: some fold instruction messages into
- * a leading system turn while others only consume one at `messages[0]`. The gateway has no
- * renderer capability signal, so it cannot safely leave a non-leading system message in place.
+ * `ollama-generate` converters throw `Unexpected system message in prompt`.
+ *
+ * The two chat endpoints an arbitrary server can sit behind are excluded for the same
+ * reason: serializing the shape is not accepting it. `openai-chat-completions` reaches
+ * every OpenAI-compatible backend (litellm, vLLM, sglang), and a chat template that
+ * requires `system` at `messages[0]` answers `System message must be at the beginning`
+ * with a 400; Ollama chat hands the messages to a per-model renderer that may instead
+ * drop a later system message silently. The gateway resolves one endpoint type for all
+ * of them and has no per-backend capability signal, so neither can stay in place.
  */
 const SYSTEM_IN_PLACE_ENDPOINTS: ReadonlySet<EndpointType> = new Set([
   ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
   ENDPOINT_TYPE.OPENAI_RESPONSES
 ])
 

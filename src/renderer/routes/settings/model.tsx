@@ -3,6 +3,11 @@ import { validateModelSettingsSearch } from '@renderer/pages/settings/ModelSetti
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/model')({
-  component: ModelSettings,
+  component: ModelSettingsRoute,
   validateSearch: validateModelSettingsSearch
 })
+
+function ModelSettingsRoute() {
+  const { focus } = Route.useSearch()
+  return <ModelSettings focus={focus} />
+}

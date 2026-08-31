@@ -4,6 +4,8 @@
 export interface BasicPreviewProps {
   children: string
   enableToolbar?: boolean
+  /** True while the source is still being streamed / generated. */
+  isStreaming?: boolean
 }
 
 /**

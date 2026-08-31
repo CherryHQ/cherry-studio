@@ -2,7 +2,7 @@ import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroup
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
-import type { Model } from '@shared/data/types/model'
+import type { Model, ReasoningSummary, ServiceTierSelection } from '@shared/data/types/model'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,14 +31,32 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   auto: 'assistants.settings.reasoning_effort.auto'
 }
 
+const SUMMARY_LABEL_KEYS: Record<ReasoningSummary, string> = {
+  auto: 'agent.speed.summary.auto',
+  concise: 'agent.speed.summary.concise',
+  detailed: 'agent.speed.summary.detailed'
+}
+
+const SERVICE_TIER_LABEL_KEYS: Record<ServiceTierSelection, string> = {
+  standard: 'agent.speed.service_tier.standard',
+  auto: 'agent.speed.service_tier.auto',
+  fast: 'agent.speed.service_tier.fast',
+  flex: 'agent.speed.service_tier.flex'
+}
+
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
 
 interface ComposerSpeedControlProps {
   model: Model
   reasoningEffort: ThinkingOption
+  serviceTier?: ServiceTierSelection
   fastMode: boolean
+  /** Omit both to hide the summary row — surfaces where the selection has nowhere to persist. */
+  reasoningSummary?: ReasoningSummary
   onReasoningEffortChange: (effort: ThinkingOption) => void
+  onReasoningSummaryChange?: (summary: ReasoningSummary) => void
+  onServiceTierChange?: (tier: ServiceTierSelection) => void
   onFastModeChange: (enabled: boolean) => void
 }
 
@@ -121,11 +139,22 @@ export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOpt
   return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
+/** Use the endpoint default for this send without mutating an unsupported saved selection. */
+export function resolveComposerServiceTier(model: Model, tier: ServiceTierSelection): ServiceTierSelection {
+  const control = model.requestControls?.serviceTier
+  if (!control) return 'standard'
+  return control.options.includes(tier) ? tier : control.default
+}
+
 export function ComposerSpeedControl({
   model,
   reasoningEffort,
+  reasoningSummary,
+  serviceTier = 'standard',
   fastMode,
   onReasoningEffortChange,
+  onReasoningSummaryChange,
+  onServiceTierChange,
   onFastModeChange
 }: ComposerSpeedControlProps) {
   const { t } = useTranslation()
@@ -135,8 +164,13 @@ export function ComposerSpeedControl({
   }, [model])
   const supportsReasoning = reasoningOptions.length > 1
   const supportsFast = model.supportsFastMode === true
+  const serviceTierOptions = onServiceTierChange ? (model.requestControls?.serviceTier?.options ?? []) : []
+  const supportsServiceTier = serviceTierOptions.length > 0
+  // Only endpoints whose wire carries a summary knob project these; the wire's own default is 'auto'.
+  const summaryOptions = onReasoningSummaryChange ? (model.reasoning?.summaryOptions ?? []) : []
+  const selectedSummary: ReasoningSummary = reasoningSummary ?? 'auto'
 
-  if (!supportsReasoning && !supportsFast) return null
+  if (!supportsReasoning && !supportsServiceTier && !supportsFast) return null
 
   const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
   const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
@@ -157,6 +191,9 @@ export function ComposerSpeedControl({
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
   const effortControlLabel = t('agent.speed.effort')
+  const serviceTierControlLabel = t('agent.speed.service_tier.label')
+  const effectiveServiceTier = resolveComposerServiceTier(model, serviceTier)
+  const serviceTierLabel = t(SERVICE_TIER_LABEL_KEYS[effectiveServiceTier])
   const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
   const handleSliderValueChange = (index: number) => {
     const effort = sliderEfforts[index]
@@ -173,7 +210,7 @@ export function ComposerSpeedControl({
           className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
-          <span>{supportsReasoning ? effortLabel : triggerLabel}</span>
+          <span>{supportsReasoning ? effortLabel : supportsServiceTier ? serviceTierLabel : triggerLabel}</span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
           <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
         </Button>
@@ -182,55 +219,54 @@ export function ComposerSpeedControl({
         side="top"
         align="end"
         sideOffset={8}
-        className="w-56 overflow-hidden rounded-md border-frame-border p-1.5 text-xs shadow-xl">
-        <div className="flex h-10 items-center px-2">
-          {supportsReasoning ? (
-            <div className="flex min-w-0 items-baseline gap-1 text-xs">
-              <span className="shrink-0 text-muted-foreground">{effortControlLabel}:</span>
-              <span
-                data-testid="composer-effort-slider-label"
-                aria-live="polite"
-                className="truncate font-medium text-foreground">
-                {effortLabel}
-              </span>
-            </div>
-          ) : (
-            <span className="text-muted-foreground">{t('agent.speed.label')}</span>
-          )}
-          {showEffortSlider || supportsFast ? (
-            <div className="ml-auto flex shrink-0 items-center gap-0.5">
-              {showEffortSlider ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn(
-                    'h-7 rounded-md px-2 text-muted-foreground text-xs',
-                    effectiveReasoningEffort === 'default' && 'text-primary hover:text-primary'
-                  )}
-                  aria-pressed={effectiveReasoningEffort === 'default'}
-                  onClick={() => onReasoningEffortChange('default')}>
-                  {t(EFFORT_LABEL_KEYS.default)}
-                </Button>
-              ) : null}
-              {supportsFast ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className={cn('rounded-full', fastMode && 'text-primary hover:text-primary')}
-                  aria-label={t('agent.speed.fast')}
-                  aria-pressed={fastMode}
-                  onClick={() => onFastModeChange(!fastMode)}>
-                  <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        className="w-72 rounded-lg border-frame-border p-3 text-xs shadow-xl">
+        {supportsReasoning || supportsFast ? (
+          <div className="flex min-h-7 items-center gap-3">
+            {supportsReasoning ? (
+              <div className="flex min-w-0 items-baseline gap-1.5 text-xs">
+                <span className="shrink-0 text-muted-foreground">{effortControlLabel}:</span>
+                <span
+                  data-testid="composer-effort-slider-label"
+                  aria-live="polite"
+                  className="truncate font-medium text-foreground">
+                  {effortLabel}
+                </span>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">{t('agent.speed.label')}</span>
+            )}
+            {showEffortSlider || supportsFast ? (
+              <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                {showEffortSlider && effectiveReasoningEffort !== 'default' ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 rounded-md bg-muted/60 px-2 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                    aria-pressed={false}
+                    onClick={() => onReasoningEffortChange('default')}>
+                    {t(EFFORT_LABEL_KEYS.default)}
+                  </Button>
+                ) : null}
+                {supportsFast ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className={cn('rounded-full', fastMode && 'text-primary hover:text-primary')}
+                    aria-label={t('agent.speed.fast')}
+                    aria-pressed={fastMode}
+                    onClick={() => onFastModeChange(!fastMode)}>
+                    <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {supportsReasoning && showEffortSlider ? (
-          <div className="mx-2.5 mt-1 mb-2">
-            <div className="flex items-center justify-between font-medium text-[11px]" aria-hidden="true">
+          <div className="mt-2.5">
+            <div className="flex items-center justify-between font-medium text-[11px] leading-none" aria-hidden="true">
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
               <span className="text-primary">{t('agent.speed.smarter')}</span>
             </div>
@@ -238,7 +274,7 @@ export function ComposerSpeedControl({
               value={currentIndex}
               min={0}
               max={sliderEfforts.length - 1}
-              className="relative mt-1.5 h-8"
+              className="relative mt-1.5 h-7"
               onValueChange={handleSliderValueChange}>
               <Slider
                 value={[currentIndex]}
@@ -249,10 +285,10 @@ export function ComposerSpeedControl({
                 getThumbAriaLabel={() => effortControlLabel}
                 getThumbAriaValueText={() => effortLabel}
                 className={cn(
-                  'h-8',
-                  '[&_[data-slot=slider-track]]:h-2.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
+                  'h-7',
+                  '[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-muted [&_[data-slot=slider-track]]:shadow-inner',
                   '[&_[data-slot=slider-range]]:bg-primary',
-                  '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:rounded-full',
+                  '[&_[data-slot=slider-thumb]]:z-20 [&_[data-slot=slider-thumb]]:size-[18px] [&_[data-slot=slider-thumb]]:rounded-full',
                   '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
@@ -277,7 +313,7 @@ export function ComposerSpeedControl({
           <RadioGroup
             value={displayedEffort}
             aria-label={effortControlLabel}
-            className="gap-0"
+            className="mt-2 gap-0"
             onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
             {reasoningOptions.map((effort) => (
               <label
@@ -288,6 +324,59 @@ export function ComposerSpeedControl({
               </label>
             ))}
           </RadioGroup>
+        ) : null}
+        {summaryOptions.length > 0 ? (
+          <div className="mt-3 border-frame-border border-t pt-3">
+            <span className="mb-2 block font-medium text-[11px] text-muted-foreground leading-none">
+              {t('agent.speed.summary.label')}
+            </span>
+            <div
+              role="group"
+              aria-label={t('agent.speed.summary.label')}
+              className="grid grid-cols-3 gap-1 rounded-lg bg-muted/70 p-1">
+              {summaryOptions.map((summary) => (
+                <Button
+                  key={summary}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn(
+                    'h-8 min-w-0 rounded-md px-2 text-muted-foreground text-xs transition-colors',
+                    selectedSummary === summary
+                      ? 'bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground'
+                      : 'hover:bg-background/60 hover:text-foreground'
+                  )}
+                  aria-pressed={selectedSummary === summary}
+                  onClick={() => onReasoningSummaryChange?.(summary)}>
+                  {t(SUMMARY_LABEL_KEYS[summary])}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {supportsServiceTier ? (
+          <div
+            className={cn(
+              (supportsReasoning || summaryOptions.length > 0) && 'mt-3 border-frame-border border-t pt-3'
+            )}>
+            <div className="mb-2 font-medium text-[11px] text-muted-foreground leading-none">
+              {serviceTierControlLabel}
+            </div>
+            <RadioGroup
+              value={effectiveServiceTier}
+              aria-label={serviceTierControlLabel}
+              className="gap-0"
+              onValueChange={(tier) => onServiceTierChange?.(tier as ServiceTierSelection)}>
+              {serviceTierOptions.map((tier) => (
+                <label
+                  key={tier}
+                  className="flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent">
+                  <RadioGroupItem value={tier} size="sm" aria-label={t(SERVICE_TIER_LABEL_KEYS[tier])} />
+                  <span>{t(SERVICE_TIER_LABEL_KEYS[tier])}</span>
+                </label>
+              ))}
+            </RadioGroup>
+          </div>
         ) : null}
       </PopoverContent>
     </Popover>

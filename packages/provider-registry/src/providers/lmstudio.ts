@@ -4,6 +4,7 @@ export default defineProvider({
   id: 'lmstudio',
   name: 'LM Studio',
   authOptional: true,
+  defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',
