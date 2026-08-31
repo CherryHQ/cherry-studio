@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "フォント設定",
   "settings.display.list_position.chat": "会話リストの位置",
   "settings.display.list_position.work": "タスクリストの位置",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "ローカルネットワークアドレスへのアクセスを許可",
   "settings.fetch.allow_private_network_tip": "Web 取得ツールが localhost やプライベートネットワークのアドレスにアクセスできるようにします。自分のマシンや LAN 上のサービスをモデルに読み取らせたくない場合はオフにしてください。",
   "settings.font_size.title": "メッセージのフォントサイズ",

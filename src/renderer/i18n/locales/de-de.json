@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "Schriftart-Einstellungen",
   "settings.display.list_position.chat": "Position der Unterhaltungsliste",
   "settings.display.list_position.work": "Position der Aufgabenliste",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Zugriff auf lokale Netzwerkadressen erlauben",
   "settings.fetch.allow_private_network_tip": "Erlaubt Web-Abruf-Tools den Zugriff auf localhost und private Netzwerkadressen. Deaktivieren Sie dies, wenn Modelle keine Dienste auf Ihrem Rechner oder im LAN lesen sollen.",
   "settings.font_size.title": "Nachrichtenschriftgröße",

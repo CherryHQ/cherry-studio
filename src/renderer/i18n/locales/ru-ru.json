@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "Настройки шрифта",
   "settings.display.list_position.chat": "Положение списка бесед",
   "settings.display.list_position.work": "Положение списка задач",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Разрешить доступ к адресам локальной сети",
   "settings.fetch.allow_private_network_tip": "Позволяет инструментам веб-загрузки обращаться к localhost и адресам частной сети. Отключите, если не хотите, чтобы модели читали службы на вашем компьютере или в локальной сети.",
   "settings.font_size.title": "Размер шрифта сообщений",

@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "Ρύθμιση γραμματοσειράς",
   "settings.display.list_position.chat": "Θέση λίστας συνομιλιών",
   "settings.display.list_position.work": "Θέση λίστας εργασιών",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Να επιτρέπεται η πρόσβαση σε διευθύνσεις τοπικού δικτύου",
   "settings.fetch.allow_private_network_tip": "Επιτρέπει στα εργαλεία ανάκτησης ιστού να προσπελαύνουν το localhost και διευθύνσεις ιδιωτικού δικτύου. Απενεργοποιήστε το αν δεν θέλετε τα μοντέλα να διαβάζουν υπηρεσίες στον υπολογιστή σας ή στο LAN.",
   "settings.font_size.title": "Μέγεθος γραμμάτων των μηνυμάτων",

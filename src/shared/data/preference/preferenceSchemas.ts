@@ -850,8 +850,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'ui.launchpad.app_order': [],
     'ui.navbar.position': 'top',
     'ui.sidebar.favorites': [
-      { id: 'agents', type: 'app' },
       { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
       { id: 'translate', type: 'app' },
       { id: 'paintings', type: 'app' },
       { id: 'knowledge', type: 'app' }

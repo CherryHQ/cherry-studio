@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "字型設定",
   "settings.display.list_position.chat": "對話列表位置",
   "settings.display.list_position.work": "任務列表位置",
+  "settings.display.sidebar.chat.visible": "在側邊欄顯示對話助手",
+  "settings.display.sidebar.title": "側邊欄設定",
   "settings.fetch.allow_private_network": "允許存取本機網路位址",
   "settings.fetch.allow_private_network_tip": "允許網頁擷取工具存取 localhost 與內網位址。若不希望模型讀取本機或區域網路上的服務，請關閉。",
   "settings.font_size.title": "訊息字型大小",

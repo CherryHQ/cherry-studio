@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "字体设置",
   "settings.display.list_position.chat": "对话列表位置",
   "settings.display.list_position.work": "任务列表位置",
+  "settings.display.sidebar.chat.visible": "在侧边栏显示对话助手",
+  "settings.display.sidebar.title": "侧边栏设置",
   "settings.fetch.allow_private_network": "允许访问本地网络地址",
   "settings.fetch.allow_private_network_tip": "允许网页抓取工具访问 localhost 和内网地址。如果不希望模型读取本机或局域网上的服务，请关闭。",
   "settings.font_size.title": "消息字体大小",

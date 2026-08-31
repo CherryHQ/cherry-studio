@@ -3907,6 +3907,8 @@
   "settings.display.font.title": "Configuración de fuente",
   "settings.display.list_position.chat": "Posición de la lista de conversaciones",
   "settings.display.list_position.work": "Posición de la lista de tareas",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Permitir el acceso a direcciones de red local",
   "settings.fetch.allow_private_network_tip": "Permite que las herramientas de obtención web accedan a localhost y a direcciones de red privada. Desactívalo si no quieres que los modelos lean servicios de tu equipo o de tu LAN.",
   "settings.font_size.title": "Tamaño de fuente de mensajes",
