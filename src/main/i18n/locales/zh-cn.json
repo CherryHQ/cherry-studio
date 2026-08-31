@@ -80,6 +80,7 @@
   "dialog.diagnostic_bundle.title": "保存诊断包",
   "dialog.diagnostic_bundle.zip_filter": "ZIP 压缩包",
   "dialog.html_files": "HTML 文件",
+  "dialog.mini_app_export": "从 {{name}} 导出",
   "dialog.open_file": "打开文件",
   "dialog.pdf_files": "PDF 文件",
   "dialog.png_image": "PNG 图片",

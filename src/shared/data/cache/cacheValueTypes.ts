@@ -215,3 +215,17 @@ export type WindowBoundsState = {
    *  longer fits), instead of resetting to the primary display. */
   displayBounds: { x: number; y: number; width: number; height: number }
 }
+
+/**
+ * Why a mini app's tile carries a dot. Derived by main, identical in every window; an
+ * entry exists only while at least one reason does.
+ */
+export type CacheMiniAppAttention = {
+  appId: string
+  /** The version the last update check found, or null. */
+  updateVersion: string | null
+  /** Leaves a Cherry release added under a namespace the app declared, still awaiting the user. */
+  pendingPermissions: string[]
+  /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
+  updating: { version: string; fraction: number | null } | null
+}

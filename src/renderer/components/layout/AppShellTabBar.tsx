@@ -3,6 +3,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ArrowLeft, Plus, X } from 'lucide-react'
@@ -69,6 +70,12 @@ interface TabToneProps {
  * shared alias.
  */
 const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
+const DEFAULT_TAB_ICON_SIZE = 14
+const MINI_APP_TAB_ICON_SIZE = 25
+
+function getTabIconSize(tab: Pick<Tab, 'url'>): number {
+  return tab.url.startsWith(MINI_APP_ROUTE_PREFIX) ? MINI_APP_TAB_ICON_SIZE : DEFAULT_TAB_ICON_SIZE
+}
 
 // Pinned/normal zone split — same hairline as the per-tab divider, and it
 // disappears on the same rule, so the two never behave differently side by side.
@@ -86,6 +93,7 @@ const Separator = ({ hidden }: { hidden?: boolean }) => (
 
 type PinnedTabButtonProps = {
   tab: Tab
+  iconSize: number
   isActive: boolean
   onSelect: () => void
   drag: DragItemProps
@@ -94,7 +102,17 @@ type PinnedTabButtonProps = {
   ref?: React.Ref<HTMLButtonElement>
 } & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'onPointerDown'>
 
-const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...rest }: PinnedTabButtonProps) => {
+const PinnedTabButton = ({
+  tab,
+  iconSize,
+  isActive,
+  onSelect,
+  drag,
+  tabRef,
+  tone,
+  ref,
+  ...rest
+}: PinnedTabButtonProps) => {
   return (
     <Tooltip placement="bottom" content={tab.title} delay={600}>
       {/* Spread `rest` (which carries injected ContextMenuTrigger props) first so the */}
@@ -124,7 +142,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           isActive ? tone.activeClass : tone.hoverClass,
           rest.className
         )}>
-        <TabIcon tab={tab} size={14} />
+        <TabIcon tab={tab} size={iconSize} />
       </button>
     </Tooltip>
   )
@@ -180,6 +198,7 @@ const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTa
 
 type NormalTabButtonProps = {
   tab: Tab
+  iconSize: number
   isActive: boolean
   onSelect: () => void
   /** Mouse-initiated closes pass the tab's current width so the bar can freeze layout (Chrome-style). */
@@ -203,6 +222,7 @@ type NormalTabButtonProps = {
 
 const NormalTabButton = ({
   tab,
+  iconSize,
   isActive,
   onSelect,
   onClose,
@@ -339,7 +359,7 @@ const NormalTabButton = ({
           showDivider ? 'opacity-100' : 'opacity-0'
         )}
       />
-      <TabIcon tab={tab} size={14} className="shrink-0" />
+      <TabIcon tab={tab} size={iconSize} className="shrink-0" />
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
         style={{
@@ -944,6 +964,7 @@ export const AppShellTabBar = ({
                     }>
                     <PinnedTabButton
                       tab={tab}
+                      iconSize={getTabIconSize(tab)}
                       isActive={tab.id === activeTabId}
                       onSelect={() => handleSelectTab(tab)}
                       tone={tabTone}
@@ -1042,6 +1063,7 @@ export const AppShellTabBar = ({
                 }>
                 <NormalTabButton
                   tab={tab}
+                  iconSize={getTabIconSize(tab)}
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleSelectTab(tab)}
                   onClose={(freezeWidth) => {

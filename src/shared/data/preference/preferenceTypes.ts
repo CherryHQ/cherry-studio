@@ -308,6 +308,7 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openclaw',
   'deepseek-harness',
   'gemini-cli',
+  'antigravity-cli',
   'qwen-code',
   'kimi-code',
   'qoder-cli',

@@ -80,6 +80,7 @@
   "dialog.diagnostic_bundle.title": "Salvează pachetul de diagnosticare",
   "dialog.diagnostic_bundle.zip_filter": "Arhivă ZIP",
   "dialog.html_files": "Fișiere HTML",
+  "dialog.mini_app_export": "Exportă din {{name}}",
   "dialog.open_file": "Deschide fișier",
   "dialog.pdf_files": "Fișiere PDF",
   "dialog.png_image": "Imagine PNG",
