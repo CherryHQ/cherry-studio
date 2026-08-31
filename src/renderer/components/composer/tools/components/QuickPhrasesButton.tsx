@@ -189,7 +189,7 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
         id: 'quick-phrases:add',
         panelSymbol: ComposerPanelSymbol.QuickPhrases,
         order: 10,
-        label: t('settings.prompts.add'),
+        label: t('common.add'),
         ariaLabel: t('settings.prompts.add'),
         tooltip: t('settings.prompts.add'),
         icon: <Plus />,

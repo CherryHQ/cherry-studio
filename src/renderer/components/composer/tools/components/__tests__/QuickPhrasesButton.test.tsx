@@ -214,10 +214,16 @@ describe('QuickPhrasesToolRuntime', () => {
     expect(panelOptions.footerActions).toBeUndefined()
     const footerActions = getRegisteredFooterActions(launcher)
     expect(footerActions.map((item) => item.label)).toEqual([
-      'settings.prompts.add',
+      'common.add',
       'settings.quickPanel.scope.currentAssistant',
       'settings.quickPanel.scope.global'
     ])
+    expect(footerActions[0]).toEqual(
+      expect.objectContaining({
+        ariaLabel: 'settings.prompts.add',
+        tooltip: 'settings.prompts.add'
+      })
+    )
 
     const manageCurrentItem = footerActions.find(
       (item: { ariaLabel: string }) => item.ariaLabel === 'settings.prompts.manageCurrentAssistant'
