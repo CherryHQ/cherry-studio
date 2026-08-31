@@ -200,6 +200,22 @@ export function buildPathRegistry() {
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
 
+    // Mini apps
+    // Installed mini app packages, one directory per appId
+    'feature.mini_app.packages': path.join(appUserDataData, 'MiniApps', 'packages'),
+    // Rollback snapshots, PARALLEL to packages/ — `.` is a legal appId character, so a
+    // snapshot held beside the install trees is also a legal appId's own directory
+    'feature.mini_app.snapshots': path.join(appUserDataData, 'MiniApps', 'snapshots'),
+    // Per-app data (saves), OUTSIDE the package tree — updates rename packages/<id> wholesale
+    'feature.mini_app.data': path.join(appUserDataData, 'MiniApps', 'data'),
+    // Publish journals, one `<appId>.json` per app
+    'feature.mini_app.publish_journal': path.join(appUserDataData, 'MiniApps', '.publish-journal'),
+    // Builtin packages ship INSIDE the app bundle, so this one is not under userData
+    'feature.mini_app.builtin': path.join(appRootResources, 'builtin-mini-apps'),
+    // Per-app activity logs, one `<appId>/activity.<day>.log` tree each — under the logs
+    // directory, NOT the app's data: "clear data" must not erase what the app did
+    'feature.mini_app.logs': path.join(LOGS_DIR, 'mini-apps'),
+
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
     // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
@@ -301,6 +317,7 @@ const NO_ENSURE = [
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
+  'feature.mini_app.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.
   'feature.agents.system_workspaces'

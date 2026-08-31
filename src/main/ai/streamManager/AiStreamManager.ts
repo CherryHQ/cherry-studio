@@ -15,6 +15,7 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
@@ -887,6 +888,9 @@ export class AiStreamManager extends BaseService {
     usageContext?: InProcessUsageContext
     /** Trusted in-process classification for remote token analytics. */
     tokenUsageSource?: TokenUsageSource
+    source?: SourceSnapshot | null
+    /** `0` disables same-model retry AND cross-model fallback. */
+    maxRetries?: 0
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -904,7 +908,15 @@ export class AiStreamManager extends BaseService {
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.tokenUsageSource ? { tokenUsageSource: input.tokenUsageSource } : {}),
-      ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
+      source: input.source,
+      ...(input.idleTimeoutMs !== undefined || input.maxRetries !== undefined
+        ? {
+            requestOptions: {
+              ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
+              ...(input.maxRetries !== undefined ? { maxRetries: input.maxRetries } : {})
+            }
+          }
+        : {})
     }
     return this.send({
       topicId: input.streamId,

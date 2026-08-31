@@ -27,6 +27,13 @@
       "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.mini_app.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show system notifications from installed mini apps that hold the notification grant (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
@@ -729,6 +736,13 @@
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "feature.mini_app.check_updates_on_open",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
     }
   ]
 }
