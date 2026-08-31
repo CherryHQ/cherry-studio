@@ -18,7 +18,8 @@ const {
   getAuthHeadersMock,
   getCopilotTokenMock,
   aiSdkGetFromApiMock,
-  postJsonToApiMock
+  postJsonToApiMock,
+  customFetchMock
 } = vi.hoisted(() => ({
   getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
   resolveApiKeyMock: vi.fn(),
@@ -26,7 +27,8 @@ const {
   getAuthHeadersMock: vi.fn(),
   getCopilotTokenMock: vi.fn(),
   aiSdkGetFromApiMock: vi.fn(),
-  postJsonToApiMock: vi.fn()
+  postJsonToApiMock: vi.fn(),
+  customFetchMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -57,6 +59,8 @@ vi.mock('@ai-sdk/provider-utils', async (importOriginal) => {
     postJsonToApi: postJsonToApiMock
   }
 })
+
+vi.mock('../../utils/customFetch', () => ({ customFetch: customFetchMock }))
 
 // Import the SUT after the mocks are declared.
 const { resolveOllamaModelContextWindow } = await import('../custom/ollama/modelInfo')
@@ -174,7 +178,8 @@ describe('listModels — Ollama capabilities', () => {
     expect(models[1]).toMatchObject({ capabilities: [] })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
-      url: 'http://ollama.test:11434/api/tags'
+      url: 'http://ollama.test:11434/api/tags',
+      fetch: customFetchMock
     })
   })
 
@@ -209,6 +214,7 @@ describe('listModels — Ollama capabilities', () => {
       expect.objectContaining({
         url: 'http://ollama.test:11434/api/show',
         body: { model: 'qwen3:32b', verbose: false },
+        fetch: customFetchMock,
         headers: expect.objectContaining({
           authorization: 'Bearer AIza-secret-key',
           'x-api-key': 'AIza-secret-key'

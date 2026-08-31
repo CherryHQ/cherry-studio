@@ -8,6 +8,7 @@
 import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
+  type FetchFunction,
   getFromApi as aiSdkGetFromApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
@@ -35,6 +36,7 @@ import {
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import * as z from 'zod'
 
+import { customFetch } from '../utils/customFetch'
 import { buildProviderHeaders, defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { resolveOllamaModelContextWindow } from './custom/ollama/modelInfo'
@@ -112,12 +114,14 @@ async function getFromApi<T>({
   url,
   headers,
   responseSchema,
-  abortSignal
+  abortSignal,
+  fetch
 }: {
   url: string
   headers?: Record<string, string>
   responseSchema: z.ZodType<T>
   abortSignal?: AbortSignal
+  fetch?: FetchFunction
 }): Promise<T> {
   const { value } = await aiSdkGetFromApi({
     url,
@@ -127,7 +131,8 @@ async function getFromApi<T>({
       errorSchema: zodSchema(ApiErrorSchema),
       errorToMessage: (error: ApiError) => error.error?.message || error.message || 'Unknown error'
     }),
-    abortSignal
+    abortSignal,
+    fetch
   })
 
   return value
@@ -188,7 +193,8 @@ const ollamaFetcher: ModelFetcher = {
       url: `${baseUrl}/api/tags`,
       headers: buildProviderHeaders(provider, apiKey),
       responseSchema: OllamaTagsResponseSchema,
-      abortSignal: signal
+      abortSignal: signal,
+      fetch: customFetch
     })
     const models = dedup(response.models, (m) => m.name).map((m) =>
       toModel(m.name, provider, {
@@ -203,7 +209,8 @@ const ollamaFetcher: ModelFetcher = {
           const contextWindow = await resolveOllamaModelContextWindow(provider, model.apiModelId ?? '', {
             signal,
             apiKey,
-            baseUrl
+            baseUrl,
+            fetch: customFetch
           })
           return contextWindow ? { ...model, contextWindow } : model
         } catch (error) {

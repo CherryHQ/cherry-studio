@@ -589,7 +589,7 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   return {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, headers, fetch: customFetch }
+    providerSettings: { ...ctx.baseConfig, headers }
   }
 }
 

@@ -101,6 +101,8 @@ request-local `sdkConfig.providerSettings.fetch` before returning it.
 ```
 buildAgentParams(input)
   ├─ resolveSdkConfig         → providerToAiSdkConfig + modelId
+  ├─ resolveRuntimeModel      → request-blocking provider metadata resolution
+  │                              using the selected credential/base URL/fetch
   ├─ applyHttpTrace           → optional request-local fetch wrapper
   ├─ canModelConsumeTools?    → resolveTools (registry sync + defer)
   │     └─ syncMcpToolsToRegistry  (only servers owning a selected tool)
