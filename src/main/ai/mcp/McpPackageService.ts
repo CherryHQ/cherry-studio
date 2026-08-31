@@ -259,11 +259,7 @@ export function buildResolvedEnv(
   return resolvedEnv
 }
 
-export function validatePackageUploadSource(
-  filePath: string,
-  fileSize: number,
-  packageFormat: McpPackageFormat
-): string {
+export function validatePackageUploadPath(filePath: string, packageFormat: McpPackageFormat): string {
   if (!path.isAbsolute(filePath) || filePath.includes('\0')) {
     throw new Error('Invalid MCP package upload: source must be an absolute file path')
   }
@@ -273,6 +269,10 @@ export function validatePackageUploadSource(
     throw new Error(`Invalid MCP package upload: expected a .${packageFormat} file`)
   }
 
+  return fileName
+}
+
+export function validatePackageUploadSize(fileSize: number): void {
   if (!Number.isSafeInteger(fileSize) || fileSize <= 0) {
     throw new Error('Invalid MCP package upload: file cannot be empty')
   }
@@ -281,7 +281,15 @@ export function validatePackageUploadSource(
       `Invalid MCP package upload: file exceeds the ${MAX_MCP_PACKAGE_BYTES / 1024 / 1024} MiB size limit`
     )
   }
+}
 
+export function validatePackageUploadSource(
+  filePath: string,
+  fileSize: number,
+  packageFormat: McpPackageFormat
+): string {
+  const fileName = validatePackageUploadPath(filePath, packageFormat)
+  validatePackageUploadSize(fileSize)
   return fileName
 }
 
@@ -470,12 +478,12 @@ export class McpPackageService extends BaseService {
     let tempPath: string | undefined
     try {
       // Reject malformed paths and extensions before touching the filesystem.
-      validatePackageUploadSource(filePath, 1, packageFormat)
+      const fileName = validatePackageUploadPath(filePath, packageFormat)
       const sourceStat = await fs.promises.stat(filePath)
       if (!sourceStat.isFile()) {
         throw new Error('Invalid MCP package upload: source must be a regular file')
       }
-      const fileName = validatePackageUploadSource(filePath, sourceStat.size, packageFormat)
+      validatePackageUploadSize(sourceStat.size)
       await fs.promises.mkdir(this.tempDir, { recursive: true })
       tempPath = path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
       await copyPackageWithinLimit(filePath, tempPath)
