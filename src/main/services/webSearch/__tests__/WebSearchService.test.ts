@@ -410,15 +410,7 @@ describe('WebSearchService', () => {
       }
     ])
     expect(result.budget).toMatchObject({ tokenLimit: 5, retainedTokens: 5 })
-    expect(loggerWarnMock).toHaveBeenCalledWith(
-      'Web search content budget degraded results',
-      expect.objectContaining({
-        providerId: 'tavily',
-        capability: 'searchKeywords',
-        reason: 'configured_cutoff',
-        retainedTokens: 5
-      })
-    )
+    expect(loggerWarnMock).not.toHaveBeenCalled()
   })
 
   it('applies the final hard budget when compression is disabled', async () => {
@@ -452,6 +444,15 @@ describe('WebSearchService', () => {
       }
     })
     expect(result.budget).toMatchObject({ reason: 'hard_limit', tokenLimit: 2, retainedTokens: 2 })
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'Web search content budget degraded results',
+      expect.objectContaining({
+        providerId: 'tavily',
+        capability: 'searchKeywords',
+        reason: 'hard_limit',
+        retainedTokens: 2
+      })
+    )
   })
 
   it('bounds low-delimiter content across multiple results before it reaches the model', async () => {

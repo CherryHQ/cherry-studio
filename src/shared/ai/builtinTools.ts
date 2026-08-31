@@ -403,6 +403,15 @@ export const webSearchInputSchema = z.object({
     )
 })
 
+const webSearchBudgetMetricsSchema = z.object({
+  originalTokens: z.number().int().nonnegative(),
+  retainedTokens: z.number().int().nonnegative(),
+  originalBytes: z.number().int().nonnegative(),
+  retainedBytes: z.number().int().nonnegative()
+})
+
+const webSearchBudgetReasonSchema = z.enum(['configured_cutoff', 'hard_limit'])
+
 export const webSearchOutputItemSchema = z.object({
   // Citation id the model echoes back as `[cite:id]`. New results use a per-call
   // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
@@ -413,28 +422,16 @@ export const webSearchOutputItemSchema = z.object({
   content: z.string(),
   budget: z
     .discriminatedUnion('status', [
-      z.object({
-        status: z.literal('retained'),
-        originalTokens: z.number().int().nonnegative(),
-        retainedTokens: z.number().int().nonnegative(),
-        originalBytes: z.number().int().nonnegative(),
-        retainedBytes: z.number().int().nonnegative()
+      webSearchBudgetMetricsSchema.extend({
+        status: z.literal('retained')
       }),
-      z.object({
+      webSearchBudgetMetricsSchema.extend({
         status: z.literal('truncated'),
-        reason: z.enum(['configured_cutoff', 'hard_limit']),
-        originalTokens: z.number().int().nonnegative(),
-        retainedTokens: z.number().int().nonnegative(),
-        originalBytes: z.number().int().nonnegative(),
-        retainedBytes: z.number().int().nonnegative()
+        reason: webSearchBudgetReasonSchema
       }),
-      z.object({
+      webSearchBudgetMetricsSchema.extend({
         status: z.literal('omitted'),
-        reason: z.enum(['configured_cutoff', 'hard_limit']),
-        originalTokens: z.number().int().nonnegative(),
-        retainedTokens: z.number().int().nonnegative(),
-        originalBytes: z.number().int().nonnegative(),
-        retainedBytes: z.number().int().nonnegative()
+        reason: webSearchBudgetReasonSchema
       })
     ])
     .optional()
