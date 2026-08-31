@@ -46,11 +46,16 @@ vi.mock('@ai-sdk/react', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => ['en-US']
+  usePreference: (key: string) => {
+    if (key === 'feature.quick_assistant.assistant_id') return ['']
+    return ['en-US']
+  }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({ assistant: state.assistant })
+  useAssistant: (id: string) => ({
+    assistant: id ? state.assistant : undefined
+  })
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
