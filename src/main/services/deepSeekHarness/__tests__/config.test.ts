@@ -269,18 +269,35 @@ describe('DeepSeek Harness config transaction', () => {
     const settingsPath = path.join(dir, 'settings.yaml')
     await writeFile(
       settingsPath,
-      `model-template: &model-template\n  name: Template model\nmodel-id: &model-id aliased-id\nllm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      api: openai-completions\n      baseURL: https://legacy.example/v1\n      models:\n        aliased-model: *model-template\n        aliased-id:\n          id: *model-id\n          name: Aliased id model\n`,
+      `model-template: &model-template\n  # template field note\n  name: Template model\nmodel-id: &model-id aliased-id\nllm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      api: openai-completions\n      baseURL: https://legacy.example/v1\n      models:\n        aliased-model: *model-template\n        aliased-id:\n          id: *model-id\n          name: Aliased id model\n`,
       { mode: 0o600 }
     )
 
     await writeDeepSeekHarnessConfig(dir, projection())
 
-    const settings = parse(await readFile(settingsPath, 'utf8'))
+    const settingsText = await readFile(settingsPath, 'utf8')
+    const settings = parse(settingsText)
+    expect(settingsText).toContain('# template field note')
     expect(settings['llm-pi-ai'].providers['legacy-route'].models).toEqual([
       { id: 'aliased-model', name: 'Template model' },
       { id: 'aliased-id', name: 'Aliased id model' }
     ])
     expect(settings['model-template']).toEqual({ name: 'Template model' })
+  })
+
+  it('does not change an individually anchored model referenced outside provider models', async () => {
+    const credentialsPath = path.join(dir, '.credentials.yaml')
+    const settingsPath = path.join(dir, 'settings.yaml')
+    const originalCredentials = 'EXTERNAL_KEY: keep\n'
+    const originalSettings = `llm-pi-ai:\n  providers:\n    legacy-route:\n      apiKeyEnv: LEGACY_KEY\n      api: openai-completions\n      baseURL: https://legacy.example/v1\n      models:\n        anchored-model: &anchored-model\n          name: Anchored model\nunrelated-model: *anchored-model\n`
+    await writeFile(credentialsPath, originalCredentials, { mode: 0o600 })
+    await writeFile(settingsPath, originalSettings, { mode: 0o600 })
+
+    await expect(writeDeepSeekHarnessConfig(dir, projection())).rejects.toThrow(
+      'route legacy-route legacy model anchored-model anchor anchored-model is referenced outside provider models'
+    )
+    expect(await readFile(credentialsPath, 'utf8')).toBe(originalCredentials)
+    expect(await readFile(settingsPath, 'utf8')).toBe(originalSettings)
   })
 
   it('does not change an anchored legacy map that is also referenced outside provider models', async () => {

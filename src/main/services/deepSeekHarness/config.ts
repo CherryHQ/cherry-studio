@@ -264,10 +264,16 @@ function migrateLegacyProviderModels(document: Document): void {
   if (!isMap(providers)) return
 
   const providerModelAliases = new Set<unknown>()
+  const providerModelValueAliases = new Set<unknown>()
   for (const providerPair of providers.items) {
     if (!isMap(providerPair.value)) continue
     const models = providerPair.value.get('models', true)
     if (isAlias(models)) providerModelAliases.add(models)
+    if (isMap(models)) {
+      for (const modelPair of models.items) {
+        if (isAlias(modelPair.value)) providerModelValueAliases.add(modelPair.value)
+      }
+    }
   }
 
   for (const providerPair of providers.items) {
@@ -317,17 +323,37 @@ function migrateLegacyProviderModels(document: Document): void {
       if (!modelId) {
         throw new Error(`DeepSeek Harness route ${route} has a legacy model with an invalid id key`)
       }
-      let model = modelPair.value
-      if (isAlias(model)) {
-        const resolvedModel = model.resolve(document)
+      const sourceModel = modelPair.value
+      let resolvedModel = sourceModel
+      if (isAlias(sourceModel)) {
+        resolvedModel = sourceModel.resolve(document)
         if (!isMap(resolvedModel)) {
           throw new Error(`DeepSeek Harness route ${route} legacy model ${modelId} must be a mapping`)
         }
-        model = document.createNode(resolvedModel.toJS(document))
       }
-      if (!isMap(model)) {
+      if (!isMap(resolvedModel)) {
         throw new Error(`DeepSeek Harness route ${route} legacy model ${modelId} must be a mapping`)
       }
+      if (resolvedModel.anchor) {
+        let hasExternalAlias = false
+        visit(document, {
+          Alias(_key, alias) {
+            if (alias.source === resolvedModel.anchor && !providerModelValueAliases.has(alias)) hasExternalAlias = true
+          }
+        })
+        if (hasExternalAlias) {
+          throw new Error(
+            `DeepSeek Harness route ${route} legacy model ${modelId} anchor ${resolvedModel.anchor} is referenced outside provider models`
+          )
+        }
+      }
+      // Always edit a detached YAML node. Individual legacy models may be anchored and referenced
+      // elsewhere in the document; mutating the provider-owned node in place would silently add the
+      // synthesized id to those external aliases. YAMLMap.clone preserves comments, tags, and scalar
+      // styles that a toJS()/createNode() round trip would discard.
+      const model = resolvedModel.clone(document.schema)
+      if (!isMap(model)) throw new Error('Failed to clone DeepSeek Harness legacy model mapping')
+      model.anchor = undefined
 
       const declaredIdNode = model.get('id', true)
       const resolvedIdNode = isAlias(declaredIdNode) ? declaredIdNode.resolve(document) : declaredIdNode
@@ -342,7 +368,8 @@ function migrateLegacyProviderModels(document: Document): void {
       }
 
       if (isScalar(modelPair.key)) {
-        prependComments(model, [modelPair.key.commentBefore, modelPair.key.comment])
+        const aliasComments = isAlias(sourceModel) ? [sourceModel.commentBefore, sourceModel.comment] : []
+        prependComments(model, [modelPair.key.commentBefore, modelPair.key.comment, ...aliasComments])
       }
       migratedModels.add(model)
     }
