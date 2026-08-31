@@ -36,6 +36,7 @@ import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/prov
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import { resolveAgentContextWindow } from '../agentContextWindow'
+import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 import { loadPiAnthropicMessagesApi, loadPiApiStreamSimple } from './piSdk'
 import { withCherryInThinkingReplay } from './piThinkingReplay'
@@ -165,7 +166,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: provider.settings?.extraHeaders,
+    headers: toPiHeaders(provider.settings?.extraHeaders),
     models: [modelConfig]
   }
 
@@ -197,6 +198,18 @@ export function buildPiProviderInjection(
       ? { requestEnvironment: { AZURE_OPENAI_API_VERSION: provider.settings.apiVersion.trim() } }
       : {})
   }
+}
+
+/**
+ * Cherry header values are literals, but pi resolves each one as a `$ENV` / `!command`
+ * template — the same interpolation the `apiKey` placeholder dodges.
+ */
+function toPiHeaders(headers: Record<string, string> | undefined): Record<string, string> | undefined {
+  const coerced = toAgentProviderHeaders(headers)
+  if (!coerced) return undefined
+  return Object.fromEntries(
+    Object.entries(coerced).map(([name, value]) => [name, value.replaceAll('$', '$$$$').replace(/^!/, '$!')])
+  )
 }
 
 function formatPiBaseUrl(baseUrl: string, api: PiApi): string {

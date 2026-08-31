@@ -13,11 +13,16 @@ const binaryManager = {
   searchRegistry: vi.fn(),
   getLatestVersions: vi.fn()
 }
+const codeCliService = {
+  installCli: vi.fn(),
+  removeCli: vi.fn()
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
   appGetMock.mockImplementation((name: string) => {
     if (name === 'BinaryManager') return binaryManager
+    if (name === 'CodeCliService') return codeCliService
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
@@ -30,6 +35,16 @@ describe('binaryHandlers', () => {
     const request = { name: 'fd', targetVersion: '10.0.0' }
     await binaryHandlers['binary.install_tool'](request, ctx)
     expect(binaryManager.installByName).toHaveBeenCalledWith(request)
+  })
+
+  it('install_tool delegates canonical Code CLI names to CodeCliService', async () => {
+    codeCliService.installCli.mockResolvedValue(undefined)
+    const request = { name: 'codex', targetVersion: '1.2.3' }
+
+    await binaryHandlers['binary.install_tool'](request, ctx)
+
+    expect(codeCliService.installCli).toHaveBeenCalledWith(request)
+    expect(binaryManager.installByName).not.toHaveBeenCalled()
   })
 
   it('add_custom_tool forwards the full recipe to the manager', async () => {
@@ -45,6 +60,16 @@ describe('binaryHandlers', () => {
     const result = await binaryHandlers['binary.remove_tool'](request, ctx)
     expect(binaryManager.removeTool).toHaveBeenCalledWith(request)
     expect(result).toEqual({ status: 'removed' })
+  })
+
+  it('remove_tool delegates canonical Code CLI names to CodeCliService', async () => {
+    codeCliService.removeCli.mockResolvedValue({ status: 'removed' })
+    const request = { name: 'codex' }
+
+    await expect(binaryHandlers['binary.remove_tool'](request, ctx)).resolves.toEqual({ status: 'removed' })
+
+    expect(codeCliService.removeCli).toHaveBeenCalledWith(request)
+    expect(binaryManager.removeTool).not.toHaveBeenCalled()
   })
 
   it('get_tool_snapshots forwards names and returns the manager snapshots', async () => {

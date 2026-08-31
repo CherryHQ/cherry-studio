@@ -1,4 +1,5 @@
 import { Button, CircularProgress, ConfirmDialog } from '@cherrystudio/ui'
+import { useDrag } from '@renderer/hooks/useDrag'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -8,7 +9,7 @@ import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelStatus } from '@shared
 import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { TFunction } from 'i18next'
 import { ChevronLeft, Settings2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -283,6 +284,18 @@ const DataSourcePanelContent = ({
   }
 
   const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
+  const handleFileDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      const files = Array.from(event.dataTransfer.files)
+      if (files.length > 0) {
+        onAdd('file', files)
+      }
+    },
+    [onAdd]
+  )
+  const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } =
+    useDrag<HTMLDivElement>(handleFileDrop)
+  const canAddSource = !currentDirectory && !localEmbeddingState
   const localModelStatus =
     localEmbeddingState && (items.length > 0 || Boolean(currentDirectory))
       ? {
@@ -307,12 +320,24 @@ const DataSourcePanelContent = ({
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onAdd={handleAddSource}
-            canAddSource={!currentDirectory && !localEmbeddingState}
+            canAddSource={canAddSource}
             localModelStatus={localModelStatus}
           />
         </div>
       }>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className="relative flex min-h-0 flex-1 flex-col"
+        onDragEnter={canAddSource ? handleDragEnter : undefined}
+        onDragLeave={canAddSource ? handleDragLeave : undefined}
+        onDragOver={canAddSource ? handleDragOver : undefined}
+        onDrop={canAddSource ? handleDrop : undefined}>
+        {isDragging && canAddSource ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-lg border border-primary border-dashed bg-background/90 text-foreground shadow-sm">
+            <span className="font-medium text-sm">{t('files.drag_upload')}</span>
+          </div>
+        ) : null}
         {currentDirectory && onNavigateUp && (
           <div className="flex shrink-0 items-center gap-2 px-3 py-2">
             {/* Flat text button (no chrome): the `px-2.5` matches the row's own inset so the chevron

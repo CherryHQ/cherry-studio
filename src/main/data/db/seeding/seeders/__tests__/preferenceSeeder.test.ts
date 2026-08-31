@@ -76,4 +76,31 @@ describe('PreferenceSeeder', () => {
       .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, toolbarKey)))
     expect(toolbar.value).toEqual(['composer:new-conversation', 'web-search'])
   })
+
+  it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
+    const sidebarKey = 'ui.sidebar.favorites'
+    const persisted = [
+      { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
+      { id: 'translate', type: 'app' }
+    ]
+    const generatedDefault = DefaultPreferences.default[sidebarKey]
+
+    expect(generatedDefault[0]).toEqual({ id: 'agents', type: 'app' })
+    expect(persisted).not.toEqual(generatedDefault)
+
+    await dbh.db.insert(preferenceTable).values({
+      scope: 'default',
+      key: sidebarKey,
+      value: persisted
+    })
+
+    new PreferenceSeeder().run(dbh.db)
+
+    const [row] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, sidebarKey)))
+    expect(row.value).toEqual(persisted)
+  })
 })

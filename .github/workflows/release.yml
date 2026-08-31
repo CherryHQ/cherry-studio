@@ -1,12 +1,17 @@
 name: Release
+run-name: Release ${{ inputs.operation }} ${{ inputs.platform }} ${{ github.ref_name }} @ ${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag (e.g. v1.0.0)"
+      operation:
+        description: "Release operation"
         required: true
-        default: "v1.0.0"
+        default: "build"
+        type: choice
+        options:
+          - build
+          - publish
       platform:
         description: "Build platform"
         required: true
@@ -17,29 +22,218 @@ on:
           - windows
           - mac
           - linux
-  pull_request_target:
-    branches:
-      - main
-    types:
-      - closed
+
+concurrency:
+  group: release-state
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  actions: read
+  contents: read
+  pull-requests: read
 
 jobs:
+  prepare:
+    name: Prepare release ref
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    outputs:
+      remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
+      tag: ${{ steps.release-ref.outputs.tag }}
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Validate release branch and version
+        id: release-ref
+        shell: bash
+        run: |
+          export LC_ALL=C
+          BRANCH="${GITHUB_REF_NAME}"
+          TAG="${BRANCH#release/}"
+
+          if [ "$GITHUB_REF_TYPE" != "branch" ] || [[ "$BRANCH" != release/v* ]]; then
+            echo "Release must run from a release/v<semver> branch, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "Invalid release branch: $BRANCH" >&2
+            exit 1
+          fi
+
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$PACKAGE_VERSION" ]; then
+            echo "Branch $BRANCH does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release commit passed CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          CI_RUN="$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$GITHUB_SHA" \
+            -f event=push \
+            -f status=completed \
+            -F per_page=100 \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")][0] // empty')"
+
+          if [ -z "$CI_RUN" ]; then
+            echo "No successful CI push run found for release commit $GITHUB_SHA" >&2
+            exit 1
+          fi
+
+          if [ "$(jq -r '.head_sha' <<< "$CI_RUN")" != "$GITHUB_SHA" ] || \
+             [ "$(jq -r '.event' <<< "$CI_RUN")" != "push" ] || \
+             [ "$(jq -r '.status' <<< "$CI_RUN")" != "completed" ] || \
+             [ "$(jq -r '.conclusion' <<< "$CI_RUN")" != "success" ]; then
+            echo "CI result did not match the exact release commit" >&2
+            exit 1
+          fi
+
+          echo "Verified successful CI run: $(jq -r '.html_url' <<< "$CI_RUN")"
+
+      - name: Validate and update release state
+        id: release-state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ github.event.inputs.operation }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release-ref.outputs.tag }}
+        run: |
+          BRANCH="$GITHUB_REF_NAME"
+          if [ "$OPERATION" = "publish" ]; then
+            exit 0
+          fi
+
+          RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
+          RELEASE="$(jq -c --arg tag "$TAG" '
+            [.[][] | select(.tag_name == $tag)] |
+            .[0] // empty
+          ' <<< "$RELEASE_PAGES")"
+
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
+          echo "remote-tag-sha=$REMOTE_TAG_SHA" >> "$GITHUB_OUTPUT"
+          BRANCH_SHA="$BRANCH_SHA" \
+          PLATFORM="${{ github.event.inputs.platform }}" \
+          RELEASE_JSON="$RELEASE" \
+          REMOTE_TAG_SHA="$REMOTE_TAG_SHA" \
+          TAG="$TAG" \
+          WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-start
+
+  publish-release:
+    name: Publish validated release
+    needs: prepare
+    if: github.event.inputs.operation == 'publish'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out release commit without credentials
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Validate and publish current draft
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          git fetch origin "refs/heads/main:refs/remotes/origin/main"
+
+          collect_pending_hotfixes() {
+            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
+            fork_point="$(git merge-base "$GITHUB_SHA" "$main_sha")"
+            hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
+            pending=""
+
+            while IFS= read -r pr_json; do
+              if ! jq -e '
+                (.title | test("^hotfix(\\([a-z0-9]+(-[a-z0-9]+)*\\))?: \\S")) or
+                any(.labels[]; .name == "hotfix")
+              ' <<< "$pr_json" >/dev/null; then
+                continue
+              fi
+              merge_sha="$(jq -r '.mergeCommit.oid // ""' <<< "$pr_json")"
+              if [ -z "$merge_sha" ] || [ "$merge_sha" = "$fork_point" ]; then
+                continue
+              fi
+              if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
+                 ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
+                continue
+              fi
+              if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
+                pending+="${pending:+$'\n'}$(jq -r '.url' <<< "$pr_json")"
+              fi
+            done < <(jq -c '.[]' <<< "$hotfix_prs")
+
+            printf '%s' "$pending"
+          }
+
+          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
+          RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
+          RELEASE_ID="$(jq -r '.id' <<< "$RELEASE")"
+          TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
+          EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
+          RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
+          BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
+            [.[] | .workflow_runs[] | select(
+              .display_title == $title and
+              .head_sha == env.GITHUB_SHA and
+              .event == "workflow_dispatch" and
+              .status == "completed" and
+              .conclusion == "success"
+            )][0] // empty
+          ' <<< "$RELEASE_RUNS")"
+          BRANCH_SHA="$BRANCH_SHA" \
+          BUILD_RUN_JSON="$BUILD_RUN" \
+          EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
+          OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
+          PENDING_HOTFIXES="$PENDING_HOTFIXES" \
+          RELEASE_JSON="$RELEASE" \
+          TAG="$TAG" \
+          TAG_SHA="$TAG_SHA" \
+          WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js publish
+
+          echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
+          gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
+          if [ "$(gh api "repos/$REPO/releases/$RELEASE_ID" --jq '.draft')" != "false" ]; then
+            echo "Release $TAG was not published" >&2
+            exit 1
+          fi
+
   release:
-    # Only run for tag push, workflow_dispatch, or PR from release branches
-    if: |
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' && github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.head.ref, 'release/v'))
+    needs: prepare
+    if: github.event.inputs.operation == 'build'
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
 
     strategy:
       matrix:
         os: ${{ fromJSON(
-          github.event_name == 'push' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
-          github.event_name == 'pull_request_target' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
           github.event.inputs.platform == 'windows' && '["windows-latest"]' ||
@@ -53,28 +247,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || '' }}
-
-      - name: Get release tag
-        id: get-tag
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
-            # Extract version from branch name (release/v1.0.0 -> v1.0.0)
-            BRANCH="${{ github.event.pull_request.head.ref }}"
-            echo "tag=${BRANCH#release/}" >> $GITHUB_OUTPUT
-          else
-            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set package.json version
-        shell: bash
-        run: |
-          TAG="${{ steps.get-tag.outputs.tag }}"
-          VERSION="${TAG#v}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          ref: ${{ github.sha }}
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -151,12 +324,202 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
-      - name: Release
+      - name: Stage Windows release artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/latest*.yml
+            dist/rc*.yml
+            dist/beta*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Stage macOS release artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          path: |
+            dist/*.zip
+            dist/*.dmg
+            dist/latest*.yml
+            dist/rc*.yml
+            dist/beta*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Stage Linux release artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          path: |
+            dist/*.AppImage
+            dist/*.snap
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/latest*.yml
+            dist/rc*.yml
+            dist/beta*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Stage stable release history
+        if: matrix.os == 'ubuntu-latest' && !contains(needs.prepare.outputs.tag, '-')
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ needs.prepare.outputs.tag }}-history
+          path: resources/cherry-studio/release-history.json
+          if-no-files-found: error
+
+  finalize-build:
+    name: Update draft release
+    needs: [prepare, release]
+    if: github.event.inputs.operation == 'build'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Download existing draft artifacts
+        if: github.event.inputs.platform != 'all'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: gh release download "$TAG" --dir existing-release-artifacts
+
+      - name: Download selected release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-${{ needs.prepare.outputs.tag }}-*
+          path: selected-release-artifacts
+          merge-multiple: true
+
+      - name: Assemble complete release artifacts
+        shell: bash
+        run: |
+          mkdir release-artifacts
+          if [ -d existing-release-artifacts ]; then
+            cp -R existing-release-artifacts/. release-artifacts/
+          fi
+          cp -R selected-release-artifacts/. release-artifacts/
+
+      - name: Revalidate current release head
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
+
+      - name: Create or update draft release
         uses: ncipollo/release-action@v1
         with:
-          draft: true
           allowUpdates: true
+          artifactErrorsFailBuild: true
+          artifacts: "release-artifacts/*"
+          commit: ${{ github.sha }}
+          draft: true
           makeLatest: false
-          tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap${{ matrix.os == 'ubuntu-latest' && !contains(steps.get-tag.outputs.tag, '-') && ',resources/cherry-studio/release-history.json' || '' }}"
+          prerelease: ${{ contains(needs.prepare.outputs.tag, '-') }}
+          replacesArtifacts: true
+          tag: ${{ needs.prepare.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          updateOnlyUnreleased: true
+
+      - name: Validate uploaded draft
+        id: uploaded-draft
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
+          echo "id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
+
+      - name: Move draft tag with lease after artifact upload
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          EXPECTED_TAG_SHA: ${{ needs.prepare.outputs.remote-tag-sha }}
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ github.event.inputs.platform }}
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.uploaded-draft.outputs.id }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
+
+          REMOTE_TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+          if [ "$PLATFORM" = "all" ]; then
+            if [ -z "$EXPECTED_TAG_SHA" ]; then
+              if [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+                echo "The newly created tag moved away from $GITHUB_SHA during artifact upload" >&2
+                exit 1
+              fi
+            elif [ "$REMOTE_TAG_SHA" != "$EXPECTED_TAG_SHA" ]; then
+              echo "Tag $TAG moved from $EXPECTED_TAG_SHA to $REMOTE_TAG_SHA during the build" >&2
+              exit 1
+            elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+              REPOSITORY_ID="$(gh api "repos/$REPO" --jq '.node_id')"
+              jq -n \
+                --arg repositoryId "$REPOSITORY_ID" \
+                --arg name "refs/tags/$TAG" \
+                --arg beforeOid "$EXPECTED_TAG_SHA" \
+                --arg afterOid "$GITHUB_SHA" \
+                '{
+                  query: "mutation($input: UpdateRefsInput!) { updateRefs(input: $input) { clientMutationId } }",
+                  variables: {
+                    input: {
+                      repositoryId: $repositoryId,
+                      refUpdates: [{
+                        name: $name,
+                        beforeOid: $beforeOid,
+                        afterOid: $afterOid,
+                        force: true
+                      }]
+                    }
+                  }
+                }' > "$RUNNER_TEMP/move-release-tag.json"
+              gh api graphql --input "$RUNNER_TEMP/move-release-tag.json" >/dev/null
+            fi
+          elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+            echo "Single-platform retries must not move $TAG away from its existing release commit" >&2
+            exit 1
+          fi
+
+          if [ "$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')" != "$GITHUB_SHA" ]; then
+            echo "Tag $TAG does not point to $GITHUB_SHA after draft finalization" >&2
+            exit 1
+          fi
+          if [ "$(gh api "repos/$REPO/releases/$RELEASE_ID" --jq '.draft')" != "true" ]; then
+            echo "Release $TAG was published while the build was finalizing" >&2
+            exit 1
+          fi

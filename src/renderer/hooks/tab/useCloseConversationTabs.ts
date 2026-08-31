@@ -1,33 +1,40 @@
 import type { ConversationAppId } from '@renderer/types/conversation'
 import { getSidebarApp, tabBelongsToApp } from '@renderer/utils/sidebar'
-import { useCallback } from 'react'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { createContext, use } from 'react'
 
-import { useOptionalTabsContext } from './useTabsContext'
+export type CloseConversationTabs = (appId: ConversationAppId, keys: readonly string[]) => void
 
-export function useCloseConversationTabs() {
-  const tabsContext = useOptionalTabsContext()
+const closeNoConversationTabs: CloseConversationTabs = () => {}
 
-  return useCallback(
-    (appId: ConversationAppId, keys: readonly string[]) => {
-      if (!tabsContext || keys.length === 0) return
+export const CloseConversationTabsContext = createContext<CloseConversationTabs | null>(null)
 
-      const app = getSidebarApp(appId)
-      if (!app?.conversationRoute) return
+export function findClosableConversationTabIds(
+  tabs: readonly Tab[],
+  activeTabId: string,
+  appId: ConversationAppId,
+  keys: readonly string[]
+): string[] {
+  if (keys.length === 0) return []
 
-      const keySet = new Set(keys)
-      const tabIds: string[] = []
-      for (const tab of tabsContext.tabs) {
-        if (tab.id === tabsContext.activeTabId) continue
-        if (tab.type !== 'route' || !tabBelongsToApp(app, tab.url)) continue
+  const app = getSidebarApp(appId)
+  if (!app?.conversationRoute) return []
 
-        const key = app.conversationRoute.keyFromUrl(tab.url)
-        if (key && keySet.has(key)) {
-          tabIds.push(tab.id)
-        }
-      }
+  const keySet = new Set(keys)
+  const tabIds: string[] = []
+  for (const tab of tabs) {
+    if (tab.id === activeTabId) continue
+    if (tab.type !== 'route' || !tabBelongsToApp(app, tab.url)) continue
 
-      tabsContext.closeTabs(tabIds)
-    },
-    [tabsContext]
-  )
+    const key = app.conversationRoute.keyFromUrl(tab.url)
+    if (key && keySet.has(key)) {
+      tabIds.push(tab.id)
+    }
+  }
+
+  return tabIds
+}
+
+export function useCloseConversationTabs(): CloseConversationTabs {
+  return use(CloseConversationTabsContext) ?? closeNoConversationTabs
 }

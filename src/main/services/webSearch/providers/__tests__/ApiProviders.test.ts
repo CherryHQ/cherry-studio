@@ -47,6 +47,7 @@ import { ExaProvider } from '../api/ExaProvider'
 import { FetchProvider } from '../api/FetchProvider'
 import { FirecrawlProvider } from '../api/FirecrawlProvider'
 import { JinaProvider } from '../api/JinaProvider'
+import { ParallelProvider } from '../api/ParallelProvider'
 import { QueritProvider } from '../api/QueritProvider'
 import { SearxngProvider } from '../api/SearxngProvider'
 import { TavilyProvider } from '../api/TavilyProvider'
@@ -289,6 +290,84 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('matches the Parallel GA search request and normalizes fixture excerpts', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('parallel-response.json')))
+
+    const provider = createProviderDriver(
+      ParallelProvider,
+      createProvider({
+        id: 'parallel',
+        name: 'Parallel',
+        apiKeys: ['parallel-key'],
+        apiHost: 'https://api.parallel.ai'
+      })
+    )
+
+    const abortController = new AbortController()
+    const result = await provider.searchKeywords('latest web research', runtimeConfig, {
+      signal: abortController.signal
+    })
+
+    expect(fetchMock.mock.lastCall?.[1]?.signal).toBe(abortController.signal)
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])).toEqual({
+      body: {
+        advanced_settings: { max_results: 4 },
+        objective: 'latest web research',
+        search_queries: ['latest web research']
+      },
+      headers: {
+        'content-type': 'application/json',
+        'http-referer': 'https://cherry-ai.com',
+        'x-api-key': 'parallel-key',
+        'x-title': 'Cherry Studio'
+      },
+      method: 'POST',
+      url: 'https://api.parallel.ai/v1/search'
+    })
+    expect(result).toEqual({
+      capability: 'searchKeywords',
+      inputs: ['latest web research'],
+      providerId: 'parallel',
+      query: 'latest web research',
+      results: [
+        {
+          content: 'First excerpt.\n\nSecond excerpt.',
+          sourceInput: 'latest web research',
+          title: 'Parallel Title',
+          url: 'https://parallel.example/result'
+        }
+      ]
+    })
+  })
+
+  it('supports a custom Parallel API host without forwarding Cherry blacklist match patterns', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('parallel-response.json')))
+
+    const provider = createProviderDriver(
+      ParallelProvider,
+      createProvider({
+        id: 'parallel',
+        name: 'Parallel',
+        apiKeys: ['parallel-key'],
+        apiHost: 'https://parallel-proxy.example'
+      })
+    )
+
+    await provider.searchKeywords('hello', {
+      ...runtimeConfig,
+      excludeDomains: ['*://*.example.com/*', '/blocked\\.example/']
+    })
+
+    const request = toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined])
+
+    expect(request.url).toBe('https://parallel-proxy.example/v1/search')
+    expect(request.body).toEqual({
+      advanced_settings: { max_results: 4 },
+      objective: 'hello',
+      search_queries: ['hello']
+    })
   })
 
   it('fetches a URL without API key or API host', async () => {

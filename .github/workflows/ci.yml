@@ -9,12 +9,14 @@ on:
     branches:
       - main
       - v2
+      - "release/v*"
   pull_request:
     branches:
       - main
       - develop
       - v2
-    types: [ready_for_review, synchronize, opened]
+      - "release/v*"
+    types: [ready_for_review, synchronize, opened, reopened]
 
 jobs:
   changes:
@@ -65,6 +67,11 @@ jobs:
               - 'packages/provider-registry/**'
             scripts:
               - 'scripts/**'
+              - '.github/workflows/backport-release-fixes.yml'
+              - '.github/workflows/post-release.yml'
+              - '.github/workflows/prepare-release.yml'
+              - '.github/workflows/preview-release.yml'
+              - '.github/workflows/release.yml'
             extension-table-plus:
               - 'packages/extension-table-plus/**'
             test-infra:
@@ -179,11 +186,13 @@ jobs:
         run: |
           # Share one checkout/install while keeping independent checks parallel.
           # Do not kill sibling checks on failure so every failure is reported.
+          # `--max-processes 1` lands on the typecheck script's trailing concurrently call and
+          # serializes it: eslint plus two concurrent tsgo runs OOM the runner mid-job.
           pnpm exec concurrently \
             --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
             --prefix-colors "blue,yellow,cyan,green" \
             "pnpm test:lint" \
-            "pnpm typecheck && pnpm i18n:hardcoded:strict" \
+            "pnpm typecheck --max-processes 1 && pnpm i18n:hardcoded:strict" \
             "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \
             "pnpm docs:check"
 
@@ -300,7 +309,9 @@ jobs:
             exit 0
           fi
 
-          projects=(--project main)
+          # `preload` rides with `main`: the two share one paths-filter (`src/preload/**` is
+          # listed under `main:`), so a preload change triggers this job and must run its tests.
+          projects=(--project main --project preload)
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
             projects+=(--project aiCore)

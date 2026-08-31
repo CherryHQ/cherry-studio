@@ -80,6 +80,24 @@ describe('sidebar config helpers', () => {
     ])
   })
 
+  it('keeps a stored Agent-first order when required Chat is already present', () => {
+    expect(
+      getOrderedVisibleSidebarFavoriteItems([
+        appFavorite('agents'),
+        appFavorite('assistants'),
+        appFavorite('translate'),
+        appFavorite('paintings'),
+        appFavorite('knowledge')
+      ])
+    ).toEqual([
+      appFavorite('agents'),
+      appFavorite('assistants'),
+      appFavorite('translate'),
+      appFavorite('paintings'),
+      appFavorite('knowledge')
+    ])
+  })
+
   it('reads mini app favorite ids from typed sidebar favorites', () => {
     expect(
       getSidebarMiniAppFavoriteIds([
