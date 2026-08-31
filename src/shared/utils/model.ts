@@ -128,12 +128,22 @@ export const getModelSupportedReasoningEffortOptions = (model: Model | undefined
 // Parameter support checks
 // ---------------------------------------------------------------------------
 
+const isKimiFixedSamplingModel = (model: Model): boolean => {
+  const id = getLowerBaseModelName(getRawModelId(model))
+  return /^kimi-k(?:2[.-][5-9]\d*|[3-9]\d*)(?:[-_.]|$)/i.test(id)
+}
+
 /** Check if model supports temperature parameter */
-export const isSupportTemperatureModel = (model: Model): boolean =>
-  model.parameterSupport?.temperature?.supported !== false
+export const isSupportTemperatureModel = (model: Model): boolean => {
+  if (model.parameterSupport?.temperature) return model.parameterSupport.temperature.supported !== false
+  return !isKimiFixedSamplingModel(model)
+}
 
 /** Check if model supports top_p parameter */
-export const isSupportTopPModel = (model: Model): boolean => model.parameterSupport?.topP?.supported !== false
+export const isSupportTopPModel = (model: Model): boolean => {
+  if (model.parameterSupport?.topP) return model.parameterSupport.topP.supported !== false
+  return !isKimiFixedSamplingModel(model)
+}
 
 /** Whether temperature and top_p are mutually exclusive for this model */
 export const isTemperatureTopPMutuallyExclusiveModel = (model: Model): boolean => {

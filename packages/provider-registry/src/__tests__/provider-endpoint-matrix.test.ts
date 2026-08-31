@@ -165,11 +165,14 @@ describe('opencode (Zen Go) endpoint matrix', () => {
     expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
   })
 
-  it.each(['qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])('pins %s to the Anthropic-compatible endpoint', (modelId) => {
-    expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
-  })
+  it.each(['qwen3-8-flash', 'qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])(
+    'pins %s to the Anthropic-compatible endpoint',
+    (modelId) => {
+      expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+    }
+  )
 
-  it.each(['hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
+  it.each(['hy4-preview', 'hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
     expect(endpointsOf('opencode', modelId)).toEqual(['openai-chat-completions'])
   })
 })

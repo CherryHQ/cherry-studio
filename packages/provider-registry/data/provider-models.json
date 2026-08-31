@@ -7009,6 +7009,108 @@
       }
     },
     {
+      "apiModelId": "qwen3.8-flash",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "qwen3-8-flash",
+      "name": "Qwen3.8 Flash",
+      "providerId": "dashscope",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "qwen3.8-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-8-max",
@@ -8497,12 +8599,26 @@
       },
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-reasoner",
-      "name": "deepseek-reasoner",
+      "name": "DeepSeek Reasoner",
       "providerId": "deepseek"
     },
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -8620,6 +8736,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -8737,6 +8867,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.96
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -10712,46 +10856,27 @@
       }
     },
     {
-      "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
-      "modelId": "glm-5-1",
-      "providerId": "fireworks",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        },
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        },
-        "openai-responses": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
+      "apiModelId": "accounts/fireworks/routers/glm-5p1-fast",
       "capabilities": {
         "add": ["text-generation"]
       },
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "glm-5-1-fast",
       "name": "GLM 5.1 Fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.52
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.8
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -10996,8 +11121,23 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/models/gpt-oss-20b",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "gpt-oss-20b",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.07
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11101,12 +11241,27 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p6-fast",
       "capabilities": {
         "add": ["text-generation"]
       },
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "kimi-k2-6-fast",
-      "name": "kimi-k2-6-fast",
+      "name": "Kimi K2.6 Fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11139,12 +11294,27 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p6-turbo",
       "capabilities": {
         "add": ["text-generation"]
       },
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "kimi-k2-6-turbo",
-      "name": "kimi-k2-6-turbo",
+      "name": "Kimi K2.6 Turbo",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11226,12 +11396,27 @@
       }
     },
     {
+      "apiModelId": "accounts/fireworks/routers/kimi-k2p7-code-fast",
       "capabilities": {
         "add": ["text-generation"]
       },
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "kimi-k2-7-code-fast",
-      "name": "kimi-k2-7-code-fast",
+      "name": "Kimi K2.7 Code Fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.38
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.9
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -11302,8 +11487,23 @@
       "providerId": "fireworks"
     },
     {
+      "apiModelId": "accounts/fireworks/models/minimax-m2p7",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "minimax-m2-7",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.059
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.2
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -17830,6 +18030,9 @@
       "apiModelId": "kimi-k2.5",
       "modelId": "kimi-k2-5",
       "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
         "topP": {
           "supported": false
         }
@@ -17839,6 +18042,14 @@
     {
       "apiModelId": "kimi-k2.6",
       "modelId": "kimi-k2-6",
+      "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
+        "topP": {
+          "supported": false
+        }
+      },
       "providerId": "moonshot",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -17884,6 +18095,9 @@
     {
       "modelId": "kimi-k3",
       "parameterSupport": {
+        "temperature": {
+          "supported": false
+        },
         "topP": {
           "supported": false
         }
@@ -20294,7 +20508,14 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["low", "high", "max"]
+              }
+            ],
+            "defaultEffort": "max"
           }
         }
       }
@@ -20306,22 +20527,29 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.015
+          "perMillionTokens": 0.03
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.5
         }
       },
       "providerId": "opencode",
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["low", "high", "max"]
+              }
+            ],
+            "defaultEffort": "max"
           }
         }
       }
@@ -20406,7 +20634,7 @@
     },
     {
       "apiModelId": "grok-4.6",
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-responses"],
       "modelId": "grok-4-6",
       "pricing": {
         "cacheRead": {
@@ -20424,9 +20652,14 @@
       },
       "providerId": "opencode",
       "reasoningContracts": {
-        "openai-chat-completions": {
+        "openai-responses": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh"]
+              }
+            ]
           }
         }
       }
@@ -20621,14 +20854,7 @@
           "perMillionTokens": 1.2
         }
       },
-      "providerId": "opencode",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
+      "providerId": "opencode"
     },
     {
       "apiModelId": "mimo-v2.5",
@@ -21226,7 +21452,7 @@
     },
     {
       "apiModelId": "qwen3.8-flash",
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["anthropic-messages"],
       "modelId": "qwen3-8-flash",
       "pricing": {
         "cacheRead": {
@@ -21248,9 +21474,55 @@
       },
       "providerId": "opencode",
       "reasoningContracts": {
-        "openai-chat-completions": {
+        "anthropic-messages": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 262144,
+                "min": 1
+              },
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1024,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
           }
         }
       }
@@ -22485,21 +22757,11 @@
     },
     {
       "apiModelId": "~deepseek/deepseek-v4-flash-latest",
-      "modelId": "deepseek-v4-flash-latest",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.013
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.16
-        }
+      "capabilities": {
+        "add": ["text-generation"]
       },
+      "modelId": "deepseek-v4-flash-latest",
+      "name": "DeepSeek V4 Flash Latest",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -36674,11 +36936,6 @@
       }
     },
     {
-      "apiModelId": "deepseek-v3.2",
-      "modelId": "deepseek-v3-2",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "deepseek-v4-flash",
       "modelId": "deepseek-v4-flash",
       "providerId": "tokenhub"
@@ -36726,77 +36983,6 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hunyuan-2.0-thinking-20251109",
-      "modelId": "hunyuan-2-0",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hunyuan-2.0-instruct-20251111",
-      "modelId": "hunyuan-2-0-instruct",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hy-image-lite",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/lite",
-              "isSync": true
-            }
-          }
-        }
-      },
-      "modelId": "hy-image-lite",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hy-image-v3.0",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "seed": {
-                "type": "text"
-              }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/submit"
-            }
-          }
-        }
-      },
-      "modelId": "hy-image-v3-0",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "hy-mt2-lite",
       "modelId": "hy-mt2-lite",
       "providerId": "tokenhub"
@@ -36817,8 +37003,8 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hy3-preview",
-      "modelId": "hy3-preview",
+      "apiModelId": "hy4-preview",
+      "modelId": "hy4-preview",
       "providerId": "tokenhub"
     },
     {
@@ -36834,11 +37020,6 @@
     {
       "apiModelId": "kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "minimax-m2.5",
-      "modelId": "minimax-m2-5",
       "providerId": "tokenhub"
     },
     {
@@ -37936,6 +38117,68 @@
       }
     },
     {
+      "apiModelId": "glm-5.3",
+      "modelId": "glm-5-3",
+      "providerId": "zhipu",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "defaultEffort": "max"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-5.3-flash",
+      "modelId": "glm-5-3-flash",
+      "providerId": "zhipu",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "defaultEffort": "max"
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -37973,5 +38216,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "68bad6d69c74e120"
+  "version": "e14d8817b71e035f"
 }

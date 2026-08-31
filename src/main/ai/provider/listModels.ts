@@ -66,6 +66,10 @@ type ModelFetcher = {
   fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Partial<Model>[]>
 }
 
+function getErrorType(error: unknown) {
+  return error instanceof Error ? error.name : typeof error
+}
+
 function handleOptionalModelListFailure<T>(
   error: unknown,
   options: { throwOnError?: boolean } | undefined,
@@ -81,7 +85,7 @@ function handleOptionalModelListFailure<T>(
 function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
-    error
+    errorType: getErrorType(error)
   })
   return { data: [] }
 }
@@ -821,7 +825,7 @@ export async function listModels(
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
-    logger.error('Error listing models', error as Error, { providerId: provider.id })
+    logger.error('Error listing models', { providerId: provider.id, errorType: getErrorType(error) })
     if (options?.throwOnError) {
       throw error
     }

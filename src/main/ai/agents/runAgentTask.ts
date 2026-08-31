@@ -224,14 +224,17 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     name: taskName ?? 'Scheduled task',
     workspace
   })
-  // Guards legacy rows and races that data hygiene cannot catch.
+  // Snapshot the task's configured recipients before starting the run. Adapter availability affects
+  // delivery, not authority: a temporarily disconnected configured channel must not hide `notify`.
   const subscribedChannels = scheduleId
     ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
     : []
-
+  const trustedNotifyChannels = subscribedChannels
+    .map((channel) => ({ id: channel.id, type: channel.type }))
+    .sort((left, right) => left.id.localeCompare(right.id))
   const channelManager = application.get('ChannelManager')
-  const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
-    const adapter = channelManager.getAdapter(ch.id)
+  const channelListeners: StreamListener[] = subscribedChannels.flatMap((channel) => {
+    const adapter = channelManager.getAdapter(channel.id)
     if (!adapter) return []
     // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
     // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
@@ -259,18 +262,6 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
     settle()
   }
-  const fanOutTerminalToChannels = (invoke: (listener: StreamListener) => void | Promise<void>) => {
-    for (const listener of channelListeners) {
-      if (!listener.isAlive()) continue
-      try {
-        void Promise.resolve(invoke(listener)).catch((error) => {
-          logger.warn('Task channel terminal listener failed', { scheduleId, error })
-        })
-      } catch (error) {
-        logger.warn('Task channel terminal listener threw', { scheduleId, error })
-      }
-    }
-  }
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     onChunk(chunk) {
@@ -279,23 +270,21 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       // result was always the `'Completed'` fallback.
       if (chunk.type === 'text-delta') accumulatedText += chunk.delta
     },
-    onDone(result) {
+    // Stream manager already snapshots and invokes every listener, including the
+    // channel sinks. Re-invoking them here delivered each cron result twice.
+    onDone() {
       complete(() => resolveExecution(accumulatedText.trim()))
-      fanOutTerminalToChannels((listener) => listener.onDone(result))
     },
-    onPaused(result) {
+    onPaused() {
       if (runSignal.aborted) {
         const reason = runSignal.reason
         complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
-        fanOutTerminalToChannels((listener) => listener.onPaused(result))
         return
       }
       complete(() => resolveExecution(accumulatedText.trim()))
-      fanOutTerminalToChannels((listener) => listener.onPaused(result))
     },
     onError(result) {
       complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
-      fanOutTerminalToChannels((listener) => listener.onError(result))
     },
     // Terminal dispatch calls this before every event. `complete()` is only reached by that
     // terminal callback, then removes the listener synchronously before a queued successor starts.
@@ -327,6 +316,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
         userParts: [{ type: 'text', text: effectivePrompt }],
         listeners: [sentinel, ...channelListeners],
         headless: true,
+        trustedNotifyChannels,
         requireIdle: { expectedAgentId: agentId }
       })
       if (started.mode === 'started') break

@@ -71,5 +71,10 @@ export default defineProvider({
       official: 'https://openrouter.ai/'
     }
   },
-  modelsDevProvider: 'openrouter'
+  modelsDevProvider: 'openrouter',
+  overrides: [
+    // OpenRouter owns this moving router alias; DeepSeek does not publish it as
+    // a model. Actual usage cost is authoritative, so omit a static alias price.
+    { modelId: 'deepseek-v4-flash-latest', name: 'DeepSeek V4 Flash Latest', pricing: undefined }
+  ]
 })

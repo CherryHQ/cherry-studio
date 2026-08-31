@@ -17,8 +17,7 @@ export default defineCreator({
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'hunyuan-t1' },
     { pattern: 'hunyuan-a13b' },
-    { pattern: '^hy3' },
-    { pattern: '^hy4-preview$' }
+    { pattern: '^hy[34]' }
   ],
   models: [
     { id: 'hunyuan-turbos', name: 'Hunyuan TurboS', capabilities: ['function-call'] },
@@ -45,6 +44,14 @@ export default defineCreator({
       contextWindow: 262144,
       maxInputTokens: 196608,
       maxOutputTokens: 131072
+    },
+    {
+      id: 'hy4-preview',
+      name: 'Hunyuan 4 Preview',
+      capabilities: ['reasoning', 'function-call', 'structured-output'],
+      contextWindow: 1048576,
+      maxInputTokens: 983040,
+      maxOutputTokens: 65536
     },
     {
       id: 'hunyuan-2-0-thinking',

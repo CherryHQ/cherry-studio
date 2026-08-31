@@ -128,6 +128,9 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (
     numStatus === 401 ||
     msg.includes('invalid_api_key') ||
+    msg.includes('invalid api key') ||
+    msg.includes('api key is invalid') ||
+    msg.includes('incorrect api key') ||
     msg.includes('authentication') ||
     msg.includes('unauthorized')
   ) {
@@ -235,6 +238,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('econnrefused') ||
     msg.includes('etimedout') ||
     msg.includes('timeout') ||
+    msg.includes('timed out') ||
     msg.includes('network') ||
     msg.includes('fetch failed') ||
     msg.includes('enotfound')

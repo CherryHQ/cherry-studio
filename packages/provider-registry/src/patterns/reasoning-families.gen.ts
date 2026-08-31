@@ -12,6 +12,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
   { pattern: '^qwen3[.-]8-max-preview', toggle: false },
+  { pattern: '^qwen3[.-]8-flash$', effort: ['low', 'medium', 'xhigh'], budget: { min: 0, max: 262144 }, toggle: true },
   { pattern: '^qwq|^qvq', toggle: false },
   { pattern: '^qwen', toggle: true, template: true },
   { pattern: 'qwen3-235b-a22b-thinking-2507$', budget: { min: 0, max: 81920 }, template: true },
@@ -107,8 +108,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: '^baichuan-m[23]$' },
   // bailing
   { pattern: 'ring-(?:1t|mini|flash)' },
+  { pattern: '^ling-3[.-]0-flash' },
   { pattern: '^inkling' },
-  { pattern: '^ling-3-0-flash-fin$' },
   // bytedance
   {
     pattern: 'doubao-seed-1-6-(?:lite-)?251015|doubao-seed-2[.-]\\d|doubao-seed-1[.-]8',
@@ -219,8 +220,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
-  { pattern: '^hy3' },
-  { pattern: '^hy4-preview$' },
+  { pattern: '^hy[34]' },
   // upstage
   { pattern: '^solar-pro-?[2-9]' },
   // vercel
@@ -236,6 +236,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'mimo-v2[.-]5(?:-pro)?(?!-)|mimo-v2-(?:flash|pro|omni)', toggle: true },
   { pattern: 'mimo-v2[.-]5-pro-ultraspeed' },
   // zhipu
+  { pattern: 'glm-5[.-]3(?:-|$)', effort: ['low', 'high', 'max'], toggle: false },
   { pattern: 'glm-?5|glm-4[.-][567]', toggle: true },
   { pattern: 'glm-zero-preview' },
   { pattern: 'glm-z1' }

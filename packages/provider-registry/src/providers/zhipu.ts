@@ -25,6 +25,15 @@ const glm52Wire: ReasoningWireProfile = {
   }
 }
 
+const glm53Wire: ReasoningWireProfile = {
+  effort: {
+    operations: [
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
+      { target: 'reasoningEffort', value: { source: 'effort' } }
+    ]
+  }
+}
+
 export default openaiCompatible({
   id: 'zhipu',
   name: 'ZhiPu',
@@ -63,6 +72,15 @@ export default openaiCompatible({
         'openai-chat-completions': {
           support: glm52Support,
           wire: glm52Wire
+        }
+      }
+    })),
+    ...['glm-5.3', 'glm-5.3-flash'].map((modelId) => ({
+      modelId,
+      reasoningContracts: {
+        'openai-chat-completions': {
+          support: { defaultEffort: 'max' as const },
+          wire: glm53Wire
         }
       }
     })),
