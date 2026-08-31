@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "删除消息前确认",
   "settings.messages.input.enable_quick_triggers": "启用 / 触发输入快捷面板",
   "settings.messages.input.newline_shortcuts": "换行快捷键",
+  "settings.messages.input.paste_long_text_as_file": "长文本粘贴为文件",
+  "settings.messages.input.paste_long_text_threshold": "长文本长度",
   "settings.messages.input.send_shortcuts": "发送快捷键",
   "settings.messages.input.show_estimated_tokens": "显示预估 Token 数",
   "settings.messages.input.steer_shortcuts": "引导快捷键",

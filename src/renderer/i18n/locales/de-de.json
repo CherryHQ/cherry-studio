@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Vor Löschen von Nachrichten bestätigen",
   "settings.messages.input.enable_quick_triggers": "Aktivieren / und @ für Schnellmenü-Trigger",
   "settings.messages.input.newline_shortcuts": "Zeilenumbruch-Verknüpfung",
+  "settings.messages.input.paste_long_text_as_file": "Langen Text als Datei einfügen",
+  "settings.messages.input.paste_long_text_threshold": "Längengrenze für langen Text",
   "settings.messages.input.send_shortcuts": "Senden-Shortcut",
   "settings.messages.input.show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
   "settings.messages.input.steer_shortcuts": "Lenkungs-Verknüpfung",
