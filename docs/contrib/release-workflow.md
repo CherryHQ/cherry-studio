@@ -8,6 +8,7 @@ sources:
   - .github/workflows/post-release.yml
   - .github/workflows/ci.yml
   - .agents/skills/prepare-release/SKILL.md
+  - electron-builder.cn.config.cjs
 ---
 
 # Release Workflow Operations
@@ -122,13 +123,13 @@ Before building, the workflow verifies that:
 - CI succeeded for the exact branch commit.
 - A matching published release does not already exist.
 
-Each selected runner first stages only its own platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft, and only then moves `v<version>` to the exact validated branch commit. A single-platform retry first downloads the existing draft assets, overlays the selected platform's replacements, uploads the complete set, and never moves the tag. Tag movement is allowed only while the release is still a draft.
+Each selected platform builds both the existing global edition and the independently installable China edition from the same commit. Each runner validates and stages only its own edition and platform artifacts. After every selected build succeeds, one final job downloads that complete staged set, fails on any artifact read or upload error, updates the draft, and only then moves `v<version>` to the exact validated branch commit. A single-platform retry rebuilds both editions for that platform, downloads the existing draft assets, overlays the replacements, uploads the complete set, and never moves the tag. Tag movement is allowed only while the release is still a draft.
 
 Before publishing, inspect the draft release and confirm:
 
 - The tag and release branch point to the same commit.
 - All expected platform jobs succeeded.
-- Installers, archives, update manifests, blockmaps, and release notes are present.
+- Global and China edition installers, archives, update manifests, blockmaps, and release notes are present.
 - The version and release notes match the intended release.
 
 Keep the release as a draft while testing or while hotfixes are still expected.

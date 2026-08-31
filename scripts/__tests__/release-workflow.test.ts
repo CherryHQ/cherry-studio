@@ -884,6 +884,24 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it('builds and stages both editions for every selected release platform', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const releaseJob = workflow.jobs.release
+    const validationStep = releaseJob.steps.find(
+      (step: { name?: string }) => step.name === 'Validate edition release artifacts'
+    )
+    const stagingSteps = releaseJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Stage '))
+    const historyStep = releaseJob.steps.find((step: { name?: string }) => step.name === 'Stage stable release history')
+
+    expect(releaseJob.strategy.matrix.edition).toEqual(['global', 'cn'])
+    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(stagingSteps).toHaveLength(4)
+    for (const step of stagingSteps.slice(0, 3)) {
+      expect(step.with.name).toContain('${{ matrix.edition }}')
+    }
+    expect(historyStep.if).toContain("matrix.edition == 'global'")
+  })
+
   it('revalidates the selected release branch head before draft mutation and tag movement', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const finalizeSteps = workflow.jobs['finalize-build'].steps

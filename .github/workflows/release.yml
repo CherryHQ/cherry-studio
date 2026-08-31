@@ -225,6 +225,7 @@ jobs:
           fi
 
   release:
+    name: Build ${{ matrix.edition }} (${{ matrix.os }})
     needs: prepare
     if: github.event.inputs.operation == 'build'
     runs-on: ${{ matrix.os }}
@@ -233,6 +234,7 @@ jobs:
 
     strategy:
       matrix:
+        edition: [global, cn]
         os: ${{ fromJSON(
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
@@ -282,7 +284,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm build:linux
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -296,7 +298,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          pnpm build:mac
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -314,7 +316,7 @@ jobs:
       - name: Build Windows
         if: matrix.os == 'windows-latest'
         run: |
-          pnpm build:win
+          pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -324,11 +326,14 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
+      - name: Validate edition release artifacts
+        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
+
       - name: Stage Windows release artifacts
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.exe
             dist/*.zip
@@ -343,7 +348,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.zip
             dist/*.dmg
@@ -358,7 +363,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.AppImage
             dist/*.snap
@@ -373,7 +378,7 @@ jobs:
           compression-level: 0
 
       - name: Stage stable release history
-        if: matrix.os == 'ubuntu-latest' && !contains(needs.prepare.outputs.tag, '-')
+        if: matrix.os == 'ubuntu-latest' && matrix.edition == 'global' && !contains(needs.prepare.outputs.tag, '-')
         uses: actions/upload-artifact@v7
         with:
           name: release-${{ needs.prepare.outputs.tag }}-history

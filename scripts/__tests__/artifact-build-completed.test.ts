@@ -44,6 +44,18 @@ describe('normalizeArtifactFilePath', () => {
     expect(normalizeArtifactFilePath(file, PRODUCT_NAME, VERSION, 'linux')).toBe(file)
   })
 
+  it('uses the public CN prefix for a China edition artifact', () => {
+    expect(
+      normalizeArtifactFilePath(
+        path.join('dist', 'Cherry Studio 中国版-2.0.9-x64.dmg'),
+        'Cherry Studio 中国版',
+        VERSION,
+        'mac',
+        'Cherry Studio CN'
+      )
+    ).toBe(path.join('dist', 'Cherry-Studio-CN-2.0.9-mac-x64.dmg'))
+  })
+
   it.each(['latest.yml', 'latest-linux.yml', 'release-history.json', 'other-product-2.0.9-x64.zip'])(
     'does not add a platform prefix to %s',
     (fileName) => {
@@ -64,6 +76,7 @@ describe('artifactBuildCompleted', () => {
       safeArtifactName: 'Cherry-Studio-2.0.9-x86_64.AppImage',
       packager: {
         appInfo: { productName: PRODUCT_NAME, version: VERSION },
+        config: {},
         platform: { name: 'linux' }
       }
     }
