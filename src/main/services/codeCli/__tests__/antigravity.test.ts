@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -20,11 +20,6 @@ vi.mock('@application', async () => {
     application: {
       // Mirrors Application.getPath: a `…file` key auto-creates its parent directory.
       getPath: vi.fn((key: string) => {
-        if (key === 'feature.cli.antigravity.launch') {
-          const launchDir = nodePath.join(mocks.root, 'launch')
-          mkdirSync(launchDir, { recursive: true })
-          return launchDir
-        }
         if (key !== 'feature.cli.antigravity.settings.file') return mocks.root
         const settingsPath = nodePath.join(mocks.root, 'antigravity-cli', 'settings.json')
         mkdirSync(nodePath.dirname(settingsPath), { recursive: true })
@@ -45,7 +40,6 @@ vi.mock('@data/services/ProviderService', () => ({
 import { prepareAntigravityLaunch } from '../antigravity'
 
 const SECRET_ENV_NAMES = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
-const launchFiles = () => readdir(path.join(mocks.root, 'launch')).catch(() => [] as string[])
 
 const directLaunch = (providerId = 'gemini') =>
   prepareAntigravityLaunch({
@@ -69,7 +63,7 @@ describe('prepareAntigravityLaunch', () => {
     await rm(mocks.root, { recursive: true, force: true })
   })
 
-  it('resolves a direct Gemini provider into an owner-only credential file and preserves isolated settings', async () => {
+  it('resolves a direct Gemini provider without materializing credentials before terminal setup', async () => {
     const settingsDir = path.join(mocks.root, 'antigravity-cli')
     const settingsPath = path.join(settingsDir, 'settings.json')
     await mkdir(settingsDir, { recursive: true })
@@ -90,21 +84,20 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
-    const [envFileName] = await launchFiles()
-    const envPath = path.join(mocks.root, 'launch', envFileName)
-    expect(envFileName).toMatch(/\.env$/)
     expect(result).toEqual({
-      secretEnv: { path: envPath, requiredNames: SECRET_ENV_NAMES, clearNames: SECRET_ENV_NAMES },
+      secretEnv: {
+        values: {
+          GEMINI_API_KEY: 'direct-secret',
+          GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+        },
+        clearNames: SECRET_ENV_NAMES
+      },
       geminiDir: mocks.root,
       model: 'gemini-2.5-pro'
     })
-    expect(await readFile(envPath, 'utf8')).toBe(
-      'GEMINI_API_KEY=direct-secret\nGOOGLE_GEMINI_BASE_URL=https://gemini.example.test\n'
-    )
     expect(JSON.parse(await readFile(settingsPath, 'utf8'))).toEqual({ theme: 'system', modelProvider: 'gemini' })
     if (process.platform !== 'win32') {
       expect((await stat(settingsPath)).mode & 0o777).toBe(0o600)
-      expect((await stat(envPath)).mode & 0o777).toBe(0o600)
     }
   })
 
@@ -120,9 +113,10 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
-    expect(await readFile(result.secretEnv.path, 'utf8')).toBe(
-      'GEMINI_API_KEY=gateway-secret\nGOOGLE_GEMINI_BASE_URL=http://127.0.0.1:24444\n'
-    )
+    expect(result.secretEnv.values).toEqual({
+      GEMINI_API_KEY: 'gateway-secret',
+      GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:24444'
+    })
     expect(result.model).toBe('gemini-api://provider-a/models/models/gemini-flash')
     expect(result.model).not.toContain('@cherry')
     expect(mocks.getByProviderId).not.toHaveBeenCalled()
@@ -145,7 +139,7 @@ describe('prepareAntigravityLaunch', () => {
     ).rejects.toThrow(/cannot be addressed by antigravity-cli/)
   })
 
-  it('rejects an unsafe model id without touching the isolated settings or writing credentials', async () => {
+  it('rejects an unsafe model id without touching the isolated settings', async () => {
     const settingsPath = path.join(mocks.root, 'antigravity-cli', 'settings.json')
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
     mocks.getRotatedApiKey.mockReturnValue('direct-secret')
@@ -160,38 +154,19 @@ describe('prepareAntigravityLaunch', () => {
       })
     ).rejects.toThrow('Unsupported model id')
     await expect(readFile(settingsPath, 'utf8')).rejects.toThrow(/ENOENT/)
-    expect(await launchFiles()).toEqual([])
   })
 
-  it('gives consecutive launches separate files so a pending launch keeps its own credentials', async () => {
+  it('keeps consecutive launch credentials in separate immutable specs until handoff creation', async () => {
     mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
     mocks.getRotatedApiKey.mockReturnValueOnce('key-a').mockReturnValueOnce('key-b')
 
     const launchA = await directLaunch()
     const launchB = await directLaunch()
 
-    expect(launchA.secretEnv.path).not.toBe(launchB.secretEnv.path)
-    expect(await readFile(launchA.secretEnv.path, 'utf8')).toBe('GEMINI_API_KEY=key-a\n')
-    expect(await readFile(launchB.secretEnv.path, 'utf8')).toBe('GEMINI_API_KEY=key-b\n')
-    // A never received a base URL, so its shell must still clear an ambient one.
-    expect(launchA.secretEnv).toMatchObject({ requiredNames: ['GEMINI_API_KEY'], clearNames: SECRET_ENV_NAMES })
-  })
-
-  it('removes stale launch files left by terminals that never started, keeping recent ones', async () => {
-    const launchDir = path.join(mocks.root, 'launch')
-    await mkdir(launchDir, { recursive: true })
-    const stalePath = path.join(launchDir, 'stale.env')
-    const pendingPath = path.join(launchDir, 'pending.env')
-    await writeFile(stalePath, 'GEMINI_API_KEY=old\n')
-    await writeFile(pendingPath, 'GEMINI_API_KEY=pending\n')
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000)
-    await utimes(stalePath, twoHoursAgo, twoHoursAgo)
-    mocks.getByProviderId.mockReturnValue({ id: 'gemini', endpointConfigs: {} } as Provider)
-    mocks.getRotatedApiKey.mockReturnValue('fresh')
-
-    const result = await directLaunch()
-
-    expect((await launchFiles()).sort()).toEqual(['pending.env', path.basename(result.secretEnv.path)].sort())
+    expect(launchA.secretEnv.values).toEqual({ GEMINI_API_KEY: 'key-a' })
+    expect(launchB.secretEnv.values).toEqual({ GEMINI_API_KEY: 'key-b' })
+    expect(launchA.secretEnv.clearNames).toEqual(SECRET_ENV_NAMES)
+    expect(launchB.secretEnv.clearNames).toEqual(SECRET_ENV_NAMES)
   })
 
   it('rejects malformed isolated settings instead of overwriting them', async () => {

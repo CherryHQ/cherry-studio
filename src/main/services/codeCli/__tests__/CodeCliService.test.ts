@@ -5,8 +5,6 @@ import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/bina
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as SecretEnvFileModule from '../secretEnvFile'
-
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
   removeTool: vi.fn<(_request: BinaryRemoveRequest) => Promise<BinaryRemoveResult>>(),
@@ -14,9 +12,10 @@ const binaryManagerMock = vi.hoisted(() => ({
 }))
 const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
 const antigravityLaunchMock = vi.hoisted(() => vi.fn())
-const secretEnvFileMock = vi.hoisted(() => ({
-  removeSecretEnvFile: vi.fn(),
-  removeStaleSecretEnvFiles: vi.fn()
+const secretEnvHandoffMock = vi.hoisted(() => ({
+  create: vi.fn(),
+  removeAll: vi.fn(),
+  removeExpired: vi.fn()
 }))
 const skillServiceMock = vi.hoisted(() => ({
   syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
@@ -48,10 +47,8 @@ vi.mock('../antigravity', () => ({
   prepareAntigravityLaunch: antigravityLaunchMock
 }))
 
-// Keep the real command builders; stub only the filesystem cleanup.
-vi.mock('../secretEnvFile', async (importOriginal) => ({
-  ...(await importOriginal<typeof SecretEnvFileModule>()),
-  ...secretEnvFileMock
+vi.mock('../SecretEnvHandoff', () => ({
+  SecretEnvHandoff: secretEnvHandoffMock
 }))
 
 const loggerMock = vi.hoisted(() => ({
@@ -160,10 +157,28 @@ async function loadModules() {
   return { BaseService, CodeCliService, codeCliService }
 }
 
+let handoffSequence = 0
+
+function makeSecretEnvHandoff(overrides: { launchId?: string; path?: string } = {}) {
+  const launchId = overrides.launchId ?? `00000000-0000-4000-8000-${String(++handoffSequence).padStart(12, '0')}`
+  const handoffPath = overrides.path ?? `/mock/antigravity data/launch/${launchId}.env`
+  return {
+    launchId,
+    path: handoffPath,
+    wrapPosixCommand: vi.fn((command: string) => `__CHERRY_SECRET_ENV_POSIX__ ${handoffPath} && ${command}`),
+    wrapWindowsCommand: vi.fn((command: string) => [
+      `:: __CHERRY_SECRET_ENV_WINDOWS__ ${handoffPath.replace(/%/g, '%%')}`,
+      command
+    ]),
+    dispose: vi.fn().mockResolvedValue(undefined)
+  }
+}
+
 describe('CodeCliService', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    handoffSequence = 0
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
@@ -190,15 +205,18 @@ describe('CodeCliService', () => {
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
     antigravityLaunchMock.mockResolvedValue({
       secretEnv: {
-        path: '/mock/antigravity data/launch/a.env',
-        requiredNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'],
+        values: {
+          GEMINI_API_KEY: 'test-secret',
+          GOOGLE_GEMINI_BASE_URL: 'https://example.test'
+        },
         clearNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
       },
       geminiDir: '/mock/antigravity data',
       model: 'gemini-2.5-pro'
     })
-    secretEnvFileMock.removeSecretEnvFile.mockResolvedValue(undefined)
-    secretEnvFileMock.removeStaleSecretEnvFiles.mockResolvedValue(undefined)
+    secretEnvHandoffMock.create.mockImplementation(async () => makeSecretEnvHandoff())
+    secretEnvHandoffMock.removeAll.mockResolvedValue(undefined)
+    secretEnvHandoffMock.removeExpired.mockResolvedValue(undefined)
   })
 
   it('should extend BaseService', async () => {
@@ -212,14 +230,30 @@ describe('CodeCliService', () => {
     expect(codeCliService.isReady).toBe(true)
   })
 
-  it('sweeps stale Antigravity launch credentials on init and survives a failed sweep', async () => {
-    secretEnvFileMock.removeStaleSecretEnvFiles.mockRejectedValueOnce(new Error('EACCES'))
+  it('invalidates handoffs from a previous process on init and survives cleanup failure', async () => {
+    secretEnvHandoffMock.removeAll.mockRejectedValueOnce(new Error('EACCES'))
     const { codeCliService } = await loadModules()
 
     await expect(codeCliService._doInit()).resolves.toBeUndefined()
 
-    expect(secretEnvFileMock.removeStaleSecretEnvFiles).toHaveBeenCalledWith('/mock/binary-data')
+    expect(secretEnvHandoffMock.removeAll).toHaveBeenCalledWith('/mock/binary-data')
     expect(codeCliService.isReady).toBe(true)
+  })
+
+  it('sweeps expired handoffs while the app stays open', async () => {
+    vi.useFakeTimers()
+    try {
+      const { codeCliService } = await loadModules()
+      await codeCliService._doInit()
+
+      expect(secretEnvHandoffMock.removeExpired).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(secretEnvHandoffMock.removeExpired).toHaveBeenCalledWith('/mock/binary-data')
+      await codeCliService._doStop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reconciles available CLI skills only after every service is ready', async () => {
@@ -242,6 +276,7 @@ describe('CodeCliService', () => {
     const { codeCliService } = await loadModules()
     await codeCliService._doInit()
     await expect(codeCliService._doStop()).resolves.toBeUndefined()
+    expect(secretEnvHandoffMock.removeAll).toHaveBeenCalledTimes(2)
     expect(codeCliService.isStopped).toBe(true)
   })
 
@@ -615,6 +650,8 @@ describe('CodeCliService', () => {
     }
 
     it('quotes the isolated directory and model and imports the credential file instead of its values', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
       const { result, script } = await launchScript({
         mode: 'normal',
         cliTool: CodeCli.ANTIGRAVITY_CLI,
@@ -629,17 +666,23 @@ describe('CodeCliService', () => {
       )
       expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
       expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
-      // Terminal.app receives the command through AppleScript, which re-escapes the single quotes.
-      expect(script).toContain("done < '\\''/mock/antigravity data/launch/a.env'\\''")
-      expect(script).toContain("rm -f '\\''/mock/antigravity data/launch/a.env'\\''")
-      expect(script).toContain('unset GEMINI_API_KEY GOOGLE_GEMINI_BASE_URL')
-      expect(script).toContain('${GEMINI_API_KEY+x}')
-      expect(script).toContain('${GOOGLE_GEMINI_BASE_URL+x}')
+      expect(secretEnvHandoffMock.create).toHaveBeenCalledWith(
+        '/mock/binary-data',
+        expect.objectContaining({
+          values: expect.objectContaining({ GEMINI_API_KEY: 'test-secret' })
+        })
+      )
+      expect(handoff.wrapPosixCommand).toHaveBeenCalledWith(expect.stringContaining('--gemini_dir='))
+      expect(script).toContain('__CHERRY_SECRET_ENV_POSIX__')
+      expect(script).toContain(handoff.path)
+      expect(script).not.toContain('test-secret')
     })
 
     it.each([TerminalApp.ITERM2, TerminalApp.TABBY])(
       'hands %s the credential file path rather than its contents',
       async (terminal) => {
+        const handoff = makeSecretEnvHandoff()
+        secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
         childProcessMock.execFileAsync.mockResolvedValue({ stdout: '/Applications/Terminal.app' })
         const { result, script } = await launchScript({
           mode: 'normal',
@@ -651,12 +694,15 @@ describe('CodeCliService', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(script).toContain('/mock/antigravity data/launch/a.env')
-        expect(script).toContain('unset GEMINI_API_KEY GOOGLE_GEMINI_BASE_URL')
+        expect(script).toContain(handoff.path)
+        expect(handoff.wrapPosixCommand).toHaveBeenCalledOnce()
+        expect(script).not.toContain('test-secret')
       }
     )
 
     it('removes the launch credentials when the terminal process cannot be spawned', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
       const { spawn } = await import('child_process')
       vi.mocked(spawn).mockImplementationOnce(() => {
         throw new Error('spawn sh ENOENT')
@@ -671,9 +717,33 @@ describe('CodeCliService', () => {
       })
 
       expect(result).toEqual({ success: false, message: 'Failed to launch terminal: spawn sh ENOENT' })
-      expect(secretEnvFileMock.removeSecretEnvFile).toHaveBeenCalledWith(
-        expect.objectContaining({ path: '/mock/antigravity data/launch/a.env' })
+      expect(handoff.dispose).toHaveBeenCalledOnce()
+    })
+
+    it('removes the launch credentials when the terminal reports an asynchronous spawn error', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
+      const { spawn } = await import('child_process')
+      vi.mocked(spawn).mockImplementationOnce(
+        () =>
+          ({
+            once: (event: string, callback: (error?: Error) => void) => {
+              if (event === 'error') callback(new Error('async ENOENT'))
+            },
+            on: vi.fn()
+          }) as never
       )
+
+      const { result } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({ success: false, message: 'Failed to launch terminal: async ENOENT' })
+      expect(handoff.dispose).toHaveBeenCalledOnce()
     })
 
     it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
@@ -693,8 +763,7 @@ describe('CodeCliService', () => {
     it('rejects an unsafe resolved model before opening a terminal', async () => {
       antigravityLaunchMock.mockResolvedValueOnce({
         secretEnv: {
-          path: '/mock/antigravity/launch/a.env',
-          requiredNames: ['GEMINI_API_KEY'],
+          values: { GEMINI_API_KEY: 'test-secret' },
           clearNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
         },
         geminiDir: '/mock/antigravity',
@@ -713,6 +782,27 @@ describe('CodeCliService', () => {
       if (result.success) throw new Error('Expected Antigravity launch to fail')
       expect(result.message).toContain('Unsupported model id')
       expect(script).toBe('')
+      expect(secretEnvHandoffMock.create).not.toHaveBeenCalled()
+    })
+
+    it('does not materialize a handoff when terminal environment resolution fails', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        agy: { name: 'agy', availability: { source: 'system', path: '/usr/local/bin/agy' } }
+      })
+      shellEnvMock.getRawShellEnv.mockRejectedValueOnce(new Error('shell env unavailable'))
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: '/tmp/project'
+        })
+      ).rejects.toThrow('shell env unavailable')
+
+      expect(secretEnvHandoffMock.create).not.toHaveBeenCalled()
     })
   })
 
@@ -939,7 +1029,7 @@ describe('CodeCliService', () => {
         const writeCall = vi.mocked(fs.writeFileSync).mock.calls.at(-1)
         expect(writeCall).toBeDefined()
         const [batPath, batContent] = writeCall! as unknown as [string, string]
-        expect(batPath).toMatch(/launch_claude-code_\d+\.bat$/)
+        expect(batPath).toMatch(/launch_claude-code_[0-9a-f-]{36}\.bat$/)
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
@@ -958,16 +1048,132 @@ describe('CodeCliService', () => {
       }
     })
 
-    it('%-doubles Antigravity arguments and the credential file path in the .bat', async () => {
+    it('keeps two same-millisecond Antigravity launches in separate .bat files', async () => {
+      const handoffA = makeSecretEnvHandoff({
+        launchId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        path: 'C:\\launch\\aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.env'
+      })
+      const handoffB = makeSecretEnvHandoff({
+        launchId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        path: 'C:\\launch\\bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.env'
+      })
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoffA).mockResolvedValueOnce(handoffB)
+
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-08-31T08:00:00Z'))
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+        const input = {
+          mode: 'normal' as const,
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        }
+
+        await expect(codeCliService.run(input)).resolves.toEqual({ success: true })
+        await expect(codeCliService.run(input)).resolves.toEqual({ success: true })
+
+        const writes = vi.mocked(fs.writeFileSync).mock.calls.slice(-2) as unknown as [string, string][]
+        expect(writes[0][0]).not.toBe(writes[1][0])
+        expect(writes[0][0]).toContain(handoffA.launchId)
+        expect(writes[1][0]).toContain(handoffB.launchId)
+        expect(writes[0][1]).toContain(handoffA.path)
+        expect(writes[0][1]).not.toContain(handoffB.path)
+        expect(writes[1][1]).toContain(handoffB.path)
+        expect(writes[1][1]).not.toContain(handoffA.path)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('disposes the handoff when the Windows launch script cannot be written', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.writeFileSync).mockImplementationOnce(() => {
+        throw new Error('disk full')
+      })
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        })
+      ).rejects.toThrow('Failed to create launch script')
+
+      expect(handoff.dispose).toHaveBeenCalledOnce()
+    })
+
+    it('removes both artifacts when securing a written Windows launch script fails', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.chmodSync).mockImplementationOnce(() => {
+        throw new Error('chmod failed')
+      })
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        })
+      ).rejects.toThrow('Failed to create launch script')
+
+      const [batPath] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string]
+      expect(fs.unlinkSync).toHaveBeenCalledWith(batPath)
+      expect(handoff.dispose).toHaveBeenCalledOnce()
+    })
+
+    it('disposes the handoff when any pre-spawn launch step fails', async () => {
+      const handoff = makeSecretEnvHandoff()
+      handoff.wrapWindowsCommand.mockImplementationOnce(() => {
+        throw new Error('command assembly failed')
+      })
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      await expect(
+        codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'gemini',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        })
+      ).rejects.toThrow('command assembly failed')
+
+      expect(spawn).not.toHaveBeenCalled()
+      expect(handoff.dispose).toHaveBeenCalledOnce()
+    })
+
+    it('uses one launch identity for the Antigravity handoff and .bat without writing secret values', async () => {
       antigravityLaunchMock.mockResolvedValueOnce({
         secretEnv: {
-          path: 'C:\\Users\\me\\100% data\\Antigravity\\launch\\a.env',
-          requiredNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'],
+          values: {
+            GEMINI_API_KEY: 'windows-secret',
+            GOOGLE_GEMINI_BASE_URL: 'https://example.test'
+          },
           clearNames: ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
         },
         geminiDir: 'C:\\Users\\me\\100% data\\Antigravity',
         model: 'gemini-api://618d8838/models/gemini-2.5-pro'
       })
+      const handoff = makeSecretEnvHandoff({
+        launchId: '12345678-1234-4123-8123-123456789abc',
+        path: 'C:\\Users\\me\\100% data\\Antigravity\\launch\\12345678-1234-4123-8123-123456789abc.env'
+      })
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
 
       vi.useFakeTimers()
       try {
@@ -983,29 +1189,27 @@ describe('CodeCliService', () => {
         })
 
         expect(result.success).toBe(true)
-        const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        const [batPath, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        expect(batPath).toContain(handoff.launchId)
         // CMD expands %…% even inside double quotes, so the isolated dir must be %-doubled
         // or the CLI lands on a truncated --gemini_dir and rewrites the wrong settings.json.
         expect(batContent).toContain('"--gemini_dir=C:\\Users\\me\\100%% data\\Antigravity"')
         // The gateway address carries `://` and `/models/`; the route parses it back into
         // `providerId:apiModelId`, so quoting must not mangle or split it.
         expect(batContent).toContain('--model "gemini-api://618d8838/models/gemini-2.5-pro"')
-        // The credential file path crosses the same %-expansion boundary as the other paths.
-        expect(batContent).toContain(
-          'for /f "usebackq tokens=1,* delims==" %%a in ("C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env") do set "%%a=%%b"'
+        expect(handoff.wrapWindowsCommand).toHaveBeenCalledWith(
+          expect.stringContaining('--model "gemini-api://618d8838/models/gemini-2.5-pro"')
         )
-        expect(batContent).toContain('del /f /q "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env"')
-        expect(batContent).toContain(
-          'if exist "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env" goto :secret_env_undeleted'
-        )
+        expect(batContent).toContain('__CHERRY_SECRET_ENV_WINDOWS__ C:\\Users\\me\\100%% data')
+        expect(batContent).not.toContain('windows-secret')
       } finally {
         vi.useRealTimers()
       }
     })
 
-    // An ambient GEMINI_API_KEY in the user's environment must not satisfy the guard, and the CLI
-    // must not start when the credential file could not be loaded.
-    it('clears ambient values, imports the credential file, and aborts when a variable is still missing', async () => {
+    it('disables delayed expansion before evaluating any user-controlled path', async () => {
+      const handoff = makeSecretEnvHandoff()
+      secretEnvHandoffMock.create.mockResolvedValueOnce(handoff)
       vi.useFakeTimers()
       try {
         const fs = (await import('node:fs')).default
@@ -1023,26 +1227,12 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
         const delayedExpansionIndex = batContent.indexOf('setlocal EnableExtensions DisableDelayedExpansion')
-        const clearIndex = batContent.indexOf('set "GEMINI_API_KEY="')
-        const importIndex = batContent.indexOf(
-          'for /f "usebackq tokens=1,* delims==" %%a in ("/mock/antigravity data/launch/a.env") do set "%%a=%%b"'
-        )
-        const guardIndex = batContent.indexOf('if not defined GEMINI_API_KEY goto :secret_env_missing')
-        const deleteIndex = batContent.indexOf('del /f /q "/mock/antigravity data/launch/a.env"')
-        const undeletedIndex = batContent.indexOf(
-          'if exist "/mock/antigravity data/launch/a.env" goto :secret_env_undeleted'
-        )
+        const firstPathIndex = batContent.indexOf('echo Directory:')
+        const handoffIndex = batContent.indexOf('__CHERRY_SECRET_ENV_WINDOWS__')
         expect(delayedExpansionIndex).toBeGreaterThan(-1)
-        expect(delayedExpansionIndex).toBeLessThan(clearIndex)
-        expect(clearIndex).toBeLessThan(importIndex)
-        expect(importIndex).toBeLessThan(guardIndex)
-        expect(guardIndex).toBeLessThan(deleteIndex)
-        expect(deleteIndex).toBeLessThan(undeletedIndex)
-        expect(undeletedIndex).toBeLessThan(batContent.indexOf('--gemini_dir='))
-        expect(batContent).toContain('if not defined GOOGLE_GEMINI_BASE_URL goto :secret_env_missing')
-        // Both failure branches exit instead of falling through into the launch.
-        expect(batContent.slice(batContent.indexOf(':secret_env_missing'))).toContain('exit /b 1')
-        expect(batContent.slice(batContent.indexOf(':secret_env_undeleted'))).toContain('exit /b 1')
+        expect(delayedExpansionIndex).toBeLessThan(firstPathIndex)
+        expect(firstPathIndex).toBeLessThan(handoffIndex)
+        expect(handoff.wrapWindowsCommand).toHaveBeenCalledOnce()
       } finally {
         vi.useRealTimers()
       }
@@ -1067,9 +1257,10 @@ describe('CodeCliService', () => {
         expect(result.success).toBe(true)
         const launch = vi.mocked(spawn).mock.calls.at(-1)!
         expect(launch[0]).toBe('wsl')
-        expect((launch[1] as string[]).join(' ')).not.toContain('GEMINI_API_KEY')
+        expect((launch[1] as string[]).join(' ')).not.toContain('test-secret')
         const batContent = vi.mocked(fs.writeFileSync).mock.calls.at(-1)?.[1] as string
-        expect(batContent).toContain('in ("/mock/antigravity data/launch/a.env") do set "%%a=%%b"')
+        expect(batContent).toContain('__CHERRY_SECRET_ENV_WINDOWS__')
+        expect(batContent).not.toContain('test-secret')
       } finally {
         vi.useRealTimers()
       }

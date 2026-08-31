@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -41,13 +42,7 @@ import { promisify } from 'util'
 
 import { prepareAntigravityLaunch } from './antigravity'
 import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
-import {
-  batchLinesReadingSecretEnv,
-  removeSecretEnvFile,
-  removeStaleSecretEnvFiles,
-  type SecretEnvFile,
-  wrapPosixCommandWithSecretEnv
-} from './secretEnvFile'
+import { SecretEnvHandoff, type SecretEnvSpec } from './SecretEnvHandoff'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -59,6 +54,7 @@ import {
 const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
+const SECRET_ENV_SWEEP_INTERVAL_MS = 60_000
 
 /**
  * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
@@ -101,9 +97,8 @@ export class CodeCliService extends BaseService {
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
-    await removeStaleSecretEnvFiles(application.getPath('feature.cli.antigravity.launch')).catch((error) => {
-      logger.warn('Failed to remove stale Antigravity launch credentials', error as Error)
-    })
+    await this.removeAllSecretEnvHandoffs()
+    this.registerInterval(() => this.removeExpiredSecretEnvHandoffs(), SECRET_ENV_SWEEP_INTERVAL_MS)
   }
 
   protected override async onAllReady(): Promise<void> {
@@ -221,6 +216,19 @@ export class CodeCliService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.terminalsCache = null
+    await this.removeAllSecretEnvHandoffs()
+  }
+
+  private async removeAllSecretEnvHandoffs(): Promise<void> {
+    await SecretEnvHandoff.removeAll(application.getPath('feature.cli.antigravity.launch')).catch((error) => {
+      logger.warn('Failed to remove Antigravity secret environment handoffs', error as Error)
+    })
+  }
+
+  private async removeExpiredSecretEnvHandoffs(): Promise<void> {
+    await SecretEnvHandoff.removeExpired(application.getPath('feature.cli.antigravity.launch')).catch((error) => {
+      logger.warn('Failed to remove expired Antigravity secret environment handoffs', error as Error)
+    })
   }
 
   /**
@@ -575,7 +583,7 @@ export class CodeCliService extends BaseService {
     const platform = process.platform
     let terminalCommand: string
     let terminalArgs: string[]
-    let secretEnv: SecretEnvFile | undefined
+    let secretEnvSpec: SecretEnvSpec | undefined
 
     // Build environment variable prefix (based on platform)
     const buildEnvPrefix = (isWindows: boolean) => {
@@ -684,8 +692,8 @@ export class CodeCliService extends BaseService {
         return { success: false, message }
       }
 
-      secretEnv = launchConfig.secretEnv
-      logger.debug('Antigravity environment variables:', launchConfig.secretEnv.requiredNames)
+      secretEnvSpec = launchConfig.secretEnv
+      logger.debug('Antigravity environment variables:', Object.keys(launchConfig.secretEnv.values))
       const geminiDirArg =
         platform === 'win32'
           ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
@@ -703,242 +711,11 @@ export class CodeCliService extends BaseService {
       baseCommand = `${baseCommand} /login`
     }
 
-    switch (platform) {
-      case 'darwin': {
-        // macOS - Support multiple terminals
-        const envPrefix = buildEnvPrefix(false)
-
-        let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-        if (secretEnv) command = wrapPosixCommandWithSecretEnv(secretEnv, command)
-
-        // Combine directory change with the main command to ensure they execute in the same shell session.
-        // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
-        // (double-quoting it only blocks `"`, leaving command substitution live).
-        const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
-
-        const terminalConfig = await this.getTerminalConfig(input.terminal)
-        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
-
-        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
-        terminalCommand = cmd
-        terminalArgs = args
-        break
-      }
-      case 'win32': {
-        // Windows - Use temp bat file for debugging
-        const envPrefix = buildEnvPrefix(true)
-        const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-
-        // Create temp bat file for debugging and avoid complex command line escaping issues
-        const tempDir = application.getPath('feature.cli.temp')
-        const timestamp = Date.now()
-        const batFileName = `launch_${cliTool}_${timestamp}.bat`
-        const batFilePath = path.join(tempDir, batFileName)
-
-        // Ensure temp directory exists
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true })
-        }
-
-        // Escape special characters in paths for Windows batch scripting
-        // Using double quotes for compatibility with CMD
-
-        // Build bat file content, including debug information
-        // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
-        const batContent = [
-          '@echo off',
-          'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
-          `title ${cliTool} - Cherry Studio`,
-          'echo ================================================',
-          'echo Cherry Studio CLI Tool Launcher',
-          `echo Tool: ${CodeCliService.escapeBatchTextForEcho(cliTool)}`,
-          `echo Directory: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
-          `echo Time: ${new Date().toLocaleString()}`,
-          'echo ================================================',
-          '',
-          ':: Verify directory exists',
-          `if not exist "${directory.replace(/%/g, '%%')}" goto :dir_missing`,
-          '',
-          ':: Change to target directory',
-          `pushd "${directory.replace(/%/g, '%%')}"`,
-          'if errorlevel 1 goto :pushd_failed',
-          '',
-          ':: Clear screen before running CLI',
-          'cls',
-          '',
-          ...(secretEnv
-            ? [
-                ':: Load the credentials Cherry Studio wrote for this launch',
-                ...batchLinesReadingSecretEnv(secretEnv, {
-                  missing: 'secret_env_missing',
-                  undeleted: 'secret_env_undeleted'
-                }),
-                ''
-              ]
-            : []),
-          ':: Execute command',
-          command,
-          '',
-          'goto :end',
-          '',
-          ':: Error handlers (using labels to ensure entire branch is conditional)',
-          ':dir_missing',
-          'echo ERROR: Directory does not exist',
-          `echo Target: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
-          'pause',
-          'exit /b 1',
-          '',
-          ':pushd_failed',
-          'echo ERROR: Failed to change directory',
-          'pause',
-          'exit /b 1',
-          '',
-          ...(secretEnv
-            ? [
-                ':secret_env_missing',
-                'echo ERROR: Could not load the credentials Cherry Studio prepared for this launch.',
-                `echo Expected file: ${CodeCliService.escapeBatchTextForEcho(secretEnv.path)}`,
-                'echo Launch again from Cherry Studio.',
-                'pause',
-                'exit /b 1',
-                '',
-                ':secret_env_undeleted',
-                'echo ERROR: Could not delete the credential file after loading it, so the CLI was not started.',
-                `echo Delete it manually, then launch again from Cherry Studio: ${CodeCliService.escapeBatchTextForEcho(secretEnv.path)}`,
-                'pause',
-                'exit /b 1',
-                ''
-              ]
-            : []),
-          ':end',
-          'pause'
-        ].join('\r\n')
-
-        // Write to bat file
-        try {
-          fs.writeFileSync(batFilePath, batContent, 'utf8')
-          // Set restrictive permissions for bat file
-          fs.chmodSync(batFilePath, 0o600)
-          logger.info(`Created temp bat file: ${batFilePath}`)
-        } catch (error) {
-          logger.error(`Failed to create bat file: ${error}`)
-          throw new Error(`Failed to create launch script: ${error}`)
-        }
-
-        // Use selected terminal configuration
-        const terminalConfig = await this.getTerminalConfig(input.terminal)
-        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
-
-        // Get command and args from terminal configuration
-        // Pass the bat file path as the command to execute
-        const fullCommand = batFilePath
-        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
-
-        terminalCommand = cmd
-        terminalArgs = args
-
-        // Add to cleanup set
-        CodeCliService.pendingBatCleanups.add(batFilePath)
-
-        // Register exit handler only once (using process.once to avoid accumulation)
-        if (!CodeCliService.exitCleanupRegistered) {
-          process.once('exit', () => {
-            // Clean up all remaining bat files on process exit
-            for (const filePath of CodeCliService.pendingBatCleanups) {
-              try {
-                if (fs.existsSync(filePath)) {
-                  fs.unlinkSync(filePath)
-                  logger.debug(`Cleaned up temp bat file on exit: ${filePath}`)
-                }
-              } catch (error) {
-                logger.warn(`Failed to cleanup temp bat file: ${error}`)
-              }
-            }
-            CodeCliService.pendingBatCleanups.clear()
-          })
-          CodeCliService.exitCleanupRegistered = true
-        }
-
-        // Set timeout for cleanup (normal case - file deleted after 60 seconds)
-        const cleanup = () => {
-          try {
-            if (fs.existsSync(batFilePath)) {
-              fs.unlinkSync(batFilePath)
-              logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
-            }
-            // Remove from pending set
-            CodeCliService.pendingBatCleanups.delete(batFilePath)
-          } catch (error) {
-            logger.warn(`Failed to cleanup temp bat file: ${error}`)
-          }
-        }
-
-        setTimeout(cleanup, 60 * 1000)
-
-        break
-      }
-      case 'linux': {
-        // Linux - Prefer the XDG-configured default terminal, then try common emulators.
-        const envPrefix = buildEnvPrefix(false)
-        let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
-        if (secretEnv) command = wrapPosixCommandWithSecretEnv(secretEnv, command)
-
-        const linuxTerminals = [
-          'xdg-terminal-exec',
-          'gnome-terminal',
-          'konsole',
-          'deepin-terminal',
-          'x-terminal-emulator',
-          'xterm'
-        ]
-        let foundTerminal: string | undefined
-
-        for (const terminal of linuxTerminals) {
-          try {
-            // Check if terminal exists
-            const checkResult = spawn('which', [terminal], { stdio: 'pipe' })
-            await new Promise((resolve) => {
-              // A failed `which` spawn emits 'error'; without a listener that is
-              // an uncaught exception in the main process. Treat it as not found.
-              checkResult.on('error', () => resolve(-1))
-              checkResult.on('close', (code) => {
-                if (code === 0) {
-                  foundTerminal = terminal
-                }
-                resolve(code)
-              })
-            })
-            if (foundTerminal === terminal) break
-          } catch (error) {
-            // Continue trying next terminal
-          }
-        }
-
-        if (foundTerminal === 'xdg-terminal-exec') {
-          terminalCommand = 'xdg-terminal-exec'
-          terminalArgs = [`--dir=${directory}`, '--', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'gnome-terminal') {
-          terminalCommand = 'gnome-terminal'
-          terminalArgs = ['--working-directory', directory, '--', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'konsole') {
-          terminalCommand = 'konsole'
-          terminalArgs = ['--workdir', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'deepin-terminal') {
-          terminalCommand = 'deepin-terminal'
-          terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
-        } else if (foundTerminal === 'x-terminal-emulator') {
-          terminalCommand = 'x-terminal-emulator'
-          terminalArgs = ['-e', 'bash', '-c', `cd ${posixQuote(directory)} && clear && ${command}; exec bash`]
-        } else {
-          // Default to xterm
-          terminalCommand = 'xterm'
-          terminalArgs = ['-e', `cd ${posixQuote(directory)} && clear && ${command} && bash`]
-        }
-        break
-      }
-      default:
-        throw new Error(`Unsupported operating system: ${platform}`)
-    }
+    // Resolve launch dependencies before materializing credentials; the ownership guard below
+    // reclaims the handoff if any remaining setup step fails before the child reports `spawn`.
+    const selectedTerminal =
+      platform === 'darwin' || platform === 'win32' ? await this.getTerminalConfig(input.terminal) : undefined
+    if (selectedTerminal) logger.info(`Using terminal: ${selectedTerminal.name} (${selectedTerminal.id})`)
 
     const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
     const processEnv = Object.fromEntries(
@@ -956,44 +733,269 @@ export class CodeCliService extends BaseService {
     if (platform === 'win32') appendBundledGitPathTail(processEnv)
     removeEnvProxy(processEnv)
 
-    // Launch terminal process
+    const secretEnv = secretEnvSpec
+      ? await SecretEnvHandoff.create(application.getPath('feature.cli.antigravity.launch'), secretEnvSpec)
+      : undefined
+    let launchStarted = false
+    let preparedBatPath: string | undefined
+
     try {
-      logger.info(`Launching terminal with command: ${terminalCommand}`)
-      logger.debug(`Working directory: ${directory}`)
-      logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
+      switch (platform) {
+        case 'darwin': {
+          // macOS - Support multiple terminals
+          const envPrefix = buildEnvPrefix(false)
 
-      const child = spawn(terminalCommand, terminalArgs, {
-        detached: true,
-        stdio: 'ignore',
-        cwd: directory,
-        env: processEnv,
-        shell: isWin
-      })
-      // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
-      // missing); without a listener that becomes an uncaught exception after
-      // run() already reported success. Wait for the spawn/error race so launch
-      // failures surface as a failed result instead.
-      await new Promise<void>((resolve, reject) => {
-        child.once('spawn', resolve)
-        child.once('error', reject)
-      })
-      child.on('error', (error) => logger.error('Terminal process error after launch', error))
+          let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+          if (secretEnv) command = secretEnv.wrapPosixCommand(command)
 
-      logger.info(`Launched ${cliTool} in new terminal window`)
+          // Combine directory change with the main command to ensure they execute in the same shell session.
+          // Single-quote the directory so a path containing spaces / `$()` / backticks / `;` can't inject
+          // (double-quoting it only blocks `"`, leaving command substitution live).
+          const fullCommand = `cd ${posixQuote(directory)} && clear && ${command}`
 
-      return { success: true }
-    } catch (error) {
-      if (secretEnv) {
-        await removeSecretEnvFile(secretEnv).catch((cleanupError) => {
+          const { command: cmd, args } = selectedTerminal!.command(directory, fullCommand)
+          terminalCommand = cmd
+          terminalArgs = args
+          break
+        }
+        case 'win32': {
+          // Windows - Use temp bat file for debugging
+          const envPrefix = buildEnvPrefix(true)
+          const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+
+          // Create temp bat file for debugging and avoid complex command line escaping issues
+          const tempDir = application.getPath('feature.cli.temp')
+          const launchId = secretEnv?.launchId ?? randomUUID()
+          const batFileName = `launch_${cliTool}_${launchId}.bat`
+          const batFilePath = path.join(tempDir, batFileName)
+          preparedBatPath = batFilePath
+
+          // Ensure temp directory exists
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true })
+          }
+
+          // Escape special characters in paths for Windows batch scripting
+          // Using double quotes for compatibility with CMD
+
+          // Build bat file content, including debug information
+          // Use labels and goto to handle errors properly (fixes CMD control-flow issue)
+          const batContent = [
+            '@echo off',
+            // A host may invoke this file through `cmd /v:on`; disable delayed expansion before any
+            // user-controlled path is evaluated, not only immediately before credential import.
+            'setlocal EnableExtensions DisableDelayedExpansion',
+            'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
+            `title ${cliTool} - Cherry Studio`,
+            'echo ================================================',
+            'echo Cherry Studio CLI Tool Launcher',
+            `echo Tool: ${CodeCliService.escapeBatchTextForEcho(cliTool)}`,
+            `echo Directory: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+            `echo Time: ${new Date().toLocaleString()}`,
+            'echo ================================================',
+            '',
+            ':: Verify directory exists',
+            `if not exist "${directory.replace(/%/g, '%%')}" goto :dir_missing`,
+            '',
+            ':: Change to target directory',
+            `pushd "${directory.replace(/%/g, '%%')}"`,
+            'if errorlevel 1 goto :pushd_failed',
+            '',
+            ':: Clear screen before running CLI',
+            'cls',
+            '',
+            ...(secretEnv ? secretEnv.wrapWindowsCommand(command) : [':: Execute command', command]),
+            '',
+            'goto :end',
+            '',
+            ':: Error handlers (using labels to ensure entire branch is conditional)',
+            ':dir_missing',
+            'echo ERROR: Directory does not exist',
+            `echo Target: ${CodeCliService.escapeBatchTextForEcho(directory)}`,
+            'pause',
+            'exit /b 1',
+            '',
+            ':pushd_failed',
+            'echo ERROR: Failed to change directory',
+            'pause',
+            'exit /b 1',
+            '',
+            ':end',
+            'pause'
+          ].join('\r\n')
+
+          // Write to bat file
+          try {
+            fs.writeFileSync(batFilePath, batContent, 'utf8')
+            // Set restrictive permissions for bat file
+            fs.chmodSync(batFilePath, 0o600)
+            logger.info(`Created temp bat file: ${batFilePath}`)
+          } catch (error) {
+            logger.error(`Failed to create bat file: ${error}`)
+            throw new Error(`Failed to create launch script: ${error}`)
+          }
+
+          // Get command and args from terminal configuration
+          // Pass the bat file path as the command to execute
+          const fullCommand = batFilePath
+          const { command: cmd, args } = selectedTerminal!.command(directory, fullCommand)
+
+          terminalCommand = cmd
+          terminalArgs = args
+
+          // Add to cleanup set
+          CodeCliService.pendingBatCleanups.add(batFilePath)
+
+          // Register exit handler only once (using process.once to avoid accumulation)
+          if (!CodeCliService.exitCleanupRegistered) {
+            process.once('exit', () => {
+              // Clean up all remaining bat files on process exit
+              for (const filePath of CodeCliService.pendingBatCleanups) {
+                try {
+                  if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath)
+                    logger.debug(`Cleaned up temp bat file on exit: ${filePath}`)
+                  }
+                } catch (error) {
+                  logger.warn(`Failed to cleanup temp bat file: ${error}`)
+                }
+              }
+              CodeCliService.pendingBatCleanups.clear()
+            })
+            CodeCliService.exitCleanupRegistered = true
+          }
+
+          // Set timeout for cleanup (normal case - file deleted after 60 seconds)
+          const cleanup = () => {
+            try {
+              if (fs.existsSync(batFilePath)) {
+                fs.unlinkSync(batFilePath)
+                logger.debug(`Cleaned up temp bat file: ${batFilePath}`)
+              }
+              // Remove from pending set
+              CodeCliService.pendingBatCleanups.delete(batFilePath)
+            } catch (error) {
+              logger.warn(`Failed to cleanup temp bat file: ${error}`)
+            }
+          }
+
+          setTimeout(cleanup, 60 * 1000).unref()
+
+          break
+        }
+        case 'linux': {
+          // Linux - Prefer the XDG-configured default terminal, then try common emulators.
+          const envPrefix = buildEnvPrefix(false)
+          let command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+          if (secretEnv) command = secretEnv.wrapPosixCommand(command)
+
+          const linuxTerminals = [
+            'xdg-terminal-exec',
+            'gnome-terminal',
+            'konsole',
+            'deepin-terminal',
+            'x-terminal-emulator',
+            'xterm'
+          ]
+          let foundTerminal: string | undefined
+
+          for (const terminal of linuxTerminals) {
+            try {
+              // Check if terminal exists
+              const checkResult = spawn('which', [terminal], { stdio: 'pipe' })
+              await new Promise((resolve) => {
+                // A failed `which` spawn emits 'error'; without a listener that is
+                // an uncaught exception in the main process. Treat it as not found.
+                checkResult.on('error', () => resolve(-1))
+                checkResult.on('close', (code) => {
+                  if (code === 0) {
+                    foundTerminal = terminal
+                  }
+                  resolve(code)
+                })
+              })
+              if (foundTerminal === terminal) break
+            } catch (error) {
+              // Continue trying next terminal
+            }
+          }
+
+          if (foundTerminal === 'xdg-terminal-exec') {
+            terminalCommand = 'xdg-terminal-exec'
+            terminalArgs = [`--dir=${directory}`, '--', 'bash', '-c', `clear && ${command}; exec bash`]
+          } else if (foundTerminal === 'gnome-terminal') {
+            terminalCommand = 'gnome-terminal'
+            terminalArgs = ['--working-directory', directory, '--', 'bash', '-c', `clear && ${command}; exec bash`]
+          } else if (foundTerminal === 'konsole') {
+            terminalCommand = 'konsole'
+            terminalArgs = ['--workdir', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+          } else if (foundTerminal === 'deepin-terminal') {
+            terminalCommand = 'deepin-terminal'
+            terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+          } else if (foundTerminal === 'x-terminal-emulator') {
+            terminalCommand = 'x-terminal-emulator'
+            terminalArgs = ['-e', 'bash', '-c', `cd ${posixQuote(directory)} && clear && ${command}; exec bash`]
+          } else {
+            // Default to xterm
+            terminalCommand = 'xterm'
+            terminalArgs = ['-e', `cd ${posixQuote(directory)} && clear && ${command} && bash`]
+          }
+          break
+        }
+        default:
+          throw new Error(`Unsupported operating system: ${platform}`)
+      }
+
+      // Launch terminal process
+      try {
+        logger.info(`Launching terminal with command: ${terminalCommand}`)
+        logger.debug(`Working directory: ${directory}`)
+        logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
+
+        const child = spawn(terminalCommand, terminalArgs, {
+          detached: true,
+          stdio: 'ignore',
+          cwd: directory,
+          env: processEnv,
+          shell: isWin
+        })
+        // spawn() fails asynchronously (e.g. ENOENT when the fallback terminal is
+        // missing); without a listener that becomes an uncaught exception after
+        // run() already reported success. Wait for the spawn/error race so launch
+        // failures surface as a failed result instead.
+        await new Promise<void>((resolve, reject) => {
+          child.once('spawn', resolve)
+          child.once('error', reject)
+        })
+        launchStarted = true
+        child.on('error', (error) => logger.error('Terminal process error after launch', error))
+
+        logger.info(`Launched ${cliTool} in new terminal window`)
+
+        return { success: true }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const failureMessage = `Failed to launch terminal: ${errorMessage}`
+        logger.error(failureMessage, error as Error)
+        return {
+          success: false,
+          message: failureMessage
+        }
+      }
+    } finally {
+      if (!launchStarted && secretEnv) {
+        await secretEnv.dispose().catch((cleanupError) => {
           logger.warn('Failed to remove unused Antigravity launch credentials', cleanupError as Error)
         })
       }
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const failureMessage = `Failed to launch terminal: ${errorMessage}`
-      logger.error(failureMessage, error as Error)
-      return {
-        success: false,
-        message: failureMessage
+
+      if (!launchStarted && preparedBatPath) {
+        try {
+          if (fs.existsSync(preparedBatPath)) fs.unlinkSync(preparedBatPath)
+          CodeCliService.pendingBatCleanups.delete(preparedBatPath)
+        } catch (error) {
+          logger.warn(`Failed to cleanup unused temp bat file: ${error}`)
+        }
       }
     }
   }
