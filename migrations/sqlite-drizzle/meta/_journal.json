@@ -126,13 +126,6 @@
       "when": 1787633963077,
       "tag": "0017_funny_stark_industries",
       "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1788154845680,
-      "tag": "0018_backfill_text_generation_capability",
-      "breakpoints": true
     }
   ],
   "version": "7"
