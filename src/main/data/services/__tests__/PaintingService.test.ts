@@ -277,6 +277,33 @@ describe('PaintingService', () => {
       expect(after).not.toBe(before)
     })
 
+    it('preserves DTO file order when batched refs share a timestamp', async () => {
+      const firstOutputId = '019606a0-0000-7000-8000-00000000c121'
+      const secondOutputId = '019606a0-0000-7000-8000-00000000c122'
+      await seedFileEntry(firstOutputId)
+      await seedFileEntry(secondOutputId)
+      const painting = paintingService.create(
+        p({
+          providerId: 'aihubmix',
+          prompt: 'ordered outputs',
+          files: { output: [firstOutputId, secondOutputId], input: [] }
+        })
+      )
+
+      // Make UUID lexical order oppose insertion/DTO order. The old query used
+      // this random identifier as its timestamp tie-breaker and reversed them.
+      await dbh.db
+        .update(paintingFileRefTable)
+        .set({ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff' })
+        .where(eq(paintingFileRefTable.fileEntryId, firstOutputId))
+      await dbh.db
+        .update(paintingFileRefTable)
+        .set({ id: '11111111-1111-4111-8111-111111111111' })
+        .where(eq(paintingFileRefTable.fileEntryId, secondOutputId))
+
+      expect(paintingService.getById(painting.id).files.output).toEqual([firstOutputId, secondOutputId])
+    })
+
     it('replaces painting_file_ref rows wholesale on update', async () => {
       const oldOutputId = '019606a0-0000-7000-8000-00000000c201'
       const oldInputId = '019606a0-0000-7000-8000-00000000c202'

@@ -86,12 +86,21 @@ function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, Pain
       sourceId: paintingFileRefTable.sourceId,
       fileEntryId: paintingFileRefTable.fileEntryId,
       role: paintingFileRefTable.role,
-      entry: fileEntryTable
+      entryOrigin: fileEntryTable.origin,
+      entryName: fileEntryTable.name,
+      entryExt: fileEntryTable.ext,
+      entrySize: fileEntryTable.size,
+      entryExternalPath: fileEntryTable.externalPath,
+      entryCreatedAt: fileEntryTable.createdAt,
+      entryDeletedAt: fileEntryTable.deletedAt
     })
     .from(paintingFileRefTable)
     .innerJoin(fileEntryTable, eq(fileEntryTable.id, paintingFileRefTable.fileEntryId))
     .where(inArray(paintingFileRefTable.sourceId, [...paintingIds]))
-    .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+    // The legacy ref schema has no explicit ordinal. Every writer inserts refs
+    // in DTO order, so SQLite's persisted insertion order is the only faithful
+    // tie-breaker when a batch shares one timestamp; UUID v4 order is random.
+    .orderBy(asc(paintingFileRefTable.createdAt), asc(sql`${paintingFileRefTable}.rowid`))
     .all()
 
   const grouped = new Map<string, { files: PaintingFiles; dependencies: unknown[] }>()
@@ -103,7 +112,20 @@ function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, Pain
     }
     if (ref.role === 'output') bucket.files.output.push(ref.fileEntryId)
     else if (ref.role === 'input') bucket.files.input.push(ref.fileEntryId)
-    bucket.dependencies.push([ref.role, ref.fileEntryId, ref.entry])
+    // Include only data consumed by painting hydration. In particular, omit
+    // cleanup policy, content hash, and updatedAt so unrelated file maintenance
+    // does not invalidate the expensive renderer cache.
+    bucket.dependencies.push([
+      ref.role,
+      ref.fileEntryId,
+      ref.entryOrigin,
+      ref.entryName,
+      ref.entryExt,
+      ref.entrySize,
+      ref.entryExternalPath,
+      ref.entryCreatedAt,
+      ref.entryDeletedAt
+    ])
   }
   return new Map(
     [...grouped].map(([paintingId, snapshot]) => [
