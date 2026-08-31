@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
@@ -13,7 +14,10 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { lazy, Suspense, useEffect } from 'react'
+import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
+import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { lazy, Suspense, useEffect, useMemo } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
@@ -50,6 +54,15 @@ function MainWindowRuntime(): null {
   useWindowRuntime()
   useMainWindowNavigation()
 
+  // Register the real (component-layer) image-mode popup behind the services seam.
+  // subWindow registers the same effect (SubWindowApp) — detached tabs render the
+  // same route tree and can export too; other windows never reach these exports.
+  useEffect(() => {
+    registerImageModeChooser((imageCount) =>
+      import('@renderer/components/MarkdownImageExportPopup').then((m) => m.default.show({ imageCount }))
+    )
+  }, [])
+
   // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
   // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
   // this must never run in another window.
@@ -71,9 +84,23 @@ function MainWindowRuntime(): null {
 
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+  const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
+  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+
+  const initialDefaultTab = useMemo<Tab>(
+    () => ({
+      id: 'home',
+      type: 'route',
+      url: getSidebarDefaultLandingUrl(sidebarFavorites, defaultPaintingProvider) || '/app/launchpad',
+      title: '',
+      lastAccessTime: Date.now(),
+      isDormant: false
+    }),
+    [defaultPaintingProvider, sidebarFavorites]
+  )
 
   return (
-    <TabsProvider>
+    <TabsProvider initialDefaultTab={initialDefaultTab}>
       {providerSetupStatus === 'pending' ? (
         <Suspense fallback={<BootFallback />}>
           <OnboardingPage />
@@ -82,6 +109,7 @@ export function MainWindowContent(): React.ReactElement {
         <AppShell />
       )}
       <MainWindowRuntime />
+      <ConversationNotificationRuntime />
       <PopupHost />
       <ToastHost />
       {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}

@@ -51,6 +51,19 @@ describe('command definitions', () => {
     }
   })
 
+  // Registration reads the preference default, never the rule: an empty binding there means
+  // "the user cleared this", so it is deliberately not backfilled from `defaultBinding`. A rule
+  // whose two defaults disagree therefore ships a shortcut that is dead on a fresh install.
+  it('ships every declared default binding in the preference defaults', () => {
+    for (const rule of REGISTERED_KEYBINDINGS) {
+      // `in`, not Array.isArray: ShortcutBinding is a readonly array, which Array.isArray
+      // (typed `arg is any[]`) cannot narrow out of the union.
+      const declared = 'default' in rule.defaultBinding ? rule.defaultBinding.default : rule.defaultBinding
+
+      expect(DefaultPreferences.default[rule.preferenceKey]?.binding, rule.command).toEqual(declared)
+    }
+  })
+
   it('preserves special keybinding metadata when deriving rules', () => {
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'quick_assistant.toggle')).toMatchObject({
       command: 'quick_assistant.toggle',
@@ -112,6 +125,22 @@ describe('command definitions', () => {
     expect(getCommandDefaultShortcutPreference(command)).toEqual({
       binding: ['CommandOrControl', 'P'],
       enabled: true
+    })
+  })
+
+  it('restores the configurable clear-topic shortcut on Ctrl+L', () => {
+    const command = 'topic.clear_messages' as CommandId
+
+    expect(findCommandDefinition(command)).toMatchObject({
+      id: command,
+      titleKey: 'chat.topics.clear.title',
+      categoryKey: 'settings.shortcuts.topic',
+      scope: 'renderer'
+    })
+    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === command)).toMatchObject({
+      command,
+      defaultBinding: ['CommandOrControl', 'L'],
+      preferenceKey: 'shortcut.topic.clear_messages'
     })
   })
 })

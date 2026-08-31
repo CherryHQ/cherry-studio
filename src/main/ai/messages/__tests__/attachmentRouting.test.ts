@@ -98,35 +98,28 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
   })
 
-  // A local vision verdict describes the model, not the endpoint it is called
-  // through: rejecting here locked users of image-capable gateways/proxies out
-  // of sending any image at all (a photo OCRs to nothing, so every turn failed).
-  it.each([
-    ['OCR finds no text', () => ocrMock.mockResolvedValueOnce('   ')],
-    [
-      'OCR is unconfigured or fails',
-      () => ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
-    ]
-  ])('forwards the native image to a non-vision model when %s', async (_case, arrangeOcr) => {
+  it('rejects before native materialization when OCR finds no text', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    arrangeOcr()
-    const materialized = { type: 'file', url: 'data:image/png;base64,AA', mediaType: 'image/png' }
-    resolveMock.mockResolvedValueOnce(materialized)
+    ocrMock.mockResolvedValueOnce('   ')
 
-    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model'
+    })
 
-    expect(out.parts).toEqual([materialized])
+    expect(resolveMock).not.toHaveBeenCalled()
   })
 
-  it('degrades to a note when the native image fallback also fails', async () => {
+  it('rejects before native materialization when OCR is unconfigured or fails', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
-    ocrMock.mockResolvedValueOnce('')
-    resolveMock.mockResolvedValueOnce(null)
+    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
 
-    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    await expect(run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)).rejects.toMatchObject({
+      name: 'NonVisionImageOcrError',
+      i18nKey: 'image_unreadable_for_non_vision_model'
+    })
 
-    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(0)
-    expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
+    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('inlines extracted text for office docs', async () => {

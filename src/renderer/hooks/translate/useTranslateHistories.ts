@@ -1,4 +1,4 @@
-import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'
@@ -74,6 +74,10 @@ export const useTranslateHistories = ({
     resetRef.current()
     await pageRefresh()
   }, [pageRefresh])
+
+  useDataChange('/translate/histories', () => {
+    void reload()
+  })
 
   // Loading / error / ready discriminator. Empty `items` is ambiguous on its
   // own (still loading? load failed? legitimately no records?), so callers

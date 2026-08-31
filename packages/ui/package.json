@@ -130,7 +130,8 @@
     "vitest": "^3.2.7"
   },
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./src/components/composites/markdown/styles.ts"
   ],
   "engines": {
     "node": ">=18.0.0"

@@ -12,7 +12,9 @@ import {
   miniAppLogoRef,
   paintingFileRefSchema,
   paintingSourceType,
-  providerLogoRef
+  providerLogoRef,
+  translateHistoryFileRefSchema,
+  translateHistorySourceType
 } from '../file'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
@@ -20,6 +22,7 @@ const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
 const MESSAGE_ID = '33333333-4444-4555-8666-000000000002' // UUID (legacy chat ids may be v4)
 const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.id)
 const JOB_ID = '019606a0-0000-7000-8000-000000000009' // UUIDv7 (job.id is uuidPrimaryKeyOrdered)
+const HISTORY_ID = '019606a0-0000-7000-8000-00000000000a' // UUIDv7 (translate_history.id is uuidPrimaryKeyOrdered)
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
@@ -34,8 +37,10 @@ describe('FileRefSourceType', () => {
       'agent_session_message',
       'painting',
       'job',
+      'translate_history',
       'provider_logo',
-      'mini_app_logo'
+      'mini_app_logo',
+      'mini_app_file'
     ])
   })
 })
@@ -191,6 +196,38 @@ describe('jobFileRefSchema', () => {
   })
 })
 
+describe('translateHistoryFileRefSchema', () => {
+  function makeTranslateHistoryRef(overrides: Record<string, unknown> = {}) {
+    return {
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: translateHistorySourceType,
+      sourceId: HISTORY_ID,
+      role: 'target',
+      createdAt: TS,
+      updatedAt: TS,
+      ...overrides
+    }
+  }
+
+  it('accepts both translate_history roles (source/target)', () => {
+    for (const role of ['source', 'target']) {
+      const parsed = translateHistoryFileRefSchema.parse(makeTranslateHistoryRef({ role }))
+      expect(parsed.role).toBe(role)
+    }
+  })
+
+  it('rejects role values outside the translate_history vocabulary', () => {
+    for (const role of ['output', 'input', 'translated', '']) {
+      expect(() => translateHistoryFileRefSchema.parse(makeTranslateHistoryRef({ role }))).toThrow()
+    }
+  })
+
+  it('rejects a non-UUID sourceId', () => {
+    expect(() => translateHistoryFileRefSchema.parse(makeTranslateHistoryRef({ sourceId: 'not-a-uuid' }))).toThrow()
+  })
+})
+
 describe('FileRefSchema discriminated union', () => {
   it('dispatches to the chat_message variant', () => {
     const parsed = FileRefSchema.parse({
@@ -233,6 +270,21 @@ describe('FileRefSchema discriminated union', () => {
     expect(parsed.sourceType).toBe('job')
     // Narrow the heterogeneous union (single-file variants are roleless).
     if (parsed.sourceType === 'job') expect(parsed.role).toBe('mask')
+  })
+
+  it('dispatches to the translate_history variant', () => {
+    const parsed = FileRefSchema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: translateHistorySourceType,
+      sourceId: HISTORY_ID,
+      role: 'source',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(parsed.sourceType).toBe('translate_history')
+    // Narrow the heterogeneous union (single-file variants are roleless).
+    if (parsed.sourceType === 'translate_history') expect(parsed.role).toBe('source')
   })
 
   it('rejects an unregistered sourceType (not in allSourceTypes)', () => {

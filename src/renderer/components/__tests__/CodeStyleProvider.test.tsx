@@ -1,6 +1,7 @@
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
+import { shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { getShiki } from '@renderer/utils/shiki'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -30,6 +31,7 @@ vi.mock('@renderer/services/ShikiStreamService', () => ({
   shikiStreamService: {
     dispose: vi.fn(),
     highlightCodeChunk: vi.fn(),
+    highlightCodeToHtml: vi.fn(),
     highlightStreamingCode: vi.fn(),
     cleanupTokenizers: vi.fn(),
     getShikiPreProperties: vi.fn()
@@ -45,12 +47,12 @@ vi.mock('@renderer/utils/shiki', () => ({
   })),
   getHighlighter: vi.fn(),
   getMarkdownIt: vi.fn(),
-  loadLanguageIfNeeded: vi.fn(),
-  loadThemeIfNeeded: vi.fn()
+  loadLanguageAndThemeIfNeeded: vi.fn()
 }))
 
 const Probe = () => {
-  const { loadThemeNames, themeNames, activeCmTheme, activeShikiTheme } = useCodeStyle()
+  const { highlightCode, activeCmTheme, activeShikiTheme } = useCodeStyle()
+  const { loadThemeNames, themeNames } = useCodeStyleThemeCatalog()
   return (
     <>
       <span data-testid="has-dracula">{String(themeNames.includes('dracula'))}</span>
@@ -59,6 +61,9 @@ const Probe = () => {
       <span data-testid="shiki-theme">{activeShikiTheme}</span>
       <button type="button" onClick={() => void loadThemeNames()}>
         Load themes
+      </button>
+      <button type="button" onClick={() => void highlightCode('value', 'missing-language')}>
+        Highlight code
       </button>
     </>
   )
@@ -153,5 +158,16 @@ describe('CodeStyleProvider', () => {
 
     expect(screen.getByTestId('shiki-theme').textContent).toBe('one-light')
     await waitFor(() => expect(screen.getByTestId('shiki-theme').textContent).toBe('nord'))
+  })
+
+  it('routes one-shot highlights through the stream service instead of the main thread', async () => {
+    vi.mocked(shikiStreamService.highlightCodeToHtml).mockResolvedValue('<pre>value</pre>')
+
+    renderProvider()
+    fireEvent.click(screen.getByRole('button', { name: 'Highlight code' }))
+
+    await waitFor(() =>
+      expect(shikiStreamService.highlightCodeToHtml).toHaveBeenCalledWith('value', 'missing-language', 'one-light')
+    )
   })
 })

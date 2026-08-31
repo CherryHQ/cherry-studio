@@ -55,6 +55,26 @@ export function isMcpErrorMessage(message: string): boolean {
   )
 }
 
+export function isProxyErrorMessage(message: string): boolean {
+  const msg = message.toLowerCase()
+  // Underscore→space would split ERR_MANDATORY_PROXY_* into "err mandatory proxy".
+  if (/\berr(?:_[a-z0-9]+)*_proxy(?:_[a-z0-9]+)*\b/.test(msg)) {
+    return true
+  }
+
+  const normalized = msg.replace(/_/g, ' ')
+
+  return (
+    normalized.includes('err proxy') ||
+    normalized.includes('proxy connection') ||
+    normalized.includes('proxy response') ||
+    normalized.includes('proxy error') ||
+    normalized.includes('proxy refused') ||
+    normalized.includes('proxy rejected') ||
+    normalized.includes('connection to proxies')
+  )
+}
+
 export function classifyError(error?: SerializedError, providerId?: string): ErrorClassification {
   if (!error) {
     return { category: 'unknown', i18nKey: 'error.diagnosis.unknown', navTarget: null }
@@ -100,7 +120,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('not available in your territory') ||
     (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
   ) {
-    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/system' }
+    return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }
   }
 
   // Auth errors (401). 403 is handled below: a refused request is often unrelated to key
@@ -108,6 +128,9 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   if (
     numStatus === 401 ||
     msg.includes('invalid_api_key') ||
+    msg.includes('invalid api key') ||
+    msg.includes('api key is invalid') ||
+    msg.includes('incorrect api key') ||
     msg.includes('authentication') ||
     msg.includes('unauthorized')
   ) {
@@ -215,22 +238,23 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('econnrefused') ||
     msg.includes('etimedout') ||
     msg.includes('timeout') ||
+    msg.includes('timed out') ||
     msg.includes('network') ||
     msg.includes('fetch failed') ||
     msg.includes('enotfound')
   ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
+    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/general' }
   }
 
   // Proxy / SSL certificate errors
   if (
-    msg.includes('proxy') ||
+    isProxyErrorMessage(msg) ||
     msg.includes('socks') ||
     msg.includes('certificate') ||
     msg.includes('self-signed') ||
     msg.includes('unable_to_verify_leaf_signature')
   ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
+    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
   }
 
   // Server errors (5xx / overloaded)

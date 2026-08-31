@@ -60,6 +60,7 @@ vi.mock('@application', async () => {
 
 // Mock electron modules that are commonly used in main process
 vi.mock('electron', () => {
+  const partitionSessions = new Map<string, Record<string, unknown>>()
   const mock = {
     app: {
       getPath: vi.fn((key: string) => {
@@ -76,7 +77,16 @@ vi.mock('electron', () => {
       }),
       getVersion: vi.fn(() => '1.0.0'),
       getLocale: vi.fn(() => 'en-US'),
-      getPreferredSystemLanguages: vi.fn(() => ['en-US'])
+      getPreferredSystemLanguages: vi.fn(() => ['en-US']),
+      // Explicit false (matching the previous `undefined` semantics) so the
+      // dev-only logs diversion in core/paths/constants.ts stays exercised.
+      isPackaged: false,
+      setAppLogsPath: vi.fn(),
+      // The real `app` is an EventEmitter, and code that hardens every web contents
+      // subscribes to `web-contents-created` through it.
+      on: vi.fn(),
+      once: vi.fn(),
+      removeListener: vi.fn()
     },
     ipcMain: {
       handle: vi.fn(),
@@ -95,6 +105,7 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
+      openPath: vi.fn(),
       showItemInFolder: vi.fn(),
       trashItem: vi.fn()
     },
@@ -105,10 +116,36 @@ vi.mock('electron', () => {
         webRequest: {
           onBeforeSendHeaders: vi.fn()
         }
-      }
+      },
+      // Memoised per partition, because the real one is too: callers key WeakMaps and
+      // WeakSets on the session object, and a fresh stub each call makes every such
+      // lookup miss while every individual assertion still passes.
+      fromPartition: vi.fn((partition: string) => {
+        const cached = partitionSessions.get(partition)
+        if (cached) return cached
+        const created = {
+          clearCache: vi.fn(),
+          clearStorageData: vi.fn(),
+          clearCodeCaches: vi.fn(),
+          setProxy: vi.fn(async () => {}),
+          setPermissionRequestHandler: vi.fn(),
+          setPermissionCheckHandler: vi.fn(),
+          setDisplayMediaRequestHandler: vi.fn(),
+          setDevicePermissionHandler: vi.fn(),
+          protocol: { handle: vi.fn(), unhandle: vi.fn() },
+          webRequest: {
+            onBeforeRequest: vi.fn(),
+            onBeforeSendHeaders: vi.fn(),
+            onHeadersReceived: vi.fn()
+          }
+        }
+        partitionSessions.set(partition, created)
+        return created
+      })
     },
     webContents: {
-      getAllWebContents: vi.fn(() => [])
+      getAllWebContents: vi.fn(() => []),
+      fromId: vi.fn(() => undefined)
     },
     systemPreferences: {
       getMediaAccessStatus: vi.fn(),

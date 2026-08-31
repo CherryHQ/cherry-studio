@@ -1,4 +1,6 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, Switch } from '@cherrystudio/ui'
+import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
@@ -35,6 +37,29 @@ function hasOverflowActions(resource: ResourceItem) {
   return resource.type === 'assistant'
 }
 
+function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
+  const { t } = useTranslation()
+  const { updateGlobalEnabled, isUpdating } = useSkillMutationsById(resource.id)
+
+  const handleCheckedChange = async (checked: boolean) => {
+    try {
+      await updateGlobalEnabled(checked)
+    } catch {
+      toast.error(t('settings.skills.toggleFailed', { name: resource.name }))
+    }
+  }
+
+  return (
+    <Switch
+      size="sm"
+      checked={resource.raw.isGlobalEnabled}
+      disabled={isUpdating}
+      aria-label={t('settings.skills.globalToggle', { name: resource.name })}
+      onCheckedChange={handleCheckedChange}
+    />
+  )
+}
+
 export function ResourceCard({
   resource: r,
   variant = 'library',
@@ -47,10 +72,7 @@ export function ResourceCard({
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
   const isSettings = variant === 'settings'
-  // Library cards keep the type tint for quick scanning. The settings surface uses a neutral icon block
-  // so Skill management follows the same calm visual hierarchy as the surrounding settings pages.
   const showTypeIcon = r.type === 'skill'
-  const useTypedAvatarBg = showTypeIcon && !isSettings
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
@@ -75,13 +97,9 @@ export function ResourceCard({
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-lg text-base',
-              useTypedAvatarBg ? cfg.color : 'bg-secondary text-secondary-foreground'
+              showTypeIcon ? cfg.color : 'bg-secondary text-secondary-foreground'
             )}>
-            {showTypeIcon ? (
-              <TypeIcon size={20} aria-hidden className={isSettings ? 'text-foreground-tertiary' : undefined} />
-            ) : (
-              r.avatar
-            )}
+            {showTypeIcon ? <TypeIcon size={20} aria-hidden className="lucide-custom" /> : r.avatar}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
@@ -112,7 +130,19 @@ export function ResourceCard({
             )}
           </div>
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-            {showOverflowMenu ? (
+            {r.type === 'skill' && isSettings ? (
+              <div className="flex items-center gap-1">
+                <SkillGlobalToggle resource={r} />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('library.action.uninstall')}
+                  onClick={() => onDelete(r)}
+                  className="text-muted-foreground opacity-0 hover:bg-error-subtle hover:text-error-subtle-foreground focus-visible:opacity-100 group-hover:opacity-100">
+                  <Trash2 size={12} className="lucide-custom" />
+                </Button>
+              </div>
+            ) : showOverflowMenu ? (
               <ResourceCardMenu
                 resource={r}
                 onDuplicate={onDuplicate}

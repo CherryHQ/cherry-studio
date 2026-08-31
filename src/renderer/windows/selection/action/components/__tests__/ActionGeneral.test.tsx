@@ -162,6 +162,18 @@ describe('ActionGeneral', () => {
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: undefined })
   })
 
+  it('interpolates selected text literally into every custom prompt placeholder', async () => {
+    const selectedText = "$$E=mc^2$$ | $& | $` | $' | {{text}}"
+    const prompt = 'Before {{text}} / {{text}} after'
+
+    render(
+      <ActionGeneral action={createAction({ id: 'custom', isBuiltIn: false, assistantId: '', prompt, selectedText })} />
+    )
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.sendMessage).toHaveBeenCalledWith({ text: `Before ${selectedText} / ${selectedText} after` })
+  })
+
   it('waits for a configured assistant before leasing and sending', async () => {
     const action = createAction({ assistantId: 'assistant-1' })
     const { rerender } = render(<ActionGeneral action={action} />)

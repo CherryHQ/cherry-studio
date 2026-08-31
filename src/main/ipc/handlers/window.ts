@@ -3,14 +3,13 @@ import type { windowRequestSchemas } from '@shared/ipc/schemas/window'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 /**
- * Thin adapters for the WindowManager caller-window control routes. Each one acts on
- * the window that issued the call, identified by `ctx.senderId` (the WindowId main
- * derived from `event.sender` — the renderer cannot forge it), then delegates to the
- * matching by-id `WindowManager` method.
+ * Thin adapters for caller-window control routes. Each one acts on the window that
+ * issued the call, identified by `ctx.senderId` (the WindowId main derived from
+ * `event.sender` — the renderer cannot forge it), then delegates to its lifecycle owner.
  *
- * SCOPE GUARD: keep this map to WindowManager caller-window operations only. Opening a
- * named window (settings/search) or driving the main-window singleton (reload, min-size)
- * are different domains — do not add them here just because they touch "a window".
+ * SCOPE GUARD: caller-window controls stay with their lifecycle owner. Explicit
+ * `window.main.*` / `window.sub.*` routes delegate to their domain services; opening
+ * named windows (settings/search) remains outside this map.
  *
  * A null `senderId` means the caller is not a window WindowManager tracks (e.g. detached
  * devtools). That is an accepted no-op, mirroring the legacy handlers' `if (!windowId)
@@ -18,7 +17,11 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  */
 export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
   'window.close': async (_input, { senderId }) => {
-    if (senderId) application.get('WindowManager').close(senderId)
+    if (!senderId) return
+
+    if (!application.get('MainWindowService').requestClose(senderId)) {
+      application.get('WindowManager').close(senderId)
+    }
   },
   'window.minimize': async (_input, { senderId }) => {
     if (senderId) application.get('WindowManager').minimize(senderId)

@@ -7,11 +7,31 @@ export type QuickPanelTriggerInfo = {
   originalText?: string
 }
 
+export interface QuickPanelInsertTextOptions {
+  /** Default true — turn `${name}` in the inserted text into prompt-variable chips. */
+  tokenizeVariables?: boolean
+}
+
+export interface QuickPanelInsertTokenOptions {
+  /**
+   * Default true — append a space after the chip, which is what a standalone pick (a skill, a
+   * knowledge base) wants. Pass false when the chip sits inside surrounding text the caller is
+   * reproducing verbatim, so `Hello ${name}!` does not become `Hello ${name} !`.
+   */
+  insertSeparator?: boolean
+}
+
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
-  insertText: (text: string) => void
-  insertToken?: (token: unknown) => void
+  /**
+   * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
+   * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that
+   * did not author those markers as fields — a rendered MCP prompt whose body may contain a shell
+   * `${HOME}` — so it stays literal.
+   */
+  insertText: (text: string, options?: QuickPanelInsertTextOptions) => void
+  insertToken?: (token: unknown, options?: QuickPanelInsertTokenOptions) => void
   deleteTriggerRange: (range: { from: number; to: number }) => void
   focus: () => void
   subscribeInput?: (listener: (event?: QuickPanelInputEvent) => void) => () => void
@@ -102,6 +122,9 @@ export type QuickPanelListItem = {
   id?: string
   label: React.ReactNode | string
   description?: React.ReactNode | string
+  tooltip?: React.ReactNode | string
+  /** In-row element used as the controlled Tooltip trigger. */
+  tooltipAnchor?: React.ReactElement
   /**
    * Extra searchable text for items whose visible label/description are not
    * enough or are not plain strings. The default filter treats this as additive

@@ -1,15 +1,18 @@
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
-import AssistantServer, { SUPPORT_ASSISTANT_TOOL_NAMES } from '@main/ai/mcp/servers/assistant'
+import AssistantServer from '@main/ai/mcp/servers/assistant'
 import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
+import McpManagerServer from '@main/ai/mcp/servers/mcpManager'
 import SkillsServer from '@main/ai/mcp/servers/skills'
+import { CHERRY_MCP_SERVER } from '@main/ai/toolApproval/builtinToolPolicy'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -19,7 +22,19 @@ import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 const logger = loggerService.withContext('AgentMcpServers')
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServerEntity | undefined>
-export type LinkedChannelSnapshot = Pick<AgentChannelEntity, 'id'> | null
+export type NotifyChannel = Pick<AgentChannelEntity, 'id' | 'type'>
+export type LinkedChannelSnapshot = NotifyChannel | null
+
+export interface AgentNotificationContext {
+  /**
+   * Never read directly — it is hashed into the connection rebuild signature so that binding or
+   * unbinding a Session's channel rebuilds the connection (channel-linked sessions mount a
+   * different MCP server set). Dropping it silently strands a session on the wrong tool surface.
+   */
+  sourceChannel: NotifyChannel | null
+  channels: readonly NotifyChannel[]
+  allowAnyOwnedChannel: boolean
+}
 
 export interface AgentMcpServer {
   name: string
@@ -30,13 +45,17 @@ export interface AgentMcpServer {
 export function buildAgentMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  assistantMcpEnabled: boolean,
+  mountedServers: ReadonlySet<string>,
   mcpServerSnapshots?: McpServerSnapshotMap,
   linkedChannelSnapshot?: LinkedChannelSnapshot,
   agentDataPath = session.workspace.path,
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
+  const channelLinked =
+    linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
+  const hostTools = resolveHostTools(agent, { channelLinked })
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -50,20 +69,18 @@ export function buildAgentMcpServers(
     }
   }
 
-  const sourceChannelId =
-    linkedChannelSnapshot === undefined ? resolveSourceChannel(agent.id, session.id) : linkedChannelSnapshot?.id
   const workspaceSource = toWorkspaceSource(session)
   servers['cherry-tools'] = {
-    name: 'cherry-tools',
+    name: CHERRY_MCP_SERVER.CHERRY_TOOLS,
     instance: new CherryBuiltinToolsServer({
       agentId: agent.id,
       agentDataPath,
       sessionId: session.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      sourceChannelId,
-      canAccessAllKnowledgeBases: () =>
-        agentService.getAgent(agent.id)?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.ASSISTANT,
+      trustedNotifyChannels: notificationContext.channels,
+      allowAnyOwnedNotifyChannel: notificationContext.allowAnyOwnedChannel,
+      canAccessAllKnowledgeBases: () => resolveAgentCapabilities(agentService.getAgent(agent.id)).allKnowledgeBases,
       getKnowledgeBaseIds: () => {
         const liveAgent = agentService.getAgent(agent.id)
         return liveAgent ? resolveKnowledgeBaseScope(liveAgent.knowledgeBaseIds, selectedKnowledgeBaseIds) : []
@@ -71,22 +88,28 @@ export function buildAgentMcpServers(
     }).mcpServer
   }
   servers['agent-memory'] = {
-    name: 'agent-memory',
+    name: CHERRY_MCP_SERVER.AGENT_MEMORY,
     instance: new AgentMemoryServer(agent.id, agentDataPath).mcpServer
   }
-  if (agent.configuration?.builtin_role !== BUILTIN_AGENT_ROLE.SUPPORT) {
-    servers.skills = { name: 'skills', instance: new SkillsServer(agent.id).mcpServer }
+  if (mountedServers.has(CHERRY_MCP_SERVER.SKILLS)) {
+    servers.skills = { name: CHERRY_MCP_SERVER.SKILLS, instance: new SkillsServer(agent.id).mcpServer }
+  }
+  if (mountedServers.has(CHERRY_MCP_SERVER.MCP_MANAGER)) {
+    servers['mcp-manager'] = {
+      name: CHERRY_MCP_SERVER.MCP_MANAGER,
+      instance: new McpManagerServer(agent.id).mcpServer
+    }
   }
 
-  if (assistantMcpEnabled) {
-    const assistantToolNames =
-      agent.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT ? SUPPORT_ASSISTANT_TOOL_NAMES : undefined
+  if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
-      name: 'assistant',
-      instance: new AssistantServer(agent.model ?? undefined, assistantToolNames).mcpServer
+      name: CHERRY_MCP_SERVER.ASSISTANT,
+      instance: new AssistantServer(agent.model ?? undefined, hostTools?.tools).mcpServer
     }
+  }
+  if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {
     servers['assistant-files'] = {
-      name: 'assistant-files',
+      name: CHERRY_MCP_SERVER.ASSISTANT_FILES,
       instance: new AssistantFileToolsServer({
         sessionId: session.id,
         workspacePath: session.workspace.path
@@ -110,10 +133,38 @@ function toWorkspaceSource(session: AgentSessionEntity): AgentSessionWorkspaceSo
   }
 }
 
-function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
+export function resolveAgentNotificationContext(
+  sessionId: string,
+  agentId: string,
+  linkedChannelSnapshot?: LinkedChannelSnapshot
+): AgentNotificationContext {
+  const sourceChannel =
+    linkedChannelSnapshot === undefined ? resolveSourceChannelSafely(sessionId, agentId) : linkedChannelSnapshot
+  const turnChannels = application.get('AgentSessionRuntimeService').getTurnTrustedNotifyChannels(sessionId)
+  const channels = [...(turnChannels ?? (sourceChannel ? [sourceChannel] : []))].sort(
+    (left, right) => left.id.localeCompare(right.id) || left.type.localeCompare(right.type)
+  )
+
+  return {
+    sourceChannel,
+    channels,
+    allowAnyOwnedChannel: turnChannels === undefined && sourceChannel !== null
+  }
+}
+
+/**
+ * The Session's linked channel, or null unless it belongs to `agentId`. The ownership check is the
+ * boundary that keeps one Agent's task output out of another's channel — never project without it.
+ */
+export function resolveLinkedNotifyChannel(sessionId: string, agentId: string): LinkedChannelSnapshot {
+  const channel = channelService.findBySessionId(sessionId)
+  return channel?.agentId === agentId ? { id: channel.id, type: channel.type } : null
+}
+
+function resolveSourceChannelSafely(sessionId: string, agentId: string): LinkedChannelSnapshot {
   try {
-    return channelService.listChannels({ agentId }).find((channel) => channel.sessionId === sessionId)?.id
+    return resolveLinkedNotifyChannel(sessionId, agentId)
   } catch {
-    return undefined
+    return null
   }
 }

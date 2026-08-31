@@ -181,13 +181,6 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     [mutate, topicId]
   )
 
-  /** Replace the branch cache with a single empty page. */
-  const clearBranchCache = useCallback(async () => {
-    await mutate([{ items: [], nextCursor: undefined, activeNodeId: null, assistantId: null, rootId: null }], {
-      revalidate: false
-    })
-  }, [mutate])
-
   // `useInvalidateCache`'s `invalidatePathPatterns` walks both scalar and
   // `$inf$`-prefixed cache keys (see `findMatchingInfiniteKeys`), so a
   // path-based refresh option covers the infinite cache entry too.
@@ -209,23 +202,17 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: branchCachePaths
   })
-  const { trigger: clearTopicMessagesTrigger } = useMutation('DELETE', '/topics/:topicId/messages', {
-    refresh: [messagesCachePath]
-  })
-
   return {
     branchWithoutIds,
     seedOptimisticBranch,
     seedReservedMessages,
     patchMessageInBranch,
     rollbackBranch,
-    clearBranchCache,
     deleteMessageTrigger,
     deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,
-    setActiveNodeTrigger,
-    clearTopicMessagesTrigger
+    setActiveNodeTrigger
   }
 }

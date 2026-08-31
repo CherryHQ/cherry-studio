@@ -359,6 +359,17 @@ export class ExportService {
 
   public exportToWord = async (markdown: string, fileName: string): Promise<void> => {
     try {
+      // Dialog-first is perf-driven: canceling costs zero conversion, and the dialog
+      // opens without waiting on the markdown→docx conversion.
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: t('dialog.save_file'),
+        filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
+        defaultPath: fileName
+      })
+      if (canceled || !filePath) {
+        return
+      }
+
       const [{ default: MarkdownIt }, docx] = await Promise.all([import('markdown-it'), import('docx')])
       const elements = this.convertMarkdownToDocxElements(markdown, new MarkdownIt(), docx)
 
@@ -385,16 +396,8 @@ export class ExportService {
 
       const buffer = await docx.Packer.toBuffer(doc)
 
-      const filePath = dialog.showSaveDialogSync({
-        title: t('dialog.save_file'),
-        filters: [{ name: t('dialog.word_document'), extensions: ['docx'] }],
-        defaultPath: fileName
-      })
-
-      if (filePath) {
-        await fs.promises.writeFile(filePath, buffer)
-        logger.debug('Document exported successfully')
-      }
+      await fs.promises.writeFile(filePath, buffer)
+      logger.debug('Document exported successfully')
     } catch (error) {
       logger.error('Export to Word failed:', error as Error)
       throw error

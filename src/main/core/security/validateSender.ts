@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs'
-import { isAbsolute, relative } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
@@ -26,6 +26,27 @@ function resolveAppRoot(appRootDir: string): string {
   }
 }
 
+/** Resolve aliases in the existing portion of a path while preserving an ASAR virtual suffix. */
+function resolveRendererPath(filePath: string): string | undefined {
+  let candidate = filePath
+  const missingSegments: string[] = []
+
+  while (true) {
+    try {
+      return join(realpathSync.native(candidate), ...missingSegments)
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOENT' && code !== 'ENOTDIR') return undefined
+
+      const parent = dirname(candidate)
+      if (parent === candidate) return undefined
+
+      missingSegments.unshift(basename(candidate))
+      candidate = parent
+    }
+  }
+}
+
 /**
  * Whether a URL belongs to the app's own renderer.
  *
@@ -40,8 +61,8 @@ function resolveAppRoot(appRootDir: string): string {
  * that origin.
  *
  * A `file:` URL is trusted only when its path is **inside `appRootDir`** — not any
- * `file:` wholesale. The app root is resolved to its real path first because Chromium
- * canonicalizes renderer URLs while Electron may report a symlinked launch path.
+ * `file:` wholesale. Filesystem aliases may appear on either side, so existing path
+ * portions are compared canonically while preserving the virtual path below `app.asar`.
  * Reaching IpcApi does not require the app preload (a
  * `nodeIntegration` window can call `ipcRenderer.invoke` directly), so a
  * downloaded/exported HTML opened in such a window would otherwise be trusted, and
@@ -72,7 +93,11 @@ export function isAppRendererUrl(
     } catch {
       return false
     }
-    return isPathInside(filePath, resolveAppRoot(appRootDir))
+    const appRoot = resolveAppRoot(appRootDir)
+    if (isPathInside(filePath, appRoot)) return true
+
+    const resolvedFilePath = resolveRendererPath(filePath)
+    return resolvedFilePath !== undefined && isPathInside(resolvedFilePath, appRoot)
   }
 
   if (devServerUrl) {

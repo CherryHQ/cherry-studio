@@ -111,6 +111,62 @@ describe('CodeViewer', () => {
     expect(scroller.scrollTop).toBe(100)
   })
 
+  it('highlights only viewport-visible viewers immediately when many code blocks mount together', async () => {
+    vi.useFakeTimers()
+    const rectSpy = vi.spyOn(window.HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      const viewportState = this.closest('[data-viewport-state]')?.getAttribute('data-viewport-state')
+      return viewportState === 'visible' ? new DOMRect(10, 10, 320, 80) : new DOMRect(10, 10_000, 320, 80)
+    })
+    const lineCounts = Array.from({ length: 12 }, (_, index) => index + 1)
+    const requestedCounts = () => mocks.highlightLines.mock.calls.map(([count]) => count).sort((a, b) => a - b)
+
+    try {
+      render(
+        <>
+          {lineCounts.map((lineCount) => (
+            <div key={lineCount} data-viewport-state={lineCount <= 2 ? 'visible' : 'offscreen'}>
+              <CodeViewer
+                value={Array.from({ length: lineCount }, (_, index) => `line ${index + 1}`).join('\n')}
+                language="typescript"
+              />
+            </div>
+          ))}
+        </>
+      )
+
+      expect(requestedCounts()).toEqual([1, 2])
+
+      await vi.runAllTimersAsync()
+      expect(requestedCounts()).toEqual(lineCounts)
+    } finally {
+      rectSpy.mockRestore()
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
+  })
+
+  it('debounces every highlight request after the first one', async () => {
+    vi.useFakeTimers()
+    const rectSpy = vi
+      .spyOn(window.HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(new DOMRect(10, 10, 320, 80))
+    try {
+      const { rerender } = render(<CodeViewer value={'line 1'} language="typescript" />)
+      mocks.highlightLines.mockClear()
+
+      rerender(<CodeViewer value={'line 1\nline 2'} language="typescript" />)
+      expect(mocks.highlightLines).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(300)
+      expect(mocks.highlightLines).toHaveBeenCalledWith(2)
+    } finally {
+      rectSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
   it('does not request syntax highlighting when highlighting is disabled', () => {
     render(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
 

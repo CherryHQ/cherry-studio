@@ -31,7 +31,7 @@ export async function refineLocalEmbeddingChunks(
 /** Counts tokens on the inference worker's already-loaded pipeline — the main
  * process must never import `@huggingface/transformers` itself, since that
  * transitively requires onnxruntime-node's native binding (see
- * patches/onnxruntime-node@1.24.3.patch and OnnxRuntimeBinaryService). */
+ * patches/onnxruntime-node@1.25.1.patch and OnnxRuntimeBinaryService). */
 async function getLocalEmbeddingTokenCounter(signal?: AbortSignal): Promise<CountTokens> {
   // Resolve the cache directory once: the worker may be recycled between counts (idle
   // release), but it reloads from this same path, so it stays valid for the whole run.

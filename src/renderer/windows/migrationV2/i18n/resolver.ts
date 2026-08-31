@@ -33,6 +33,8 @@ const initI18n = async () => {
     },
     lng: language,
     fallbackLng: 'en-US',
+    // Catalogs are flat: `migration.buttons.retry` is one literal key, not a path.
+    keySeparator: false,
     interpolation: {
       escapeValue: false
     }

@@ -67,7 +67,8 @@ describe('getPermissionModeCards', () => {
     expect(piAuto?.warningKey).toBeTruthy()
     expect(piAuto?.warningKey).not.toBe(claudeAuto?.warningKey)
     expect(piAuto?.descriptionKey).not.toBe(claudeAuto?.descriptionKey)
-    // pi's bypass lifts every gate but disabled tools, so it cannot promise "safety blocks apply".
-    expect(piBypass?.warningKey).not.toBe(claudeBypass?.warningKey)
+    // bypass now means the same thing on every runtime — approvals lifted, explicit safety blocks
+    // (disabled tools, global installs) still apply — so pi shares the generic copy.
+    expect(piBypass?.warningKey).toBe(claudeBypass?.warningKey)
   })
 })

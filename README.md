@@ -34,7 +34,7 @@
   </a>
 </h1>
 
-<p align="center">English | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/docs/en-us">Documents</a> | <a href="./docs/guides/development.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
+<p align="center">English | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/docs/en-us">Documents</a> | <a href="./docs/contrib/development.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
 
 <div align="center">
 
@@ -174,7 +174,7 @@ We welcome contributions to Cherry Studio! Here are some ways you can contribute
 6. **Community Engagement**: Join discussions and help users.
 7. **Promote Usage**: Spread the word about Cherry Studio.
 
-Refer to the [Branching Strategy](docs/guides/branching-strategy.md) for contribution guidelines
+Refer to the [Branching Strategy](docs/contrib/branching-strategy.md) for contribution guidelines
 
 ## Getting Started
 

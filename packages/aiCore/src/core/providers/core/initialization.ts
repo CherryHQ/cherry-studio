@@ -187,7 +187,16 @@ const OpenAICompatibleExtension = ProviderExtension.create({
     if (!settings) {
       throw new Error('OpenAI Compatible provider requires settings')
     }
-    return (await import('@ai-sdk/openai-compatible')).createOpenAICompatible(settings)
+    const [{ createOpenAICompatible }, { applyReasoningModelMaxTokensConversion }] = await Promise.all([
+      import('@ai-sdk/openai-compatible'),
+      import('@cherrystudio/ai-sdk-provider')
+    ])
+    const { transformRequestBody } = settings
+    return createOpenAICompatible({
+      ...settings,
+      transformRequestBody: (args) =>
+        applyReasoningModelMaxTokensConversion(transformRequestBody ? transformRequestBody(args) : args)
+    })
   },
   createRerankingModel: (modelId, settings) => {
     if (!settings) {

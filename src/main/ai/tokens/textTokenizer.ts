@@ -27,7 +27,13 @@ let o200k: TextTokenizer | undefined
 export async function loadGptO200kTokenizer(): Promise<TextTokenizer> {
   if (!o200k) {
     const { countTokens } = await import('gpt-tokenizer/encoding/o200k_base')
-    o200k = { id: 'gpt-tokenizer/o200k', count: (text) => (text ? countTokens(text) : 0) }
+    const ordinaryTextOptions = { disallowedSpecial: new Set<string>() }
+    o200k = {
+      id: 'gpt-tokenizer/o200k',
+      // This counter estimates arbitrary user and persisted text. Special-token spellings are
+      // content here, not encoder control instructions, so count them instead of rejecting them.
+      count: (text) => (text ? countTokens(text, ordinaryTextOptions) : 0)
+    }
   }
   return o200k
 }

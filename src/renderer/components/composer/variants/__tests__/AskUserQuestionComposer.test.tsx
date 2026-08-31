@@ -42,12 +42,12 @@ const questions = [
   }
 ]
 
-function makeRequest(): AskUserQuestionComposerRequest {
+function makeRequest(requestQuestions = questions): AskUserQuestionComposerRequest {
   const part = {
     type: 'tool-AskUserQuestion',
     toolCallId: 'call-1',
     state: 'approval-requested',
-    input: { questions },
+    input: { questions: requestQuestions },
     approval: { id: 'approval-1' }
   } as unknown as CherryMessagePart
 
@@ -55,19 +55,59 @@ function makeRequest(): AskUserQuestionComposerRequest {
     messageId: 'message-1',
     toolCallId: 'call-1',
     approvalId: 'approval-1',
-    input: { questions },
+    input: { questions: requestQuestions },
     match: {
       part,
       state: 'approval-requested',
       toolCallId: 'call-1',
       messageId: 'message-1',
       approvalId: 'approval-1',
-      input: { questions }
+      input: { questions: requestQuestions }
     }
   }
 }
 
 describe('AskUserQuestionComposer', () => {
+  it('keeps the full question visible instead of clamping it to one line', () => {
+    render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    const heading = screen.getByRole('heading', { name: 'Choose logger' })
+    // The wrapping classes are the layout contract for the reported long-question truncation.
+    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words')
+    expect(heading).not.toHaveClass('line-clamp-1')
+  })
+
+  it('caps a long multiline question with vertical scrolling so answer controls stay reachable', () => {
+    const longQuestion = [
+      'Which logging approach should the agent use for this multi-service workspace?',
+      'Please consider structured JSON output, rotation, and how traces should correlate across the renderer and main process.',
+      'The answer will be applied to every new session, so pick the option that stays readable when the composer dock is only 150px tall.'
+    ].join('\n')
+
+    render(
+      <AskUserQuestionComposer
+        request={makeRequest([
+          {
+            question: longQuestion,
+            header: 'Logger',
+            options: [
+              { label: 'Winston', description: 'Mature ecosystem' },
+              { label: 'Pino', description: 'JSON native' }
+            ],
+            multiSelect: false
+          }
+        ])}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const heading = screen.getByRole('heading', { name: longQuestion })
+    expect(heading).toHaveClass('whitespace-pre-wrap', 'break-words', 'max-h-36', 'overflow-y-auto')
+    expect(heading).not.toHaveClass('line-clamp-1')
+    expect(screen.getByRole('button', { name: /Winston/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
+  })
+
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<AskUserQuestionComposer request={makeRequest()} onRespond={vi.fn()} />)
 

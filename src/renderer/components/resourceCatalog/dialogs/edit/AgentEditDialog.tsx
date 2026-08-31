@@ -6,6 +6,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
   Switch,
   TabsContent,
   Textarea
@@ -49,8 +52,8 @@ import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
+import { EmojiAvatarPicker } from '../components/DialogFormFields'
 import {
-  AvatarField,
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
@@ -67,6 +70,7 @@ import {
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptBindingTab } from '../components/PromptBindingTab'
 import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AgentEditDialogProps = EditDialogBaseProps & {
@@ -304,6 +308,7 @@ function AgentEditDialogContent({
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      { id: 'prompts', label: t('settings.prompts.binding.tabTitle') },
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
@@ -348,6 +353,39 @@ function AgentEditDialogContent({
     replaceFormBaseline({ ...formBaselineRef.current, skillIds: [...skillIdsFromQuery] })
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
+  }, [
+    baselineSkillAgentId,
+    form,
+    open,
+    replaceFormBaseline,
+    resource.id,
+    skillIdsFromQuery,
+    skillsLoading,
+    skillsRefreshing
+  ])
+
+  useEffect(() => {
+    if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId !== resource.id) return
+
+    // A globally disabled skill is absent from the agent projection. If it is
+    // re-enabled after this dialog initialized, restore the still-persisted
+    // agent preference without overwriting local edits or hidden selections.
+    const baselineSkillIds = formBaselineRef.current.skillIds
+    const baselineSkillIdSet = new Set(baselineSkillIds)
+    const newlyVisibleEnabledIds = skillIdsFromQuery.filter((id) => !baselineSkillIdSet.has(id))
+    if (newlyVisibleEnabledIds.length === 0) return
+
+    replaceFormBaseline({
+      ...formBaselineRef.current,
+      skillIds: [...baselineSkillIds, ...newlyVisibleEnabledIds]
+    })
+    const currentSkillIds = form.getValues('skillIds')
+    const currentSkillIdSet = new Set(currentSkillIds)
+    form.setValue(
+      'skillIds',
+      [...currentSkillIds, ...newlyVisibleEnabledIds.filter((id) => !currentSkillIdSet.has(id))],
+      { shouldDirty: false }
+    )
   }, [
     baselineSkillAgentId,
     form,
@@ -487,6 +525,13 @@ function AgentEditDialogContent({
           className="m-0 flex h-full min-h-0 flex-col">
           <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
         </TabsContent>
+        <TabsContent value="prompts" forceMount hidden={activeTab !== 'prompts'} className="m-0">
+          <PromptBindingTab
+            enabled={open && activeTab === 'prompts'}
+            target={{ type: 'agent', id: resource.id }}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
             <AgentToolsFields
@@ -539,22 +584,11 @@ function AgentBasicFields({
 
   return (
     <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
-      <AvatarField
+      <AgentAvatarNameField
         form={form}
         emojiPickerOpen={emojiPickerOpen}
         setEmojiPickerOpen={setEmojiPickerOpen}
-        fallback="🤖"
         portalContainer={portalContainer}
-        size="sm"
-        layout="row"
-      />
-      <TextInputField
-        form={form}
-        name="name"
-        label={t('library.config.agent.field.name.label')}
-        placeholder={t('library.config.agent.field.name.placeholder')}
-        required
-        layout="row"
       />
       <TextInputField
         form={form}
@@ -623,6 +657,64 @@ function AgentBasicFields({
         />
       ) : null}
     </div>
+  )
+}
+
+function AgentAvatarNameField({
+  form,
+  emojiPickerOpen,
+  setEmojiPickerOpen,
+  portalContainer
+}: {
+  form: UseFormReturn<AgentEditFormValues>
+  emojiPickerOpen: boolean
+  setEmojiPickerOpen: (open: boolean) => void
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <FormField
+      control={form.control}
+      name="name"
+      rules={{ validate: (value) => value.trim().length > 0 || t('common.required_field') }}
+      render={({ field }) => (
+        <FormItem className={editDialogFormRowClassName}>
+          <FormLabel className={editDialogFormRowLabelClassName}>
+            {t('library.config.dialogs.create.avatar_name_label')}
+          </FormLabel>
+          <InputGroup>
+            <FormField
+              control={form.control}
+              name="avatar"
+              render={({ field: avatarField }) => (
+                <InputGroupAddon className="py-0">
+                  <EmojiAvatarPicker
+                    value={avatarField.value}
+                    fallback="🤖"
+                    open={emojiPickerOpen}
+                    onOpenChange={setEmojiPickerOpen}
+                    onChange={avatarField.onChange}
+                    ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                    portalContainer={portalContainer}
+                    avatarClassName="border-0"
+                    avatarFontSize={18}
+                  />
+                </InputGroupAddon>
+              )}
+            />
+            <FormControl>
+              <InputGroupInput
+                {...field}
+                className="pl-1!"
+                placeholder={t('library.config.agent.field.name.placeholder')}
+              />
+            </FormControl>
+          </InputGroup>
+          <FormMessage className="col-start-2" />
+        </FormItem>
+      )}
+    />
   )
 }
 

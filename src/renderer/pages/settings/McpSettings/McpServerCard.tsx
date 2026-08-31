@@ -32,7 +32,7 @@ interface McpServerCardProps {
 }
 
 const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
-  const { updateMcpServer, deleteMcpServer } = useMcpServerMutations(server.id)
+  const { updateMcpServer, removeMcpServer } = useMcpServerMutations(server.id)
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
   const runtimeStatus = useMcpRuntimeStatus(server.id, server.isActive)
@@ -122,13 +122,12 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       })
       if (!confirmed) return
 
-      await ipcApi.request('mcp.server.remove', { serverId: server.id })
-      await deleteMcpServer({})
+      await removeMcpServer()
       toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
       toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
-  }, [server, deleteMcpServer, t])
+  }, [removeMcpServer, t])
 
   const handleOpenUrl = useCallback(
     (event: React.MouseEvent) => {

@@ -19,7 +19,11 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  buildAgentUserContent,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -409,7 +413,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       initializeTimeoutMs: request.initializeTimeoutMs,
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
-      knowledgeBaseIds: request.knowledgeBaseIds
+      knowledgeBaseIds: request.knowledgeBaseIds,
+      notificationContext: request.notificationContext
     })
 
     // A matching warm process may have selected a different rotated key when
@@ -817,6 +822,18 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private bindApprovalEmitter(): void {
     if (!this.approvalEmitter) return
     this.approvalEmitter.emit = (request) => this.eventQueue.push({ type: 'tool-approval-request', request })
+    this.approvalEmitter.emitInput = (request) =>
+      this.eventQueue.push({
+        type: 'chunk',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: request.toolCallId,
+          toolName: request.toolName,
+          input: request.input,
+          providerExecuted: true,
+          dynamic: true
+        }
+      })
   }
 
   /**
@@ -1225,14 +1242,16 @@ async function materializeUserContent(
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
-  let textContent = appendAttachmentPaths(text, resolvedPaths.files)
+  let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
-    const note = `Unavailable attachments: ${names.join(', ')}`
+    const renderedNames = message.delivery ? names.map((name) => JSON.stringify(name)) : names
+    const note = `Unavailable attachments: ${renderedNames.join(', ')}`
     textContent = textContent.trim() ? `${textContent}\n\n${note}` : note
   }
+  textContent = wrapAgentSessionDeliveryContent(message, textContent)
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }
@@ -1247,18 +1266,6 @@ function appendAttachmentManifest(
     .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
     .join('\n')
   const section = `Attachment manifest:\n${list}`
-  return text.trim() ? `${text}\n\n${section}` : section
-}
-
-function appendAttachmentPaths(text: string, files: ResolvedAttachmentPath[]): string {
-  if (files.length === 0) return text
-
-  // Managed copies are stored under a UUID filename, so the display name has to travel
-  // with the path — otherwise multiple attachments are indistinguishable to the model.
-  const list = files
-    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
-    .join('\n')
-  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
 }
 

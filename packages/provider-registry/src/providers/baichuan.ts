@@ -9,8 +9,5 @@ export default openaiCompatible({
     docs: 'https://platform.baichuan-ai.com/docs',
     models: 'https://platform.baichuan-ai.com/prices',
     official: 'https://www.baichuan-ai.com/'
-  },
-  apiFeatures: {
-    arrayContent: false
   }
 })

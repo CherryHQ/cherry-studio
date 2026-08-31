@@ -1,3 +1,11 @@
+---
+description: Entry point for Cherry Studio data systems - decision guide across BootConfig, Cache, Preference, DataApi, app_state
+sources:
+  - src/main/data
+  - src/renderer/data
+  - src/shared/data
+---
+
 # Data System Reference
 
 This is the main entry point for Cherry Studio's data management documentation. The application uses four data systems based on data characteristics and loading requirements.
@@ -47,7 +55,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 | **CacheService**      | Regenerable, temporary       | ≤ App process or survives restart | None to minimal            | API responses, computed results, UI state             |
 | **PreferenceService** | User settings, key-value     | Permanent until changed           | Low (can rebuild)          | Theme, language, font size, shortcuts                 |
 | **DataApiService**    | Business data, structured    | Permanent                         | **Severe** (irreplaceable) | Topics, messages, files, knowledge base               |
-| `app_state` (table)   | Internal continuity marker (main-process) | Until owner drops the key | Continuity break (re-runs a one-time flow) | Migration status, seeding journal |
+| `app_state` (table)   | Owner-private completion/reconciliation marker | Until owner drops the key | Repeats completed internal work | Migration status, seeding journal, metadata generation |
 
 ### Decision Flowchart
 
@@ -71,7 +79,7 @@ Ask these questions in order:
    - Yes → **DataApiService**
    - No → Continue to #5
 
-5. **Is this an internal marker the app writes for itself to stay consistent across restarts (migration / seeding / one-time setup state)?**
+5. **Is this an owner-private marker that prevents completed migration, seeding, or reconciliation work from repeating after restart?**
    - Yes → **`app_state` table** (main-process; see [App State Overview](./app-state-overview.md))
    - No → Reconsider #2 (most data falls into one of these categories)
 
@@ -120,15 +128,15 @@ Use CacheService when:
 - `usePersistCache` (persist): Survives app restart. Renderer persists to `localStorage` (renderer-authoritative); Main persists to its own JSON file (main-authoritative, via `getPersist` / `setPersist` / `hasPersist`). The two stores are independent; Main also relays renderer persist sync between windows.
 
 ```typescript
-// Good: Temporary computed results
-const [searchResults, setSearchResults] = useCache('search.results', [])
+// Good: Window-local, session-only recall history
+const [searchQueries, setSearchQueries] = useCache('knowledge.recall.search_queries')
 
-// Good: UI state that can be lost
-const [sidebarCollapsed, setSidebarCollapsed] = useSharedCache('ui.sidebar.collapsed', false)
+// Good: Renderer-written opt-out shared by all windows for this process
+const [skipConfirmation, setSkipConfirmation] = useSharedCache('agent.model_switch_confirmation.skipped')
 
 // Good: Recent items (nice to have, not critical)
 // `usePersistCache` takes no initValue — Persist seeds every key from the schema on load
-const [recentSearches, setRecentSearches] = usePersistCache('search.recent')
+const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
 ```
 
 ### PreferenceService - User Preferences
@@ -146,12 +154,12 @@ Use PreferenceService when:
 
 ```typescript
 // Good: App behavior settings
-const [theme, setTheme] = usePreference('app.theme.mode')
+const [theme, setTheme] = usePreference('ui.theme_mode')
 const [language, setLanguage] = usePreference('app.language')
 const [fontSize, setFontSize] = usePreference('chat.message.font_size')
 
 // Good: Feature toggles
-const [showTimestamp, setShowTimestamp] = usePreference('chat.display.show_timestamp')
+const [developerMode, setDeveloperMode] = usePreference('app.developer_mode.enabled')
 ```
 
 ### DataApiService - User Data
@@ -184,11 +192,10 @@ const { data: files } = useQuery('/files')
 
 Use the `app_state` table when:
 - Data is an **internal marker the app writes for itself**, not a user-facing setting
-- It **must survive restarts**, and losing it would make the user **re-experience a one-time flow** (re-run migration, re-seed, repeat setup)
-- It is needed at **app startup** — current consumers run at or before the lifecycle's earliest phase
+- It **must survive restarts**, and losing it would repeat completed internal work
 
 **Key characteristics**:
-- Main-process only; **no dedicated service** — the owner reads/writes the table via its own DB handle
+- Main-process only; **no dedicated service** — each owner reads/writes only its own key through its existing DB handle
 - One owner per key; keys namespaced `<scope>:<name>`; **no cross-domain reads**
 
 See [App State Overview](./app-state-overview.md) for full rules and the key registry.
@@ -216,7 +223,7 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 ## Edge Cases
 
 - **Recently used items** (e.g., recent files, recent searches): Use `usePersistCache` - nice to have but not critical if lost
-- **Draft content** (e.g., unsaved message): Use `useSharedCache` for cross-window, consider auto-save to DataApi for recovery
+- **Composer drafts**: Use the existing window-local `useCache` template keys (`chat.composer_draft.${topicId}` / `agent.composer_draft.${sessionId}`); move to a broader owner only when recovery or cross-window editing is a real requirement
 - **Computed statistics**: Use `useCache` with TTL - regenerate when expired
 - **User-created templates/presets**: Use **DataApiService** - user-generated content that can grow
 
@@ -230,7 +237,7 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
                               └─────────┬───────┘
                                         │
                               ┌─────────▼───────┐
-                              │   React Hooks   │  ← useDataApi, usePreference('...'),
+                              │   React Hooks   │  ← useQuery/useMutation, usePreference('...'),
                               └─────────┬───────┘    usePreference('BootConfig.*'), useCache
                                         │
                               ┌─────────▼───────┐
@@ -276,4 +283,3 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 - `src/renderer/data/CacheService.ts` - Cache service
 - `src/renderer/data/PreferenceService.ts` - Preference service
 - `src/renderer/data/hooks/` - React hooks
-

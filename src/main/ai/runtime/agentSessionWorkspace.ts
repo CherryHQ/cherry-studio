@@ -9,9 +9,15 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('AgentSessionWorkspace')
+const WORKSPACE_PROBE_TIMEOUT_MS = 5_000
+const RETRYABLE_WORKSPACE_ERROR_CODES = new Set(['EBUSY', 'EIO', 'EMFILE', 'ENFILE', 'ENOSPC', 'ESTALE', 'ETIMEDOUT'])
+const workspacePathProbes = new Map<string, Promise<PathStatus>>()
 
 export class AgentSessionWorkspaceError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly retryable = false
+  ) {
     super(message)
     this.name = 'AgentSessionWorkspaceError'
   }
@@ -50,15 +56,49 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
     await ensureAgentStorageDirectory(root, target)
   } catch (error) {
     logger.warn(`Failed to validate or create system workspace directory: ${cwd}`, { error })
-    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
+    throw new AgentSessionWorkspaceError(
+      workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }),
+      isRetryableWorkspaceErrorCode((error as NodeJS.ErrnoException)?.code)
+    )
   }
 }
 
 export async function assertAgentSessionWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
-  const status = await getPathStatus(cwd)
+  const status = await getWorkspacePathStatus(cwd)
   if (status.ok && status.kind === 'directory') return
   logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
-  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
+  throw new AgentSessionWorkspaceError(
+    workspacePathErrorMessage(cwd, status),
+    !status.ok && status.reason === 'inaccessible' && isRetryableWorkspaceErrorCode(status.code)
+  )
+}
+
+async function getWorkspacePathStatus(cwd: string): Promise<PathStatus> {
+  // Node's stat is not abortable; the race bounds scheduler ownership even if the OS call lingers.
+  let probe = workspacePathProbes.get(cwd)
+  if (!probe) {
+    probe = getPathStatus(cwd).finally(() => {
+      if (workspacePathProbes.get(cwd) === probe) workspacePathProbes.delete(cwd)
+    })
+    workspacePathProbes.set(cwd, probe)
+  }
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const timeoutResult = new Promise<PathStatus>((resolve) => {
+    timeout = setTimeout(
+      () => resolve({ ok: false, reason: 'inaccessible', code: 'ETIMEDOUT' }),
+      WORKSPACE_PROBE_TIMEOUT_MS
+    )
+    timeout.unref?.()
+  })
+  try {
+    return await Promise.race([probe, timeoutResult])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
+function isRetryableWorkspaceErrorCode(code: string | undefined): boolean {
+  return code !== undefined && RETRYABLE_WORKSPACE_ERROR_CODES.has(code)
 }
 
 function workspacePathErrorMessage(workspacePath: string, status: PathStatus): string {

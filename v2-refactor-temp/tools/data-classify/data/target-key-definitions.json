@@ -6,6 +6,13 @@
   },
   "definitions": [
     {
+      "targetKey": "app.fetch.allow_private_network",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Allow web fetch tools to reach local and private network addresses (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.power.prevent_sleep_when_busy",
       "type": "boolean",
       "defaultValue": false,
@@ -18,6 +25,13 @@
       "defaultValue": false,
       "status": "classified",
       "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "app.notification.mini_app.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show system notifications from installed mini apps that hold the notification grant (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "app.onboarding.provider_setup.status",
@@ -71,7 +85,7 @@
     {
       "targetKey": "feature.local_model.hardware_acceleration.enabled",
       "type": "boolean",
-      "defaultValue": false,
+      "defaultValue": true,
       "status": "classified",
       "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
     },
@@ -92,9 +106,9 @@
     {
       "targetKey": "chat.web_search.client_tools_preferred",
       "type": "boolean",
-      "defaultValue": true,
+      "defaultValue": false,
       "status": "classified",
-      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+      "description": "Prefer configured web search and fetch services over equivalent model-native tools when both are available"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_limit",
@@ -560,7 +574,7 @@
       "description": "Command shortcut: chat.model.select (unified command system)"
     },
     {
-      "targetKey": "shortcut.chat.topic.clear",
+      "targetKey": "shortcut.topic.clear_messages",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
         "binding": [
@@ -569,8 +583,8 @@
         ],
         "enabled": true
       },
-      "status": "deleted",
-      "description": "Deleted: command removed (feature not implemented in v2)."
+      "status": "classified",
+      "description": "Command shortcut: topic.clear_messages (unified command system)"
     },
     {
       "targetKey": "shortcut.quick_assistant.toggle",
@@ -698,6 +712,37 @@
       "defaultValue": "VALUE: null",
       "status": "classified",
       "description": "The composer shortcut that inserts a line break. No stored default: resolved at read time to Shift+Enter, or Enter when the send shortcut already takes Shift+Enter. Send / newline / inject shortcuts are mutually exclusive."
+    },
+    {
+      "targetKey": "feature.screenshot.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Whether interactive screen capture is enabled"
+    },
+    {
+      "targetKey": "feature.screenshot.auto_ocr",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Whether OCR runs automatically after a selection is made"
+    },
+    {
+      "targetKey": "shortcut.screenshot.capture",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": ["CommandOrControl", "Shift", "A"],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "feature.mini_app.check_updates_on_open",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
     }
   ]
 }

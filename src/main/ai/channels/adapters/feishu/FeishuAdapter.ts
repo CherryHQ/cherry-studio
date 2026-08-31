@@ -1,25 +1,21 @@
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
+import { t } from '@main/i18n'
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import type { FeishuDomain } from '@shared/data/types/channel'
+import { clampSurrogateBoundary } from '@shared/utils/text'
+import { fileTypeFromBuffer } from 'file-type'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand } from '../../constants'
-import { FlushController } from '../../FlushController'
-import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
+import { FILE_EXTENSION_MIME_MAP } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
 import { createFeishuHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
-
-/**
- * Lifecycle reactions on the user's last message. Feishu has no native typing
- * API, so we use emoji reactions as a visible status indicator: thinking →
- * done / error. Each value must be a valid Feishu emoji_type.
- * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message-reaction/emojis-introduce
- */
+const FEISHU_PING_TIMEOUT_SECONDS = 10
 const REACTION_THINKING = 'Typing'
 const REACTION_DONE = 'OK'
 const REACTION_ERROR = 'CRY'
@@ -30,342 +26,136 @@ type ChatReaction = {
   emoji: string
 }
 
-type FeishuApiResponse<T = unknown> = {
-  code?: number
-  msg?: string
-  message?: string
-  data?: T
-}
-
-// Feishu message event shape (im.message.receive_v1)
-type FeishuMessageEvent = {
-  sender: {
-    sender_id: { open_id?: string; user_id?: string; union_id?: string }
-    sender_type?: string
-  }
-  message: {
-    message_id: string
-    chat_id: string
-    chat_type: 'p2p' | 'group'
-    message_type: string
-    content: string // JSON-encoded
-    mentions?: Array<{ key: string; id: { open_id?: string }; name: string }>
-  }
-}
-
 function resolveDomain(domain: FeishuDomain): Lark.Domain {
-  switch (domain) {
-    case 'lark':
-      return Lark.Domain.Lark
-    case 'feishu':
-    default:
-      return Lark.Domain.Feishu
-  }
+  return domain === 'lark' ? Lark.Domain.Lark : Lark.Domain.Feishu
 }
 
-function unwrapFeishuResponse<T>(response: unknown): FeishuApiResponse<T> {
-  if (response && typeof response === 'object' && 'code' in response) {
-    return response as FeishuApiResponse<T>
-  }
-
-  if (
-    response &&
-    typeof response === 'object' &&
-    'data' in response &&
-    response.data &&
-    typeof response.data === 'object' &&
-    'code' in response.data
-  ) {
-    return response.data as FeishuApiResponse<T>
-  }
-
-  return { code: -1, msg: 'Unexpected Feishu API response' }
+function replyOptions(opts?: SendMessageOptions) {
+  const replyTo = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
+  return replyTo ? { replyTo, ...(opts?.replyInThread && { replyInThread: true }) } : undefined
 }
 
-function ensureFeishuSuccess<T>(response: unknown, action: string): FeishuApiResponse<T> {
-  const unwrapped = unwrapFeishuResponse<T>(response)
-  if (unwrapped.code === 0) {
-    return unwrapped
-  }
+function splitThreadMarkdown(text: string): string[] {
+  if (text.length <= FEISHU_MAX_LENGTH) return [text]
 
-  throw new Error(`${action} failed: ${unwrapped.msg || unwrapped.message || `code=${String(unwrapped.code)}`}`)
-}
-
-/**
- * Build a Feishu "post" message payload with markdown element.
- * Feishu's post format with md tag renders markdown natively.
- */
-function buildPostPayload(text: string): string {
-  return JSON.stringify({
-    zh_cn: {
-      content: [[{ tag: 'md', text }]]
+  // Leave room to close and reopen a code fence so the SDK never splits a chunk itself.
+  const contentLimit = FEISHU_MAX_LENGTH - 8
+  const rawChunks: string[] = []
+  let remaining = text
+  while (remaining.length > contentLimit) {
+    let splitIndex = remaining.lastIndexOf('\n\n', contentLimit - 2)
+    if (splitIndex >= 0) splitIndex += 2
+    if (splitIndex <= 0) {
+      splitIndex = remaining.lastIndexOf('\n', contentLimit - 1)
+      if (splitIndex >= 0) splitIndex += 1
     }
+    if (splitIndex <= 0) {
+      splitIndex = remaining.lastIndexOf(' ', contentLimit - 1)
+      if (splitIndex >= 0) splitIndex += 1
+    }
+    if (splitIndex <= 0) splitIndex = clampSurrogateBoundary(remaining, contentLimit)
+    rawChunks.push(remaining.slice(0, splitIndex))
+    remaining = remaining.slice(splitIndex)
+  }
+  rawChunks.push(remaining)
+
+  let fenceLanguage: string | null = null
+  return rawChunks.map((chunk) => {
+    const incomingFenceLanguage = fenceLanguage
+    for (const line of chunk.split('\n')) {
+      const match = /^```(\w*)\r?$/.exec(line)
+      if (match) fenceLanguage = fenceLanguage === null ? match[1] : null
+    }
+
+    const suffix = fenceLanguage === null ? '' : chunk.endsWith('\n') ? '```' : '\n```'
+    const preferredPrefix = incomingFenceLanguage === null ? '' : `\`\`\`${incomingFenceLanguage}\n`
+    const prefix =
+      preferredPrefix.length <= FEISHU_MAX_LENGTH - chunk.length - suffix.length ? preferredPrefix : '```\n'
+    return `${prefix}${chunk}${suffix}`
   })
 }
 
-const STREAMING_ELEMENT_ID = 'streaming_content'
-
-/** Throttle interval for CardKit streaming updates (ms). */
-const CARDKIT_THROTTLE_MS = 200
-
-/**
- * Manages the full lifecycle of a streaming CardKit card for one response.
- *
- * Uses FlushController for mutex-guarded, throttled flushing to the
- * CardKit API — no concurrent API calls, automatic reflush on conflict.
- *
- * Lifecycle: idle → created → streaming → completed/error
- */
-class FeishuStreamingController {
-  private cardId: string | null = null
-  private messageId: string | null = null
-  private sequence = 0
+class FeishuStreamSession {
   private currentText = ''
-  private readonly flush: FlushController
-  private cardCreationPromise: Promise<void> | null = null
-  private _completed = false
+  private disposed = false
+  private resolveController!: (controller: Lark.MarkdownStreamController) => void
+  private resolveCompletion!: () => void
+  private readonly controllerReady: Promise<Lark.MarkdownStreamController>
+  private readonly completion: Promise<void>
+  private readonly stream: Promise<Lark.SendResult>
 
-  constructor(
-    private readonly client: Lark.Client,
-    private readonly chatId: string,
-    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
-  ) {
-    this.flush = new FlushController(() => this.performFlush())
+  constructor(channel: Lark.LarkChannel, chatId: string, opts?: SendMessageOptions) {
+    this.controllerReady = new Promise((resolve) => {
+      this.resolveController = resolve
+    })
+    this.completion = new Promise((resolve) => {
+      this.resolveCompletion = resolve
+    })
+    this.stream = channel.stream(
+      chatId,
+      {
+        markdown: async (controller) => {
+          this.resolveController(controller)
+          await this.completion
+        }
+      },
+      replyOptions(opts)
+    )
+    void this.stream.catch(() => undefined)
   }
 
-  /** Whether this controller has finished (complete or error). */
-  get completed(): boolean {
-    return this._completed
-  }
-
-  /**
-   * Update the text being streamed. The FlushController decides when to
-   * actually call the CardKit API based on throttle and mutex.
-   */
-  async onText(text: string): Promise<void> {
-    if (this._completed) return
+  async update(text: string): Promise<void> {
+    if (this.disposed) return
+    const controller = await Promise.race([
+      this.controllerReady,
+      this.stream.then(() => {
+        throw new Error('Feishu stream completed before its controller became ready')
+      })
+    ])
+    if (this.disposed) return
     this.currentText = text
-    await this.ensureCardCreated()
-    if (this.cardId && this.messageId) {
-      await this.flush.throttledUpdate(CARDKIT_THROTTLE_MS)
-    }
+    await controller.setContent(text)
   }
 
-  /**
-   * Finalize the streaming card: wait for pending flushes, close streaming
-   * mode, and replace with a static markdown card.
-   * @returns true if finalization succeeded.
-   */
-  async complete(finalText: string): Promise<boolean> {
-    if (this._completed) return false
-    this._completed = true
-    this.flush.complete()
-
-    // Wait for card creation if still in progress
-    if (this.cardCreationPromise) await this.cardCreationPromise
-    if (!this.cardId || !this.messageId) return false
-
-    await this.flush.waitForFlush()
-
+  async complete(text: string): Promise<void> {
     try {
-      // Close streaming mode
-      this.sequence++
-      ensureFeishuSuccess(
-        await this.client.cardkit.v1.card.settings({
-          path: { card_id: this.cardId },
-          data: {
-            settings: JSON.stringify({ streaming_mode: false }),
-            sequence: this.sequence
-          }
-        }),
-        'Close streaming card'
-      )
-
-      // Replace with static markdown card
-      this.sequence++
-      ensureFeishuSuccess(
-        await this.client.cardkit.v1.card.update({
-          data: {
-            card: {
-              type: 'card_json',
-              data: JSON.stringify({
-                schema: '2.0',
-                config: { wide_screen_mode: true },
-                body: {
-                  elements: [{ tag: 'markdown', content: finalText }]
-                }
-              })
-            },
-            sequence: this.sequence
-          },
-          path: { card_id: this.cardId }
-        }),
-        'Update final card'
-      )
-
-      return true
-    } catch (error) {
-      this.log.warn('Failed to finalize streaming card', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return false
+      await this.update(text)
+    } finally {
+      this.resolveCompletion()
     }
+    await this.stream
   }
 
-  /** Mark the streaming card as errored and close it. */
-  async error(errorMessage: string): Promise<void> {
-    if (this._completed) return
-    this._completed = true
-    this.flush.complete()
-
-    if (this.cardCreationPromise) await this.cardCreationPromise
-    if (!this.cardId || !this.messageId) return
-
-    await this.flush.waitForFlush()
-
+  async error(message: string): Promise<void> {
+    const displayText = this.currentText ? `${this.currentText}\n\n---\n**Error**: ${message}` : `**Error**: ${message}`
     try {
-      this.sequence++
-      ensureFeishuSuccess(
-        await this.client.cardkit.v1.card.settings({
-          path: { card_id: this.cardId },
-          data: {
-            settings: JSON.stringify({ streaming_mode: false }),
-            sequence: this.sequence
-          }
-        }),
-        'Close streaming card on error'
-      )
-
-      const displayText = this.currentText
-        ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
-        : `**Error**: ${errorMessage}`
-
-      this.sequence++
-      ensureFeishuSuccess(
-        await this.client.cardkit.v1.card.update({
-          data: {
-            card: {
-              type: 'card_json',
-              data: JSON.stringify({
-                schema: '2.0',
-                config: { wide_screen_mode: true },
-                body: {
-                  elements: [{ tag: 'markdown', content: displayText }]
-                }
-              })
-            },
-            sequence: this.sequence
-          },
-          path: { card_id: this.cardId }
-        }),
-        'Update error card'
-      )
+      await this.update(displayText)
     } catch {
-      // Best-effort error card update
+      // The original agent error is already being reported; this best-effort card update must not replace it.
+    } finally {
+      this.resolveCompletion()
     }
+    await this.stream.catch(() => undefined)
   }
 
-  /** Abort and clean up without sending a final card. */
   dispose(): void {
-    this._completed = true
-    this.flush.cancelPendingFlush()
-    this.flush.complete()
-  }
-
-  // ---- Internal ----
-
-  private async ensureCardCreated(): Promise<void> {
-    if (this.cardId) return
-    if (this.cardCreationPromise) {
-      await this.cardCreationPromise
-      return
-    }
-    this.cardCreationPromise = this.createCard()
-    await this.cardCreationPromise
-  }
-
-  private async createCard(): Promise<void> {
-    try {
-      const res = ensureFeishuSuccess<{ card_id?: string }>(
-        await this.client.cardkit.v1.card.create({
-          data: {
-            type: 'card_json',
-            data: JSON.stringify({
-              schema: '2.0',
-              config: { wide_screen_mode: true, streaming_mode: true },
-              body: {
-                elements: [{ tag: 'markdown', content: '...', element_id: STREAMING_ELEMENT_ID }]
-              }
-            })
-          }
-        }),
-        'Create streaming card'
-      )
-
-      if (!res.data?.card_id) {
-        this.log.warn('Failed to create streaming card — no card_id returned')
-        return
-      }
-
-      this.cardId = res.data.card_id
-
-      // Send the card message to the chat
-      const sendRes = ensureFeishuSuccess<{ message_id?: string }>(
-        await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: {
-            receive_id: this.chatId,
-            msg_type: 'interactive',
-            content: JSON.stringify({ type: 'card', data: { card_id: this.cardId } })
-          }
-        }),
-        'Send streaming card message'
-      )
-
-      this.messageId = sendRes.data?.message_id ?? null
-    } catch (error) {
-      this.log.warn('Failed to create/send streaming card', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-  }
-
-  private async performFlush(): Promise<void> {
-    if (!this.cardId || !this.currentText) return
-
-    this.sequence++
-    try {
-      ensureFeishuSuccess(
-        await this.client.cardkit.v1.cardElement.content({
-          path: { card_id: this.cardId, element_id: STREAMING_ELEMENT_ID },
-          data: {
-            content: this.currentText,
-            sequence: this.sequence
-          }
-        }),
-        'Stream card content'
-      )
-    } catch {
-      // Swallow flush errors — FlushController will reflush if needed
-    }
+    this.disposed = true
+    this.resolveCompletion()
   }
 }
 
 class FeishuAdapter extends ChannelAdapter {
-  private client: Lark.Client | null = null
-  private wsClient: Lark.WSClient | null = null
+  private channel: Lark.LarkChannel | null = null
   private appId: string
   private appSecret: string
   private readonly encryptKey: string
   private readonly verificationToken: string
   private readonly allowedChatIds: string[]
   private readonly domain: FeishuDomain
-  /** Per-chat streaming controller. One stream at a time per chat. */
-  private readonly streamingControllers = new Map<string, FeishuStreamingController>()
-  /** Latest user message id per chat — used as the target for status reactions. */
-  private readonly latestUserMessageByChat = new Map<string, string>()
-  /** Active status reaction per chat, so we can swap or remove it. */
+  private readonly streams = new Map<string, FeishuStreamSession>()
   private readonly chatReactions = new Map<string, ChatReaction>()
+  private readonly lastDropNotificationAt = new Map<string, number>()
+  private static readonly DROP_NOTIFICATION_COOLDOWN_MS = 5 * 60 * 1000
 
   constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
@@ -385,103 +175,111 @@ class FeishuAdapter extends ChannelAdapter {
 
   protected override async performConnect(signal: AbortSignal): Promise<void> {
     if (!this.appId || !this.appSecret) {
-      // No credentials — start the QR registration flow in the background.
-      // Return without connecting. The base class background branch will call
-      // markConnected via .then(), but we override that below: checkReady()
-      // returned false, so we explicitly mark as NOT connected. The adapter
-      // will be recreated by syncChannel once credentials arrive.
       this.startRegistrationInBackground(signal)
       return
     }
 
-    await this.connectWebSocket()
-  }
+    const sdkLogger: Lark.Logger = {
+      error: (...args) => this.log.error('Feishu SDK error', { detail: args.map(String).join(' ') }),
+      warn: (...args) => this.log.warn('Feishu SDK warning', { detail: args.map(String).join(' ') }),
+      info: (...args) => this.log.info('Feishu SDK', { detail: args.map(String).join(' ') }),
+      debug: (...args) => this.log.debug('Feishu SDK', { detail: args.map(String).join(' ') }),
+      trace: (...args) => this.log.debug('Feishu SDK trace', { detail: args.map(String).join(' ') })
+    }
 
-  private async connectWebSocket(): Promise<void> {
-    const larkDomain = resolveDomain(this.domain)
-
-    this.client = new Lark.Client({
+    const channel = Lark.createLarkChannel({
       appId: this.appId,
       appSecret: this.appSecret,
-      appType: Lark.AppType.SelfBuild,
-      domain: larkDomain,
-      httpInstance: createFeishuHttpInstance()
+      transport: 'websocket',
+      ...((this.encryptKey || this.verificationToken) && {
+        webhook: {
+          ...(this.encryptKey && { encryptKey: this.encryptKey }),
+          ...(this.verificationToken && { verificationToken: this.verificationToken })
+        }
+      }),
+      domain: resolveDomain(this.domain),
+      source: 'cherry-studio',
+      logger: sdkLogger,
+      loggerLevel: Lark.LoggerLevel.info,
+      httpInstance: createFeishuHttpInstance(),
+      policy: {
+        dmMode: 'open',
+        requireMention: true,
+        respondToMentionAll: false
+      },
+      safety: { batch: { text: { delayMs: 0 } } },
+      outbound: { textChunkLimit: FEISHU_MAX_LENGTH },
+      wsConfig: { pingTimeout: FEISHU_PING_TIMEOUT_SECONDS }
     })
+    this.channel = channel
 
-    const eventDispatcher = new Lark.EventDispatcher({
-      encryptKey: this.encryptKey || undefined,
-      verificationToken: this.verificationToken || undefined
-    }).register({
-      'im.message.receive_v1': async (data: unknown) => {
-        const event = data as FeishuMessageEvent
-        this.handleMessageEvent(event)
+    channel.on({
+      message: (message) => {
+        void this.handleMessage(message).catch((error) => {
+          this.log.error('Failed to handle Feishu message', {
+            chatId: message.chatId,
+            messageId: message.messageId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        })
+      },
+      reconnecting: () => {
+        this.log.warn('Feishu WebSocket reconnecting')
+      },
+      reconnected: () => {
+        this.markConnected()
+        this.log.info('Feishu WebSocket reconnected')
+      },
+      reject: (event) => {
+        this.log.warn('Feishu message rejected', { chatId: event.chatId, reason: event.reason })
+        this.notifyDrop(event.chatId)
+      },
+      error: (error) => {
+        this.log.error('Feishu channel error', { error: error.message, code: error.code })
       }
     })
 
-    this.wsClient = new Lark.WSClient({
-      appId: this.appId,
-      appSecret: this.appSecret,
-      domain: larkDomain,
-      loggerLevel: Lark.LoggerLevel.error
-    })
-
     try {
-      await this.wsClient.start({ eventDispatcher })
+      await channel.connect()
     } catch (error) {
-      // Clean up so performDisconnect doesn't try to use a broken client
-      this.wsClient = null
+      await this.disconnectChannel(channel)
+      if (signal.aborted || this.channel !== channel) return
+      this.channel = null
       throw new Error(`Feishu WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`)
     }
 
+    if (signal.aborted || this.channel !== channel) {
+      await this.disconnectChannel(channel)
+      return
+    }
+
     this.markConnected()
-    this.log.info('Feishu bot started (WebSocket)')
+    this.log.info('Feishu bot connected (WebSocket)')
   }
 
-  /**
-   * Start the Feishu App Registration Device Flow in the background.
-   * Emits the QR URL immediately via 'qr' event and IPC, then polls
-   * asynchronously.  Does NOT block the caller.
-   */
   private startRegistrationInBackground(signal: AbortSignal): void {
-    this.log.info('Starting Feishu app registration flow (background)', {
-      domain: this.domain
-    })
-
+    this.log.info('Starting Feishu app registration flow (background)', { domain: this.domain })
     this.sendQrToRenderer('', 'pending')
 
-    // Fire-and-forget — errors are logged, not thrown
     registrationBegin(this.domain)
       .then(({ deviceCode, verificationUri, interval, expiresIn }) => {
         if (signal.aborted) return
-
-        // Emit QR URL for ChannelManager waiters and send to renderer
         this.emit('qr', verificationUri)
         this.sendQrToRenderer(verificationUri, 'pending')
-
-        return registrationPoll(this.domain, deviceCode, {
-          interval,
-          expiresIn,
-          signal
-        })
+        return registrationPoll(this.domain, deviceCode, { interval, expiresIn, signal })
       })
       .then((result) => {
         if (!result || signal.aborted) return
-
         this.appId = result.appId
         this.appSecret = result.appSecret
-
-        // Persist first so the renderer can refetch the credentials as soon as
-        // it receives the confirmation event.
         this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
         this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
         this.log.info('Feishu app registration completed')
       })
       .catch((error) => {
         if (signal.aborted) return
-
         const errorMessage = error instanceof Error ? error.message : String(error)
-        const isExpired = /expired|timed out/i.test(errorMessage)
-        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+        this.sendQrToRenderer('', /expired|timed out/i.test(errorMessage) ? 'expired' : 'error')
         this.log.warn(`Registration failed: ${errorMessage}`)
       })
   }
@@ -502,150 +300,62 @@ class FeishuAdapter extends ChannelAdapter {
   }
 
   protected override async performDisconnect(): Promise<void> {
-    for (const [, controller] of this.streamingControllers) {
-      controller.dispose()
-    }
-    this.streamingControllers.clear()
+    for (const stream of this.streams.values()) stream.dispose()
+    this.streams.clear()
     this.chatReactions.clear()
-    this.latestUserMessageByChat.clear()
 
-    if (this.wsClient) {
-      this.wsClient.close()
-      this.wsClient = null
+    const channel = this.channel
+    this.channel = null
+    if (channel) {
+      await this.disconnectChannel(channel)
     }
-    this.client = null
     this.sendQrToRenderer('', 'disconnected')
     this.log.info('Feishu bot stopped')
   }
 
-  async sendMessage(chatId: string, text: string, _opts?: SendMessageOptions): Promise<void> {
-    void _opts
-    // Promote the typing reaction to DONE before delivering the reply,
-    // so the user sees the lifecycle transition. No-op for messages that
-    // weren't preceded by a typing indicator (e.g. /new acks).
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
-    await this.sendRawMessage(chatId, text)
-  }
-
-  /** Send chunked text via the IM API without touching status reactions. */
-  private async sendRawMessage(chatId: string, text: string): Promise<void> {
-    if (!this.client) {
-      throw new Error('Client is not connected')
+  async sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void> {
+    if (opts?.replyToMessageId) {
+      await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+      this.chatReactions.delete(this.responseKey(chatId, opts))
     }
-
-    const chunks = splitMessage(text, FEISHU_MAX_LENGTH)
-
-    for (let i = 0; i < chunks.length; i++) {
-      ensureFeishuSuccess(
-        await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: {
-            receive_id: chatId,
-            msg_type: 'post',
-            content: buildPostPayload(chunks[i])
-          }
-        }),
-        'Send Feishu message'
-      )
-
-      if (i < chunks.length - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
+    const options = replyOptions(opts)
+    const messages = opts?.replyInThread && options ? splitThreadMarkdown(text) : [text]
+    for (const message of messages) {
+      await this.getChannel().send(chatId, { markdown: message }, options)
     }
   }
 
   override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
-    if (!this.client) {
-      throw new Error('Client is not connected')
-    }
-
-    const buffer = Buffer.from(file.data, 'base64')
-
-    // Images go through the image API so they render inline; everything else is
-    // uploaded as a generic file (`stream`) and delivered as a file message.
-    //
-    // NOTE: unlike `im.message.create`, the SDK's upload endpoints return the
-    // unwrapped data object ({image_key} / {file_key}) — not a {code,msg,data}
-    // envelope — so they must NOT go through `ensureFeishuSuccess`. Two failure
-    // shapes exist: an HTTP error rejects (the http instance surfaces status +
-    // detail), while an HTTP 200 carrying a business error (code != 0, e.g. an
-    // oversize image) resolves to null after the SDK discards code/msg — so for
-    // that path we log and throw an enriched, cause-hinting error ourselves.
+    const source = Buffer.from(file.data, 'base64')
     if (file.media_type.startsWith('image/')) {
-      const uploaded = await this.client.im.image.create({ data: { image_type: 'message', image: buffer } })
-      const imageKey = uploaded?.image_key
-      if (!imageKey) {
-        this.log.warn('Feishu image upload returned no image_key', { chatId, filename: file.filename, size: file.size })
-        throw new Error(
-          `Feishu rejected the image upload for "${file.filename}" (no image_key) — likely over Feishu's image size limit (~10MB) or the bot lacks image-send capability`
-        )
-      }
-
-      ensureFeishuSuccess(
-        await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: { receive_id: chatId, msg_type: 'image', content: JSON.stringify({ image_key: imageKey }) }
-        }),
-        'Send Feishu image'
-      )
+      await this.getChannel().send(chatId, { image: { source } })
     } else {
-      const uploaded = await this.client.im.file.create({
-        data: { file_type: 'stream', file_name: file.filename, file: buffer }
-      })
-      const fileKey = uploaded?.file_key
-      if (!fileKey) {
-        this.log.warn('Feishu file upload returned no file_key', { chatId, filename: file.filename, size: file.size })
-        throw new Error(
-          `Feishu rejected the file upload for "${file.filename}" (no file_key) — likely over Feishu's file size limit (~30MB) or the bot lacks file-send capability`
-        )
-      }
-
-      ensureFeishuSuccess(
-        await this.client.im.message.create({
-          params: { receive_id_type: 'chat_id' },
-          data: { receive_id: chatId, msg_type: 'file', content: JSON.stringify({ file_key: fileKey }) }
-        }),
-        'Send Feishu file'
-      )
+      await this.getChannel().send(chatId, { file: { source, fileName: file.filename } })
     }
-
     this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
-  async sendTypingIndicator(chatId: string): Promise<void> {
-    await this.setChatReaction(chatId, REACTION_THINKING)
+  async sendTypingIndicator(chatId: string, opts?: SendMessageOptions): Promise<void> {
+    if (!opts?.replyToMessageId) return
+    await this.setChatReaction(chatId, REACTION_THINKING, opts)
   }
 
-  /**
-   * Set the status reaction for a chat to `emoji`, swapping any existing
-   * reaction on the same user message. No-op if there is no recent user
-   * message to react to. Idempotent for the same (messageId, emoji) pair.
-   */
-  private async setChatReaction(chatId: string, emoji: string): Promise<void> {
-    if (!this.client) return
+  private responseKey(chatId: string, opts?: SendMessageOptions): string {
+    return typeof opts?.replyToMessageId === 'string' ? `${chatId}:${opts.replyToMessageId}` : chatId
+  }
 
-    const messageId = this.latestUserMessageByChat.get(chatId)
-    if (!messageId) return
+  private async setChatReaction(chatId: string, emoji: string, opts?: SendMessageOptions): Promise<void> {
+    const messageId = typeof opts?.replyToMessageId === 'string' ? opts.replyToMessageId : undefined
+    if (!messageId || !this.channel) return
 
-    const existing = this.chatReactions.get(chatId)
+    const reactionKey = this.responseKey(chatId, opts)
+    const existing = this.chatReactions.get(reactionKey)
     if (existing?.messageId === messageId && existing.emoji === emoji) return
-
-    if (existing) {
-      await this.clearChatReaction(chatId)
-    }
+    if (existing) await this.clearChatReaction(reactionKey)
 
     try {
-      const res = ensureFeishuSuccess<{ reaction_id?: string }>(
-        await this.client.im.messageReaction.create({
-          path: { message_id: messageId },
-          data: { reaction_type: { emoji_type: emoji } }
-        }),
-        'Add status reaction'
-      )
-      const reactionId = res.data?.reaction_id
-      if (reactionId) {
-        this.chatReactions.set(chatId, { messageId, reactionId, emoji })
-      }
+      const reactionId = await this.channel.addReaction(messageId, emoji)
+      this.chatReactions.set(reactionKey, { messageId, reactionId, emoji })
     } catch (error) {
       this.log.debug('Failed to add status reaction', {
         chatId,
@@ -656,315 +366,215 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
-  /**
-   * Swap the active reaction to `emoji`, but only if there is currently a
-   * transient reaction (e.g. THINKING). Used at completion/error so that
-   * non-streaming sendMessage calls (e.g. /new) don't get a DONE reaction.
-   */
-  private async transitionChatReaction(chatId: string, emoji: string, from: string[]): Promise<void> {
-    const existing = this.chatReactions.get(chatId)
-    if (!existing || !from.includes(existing.emoji)) return
-    await this.setChatReaction(chatId, emoji)
+  private async transitionChatReaction(
+    chatId: string,
+    emoji: string,
+    from: string[],
+    opts?: SendMessageOptions
+  ): Promise<void> {
+    const existing = this.chatReactions.get(this.responseKey(chatId, opts))
+    if (existing && from.includes(existing.emoji)) await this.setChatReaction(chatId, emoji, opts)
   }
 
-  private async clearChatReaction(chatId: string): Promise<void> {
-    const reaction = this.chatReactions.get(chatId)
+  private async clearChatReaction(reactionKey: string): Promise<void> {
+    const reaction = this.chatReactions.get(reactionKey)
     if (!reaction) return
-    this.chatReactions.delete(chatId)
-    if (!this.client) return
+    this.chatReactions.delete(reactionKey)
+    if (!this.channel) return
 
     try {
-      ensureFeishuSuccess(
-        await this.client.im.messageReaction.delete({
-          path: { message_id: reaction.messageId, reaction_id: reaction.reactionId }
-        }),
-        'Remove status reaction'
-      )
+      await this.channel.removeReaction(reaction.messageId, reaction.reactionId)
     } catch (error) {
       this.log.debug('Failed to remove status reaction', {
-        chatId,
+        reactionKey,
         error: error instanceof Error ? error.message : String(error)
       })
     }
   }
 
-  override async onTextUpdate(chatId: string, fullText: string): Promise<void> {
-    if (!this.client) return
-
-    let controller = this.streamingControllers.get(chatId)
-    if (!controller) {
-      controller = new FeishuStreamingController(this.client, chatId, this.log)
-      this.streamingControllers.set(chatId, controller)
+  override async onTextUpdate(chatId: string, fullText: string, opts?: SendMessageOptions): Promise<void> {
+    const streamKey = this.responseKey(chatId, opts)
+    let stream = this.streams.get(streamKey)
+    if (!stream) {
+      stream = new FeishuStreamSession(this.getChannel(), chatId, opts)
+      this.streams.set(streamKey, stream)
     }
-
-    await controller.onText(fullText)
+    await stream.update(fullText)
   }
 
-  override async onStreamComplete(chatId: string, finalText: string): Promise<boolean> {
-    await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING])
-    const controller = this.streamingControllers.get(chatId)
-    if (!controller) return false
-
-    this.streamingControllers.delete(chatId)
-    return controller.complete(finalText)
-  }
-
-  override async onStreamError(chatId: string, error: string): Promise<void> {
-    await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE])
-    const controller = this.streamingControllers.get(chatId)
-    if (controller) {
-      this.streamingControllers.delete(chatId)
-      await controller.error(error)
-      return
+  override async onStreamComplete(chatId: string, finalText: string, opts?: SendMessageOptions): Promise<boolean> {
+    const streamKey = this.responseKey(chatId, opts)
+    if (opts?.replyToMessageId) {
+      await this.transitionChatReaction(chatId, REACTION_DONE, [REACTION_THINKING], opts)
+      this.chatReactions.delete(streamKey)
     }
-
-    // No streaming card was created (LLM errored before producing any text),
-    // so the error would otherwise be silent. Send it as a plain message.
+    const stream = this.streams.get(streamKey)
+    if (!stream) return false
     try {
-      await this.sendRawMessage(chatId, `**Error**: ${error}`)
-    } catch (sendError) {
-      this.log.warn('Failed to deliver stream error to chat', {
+      await stream.complete(finalText)
+      return true
+    } catch (error) {
+      this.log.warn('Failed to finalize Feishu stream, falling back to a message', {
         chatId,
-        error: sendError instanceof Error ? sendError.message : String(sendError)
+        error: error instanceof Error ? error.message : String(error)
       })
+      return false
+    } finally {
+      this.streams.delete(streamKey)
     }
   }
 
-  private handleMessageEvent(event: FeishuMessageEvent): void {
-    const chatId = event.message.chat_id?.trim()
-    if (!chatId) return
+  override async onStreamError(chatId: string, error: string, opts?: SendMessageOptions): Promise<void> {
+    const streamKey = this.responseKey(chatId, opts)
+    if (opts?.replyToMessageId) {
+      await this.transitionChatReaction(chatId, REACTION_ERROR, [REACTION_THINKING, REACTION_DONE], opts)
+      this.chatReactions.delete(streamKey)
+    }
+    const stream = this.streams.get(streamKey)
+    if (stream) {
+      try {
+        await stream.error(error)
+      } finally {
+        this.streams.delete(streamKey)
+      }
+      return
+    }
+    await this.getChannel().send(chatId, { markdown: `**Error**: ${error}` }, replyOptions(opts))
+  }
 
-    if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(chatId)) {
-      this.log.debug('Dropping message from unauthorized chat', { chatId })
+  private async handleMessage(message: Lark.NormalizedMessage): Promise<void> {
+    if (this.allowedChatIds.length > 0 && !this.allowedChatIds.includes(message.chatId)) {
+      this.log.warn('Dropping message from unauthorized chat', { chatId: message.chatId })
+      this.notifyDrop(message.chatId)
       return
     }
 
-    // Remember the latest user message so sendTypingIndicator can react to it.
-    if (event.message.message_id) {
-      this.latestUserMessageByChat.set(chatId, event.message.message_id)
-    }
-
-    const messageType = event.message.message_type
-    const userId = event.sender.sender_id.open_id ?? event.sender.sender_id.user_id ?? ''
-
-    if (messageType === 'file') {
-      this.handleFileMessage(event, chatId, userId)
-      return
-    }
-
-    if (messageType === 'image') {
-      this.handleImageMessage(event, chatId, userId)
-      return
-    }
-
-    if (messageType !== 'text') return
-
-    let text: string
-    try {
-      const parsed = JSON.parse(event.message.content) as { text?: string }
-      text = parsed.text ?? ''
-    } catch {
-      return
-    }
-
-    // Strip @mention tags (e.g., @_user_1 in group chats)
-    text = text.replace(/@_user_\d+/g, '').trim()
-    if (!text) return
-
-    // Check for commands (Feishu doesn't have native bot commands, use text prefix)
+    const text = message.content.trim()
+    const conversationId = message.threadId
+    const conversation = conversationId ? { conversationId: `thread:${conversationId}`, replyInThread: true } : {}
     if (isSlashCommand(text)) {
       const parts = text.split(/\s+/)
-      const cmd = parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'help' | 'whoami'
       this.emit('command', {
-        chatId,
-        userId,
-        userName: '',
-        command: cmd,
+        chatId: message.chatId,
+        ...conversation,
+        userId: message.senderId,
+        userName: message.senderName ?? '',
+        messageId: message.messageId,
+        command: parts[0].slice(1).toLowerCase() as 'new' | 'compact' | 'help' | 'whoami',
         args: parts.slice(1).join(' ') || undefined
       })
       return
     }
 
+    const { images, files } = await this.downloadResources(message)
+    if (!text && images.length === 0 && files.length === 0) {
+      this.log.warn('Dropping message with no text and no resources', { chatId: message.chatId })
+      return
+    }
     this.emit('message', {
-      chatId,
-      userId,
-      userName: '',
-      text
+      chatId: message.chatId,
+      ...conversation,
+      userId: message.senderId,
+      userName: message.senderName ?? '',
+      messageId: message.messageId,
+      text,
+      ...(images.length > 0 ? { images } : {}),
+      ...(files.length > 0 ? { files } : {})
     })
   }
 
-  private handleImageMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
-    let imageKey: string
-    try {
-      const parsed = JSON.parse(event.message.content) as { image_key?: string }
-      imageKey = parsed.image_key ?? ''
-    } catch {
-      return
-    }
-    if (!imageKey) return
+  private async downloadResources(
+    message: Lark.NormalizedMessage
+  ): Promise<{ images: ImageAttachment[]; files: FileAttachment[] }> {
+    const images: ImageAttachment[] = []
+    const files: FileAttachment[] = []
 
-    this.downloadFeishuImage(event.message.message_id, imageKey)
-      .then((images) => {
-        if (images.length === 0) {
-          this.emit('message', {
-            chatId,
-            userId,
-            userName: '',
-            text: '[Image — download failed]'
-          })
-          return
+    for (const resource of message.resources) {
+      if (resource.type === 'sticker') {
+        this.log.debug('Skipping unsupported Feishu sticker resource', { fileKey: resource.fileKey })
+        continue
+      }
+      try {
+        const resourceResponse = await this.getChannel().rawClient.im.v1.messageResource.get({
+          path: { message_id: message.messageId, file_key: resource.fileKey },
+          params: { type: resource.type === 'image' ? 'image' : 'file' }
+        })
+        const chunks: Buffer[] = []
+        let size = 0
+        for await (const chunk of resourceResponse.getReadableStream()) {
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          size += buffer.length
+          if (size > MAX_FILE_SIZE_BYTES) {
+            this.log.warn('Feishu resource too large', { fileKey: resource.fileKey, size })
+            break
+          }
+          chunks.push(buffer)
         }
-        this.emit('message', {
-          chatId,
-          userId,
-          userName: '',
-          text: '',
-          images
+        const buffer = Buffer.concat(chunks)
+        if (size > MAX_FILE_SIZE_BYTES) continue
+
+        const detected = await fileTypeFromBuffer(buffer)
+        if (resource.type === 'image') {
+          images.push({ data: buffer.toString('base64'), media_type: detected?.mime ?? 'image/png' })
+          continue
+        }
+
+        const filename = resource.fileName ?? `${resource.type}${detected?.ext ? `.${detected.ext}` : ''}`
+        const extension = filename.includes('.') ? filename.split('.').pop()!.toLowerCase() : ''
+        files.push({
+          filename,
+          data: buffer.toString('base64'),
+          media_type: detected?.mime ?? FILE_EXTENSION_MIME_MAP[extension] ?? 'application/octet-stream',
+          size: buffer.length
         })
-      })
-      .catch((error) => {
-        this.log.warn('Failed to download Feishu image', {
-          imageKey,
+      } catch (error) {
+        this.log.warn('Failed to download Feishu resource', {
+          fileKey: resource.fileKey,
+          resourceType: resource.type,
           error: error instanceof Error ? error.message : String(error)
         })
-        this.emit('message', {
-          chatId,
-          userId,
-          userName: '',
-          text: '[Image — download failed]'
-        })
-      })
-  }
-
-  private async downloadFeishuImage(messageId: string, imageKey: string): Promise<ImageAttachment[]> {
-    if (!this.client) return []
-
-    this.log.info('Downloading Feishu image', { messageId, imageKey })
-
-    let resp: Awaited<ReturnType<typeof this.client.im.messageResource.get>>
-    try {
-      resp = await this.client.im.messageResource.get({
-        params: { type: 'image' },
-        path: { message_id: messageId, file_key: imageKey }
-      })
-    } catch (error) {
-      this.log.error('Feishu messageResource.get failed', {
-        messageId,
-        imageKey,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      })
-      throw error
-    }
-
-    const stream = resp.getReadableStream()
-    const chunks: Buffer[] = []
-    let totalSize = 0
-
-    for await (const chunk of stream) {
-      totalSize += chunk.length
-      if (totalSize > MAX_FILE_SIZE_BYTES) {
-        this.log.warn('Feishu image too large, aborting download', { imageKey, size: totalSize })
-        stream.destroy()
-        return []
       }
-      chunks.push(Buffer.from(chunk))
     }
 
-    const buffer = Buffer.concat(chunks)
-    if (buffer.length === 0) return []
-
-    const rawContentType =
-      (resp.headers as Record<string, string | string[] | undefined> | undefined)?.['content-type'] ?? ''
-    const headerValue = Array.isArray(rawContentType) ? rawContentType[0] : rawContentType
-    const mediaType = headerValue ? headerValue.split(';')[0].trim() || 'image/png' : 'image/png'
-
-    this.log.info('Feishu image downloaded', { imageKey, totalSize: buffer.length, mediaType })
-    return [{ data: buffer.toString('base64'), media_type: mediaType }]
+    return { images, files }
   }
 
-  private handleFileMessage(event: FeishuMessageEvent, chatId: string, userId: string): void {
-    let fileKey: string
-    let fileName: string
-    try {
-      const parsed = JSON.parse(event.message.content) as { file_key?: string; file_name?: string }
-      fileKey = parsed.file_key ?? ''
-      fileName = parsed.file_name ?? 'file'
-    } catch {
-      return
+  private shouldNotifyDrop(chatId: string): boolean {
+    const now = Date.now()
+    const last = this.lastDropNotificationAt.get(chatId) ?? 0
+    if (now - last < FeishuAdapter.DROP_NOTIFICATION_COOLDOWN_MS) {
+      this.log.debug('Suppressing duplicate drop notification', { chatId })
+      return false
     }
-    if (!fileKey) return
-
-    this.downloadFeishuFile(event.message.message_id, fileKey, fileName)
-      .then((files) => {
-        this.emit('message', {
-          chatId,
-          userId,
-          userName: '',
-          text: `[File: ${fileName}]`,
-          ...(files.length > 0 ? { files } : {})
-        })
-      })
-      .catch((error) => {
-        this.log.warn('Failed to download Feishu file', {
-          fileKey,
-          error: error instanceof Error ? error.message : String(error)
-        })
-        // Emit text-only fallback
-        this.emit('message', {
-          chatId,
-          userId,
-          userName: '',
-          text: `[File: ${fileName} — download failed]`
-        })
-      })
+    this.lastDropNotificationAt.set(chatId, now)
+    if (this.lastDropNotificationAt.size > 1000) {
+      const oldest = [...this.lastDropNotificationAt.entries()].sort((a, b) => a[1] - b[1]).slice(0, 500)
+      for (const [key] of oldest) this.lastDropNotificationAt.delete(key)
+    }
+    return true
   }
 
-  private async downloadFeishuFile(messageId: string, fileKey: string, fileName: string): Promise<FileAttachment[]> {
-    if (!this.client) return []
-
-    this.log.info('Downloading Feishu file', { messageId, fileKey, fileName })
-
-    let resp: Awaited<ReturnType<typeof this.client.im.messageResource.get>>
-    try {
-      resp = await this.client.im.messageResource.get({
-        params: { type: 'file' },
-        path: { message_id: messageId, file_key: fileKey }
+  private notifyDrop(chatId: string): void {
+    if (!this.shouldNotifyDrop(chatId)) return
+    this.sendMessage(chatId, t('common.channel_message_dropped'), replyOptions()).catch((err) => {
+      this.log.debug('Failed to send drop notification to channel', {
+        chatId,
+        error: err instanceof Error ? err.message : String(err)
       })
-    } catch (error) {
-      this.log.error('Feishu messageResource.get failed', {
-        messageId,
-        fileKey,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      })
-      throw error
-    }
+    })
+  }
 
-    const stream = resp.getReadableStream()
-    const chunks: Buffer[] = []
-    let totalSize = 0
+  private getChannel(): Lark.LarkChannel {
+    if (!this.channel) throw new Error('Feishu channel is not connected')
+    return this.channel
+  }
 
-    for await (const chunk of stream) {
-      totalSize += chunk.length
-      if (totalSize > MAX_FILE_SIZE_BYTES) {
-        this.log.warn('Feishu file too large, aborting download', { fileName, size: totalSize })
-        stream.destroy()
-        return []
-      }
-      chunks.push(Buffer.from(chunk))
-    }
-
-    this.log.info('Feishu file downloaded', { fileName, totalSize })
-    const buffer = Buffer.concat(chunks)
-    const ext = fileName.includes('.') ? fileName.split('.').pop()!.toLowerCase() : ''
-    const mediaType = FILE_EXTENSION_MIME_MAP[ext] || 'application/octet-stream'
-
-    return [{ filename: fileName, data: buffer.toString('base64'), media_type: mediaType, size: buffer.length }]
+  private async disconnectChannel(channel: Lark.LarkChannel): Promise<void> {
+    await channel.disconnect().catch(() => undefined)
+    channel.rawWsClient?.close({ force: true })
   }
 }
 
-// Self-registration
 registerAdapterFactory('feishu', (channel, agentId) => {
   return new FeishuAdapter({
     channelId: channel.id,

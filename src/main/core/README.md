@@ -46,8 +46,8 @@ no longer imported anywhere. It will be removed in a follow-up cleanup PR.
 |--------|-------------|----------------|
 | `application/` | Application singleton, service registry, bootstrap orchestration | [Lifecycle Reference](../../../docs/references/lifecycle/README.md) |
 | `concurrency/` | `createLatestReconciler` — general latest-wins async side-effect reconciler (single-flight, level-triggered) | [concurrency/README.md](./concurrency/README.md) |
-| `diagnostics.ts` | Opt-in performance instrumentation (CPU profile, event-loop lag, service spans), gated by `CS_DIAGNOSTICS` | [diagnostics.md](../../../docs/guides/diagnostics.md) |
+| `diagnostics.ts` | Opt-in performance instrumentation (CPU profile, event-loop lag, service spans), gated by `CS_DIAGNOSTICS` | [diagnostics.md](../../../docs/references/diagnostics/README.md) |
 | `lifecycle/` | IoC container, service lifecycle management, phased bootstrap | [Lifecycle Reference](../../../docs/references/lifecycle/README.md) |
-| `logger/` | Winston-based logging service (preboot singleton, consumed via `@logger` alias) | [logging.md](../../../docs/guides/logging.md) |
+| `logger/` | Winston-based logging service (preboot singleton, consumed via `@logger` alias) | [logging.md](../../../docs/references/logging/README.md) |
 | `paths/` | Path registry: single source of truth for all main-process filesystem paths | [paths/README.md](./paths/README.md) |
 | `preboot/` | Pre-bootstrap synchronous setup (userData resolution, etc.) | [preboot/README.md](./preboot/README.md) |

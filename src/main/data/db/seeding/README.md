@@ -9,5 +9,5 @@ See [Database Seeding Guide](../../../../../docs/references/data/database-seedin
 ## Quick Reference
 
 To add a new seeder:
-1. Create a class implementing `ISeeder` in this directory
+1. Create a synchronous class implementing `ISeeder` in `seeders/`
 2. Add it to the `seeders` array in `seederRegistry.ts`

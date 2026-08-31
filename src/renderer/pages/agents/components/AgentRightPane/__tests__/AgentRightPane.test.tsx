@@ -1,10 +1,17 @@
+import {
+  HoverCard as RealHoverCard,
+  HoverCardContent as RealHoverCardContent,
+  HoverCardTrigger as RealHoverCardTrigger
+} from '@cherrystudio/ui/components'
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type {
   ButtonHTMLAttributes,
   ComponentProps,
@@ -19,6 +26,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
+  backgroundTasksState,
   buildAgentToolFlowProjectionMock,
   getToolResultMock,
   fileSessionDiscardMock,
@@ -33,8 +41,10 @@ const {
   useCommandHandlerMock,
   useDirectoryTreeMock,
   ipcRequestMock,
-  toastErrorMock
+  toastErrorMock,
+  uiMockState
 } = vi.hoisted(() => ({
+  backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
   getToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
@@ -63,7 +73,8 @@ const {
   useCommandHandlerMock: vi.fn(),
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
-  toastErrorMock: vi.fn()
+  toastErrorMock: vi.fn(),
+  uiMockState: { useRealHoverCard: false }
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -83,6 +94,9 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type="button" {...props}>
       {children}
     </button>
+  ),
+  CircularProgress: ({ value }: { value: number }) => (
+    <span data-testid="circular-progress" data-value={String(value)} />
   ),
   ConfirmDialog: ({
     cancelText,
@@ -115,15 +129,25 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       </div>
     ) : null,
-  HoverCard: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  HoverCardContent: ({ children }: PropsWithChildren) => <div data-testid="status-shortcut-preview">{children}</div>,
-  HoverCardTrigger: ({ children }: PropsWithChildren) =>
-    isValidElement(children) ? (
-      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
-      cloneElement(children as ReactElement<Record<string, unknown>>, { 'data-hover-card-trigger': 'true' })
+  HoverCard: (props: ComponentProps<typeof RealHoverCard>) =>
+    uiMockState.useRealHoverCard ? <RealHoverCard {...props} /> : <div>{props.children}</div>,
+  HoverCardContent: (props: ComponentProps<typeof RealHoverCardContent>) =>
+    uiMockState.useRealHoverCard ? (
+      <RealHoverCardContent {...props} />
     ) : (
-      <>{children}</>
+      <div className={props.className} data-testid="status-shortcut-preview">
+        {props.children}
+      </div>
     ),
+  HoverCardTrigger: (props: ComponentProps<typeof RealHoverCardTrigger>) => {
+    if (uiMockState.useRealHoverCard) return <RealHoverCardTrigger {...props} />
+    return isValidElement(props.children) ? (
+      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+      cloneElement(props.children as ReactElement<Record<string, unknown>>, { 'data-hover-card-trigger': 'true' })
+    ) : (
+      <>{props.children}</>
+    )
+  },
   HorizontalScrollContainer: ({ children }: PropsWithChildren) => <div>{children}</div>,
   Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -179,7 +203,19 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
-  MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
+  MessageListProvider: ({
+    children,
+    value
+  }: PropsWithChildren<{
+    value: { state: { renderConfig: { collapseCompletedToolHistory: boolean; messageStyle: string } } }
+  }>) => (
+    <div
+      data-testid="message-list-provider"
+      data-collapse-completed-tool-history={String(value.state.renderConfig.collapseCompletedToolHistory)}
+      data-message-style={value.state.renderConfig.messageStyle}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/hooks/useToolResult', () => ({
@@ -262,8 +298,9 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: () => <button type="button">Open external</button>
+vi.mock('@renderer/components/OpenTarget', () => ({
+  OpenTargetButton: () => <button type="button">Open external</button>,
+  loadOpenTargetMenuItems: vi.fn(async () => [])
 }))
 
 vi.mock('@renderer/hooks/useFileEditSession', () => {
@@ -320,7 +357,7 @@ vi.mock('@renderer/components/command', () => ({
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children }: PropsWithChildren) => <div>{children}</div>
+  default: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -333,6 +370,10 @@ vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentSessionBackgroundTasks', () => ({
+  useAgentSessionBackgroundTasks: () => backgroundTasksState.value
 }))
 
 // A live turn: run-task rows render the status their events report. Staleness is covered where the
@@ -380,14 +421,44 @@ vi.mock('motion/react', () => ({
 
 // A stable `t` identity mirrors production react-i18next; a fresh closure per render
 // would invalidate the provider's scope memo and break render-isolation assertions.
-const stableT = (key: string) => key
+const stableT = (key: string, values?: Record<string, unknown>) =>
+  key === 'agent.right_pane.status.task_progress_compact' ? `Step ${values?.current}/${values?.total}` : key
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: stableT })
 }))
 
-import { AgentRightPane, useAgentRightPaneActions } from '../AgentRightPane'
+import { AgentRightPane, AgentTaskProgressCapsule, useAgentRightPaneActions } from '../AgentRightPane'
 
 type TestAgentRightPaneProps = ComponentProps<typeof AgentRightPane.Scope>
+
+function createTaskPart(sequence: number, subject: string, activeForm?: string): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolCallId: `task-create-${sequence}`,
+    toolName: 'TaskCreate',
+    state: 'input-available',
+    input: { subject, activeForm }
+  } as unknown as CherryMessagePart
+}
+
+function updateTaskPart(
+  sequence: number,
+  taskId: string,
+  status: 'completed' | 'in_progress',
+  activeForm?: string
+): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolCallId: `task-update-${sequence}`,
+    toolName: 'TaskUpdate',
+    state: 'input-available',
+    input: { taskId, status, activeForm }
+  } as unknown as CherryMessagePart
+}
+
+function createTaskMessages(parts: CherryMessagePart[], status: 'pending' | 'success'): CherryUIMessage[] {
+  return [{ id: 'm1', role: 'assistant', parts, metadata: { status } }] as CherryUIMessage[]
+}
 
 function TestAgentRightPane({
   children,
@@ -493,6 +564,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    uiMockState.useRealHoverCard = false
     ipcRequestMock.mockResolvedValue({
       kind: 'file',
       type: 'text',
@@ -511,12 +583,96 @@ describe('AgentRightPane', () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
     systemFileTreeState.root = new TreeDirRoot('/system-workspace')
     systemFileTreeState.version = 0
+    backgroundTasksState.value = []
     useDirectoryTreeMock.mockImplementation(() => systemFileTreeState)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
     getToolResultMock.mockReturnValue('Loaded flow result')
+  })
+
+  it('opens the current task plan from hover and keyboard focus, then hides it after completion', async () => {
+    uiMockState.useRealHoverCard = true
+    const user = userEvent.setup()
+    const parts = [
+      createTaskPart(1, 'Collect context'),
+      createTaskPart(2, 'Build a capsule with a long wrapping task title'),
+      updateTaskPart(1, '1', 'completed'),
+      updateTaskPart(2, '2', 'in_progress', 'Building capsule')
+    ]
+    const messages = createTaskMessages(parts, 'pending')
+
+    const view = render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentTaskProgressCapsule />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const capsule = screen.getByTestId('agent-task-progress-capsule')
+    const progress = within(capsule).getByRole('progressbar')
+    const progressLabel = within(capsule).getByText('Step 2/2')
+
+    expect(progress).toHaveAttribute('aria-valuenow', '1')
+    expect(progress).toHaveAttribute('aria-valuemax', '2')
+    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '50')
+    expect(screen.queryByTestId('agent-task-progress-details')).toBeNull()
+
+    await user.hover(progressLabel)
+    expect(within(await screen.findByTestId('agent-task-progress-details')).getByText('Building capsule')).toBeVisible()
+
+    await user.unhover(progressLabel)
+    await waitFor(() => expect(screen.queryByTestId('agent-task-progress-details')).toBeNull())
+
+    await user.tab()
+    expect(document.activeElement).toHaveTextContent('Step 2/2')
+    expect(within(await screen.findByTestId('agent-task-progress-details')).getByText('Building capsule')).toBeVisible()
+
+    const completedParts = [...parts, updateTaskPart(3, '2', 'completed')]
+    const completedMessages = createTaskMessages(completedParts, 'success')
+
+    view.rerender(
+      <TestAgentRightPane sessionId="session-a" messages={completedMessages} partsByMessageId={{ m1: completedParts }}>
+        <AgentTaskProgressCapsule />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByTestId('agent-task-progress-capsule')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(within(screen.getByTestId('right-pane')).queryByText('Collect context')).toBeNull()
+  })
+
+  it('infers the first pending task as active only while the assistant turn is running', () => {
+    const parts = [createTaskPart(1, 'Collect context', 'Collecting context'), createTaskPart(2, 'Build capsule')]
+    const messages = createTaskMessages(parts, 'pending')
+
+    const view = render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentTaskProgressCapsule />
+      </TestAgentRightPane>
+    )
+
+    const capsule = screen.getByTestId('agent-task-progress-capsule')
+    expect(within(capsule).getByText('Step 1/2')).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('agent-task-progress-details')).getByText('Collecting context')
+    ).toBeInTheDocument()
+
+    const settledMessages = createTaskMessages(parts, 'success')
+    view.rerender(
+      <TestAgentRightPane sessionId="session-a" messages={settledMessages} partsByMessageId={{ m1: parts }}>
+        <AgentTaskProgressCapsule />
+      </TestAgentRightPane>
+    )
+
+    expect(within(screen.getByTestId('agent-task-progress-details')).getByText('Collect context')).toBeInTheDocument()
+    expect(screen.queryByText('Collecting context')).toBeNull()
   })
 
   it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
@@ -817,6 +973,34 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('presents flow prompts as bubbles and keeps completed process history collapsed', () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
+    expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
+  })
+
   it('marks direct artifact opening as user initiated', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
@@ -1017,7 +1201,60 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
   })
 
-  it('shows a dsh todo_write snapshot in the status shortcut preview', () => {
+  it('keeps a detached subagent spinning while it remains in the background task snapshot', () => {
+    const taskEvent = {
+      event: 'started' as const,
+      taskId: 'subagent-1',
+      toolUseId: 'tool-use-1',
+      status: 'in_progress' as const,
+      title: 'Run a detached subagent',
+      taskType: 'subagent'
+    }
+    const taskPart = { type: 'data-agent-task-event', data: taskEvent } as unknown as CherryMessagePart
+    const messages = [
+      { id: 'm1', role: 'assistant', parts: [taskPart], metadata: { status: 'success' } }
+    ] as CherryUIMessage[]
+    backgroundTasksState.value = [
+      { id: 'subagent-1', type: 'subagent', description: 'Run a detached subagent', toolCallId: 'tool-use-1' }
+    ]
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [taskPart] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const taskButton = screen.getByRole('button', { name: /Run a detached subagent/ })
+    expect(taskButton.querySelector('.animate-spin')).not.toBeNull()
+  })
+
+  it('returns from a subagent flow to the status panel', async () => {
+    const user = userEvent.setup()
+
+    renderStatusTasks([
+      {
+        id: 'subagent-1',
+        status: 'in_progress',
+        title: 'Inspect task state',
+        taskType: 'local_agent',
+        toolUseId: 'tool-use-1'
+      }
+    ])
+
+    const rightPane = screen.getByTestId('right-pane')
+    await user.click(within(rightPane).getByRole('button', { name: /Inspect task state/ }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect task state')
+
+    await user.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
+    expect(screen.getByText('agent.right_pane.info.subagents')).toBeInTheDocument()
+  })
+
+  it('shows a dsh todo_write snapshot in the floating task capsule', () => {
     const todoPart = {
       type: 'dynamic-tool',
       toolCallId: 'dsh-todos-1',
@@ -1039,14 +1276,13 @@ describe('AgentRightPane', () => {
 
     render(
       <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [todoPart] }}>
-        <AgentRightPane.Shortcuts />
-        <AgentRightPane.Viewport />
+        <AgentTaskProgressCapsule />
       </TestAgentRightPane>
     )
 
-    const preview = screen.getByTestId('status-shortcut-preview')
-    expect(within(preview).getByText('Connect the task list')).toHaveClass('line-through')
-    expect(within(preview).getByText('Verify the right pane')).toBeInTheDocument()
+    const details = screen.getByTestId('agent-task-progress-details')
+    expect(within(details).getByText('Connect the task list')).toHaveClass('text-muted-foreground')
+    expect(within(details).getByText('Verify the right pane')).toBeInTheDocument()
   })
 
   it('renders local Workflow progress separately without offering a root FlowTab fallback', () => {
@@ -1098,15 +1334,8 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
   })
 
-  it('keeps declared artifacts directly under the task plan instead of below the run sections', () => {
+  it('keeps declared artifacts ahead of run sections', () => {
     const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'task-1',
-        toolName: 'TaskCreate',
-        state: 'input-available',
-        input: { subject: 'Build the deck' }
-      },
       {
         type: 'dynamic-tool',
         toolCallId: 'artifacts-1',
@@ -1140,7 +1369,6 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
     const sectionOrder = [
-      screen.getByText('agent.right_pane.status.tasks'),
       screen.getByText('agent.right_pane.info.artifacts'),
       screen.getByTestId('context-usage'),
       screen.getByText('agent.right_pane.info.shell_tasks')
@@ -1154,13 +1382,6 @@ describe('AgentRightPane', () => {
 
   it('hides the artifacts section when the workspace cannot open files', () => {
     const parts = [
-      {
-        type: 'dynamic-tool',
-        toolCallId: 'task-1',
-        toolName: 'TaskCreate',
-        state: 'input-available',
-        input: { subject: 'Build the deck' }
-      },
       {
         type: 'dynamic-tool',
         toolCallId: 'artifacts-1',
@@ -1179,7 +1400,6 @@ describe('AgentRightPane', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
 
-    expect(screen.getByText('agent.right_pane.status.tasks')).toBeInTheDocument()
     expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
   })
 

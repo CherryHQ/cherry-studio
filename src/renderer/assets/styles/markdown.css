@@ -460,6 +460,23 @@
   border-radius: 0;
 }
 
+/*
+ * Image export (utils/image.ts `captureScrollable`) rasterizes a DOM clone via
+ * html-to-image: computed box sizes are frozen and `overflow` keeps clipping in
+ * the static image, where the user can no longer scroll. Unclip table scroll
+ * viewports (and the table's own corner-clipping) while the capture root marker
+ * is set so wide tables render in full instead of being cut off. `!important`
+ * is required to override the table's inline `overflow: hidden`.
+ */
+[data-image-capturing] .table-scroll-viewport,
+[data-image-capturing] [data-streamdown='table-wrapper'] > div:last-child {
+  overflow: visible !important;
+}
+
+[data-image-capturing] .table-scroll-viewport > table {
+  overflow: visible !important;
+}
+
 .markdown img {
   display: block;
   max-width: 100%;

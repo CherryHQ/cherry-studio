@@ -67,6 +67,8 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
 export type ToolApprovalEmitterHolder = {
   /** Bound for the connection lifetime; the host decides whether to stream or persist the request. */
   emit?: (request: AgentRuntimeToolApprovalRequest) => void
+  /** Replaces a streamed tool call's raw input with the SDK-normalized input before approval. */
+  emitInput?: (request: Pick<AgentRuntimeToolApprovalRequest, 'toolCallId' | 'toolName' | 'input'>) => void
   /** Session-scoped cleanup (e.g. `toolApprovalRegistry.abort(sessionId)`). */
   dispose?: () => void
 }

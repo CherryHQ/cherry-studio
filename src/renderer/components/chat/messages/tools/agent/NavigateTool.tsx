@@ -23,12 +23,12 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/app/agents': { icon: '🤖', labelKey: 'agent.sidebar_title' },
 
   // Settings pages
+  '/settings/general': { icon: '⚙️', labelKey: 'settings.general.common.title' },
   '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
   '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
   '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
   '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
   '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
-  '/settings/system': { icon: '⚙️', labelKey: 'settings.system.title' },
   '/settings/data': { icon: '💾', labelKey: 'settings.data.title' },
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },

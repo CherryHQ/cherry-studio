@@ -1,3 +1,10 @@
+---
+description: How the Application orchestrator registers services, runs the three-phase bootstrap, and controls runtime shutdown
+sources:
+  - src/main/core/application
+  - src/main/core/lifecycle
+---
+
 # Application Overview
 
 Application is the top-level orchestrator that ties together the lifecycle system and the Electron app. It is the single entry point for bootstrapping, shutting down, and controlling services at runtime.
@@ -108,22 +115,19 @@ This gives you type-safe access via `application.get('NewService')`.
 
 Services managed by the lifecycle system must **not** export singleton instances. The service CLASS is exported for type references only (e.g., `ServiceRegistry`, `@DependsOn`). All runtime access goes through `application.get()` (unconditional services) or `application.getOptional()` (conditional services with `@Conditional`).
 
-### Assign to a local variable before use
+### Local variables are optional
 
-Do **not** chain `application.get('...')` with method calls directly. Assign the service to a local variable first, then use it:
+Direct chaining is valid and common for a single call. Assign the result to a local variable when it is used repeatedly or when the shorter name improves readability:
 
 ```typescript
-// ✗ BAD: chained calls
-application.get('PreferenceService').get('app.zoom_factor')
+// One call: direct access is fine
 application.get('PreferenceService').set('app.zoom_factor', 1)
 
-// ✓ GOOD: assign first, then use
+// Repeated access: keep one readable local
 const preferenceService = application.get('PreferenceService')
 preferenceService.get('app.zoom_factor')
 preferenceService.set('app.zoom_factor', 1)
 ```
-
-This improves readability, avoids repeated container lookups, and makes the code easier to refactor.
 
 ### Conditional service access
 
@@ -222,18 +226,13 @@ if (application.isQuitting) { /* ... */ }
 | `markQuitting()` | None (flag only) | `autoUpdater.quitAndInstall()` owns its own quit flow |
 | `preventQuit(reason)` | Blocks `before-quit` | Critical operations (returns hold with `dispose()`) |
 
-**Exceptions** (where direct `app.quit()` is acceptable):
-- Before `application` is initialized (e.g., single-instance lock failure in `index.ts`)
-- Migration files (`src/main/data/migration/`) that run before the full app lifecycle
+**Exception:** migration-window code under `src/main/data/migration/` owns a separate pre-bootstrap Electron flow and is excluded from the lint rule. Other preboot code, including the single-instance gate, still calls `application.quit()` rather than a bare Electron quit API.
 
 ### Renderer Usage
 
-The renderer accesses application lifecycle methods via `window.api.application`:
+The renderer's legacy application bridge exposes quit-prevention and relaunch operations. It does not expose a generic `quit()` method. New call sites that only need a normal relaunch use `ipcApi.request('app.relaunch')`; the bridge remains for the quit-hold protocol and legacy relaunch callers that pass Electron options.
 
 ```typescript
-// Quit the app (triggers before-quit → will-quit event chain)
-await window.api.application.quit()
-
 // Relaunch the app
 await window.api.application.relaunch()
 await window.api.application.relaunch({ args: ['--safe-mode'] })
@@ -249,7 +248,6 @@ try {
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `quit()` | `Promise<void>` | Graceful quit via Electron event chain |
 | `relaunch(options?)` | `Promise<void>` | Relaunch the app (with optional args) |
 | `preventQuit(reason)` | `Promise<string>` (holdId) | Block app quit until released |
 | `allowQuit(holdId)` | `Promise<void>` | Release a specific quit prevention hold |
