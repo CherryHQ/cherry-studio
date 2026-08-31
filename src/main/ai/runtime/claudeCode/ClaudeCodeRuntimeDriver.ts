@@ -373,7 +373,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.reasoningEffort ?? 'default',
       this.input.fastMode === true,
-      this.input.knowledgeBaseIds
+      this.input.knowledgeBaseIds,
+      this.input.trace
     ).catch((error) => {
       if (error instanceof ApiGatewayNotRunningError) {
         application.get('IpcApiService').broadcast('api_gateway.required', { sessionId: this.input.sessionId })
@@ -386,17 +387,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.connectionConfig = request.connectionConfig
     this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
-    const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
       ...request.options,
-      ...(traceEnv
-        ? {
-            env: {
-              ...request.options.env,
-              ...traceEnv
-            }
-          }
-        : {}),
       abortController: this.abortController,
       spawnClaudeCodeProcess
     }
@@ -455,11 +447,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
     void this.runQueryLoop()
     return this
-  }
-
-  private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
-    if (!this.input.trace) return undefined
-    return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
   }
 
   refreshTraceContext(context: AgentRuntimeTraceContext): void {

@@ -491,6 +491,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'claude-code::sonnet',
       'default',
       false,
+      undefined,
       undefined
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
@@ -3190,34 +3191,49 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
-    mocks.prepareTrace.mockResolvedValue({
-      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-      OTEL_EXPORTER_OTLP_ENDPOINT: 'http://127.0.0.1:4318',
-      TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01`
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'traced-sig',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: {
+        model: 'sonnet',
+        env: {
+          CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+          OTEL_EXPORTER_OTLP_ENDPOINT: 'http://127.0.0.1:4318',
+          TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01`
+        }
+      },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
     })
 
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      trace: {
-        topicId: 'agent-session:session-1',
-        traceId: '0'.repeat(32),
-        rootSpanId: '1'.repeat(16),
-        sessionId: 'session-1',
-        turnId: 'turn-1',
-        modelName: 'sonnet'
-      }
-    })
-
-    expect(mocks.prepareTrace).toHaveBeenCalledWith({
+    const trace = {
       topicId: 'agent-session:session-1',
       traceId: '0'.repeat(32),
       rootSpanId: '1'.repeat(16),
       sessionId: 'session-1',
       turnId: 'turn-1',
       modelName: 'sonnet'
+    }
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      trace
     })
+
+    expect(mocks.buildRequest).toHaveBeenCalledWith(
+      'session-1',
+      undefined,
+      'claude-code::sonnet',
+      'default',
+      false,
+      undefined,
+      trace
+    )
     // The trace env travels into the warm lookup — the signature carries it, so a query parked
     // before trace mode was on can never be reused (and the miss disposes it).
     expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(

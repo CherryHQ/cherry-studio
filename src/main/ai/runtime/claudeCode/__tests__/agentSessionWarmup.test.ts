@@ -28,7 +28,9 @@ const mocks = vi.hoisted(() => ({
   getAppLanguage: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn(),
+  isTraceModeEnabled: vi.fn(),
+  prepareTrace: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -86,6 +88,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+      }
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        return { isTraceModeEnabled: mocks.isTraceModeEnabled, prepareTrace: mocks.prepareTrace }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -182,6 +187,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.apiGatewayGetInternalRequestToken.mockReturnValue('internal-request-token')
     // settingsBuilder receives `lastAgentSessionId` and reflects it as `resume`;
     // mirror that so the builder's own precedence is what the test exercises.
@@ -235,6 +242,42 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
     expect(request?.knowledgeBaseIds).toEqual(['kb-selected'])
+  })
+
+  it('freezes the connection baseline from the trace env actually materialized for the child', async () => {
+    const trace = {
+      topicId: 'agent-session:session-1',
+      traceId: '0'.repeat(32),
+      rootSpanId: '1'.repeat(16),
+      sessionId: 'session-1',
+      turnId: 'turn-1'
+    }
+    mocks.prepareTrace.mockResolvedValue({ TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` })
+
+    const traced = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      trace
+    )
+    mocks.prepareTrace.mockResolvedValue(undefined)
+    const untraced = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      undefined,
+      'default',
+      false,
+      [],
+      trace
+    )
+
+    expect(traced?.options.env).toMatchObject({ TRACEPARENT: `00-${trace.traceId}-${trace.rootSpanId}-01` })
+    expect(traced?.connectionConfig.rebuildFactFingerprints.developerTracingEnabled).not.toBe(
+      untraced?.connectionConfig.rebuildFactFingerprints.developerTracingEnabled
+    )
   })
 
   it('passes native image support from the captured connection model into settings', async () => {
@@ -1160,6 +1203,8 @@ describe('deriveConnectionConfig', () => {
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
+    mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.prepareTrace.mockResolvedValue(undefined)
   })
 
   async function deriveSignature() {
@@ -1209,10 +1254,10 @@ describe('deriveConnectionConfig', () => {
   })
 
   it('rebuilds a persisted Claude Code connection when developer tracing changes', async () => {
-    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.developer_mode.enabled' ? false : undefined))
+    mocks.isTraceModeEnabled.mockReturnValue(false)
     const disabled = await deriveSignature()
 
-    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.developer_mode.enabled' ? true : undefined))
+    mocks.isTraceModeEnabled.mockReturnValue(true)
     const enabled = await deriveSignature()
 
     expect(enabled.rebuildSignature).not.toBe(disabled.rebuildSignature)

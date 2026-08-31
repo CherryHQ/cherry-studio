@@ -302,4 +302,20 @@ describe('ClaudeCodeTraceBridgeService', () => {
     await expect(service.prepareTrace(traceContext)).resolves.toBeUndefined()
     expect((service as any).server).toBeUndefined()
   })
+
+  it('closes admission synchronously and drains an in-flight lazy start during deactivation', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+
+    const preparing = service.prepareTrace(traceContext)
+    const stopping = service._doStop()
+
+    expect(service.isTraceModeEnabled()).toBe(false)
+    await expect(service.prepareTrace({ ...traceContext, turnId: 'turn-after-stop' })).resolves.toBeUndefined()
+    await expect(preparing).resolves.toBeUndefined()
+    await stopping
+    expect((service as any).server).toBeUndefined()
+    expect((service as any).endpoint).toBeUndefined()
+    expect((service as any).startPromise).toBeUndefined()
+  })
 })

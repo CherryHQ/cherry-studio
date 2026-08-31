@@ -43,7 +43,7 @@ import {
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
 import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
-import type { AgentSessionUsageCapture } from '../types'
+import type { AgentRuntimeTraceContext, AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
   isAgentProxyEnvironmentKey,
@@ -128,6 +128,8 @@ interface ConnectionMaterializationFacts {
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  /** Whether trace variables were actually materialized into this subprocess request. */
+  developerTracingEnabled: boolean
 }
 
 /**
@@ -387,10 +389,10 @@ async function deriveConnectionConfigFromSnapshot(
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
     language: getAppLanguage(),
-    // Claude Code receives its telemetry environment only when the subprocess is spawned. A
-    // developer-mode change therefore takes effect at the next safe turn boundary by making the
-    // existing connection stale; active turns remain untouched and finish on their current child.
-    developerTracingEnabled: application.get('PreferenceService').get('app.developer_mode.enabled') === true,
+    // Claude Code receives telemetry variables only when the subprocess is spawned. Prefer the
+    // exact materialized result; pure reconciles use the bridge's synchronous admission snapshot.
+    developerTracingEnabled:
+      materialized?.developerTracingEnabled ?? application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled(),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -469,7 +471,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   /** Fast selection frozen when the turn was submitted. */
   fastMode = false,
   /** Composer knowledge selection frozen when the turn was submitted. */
-  selectedKnowledgeBaseIds: readonly string[] = []
+  selectedKnowledgeBaseIds: readonly string[] = [],
+  /** Trace context frozen for the child process being materialized. */
+  trace?: AgentRuntimeTraceContext
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -540,6 +544,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     route,
     fastModeTransport
   )
+  // Prepare tracing before freezing the connection baseline so the signature describes the exact
+  // environment handed to the child, even when developer mode toggles during async materialization.
+  const traceEnv = trace ? await application.get('ClaudeCodeTraceBridgeService').prepareTrace(trace) : undefined
   // Capture the baseline from the exact route, MCP rows, agent snapshot, and skill list that
   // materialized this request. This runs after route materialization so a first-use gateway key is
   // already persisted and the connect-time fingerprint matches later pure reconciles.
@@ -557,6 +564,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       notificationContext,
       contextWindow: contextWindow ?? null,
       maxOutputTokens: maxOutputTokens ?? null,
+      developerTracingEnabled: Boolean(traceEnv),
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       })
@@ -571,6 +579,9 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
 
   if (options.includePartialMessages === undefined) {
     options.includePartialMessages = true
+  }
+  if (traceEnv) {
+    options.env = { ...options.env, ...traceEnv }
   }
 
   return {

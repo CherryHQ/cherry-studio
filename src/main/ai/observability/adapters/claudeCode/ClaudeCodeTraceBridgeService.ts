@@ -24,6 +24,8 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   private server?: Server
   private endpoint?: string
   private startPromise?: Promise<string>
+  /** Synchronous admission gate; BaseService stays activated while async deactivation is draining. */
+  private acceptingTraces = false
   private readonly traceContexts = new Map<string, TraceContextEntry>()
 
   protected async onReady(): Promise<void> {
@@ -40,15 +42,19 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
 
   async onActivate(): Promise<void> {
     // Collector binding is intentionally lazy; activation only marks trace mode as available.
+    this.acceptingTraces = true
   }
 
   async onDeactivate(): Promise<void> {
+    // Close admission before the first await. BaseService.isActivated remains true until this hook
+    // returns, so it cannot safely gate a prepareTrace racing with collector shutdown.
+    this.acceptingTraces = false
     this.traceContexts.clear()
     await this.stopServer()
   }
 
   isTraceModeEnabled(): boolean {
-    return this.isActivated
+    return this.acceptingTraces
   }
 
   async prepareTrace(context: ClaudeCodeTraceContext): Promise<Record<string, string> | undefined> {
@@ -56,6 +62,9 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     if (!normalizedContext) return undefined
 
     const endpoint = await this.ensureServer()
+    // Deactivation may have started while the lazy collector was binding. In that case stopServer
+    // waits for and closes the new listener; never hand its now-invalid endpoint to a child.
+    if (!this.acceptingTraces) return undefined
     // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
     // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
     // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
@@ -93,7 +102,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   }
 
   private registerTraceContext(context: ClaudeCodeTraceContext): ClaudeCodeTraceContext | undefined {
-    if (!this.isActivated) return undefined
+    if (!this.acceptingTraces) return undefined
 
     if (!isTraceId(context.traceId) || !isSpanId(context.rootSpanId)) {
       logger.warn('Skipping invalid Claude Code trace context', {
@@ -151,6 +160,13 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
   }
 
   private async stopServer(): Promise<void> {
+    // A lazy start can still be between listen() and its callback when deactivation begins. Wait
+    // for that single flight to settle, then close whichever listener it published.
+    const pendingStart = this.startPromise
+    if (pendingStart) {
+      await pendingStart.catch(() => undefined)
+    }
+
     const server = this.server
     this.server = undefined
     this.endpoint = undefined
