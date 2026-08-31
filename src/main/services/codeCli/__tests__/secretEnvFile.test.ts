@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -11,11 +11,13 @@ import {
   createSecretEnvFile,
   removeSecretEnvFile,
   removeStaleSecretEnvFiles,
+  type SecretEnvFile,
   wrapPosixCommandWithSecretEnv
 } from '../secretEnvFile'
 
 const execFileAsync = promisify(execFile)
 const CLEAR_NAMES = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL']
+const BATCH_LABELS = { missing: 'secret_env_missing', undeleted: 'secret_env_undeleted' }
 const ENV_FILE_NAME = /^[0-9a-f-]{36}\.env$/
 const printEnv = `printf '%s|%s' "\${GEMINI_API_KEY-unset}" "\${GOOGLE_GEMINI_BASE_URL-unset}"`
 const runShell = (script: string) => execFileAsync('/bin/sh', ['-c', script], { encoding: 'utf8' })
@@ -147,22 +149,78 @@ describe.skipIf(process.platform === 'win32')('wrapPosixCommandWithSecretEnv', (
 })
 
 describe('batchLinesReadingSecretEnv', () => {
-  it('clears every known variable, imports the %-doubled file, guards the required ones, then deletes it', () => {
+  it('disables delayed expansion, clears every known variable, imports, guards, deletes, and refuses to continue if the file survives', () => {
     const lines = batchLinesReadingSecretEnv(
       {
         path: 'C:\\Users\\me\\100% data\\Antigravity\\launch\\a.env',
         requiredNames: ['GEMINI_API_KEY'],
         clearNames: CLEAR_NAMES
       },
-      'secret_env_missing'
+      BATCH_LABELS
     )
 
     expect(lines).toEqual([
+      'setlocal EnableExtensions DisableDelayedExpansion',
       'set "GEMINI_API_KEY="',
       'set "GOOGLE_GEMINI_BASE_URL="',
       'for /f "usebackq tokens=1,* delims==" %%a in ("C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env") do set "%%a=%%b"',
       'if not defined GEMINI_API_KEY goto :secret_env_missing',
-      'del /f /q "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env"'
+      'del /f /q "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env"',
+      'if exist "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env" goto :secret_env_undeleted'
     ])
+  })
+})
+
+// Real cmd.exe, delayed expansion forced on (`/v:on`) and ambient values pre-set: the only way to
+// prove `!` and `%` survive the import and that an ambient value cannot satisfy the guard.
+describe.skipIf(process.platform !== 'win32')('batch import under cmd.exe', () => {
+  const writeLaunchBat = async (file: SecretEnvFile) => {
+    const batPath = path.join(launchDir, 'launch.bat')
+    const lines = [
+      '@echo off',
+      ...batchLinesReadingSecretEnv(file, BATCH_LABELS),
+      'set GEMINI_API_KEY',
+      'set GOOGLE_GEMINI_BASE_URL',
+      'exit /b 0',
+      `:${BATCH_LABELS.missing}`,
+      'exit /b 2',
+      `:${BATCH_LABELS.undeleted}`,
+      'exit /b 3'
+    ]
+    await writeFile(batPath, `${lines.join('\r\n')}\r\n`, 'utf8')
+    return batPath
+  }
+  const runBat = (batPath: string) =>
+    execFileAsync('cmd.exe', ['/v:on', '/c', batPath], {
+      encoding: 'utf8',
+      env: { ...process.env, GEMINI_API_KEY: 'ambient-wrong-key', GOOGLE_GEMINI_BASE_URL: 'https://stale.example.test' }
+    })
+
+  it('imports values containing ! and % verbatim from a %-bearing path and deletes the file', async () => {
+    const dir = path.join(launchDir, '100% data')
+    await mkdir(dir)
+    const file = await createSecretEnvFile(
+      dir,
+      { GEMINI_API_KEY: 'abc!PATH!def', GOOGLE_GEMINI_BASE_URL: 'https://x.example.test/%TEMP%?a=1&b=2' },
+      CLEAR_NAMES
+    )
+
+    const result = await runBat(await writeLaunchBat(file))
+
+    expect(result.stdout.replace(/\r\n/g, '\n').trim().split('\n')).toEqual([
+      'GEMINI_API_KEY=abc!PATH!def',
+      'GOOGLE_GEMINI_BASE_URL=https://x.example.test/%TEMP%?a=1&b=2'
+    ])
+    await expect(stat(file.path)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('fails closed when the file is missing, even though the terminal environment carries the variables', async () => {
+    const file = {
+      path: path.join(launchDir, 'missing.env'),
+      requiredNames: ['GEMINI_API_KEY'],
+      clearNames: CLEAR_NAMES
+    }
+
+    await expect(runBat(await writeLaunchBat(file))).rejects.toMatchObject({ code: 2 })
   })
 })

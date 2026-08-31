@@ -92,13 +92,22 @@ export function wrapPosixCommandWithSecretEnv(file: SecretEnvFile, command: stri
   return `(set +x; unset ${file.clearNames.join(' ')} && ${reader} && ${presenceChecks} && rm -f ${quotedPath} && unset _cherry_secret_env && ${command})`
 }
 
-/** The .bat counterpart: clear, import, `goto :<missingLabel>` for a missing variable, then delete the file. */
-export function batchLinesReadingSecretEnv(file: SecretEnvFile, missingLabel: string): string[] {
+/**
+ * The .bat counterpart: clear, import, `goto :<missing>` for a missing variable, delete the file,
+ * `goto :<undeleted>` if it is still there. Delayed expansion is switched off first, or a host
+ * that enables it (`cmd /v:on`, registry) rewrites every `!…!` inside a value.
+ */
+export function batchLinesReadingSecretEnv(
+  file: SecretEnvFile,
+  labels: { readonly missing: string; readonly undeleted: string }
+): string[] {
   const quotedPath = `"${file.path.replace(/%/g, '%%')}"`
   return [
+    'setlocal EnableExtensions DisableDelayedExpansion',
     ...file.clearNames.map((name) => `set "${name}="`),
     `for /f "usebackq tokens=1,* delims==" %%a in (${quotedPath}) do set "%%a=%%b"`,
-    ...file.requiredNames.map((name) => `if not defined ${name} goto :${missingLabel}`),
-    `del /f /q ${quotedPath}`
+    ...file.requiredNames.map((name) => `if not defined ${name} goto :${labels.missing}`),
+    `del /f /q ${quotedPath}`,
+    `if exist ${quotedPath} goto :${labels.undeleted}`
   ]
 }

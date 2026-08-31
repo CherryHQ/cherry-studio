@@ -995,6 +995,9 @@ describe('CodeCliService', () => {
           'for /f "usebackq tokens=1,* delims==" %%a in ("C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env") do set "%%a=%%b"'
         )
         expect(batContent).toContain('del /f /q "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env"')
+        expect(batContent).toContain(
+          'if exist "C:\\Users\\me\\100%% data\\Antigravity\\launch\\a.env" goto :secret_env_undeleted'
+        )
       } finally {
         vi.useRealTimers()
       }
@@ -1019,20 +1022,27 @@ describe('CodeCliService', () => {
 
         expect(result.success).toBe(true)
         const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        const delayedExpansionIndex = batContent.indexOf('setlocal EnableExtensions DisableDelayedExpansion')
         const clearIndex = batContent.indexOf('set "GEMINI_API_KEY="')
         const importIndex = batContent.indexOf(
           'for /f "usebackq tokens=1,* delims==" %%a in ("/mock/antigravity data/launch/a.env") do set "%%a=%%b"'
         )
         const guardIndex = batContent.indexOf('if not defined GEMINI_API_KEY goto :secret_env_missing')
         const deleteIndex = batContent.indexOf('del /f /q "/mock/antigravity data/launch/a.env"')
-        expect(clearIndex).toBeGreaterThan(-1)
+        const undeletedIndex = batContent.indexOf(
+          'if exist "/mock/antigravity data/launch/a.env" goto :secret_env_undeleted'
+        )
+        expect(delayedExpansionIndex).toBeGreaterThan(-1)
+        expect(delayedExpansionIndex).toBeLessThan(clearIndex)
         expect(clearIndex).toBeLessThan(importIndex)
         expect(importIndex).toBeLessThan(guardIndex)
         expect(guardIndex).toBeLessThan(deleteIndex)
-        expect(deleteIndex).toBeLessThan(batContent.indexOf('--gemini_dir='))
+        expect(deleteIndex).toBeLessThan(undeletedIndex)
+        expect(undeletedIndex).toBeLessThan(batContent.indexOf('--gemini_dir='))
         expect(batContent).toContain('if not defined GOOGLE_GEMINI_BASE_URL goto :secret_env_missing')
-        // The failure branch exits instead of falling through into the launch.
+        // Both failure branches exit instead of falling through into the launch.
         expect(batContent.slice(batContent.indexOf(':secret_env_missing'))).toContain('exit /b 1')
+        expect(batContent.slice(batContent.indexOf(':secret_env_undeleted'))).toContain('exit /b 1')
       } finally {
         vi.useRealTimers()
       }

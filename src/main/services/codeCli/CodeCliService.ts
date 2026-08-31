@@ -769,7 +769,10 @@ export class CodeCliService extends BaseService {
           ...(secretEnv
             ? [
                 ':: Load the credentials Cherry Studio wrote for this launch',
-                ...batchLinesReadingSecretEnv(secretEnv, 'secret_env_missing'),
+                ...batchLinesReadingSecretEnv(secretEnv, {
+                  missing: 'secret_env_missing',
+                  undeleted: 'secret_env_undeleted'
+                }),
                 ''
               ]
             : []),
@@ -796,6 +799,12 @@ export class CodeCliService extends BaseService {
                 'echo ERROR: Could not load the credentials Cherry Studio prepared for this launch.',
                 `echo Expected file: ${CodeCliService.escapeBatchTextForEcho(secretEnv.path)}`,
                 'echo Launch again from Cherry Studio.',
+                'pause',
+                'exit /b 1',
+                '',
+                ':secret_env_undeleted',
+                'echo ERROR: Could not delete the credential file after loading it, so the CLI was not started.',
+                `echo Delete it manually, then launch again from Cherry Studio: ${CodeCliService.escapeBatchTextForEcho(secretEnv.path)}`,
                 'pause',
                 'exit /b 1',
                 ''
