@@ -3909,6 +3909,8 @@
   "settings.display.font.title": "Paramètres de police",
   "settings.display.list_position.chat": "Position de la liste des conversations",
   "settings.display.list_position.work": "Position de la liste des tâches",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Autoriser l'accès aux adresses du réseau local",
   "settings.fetch.allow_private_network_tip": "Permet aux outils de récupération web d'accéder à localhost et aux adresses de réseau privé. Désactivez cette option si vous ne souhaitez pas que les modèles lisent les services de votre machine ou de votre réseau local.",
   "settings.font_size.title": "Taille de police des messages",

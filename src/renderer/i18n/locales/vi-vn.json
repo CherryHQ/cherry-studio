@@ -3909,6 +3909,8 @@
   "settings.display.font.title": "Cài đặt phông chữ",
   "settings.display.list_position.chat": "Vị trí danh sách hội thoại",
   "settings.display.list_position.work": "Vị trí danh sách tác vụ",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Cho phép truy cập địa chỉ mạng nội bộ",
   "settings.fetch.allow_private_network_tip": "Cho phép các công cụ tải nội dung web truy cập localhost và địa chỉ mạng riêng. Hãy tắt nếu bạn không muốn mô hình đọc các dịch vụ trên máy của bạn hoặc trong mạng LAN.",
   "settings.font_size.title": "Kích thước phông chữ tin nhắn",

@@ -3909,6 +3909,8 @@
   "settings.display.font.title": "Font Settings",
   "settings.display.list_position.chat": "Conversation list position",
   "settings.display.list_position.work": "Task list position",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Allow fetching local network addresses",
   "settings.fetch.allow_private_network_tip": "Lets web fetch tools reach localhost and private network addresses. Turn this off if you do not want models to read services on your own machine or LAN.",
   "settings.font_size.title": "Message font size",

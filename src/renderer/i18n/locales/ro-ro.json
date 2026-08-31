@@ -3909,6 +3909,8 @@
   "settings.display.font.title": "Setări font",
   "settings.display.list_position.chat": "Poziția listei de conversații",
   "settings.display.list_position.work": "Poziția listei de sarcini",
+  "settings.display.sidebar.chat.visible": "Show Chat Assistant in Sidebar",
+  "settings.display.sidebar.title": "Sidebar Settings",
   "settings.fetch.allow_private_network": "Permite accesul la adrese din rețeaua locală",
   "settings.fetch.allow_private_network_tip": "Permite instrumentelor de preluare web să acceseze localhost și adrese din rețeaua privată. Dezactivați dacă nu doriți ca modelele să citească servicii de pe calculatorul dvs. sau din LAN.",
   "settings.font_size.title": "Dimensiune font mesaj",
