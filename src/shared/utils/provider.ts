@@ -1,7 +1,10 @@
 import {
+  endpointDefaultOperationCapability,
+  isEndpointCompatibleWithOperation,
   isServerToolModelEligible as isRegistryServerToolModelEligible,
   isWebSearchEffortUnsupported,
   matchVendor,
+  type ModelOperationCapability,
   SERVER_TOOL,
   SERVER_TOOL_MODEL_SCOPE,
   type ServerTool,
@@ -10,7 +13,7 @@ import {
 } from '@cherrystudio/provider-registry'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
-import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
@@ -207,9 +210,9 @@ export function resolveEndpointDialect(
 /**
  * The endpoint protocol a model is called with.
  *
- * `preferredEndpointType` is the user's explicit routing choice; `endpointTypes` stays the
- * capability set, and its first entry is the legacy route for rows written before the
- * preference existed (and for registry presets whose array order encodes the same intent).
+ * `preferredEndpointType` is the user's explicit routing choice; `endpointTypes` is the model's
+ * declared protocol set, whose order selects the first route compatible with the requested
+ * operation when no compatible preference applies.
  */
 type EndpointRoutingModel = Pick<Model, 'id' | 'apiModelId' | 'endpointTypes' | 'preferredEndpointType'>
 type EndpointRoutingProvider = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'endpointConfigs'>
@@ -231,25 +234,46 @@ export function isModelEndpointTypeAvailable(
 /** Resolve the effective model route from live model capabilities and provider configs. */
 export function getModelPreferredEndpoint(
   model: EndpointRoutingModel,
-  provider: EndpointRoutingProvider
+  provider: EndpointRoutingProvider,
+  operationCapability: ModelOperationCapability
 ): EndpointType | undefined {
   const isAvailable = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
-    endpointType != null && isModelEndpointTypeAvailable(model, provider, endpointType)
+    endpointType != null &&
+    isEndpointCompatibleWithOperation(endpointType, operationCapability) &&
+    isModelEndpointTypeAvailable(model, provider, endpointType)
 
   if (isAvailable(model.preferredEndpointType)) return model.preferredEndpointType
 
   // Prefer a declared endpoint the provider still serves over an earlier one it does not, so a
   // removed route stops dragging its dialect onto whatever host `getBaseUrl` cascades to.
-  const declaredEndpoint = model.endpointTypes?.find(isAvailable)
+  const compatibleEndpoints = model.endpointTypes?.filter((endpointType) =>
+    isEndpointCompatibleWithOperation(endpointType, operationCapability)
+  )
+  const declaredEndpoint = compatibleEndpoints?.find(isAvailable)
   if (declaredEndpoint) return declaredEndpoint
 
   // A model that declares its protocols but has none served keeps the declaration rather than
   // falling through to the provider default: the default belongs to a different protocol, and
   // silently answering with it borrows that endpoint's host. Callers fail closed on the missing
   // route instead, naming the protocol the model actually wants.
-  if (model.endpointTypes?.length) return model.endpointTypes[0]
+  if (compatibleEndpoints?.length) return compatibleEndpoints[0]
 
-  return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ?? provider.defaultChatEndpoint
+  if (operationCapability === MODEL_CAPABILITY.TEXT_GENERATION) {
+    return resolveGatewayChatRoute(provider as Provider, model as Model)?.endpointType ?? provider.defaultChatEndpoint
+  }
+
+  // A model's endpointTypes describe only its explicit protocol constraints, not an exhaustive
+  // operation matrix. When no compatible protocol is declared, use an operation endpoint the
+  // provider explicitly configured; prefer the endpoint whose primary operation matches this call.
+  const providerEndpoints = Object.keys(provider.endpointConfigs ?? {}) as EndpointType[]
+  const compatibleProviderEndpoints = providerEndpoints.filter((endpointType) =>
+    isEndpointCompatibleWithOperation(endpointType, operationCapability)
+  )
+  return (
+    compatibleProviderEndpoints.find(
+      (endpointType) => endpointDefaultOperationCapability(endpointType) === operationCapability
+    ) ?? compatibleProviderEndpoints[0]
+  )
 }
 
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
@@ -277,7 +301,7 @@ function resolveServerToolEndpoint(
   provider: EndpointRoutingProvider,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return endpointType ?? getModelPreferredEndpoint(model, provider)
+  return endpointType ?? getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */

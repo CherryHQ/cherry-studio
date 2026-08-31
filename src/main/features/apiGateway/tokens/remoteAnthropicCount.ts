@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { MessageCountTokensParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import { providerToAiSdkConfig } from '@main/ai/provider/config'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('GatewayRemoteCount')
@@ -31,7 +31,9 @@ export async function tryRemoteAnthropicCount(
   signal?: AbortSignal
 ): Promise<number | undefined> {
   try {
-    const cfg = await providerToAiSdkConfig(provider, model)
+    const cfg = await providerToAiSdkConfig(provider, model, {
+      operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+    })
     const settings = cfg.providerSettings as {
       baseURL?: string
       apiKey?: string

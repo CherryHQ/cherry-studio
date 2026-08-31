@@ -6,12 +6,17 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
-  endpointImpliedCapability,
+  ENDPOINT_OPERATION_CONTRACT,
+  endpointAllowedOperationCapabilities,
+  endpointDefaultOperationCapability,
+  getModelEndpointContractIssues,
   inferAdapterFamily,
+  isEndpointCompatibleWithOperation,
   lookupRegistryModel
 } from '../registry-utils'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '../schemas/enums'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, objectValues } from '../schemas/enums'
 import type { ModelConfig } from '../schemas/model'
 import type { RegistryEndpointConfig } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
@@ -270,29 +275,87 @@ describe('inferAdapterFamily', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// endpointImpliedCapability
+// Endpoint operation contract
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('endpointImpliedCapability', () => {
-  it('maps capability-exclusive endpoints to their capability', () => {
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.JINA_RERANK)).toBe(MODEL_CAPABILITY.RERANK)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION)).toBe(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION)).toBe(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)).toBe(MODEL_CAPABILITY.EMBEDDING)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH)).toBe(MODEL_CAPABILITY.AUDIO_GENERATION)
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION)).toBe(MODEL_CAPABILITY.VIDEO_GENERATION)
+describe('endpoint operation contract', () => {
+  it('covers every endpoint and keeps each default operation allowed', () => {
+    expect(Object.keys(ENDPOINT_OPERATION_CONTRACT).sort()).toEqual([...objectValues(ENDPOINT_TYPE)].sort())
+    expect(
+      Object.entries(ENDPOINT_OPERATION_CONTRACT)
+        .filter(
+          ([endpointType, contract]) =>
+            !endpointAllowedOperationCapabilities(
+              endpointType as (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]
+            ).includes(contract.defaultOperation)
+        )
+        .map(([endpointType]) => endpointType)
+    ).toEqual([])
   })
 
-  it('returns undefined for general-purpose chat endpoints', () => {
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBeUndefined()
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBeUndefined()
-    expect(endpointImpliedCapability(ENDPOINT_TYPE.OPENAI_RESPONSES)).toBeUndefined()
+  it('declares defaults for text and specialized endpoints', () => {
+    expect(endpointDefaultOperationCapability(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(
+      MODEL_CAPABILITY.TEXT_GENERATION
+    )
+    expect(endpointDefaultOperationCapability(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)).toBe(MODEL_CAPABILITY.EMBEDDING)
+    expect(endpointDefaultOperationCapability(ENDPOINT_TYPE.OPENAI_IMAGE_EDIT)).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
   })
 
   it('returns undefined when no endpoint is given', () => {
-    expect(endpointImpliedCapability(undefined)).toBeUndefined()
-    expect(endpointImpliedCapability(null)).toBeUndefined()
+    expect(endpointDefaultOperationCapability(undefined)).toBeUndefined()
+    expect(endpointDefaultOperationCapability(null)).toBeUndefined()
+  })
+
+  it('allows Google Generate Content to serve text and image operations', () => {
+    expect(
+      isEndpointCompatibleWithOperation(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, MODEL_CAPABILITY.TEXT_GENERATION)
+    ).toBe(true)
+    expect(
+      isEndpointCompatibleWithOperation(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, MODEL_CAPABILITY.IMAGE_GENERATION)
+    ).toBe(true)
+    expect(isEndpointCompatibleWithOperation(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, MODEL_CAPABILITY.EMBEDDING)).toBe(
+      false
+    )
+  })
+
+  it('allows Ollama local APIs to serve their native non-text operations', () => {
+    expect(endpointAllowedOperationCapabilities(ENDPOINT_TYPE.OLLAMA_CHAT)).toEqual([
+      MODEL_CAPABILITY.TEXT_GENERATION,
+      MODEL_CAPABILITY.EMBEDDING
+    ])
+    expect(endpointAllowedOperationCapabilities(ENDPOINT_TYPE.OLLAMA_GENERATE)).toEqual([
+      MODEL_CAPABILITY.TEXT_GENERATION,
+      MODEL_CAPABILITY.IMAGE_GENERATION
+    ])
+    expect(endpointAllowedOperationCapabilities(ENDPOINT_TYPE.OPENAI_EMBEDDINGS)).toEqual([MODEL_CAPABILITY.EMBEDDING])
+  })
+
+  it('rejects endpoint declarations that cannot serve any model operation', () => {
+    expect(
+      getModelEndpointContractIssues({
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    ).toEqual(["Endpoint 'openai-chat-completions' is incompatible with the model operation capabilities"])
+  })
+
+  it('exposes an invalid forced override after the base model is merged', () => {
+    const capabilities = applyModelCapabilityOverride([MODEL_CAPABILITY.TEXT_GENERATION], { force: [] })
+    expect(getModelEndpointContractIssues({ capabilities })).toEqual([
+      'Model must declare at least one operation capability'
+    ])
+  })
+
+  it('requires a preferred endpoint to be declared and operation-compatible', () => {
+    expect(
+      getModelEndpointContractIssues({
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+      })
+    ).toEqual([
+      "Preferred endpoint 'openai-embeddings' must be declared by the model",
+      "Preferred endpoint 'openai-embeddings' is incompatible with the model operation capabilities"
+    ])
   })
 })

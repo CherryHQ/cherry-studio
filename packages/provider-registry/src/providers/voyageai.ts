@@ -10,9 +10,15 @@ export default defineProvider({
   defaultChatEndpoint: 'openai-chat-completions',
   modelListSource: 'registry',
   endpointConfigs: {
+    'jina-rerank': {
+      adapterFamily: 'voyage'
+    },
     'openai-chat-completions': {
       adapterFamily: 'voyage',
       baseUrl: 'https://api.voyageai.com'
+    },
+    'openai-embeddings': {
+      adapterFamily: 'voyage'
     }
   },
   metadata: {

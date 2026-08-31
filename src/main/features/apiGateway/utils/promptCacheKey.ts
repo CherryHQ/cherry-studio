@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto'
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { resolveEffectiveEndpoint, resolveEndpointProviderOptionsKey } from '@main/ai/provider/endpoint'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 /**
@@ -27,7 +27,9 @@ export function applyAgentPromptCacheKey(
   providerOptions: ProviderOptions,
   agentSessionId: string
 ): ProviderOptions {
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   if (resolvedEndpoint.endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return providerOptions
 
   const providerOptionsKey = resolveEndpointProviderOptionsKey(provider, resolvedEndpoint)

@@ -19,6 +19,7 @@ import type {
   ImageModeDef,
   Modality,
   ModelCapability,
+  ModelOperationCapability,
   ReasoningEffort,
   ServerTool,
   SupportSpec
@@ -27,9 +28,12 @@ import {
   CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
+  endpointDefaultOperationCapability,
+  getModelEndpointContractIssues,
+  getModelOperationCapabilities,
   ImageGenerationModeSchema,
   ImageGenerationSupportSchema,
+  isEndpointCompatibleWithOperation,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
@@ -44,8 +48,10 @@ export {
   CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
+  endpointDefaultOperationCapability,
+  getModelOperationCapabilities,
   ImageGenerationModeSchema,
+  isEndpointCompatibleWithOperation,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
@@ -63,6 +69,7 @@ export type {
   ImageModeDef,
   Modality,
   ModelCapability,
+  ModelOperationCapability,
   ReasoningEffort,
   ServerTool,
   SupportSpec
@@ -354,7 +361,7 @@ export const RuntimeModelPricingSchema = z
   })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
-export const ModelSchema = z.object({
+const ModelObjectSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
   id: UniqueModelIdSchema,
   /** Provider ID */
@@ -448,6 +455,14 @@ export const ModelSchema = z.object({
   // UI metadata
   /** User notes about this model */
   notes: z.string().optional()
+})
+
+export const PartialModelSchema = ModelObjectSchema.partial()
+
+export const ModelSchema = ModelObjectSchema.superRefine((model, ctx) => {
+  for (const message of getModelEndpointContractIssues(model)) {
+    ctx.addIssue({ code: 'custom', message })
+  }
 })
 
 export type Model = z.infer<typeof ModelSchema>

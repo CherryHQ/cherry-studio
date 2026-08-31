@@ -1,10 +1,16 @@
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { getModelPreferredEndpoint, isModelEndpointTypeAvailable } from '@shared/utils/provider'
+import {
+  getModelPreferredEndpoint as getModelPreferredEndpointForOperation,
+  isModelEndpointTypeAvailable
+} from '@shared/utils/provider'
 import { describe, expect, it } from 'vitest'
 
-type RoutingProvider = Parameters<typeof getModelPreferredEndpoint>[1]
-type RoutingModel = Parameters<typeof getModelPreferredEndpoint>[0]
+type RoutingProvider = Parameters<typeof getModelPreferredEndpointForOperation>[1]
+type RoutingModel = Parameters<typeof getModelPreferredEndpointForOperation>[0]
+
+const getModelPreferredEndpoint = (model: RoutingModel, provider: RoutingProvider) =>
+  getModelPreferredEndpointForOperation(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
 
 function makeProvider(overrides: Partial<Provider> = {}): RoutingProvider {
   return {
@@ -76,6 +82,38 @@ describe('getModelPreferredEndpoint', () => {
     })
 
     expect(getModelPreferredEndpoint(makeModel(undefined), provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it('uses the default chat endpoint instead of provider endpoint-config order for text', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.example.net' }
+      }
+    })
+
+    expect(getModelPreferredEndpoint(makeModel(undefined), provider)).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  })
+
+  it('uses an explicitly configured provider operation route when the model does not constrain that operation', () => {
+    const provider = makeProvider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.example.net' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = makeModel([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+
+    expect(getModelPreferredEndpointForOperation(model, provider, MODEL_CAPABILITY.EMBEDDING)).toBe(
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    )
+  })
+
+  it('does not borrow a chat endpoint for an operation the provider did not configure', () => {
+    expect(
+      getModelPreferredEndpointForOperation(makeModel(undefined), makeProvider(), MODEL_CAPABILITY.EMBEDDING)
+    ).toBeUndefined()
   })
 })
 

@@ -5,6 +5,9 @@ export default openaiCompatible({
   name: '302.AI',
   baseUrl: 'https://api.302.ai',
   anthropic: 'https://api.302.ai',
+  additionalEndpointConfigs: {
+    'openai-image-generation': { adapterFamily: 'openai-compatible' }
+  },
   website: {
     apiKey: 'https://dash.302.ai/apis/list',
     docs: 'https://302ai.apifox.cn/api-147522039',

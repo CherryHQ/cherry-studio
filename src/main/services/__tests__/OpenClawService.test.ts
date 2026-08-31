@@ -5,7 +5,13 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 import { application } from '@application'
-import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import {
+  ENDPOINT_TYPE,
+  getModelOperationCapabilities,
+  type Model as DataModel,
+  MODEL_CAPABILITY,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -180,17 +186,20 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
 }
 
 function createModel(overrides: Partial<DataModel> = {}): DataModel {
+  const capabilities = overrides.capabilities ?? []
   return {
     id: 'openai::gpt-4o',
     providerId: 'openai',
     apiModelId: 'gpt-4o',
     name: 'GPT-4o',
-    capabilities: [],
     endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,
-    ...overrides
+    ...overrides,
+    capabilities: getModelOperationCapabilities(capabilities).length
+      ? capabilities
+      : [MODEL_CAPABILITY.TEXT_GENERATION, ...capabilities]
   }
 }
 

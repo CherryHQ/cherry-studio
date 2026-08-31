@@ -10,7 +10,7 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     id: 'openai::gpt-4',
     providerId: 'openai',
     name: 'GPT-4',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     inputModalities: [],
     supportsStreaming: true,
     isEnabled: true,

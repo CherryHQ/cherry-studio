@@ -143,10 +143,13 @@ describe('listModels — Ollama capabilities', () => {
 
     expect(models[0]).toMatchObject({
       apiModelId: 'qwen3:32b-q4_K_M',
-      capabilities: [MODEL_CAPABILITY.REASONING]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING]
     })
     expect(models[0].reasoning).toBeUndefined()
-    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OLLAMA_CHAT]
+    })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
@@ -547,8 +550,8 @@ describe('listModels — openRouterFetcher image models', () => {
       'sourceful/riverflow-v2.5-fast'
     ])
     expect(models.find((model) => model.apiModelId === 'openai/gpt-image-2')).toMatchObject({
-      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
     })
     expect(models.find((model) => model.apiModelId === 'sourceful/riverflow-v2.5-fast')).toMatchObject({
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
@@ -757,7 +760,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
     })
   }
 
-  it('marks normalized primary jina-rerank models while ignoring unknown endpoint routing metadata', async () => {
+  it('merges operations from every known endpoint while preserving endpoint order', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         data: [
@@ -773,11 +776,11 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
     const models = await listModels(makeNewApiProvider())
 
     expect(models).toHaveLength(1)
-    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.RERANK)
+    expect(models[0].capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.RERANK])
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
   })
 
-  it('does not mark jina-rerank when a chat endpoint has higher priority', async () => {
+  it('derives the same operations when chat precedes rerank', async () => {
     aiSdkGetFromApiMock.mockResolvedValue({
       value: {
         data: [
@@ -792,7 +795,50 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
     const models = await listModels(makeNewApiProvider())
 
     expect(models[0].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
-    expect(models[0].capabilities).not.toContain(MODEL_CAPABILITY.RERANK)
+    expect(models[0].capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.RERANK])
+  })
+
+  it.each([
+    {
+      endpoints: ['embeddings', 'openai'],
+      expected: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING]
+    },
+    {
+      endpoints: ['openai', 'embeddings'],
+      expected: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING]
+    },
+    {
+      endpoints: ['openai', 'image-generation'],
+      expected: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
+    }
+  ])('derives canonical operation capabilities without reordering $endpoints', async ({ endpoints, expected }) => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'multi-operation-model', supported_endpoint_types: endpoints }] }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].endpointTypes).toEqual(
+      endpoints.map((endpoint) =>
+        endpoint === 'openai'
+          ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+          : endpoint === 'embeddings'
+            ? ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+            : ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION
+      )
+    )
+    expect(models[0].capabilities).toEqual(expected)
+  })
+
+  it('ignores unknown endpoint metadata and retains the text-model fallback', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'unknown-endpoint-model', supported_endpoint_types: ['future-api'] }] }
+    })
+
+    const models = await listModels(makeNewApiProvider())
+
+    expect(models[0].endpointTypes).toBeUndefined()
+    expect(models[0].capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
   })
 
   it('derives the capability for other capability-exclusive primary endpoints (image)', async () => {
@@ -809,7 +855,7 @@ describe('listModels — newApiFetcher endpoint-implied capabilities', () => {
 
     const models = await listModels(makeNewApiProvider())
 
-    expect(models[0].capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(models[0].capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION])
     expect(models[0].endpointTypes).toEqual([
       ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
       ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS

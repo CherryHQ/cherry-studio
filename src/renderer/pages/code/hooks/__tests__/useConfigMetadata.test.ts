@@ -57,8 +57,11 @@ const disabledProvider = {
   authMethods: ['api-key']
 } as unknown as Provider
 
-const makeModel = (providerId: string, modelId: string, capabilities: string[] = []): Model =>
-  ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
+const makeModel = (
+  providerId: string,
+  modelId: string,
+  capabilities: string[] = [MODEL_CAPABILITY.TEXT_GENERATION]
+): Model => ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
 
 beforeEach(() => {
   modelRecords.length = 0
@@ -114,8 +117,11 @@ describe('useConfigMetadata.filterProviders', () => {
 })
 
 describe('useConfigMetadata.makeModelFilter (gateway)', () => {
-  const model = (providerId: string, modelId: string, capabilities: string[] = []): Model =>
-    ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
+  const model = (
+    providerId: string,
+    modelId: string,
+    capabilities: string[] = [MODEL_CAPABILITY.TEXT_GENERATION]
+  ): Model => ({ id: `${providerId}::${modelId}`, providerId, capabilities }) as unknown as Model
 
   it('keeps a chat model of ANY enabled provider regardless of the CLI tool (cross-protocol routing)', () => {
     // Claude Code tool, but a non-Anthropic (OpenAI-style) model must still pass:

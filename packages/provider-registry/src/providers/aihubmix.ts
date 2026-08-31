@@ -30,13 +30,22 @@ export default defineProvider({
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
     },
+    'openai-embeddings': {
+      adapterFamily: 'aihubmix'
+    },
     'openai-responses': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
     },
+    'openai-image-generation': {
+      adapterFamily: 'aihubmix'
+    },
     'google-generate-content': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/gemini/v1beta'
+    },
+    'jina-rerank': {
+      adapterFamily: 'aihubmix'
     }
   },
   // AiHubMix serves the vendors' native endpoints, so its language models carry

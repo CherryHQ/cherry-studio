@@ -45,7 +45,7 @@ describe('api gateway model listing', () => {
             providerId: CHERRYAI_PROVIDER_ID,
             apiModelId: CHERRYAI_DEFAULT_MODEL_ID,
             ownedBy: 'CherryAI',
-            capabilities: []
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
           }
         ]
       }
@@ -56,7 +56,7 @@ describe('api gateway model listing', () => {
           providerId: 'openai',
           apiModelId: 'gpt-4o',
           ownedBy: 'OpenAI',
-          capabilities: []
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
         }
       ]
     })
@@ -74,7 +74,7 @@ describe('api gateway model listing', () => {
       providerId: 'openai',
       apiModelId: 'gpt-4o',
       ownedBy: 'OpenAI',
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       isEnabled: true
     }
     mocks.listModels.mockReturnValue([resolvedModel])
@@ -92,7 +92,13 @@ describe('api gateway model listing', () => {
   it('does not expose non-chat (audio/video/transcription) models', async () => {
     mocks.listProviders.mockReturnValue([{ id: 'openai', name: 'OpenAI' }])
     mocks.listModels.mockImplementation(() => [
-      { id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', ownedBy: 'OpenAI', capabilities: [] },
+      {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        ownedBy: 'OpenAI',
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+      },
       {
         id: 'openai::tts-1',
         providerId: 'openai',
@@ -124,7 +130,13 @@ describe('api gateway model listing', () => {
   it('does not expose models of a provider id containing ":" (un-addressable through the gateway)', async () => {
     mocks.listProviders.mockReturnValue([{ id: 'corp:west', name: 'Corp West' }])
     mocks.listModels.mockImplementation(() => [
-      { id: 'corp:west::gpt-4o', providerId: 'corp:west', apiModelId: 'gpt-4o', ownedBy: 'Corp', capabilities: [] }
+      {
+        id: 'corp:west::gpt-4o',
+        providerId: 'corp:west',
+        apiModelId: 'gpt-4o',
+        ownedBy: 'Corp',
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+      }
     ])
 
     const response = await getModels()
@@ -145,7 +157,7 @@ describe('api gateway model listing', () => {
             providerId: 'corp:west',
             apiModelId: 'gpt-4o',
             ownedBy: 'Corp',
-            capabilities: []
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
           }
         ]
       }
@@ -155,7 +167,7 @@ describe('api gateway model listing', () => {
           providerId: 'openai',
           apiModelId: 'gpt-4o',
           ownedBy: 'OpenAI',
-          capabilities: []
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
         }
       ]
     })
@@ -181,11 +193,19 @@ describe('api gateway model listing', () => {
             providerId: 'claude-code',
             apiModelId: 'sonnet',
             ownedBy: 'Anthropic',
-            capabilities: []
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
           }
         ]
       }
-      return [{ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', ownedBy: 'OpenAI', capabilities: [] }]
+      return [
+        {
+          id: 'openai::gpt-4o',
+          providerId: 'openai',
+          apiModelId: 'gpt-4o',
+          ownedBy: 'OpenAI',
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+        }
+      ]
     })
 
     const response = await getModels()

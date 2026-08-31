@@ -13,6 +13,7 @@ import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { getModelPreferredEndpoint, resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
@@ -62,7 +63,9 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           clientSearchAvailable,
           clientFetchAvailable,
           clientToolsPreferred,
-          endpointType: modelProvider ? getModelPreferredEndpoint(model, modelProvider) : undefined,
+          endpointType: modelProvider
+            ? getModelPreferredEndpoint(model, modelProvider, MODEL_CAPABILITY.TEXT_GENERATION)
+            : undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
         })

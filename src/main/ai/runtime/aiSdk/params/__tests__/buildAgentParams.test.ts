@@ -279,6 +279,7 @@ describe('buildAgentParams provider resolution', () => {
       providerId: 'vertex',
       apiModelId: 'openai/gpt-oss-120b-maas',
       capabilities: [
+        MODEL_CAPABILITY.TEXT_GENERATION,
         MODEL_CAPABILITY.REASONING,
         MODEL_CAPABILITY.AUDIO_RECOGNITION,
         MODEL_CAPABILITY.VIDEO_RECOGNITION
@@ -338,7 +339,7 @@ describe('buildAgentParams provider resolution', () => {
       id: 'gemini::gemini-2.5-pro',
       providerId: 'gemini',
       apiModelId: 'gemini-2.5-pro',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     const assistant = makeAssistant({ settings: { enableWebSearch: true } })
 
@@ -371,7 +372,7 @@ describe('buildAgentParams provider resolution', () => {
       id: 'gemini::gemini-3-1-pro-preview',
       providerId: 'gemini',
       apiModelId: 'gemini-3-1-pro-preview',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     const assistant = makeAssistant({ settings: { enableWebSearch: true } })
 
@@ -615,7 +616,7 @@ describe('buildAgentParams standard model parameters', () => {
       apiModelId,
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
       maxOutputTokens: 10_000,
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'budget', min: 1024, max: 8192 }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -654,7 +655,7 @@ describe('buildAgentParams standard model parameters', () => {
       apiModelId: 'minimax-m3',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
       maxOutputTokens: 10_000,
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'toggle', default: true }],
         selectableEfforts: ['none', 'auto']
@@ -691,7 +692,7 @@ describe('buildAgentParams web-tool routing', () => {
     id: 'anthropic::claude-sonnet-4-6',
     providerId: 'anthropic',
     apiModelId: 'claude-sonnet-4-6',
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
   })
   const assistant = makeAssistant({ settings: { enableWebSearch: true } })
   const clientSearchEntry: ToolEntry = {
@@ -817,7 +818,7 @@ describe('buildAgentParams web-tool routing', () => {
         providerId: 'deepseek',
         apiModelId: 'deepseek-v4-flash',
         endpointTypes: [endpointType],
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
       })
       const preferences = new Map<string, unknown>([
         ['app.developer_mode.enabled', false],
@@ -864,7 +865,7 @@ describe('buildAgentParams web-tool routing', () => {
         providerId: 'dashscope',
         apiModelId,
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
       })
       preferenceGetMock.mockImplementation((key: string) => {
         if (key === 'chat.web_search.client_tools_preferred') return false
@@ -906,7 +907,7 @@ describe('buildAgentParams web-tool routing', () => {
       id: 'gemini::gemini-2.5-pro',
       providerId: 'gemini',
       apiModelId: 'gemini-2.5-pro',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     })
     preferenceGetMock.mockImplementation((key: string) =>
       key === 'chat.web_search.client_tools_preferred' ? false : null
@@ -948,7 +949,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       providerId: 'dashscope',
       apiModelId: 'qwen3.7-max',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'toggle' }],
         selectableEfforts: ['none', 'auto']
@@ -995,7 +996,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       providerId: 'new-api',
       apiModelId: 'gpt-5.6-sol',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
-      capabilities: [MODEL_CAPABILITY.REASONING]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING]
     })
 
     const result = await buildAgentParams({
@@ -1044,7 +1045,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       providerId: 'new-api',
       apiModelId: 'gpt-5.6-sol',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -1096,7 +1097,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       id: 'custom-claude::claude-x',
       providerId: 'custom-claude',
       apiModelId: 'claude-x',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'toggle' }],
         selectableEfforts: ['none', 'auto']
@@ -1147,7 +1148,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       id: 'custom-claude::claude-fixed',
       providerId: 'custom-claude',
       apiModelId: 'claude-fixed',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -1184,7 +1185,7 @@ describe('buildAgentParams assistant-less reasoning', () => {
       id: 'aihubmix::gemini-2.5-flash',
       providerId: 'aihubmix',
       apiModelId: 'gemini-2.5-flash',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: {
         controls: [{ kind: 'toggle' }],
         selectableEfforts: ['none', 'auto']
@@ -1239,7 +1240,10 @@ describe('buildAgentParams assistant-less reasoning', () => {
         request: { callOverrides: { tools: { web_search: customTool } } },
         signal: undefined,
         provider,
-        model: { ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+        model: {
+          ...model,
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+        }
       })
 
       expect(result.tools?.web_search).toBe(customTool)
@@ -1278,7 +1282,7 @@ describe('buildAgentParams native-dialect resolution for catalog-backed custom r
       providerId: 'my-gateway',
       apiModelId,
       maxOutputTokens: 32_000,
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
       reasoning: { controls: [{ kind: 'budget', min: 1024, max: 8192 }], selectableEfforts: ['low', 'high'] }
     })
     const assistant = makeAssistant({ settings: { reasoning_effort: 'high' } })
@@ -1671,7 +1675,9 @@ describe('buildAgentParams knowledge-scope enforcement', () => {
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
       }),
-      model: makeModel({ capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+      model: makeModel({
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+      }),
       assistant: makeAssistant({ knowledgeBaseIds: assistantKnowledgeBaseIds })
     })
 

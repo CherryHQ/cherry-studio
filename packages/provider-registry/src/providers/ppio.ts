@@ -8,6 +8,11 @@ export default openaiCompatible({
   id: 'ppio',
   name: 'PPIO',
   baseUrl: 'https://api.ppinfra.com/v3/openai/',
+  additionalEndpointConfigs: {
+    'jina-rerank': { adapterFamily: 'openai-compatible' },
+    'openai-embeddings': { adapterFamily: 'openai-compatible' },
+    'openai-image-generation': { adapterFamily: 'ppio' }
+  },
   website: {
     apiKey: 'https://ppio.com/settings/key-management',
     docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio',

@@ -14,6 +14,17 @@ export interface ModelLookupResult {
   registryOverride: ProviderModelOverride | null
 }
 
+export function applyModelCapabilityOverride(
+  baseCapabilities: readonly ModelCapability[],
+  override: ProviderModelOverride['capabilities']
+): ModelCapability[] {
+  if (!override) return [...baseCapabilities]
+  if (override.force) return [...new Set(override.force)]
+
+  const removed = new Set(override.remove ?? [])
+  return [...new Set([...baseCapabilities, ...(override.add ?? [])])].filter((capability) => !removed.has(capability))
+}
+
 /**
  * Look up a model's preset data and provider-specific override from loaded registry data.
  * Pure function — no caching, no side effects.
@@ -130,27 +141,147 @@ export function inferAdapterFamily(
   return ENDPOINT_TYPE_TO_DEFAULT_ADAPTER_FAMILY[endpointType] ?? 'openai-compatible'
 }
 
-/**
- * Capability-exclusive endpoints imply a model capability: a model whose primary
- * endpoint is `jina-rerank` can only rerank, `openai-embeddings` can only embed,
- * and dedicated image/audio/video endpoints can only serve their named media task.
- * Single source of truth for deriving a capability from a model's endpoint when
- * the catalog has no entry for it (e.g. opaque gateway/NewAPI model ids).
- * Chat/completions endpoints are general-purpose and imply nothing, so they're
- * absent from the map.
- */
-const ENDPOINT_IMPLIED_CAPABILITY: Partial<Record<EndpointType, ModelCapability>> = {
-  [ENDPOINT_TYPE.JINA_RERANK]: MODEL_CAPABILITY.RERANK,
-  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
-  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION]: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
-  [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: MODEL_CAPABILITY.EMBEDDING,
-  [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: MODEL_CAPABILITY.IMAGE_GENERATION,
-  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: MODEL_CAPABILITY.IMAGE_GENERATION,
-  [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: MODEL_CAPABILITY.AUDIO_GENERATION,
-  [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION]: MODEL_CAPABILITY.VIDEO_GENERATION
+export const MODEL_OPERATION_CAPABILITIES = [
+  MODEL_CAPABILITY.TEXT_GENERATION,
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.RERANK,
+  MODEL_CAPABILITY.IMAGE_GENERATION,
+  MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+  MODEL_CAPABILITY.AUDIO_GENERATION,
+  MODEL_CAPABILITY.VIDEO_GENERATION
+] as const satisfies readonly ModelCapability[]
+
+export type ModelOperationCapability = (typeof MODEL_OPERATION_CAPABILITIES)[number]
+
+interface EndpointOperationContract {
+  defaultOperation: ModelOperationCapability
+  allowedOperations: readonly ModelOperationCapability[]
 }
 
-/** Capability implied by a capability-exclusive endpoint, or `undefined` for general-purpose endpoints. */
-export function endpointImpliedCapability(endpointType: EndpointType | undefined | null): ModelCapability | undefined {
-  return endpointType ? ENDPOINT_IMPLIED_CAPABILITY[endpointType] : undefined
+/** Operation semantics for every wire endpoint supported by the registry. */
+export const ENDPOINT_OPERATION_CONTRACT = {
+  [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION]
+  },
+  [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
+  },
+  [ENDPOINT_TYPE.JINA_RERANK]: {
+    defaultOperation: MODEL_CAPABILITY.RERANK,
+    allowedOperations: [MODEL_CAPABILITY.RERANK]
+  },
+  [ENDPOINT_TYPE.OLLAMA_CHAT]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING]
+  },
+  [ENDPOINT_TYPE.OLLAMA_GENERATE]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSCRIPTION]: {
+    defaultOperation: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+    allowedOperations: [MODEL_CAPABILITY.AUDIO_TRANSCRIPT]
+  },
+  [ENDPOINT_TYPE.OPENAI_AUDIO_TRANSLATION]: {
+    defaultOperation: MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+    allowedOperations: [MODEL_CAPABILITY.AUDIO_TRANSCRIPT]
+  },
+  [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: {
+    defaultOperation: MODEL_CAPABILITY.EMBEDDING,
+    allowedOperations: [MODEL_CAPABILITY.EMBEDDING]
+  },
+  [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: {
+    defaultOperation: MODEL_CAPABILITY.IMAGE_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.IMAGE_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+    defaultOperation: MODEL_CAPABILITY.IMAGE_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.IMAGE_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS]: {
+    defaultOperation: MODEL_CAPABILITY.TEXT_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.TEXT_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_TEXT_TO_SPEECH]: {
+    defaultOperation: MODEL_CAPABILITY.AUDIO_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.AUDIO_GENERATION]
+  },
+  [ENDPOINT_TYPE.OPENAI_VIDEO_GENERATION]: {
+    defaultOperation: MODEL_CAPABILITY.VIDEO_GENERATION,
+    allowedOperations: [MODEL_CAPABILITY.VIDEO_GENERATION]
+  }
+} as const satisfies Record<EndpointType, EndpointOperationContract>
+
+export type EndpointTypeForOperation<C extends ModelOperationCapability> = {
+  [K in EndpointType]: C extends (typeof ENDPOINT_OPERATION_CONTRACT)[K]['allowedOperations'][number] ? K : never
+}[EndpointType]
+
+export interface ModelEndpointContractInput {
+  capabilities?: readonly ModelCapability[]
+  endpointTypes?: readonly EndpointType[]
+  preferredEndpointType?: EndpointType
+}
+
+export function isModelOperationCapability(capability: ModelCapability): capability is ModelOperationCapability {
+  return (MODEL_OPERATION_CAPABILITIES as readonly ModelCapability[]).includes(capability)
+}
+
+export function getModelOperationCapabilities(
+  capabilities: readonly ModelCapability[] | undefined
+): ModelOperationCapability[] {
+  return capabilities?.filter(isModelOperationCapability) ?? []
+}
+
+export function endpointDefaultOperationCapability(
+  endpointType: EndpointType | undefined | null
+): ModelOperationCapability | undefined {
+  return endpointType ? ENDPOINT_OPERATION_CONTRACT[endpointType].defaultOperation : undefined
+}
+
+export function endpointAllowedOperationCapabilities(endpointType: EndpointType): readonly ModelOperationCapability[] {
+  return ENDPOINT_OPERATION_CONTRACT[endpointType].allowedOperations
+}
+
+export function isEndpointCompatibleWithOperation(
+  endpointType: EndpointType,
+  operationCapability: ModelOperationCapability
+): boolean {
+  return ENDPOINT_OPERATION_CONTRACT[endpointType].allowedOperations.some(
+    (operation) => operation === operationCapability
+  )
+}
+
+export function getModelEndpointContractIssues(model: ModelEndpointContractInput): string[] {
+  const issues: string[] = []
+  const operations = getModelOperationCapabilities(model.capabilities)
+
+  if (operations.length === 0) issues.push('Model must declare at least one operation capability')
+
+  for (const endpointType of model.endpointTypes ?? []) {
+    if (!operations.some((operation) => isEndpointCompatibleWithOperation(endpointType, operation))) {
+      issues.push(`Endpoint '${endpointType}' is incompatible with the model operation capabilities`)
+    }
+  }
+
+  const preference = model.preferredEndpointType
+  if (preference) {
+    if (!model.endpointTypes?.includes(preference)) {
+      issues.push(`Preferred endpoint '${preference}' must be declared by the model`)
+    }
+    if (!operations.some((operation) => isEndpointCompatibleWithOperation(preference, operation))) {
+      issues.push(`Preferred endpoint '${preference}' is incompatible with the model operation capabilities`)
+    }
+  }
+
+  return issues
 }

@@ -3,6 +3,7 @@
  * `docs/references/ai/adapter-family.md` for design rationale.
  */
 
+import { isEndpointCompatibleWithOperation, type ModelOperationCapability } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -39,11 +40,8 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: caller hard requirement → valid user preference → `model.endpointTypes[0]`
- * → gateway per-model route → `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves
- * the wire endpoint from the model id for multi-backend gateways (AiHubMix, …) whose models carry no
- * explicit endpoint (see `gatewayRouting`). `getBaseUrl` applies its own fallback among
- * `endpointConfigs`.
+ * Priority: compatible caller requirement → compatible preference → first compatible model endpoint.
+ * Text generation alone may then inherit a gateway route or the provider's default chat endpoint.
  *
  * Hard requirements belong to runtimes that speak exactly one dialect. Every candidate is checked
  * against the model's current capability set and the provider's live endpoint configs.
@@ -51,23 +49,24 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 export function resolveEffectiveEndpoint(
   provider: Provider,
   model: Model,
-  options?: { requiredEndpointType?: EndpointType }
+  options: { operationCapability: ModelOperationCapability; requiredEndpointType?: EndpointType }
 ): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
   const isRuntimeCandidateAvailable = (endpointType: EndpointType) =>
-    model.endpointTypes?.length
-      ? isModelEndpointTypeAvailable(model, provider, endpointType)
-      : gatewayRoute?.endpointType === endpointType
+    isEndpointCompatibleWithOperation(endpointType, options.operationCapability) &&
+    isModelEndpointTypeAvailable(model, provider, endpointType)
   const requiredEndpoint =
-    options?.requiredEndpointType && isRuntimeCandidateAvailable(options.requiredEndpointType)
+    options.requiredEndpointType && isRuntimeCandidateAvailable(options.requiredEndpointType)
       ? options.requiredEndpointType
       : undefined
   const userPreferredEndpoint =
-    model.preferredEndpointType && isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)
+    model.preferredEndpointType &&
+    isEndpointCompatibleWithOperation(model.preferredEndpointType, options.operationCapability) &&
+    isModelEndpointTypeAvailable(model, provider, model.preferredEndpointType)
       ? model.preferredEndpointType
       : undefined
   const selectedEndpoint = requiredEndpoint ?? userPreferredEndpoint
-  const endpointType = selectedEndpoint ?? getModelPreferredEndpoint(model, provider)
+  const endpointType = selectedEndpoint ?? getModelPreferredEndpoint(model, provider, options.operationCapability)
   const endpointRequiresOwnHost =
     endpointType !== undefined &&
     (selectedEndpoint !== undefined || !isModelEndpointTypeAvailable(model, provider, endpointType))
@@ -79,10 +78,12 @@ export function resolveEffectiveEndpoint(
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return {
     endpointType,
-    baseUrl: getBaseUrl(provider, endpointType, {
-      // A configured adapter may reuse the provider's default host; an unserved protocol fails closed.
-      selectedEndpointOnly: endpointRequiresOwnHost && !hasEndpointConfig
-    }),
+    baseUrl: endpointType
+      ? getBaseUrl(provider, endpointType, {
+          // A configured adapter may reuse the provider's default host; an unserved protocol fails closed.
+          selectedEndpointOnly: endpointRequiresOwnHost && !hasEndpointConfig
+        })
+      : '',
     providerOptionsKey
   }
 }

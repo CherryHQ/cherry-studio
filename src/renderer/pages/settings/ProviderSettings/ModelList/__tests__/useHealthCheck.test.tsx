@@ -57,7 +57,7 @@ const chatModel: Model = {
   id: 'openai::gpt-4o',
   providerId: 'openai',
   name: 'GPT-4o',
-  capabilities: [],
+  capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
@@ -135,7 +135,7 @@ describe('useHealthCheck', () => {
         new Promise<ModelWithStatus[]>((resolve) => {
           onChecked = callback
           finishCheck = resolve
-          expect(options.models).toEqual([chatModel, rerankModel])
+          expect(options.models).toEqual([chatModel, imageModel, rerankModel])
         })
     )
 
@@ -150,21 +150,21 @@ describe('useHealthCheck', () => {
     expect(result.current.isChecking).toBe(true)
     expect(result.current.modelStatuses).toEqual([
       expect.objectContaining({ kind: 'checking', model: chatModel }),
-      expect.objectContaining({ kind: 'skipped', model: imageModel }),
+      expect.objectContaining({ kind: 'checking', model: imageModel }),
       expect.objectContaining({ kind: 'checking', model: rerankModel })
     ])
 
-    act(() => onChecked?.(okResult(rerankModel), 1))
+    act(() => onChecked?.(okResult(rerankModel), 2))
     expect(result.current.modelStatuses[2]).toMatchObject({ kind: 'ok', model: rerankModel })
 
     await act(async () => {
-      finishCheck?.([okResult(chatModel), okResult(rerankModel)])
+      finishCheck?.([okResult(chatModel), okResult(imageModel), okResult(rerankModel)])
       await Promise.resolve()
     })
 
     expect(result.current.isChecking).toBe(false)
     expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
-    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
+    expect(toastSuccessMock).not.toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
 
   it('uses the latest models after credentials are prepared', async () => {
@@ -175,7 +175,11 @@ describe('useHealthCheck', () => {
         resolveCommit = resolve
       }).then(() => [{ kind: 'api-key' as const, entry: primaryKey }])
     )
-    const reclassifiedModel = { ...imageModel, name: 'Image Model Reclassified', capabilities: [] }
+    const reclassifiedModel = {
+      ...imageModel,
+      name: 'Image Model Reclassified',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    }
     checkModelsHealthMock.mockResolvedValue([okResult(reclassifiedModel)])
     const { result, rerender } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
 
@@ -301,7 +305,7 @@ describe('useHealthCheck', () => {
     const renamedChatModel = { ...chatModel, name: 'GPT-4o Renamed' }
     models = [
       renamedChatModel,
-      { ...imageModel, capabilities: [] },
+      { ...imageModel, capabilities: [MODEL_CAPABILITY.TEXT_GENERATION] },
       { ...rerankModel, endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] }
     ]
     rerender()
@@ -372,7 +376,7 @@ describe('useHealthCheck', () => {
   })
 
   it('prunes only deleted model results after a completed run', async () => {
-    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(imageModel), okResult(rerankModel)])
     const { result, rerender } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
     await act(async () => {
       await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })

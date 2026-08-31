@@ -1130,7 +1130,9 @@ export class OpenClawService extends BaseService {
       throw new Error('Selected OpenClaw model must support chat')
     }
 
-    const resolvedEndpoint = resolveEffectiveEndpoint(provider, primaryModel)
+    const resolvedEndpoint = resolveEffectiveEndpoint(provider, primaryModel, {
+      operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+    })
     const endpointType = resolvedEndpoint.endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const apiHost = resolvedEndpoint.baseUrl
 
@@ -1175,7 +1177,10 @@ export class OpenClawService extends BaseService {
   }
 
   private getModelEndpointType(model: DataModel, provider: DataProvider): EndpointType {
-    return resolveEffectiveEndpoint(provider, model).endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    return (
+      resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.TEXT_GENERATION })
+        .endpointType ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
   }
 
   private getNoKeyPlaceholder(provider: { id: string; type?: string; presetProviderId?: string }): string | undefined {

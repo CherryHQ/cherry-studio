@@ -29,6 +29,10 @@ export default openaiCompatible({
   id: 'zhipu',
   name: 'ZhiPu',
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+  additionalEndpointConfigs: {
+    'openai-embeddings': { adapterFamily: 'zhipu' },
+    'openai-image-generation': { adapterFamily: 'zhipu' }
+  },
   reasoningFormat: {
     type: 'openai-chat',
     wire: thinkingWire

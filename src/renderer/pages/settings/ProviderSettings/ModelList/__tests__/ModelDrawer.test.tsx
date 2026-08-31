@@ -193,10 +193,17 @@ describe('Model drawers', () => {
   it('creates a New API model with multiple endpoint types', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'new-api', name: 'New API' }
+      provider: newApiProvider
     })
 
-    render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
+    render(
+      <AddModelDrawer
+        providerId="new-api"
+        open
+        prefill={{ endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }}
+        onClose={vi.fn()}
+      />
+    )
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
     const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
@@ -213,7 +220,7 @@ describe('Model drawers', () => {
       expect.objectContaining({
         providerId: 'new-api',
         modelId: 'claude-4-sonnet',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       })
     )
   })
@@ -224,7 +231,14 @@ describe('Model drawers', () => {
       provider: newApiProvider
     })
 
-    render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
+    render(
+      <AddModelDrawer
+        providerId="new-api"
+        open
+        prefill={{ endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS }}
+        onClose={vi.fn()}
+      />
+    )
 
     const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
       'combobox'
@@ -349,7 +363,7 @@ describe('Model drawers', () => {
             providerId: 'doubao',
             apiModelId: 'chat-only-preset',
             name: 'Chat Only Preset',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
             supportsStreaming: true
           }
@@ -389,7 +403,7 @@ describe('Model drawers', () => {
     expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
   })
 
-  it('shows only the chat protocol control for a multi-endpoint custom provider', () => {
+  it('shows operation-compatible endpoint controls for a custom provider', () => {
     const provider = {
       id: 'custom-provider',
       name: 'Custom Provider',
@@ -403,8 +417,8 @@ describe('Model drawers', () => {
 
     const addDrawer = render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
-    expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).toBeInTheDocument()
     addDrawer.unmount()
 
     render(
@@ -418,7 +432,7 @@ describe('Model drawers', () => {
             providerId: 'custom-provider',
             apiModelId: 'chat-model',
             name: 'Chat Model',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
             supportsStreaming: true
           } as any
@@ -426,25 +440,33 @@ describe('Model drawers', () => {
       />
     )
 
-    expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).toBeInTheDocument()
   })
 
-  it('atomically maps a custom model to image editing from the purpose surface', async () => {
+  it('expresses image editing with the image operation, image input, and edit endpoint', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
         name: 'Custom Provider',
-        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs: {
-          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' }
+          [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://api.example.com' }
         }
       }
     })
 
     render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_edit\.label/ }))
+    await user.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    await user.click(screen.getByRole('button', { name: 'models.type.image' }))
+    await user.click(screen.getByRole('button', { name: 'models.type.text' }))
+    await user.click(screen.getByRole('button', { name: 'models.type.vision' }))
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.image-edit' }))
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'image-editor' }
     })
@@ -459,8 +481,7 @@ describe('Model drawers', () => {
         modelId: 'image-editor',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-        inputModalities: [MODALITY.IMAGE],
-        outputModalities: [MODALITY.IMAGE]
+        inputModalities: [MODALITY.IMAGE]
       })
     )
   })
@@ -486,7 +507,7 @@ describe('Model drawers', () => {
 
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
         inputModalities: [MODALITY.AUDIO]
       })
     )
@@ -561,7 +582,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -627,14 +648,15 @@ describe('Model drawers', () => {
     )
   })
 
-  it('auto-saves an atomic image-generation mapping from the custom model purpose surface', async () => {
+  it('auto-saves image generation as an additional model operation', async () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'custom-provider',
         name: 'Custom Provider',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://api.example.com' }
         }
       }
     })
@@ -649,7 +671,7 @@ describe('Model drawers', () => {
             id: 'custom-provider::image-model',
             providerId: 'custom-provider',
             name: 'Image Model',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
             supportsStreaming: true,
             pricing: {
@@ -662,16 +684,15 @@ describe('Model drawers', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_generation\.label/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'models.type.image' }))
     })
 
     expect(updateModelMock).toHaveBeenCalledWith(
       'custom-provider',
       'image-model',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
-        outputModalities: [MODALITY.IMAGE]
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION]
       })
     )
   })
@@ -698,7 +719,7 @@ describe('Model drawers', () => {
             id: 'custom-provider::custom-openai-model',
             providerId: 'custom-provider',
             name: 'Custom OpenAI Model',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
             supportsStreaming: true
           } as any
@@ -707,9 +728,9 @@ describe('Model drawers', () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'settings.models.add.purpose.chat_protocol' })).toHaveTextContent(
-        'settings.provider.more_endpoints.openai_chat'
-      )
+      expect(
+        within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('combobox')
+      ).toHaveTextContent('endpoint_type.openai')
     })
     expect(updateModelMock).not.toHaveBeenCalled()
   })
@@ -756,7 +777,7 @@ describe('Model drawers', () => {
       'openai',
       'custom-embedding',
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING],
         inputModalities: []
       })
     )
@@ -768,7 +789,7 @@ describe('Model drawers', () => {
       'openai',
       'custom-embedding',
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.REASONING],
         inputModalities: []
       })
     )
@@ -780,7 +801,7 @@ describe('Model drawers', () => {
       'openai',
       'custom-embedding',
       expect.objectContaining({
-        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.REASONING],
         inputModalities: [MODALITY.VIDEO]
       })
     )
@@ -804,7 +825,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -870,7 +891,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model A',
             group: 'Group A',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -900,7 +921,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model B',
             group: 'Group B',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -958,7 +979,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model A',
             group: 'Group A',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -998,7 +1019,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'Model B',
             group: 'Group B',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -1045,7 +1066,7 @@ describe('Model drawers', () => {
             providerId: 'new-api',
             name: 'claude-4-sonnet',
             group: 'Anthropic',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             // What upstream `/models` reported in `supported_endpoint_types`.
             endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
             supportsStreaming: true,
@@ -1058,8 +1079,7 @@ describe('Model drawers', () => {
       />
     )
 
-    // The old multi-select offered all eight protocols regardless of what this model speaks.
-    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
     expect(
       within(preferredField)
@@ -1111,7 +1131,7 @@ describe('Model drawers', () => {
             providerId: 'cherryin',
             name: 'Kimi K2.5',
             group: 'agent',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
             supportsStreaming: true,
             pricing: {
@@ -1156,7 +1176,7 @@ describe('Model drawers', () => {
             id: 'new-api::unclassified-model',
             providerId: 'new-api',
             name: 'Unclassified Model',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [],
             supportsStreaming: true
           } as any
@@ -1198,7 +1218,7 @@ describe('Model drawers', () => {
             providerId: 'doubao',
             name: 'doubao-seed-2-1-pro',
             group: 'doubao',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
             preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
             supportsStreaming: true
@@ -1248,7 +1268,7 @@ describe('Model drawers', () => {
             providerId: 'doubao',
             name: 'doubao-seed-2-1-pro',
             group: 'doubao',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
             supportsStreaming: true,
             pricing: {
@@ -1282,7 +1302,14 @@ describe('Model drawers', () => {
   it('never rewrites the upstream endpoint set from the edit drawer', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
+      provider: {
+        id: 'cherryin',
+        name: 'CherryIN',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://open.cherryin.net' },
+          [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: { baseUrl: 'https://open.cherryin.net' }
+        }
+      }
     })
 
     render(
@@ -1296,7 +1323,7 @@ describe('Model drawers', () => {
             providerId: 'cherryin',
             name: 'qwen-image-edit',
             group: 'Image',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
             endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
             supportsStreaming: true,
             pricing: {
@@ -1422,7 +1449,7 @@ describe('Model drawers', () => {
             providerId: 'openai',
             name: 'preset-model',
             group: 'OpenAI',
-            capabilities: [],
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             supportsStreaming: true
           } as any
         }

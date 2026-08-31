@@ -14,7 +14,7 @@
 
 import { MODALITY } from '@cherrystudio/provider-registry'
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { getModelPreferredEndpoint, isLoginBasedProvider } from '@shared/utils/provider'
@@ -69,7 +69,7 @@ export function resolveDshApi(provider: Provider, model: Model): DshApi | undefi
   // dsh runs as a subprocess with no per-request transport injection, so every login-based
   // provider is undrivable — including the app-managed OAuth ones pi adapts in-process.
   if (isLoginBasedProvider(provider)) return undefined
-  const endpointType = getModelPreferredEndpoint(model, provider)
+  const endpointType = getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }

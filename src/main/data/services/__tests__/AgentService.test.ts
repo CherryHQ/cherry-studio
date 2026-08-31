@@ -25,7 +25,7 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { CHERRY_SUPPORT_AGENT_ID } from '@shared/ai/builtinAgent'
 import { ErrorCode } from '@shared/data/api/errors'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { eq, sql } from 'drizzle-orm'
@@ -85,7 +85,7 @@ describe('AgentService', () => {
         providerId: 'anthropic',
         modelId: 'claude-3-5-sonnet',
         name: 'claude-3-5-sonnet',
-        capabilities: [],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
         supportsStreaming: true,
         orderKey: generateOrderKeyBetween(null, null)
       })
@@ -137,7 +137,7 @@ describe('AgentService', () => {
         modelId: 'claude-sonnet-4-5',
         presetModelId: null,
         name: 'Claude Sonnet 4.5',
-        capabilities: [],
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
         supportsStreaming: true,
         isEnabled: true,
         isHidden: false,

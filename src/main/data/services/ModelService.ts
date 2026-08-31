@@ -8,8 +8,8 @@
  */
 
 import { application } from '@application'
-import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import type { ModelEndpointContractInput, ModelLookupResult } from '@cherrystudio/provider-registry'
+import { getModelEndpointContractIssues, inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -462,19 +462,26 @@ function createPresetFallback(
 }
 
 class ModelService {
-  private assertPreferredEndpointAvailable(
+  private assertEffectiveEndpointContract(
     providerId: string,
     modelId: string,
-    endpointTypes: EndpointType[] | undefined,
-    preferredEndpointType: EndpointType
+    model: ModelEndpointContractInput
   ): void {
+    const issues = getModelEndpointContractIssues(model)
+    if (issues.length > 0) {
+      throw DataApiErrorFactory.validation({ capabilities: issues })
+    }
+
+    const preferredEndpointType = model.preferredEndpointType
+    if (!preferredEndpointType) return
+
     const provider = providerService.getByProviderId(providerId)
     if (
       !isModelEndpointTypeAvailable(
         {
           id: createUniqueModelId(providerId, modelId),
           apiModelId: modelId,
-          endpointTypes,
+          endpointTypes: model.endpointTypes ? [...model.endpointTypes] : undefined,
           preferredEndpointType
         },
         provider,
@@ -521,20 +528,14 @@ class ModelService {
         registryData?.reasoningProfile.support,
         registryData?.serviceTierControl
       )
-      if (dto.preferredEndpointType) {
-        this.assertPreferredEndpointAvailable(
-          dto.providerId,
-          dto.modelId,
-          dto.endpointTypes ?? baseline.endpointTypes,
-          dto.preferredEndpointType
-        )
-      }
+      this.assertEffectiveEndpointContract(dto.providerId, dto.modelId, {
+        capabilities: dto.capabilities ?? baseline.capabilities,
+        endpointTypes: dto.endpointTypes ?? baseline.endpointTypes,
+        preferredEndpointType:
+          dto.preferredEndpointType === null ? undefined : (dto.preferredEndpointType ?? baseline.preferredEndpointType)
+      })
       const deltaFields = collectPresetDeltaFields(dto, baseline)
       return presetDeltaToNewUserModel(dto, presetModel.id, deltaFields)
-    }
-
-    if (dto.preferredEndpointType) {
-      this.assertPreferredEndpointAvailable(dto.providerId, dto.modelId, dto.endpointTypes, dto.preferredEndpointType)
     }
 
     // No preset: a custom model. When the id/capabilities say the model reasons,
@@ -555,33 +556,26 @@ class ModelService {
       if (inferred) dtoValues.reasoning = inferred
     }
 
+    this.assertEffectiveEndpointContract(dto.providerId, dto.modelId, {
+      capabilities: dtoValues.capabilities ?? undefined,
+      endpointTypes: dtoValues.endpointTypes ?? undefined,
+      preferredEndpointType: dtoValues.preferredEndpointType ?? undefined
+    })
+
     return dtoValues
   }
 
   private buildUpdates(existing: UserModelRow, dto: UpdateModelDto): Partial<InsertUserModelRow> {
     const updates: Partial<InsertUserModelRow> = {}
-    let clearStalePreferredEndpoint = false
-    if (dto.preferredEndpointType || (dto.endpointTypes && existing.preferredEndpointType)) {
-      const currentModel = this.enrichRowsFromRegistry([existing])[0]
-      const endpointTypes = dto.endpointTypes ?? currentModel.endpointTypes
-      if (dto.preferredEndpointType) {
-        this.assertPreferredEndpointAvailable(
-          existing.providerId,
-          existing.modelId,
-          endpointTypes,
-          dto.preferredEndpointType
-        )
-      } else if (
-        existing.preferredEndpointType &&
-        !isModelEndpointTypeAvailable(
-          { ...currentModel, endpointTypes },
-          providerService.getByProviderId(existing.providerId),
-          existing.preferredEndpointType
-        )
-      ) {
-        clearStalePreferredEndpoint = true
-      }
-    }
+    const currentModel = this.enrichRowsFromRegistry([existing])[0]
+    this.assertEffectiveEndpointContract(existing.providerId, existing.modelId, {
+      capabilities: dto.capabilities ?? currentModel.capabilities,
+      endpointTypes: dto.endpointTypes ?? currentModel.endpointTypes,
+      preferredEndpointType:
+        dto.preferredEndpointType === null
+          ? undefined
+          : (dto.preferredEndpointType ?? currentModel.preferredEndpointType)
+    })
     const hasPresetDeltaField = (Object.keys(dto) as (keyof UpdateModelDto)[])
       .map(dtoKeyToDbKey)
       .some(isPresetDeltaField)
@@ -615,7 +609,6 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = value
       }
     }
-    if (clearStalePreferredEndpoint) updates.preferredEndpointType = null
     if (dto.inputModalities !== undefined) updates.inputModalitiesExplicit = true
     return updates
   }

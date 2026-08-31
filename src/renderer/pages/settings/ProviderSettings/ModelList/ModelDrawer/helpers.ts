@@ -1,5 +1,6 @@
 import {
   ENDPOINT_TYPE,
+  getModelOperationCapabilities,
   MODALITY,
   type Modality,
   type Model,
@@ -16,6 +17,7 @@ import type {
   ModelDrawerEndpointType,
   ModelInputModality
 } from './types'
+import { EDITABLE_MODEL_OPERATION_CAPABILITIES } from './types'
 
 const TOGGLE_TO_CAPABILITY: Record<ModelCapabilityToggle, ModelCapability> = {
   [MODEL_CAPABILITY.REASONING]: MODEL_CAPABILITY.REASONING,
@@ -92,29 +94,11 @@ export function capsToToggleSet(capabilities: string[]): Set<ModelCapabilityTogg
   return selected
 }
 
-const MODEL_PRIMARY_TYPE_CAPABILITIES = [
-  MODEL_CAPABILITY.IMAGE_GENERATION,
-  MODEL_CAPABILITY.EMBEDDING,
-  MODEL_CAPABILITY.RERANK
-] as const satisfies readonly ModelCapability[]
-
-const UNEDITABLE_MODEL_TYPE_CAPABILITIES = new Set<ModelCapability>([
-  MODEL_CAPABILITY.AUDIO_GENERATION,
-  MODEL_CAPABILITY.VIDEO_GENERATION,
-  MODEL_CAPABILITY.AUDIO_TRANSCRIPT
-])
-
 const LEGACY_INPUT_MODALITY_CAPABILITIES = [
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
   MODEL_CAPABILITY.AUDIO_RECOGNITION,
   MODEL_CAPABILITY.VIDEO_RECOGNITION
 ] as const satisfies readonly ModelCapability[]
-
-const PRIMARY_TYPE_TO_CAPABILITY = {
-  image: MODEL_CAPABILITY.IMAGE_GENERATION,
-  embedding: MODEL_CAPABILITY.EMBEDDING,
-  rerank: MODEL_CAPABILITY.RERANK
-} as const
 
 const INPUT_MODALITY_TO_LEGACY_CAPABILITY = {
   [MODALITY.IMAGE]: MODEL_CAPABILITY.IMAGE_RECOGNITION,
@@ -124,18 +108,9 @@ const INPUT_MODALITY_TO_LEGACY_CAPABILITY = {
 
 export function getInitialModelClassification(model?: Model | null): ModelClassificationState {
   const capabilities = model?.capabilities ?? []
-  let primaryType: ModelClassificationState['primaryType'] = 'text'
-
-  if (capabilities.includes(MODEL_CAPABILITY.RERANK)) {
-    primaryType = 'rerank'
-  } else if (capabilities.includes(MODEL_CAPABILITY.EMBEDDING)) {
-    primaryType = 'embedding'
-  } else if (capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
-    primaryType = 'image'
-  } else if (capabilities.some((capability) => UNEDITABLE_MODEL_TYPE_CAPABILITIES.has(capability))) {
-    // These catalog types are intentionally not editable until they have a
-    // complete custom-model execution path. Keep the source capability intact.
-    primaryType = null
+  const operationCapabilities = new Set(getModelOperationCapabilities(capabilities))
+  if (!model && operationCapabilities.size === 0) {
+    operationCapabilities.add(MODEL_CAPABILITY.TEXT_GENERATION)
   }
 
   const inputModalities = new Set<ModelInputModality>()
@@ -149,7 +124,7 @@ export function getInitialModelClassification(model?: Model | null): ModelClassi
   }
 
   return {
-    primaryType,
+    operationCapabilities,
     capabilities: capsToToggleSet(capabilities),
     inputModalities
   }
@@ -160,19 +135,16 @@ export function buildModelCapabilities(
   classification: ModelClassificationState
 ): ModelCapability[] {
   const managedCapabilities = new Set<ModelCapability>([
-    ...MODEL_PRIMARY_TYPE_CAPABILITIES,
+    ...EDITABLE_MODEL_OPERATION_CAPABILITIES,
     ...LEGACY_INPUT_MODALITY_CAPABILITIES,
     ...Object.values(TOGGLE_TO_CAPABILITY)
   ])
-  if (classification.primaryType !== null) {
-    for (const capability of UNEDITABLE_MODEL_TYPE_CAPABILITIES) {
-      managedCapabilities.add(capability)
-    }
-  }
   const next = original.filter((capability) => !managedCapabilities.has(capability))
 
-  if (classification.primaryType && classification.primaryType !== 'text') {
-    next.push(PRIMARY_TYPE_TO_CAPABILITY[classification.primaryType])
+  for (const capability of EDITABLE_MODEL_OPERATION_CAPABILITIES) {
+    if (classification.operationCapabilities.has(capability)) {
+      next.push(capability)
+    }
   }
 
   for (const toggle of classification.capabilities) {
@@ -199,11 +171,9 @@ export function buildModelInputModalities(
 }
 
 export function areModelClassificationsEqual(left: ModelClassificationState, right: ModelClassificationState): boolean {
-  if (left.primaryType !== right.primaryType) {
-    return false
-  }
-
   return (
+    left.operationCapabilities.size === right.operationCapabilities.size &&
+    [...left.operationCapabilities].every((capability) => right.operationCapabilities.has(capability)) &&
     left.capabilities.size === right.capabilities.size &&
     [...left.capabilities].every((capability) => right.capabilities.has(capability)) &&
     left.inputModalities.size === right.inputModalities.size &&

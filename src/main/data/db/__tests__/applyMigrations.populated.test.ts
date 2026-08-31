@@ -106,6 +106,59 @@ describe('applyMigrations over a populated database', () => {
       .run('44444444-4444-7444-8444-444444444444', '11111111-1111-7111-8111-111111111111', now, now)
   }
 
+  it('backfills text generation only when a persisted capability list has no operation', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('operation-migration', 'Operation Migration', 'a0', ?, ?)`
+      )
+      .run(now, now)
+
+    const insert = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, preset_model_id, name, capabilities, supports_streaming,
+          is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'operation-migration', ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`
+    )
+    const cases = [
+      ['empty', 'Empty', '[]'],
+      ['feature', 'Feature', '["function-call"]'],
+      ['embedding', 'Embedding', '["embedding"]'],
+      ['rerank', 'Rerank', '["rerank"]'],
+      ['image', 'Image', '["image-generation"]'],
+      ['transcript', 'Transcript', '["audio-transcript"]'],
+      ['speech', 'Speech', '["audio-generation"]'],
+      ['video', 'Video', '["video-generation"]'],
+      ['multi', 'Multi', '["text-generation","embedding"]']
+    ] as const
+    for (const [index, [modelId, name, capabilities]] of cases.entries()) {
+      insert.run(`operation-migration::${modelId}`, modelId, null, name, capabilities, 1, `a${index}`, now, now)
+    }
+    insert.run('operation-migration::preset', 'preset', 'preset', null, null, null, 'a9', now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    const rows = sqlite
+      .prepare(
+        "SELECT model_id, capabilities FROM user_model WHERE provider_id = 'operation-migration' ORDER BY order_key"
+      )
+      .all() as Array<{ model_id: string; capabilities: string | null }>
+    expect(rows.map((row) => [row.model_id, row.capabilities ? JSON.parse(row.capabilities) : null])).toEqual([
+      ['empty', ['text-generation']],
+      ['feature', ['function-call', 'text-generation']],
+      ['embedding', ['embedding']],
+      ['rerank', ['rerank']],
+      ['image', ['image-generation']],
+      ['transcript', ['audio-transcript']],
+      ['speech', ['audio-generation']],
+      ['video', ['video-generation']],
+      ['multi', ['text-generation', 'embedding']],
+      ['preset', null]
+    ])
+  })
+
   it('widens the mcp_server install_source check to accept ai_assisted without dropping servers', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
     const now = Date.now()

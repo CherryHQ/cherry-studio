@@ -14,7 +14,7 @@ const model = (apiModelId: string, overrides: Partial<Model> = {}): Model => ({
   providerId: 'provider',
   apiModelId,
   name: apiModelId,
-  capabilities: [],
+  capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false,
@@ -58,7 +58,9 @@ describe('server-tool model eligibility', () => {
         }
       ]
     } as Provider
-    const flash = model('deepseek-v4-flash', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const flash = model('deepseek-v4-flash', {
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
     const route = (endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
       resolveWebToolRoutes(flash, deepseek, {
         webSearchEnabled: true,
@@ -114,7 +116,9 @@ describe('server-tool model eligibility', () => {
       id: providerId,
       serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent', vendors: ['gemini', 'openai'] }]
     } as unknown as Provider
-    const gemini25 = model('google/gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const gemini25 = model('google/gemini-2.5-pro', {
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+    })
 
     expect(
       resolveWebToolRoutes(gemini25, gateway, {
@@ -129,7 +133,9 @@ describe('server-tool model eligibility', () => {
     // Gemini 3 combines them, so the same gateway keeps the server route.
     expect(
       resolveWebToolRoutes(
-        model('google/gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }),
+        model('google/gemini-3-1-pro-preview', {
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+        }),
         {
           ...gateway
         } as Provider,
@@ -151,7 +157,7 @@ describe('server-tool model eligibility', () => {
 
 describe('web-tool routing', () => {
   const claude = model('claude-sonnet-4-6', {
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
   })
   const serverProvider = {
     id: 'anthropic',
@@ -248,7 +254,9 @@ describe('web-tool routing', () => {
 })
 
 describe('conflict-aware routing', () => {
-  const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+  const gemini25 = model('gemini-2.5-pro', {
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+  })
   const geminiProvider = {
     id: 'gemini',
     serverTools: [
@@ -286,7 +294,9 @@ describe('conflict-aware routing', () => {
   })
 
   it('suppresses OpenAI native search under minimal reasoning effort', () => {
-    const gpt5 = model('gpt-5', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] })
+    const gpt5 = model('gpt-5', {
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+    })
     const openaiProvider = {
       id: 'openai',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
@@ -317,7 +327,9 @@ describe('conflict-aware routing', () => {
   })
 
   it('uses the effective endpoint for minimal-reasoning conflicts on an aggregator', () => {
-    const gpt5 = model('gpt-5', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING] })
+    const gpt5 = model('gpt-5', {
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+    })
     const newApiProvider = {
       id: 'new-api',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -357,8 +369,12 @@ describe('conflict-aware routing', () => {
 })
 
 describe('finalizeWebToolRoutes', () => {
-  const gemini25 = model('gemini-2.5-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
-  const gemini3 = model('gemini-3-1-pro-preview', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+  const gemini25 = model('gemini-2.5-pro', {
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+  })
+  const gemini3 = model('gemini-3-1-pro-preview', {
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+  })
   const geminiProvider = { id: 'gemini', serverTools: [] } as unknown as Provider
   const openrouterLike = { id: 'openrouter', serverTools: [] } as unknown as Provider
 

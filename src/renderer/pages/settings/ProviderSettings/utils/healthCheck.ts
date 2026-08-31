@@ -2,15 +2,13 @@ import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import { providerErrorText, serializeHealthCheckError } from '@renderer/utils/error'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import {
-  isGenerateAudioModel,
-  isGenerateImageModel,
-  isGenerateVideoModel,
-  isSpeechToTextModel,
-  isTextToSpeechModel
-} from '@shared/utils/model'
+  getModelOperationCapabilities,
+  type Model,
+  MODEL_CAPABILITY,
+  type UniqueModelId
+} from '@shared/data/types/model'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import type {
@@ -19,7 +17,6 @@ import type {
   ModelCheckCredentialPolicy,
   ModelCheckKeySelection,
   ModelCheckOptions,
-  ModelHealthCheckGenerationOutput,
   ModelHealthCheckSkipReason,
   ModelWithStatus
 } from '../types/healthCheck'
@@ -158,36 +155,15 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   }
 }
 
-export function getModelHealthCheckGenerationOutput(model: Model): ModelHealthCheckGenerationOutput | null {
-  if (isGenerateImageModel(model)) {
-    return 'image'
-  }
-
-  if (isGenerateVideoModel(model)) {
-    return 'video'
-  }
-
-  if (isGenerateAudioModel(model)) {
-    return 'audio'
-  }
-
-  return null
-}
-
 export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSkipReason | null {
-  const generationOutput = getModelHealthCheckGenerationOutput(model)
-  if (generationOutput) {
-    return {
-      kind: 'generation_cost',
-      output: generationOutput
-    }
-  }
-
-  if (isTextToSpeechModel(model) || isSpeechToTextModel(model)) {
-    return { kind: 'unsupported_probe' }
-  }
-
-  return null
+  const operations = getModelOperationCapabilities(model.capabilities)
+  const supportsProbe = [
+    MODEL_CAPABILITY.TEXT_GENERATION,
+    MODEL_CAPABILITY.RERANK,
+    MODEL_CAPABILITY.EMBEDDING,
+    MODEL_CAPABILITY.IMAGE_GENERATION
+  ].some((operation) => operations.includes(operation))
+  return supportsProbe ? null : { kind: 'unsupported_probe' }
 }
 
 export function summarizeHealthResults(results: ModelWithStatus[], providerName?: string): string {

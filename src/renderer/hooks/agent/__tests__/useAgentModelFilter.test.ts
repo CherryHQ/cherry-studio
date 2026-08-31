@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
 
-function model(capabilities: Model['capabilities'] = []): Model {
+function model(capabilities: Model['capabilities'] = [MODEL_CAPABILITY.TEXT_GENERATION]): Model {
   return {
     id: 'openai::gpt-4o',
     providerId: 'openai',

@@ -14,7 +14,7 @@
 
 import { hasRuntimeTransportAdapter } from '@shared/data/presets/runtimeTransport'
 import type { Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getModelPreferredEndpoint, isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -97,7 +97,7 @@ export function resolvePiApi(provider: Provider, model: Model): PiApi | undefine
   // injects their OAuth token + provider headers + payload rewrite per request —
   // so they ARE drivable and fall through to the normal endpoint mapping.
   if (isLoginBasedProvider(provider) && !hasRuntimeTransportAdapter(provider.id)) return undefined
-  const endpointType = getModelPreferredEndpoint(model, provider)
+  const endpointType = getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToPiApi(endpointType, adapterFamily)
 }

@@ -84,6 +84,11 @@ export default openaiCompatible({
   id: 'nvidia',
   name: 'nvidia',
   baseUrl: 'https://integrate.api.nvidia.com',
+  additionalEndpointConfigs: {
+    'jina-rerank': { adapterFamily: 'openai-compatible' },
+    'openai-embeddings': { adapterFamily: 'openai-compatible' },
+    'openai-image-generation': { adapterFamily: 'openai-compatible' }
+  },
   // NIM reasoning controls are model-specific. Unknown/new models stay
   // fail-closed until an exact contract is audited below.
   reasoningFormat: { type: 'openai-chat', wire: { disabled: true } },

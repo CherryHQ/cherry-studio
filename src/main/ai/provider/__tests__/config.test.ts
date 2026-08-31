@@ -902,10 +902,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('cherryin')
     })
 
-    it('leaves a CherryIn image model on an undeclared endpoint (e.g. imagen via openai-image-generation) on openai-compatible', async () => {
-      // Only `google-generate-content` (Gemini) is declared. An imagen model reports
-      // `openai-image-generation`, which stays undeclared → resolveAiSdkProviderId
-      // returns openai-compatible, keeping imagen on its working `/v1/images/*` path.
+    it('routes a CherryIn imagen model through its declared image endpoint', async () => {
       getByProviderIdMock.mockReturnValue(makeProvider({ id: 'cherryin', endpointConfigs: {} }))
       const provider = makeProvider({
         id: 'cherryin',
@@ -923,7 +920,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model)
-      expect(config.providerId).toBe('openai-compatible')
+      expect(config.providerId).toBe('cherryin-chat')
     })
 
     it('routes a preset-derived CherryIN instance (custom host) through buildCherryinConfig with ITS OWN relay base URLs (REGRESSION)', async () => {

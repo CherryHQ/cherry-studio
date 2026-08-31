@@ -4040,6 +4040,7 @@
   "settings.models.add.model_name.label": "Nume model",
   "settings.models.add.model_name.placeholder": "De ex. GPT-5.5",
   "settings.models.add.model_type.label": "Tip model",
+  "settings.models.add.operations.label": "Operațiuni ale modelului",
   "settings.models.add.preferred_endpoint.inherit": "Moștenire",
   "settings.models.add.preferred_endpoint.inherit_resolved": "Moștenire ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Endpoint preferat",

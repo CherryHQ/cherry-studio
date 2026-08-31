@@ -8,7 +8,12 @@ import {
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
 import type { TokenUsageSource } from '@cherrystudio/analytics-client'
-import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
+import {
+  endpointAllowedOperationCapabilities,
+  endpointDefaultOperationCapability,
+  getModelOperationCapabilities,
+  type ParamValues
+} from '@cherrystudio/provider-registry'
 import {
   type AiUsageCaptureContext,
   aiUsageRecordService,
@@ -31,12 +36,12 @@ import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { ImageGenerationMode } from '@shared/data/types/model'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { EndpointType, ImageGenerationMode, ModelOperationCapability } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
-import { getModelPreferredEndpoint, isOllamaProvider } from '@shared/utils/provider'
+import { isFunctionCallingModel } from '@shared/utils/model'
+import { getModelPreferredEndpoint, isModelEndpointTypeAvailable, isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -777,7 +782,13 @@ export class AiService extends BaseService {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      [],
+      undefined,
+      MODEL_CAPABILITY.IMAGE_GENERATION
+    )
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -986,7 +997,13 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      [],
+      undefined,
+      MODEL_CAPABILITY.EMBEDDING
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1033,7 +1050,7 @@ export class AiService extends BaseService {
       provider,
       model,
       assistant
-    } = await this.buildAgentParamsFor(request, signal)
+    } = await this.buildAgentParamsFor(request, signal, [], undefined, MODEL_CAPABILITY.RERANK)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1118,7 +1135,7 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /** Dispatches rerank first, then prefers text for chat-primary models over embedding. */
+  /** Runs one representative operation through the model's effective endpoint contract. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { provider, model } = this.getProviderAndModel(request)
     const start = performance.now()
@@ -1134,8 +1151,56 @@ export class AiService extends BaseService {
       }
     }
 
-    const effectiveEndpoint = getModelPreferredEndpoint(model, provider)
-    const hasChatEndpoint = effectiveEndpoint != null && endpointImpliedCapability(effectiveEndpoint) === undefined
+    const modelOperations = getModelOperationCapabilities(model.capabilities)
+    const operationForEndpoint = (endpointType: EndpointType | undefined): ModelOperationCapability | undefined => {
+      if (!endpointType) return undefined
+      const allowed = endpointAllowedOperationCapabilities(endpointType)
+      const defaultOperation = endpointDefaultOperationCapability(endpointType)
+      if (defaultOperation && modelOperations.includes(defaultOperation)) return defaultOperation
+      return allowed.find((operation) => modelOperations.includes(operation))
+    }
+
+    const preferredEndpoint = model.preferredEndpointType
+    let operation =
+      preferredEndpoint &&
+      model.endpointTypes?.includes(preferredEndpoint) &&
+      isModelEndpointTypeAvailable(model, provider, preferredEndpoint)
+        ? operationForEndpoint(preferredEndpoint)
+        : undefined
+
+    if (!operation) {
+      for (const endpointType of model.endpointTypes ?? []) {
+        operation = operationForEndpoint(endpointType)
+        if (operation) break
+      }
+    }
+
+    if (
+      !operation &&
+      !model.endpointTypes?.length &&
+      modelOperations.includes(MODEL_CAPABILITY.TEXT_GENERATION) &&
+      getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
+    ) {
+      operation = MODEL_CAPABILITY.TEXT_GENERATION
+    }
+
+    operation ??= [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.IMAGE_GENERATION].find(
+      (candidate) => modelOperations.includes(candidate)
+    )
+
+    if (!operation) {
+      const unsupportedOperations: readonly ModelOperationCapability[] = [
+        MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+        MODEL_CAPABILITY.AUDIO_GENERATION,
+        MODEL_CAPABILITY.VIDEO_GENERATION
+      ]
+      const unsupportedOperation = modelOperations.find((candidate) => unsupportedOperations.includes(candidate))
+      throw new Error(
+        unsupportedOperation
+          ? `Model health checks do not support the '${unsupportedOperation}' operation`
+          : 'Model has no operation that supports health checks'
+      )
+    }
 
     // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
     const controller = new AbortController()
@@ -1152,16 +1217,16 @@ export class AiService extends BaseService {
       requestOptions: { ...request.requestOptions, signal: controller.signal }
     }
     let probe: Promise<unknown>
-    if (isRerankModel(model)) {
+    if (operation === MODEL_CAPABILITY.RERANK) {
       probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
         if (result.ranking.length === 0) {
           throw new Error('Rerank health check returned empty ranking')
         }
         return result
       })
-    } else if (isEmbeddingModel(model) && !hasChatEndpoint) {
+    } else if (operation === MODEL_CAPABILITY.EMBEDDING) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (isGenerateImageModel(model) && !hasChatEndpoint) {
+    } else if (operation === MODEL_CAPABILITY.IMAGE_GENERATION) {
       // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
       probe = this.generateImage({
         ...probeRequest,
@@ -1169,10 +1234,12 @@ export class AiService extends BaseService {
         paramValues: {},
         cleanupPolicy: 'delete_when_unreferenced'
       })
-    } else {
+    } else if (operation === MODEL_CAPABILITY.TEXT_GENERATION) {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
       probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
+    } else {
+      throw new Error(`Model health checks do not support the '${operation}' operation`)
     }
 
     try {
@@ -1189,7 +1256,8 @@ export class AiService extends BaseService {
     request: AsInProcess<AiBaseRequest> & { chatId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    getRepairUsagePlugins?: () => AiPlugin[]
+    getRepairUsagePlugins?: () => AiPlugin[],
+    operationCapability: ModelOperationCapability = MODEL_CAPABILITY.TEXT_GENERATION
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -1197,6 +1265,7 @@ export class AiService extends BaseService {
       signal,
       provider,
       model,
+      operationCapability,
       assistant,
       extraFeatures,
       getRepairUsagePlugins,

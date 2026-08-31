@@ -141,6 +141,9 @@ export default defineProvider({
         }
       }
     },
+    'openai-image-generation': {
+      adapterFamily: 'doubao'
+    },
     'openai-responses': {
       adapterFamily: 'openai',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',

@@ -135,6 +135,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',
       apiModelId: 'claude-sonnet',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       contextWindow: 128_000,
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
@@ -224,7 +225,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     mocks.getModelByKey.mockReturnValue({
       id: 'model-1',
       apiModelId: 'claude-sonnet',
-      capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_RECOGNITION]
     })
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1')
@@ -236,7 +237,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       expect.anything()
     )
 
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'text-only', capabilities: [] })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'text-only',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    })
 
     await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
@@ -838,16 +843,20 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('routes an endpointless model through the gateway instead of treating it as a direct Anthropic route', async () => {
-    mocks.getModelByKey.mockReturnValue({ id: 'model-1', apiModelId: 'endpointless-model' })
+  it('uses the required Anthropic route for an endpointless text model when the provider serves it', async () => {
+    mocks.getModelByKey.mockReturnValue({
+      id: 'model-1',
+      apiModelId: 'endpointless-model',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+    })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(request?.settings.env).toMatchObject({
-      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
-      ANTHROPIC_MODEL: 'provider-1:endpointless-model'
+      ANTHROPIC_BASE_URL: 'https://anthropic.example.com',
+      ANTHROPIC_MODEL: 'endpointless-model'
     })
   })
 

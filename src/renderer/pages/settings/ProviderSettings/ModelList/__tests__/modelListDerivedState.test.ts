@@ -17,7 +17,7 @@ const models = [
     name: 'Alpha Free',
     providerId: 'openai',
     group: 'chat',
-    capabilities: [MODEL_CAPABILITY.REASONING],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING],
     isEnabled: true
   },
   {
@@ -25,7 +25,7 @@ const models = [
     name: 'Alpha',
     providerId: 'openai',
     group: undefined,
-    capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_RECOGNITION],
     isEnabled: true
   },
   {
@@ -41,7 +41,7 @@ const models = [
     name: 'Gamma',
     providerId: 'openai',
     group: 'chat',
-    capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL],
     isEnabled: true
   },
   {

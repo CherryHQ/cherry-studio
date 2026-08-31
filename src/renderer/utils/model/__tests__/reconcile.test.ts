@@ -10,7 +10,7 @@ import {
   resolveReasoningEffortForModel
 } from '../reconcile'
 
-const createModel = (capabilities: ModelCapability[] = []): Model => ({
+const createModel = (capabilities: ModelCapability[] = [MODEL_CAPABILITY.TEXT_GENERATION]): Model => ({
   id: 'provider::model',
   providerId: 'provider',
   apiModelId: 'model',
@@ -24,7 +24,7 @@ const createModel = (capabilities: ModelCapability[] = []): Model => ({
 const providerWith = (serverTools: Provider['serverTools']): Provider => ({ id: 'anthropic', serverTools }) as Provider
 
 const reasoningModel = (reasoning: RuntimeReasoning): Model => ({
-  ...createModel([MODEL_CAPABILITY.REASONING]),
+  ...createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING]),
   reasoning
 })
 
@@ -62,7 +62,7 @@ describe('reconcile web search', () => {
   })
 
   it('keeps enabled web search for function-calling models', () => {
-    const nextModel = createModel([MODEL_CAPABILITY.FUNCTION_CALL])
+    const nextModel = createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL])
 
     expect(canModelUseAssistantWebSearch(nextModel, undefined)).toBe(true)
     expect(reconcileWebSearchForModel(nextModel, { enableWebSearch: true }, undefined)).toBeNull()
@@ -112,7 +112,7 @@ describe('reconcile reasoning effort (descriptor-driven, #16598)', () => {
   })
 
   it('switching to a knob-less model clears the effort', () => {
-    const fixed = createModel([MODEL_CAPABILITY.REASONING]) // reasons, no descriptor
+    const fixed = createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.REASONING]) // reasons, no descriptor
     expect(reconcileReasoningEffortForModel(fixed, 'high')).toEqual({ reasoning_effort: undefined })
   })
 

@@ -30,13 +30,18 @@ const chatFixedModels = [
   // GLM-5.3 reached opencode's listing without a zhipu catalog entry: pin the wire it serves so it
   // can't silently fall back, and claim no effort knobs until the contract is known.
   'glm-5-3',
+  'glm-5-3-flash',
+  'grok-4-6',
+  'hy4-preview',
   'kimi-k2-5',
   'kimi-k2-6',
   'kimi-k2-7-code',
+  'longcat-2-0',
   'mimo-v2-5',
   'mimo-v2-5-pro',
   'mimo-v2-omni',
-  'mimo-v2-pro'
+  'mimo-v2-pro',
+  'qwen3-8-flash'
 ]
 
 const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = [

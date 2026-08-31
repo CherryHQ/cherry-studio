@@ -7,9 +7,9 @@ import { PROVIDERS } from '../providers'
  * Per-model endpoint pins are a VENDOR CAPABILITY MATRIX, so they are asserted against the
  * vendor docs rather than against whatever the source happens to say.
  *
- * The invariant that matters: `resolveEffectiveEndpoint` takes `endpointTypes[0]`, and a model
- * absent from `endpointTypes` cannot be reached at all from the endpoint picker. So a one-element
- * pin REMOVES an endpoint, and must be justified by the vendor actually not serving it.
+ * The invariant that matters: text routing takes the first compatible declared endpoint, and a model
+ * absent from `endpointTypes` cannot be reached at all from the endpoint picker. So a one-element pin
+ * REMOVES an endpoint, and must be justified by the vendor actually not serving it.
  */
 const provider = (providerId: string) => {
   const result = PROVIDERS.find(({ id }) => id === providerId)
@@ -90,7 +90,7 @@ describe('deepseek endpoint matrix', () => {
    * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
    * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
    * different model than the one selected. It trails the other two on every V4 SKU because
-   * `endpointTypes[0]` is what routes in-app chat.
+   * declaration order chooses the default text route.
    */
   it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'prefers Responses for %s while keeping Chat Completions selectable',

@@ -215,17 +215,12 @@ describe('resolveModelCheckCredentials', () => {
 
 describe('getModelHealthCheckSkipReason', () => {
   it('skips generation and speech models with an explicit reason', () => {
-    expect(getModelHealthCheckSkipReason(createModel('image', [MODEL_CAPABILITY.IMAGE_GENERATION]))).toEqual({
-      kind: 'generation_cost',
-      output: 'image'
-    })
+    expect(getModelHealthCheckSkipReason(createModel('image', [MODEL_CAPABILITY.IMAGE_GENERATION]))).toBeNull()
     expect(getModelHealthCheckSkipReason(createModel('video', [MODEL_CAPABILITY.VIDEO_GENERATION]))).toEqual({
-      kind: 'generation_cost',
-      output: 'video'
+      kind: 'unsupported_probe'
     })
     expect(getModelHealthCheckSkipReason(createModel('audio', [MODEL_CAPABILITY.AUDIO_GENERATION]))).toEqual({
-      kind: 'generation_cost',
-      output: 'audio'
+      kind: 'unsupported_probe'
     })
     expect(getModelHealthCheckSkipReason(createModel('speech-to-text', [MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toEqual({
       kind: 'unsupported_probe'
@@ -233,8 +228,13 @@ describe('getModelHealthCheckSkipReason', () => {
   })
 
   it('keeps text, embedding, and rerank models available for checks', () => {
-    expect(getModelHealthCheckSkipReason(createModel('chat', []))).toBeNull()
+    expect(getModelHealthCheckSkipReason(createModel('chat', [MODEL_CAPABILITY.TEXT_GENERATION]))).toBeNull()
     expect(getModelHealthCheckSkipReason(createModel('embedding', [MODEL_CAPABILITY.EMBEDDING]))).toBeNull()
     expect(getModelHealthCheckSkipReason(createModel('rerank', [MODEL_CAPABILITY.RERANK]))).toBeNull()
+    expect(
+      getModelHealthCheckSkipReason(
+        createModel('chat-and-audio', [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.AUDIO_GENERATION])
+      )
+    ).toBeNull()
   })
 })

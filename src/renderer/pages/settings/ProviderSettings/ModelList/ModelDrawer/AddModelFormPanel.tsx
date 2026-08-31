@@ -23,38 +23,21 @@ import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
-  applyModelPurpose,
-  getInitialChatEndpointType,
   getModelDrawerMode,
   getProviderChatEndpointTypes,
-  inferModelPurpose,
-  type ModelPurposeFields,
+  resolveEndpointTypeOptions,
   resolvePreferredEndpointOptions
-} from './modelPurpose'
-import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
+} from './modelEndpointRouting'
 import type {
   AddModelDrawerPrefill,
+  EditableModelOperationCapability,
   ModelBasicFormState,
   ModelCapabilityToggle,
   ModelDrawerMode,
-  ModelInputModality,
-  ModelPrimaryType
+  ModelInputModality
 } from './types'
 
 const PROVIDER_PRESET_MODEL_FIELDS = ['models'] as const
-
-function getInitialPurposeFields(
-  prefill: AddModelDrawerPrefill | null,
-  defaultEndpointType: EndpointType
-): ModelPurposeFields {
-  const initialForm = getInitialAddModelFormState(prefill, defaultEndpointType)
-  return {
-    endpointTypes: initialForm.endpointTypes,
-    capabilities: prefill?.model?.capabilities,
-    inputModalities: prefill?.model?.inputModalities,
-    outputModalities: prefill?.model?.outputModalities
-  }
-}
 
 export interface AddModelDrawerFooterBinding {
   isSubmitting: boolean
@@ -88,14 +71,12 @@ export default function AddModelFormPanel({
   const [formState, setFormState] = useState<ModelBasicFormState>(() =>
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
-  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>(() =>
-    getInitialPurposeFields(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-  )
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   // Undefined until the user picks: an untouched picker must not pin the model to today's default.
   const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
+  const [classificationTouched, setClassificationTouched] = useState(false)
   const [inputModalitiesTouched, setInputModalitiesTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -106,6 +87,7 @@ export default function AddModelFormPanel({
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const endpointTypeOptions = resolveEndpointTypeOptions(provider, classification.operationCapabilities)
   const { data: providerPreset } = useProviderPreset(
     provider && mode === 'legacy' ? providerId : null,
     PROVIDER_PRESET_MODEL_FIELDS
@@ -126,19 +108,18 @@ export default function AddModelFormPanel({
       : resolvePreferredEndpointOptions(
           provider,
           mode,
-          mode === 'endpoint-types' ? formState.endpointTypes : enteredPresetEndpointTypes
+          mode === 'endpoint-types' ? formState.endpointTypes : enteredPresetEndpointTypes,
+          classification.operationCapabilities
         )
   const pinnedPreferredEndpoint = preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType)
-  const modelPurpose = inferModelPurpose(purposeFields)
-  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
 
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, defaultChatEndpoint))
-    setPurposeFields(getInitialPurposeFields(prefill, defaultChatEndpoint))
     setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setPreferredEndpointType(undefined)
+    setClassificationTouched(false)
     setInputModalitiesTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
@@ -179,22 +160,10 @@ export default function AddModelFormPanel({
 
       const classifiedCapabilities = buildModelCapabilities(prefill?.model?.capabilities ?? [], classification)
       const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
-      const submittedPurposeFields =
-        mode === 'purpose'
-          ? applyModelPurpose(
-              {
-                ...purposeFields,
-                capabilities: classifiedCapabilities,
-                inputModalities: classifiedInputModalities
-              },
-              modelPurpose,
-              {
-                previousPurpose: 'chat',
-                chatEndpointType
-              }
-            )
-          : null
-      const submittedInputModalities = submittedPurposeFields?.inputModalities ?? classifiedInputModalities
+      const submittedInputModalities = classifiedInputModalities
+      const isRegistryModel = providerPreset?.models?.some((model) => getModelApiId(model) === modelId) ?? false
+      const shouldSubmitCapabilities =
+        mode === 'endpoint-types' || prefill?.model != null || classificationTouched || !isRegistryModel
       const shouldSubmitInputModalities =
         inputModalitiesTouched ||
         prefill?.model?.inputModalities !== undefined ||
@@ -206,15 +175,11 @@ export default function AddModelFormPanel({
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
         endpointTypes:
-          submittedPurposeFields != null
-            ? [...submittedPurposeFields.endpointTypes]
-            : mode === 'endpoint-types' && values.endpointTypes?.length
-              ? [...values.endpointTypes]
-              : undefined,
+          mode === 'endpoint-types' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
         ...(pinnedPreferredEndpoint ? { preferredEndpointType: pinnedPreferredEndpoint } : {}),
-        capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
+        ...(shouldSubmitCapabilities ? { capabilities: classifiedCapabilities } : {}),
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
-        outputModalities: submittedPurposeFields?.outputModalities,
+        outputModalities: prefill?.model?.outputModalities,
         ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
         ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
         ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
@@ -223,18 +188,17 @@ export default function AddModelFormPanel({
       return true
     },
     [
-      chatEndpointType,
       classification,
+      classificationTouched,
       createModel,
       mode,
-      modelPurpose,
       models,
       pinnedPreferredEndpoint,
       inputModalitiesTouched,
       prefill?.model,
       provider,
       providerId,
-      purposeFields,
+      providerPreset?.models,
       t
     ]
   )
@@ -301,11 +265,31 @@ export default function AddModelFormPanel({
     }
   }, [addSingleModel, formState, mode, onSuccess, t])
 
-  const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
-    setClassification((current) => ({ ...current, primaryType }))
-  }, [])
+  const handleOperationCapabilityToggle = useCallback(
+    (operationCapability: EditableModelOperationCapability) => {
+      const operationCapabilities = new Set(classification.operationCapabilities)
+      if (operationCapabilities.has(operationCapability)) {
+        if (operationCapabilities.size === 1) return
+        operationCapabilities.delete(operationCapability)
+      } else {
+        operationCapabilities.add(operationCapability)
+      }
+      const allowedEndpoints = new Set(resolveEndpointTypeOptions(provider, operationCapabilities))
+      setClassificationTouched(true)
+      setClassification({ ...classification, operationCapabilities })
+      setFormState((form) => ({
+        ...form,
+        endpointTypes: form.endpointTypes?.filter((endpointType) => allowedEndpoints.has(endpointType))
+      }))
+      setPreferredEndpointType((endpointType) =>
+        endpointType && allowedEndpoints.has(endpointType) ? endpointType : undefined
+      )
+    },
+    [classification, provider]
+  )
 
   const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
+    setClassificationTouched(true)
     setClassification((current) => {
       const capabilities = new Set(current.capabilities)
       if (capabilities.has(capability)) {
@@ -318,6 +302,7 @@ export default function AddModelFormPanel({
   }, [])
 
   const handleInputModalityToggle = useCallback((modality: ModelInputModality) => {
+    setClassificationTouched(true)
     setInputModalitiesTouched(true)
     setClassification((current) => {
       const inputModalities = new Set(current.inputModalities)
@@ -387,6 +372,7 @@ export default function AddModelFormPanel({
           <ModelBasicFields
             values={formState}
             showEndpointType={mode === 'endpoint-types'}
+            endpointTypeOptions={endpointTypeOptions}
             preferredEndpointOptions={preferredEndpointOptions}
             preferredEndpointType={pinnedPreferredEndpoint}
             inheritedEndpointType={preferredEndpointOptions[0]}
@@ -408,34 +394,6 @@ export default function AddModelFormPanel({
               setFormState((current) => ({ ...current, endpointTypes: [...next] }))
             }}
           />
-          {mode === 'purpose' && (
-            <ModelPurposeFieldsControl
-              purpose={modelPurpose}
-              chatEndpointType={chatEndpointType}
-              chatEndpointTypes={providerChatEndpointTypes}
-              onPurposeChange={(nextPurpose) => {
-                setClassification((current) => ({
-                  ...current,
-                  primaryType:
-                    nextPurpose === 'chat' ? (current.primaryType === 'image' ? 'text' : current.primaryType) : 'image'
-                }))
-                setPurposeFields((current) =>
-                  applyModelPurpose(current, nextPurpose, {
-                    previousPurpose: inferModelPurpose(current),
-                    chatEndpointType
-                  })
-                )
-              }}
-              onChatEndpointTypeChange={(nextEndpointType) => {
-                setPurposeFields((current) =>
-                  applyModelPurpose(current, 'chat', {
-                    previousPurpose: inferModelPurpose(current),
-                    chatEndpointType: nextEndpointType
-                  })
-                )
-              }}
-            />
-          )}
         </div>
       </ProviderSection>
 
@@ -464,7 +422,7 @@ export default function AddModelFormPanel({
             <div className={drawerClasses.sectionCard}>
               <ModelClassificationControls
                 value={classification}
-                onPrimaryTypeChange={handlePrimaryTypeChange}
+                onOperationCapabilityToggle={handleOperationCapabilityToggle}
                 onCapabilityToggle={handleCapabilityToggle}
                 onInputModalityToggle={handleInputModalityToggle}
               />
