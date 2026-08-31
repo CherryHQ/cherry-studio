@@ -12,6 +12,8 @@ const logger = loggerService.withContext('PreferenceSeeder')
 const MODEL_ID_PREFERENCE_KEYS = new Set([
   'chat.context_settings.compress.model_id',
   'chat.default_model_id',
+  'feature.openclaw.selected_model_id',
+  'feature.paintings.default_model_id',
   'feature.quick_assistant.model_id',
   'feature.translate.model_id'
 ])
@@ -20,6 +22,12 @@ interface RawPreferenceRow {
   key: string
   scope: string
   value: string | null
+}
+
+interface PreferenceRepairLog {
+  action: 'encoded legacy model id' | 'reset to default' | 'encoded raw value'
+  key: string
+  scope: string
 }
 
 const defaultPreferences: Record<string, unknown> = DefaultPreferences.default
@@ -34,6 +42,8 @@ export class PreferenceSeeder implements ISeeder {
   }
 
   run(db: DbType): void {
+    const repairs: PreferenceRepairLog[] = []
+
     db.transaction((tx) => {
       const invalidPreferences = tx.all<RawPreferenceRow>(sql`
         SELECT scope, key, value
@@ -55,7 +65,7 @@ export class PreferenceSeeder implements ISeeder {
           .set({ value: repairedValue })
           .where(and(eq(preferenceTable.scope, preference.scope), eq(preferenceTable.key, preference.key)))
           .run()
-        logger.warn('Repaired invalid JSON preference value', {
+        repairs.push({
           action: isLegacyModelId ? 'encoded legacy model id' : hasDefault ? 'reset to default' : 'encoded raw value',
           key: preference.key,
           scope: preference.scope
@@ -101,5 +111,9 @@ export class PreferenceSeeder implements ISeeder {
         tx.insert(preferenceTable).values(newPreferences).run()
       }
     })
+
+    for (const repair of repairs) {
+      logger.warn('Repaired invalid JSON preference value', repair)
+    }
   }
 }

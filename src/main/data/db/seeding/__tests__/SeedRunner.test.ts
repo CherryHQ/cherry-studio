@@ -186,4 +186,12 @@ describe('SeedRunner', () => {
     const assistants = await dbh.db.select().from(assistantTable)
     expect(assistants).toHaveLength(1)
   })
+
+  it('runs PreferenceSeeder before other production seeders and keeps CherryAI model before assistants', () => {
+    expect(seeders[0]?.name).toBe('preference')
+    const cherryAiIndex = seeders.findIndex((seeder) => seeder.name === 'cherryaiDefaultModel')
+    const defaultAssistantIndex = seeders.findIndex((seeder) => seeder.name === 'defaultAssistant')
+    expect(cherryAiIndex).toBeGreaterThanOrEqual(0)
+    expect(defaultAssistantIndex).toBeGreaterThan(cherryAiIndex)
+  })
 })

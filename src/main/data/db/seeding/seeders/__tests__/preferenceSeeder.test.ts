@@ -15,6 +15,8 @@ describe('PreferenceSeeder', () => {
   const modelPreferenceKeys = [
     'chat.context_settings.compress.model_id',
     'chat.default_model_id',
+    'feature.openclaw.selected_model_id',
+    'feature.paintings.default_model_id',
     'feature.quick_assistant.model_id',
     'feature.translate.model_id'
   ]
