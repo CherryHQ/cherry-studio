@@ -96,7 +96,7 @@ function renderPreview(
     <HtmlFilePreview
       filePath={overrides.filePath ?? filePath}
       fileName={overrides.fileName ?? 'index.html'}
-      metadata={{ size: overrides.size ?? 42 }}
+      metadata={{ size: overrides.size ?? 42, modifiedAt: 1 }}
       refreshKey={overrides.refreshKey ?? 0}
       type={overrides.type ?? 'file'}
     />
@@ -203,12 +203,22 @@ describe('HtmlFilePreview', () => {
     await screen.findByTestId('html-frame')
 
     view.rerender(
-      <HtmlFilePreview filePath={secondPath} fileName="about.html" metadata={{ size: 42 }} refreshKey={0} />
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="about.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(secondPath))
 
     view.rerender(
-      <HtmlFilePreview filePath={secondPath} fileName="about.html" metadata={{ size: 42 }} refreshKey={1} />
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="about.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={1}
+      />
     )
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledTimes(3))
   })
@@ -227,7 +237,12 @@ describe('HtmlFilePreview', () => {
     await waitFor(() => expect(mocks.readText).toHaveBeenCalledWith(filePath))
 
     view.rerender(
-      <HtmlFilePreview filePath={secondPath} fileName="second.html" metadata={{ size: 42 }} refreshKey={0} />
+      <HtmlFilePreview
+        filePath={secondPath}
+        fileName="second.html"
+        metadata={{ size: 42, modifiedAt: 1 }}
+        refreshKey={0}
+      />
     )
     expect(await screen.findByTestId('html-frame')).toHaveAttribute('srcdoc', '<p>Second</p>')
 

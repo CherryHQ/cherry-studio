@@ -124,7 +124,7 @@ Descriptor rules:
 - `load` must resolve to a module with a default React component export. Keep large rendering libraries inside the lazy module rather than the descriptor.
 - The registry is static configuration. There is no runtime registration, priority, or caller override API.
 
-The plugin component receives the normalized path, extracted filename, preflighted file metadata, and a required refresh key:
+The plugin component receives the normalized path, extracted filename, preflighted file metadata, a required refresh key, and an optional callback for reporting the user's selection (see [Selection references](#selection-references)):
 
 ```ts
 interface FilePreviewPluginProps {
@@ -133,6 +133,7 @@ interface FilePreviewPluginProps {
   metadata: FilePreviewFileMetadata
   refreshKey: number
   type?: 'artifact' | 'file'
+  onSelectionReference?: (reference: SelectionReference | null) => void
 }
 ```
 
@@ -168,8 +169,8 @@ export const filePreviewRegistry = createFilePreviewRegistry({
 
 ## Composition Rules
 
-Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, and optional `type`.
-Follow these boundaries when adding formats or capabilities:
+Keep the public `FilePreview` props minimal: `filePath`, optional `header`, optional `refreshKey`, optional `type`, and
+optional `onSelectionReference`. Follow these boundaries when adding formats or capabilities:
 
 - Express format differences as independent plugins. Do not add booleans such as `isPdf` or `isImage` to `FilePreview`.
 - The plugin owns its loading state, view state, and actions. Its toolbar receives only the state and callbacks required for rendering.
@@ -185,6 +186,26 @@ Follow these boundaries when adding formats or capabilities:
   centered in its own row for Tab and standalone previews.
 
 This composition lets the same plugin work in embedded and tab hosts without format-specific branches.
+
+## Selection References
+
+`onSelectionReference` is an optional pass-through channel for reporting the user's selection as a
+`SelectionReference` (`@renderer/types/selectionReference`) — an anchor into the document's own structural
+coordinates (worksheet range, paragraph ordinal, page number), never DOM or pixel coordinates.
+
+- A plugin that owns a view → structure inverse mapping calls the callback with the current reference, and with
+  `null` when the selection clears. Plugins without such a mapping ignore the prop entirely.
+- The host forwards the callback verbatim. What to do with a reference (show an action, inject it into a
+  conversation) is the embedding surface's concern; neither the host nor the plugin renders reference UI.
+- The host never synthesizes a `null` — a plugin unmount (file switch, refresh) emits nothing, so the embedding
+  surface owns the held reference's lifetime across file changes. Each reference is self-describing (`path` +
+  `fileStamp`), which keeps holding one safe.
+- Producers must fill `excerpt` (plain-text snapshot) and `fileStamp` (size + mtime at capture). A reference
+  travels into the conversation as message text, so the only thing that acts on it is the `office-transform`
+  skill, and the staleness rule lives in that skill's prompt: it tells the model to `stat` the file, compare
+  size and mtime against `fileStamp`, and ask the user to re-select on a mismatch rather than re-anchoring.
+  No code on either side performs that check, so the renderer's job is only to stamp references accurately —
+  if an in-app consumer ever needs the comparison, it belongs with that consumer.
 
 ## File I/O, States, and Errors
 

@@ -230,7 +230,14 @@ let initialDataTheme: string | null
 let themeBackground: string
 
 function renderPreview(refreshKey = 0, size = 1024) {
-  return render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size }} refreshKey={refreshKey} />)
+  return render(
+    <PdfFilePreview
+      filePath={filePath}
+      fileName="paper.pdf"
+      metadata={{ size, modifiedAt: 1 }}
+      refreshKey={refreshKey}
+    />
+  )
 }
 
 async function flushPdfEffects() {
@@ -434,7 +441,14 @@ describe('PdfFilePreview', () => {
     await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(1))
     const firstTransport = mocks.rangeTransportInstances[0]
 
-    view.rerender(<PdfFilePreview filePath={filePath} fileName="paper.pdf" metadata={{ size: 1024 }} refreshKey={1} />)
+    view.rerender(
+      <PdfFilePreview
+        filePath={filePath}
+        fileName="paper.pdf"
+        metadata={{ size: 1024, modifiedAt: 1 }}
+        refreshKey={1}
+      />
+    )
 
     await waitFor(() => expect(mocks.rangeTransportInstances).toHaveLength(2))
     expect(firstTransport.abort).toHaveBeenCalled()

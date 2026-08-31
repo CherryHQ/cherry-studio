@@ -15,7 +15,7 @@ import { FilePreviewLayout } from './FilePreviewLayout'
 import { filePreviewRegistry, resolveExtensionPlugin } from './filePreviewRegistry'
 import { FilePreviewToolbarPortalHost, FilePreviewToolbarPortalProvider } from './FilePreviewToolbar'
 import { textFilePreviewPlugin } from './plugins/text/textFilePreviewPlugin'
-import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewType } from './types'
+import type { FilePreviewFileMetadata, FilePreviewPlugin, FilePreviewPluginProps, FilePreviewType } from './types'
 
 const logger = loggerService.withContext('FilePreview')
 const TEXT_CONTENT_PLUGIN_IDS = new Set(['html', 'markdown', 'text'])
@@ -109,6 +109,7 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
+  onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
   plugin: FilePreviewPlugin
   refreshKey: number
   type: FilePreviewType
@@ -141,6 +142,7 @@ function FilePreviewPluginRenderer({
   fileName,
   filePath,
   metadata,
+  onSelectionReference,
   plugin,
   refreshKey,
   type
@@ -157,6 +159,7 @@ function FilePreviewPluginRenderer({
           filePath={filePath}
           fileName={fileName}
           metadata={metadata}
+          onSelectionReference={onSelectionReference}
           refreshKey={refreshKey}
           type={type}
         />
@@ -170,6 +173,8 @@ export interface FilePreviewProps {
   header?: ReactNode
   refreshKey?: number
   type?: FilePreviewType
+  /** See {@link FilePreviewPluginProps.onSelectionReference}; forwarded to the active plugin as-is. */
+  onSelectionReference?: FilePreviewPluginProps['onSelectionReference']
 }
 
 interface NormalizedFilePreviewTarget {
@@ -189,7 +194,13 @@ type FilePreviewResolution =
       status: 'ready'
     }
 
-export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }: FilePreviewProps) {
+export function FilePreview({
+  filePath,
+  header,
+  refreshKey = 0,
+  type = 'file',
+  onSelectionReference
+}: FilePreviewProps) {
   const file = useMemo(() => {
     try {
       const normalizedPath = normalizeFilePreviewPath(filePath)
@@ -259,6 +270,7 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
       <FilePreviewPluginRenderer
         {...resolution.file}
         metadata={resolution.metadata}
+        onSelectionReference={onSelectionReference}
         plugin={resolution.plugin}
         refreshKey={refreshKey}
         type={type}
