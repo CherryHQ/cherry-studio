@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Έλεγχος",
   "settings.tool.websearch.check_failed": "Αποτυχία επαλήθευσης",
   "settings.tool.websearch.check_success": "Επιτυχής επαλήθευση",
-  "settings.tool.websearch.client_tools_preferred.description": "Χρησιμοποιήστε τις υπηρεσίες αναζήτησης και λήψης URL που έχουν ρυθμιστεί παραπάνω ακόμα και όταν το μοντέλο έχει ενσωματωμένη αναζήτηση. Όταν είναι απενεργοποιημένο, το μοντέλο το χειρίζεται.",
+  "settings.tool.websearch.client_tools_preferred.description": "Από προεπιλογή, χρησιμοποιούνται οι ενσωματωμένες δυνατότητες αναζήτησης και ανάκτησης URL του μοντέλου, με αυτόματη εναλλαγή στις διαμορφωμένες υπηρεσίες όταν δεν είναι διαθέσιμες. Ενεργοποιήστε αυτή την επιλογή για να προτιμώνται οι διαμορφωμένες υπηρεσίες όποτε είναι διαθέσιμες.",
   "settings.tool.websearch.client_tools_preferred.label": "Προτίμηση διαμορφωμένων υπηρεσιών αναζήτησης",
   "settings.tool.websearch.compression.cutoff.limit.label": "Μήκος αποκοπής",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Μήκος εισαγωγής",

@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Erkennen",
   "settings.tool.websearch.check_failed": "Erkennung fehlgeschlagen",
   "settings.tool.websearch.check_success": "Erkennung erfolgreich",
-  "settings.tool.websearch.client_tools_preferred.description": "Verwenden Sie die oben konfigurierten Such- und URL-Abrufdienste auch dann, wenn das Modell eine integrierte Suche hat. Wenn ausgeschaltet, übernimmt das Modell die Verarbeitung.",
+  "settings.tool.websearch.client_tools_preferred.description": "Standardmäßig werden die integrierten Such- und URL-Abruffunktionen des Modells verwendet; sind sie nicht verfügbar, wird auf die konfigurierten Dienste zurückgegriffen. Aktivieren Sie diese Option, um die konfigurierten Dienste zu bevorzugen, sobald sie verfügbar sind.",
   "settings.tool.websearch.client_tools_preferred.label": "Konfigurierte Suchdienste bevorzugen",
   "settings.tool.websearch.compression.cutoff.limit.label": "Abschneidelänge",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Eingabegröße",
