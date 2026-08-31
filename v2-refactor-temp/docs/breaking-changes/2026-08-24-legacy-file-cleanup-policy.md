@@ -8,8 +8,8 @@ date: 2026-08-24
 
 ## What changed
 
-Files that existed when a database completed its one-shot v2 migration and are still referenced by migrated Agent
-Session attachments, chat messages, paintings, provider logos, or mini-app logos now use
+Files and references that both existed when a database completed its one-shot v2 migration, and whose reference is
+from a migrated Agent Session attachment, chat message, painting, provider logo, or mini-app logo, now use
 `delete_when_unreferenced` instead of the conservative `manual` fallback.
 
 ## Why this matters to the user
@@ -25,6 +25,7 @@ independently.
 
 ## Notes for release manager
 
-The migration uses each database's recorded `migration_v2_status.completedAt` boundary. It is restricted to rows
-that existed when that one-shot migration completed, still have the `manual` default, and have a durable reference
-in one of the five legacy migration cohorts. User-created manual files added later are unchanged.
+The run-on-change backfill reads each database's recorded migration completion boundary through the v2 migration
+domain's owner API. It is restricted to file rows and durable references that both existed when that one-shot
+migration completed. Both must belong to one of the five legacy migration cohorts, and the file must still have the
+`manual` default. User-created manual files and references added later are unchanged.

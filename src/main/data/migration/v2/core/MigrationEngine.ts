@@ -64,10 +64,9 @@ import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
 import { MigrationDbService } from './MigrationDbService'
 import type { MigrationPaths } from './MigrationPaths'
+import { MIGRATION_V2_STATUS } from './migrationStatus'
 
 const logger = loggerService.withContext('MigrationEngine')
-
-const MIGRATION_V2_STATUS = 'migration_v2_status'
 
 /**
  * All tables migration writes into — the single source of truth for what
