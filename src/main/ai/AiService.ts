@@ -7,6 +7,7 @@ import {
   type RuntimeProviderCallEvent,
   type RuntimeProviderCallHandler
 } from '@cherrystudio/ai-core'
+import type { TokenUsageSource } from '@cherrystudio/analytics-client'
 import { endpointImpliedCapability, type ParamValues } from '@cherrystudio/provider-registry'
 import {
   type AiUsageCaptureContext,
@@ -34,7 +35,7 @@ import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
-import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel, isFunctionCallingModel, isGenerateImageModel, isRerankModel } from '@shared/utils/model'
 import { isOllamaProvider } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
@@ -151,7 +152,7 @@ function createCaptureContext(input: {
     modelId: input.sdkModelId,
     modelName: input.model.name,
     pricing: input.model.pricing,
-    trustProviderReportedCost: input.provider.apiFeatures.reportsActualCost,
+    trustProviderReportedCost: input.provider.reportsActualCost,
     reportedCostCurrency: input.provider.reportedCostCurrency,
     credentialReceipt: input.credentialReceipt,
     source: input.source,
@@ -208,6 +209,8 @@ export interface AiRequestOptions extends AiTransportOptions {
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
   usageContext?: InProcessUsageContext
+  /** Trusted in-process classification for remote token analytics. */
+  tokenUsageSource?: TokenUsageSource
   runtimeTimingSink?: MessageRuntimeTimingSink
   /**
    * Emits compaction lifecycle events as `data-compaction-anchor` chunks.
@@ -543,7 +546,11 @@ export class AiService extends BaseService {
       model,
       sdkModelId: sdkConfig.modelId,
       credentialReceipt,
-      source: request.usageContext ? request.usageContext.source : sourceSnapshotForAssistant(assistant),
+      // Agent turns win FIRST, `null` included — `usageContext` means "already decided", so a
+      // `??` here would attribute a deliberately-anonymous agent turn to some assistant.
+      source: request.usageContext
+        ? request.usageContext.source
+        : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
         ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
         : request.messageId
@@ -617,7 +624,7 @@ export class AiService extends BaseService {
       system,
       options: wrapModel ? { ...options, maxRetries: 0 } : options,
       hookParts: [
-        this.analyticsHookPart(model),
+        this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
           ? [
               {
@@ -639,8 +646,8 @@ export class AiService extends BaseService {
     return agent.stream(preparedMessages, signal)
   }
 
-  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
-    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage))
+  private analyticsHookPart(model: Model, source: TokenUsageSource = 'chat'): Partial<AgentLoopHooks> {
+    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage, source))
   }
 
   // ── Non-streaming text generation (agent.generate) ──
@@ -710,7 +717,7 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options: wrapModel ? { ...options, maxRetries: 0 } : options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
         mediaCapabilities,
@@ -1008,7 +1015,11 @@ export class AiService extends BaseService {
       ...(signal ? { abortSignal: signal } : {})
     })
 
-    this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+    this.trackUsage(
+      model,
+      { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 },
+      request.tokenUsageSource ?? 'chat'
+    )
 
     return { embeddings: result.embeddings, usage: result.usage }
   }
@@ -1154,6 +1165,14 @@ export class AiService extends BaseService {
       })
     } else if (isEmbeddingModel(model) && !hasChatPrimaryEndpoint) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
+    } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
+      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+      probe = this.generateImage({
+        ...probeRequest,
+        prompt: 'a red circle',
+        paramValues: {},
+        cleanupPolicy: 'delete_when_unreferenced'
+      })
     } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
@@ -1192,11 +1211,14 @@ export class AiService extends BaseService {
 
   // ── Token usage tracking ──
 
-  private trackUsage(model: Model, usage?: { inputTokens?: number; outputTokens?: number }): void {
+  private trackUsage(
+    model: Model,
+    usage?: { inputTokens?: number; outputTokens?: number },
+    source: TokenUsageSource = 'chat'
+  ): void {
     if (!usage || !model.providerId || !model.apiModelId) return
     const inputTokens = usage.inputTokens ?? 0
     const outputTokens = usage.outputTokens ?? 0
-    if (inputTokens === 0 && outputTokens === 0) return
 
     try {
       const analyticsService = application.get('AnalyticsService')
@@ -1204,7 +1226,8 @@ export class AiService extends BaseService {
         provider: model.providerId,
         model: model.apiModelId ?? model.id,
         input_tokens: inputTokens,
-        output_tokens: outputTokens
+        output_tokens: outputTokens,
+        source
       })
     } catch {
       // AnalyticsService may not be activated (data collection disabled)

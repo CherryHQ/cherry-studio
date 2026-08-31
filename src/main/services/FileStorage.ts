@@ -441,7 +441,7 @@ class FileStorage {
       if (detectEncoding) {
         return readTextFileWithAutoEncoding(filePath)
       } else {
-        return fs.readFileSync(filePath, 'utf-8')
+        return await fs.promises.readFile(filePath, 'utf-8')
       }
     } catch (error) {
       logger.error('Failed to read text file:', error as Error)
@@ -799,15 +799,15 @@ class FileStorage {
 
   public saveImage = async (_: Electron.IpcMainInvokeEvent, name: string, data: string): Promise<boolean> => {
     try {
-      const filePath = dialog.showSaveDialogSync({
+      const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         defaultPath: `${name}.png`,
         filters: [{ name: t('dialog.png_image'), extensions: ['png'] }]
       })
 
-      if (filePath) {
-        await assertOutsideManagedStorageMutation(filePath)
+      if (!result.canceled && result.filePath) {
+        await assertOutsideManagedStorageMutation(result.filePath)
         const parseResult = parseDataUrl(data)
-        fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
+        await fs.promises.writeFile(result.filePath, parseResult?.data ?? data, 'base64')
         return true
       }
     } catch (error) {

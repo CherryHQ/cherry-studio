@@ -38,7 +38,7 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 <meta name="logger-window-source" content="mainWindow" />
 ```
 
-`LoggerService` reads this meta when constructed. The `<meta>` is parsed before any module script runs, so the source is set before any import-time log — no ordering rules in `entryPoint.tsx`, and no per-window `initLogger` side-effect module. When adding a window, add this meta with a unique source string; reusing an existing string would mix the two windows' logs. Documentless contexts (workers) instead call `loggerService.initWindowSource('Worker')`, which overrides the meta-derived value. See [logging guide](../../../docs/guides/logging.md).
+`LoggerService` reads this meta when constructed. The `<meta>` is parsed before any module script runs, so the source is set before any import-time log — no ordering rules in `entryPoint.tsx`, and no per-window `initLogger` side-effect module. When adding a window, add this meta with a unique source string; reusing an existing string would mix the two windows' logs. Documentless contexts (workers) instead call `loggerService.initWindowSource('Worker')`, which overrides the meta-derived value. See [logging guide](../../../docs/references/logging/README.md).
 
 ## Windows
 

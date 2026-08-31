@@ -4,13 +4,15 @@ import * as path from 'path'
 import { Project } from 'ts-morph'
 
 import {
+  assertNoUnusedI18nKeys,
   collectUsedI18nKeys,
   collectUsedI18nKeysFromSource,
   createUnusedI18nResult,
   findSourceFiles,
-  flattenI18nKeys,
   type I18N,
+  type I18nCatalogConfig,
   removeI18nKeys,
+  runCli,
   selectKeysByGroups
 } from '../i18n-check-unused'
 
@@ -25,24 +27,6 @@ function createSourceFile(code: string, filePath = 'test.tsx') {
 }
 
 describe('i18n-check-unused', () => {
-  describe('flattenI18nKeys', () => {
-    it('flattens nested locale keys into dotted keys', () => {
-      const locale: I18N = {
-        common: {
-          cancel: '取消',
-          nested: {
-            save: '保存'
-          }
-        },
-        settings: {
-          title: '设置'
-        }
-      }
-
-      expect(flattenI18nKeys(locale).sort()).toEqual(['common.cancel', 'common.nested.save', 'settings.title'])
-    })
-  })
-
   describe('collectUsedI18nKeysFromSource', () => {
     it('extracts static t, i18n.t, Trans i18nKey, key properties, and comment references', () => {
       const localeKeys = new Set([
@@ -118,27 +102,6 @@ describe('i18n-check-unused', () => {
       ])
     })
 
-    it('extracts aliased namespaces destructured from i18n translations', () => {
-      const localeKeys = new Set(['selection.name', 'tray.quit', 'tray.show_quick_assistant', 'tray.show_window'])
-      const sourceFile = createSourceFile(`
-        const i18n = getI18n()
-        const { tray: trayLocale, selection: selectionLocale } = i18n.translation
-        const menu = [
-          { label: trayLocale.show_window },
-          { label: trayLocale.show_quick_assistant },
-          { label: selectionLocale.name },
-          { label: trayLocale.quit }
-        ]
-      `)
-
-      expect([...collectUsedI18nKeysFromSource(sourceFile, localeKeys)].sort()).toEqual([
-        'selection.name',
-        'tray.quit',
-        'tray.show_quick_assistant',
-        'tray.show_window'
-      ])
-    })
-
     it('conservatively preserves keys that match static template-expression namespaces', () => {
       const localeKeys = new Set([
         'richEditor.commands.bold.description',
@@ -179,18 +142,96 @@ describe('i18n-check-unused', () => {
     })
   })
 
+  describe('runCli', () => {
+    it('checks and cleans renderer and main catalogs against their own source scopes', async () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'i18n-unused-catalogs-'))
+      const rendererLocalesDir = path.join(root, 'renderer/locales')
+      const rendererSourceDir = path.join(root, 'renderer/source')
+      const mainLocalesDir = path.join(root, 'main/locales')
+      const mainSourceDir = path.join(root, 'main/source')
+      const rendererLocale = {
+        'catalog.shared': 'Renderer shared',
+        'renderer.unused': 'Renderer unused'
+      }
+      const mainLocale = {
+        'catalog.shared': 'Main shared',
+        'main.unused': 'Main unused',
+        'main.used': 'Main used',
+        'main.used_one': 'Main used singular'
+      }
+
+      for (const [localesDir, locale] of [
+        [rendererLocalesDir, rendererLocale],
+        [mainLocalesDir, mainLocale]
+      ] as const) {
+        fs.mkdirSync(localesDir, { recursive: true })
+        fs.writeFileSync(path.join(localesDir, 'en-us.json'), JSON.stringify(locale), 'utf-8')
+        fs.writeFileSync(path.join(localesDir, 'zh-cn.json'), JSON.stringify(locale), 'utf-8')
+      }
+      fs.mkdirSync(rendererSourceDir, { recursive: true })
+      fs.mkdirSync(mainSourceDir, { recursive: true })
+      const rendererSourceFile = path.join(rendererSourceDir, 'renderer.ts')
+      fs.writeFileSync(rendererSourceFile, "t('catalog.shared'); t('renderer.unused')", 'utf-8')
+      fs.writeFileSync(path.join(mainSourceDir, 'main.ts'), "import { t } from '@main/i18n'; t('main.used')", 'utf-8')
+      fs.writeFileSync(path.join(mainSourceDir, 'unrelated.ts'), "const key = 'catalog.shared'", 'utf-8')
+      const mainTestsDir = path.join(mainSourceDir, '__tests__')
+      fs.mkdirSync(mainTestsDir, { recursive: true })
+      fs.writeFileSync(
+        path.join(mainTestsDir, 'main.test.ts'),
+        "import { t } from '@main/i18n'; t('main.unused')",
+        'utf-8'
+      )
+
+      const catalogs: I18nCatalogConfig[] = [
+        { name: 'renderer', localesDir: rendererLocalesDir, sourceDirs: [rendererSourceDir] },
+        { name: 'main', localesDir: mainLocalesDir, sourceDirs: [mainSourceDir] }
+      ]
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+
+      try {
+        await expect(runCli({ failOnUnused: true }, catalogs)).rejects.toThrow(
+          'Found 3 unused i18n keys in the main catalog.'
+        )
+        fs.writeFileSync(rendererSourceFile, "t('catalog.shared')", 'utf-8')
+        await runCli({ all: true, clean: true }, catalogs)
+      } finally {
+        consoleSpy.mockRestore()
+      }
+
+      for (const locale of ['en-us', 'zh-cn']) {
+        expect(JSON.parse(fs.readFileSync(path.join(rendererLocalesDir, `${locale}.json`), 'utf-8'))).toEqual({
+          'catalog.shared': 'Renderer shared'
+        })
+        expect(JSON.parse(fs.readFileSync(path.join(mainLocalesDir, `${locale}.json`), 'utf-8'))).toEqual({
+          'main.used': 'Main used'
+        })
+      }
+    })
+  })
+
   describe('createUnusedI18nResult', () => {
     it('reports keys that are not statically referenced', () => {
-      const locale: I18N = {
-        common: {
-          cancel: '取消',
-          save: '保存'
-        }
-      }
+      const locale: I18N = { 'common.cancel': '取消', 'common.save': '保存' }
       const result = createUnusedI18nResult(locale, ['common.save'])
 
       expect(result.unusedKeys).toEqual(['common.cancel'])
       expect(result.groupedUnusedKeys).toEqual({ common: ['common.cancel'] })
+    })
+  })
+
+  describe('assertNoUnusedI18nKeys', () => {
+    it('rejects catalogs that contain unused keys', () => {
+      const result = createUnusedI18nResult({ 'common.cancel': 'Cancel', 'common.save': 'Save' }, ['common.save'])
+
+      expect(() => assertNoUnusedI18nKeys(result)).toThrow(
+        'Found 1 unused i18n key. Run `pnpm i18n:unused` to review it.'
+      )
+    })
+
+    it('accepts catalogs without unused keys', () => {
+      const result = createUnusedI18nResult({ 'common.save': 'Save' }, ['common.save'])
+
+      expect(() => assertNoUnusedI18nKeys(result)).not.toThrow()
     })
   })
 
@@ -210,46 +251,18 @@ describe('i18n-check-unused', () => {
   })
 
   describe('removeI18nKeys', () => {
-    it('removes selected leaf keys and prunes empty objects', () => {
+    it('removes the selected keys and leaves the rest sorted', () => {
       const locale: I18N = {
-        common: {
-          cancel: '取消',
-          save: '保存'
-        },
-        settings: {
-          nested: {
-            unused: '未使用'
-          },
-          title: '设置'
-        }
+        'settings.title': '设置',
+        'common.save': '保存',
+        'common.cancel': '取消',
+        'settings.nested.unused': '未使用'
       }
 
       expect(removeI18nKeys(locale, ['common.cancel', 'settings.nested.unused'])).toEqual({
-        common: {
-          save: '保存'
-        },
-        settings: {
-          title: '设置'
-        }
+        'common.save': '保存',
+        'settings.title': '设置'
       })
-    })
-
-    it('can be applied to multiple locale files consistently', () => {
-      const zhCN: I18N = {
-        common: {
-          cancel: '取消',
-          save: '保存'
-        }
-      }
-      const enUS: I18N = {
-        common: {
-          cancel: 'Cancel',
-          save: 'Save'
-        }
-      }
-
-      expect(removeI18nKeys(zhCN, ['common.cancel'])).toEqual({ common: { save: '保存' } })
-      expect(removeI18nKeys(enUS, ['common.cancel'])).toEqual({ common: { save: 'Save' } })
     })
   })
 })

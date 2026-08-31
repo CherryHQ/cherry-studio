@@ -109,11 +109,16 @@ const expectedAppLocaleFiles = [
 ]
 
 const readPaintingShowcaseTranslation = (relativeFilePath: string) => {
-  const locale = JSON.parse(fs.readFileSync(path.join(rendererI18nRoot, relativeFilePath), 'utf8')) as {
-    paintings?: { showcase?: PaintingShowcaseTranslation }
-  }
-  const showcase = locale.paintings?.showcase
-  if (!showcase) {
+  const locale = JSON.parse(fs.readFileSync(path.join(rendererI18nRoot, relativeFilePath), 'utf8')) as Record<
+    string,
+    string
+  >
+  const showcase = Object.fromEntries(
+    Object.entries(locale)
+      .filter(([key]) => key.startsWith('paintings.showcase.'))
+      .map(([key, value]) => [key.slice('paintings.showcase.'.length), value])
+  ) as PaintingShowcaseTranslation
+  if (Object.keys(showcase).length === 0) {
     throw new Error(`Missing paintings.showcase translation in ${relativeFilePath}`)
   }
   return showcase

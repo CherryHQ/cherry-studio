@@ -1,163 +1,120 @@
 {
-  "agent": {
-    "builtin": {
-      "cherry_assistant": {
-        "description": "Встроенный консультант Cherry Studio: диагностирует проблемы, помогает с действиями, собирает ответы на частые вопросы, отправляет сообщения об ошибках и запросы функций, а также ищет и создаёт навыки."
-      },
-      "cherry_support": {
-        "description": "Официальный агент поддержки Cherry Studio для настройки, диагностики, частых вопросов и обратной связи"
-      }
-    },
-    "session": {
-      "run_status": {
-        "busy": "The Agent Session is busy. Please try again shortly.",
-        "unavailable": "The Agent Session is no longer available."
-      },
-      "workspace_status": {
-        "inaccessible": "Путь к рабочей области недоступен: {{path}}",
-        "missing": "Путь к рабочей области не существует: {{path}}",
-        "not_directory": "Путь к рабочей области не является каталогом: {{path}}"
-      }
-    }
-  },
-  "apiGateway": {
-    "docs": {
-      "description": "HTTP API Cherry Studio, совместимый с OpenAI, Anthropic и Gemini, а также собственные эндпоинты Cherry (модели, базы знаний)",
-      "language_switcher_label": "Язык документации",
-      "operations": {
-        "chat_completions": "Создаёт ответ чата. Формат запроса и ответа соответствует OpenAI Chat Completions; с `stream: true` вывод передаётся по частям.",
-        "count_tokens": "Оценивает, сколько входных токенов занимает набор сообщений в формате Anthropic.",
-        "generate_content": "Генерирует контент методом `generateContent` из Gemini. Формат запроса и ответа соответствует Gemini API; `streamGenerateContent` доступен по тому же пути.",
-        "get_knowledge_base": "Возвращает базу знаний по её идентификатору.",
-        "get_mcp_server": "Получить сведения о сервере MCP и список его инструментов.",
-        "health": "Состояние сервиса, текущее время и версия. Аутентификация не требуется.",
-        "info": "Название и версия API, а также основные эндпоинты. Аутентификация не требуется.",
-        "list_knowledge_bases": "Список баз знаний, доступных в этом экземпляре Cherry Studio.",
-        "list_mcp_servers": "Показать серверы MCP, включенные в Cherry Studio, и URL для подключения к каждому из них.",
-        "list_models": "Список моделей, доступных через этот шлюз, в формате models OpenAI.",
-        "mcp_proxy": "Конечная точка Model Context Protocol для сервера MCP (Streamable HTTP). Укажите этот URL в любом клиенте MCP, чтобы использовать сервер через Cherry Studio.",
-        "messages": "Создаёт сообщение. Формат запроса и ответа соответствует Anthropic Messages; с `stream: true` вывод передаётся по частям.",
-        "responses": "Создаёт ответ. Формат запроса и ответа соответствует OpenAI Responses.",
-        "search_knowledge_bases": "Ищет в одной или нескольких базах знаний и возвращает подходящие фрагменты документов."
-      },
-      "tags": {
-        "anthropic": "Эндпоинты, совместимые с Anthropic. Укажите базовый URL этого шлюза в Anthropic SDK, чтобы их использовать.",
-        "cherry": "Собственные эндпоинты Cherry Studio: базы знаний, информация о сервисе и проверка состояния.",
-        "gemini": "Эндпоинты, совместимые с Gemini; как и в оригинальном API, доступны по пути `/v1beta`.",
-        "openai": "Эндпоинты, совместимые с OpenAI. Укажите базовый URL этого шлюза в OpenAI SDK, чтобы их использовать."
-      }
-    }
-  },
-  "appMenu": {
-    "about": "О программе",
-    "close": "Закрыть окно",
-    "copy": "Копировать",
-    "cut": "Вырезать",
-    "delete": "Удалить",
-    "documentation": "Документация",
-    "edit": "Редактировать",
-    "feedback": "Обратная связь",
-    "file": "Файл",
-    "forceReload": "Принудительно перезагрузить",
-    "front": "Показать все поверх других",
-    "help": "Помощь",
-    "hide": "Скрыть",
-    "hideOthers": "Скрыть остальные",
-    "minimize": "Свернуть",
-    "paste": "Вставить",
-    "quit": "Выйти",
-    "redo": "Повторить",
-    "releases": "Релизы",
-    "reload": "Перезагрузить",
-    "resetZoom": "Фактический размер",
-    "selectAll": "Выбрать все",
-    "services": "Службы",
-    "toggleDevTools": "Переключить инструменты разработчика",
-    "toggleFullscreen": "Переключить полноэкранный режим",
-    "undo": "Отменить",
-    "unhide": "Показать все",
-    "view": "Вид",
-    "website": "Веб-сайт",
-    "window": "Окно",
-    "zoom": "Масштаб",
-    "zoomIn": "Увеличить",
-    "zoomOut": "Уменьшить"
-  },
-  "common": {
-    "copy": "Копировать",
-    "cut": "Вырезать",
-    "inspect": "Проверить",
-    "paste": "Вставить"
-  },
-  "dialog": {
-    "all_files": "Все файлы",
-    "data_reset": {
-      "cancel": "Отмена",
-      "confirm": "Сбросить и перезапустить",
-      "message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
-      "title": "Сброс данных приложения"
-    },
-    "diagnostic_bundle": {
-      "title": "Сохранение диагностического пакета",
-      "zip_filter": "ZIP-архив"
-    },
-    "html_files": "Файлы HTML",
-    "open_file": "Открыть файл",
-    "pdf_files": "Файлы PDF",
-    "png_image": "PNG-изображение",
-    "save_as_html": "Сохранить как HTML",
-    "save_as_pdf": "Сохранить как PDF",
-    "save_file": "Сохранить файл",
-    "screen_capture_permission": {
-      "cancel": "Отмена",
-      "detail": "Предоставьте приложению «{{appName}}» разрешение на запись экрана в разделе «Системные настройки > Конфиденциальность и безопасность > Запись экрана», затем перезапустите приложение.",
-      "message": "Для создания снимков экрана требуется разрешение на запись экрана.",
-      "open_settings": "Открыть системные настройки",
-      "title": "Разрешение на запись экрана"
-    },
-    "screenshot_failed": {
-      "message": "Не удалось сделать снимок экрана.",
-      "ok": "ОК",
-      "title": "Не удалось сделать снимок экрана"
-    },
-    "select_folder": "Выбрать папку",
-    "word_document": "Документ Word"
-  },
-  "file_processing": {
-    "errors": {
-      "document_size_limit_exceeded": "Текущая служба разбора документов поддерживает файлы меньше {{maxSize}}. Сожмите или разделите этот файл, затем добавьте его снова.",
-      "pdf_page_limit_exceeded": "Этот PDF превышает ограничение в {{maxPages}} страниц для текущей службы разбора документов. Разделите PDF вручную, затем добавьте его снова."
-    }
-  },
-  "openclaw": {
-    "errors": {
-      "binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
-      "external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
-      "more_issues": "и ещё проблем: {{count}}",
-      "preflight_failed": "Cherry Studio не смогла проверить конфигурацию OpenClaw."
-    }
-  },
-  "paintings": {
-    "generate_failed": "Не удалось сгенерировать изображение",
-    "image_mix_failed": "Не удалось объединить изображения"
-  },
-  "selection": {
-    "name": "Помощник выбора"
-  },
-  "settings": {
-    "mcp": {
-      "oauth": {
-        "callback": {
-          "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
-          "title": "Аутентификация выполнена"
-        }
-      }
-    },
-    "title": "Настройки"
-  },
-  "tray": {
-    "quit": "Выйти",
-    "show_quick_assistant": "Быстрый помощник",
-    "show_window": "Показать окно"
-  }
+  "agent.builtin.cherry_assistant.description": "Встроенный консультант Cherry Studio: диагностирует проблемы, помогает с действиями, собирает ответы на частые вопросы, отправляет сообщения об ошибках и запросы функций, а также ищет и создаёт навыки.",
+  "agent.builtin.cherry_support.description": "Официальный агент поддержки Cherry Studio для настройки, диагностики, частых вопросов и обратной связи",
+  "agent.session.new": "Новая задача",
+  "agent.session.run_status.busy": "Сеанс Agent занят. Повторите попытку чуть позже.",
+  "agent.session.run_status.unavailable": "Сеанс Agent больше недоступен.",
+  "agent.session.workspace_status.inaccessible": "Путь к рабочей области недоступен: {{path}}",
+  "agent.session.workspace_status.missing": "Путь к рабочей области не существует: {{path}}",
+  "agent.session.workspace_status.not_directory": "Путь к рабочей области не является каталогом: {{path}}",
+  "apiGateway.docs.description": "HTTP API Cherry Studio, совместимый с OpenAI, Anthropic и Gemini, а также собственные эндпоинты Cherry (модели, базы знаний)",
+  "apiGateway.docs.language_switcher_label": "Язык документации",
+  "apiGateway.docs.operations.chat_completions": "Создаёт ответ чата. Формат запроса и ответа соответствует OpenAI Chat Completions; с `stream: true` вывод передаётся по частям.",
+  "apiGateway.docs.operations.count_tokens": "Оценивает, сколько входных токенов занимает набор сообщений в формате Anthropic.",
+  "apiGateway.docs.operations.generate_content": "Генерирует контент методом `generateContent` из Gemini. Формат запроса и ответа соответствует Gemini API; `streamGenerateContent` доступен по тому же пути.",
+  "apiGateway.docs.operations.get_knowledge_base": "Возвращает базу знаний по её идентификатору.",
+  "apiGateway.docs.operations.get_mcp_server": "Получить сведения о сервере MCP и список его инструментов.",
+  "apiGateway.docs.operations.health": "Состояние сервиса, текущее время и версия. Аутентификация не требуется.",
+  "apiGateway.docs.operations.info": "Название и версия API, а также основные эндпоинты. Аутентификация не требуется.",
+  "apiGateway.docs.operations.list_knowledge_bases": "Список баз знаний, доступных в этом экземпляре Cherry Studio.",
+  "apiGateway.docs.operations.list_mcp_servers": "Показать серверы MCP, включенные в Cherry Studio, и URL для подключения к каждому из них.",
+  "apiGateway.docs.operations.list_models": "Список моделей, доступных через этот шлюз, в формате models OpenAI.",
+  "apiGateway.docs.operations.mcp_proxy": "Конечная точка Model Context Protocol для сервера MCP (Streamable HTTP). Укажите этот URL в любом клиенте MCP, чтобы использовать сервер через Cherry Studio.",
+  "apiGateway.docs.operations.messages": "Создаёт сообщение. Формат запроса и ответа соответствует Anthropic Messages; с `stream: true` вывод передаётся по частям.",
+  "apiGateway.docs.operations.responses": "Создаёт ответ. Формат запроса и ответа соответствует OpenAI Responses.",
+  "apiGateway.docs.operations.search_knowledge_bases": "Ищет в одной или нескольких базах знаний и возвращает подходящие фрагменты документов.",
+  "apiGateway.docs.tags.anthropic": "Эндпоинты, совместимые с Anthropic. Укажите базовый URL этого шлюза в Anthropic SDK, чтобы их использовать.",
+  "apiGateway.docs.tags.cherry": "Собственные эндпоинты Cherry Studio: базы знаний, информация о сервисе и проверка состояния.",
+  "apiGateway.docs.tags.gemini": "Эндпоинты, совместимые с Gemini; как и в оригинальном API, доступны по пути `/v1beta`.",
+  "apiGateway.docs.tags.openai": "Эндпоинты, совместимые с OpenAI. Укажите базовый URL этого шлюза в OpenAI SDK, чтобы их использовать.",
+  "appMenu.about": "О программе",
+  "appMenu.close": "Закрыть окно",
+  "appMenu.copy": "Копировать",
+  "appMenu.cut": "Вырезать",
+  "appMenu.delete": "Удалить",
+  "appMenu.documentation": "Документация",
+  "appMenu.edit": "Редактировать",
+  "appMenu.feedback": "Обратная связь",
+  "appMenu.file": "Файл",
+  "appMenu.forceReload": "Принудительно перезагрузить",
+  "appMenu.front": "Показать все поверх других",
+  "appMenu.help": "Помощь",
+  "appMenu.hide": "Скрыть",
+  "appMenu.hideOthers": "Скрыть остальные",
+  "appMenu.minimize": "Свернуть",
+  "appMenu.paste": "Вставить",
+  "appMenu.quit": "Выйти",
+  "appMenu.redo": "Повторить",
+  "appMenu.releases": "Релизы",
+  "appMenu.reload": "Перезагрузить",
+  "appMenu.resetZoom": "Фактический размер",
+  "appMenu.selectAll": "Выбрать все",
+  "appMenu.services": "Службы",
+  "appMenu.toggleDevTools": "Переключить инструменты разработчика",
+  "appMenu.toggleFullscreen": "Переключить полноэкранный режим",
+  "appMenu.undo": "Отменить",
+  "appMenu.unhide": "Показать все",
+  "appMenu.view": "Вид",
+  "appMenu.website": "Веб-сайт",
+  "appMenu.window": "Окно",
+  "appMenu.zoom": "Масштаб",
+  "appMenu.zoomIn": "Увеличить",
+  "appMenu.zoomOut": "Уменьшить",
+  "chat.conversation.new": "Новый чат",
+  "common.channel_available_commands": "Доступные команды:",
+  "common.channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",
+  "common.channel_message_dropped": "⚠️ Это сообщение не было доставлено. Попробуйте снова или проверьте конфигурацию канала.",
+  "common.channel_message_processing_error": "⚠️ При обработке вашего сообщения произошла ошибка. Повторите попытку позже.",
+  "common.channel_new_session_created": "Создан новый сеанс.",
+  "common.channel_no_active_session": "Нет активного сеанса.",
+  "common.channel_session_compacted": "Сеанс сжат.",
+  "common.channel_session_resolution_error": "⚠️ Не удалось определить сеанс для этого агента. Повторите попытку позже.",
+  "common.copy": "Копировать",
+  "common.cut": "Вырезать",
+  "common.inspect": "Проверить",
+  "common.paste": "Вставить",
+  "dialog.all_files": "Все файлы",
+  "dialog.data_reset.cancel": "Отмена",
+  "dialog.data_reset.confirm": "Сбросить и перезапустить",
+  "dialog.data_reset.message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
+  "dialog.data_reset.title": "Сброс данных приложения",
+  "dialog.diagnostic_bundle.title": "Сохранение диагностического пакета",
+  "dialog.diagnostic_bundle.zip_filter": "ZIP-архив",
+  "dialog.html_files": "Файлы HTML",
+  "dialog.mini_app_export": "Экспорт из {{name}}",
+  "dialog.open_file": "Открыть файл",
+  "dialog.pdf_files": "Файлы PDF",
+  "dialog.png_image": "PNG-изображение",
+  "dialog.save_as_html": "Сохранить как HTML",
+  "dialog.save_as_pdf": "Сохранить как PDF",
+  "dialog.save_file": "Сохранить файл",
+  "dialog.screen_capture_permission.cancel": "Отмена",
+  "dialog.screen_capture_permission.detail": "Предоставьте приложению «{{appName}}» разрешение на запись экрана в разделе «Системные настройки > Конфиденциальность и безопасность > Запись экрана», затем перезапустите приложение.",
+  "dialog.screen_capture_permission.message": "Для создания снимков экрана требуется разрешение на запись экрана.",
+  "dialog.screen_capture_permission.open_settings": "Открыть системные настройки",
+  "dialog.screen_capture_permission.title": "Разрешение на запись экрана",
+  "dialog.screenshot_failed.message": "Не удалось сделать снимок экрана.",
+  "dialog.screenshot_failed.ok": "ОК",
+  "dialog.screenshot_failed.title": "Не удалось сделать снимок экрана",
+  "dialog.select_folder": "Выбрать папку",
+  "dialog.word_document": "Документ Word",
+  "file_processing.errors.document_size_limit_exceeded": "Текущая служба разбора документов поддерживает файлы меньше {{maxSize}}. Сожмите или разделите этот файл, затем добавьте его снова.",
+  "file_processing.errors.pdf_page_limit_exceeded": "Этот PDF превышает ограничение в {{maxPages}} страниц для текущей службы разбора документов. Разделите PDF вручную, затем добавьте его снова.",
+  "notification.action_required.agent": "Агент ожидает вашего ответа",
+  "notification.action_required.assistant": "Ассистент ожидает вашего ответа",
+  "notification.completion.agent": "Задача агента выполнена",
+  "notification.completion.assistant": "Ответ ассистента готов",
+  "openclaw.errors.binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
+  "openclaw.errors.external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
+  "openclaw.errors.more_issues": "и ещё проблем: {{count}}",
+  "openclaw.errors.preflight_failed": "Cherry Studio не смогла проверить конфигурацию OpenClaw.",
+  "paintings.generate_failed": "Не удалось сгенерировать изображение",
+  "paintings.image_mix_failed": "Не удалось объединить изображения",
+  "selection.name": "Помощник выбора",
+  "settings.mcp.oauth.callback.message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
+  "settings.mcp.oauth.callback.title": "Аутентификация выполнена",
+  "settings.title": "Настройки",
+  "tray.quit": "Выйти",
+  "tray.show_quick_assistant": "Быстрый помощник",
+  "tray.show_window": "Показать окно"
 }

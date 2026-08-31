@@ -180,6 +180,36 @@ describe('DshStreamAdapter', () => {
     expect(chunks[2]).toMatchObject({ toolCallId: 'c1', output: 'file.txt' })
   })
 
+  it('materializes an approval tool part ahead of its tool/call event, without duplicating it', () => {
+    const { adapter, chunks } = makeAdapter()
+    adapter.beginTurn()
+    adapter.ensureToolCall('c1', 'bash', { command: 'rm -rf build' })
+    adapter.handleEvent(envelope('turn/start', { turn: 1 }))
+    // The late session event for the same call must not re-open the part (it would reset an
+    // already-rendered approval back to input-streaming).
+    adapter.handleEvent(
+      envelope('tool/call', { turn: 1, step: 1, callId: callId('c1'), name: 'bash', arguments: '{"command":"ls"}' })
+    )
+    adapter.handleEvent(
+      envelope('tool/result', {
+        turn: 1,
+        step: 1,
+        message: toolResultMessage('c1', [{ type: 'text', text: 'done' }])
+      })
+    )
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'tool-input-start',
+      'tool-input-available',
+      'tool-output-available'
+    ])
+    expect(chunks[1]).toMatchObject({ toolCallId: 'c1', toolName: 'bash', input: { command: 'rm -rf build' } })
+    expect(chunks[2]).toMatchObject({
+      toolCallId: 'c1',
+      providerMetadata: { cherry: { tool: { type: 'builtin', name: 'bash' } } }
+    })
+  })
+
   it('unwraps an all-text tool result into its structured payload', () => {
     const { adapter, chunks } = makeAdapter()
     const results = [{ id: 'dsh-1', url: 'https://a.com/x', title: 'A', content: 'a' }]

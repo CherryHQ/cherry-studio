@@ -1,163 +1,120 @@
 {
-  "agent": {
-    "builtin": {
-      "cherry_assistant": {
-        "description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills"
-      },
-      "cherry_support": {
-        "description": "Cherry Studio 问题反馈 Agent，提供答疑解惑、使用帮助、问题排查和反馈提交"
-      }
-    },
-    "session": {
-      "run_status": {
-        "busy": "Agent 会话正忙，请稍后重试。",
-        "unavailable": "Agent 会话已不可用。"
-      },
-      "workspace_status": {
-        "inaccessible": "工作区路径不可访问：{{path}}",
-        "missing": "工作区路径不存在：{{path}}",
-        "not_directory": "工作区路径不是目录：{{path}}"
-      }
-    }
-  },
-  "apiGateway": {
-    "docs": {
-      "description": "与 OpenAI、Anthropic、Gemini 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
-      "language_switcher_label": "文档语言",
-      "operations": {
-        "chat_completions": "创建一次对话补全。请求与响应格式与 OpenAI Chat Completions 一致；设置 `stream: true` 可流式输出。",
-        "count_tokens": "估算一组 Anthropic 格式消息占用的输入 token 数量。",
-        "generate_content": "通过 Gemini 的 `generateContent` 方法生成内容。请求与响应格式与 Gemini API 一致；`streamGenerateContent` 走同一路径。",
-        "get_knowledge_base": "按 ID 获取单个知识库。",
-        "get_mcp_server": "获取指定 MCP 服务器的详情及其工具列表。",
-        "health": "服务健康状态、当前时间与版本号。无需鉴权。",
-        "info": "API 名称、版本与主要端点列表。无需鉴权。",
-        "list_knowledge_bases": "列出当前 Cherry Studio 实例中的知识库。",
-        "list_mcp_servers": "列出 Cherry Studio 中已启用的 MCP 服务器，并给出各自的连接地址。",
-        "list_models": "以 OpenAI models 格式列出该网关可用的模型。",
-        "mcp_proxy": "指定 MCP 服务器的 Model Context Protocol 端点（Streamable HTTP）。将任意 MCP 客户端指向该地址，即可通过 Cherry Studio 使用该服务器。",
-        "messages": "创建一条消息。请求与响应格式与 Anthropic Messages 一致；设置 `stream: true` 可流式输出。",
-        "responses": "创建一次响应。请求与响应格式与 OpenAI Responses 一致。",
-        "search_knowledge_bases": "在一个或多个知识库中检索，返回匹配的文档片段。"
-      },
-      "tags": {
-        "anthropic": "兼容 Anthropic 的接口。把 Anthropic SDK 的 base URL 指向本网关即可使用。",
-        "cherry": "Cherry Studio 自有接口：知识库、服务信息与健康检查。",
-        "gemini": "兼容 Gemini 的接口，与上游一样挂在 `/v1beta` 下。",
-        "openai": "兼容 OpenAI 的接口。把 OpenAI SDK 的 base URL 指向本网关即可使用。"
-      }
-    }
-  },
-  "appMenu": {
-    "about": "关于",
-    "close": "关闭窗口",
-    "copy": "复制",
-    "cut": "剪切",
-    "delete": "删除",
-    "documentation": "文档",
-    "edit": "编辑",
-    "feedback": "反馈",
-    "file": "文件",
-    "forceReload": "强制重新加载",
-    "front": "全部置于顶层",
-    "help": "帮助",
-    "hide": "隐藏",
-    "hideOthers": "隐藏其他",
-    "minimize": "最小化",
-    "paste": "粘贴",
-    "quit": "退出",
-    "redo": "重做",
-    "releases": "版本发布",
-    "reload": "重新加载",
-    "resetZoom": "实际大小",
-    "selectAll": "全选",
-    "services": "服务",
-    "toggleDevTools": "切换开发者工具",
-    "toggleFullscreen": "切换全屏",
-    "undo": "撤销",
-    "unhide": "全部显示",
-    "view": "视图",
-    "website": "网站",
-    "window": "窗口",
-    "zoom": "缩放",
-    "zoomIn": "放大",
-    "zoomOut": "缩小"
-  },
-  "common": {
-    "copy": "复制",
-    "cut": "剪切",
-    "inspect": "检查",
-    "paste": "粘贴"
-  },
-  "dialog": {
-    "all_files": "所有文件",
-    "data_reset": {
-      "cancel": "取消",
-      "confirm": "重置并重启",
-      "message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
-      "title": "重置应用数据"
-    },
-    "diagnostic_bundle": {
-      "title": "保存诊断包",
-      "zip_filter": "ZIP 压缩包"
-    },
-    "html_files": "HTML 文件",
-    "open_file": "打开文件",
-    "pdf_files": "PDF 文件",
-    "png_image": "PNG 图片",
-    "save_as_html": "保存为 HTML",
-    "save_as_pdf": "保存为 PDF",
-    "save_file": "保存文件",
-    "screen_capture_permission": {
-      "cancel": "取消",
-      "detail": "请在「系统设置 > 隐私与安全性 > 屏幕录制」中为「{{appName}}」开启屏幕录制权限，然后重启应用。",
-      "message": "截图需要屏幕录制权限。",
-      "open_settings": "打开系统设置",
-      "title": "屏幕录制权限"
-    },
-    "screenshot_failed": {
-      "message": "截图失败。",
-      "ok": "好",
-      "title": "截图失败"
-    },
-    "select_folder": "选择文件夹",
-    "word_document": "Word 文档"
-  },
-  "file_processing": {
-    "errors": {
-      "document_size_limit_exceeded": "当前文档解析服务要求文件小于 {{maxSize}}，请压缩或拆分后重新添加。",
-      "pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。"
-    }
-  },
-  "openclaw": {
-    "errors": {
-      "binary_incompatible": "Cherry Studio 当前使用的 OpenClaw 与生成的配置不兼容，请升级 OpenClaw。{{details}}",
-      "external_config_invalid": "OpenClaw 拒绝了 Cherry Studio 管理区之外的配置，请修正该配置或升级 OpenClaw。{{details}}",
-      "more_issues": "另有 {{count}} 个问题",
-      "preflight_failed": "Cherry Studio 无法验证 OpenClaw 配置。"
-    }
-  },
-  "paintings": {
-    "generate_failed": "生成图像失败",
-    "image_mix_failed": "图像混合失败"
-  },
-  "selection": {
-    "name": "划词助手"
-  },
-  "settings": {
-    "mcp": {
-      "oauth": {
-        "callback": {
-          "message": "您可以关闭此页面并返回 Cherry Studio",
-          "title": "认证成功"
-        }
-      }
-    },
-    "title": "设置"
-  },
-  "tray": {
-    "quit": "退出",
-    "show_quick_assistant": "快捷助手",
-    "show_window": "显示窗口"
-  }
+  "agent.builtin.cherry_assistant.description": "Cherry Studio 内置使用顾问。诊断问题、引导操作、收录 FAQ、提交 Bug/需求、搜索和创建 Skills",
+  "agent.builtin.cherry_support.description": "Cherry Studio 问题反馈 Agent，提供答疑解惑、使用帮助、问题排查和反馈提交",
+  "agent.session.new": "新任务",
+  "agent.session.run_status.busy": "Agent 会话正忙，请稍后重试。",
+  "agent.session.run_status.unavailable": "Agent 会话已不可用。",
+  "agent.session.workspace_status.inaccessible": "工作区路径不可访问：{{path}}",
+  "agent.session.workspace_status.missing": "工作区路径不存在：{{path}}",
+  "agent.session.workspace_status.not_directory": "工作区路径不是目录：{{path}}",
+  "apiGateway.docs.description": "与 OpenAI、Anthropic、Gemini 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
+  "apiGateway.docs.language_switcher_label": "文档语言",
+  "apiGateway.docs.operations.chat_completions": "创建一次对话补全。请求与响应格式与 OpenAI Chat Completions 一致；设置 `stream: true` 可流式输出。",
+  "apiGateway.docs.operations.count_tokens": "估算一组 Anthropic 格式消息占用的输入 token 数量。",
+  "apiGateway.docs.operations.generate_content": "通过 Gemini 的 `generateContent` 方法生成内容。请求与响应格式与 Gemini API 一致；`streamGenerateContent` 走同一路径。",
+  "apiGateway.docs.operations.get_knowledge_base": "按 ID 获取单个知识库。",
+  "apiGateway.docs.operations.get_mcp_server": "获取指定 MCP 服务器的详情及其工具列表。",
+  "apiGateway.docs.operations.health": "服务健康状态、当前时间与版本号。无需鉴权。",
+  "apiGateway.docs.operations.info": "API 名称、版本与主要端点列表。无需鉴权。",
+  "apiGateway.docs.operations.list_knowledge_bases": "列出当前 Cherry Studio 实例中的知识库。",
+  "apiGateway.docs.operations.list_mcp_servers": "列出 Cherry Studio 中已启用的 MCP 服务器，并给出各自的连接地址。",
+  "apiGateway.docs.operations.list_models": "以 OpenAI models 格式列出该网关可用的模型。",
+  "apiGateway.docs.operations.mcp_proxy": "指定 MCP 服务器的 Model Context Protocol 端点（Streamable HTTP）。将任意 MCP 客户端指向该地址，即可通过 Cherry Studio 使用该服务器。",
+  "apiGateway.docs.operations.messages": "创建一条消息。请求与响应格式与 Anthropic Messages 一致；设置 `stream: true` 可流式输出。",
+  "apiGateway.docs.operations.responses": "创建一次响应。请求与响应格式与 OpenAI Responses 一致。",
+  "apiGateway.docs.operations.search_knowledge_bases": "在一个或多个知识库中检索，返回匹配的文档片段。",
+  "apiGateway.docs.tags.anthropic": "兼容 Anthropic 的接口。把 Anthropic SDK 的 base URL 指向本网关即可使用。",
+  "apiGateway.docs.tags.cherry": "Cherry Studio 自有接口：知识库、服务信息与健康检查。",
+  "apiGateway.docs.tags.gemini": "兼容 Gemini 的接口，与上游一样挂在 `/v1beta` 下。",
+  "apiGateway.docs.tags.openai": "兼容 OpenAI 的接口。把 OpenAI SDK 的 base URL 指向本网关即可使用。",
+  "appMenu.about": "关于",
+  "appMenu.close": "关闭窗口",
+  "appMenu.copy": "复制",
+  "appMenu.cut": "剪切",
+  "appMenu.delete": "删除",
+  "appMenu.documentation": "文档",
+  "appMenu.edit": "编辑",
+  "appMenu.feedback": "反馈",
+  "appMenu.file": "文件",
+  "appMenu.forceReload": "强制重新加载",
+  "appMenu.front": "全部置于顶层",
+  "appMenu.help": "帮助",
+  "appMenu.hide": "隐藏",
+  "appMenu.hideOthers": "隐藏其他",
+  "appMenu.minimize": "最小化",
+  "appMenu.paste": "粘贴",
+  "appMenu.quit": "退出",
+  "appMenu.redo": "重做",
+  "appMenu.releases": "版本发布",
+  "appMenu.reload": "重新加载",
+  "appMenu.resetZoom": "实际大小",
+  "appMenu.selectAll": "全选",
+  "appMenu.services": "服务",
+  "appMenu.toggleDevTools": "切换开发者工具",
+  "appMenu.toggleFullscreen": "切换全屏",
+  "appMenu.undo": "撤销",
+  "appMenu.unhide": "全部显示",
+  "appMenu.view": "视图",
+  "appMenu.website": "网站",
+  "appMenu.window": "窗口",
+  "appMenu.zoom": "缩放",
+  "appMenu.zoomIn": "放大",
+  "appMenu.zoomOut": "缩小",
+  "chat.conversation.new": "新对话",
+  "common.channel_available_commands": "可用命令：",
+  "common.channel_command_processing_error": "⚠️ 处理命令时发生错误，请稍后重试。",
+  "common.channel_message_dropped": "⚠️ 此消息未送达。请重试或检查频道配置。",
+  "common.channel_message_processing_error": "⚠️ 处理消息时发生错误，请稍后重试。",
+  "common.channel_new_session_created": "已创建新会话。",
+  "common.channel_no_active_session": "没有活跃会话。",
+  "common.channel_session_compacted": "会话已压缩。",
+  "common.channel_session_resolution_error": "⚠️ 无法解析此智能体的会话，请稍后重试。",
+  "common.copy": "复制",
+  "common.cut": "剪切",
+  "common.inspect": "检查",
+  "common.paste": "粘贴",
+  "dialog.all_files": "所有文件",
+  "dialog.data_reset.cancel": "取消",
+  "dialog.data_reset.confirm": "重置并重启",
+  "dialog.data_reset.message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
+  "dialog.data_reset.title": "重置应用数据",
+  "dialog.diagnostic_bundle.title": "保存诊断包",
+  "dialog.diagnostic_bundle.zip_filter": "ZIP 压缩包",
+  "dialog.html_files": "HTML 文件",
+  "dialog.mini_app_export": "从 {{name}} 导出",
+  "dialog.open_file": "打开文件",
+  "dialog.pdf_files": "PDF 文件",
+  "dialog.png_image": "PNG 图片",
+  "dialog.save_as_html": "保存为 HTML",
+  "dialog.save_as_pdf": "保存为 PDF",
+  "dialog.save_file": "保存文件",
+  "dialog.screen_capture_permission.cancel": "取消",
+  "dialog.screen_capture_permission.detail": "请在「系统设置 > 隐私与安全性 > 屏幕录制」中为「{{appName}}」开启屏幕录制权限，然后重启应用。",
+  "dialog.screen_capture_permission.message": "截图需要屏幕录制权限。",
+  "dialog.screen_capture_permission.open_settings": "打开系统设置",
+  "dialog.screen_capture_permission.title": "屏幕录制权限",
+  "dialog.screenshot_failed.message": "截图失败。",
+  "dialog.screenshot_failed.ok": "好",
+  "dialog.screenshot_failed.title": "截图失败",
+  "dialog.select_folder": "选择文件夹",
+  "dialog.word_document": "Word 文档",
+  "file_processing.errors.document_size_limit_exceeded": "当前文档解析服务要求文件小于 {{maxSize}}，请压缩或拆分后重新添加。",
+  "file_processing.errors.pdf_page_limit_exceeded": "该 PDF 超过当前文档解析服务的 {{maxPages}} 页上限，请手动拆分 PDF 后重新添加。",
+  "notification.action_required.agent": "智能体任务需要你的响应",
+  "notification.action_required.assistant": "助手需要你的响应",
+  "notification.completion.agent": "智能体任务已完成",
+  "notification.completion.assistant": "助手回复已完成",
+  "openclaw.errors.binary_incompatible": "Cherry Studio 当前使用的 OpenClaw 与生成的配置不兼容，请升级 OpenClaw。{{details}}",
+  "openclaw.errors.external_config_invalid": "OpenClaw 拒绝了 Cherry Studio 管理区之外的配置，请修正该配置或升级 OpenClaw。{{details}}",
+  "openclaw.errors.more_issues": "另有 {{count}} 个问题",
+  "openclaw.errors.preflight_failed": "Cherry Studio 无法验证 OpenClaw 配置。",
+  "paintings.generate_failed": "生成图像失败",
+  "paintings.image_mix_failed": "图像混合失败",
+  "selection.name": "划词助手",
+  "settings.mcp.oauth.callback.message": "您可以关闭此页面并返回 Cherry Studio",
+  "settings.mcp.oauth.callback.title": "认证成功",
+  "settings.title": "设置",
+  "tray.quit": "退出",
+  "tray.show_quick_assistant": "快捷助手",
+  "tray.show_window": "显示窗口"
 }

@@ -8,9 +8,9 @@
  *
  * Pipeline per `tool_call`:
  *   1. disabledTools  → block (all modes, including bypassPermissions)
- *   2. global-install → block bash that installs into shared/global locations (except bypass)
+ *   2. global-install → block bash that installs into shared/global locations (all modes)
  *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   4. bypass         → allow unconditionally; the mode promises no further gate
+ *   4. bypass         → skip ordinary approvals; non-bypassable delegation still asks
  *   5. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
@@ -27,21 +27,21 @@ import path from 'node:path'
 
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
+import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
+import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
+import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
-import { detectDestructiveCommand } from '../toolApproval/destructiveCommand'
-import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../types'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
 
 /** pi built-in read-only tools — auto-approved in every permission mode when their `path` resolves
- *  inside the session workspace or current agent data directory. */
+ *  inside the session workspace, current agent data directory, or another trusted read-only root. */
 const READ_ONLY_TOOLS = new Set<string>(
   PI_BUILTIN_TOOLS.filter((tool) => tool.permissionClass === 'read').map((tool) => tool.name)
 )
@@ -63,12 +63,14 @@ const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 export interface PiApprovalContext {
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
   sessionId: string
-  /** Session workspace root — the auto-approve fast-path only skips approval when a tool's resolved
-   *  `path` stays inside this directory or the current agent data directory. */
+  /** Session workspace root used to resolve relative tool paths and as a trusted read/write root. */
   workspacePath: string
   /** Current agent's persistent identity and memory directory. It is a trusted file-tool root just
    *  like the workspace; paths under another agent or elsewhere still require approval. */
   agentDataPath: string
+  /** Additional app-owned roots that read tools may access without approval. Mutating file tools do
+   *  not inherit these roots. */
+  additionalReadOnlyRoots: readonly string[]
   /** Push a runtime-neutral event into the connection queue; the host owns presentation. */
   emit: (event: AgentRuntimeEvent) => void
   /** Resolve responder availability at tool fire-time so warm connections follow the current turn. */
@@ -126,13 +128,13 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
-    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. The rewrite
-    // makes commands runnable and applies in every mode; the install block is a permission guard,
-    // so an explicit bypass skips it.
+    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
+    // in every mode: shared/global installs mutate the cross-agent environment, so this is an
+    // explicit safety block rather than an approval that Full Access can lift.
     if (toolName === 'bash') {
       const command = typeof input.command === 'string' ? input.command : ''
       if (command.trim()) {
-        const reason = bypass ? null : detectGlobalInstall(command)
+        const reason = detectGlobalInstall(command)
         if (reason) {
           logger.info('Blocked global install to prevent dependency pollution', { sessionId: ctx.sessionId, reason })
           return {
@@ -156,7 +158,18 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
     // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
     // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
     if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
-    if (!(await requiresApproval(mode, toolName, input, ctx.workspacePath, ctx.agentDataPath, approvalRequired))) return
+    if (
+      !(await requiresApproval(
+        mode,
+        toolName,
+        input,
+        ctx.workspacePath,
+        ctx.agentDataPath,
+        ctx.additionalReadOnlyRoots,
+        approvalRequired
+      ))
+    )
+      return
 
     const interactionState = ctx.getInteractionState()
     if (interactionState.userResponse === 'unavailable') {
@@ -219,6 +232,7 @@ async function requiresApproval(
   input: Record<string, unknown>,
   workspacePath: string,
   agentDataPath: string,
+  additionalReadOnlyRoots: readonly string[],
   alwaysPrompt: boolean
 ): Promise<boolean> {
   if (alwaysPrompt) return true
@@ -235,7 +249,10 @@ async function requiresApproval(
       const command = typeof input.command === 'string' ? input.command : ''
       return detectDestructiveCommand(command) !== null
     }
-    if (READ_ONLY_TOOLS.has(toolName) || EDIT_TOOLS.has(toolName)) {
+    if (READ_ONLY_TOOLS.has(toolName)) {
+      return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true, additionalReadOnlyRoots))
+    }
+    if (EDIT_TOOLS.has(toolName)) {
       return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
     }
     return false
@@ -244,7 +261,7 @@ async function requiresApproval(
   // inside an allowed root; any other read/write falls through to a normal prompt so a
   // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.
   if (READ_ONLY_TOOLS.has(toolName)) {
-    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, false))
+    return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, false, additionalReadOnlyRoots))
   }
   if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) {
     return !(await isToolPathInsideAllowedRoots(input, workspacePath, agentDataPath, true))
@@ -267,7 +284,8 @@ async function isToolPathInsideAllowedRoots(
   input: Record<string, unknown>,
   workspacePath: string,
   agentDataPath: string,
-  allowMissingTarget: boolean
+  allowMissingTarget: boolean,
+  additionalAllowedRoots: readonly string[] = []
 ): Promise<boolean> {
   const raw = input.path
   // read defaults a missing/empty path to "." → the workspace root, which is inside.
@@ -283,7 +301,11 @@ async function isToolPathInsideAllowedRoots(
   ])
   if (!canonicalWorkspace || !canonicalAgentData || !canonicalTarget) return false
 
-  return [canonicalWorkspace, canonicalAgentData].some((root) => {
+  const canonicalAdditionalRoots = (
+    await Promise.all(additionalAllowedRoots.map((root) => canonicalizeExistingPath(root)))
+  ).filter((root): root is string => root !== undefined)
+
+  return [canonicalWorkspace, canonicalAgentData, ...canonicalAdditionalRoots].some((root) => {
     const rel = path.relative(root, canonicalTarget)
     return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
   })

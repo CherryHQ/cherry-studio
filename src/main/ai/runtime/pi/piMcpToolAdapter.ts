@@ -106,7 +106,7 @@ function toPiToolDefinition(serverName: string, tool: Tool, client: Client): PiM
       if (result.isError) throw new Error(joinErrorText(result.content))
       return {
         content: result.content.map(toPiContent),
-        details: result.structuredContent
+        details: result.structuredContent ?? null
       }
     }
   }

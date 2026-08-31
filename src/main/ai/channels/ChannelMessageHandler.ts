@@ -17,11 +17,11 @@ import type { Disposable } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { wrapExternalContent } from './security/ExternalContentGuard'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
@@ -44,6 +44,8 @@ const SESSION_TRACKER_MAX_SIZE = 500
  * agent round-trip and avoids concurrent stream interleaving.
  */
 const MESSAGE_BATCH_DELAY_MS = 8000
+// Cap a sender's debounce extension so another sender in the conversation cannot wait forever.
+const MESSAGE_BATCH_MAX_DELAY_MS = 16000
 
 type BatchResolver = {
   resolve: () => void
@@ -54,12 +56,40 @@ type PendingBatch = {
   adapter: ChannelAdapter
   messages: ChannelMessageEvent[]
   timer: ReturnType<typeof setTimeout>
+  deadline: number
   resolvers: BatchResolver[]
+  release: () => void
+  cancelled: boolean
+  admissionId: string
+  admit: () => void
+}
+
+function conversationIdOf(event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'chatId' | 'conversationId'>): string {
+  return event.conversationId ?? event.chatId
+}
+
+function conversationKey(agentId: string, channelId: string, conversationId: string): string {
+  return `${agentId}:${channelId}:${conversationId}`
+}
+
+function responseOptionsFor(
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+): SendMessageOptions {
+  return {
+    replyToMessageId: event.messageId,
+    ...(event.replyInThread && { replyInThread: true })
+  }
+}
+
+function streamResponseOptionsFor(
+  event: Pick<ChannelMessageEvent | ChannelCommandEvent, 'messageId' | 'replyInThread'>
+): SendMessageOptions | undefined {
+  return event.messageId !== undefined || event.replyInThread ? responseOptionsFor(event) : undefined
 }
 
 export class ChannelMessageHandler {
   // TODO: in v2 use cacheService
-  private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
+  private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${conversationId}` -> sessionId
   private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
   /** Per-chat debounce buffer — accumulates rapid messages before flushing */
   private readonly pendingBatches = new Map<string, PendingBatch>()
@@ -69,10 +99,10 @@ export class ChannelMessageHandler {
   private readonly activeAbortControllers = new Map<string, AbortController>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. See `pause()`. */
   private readonly pauseHolds = new Set<symbol>()
-  /** Flushed batches whose agent-turn admission hasn't landed yet — `drainInFlight`'s wait-set.
-   *  Resolved (idempotently) once `startAgentSessionRun` returned/threw, or on any
-   *  `processIncoming` early return; NOT held open for the full turn (post-admission stream
-   *  writes are AiStreamManager's drain). Entries self-remove on resolve. */
+  /** Queued work whose write admission hasn't landed yet — `drainInFlight`'s wait-set.
+   *  Resolved (idempotently) once a turn is admitted, a command write completes, or processing
+   *  exits early; NOT held open for the full turn (post-admission stream writes are
+   *  AiStreamManager's drain). Entries self-remove on resolve. */
   private readonly pendingAdmissions = new Map<string, Promise<void>>()
   private admissionSeq = 0
 
@@ -115,7 +145,7 @@ export class ChannelMessageHandler {
   }
 
   /**
-   * Await the flushed batches' turn admissions, bounded by timeoutMs. Never rejects. A single
+   * Await queued work admissions, bounded by timeoutMs. Never rejects. A single
    * snapshot suffices (unlike the AI writers' fixed-point drains): intake is gated and pause()
    * already flushed every buffer synchronously, so the admission set can only shrink.
    *
@@ -140,7 +170,7 @@ export class ChannelMessageHandler {
       ])
       if (winner === 'done') return { stragglerIds: [] }
       const stragglerIds = snapshot.filter(([id]) => this.pendingAdmissions.has(id)).map(([id]) => id)
-      logger.warn('drainInFlight timed out with unadmitted flushed batches', {
+      logger.warn('drainInFlight timed out with unadmitted channel work', {
         timeoutMs: opts.timeoutMs,
         stragglerIds
       })
@@ -153,11 +183,19 @@ export class ChannelMessageHandler {
   /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
   listActiveWork(): Array<{ id: string; summary: string }> {
     const work: Array<{ id: string; summary: string }> = []
+    const bufferedAdmissionIds = new Set<string>()
     for (const [batchKey, batch] of this.pendingBatches) {
       work.push({ id: batchKey, summary: `buffered=${batch.messages.length}` })
+      bufferedAdmissionIds.add(batch.admissionId)
     }
     for (const admissionId of this.pendingAdmissions.keys()) {
-      work.push({ id: admissionId, summary: 'flushed batch awaiting turn admission' })
+      if (bufferedAdmissionIds.has(admissionId)) continue
+      work.push({
+        id: admissionId,
+        summary: admissionId.startsWith('command:')
+          ? 'queued command awaiting write admission'
+          : 'flushed batch awaiting turn admission'
+      })
     }
     return work
   }
@@ -186,7 +224,7 @@ export class ChannelMessageHandler {
       })
       return Promise.resolve()
     }
-    const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}:${message.userId}`
+    const batchKey = `${conversationKey(adapter.agentId, adapter.channelId, conversationIdOf(message))}:${message.userId}`
 
     return new Promise<void>((resolve, reject) => {
       const existing = this.pendingBatches.get(batchKey)
@@ -195,7 +233,7 @@ export class ChannelMessageHandler {
         existing.messages.push(message)
         existing.resolvers.push({ resolve, reject })
         clearTimeout(existing.timer)
-        existing.timer = setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS)
+        existing.timer = setTimeout(() => this.flushBatch(batchKey), Math.max(0, existing.deadline - Date.now()))
         logger.debug('Message appended to pending batch', {
           batchKey,
           batchSize: existing.messages.length
@@ -204,13 +242,31 @@ export class ChannelMessageHandler {
       }
 
       // Start a new batch
+      let release!: () => void
+      const ready = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const admissionId = `${batchKey}#${++this.admissionSeq}`
+      let admit!: () => void
+      const admission = new Promise<void>((resolve) => {
+        admit = resolve
+      })
+      this.pendingAdmissions.set(admissionId, admission)
+      void admission.then(() => this.pendingAdmissions.delete(admissionId))
+
       const batch: PendingBatch = {
         adapter,
         messages: [message],
         timer: setTimeout(() => this.flushBatch(batchKey), MESSAGE_BATCH_DELAY_MS),
-        resolvers: [{ resolve, reject }]
+        deadline: Date.now() + MESSAGE_BATCH_MAX_DELAY_MS,
+        resolvers: [{ resolve, reject }],
+        release,
+        cancelled: false,
+        admissionId,
+        admit
       }
       this.pendingBatches.set(batchKey, batch)
+      this.enqueueBatch(batchKey, batch, ready)
     })
   }
 
@@ -218,39 +274,35 @@ export class ChannelMessageHandler {
     const batch = this.pendingBatches.get(batchKey)
     if (!batch) return
     this.pendingBatches.delete(batchKey)
+    batch.release()
+  }
 
-    const merged = this.mergeMessages(batch.messages)
-    const { resolvers } = batch
-
-    if (batch.messages.length > 1) {
-      logger.info('Flushing merged message batch', {
-        batchKey,
-        messageCount: batch.messages.length
-      })
-    }
-
-    // Admission deferred for the write-quiesce drain: resolved once this batch's agent turn
-    // was admitted (or processIncoming bailed early). `resolve()` is natively idempotent.
-    const admissionId = `${batchKey}#${++this.admissionSeq}`
-    let admit!: () => void
-    const admission = new Promise<void>((resolve) => {
-      admit = resolve
-    })
-    this.pendingAdmissions.set(admissionId, admission)
-    void admission.then(() => this.pendingAdmissions.delete(admissionId))
-
-    // Serialize with any in-flight stream to avoid interleaving
-    const prev = this.chatQueues.get(batchKey) ?? Promise.resolve()
+  private enqueueBatch(batchKey: string, batch: PendingBatch, ready: Promise<void>): void {
+    const queueKey = conversationKey(
+      batch.adapter.agentId,
+      batch.adapter.channelId,
+      conversationIdOf(batch.messages[0])
+    )
+    const prev = this.chatQueues.get(queueKey) ?? Promise.resolve()
     const current = prev
-      .then(() => this.processIncoming(batch.adapter, merged, admit))
+      .then(async () => {
+        await ready
+        if (batch.cancelled) return
+
+        const merged = this.mergeMessages(batch.messages)
+        if (batch.messages.length > 1) {
+          logger.info('Flushing merged message batch', { batchKey, messageCount: batch.messages.length })
+        }
+        await this.processIncoming(batch.adapter, merged, batch.admit)
+      })
       .then(
-        () => resolvers.forEach((r) => r.resolve()),
-        (err) => resolvers.forEach((r) => r.reject(err))
+        () => batch.resolvers.forEach((r) => r.resolve()),
+        (err) => batch.resolvers.forEach((r) => r.reject(err))
       )
       .finally(() => {
         // Clean up queue entry when no newer work has been enqueued
-        if (this.chatQueues.get(batchKey) === settled) {
-          this.chatQueues.delete(batchKey)
+        if (this.chatQueues.get(queueKey) === settled) {
+          this.chatQueues.delete(queueKey)
         }
       })
     // Log errors but keep the queue chain intact
@@ -261,11 +313,12 @@ export class ChannelMessageHandler {
       // Best-effort: notify the user with a generic message (no internal details)
       try {
         const adapter = batch.adapter
-        const chatId = merged.chatId
-        if (adapter && chatId) {
+        const message = batch.messages.at(-1)
+        const chatId = message?.chatId
+        if (adapter && message && chatId) {
           adapter
-            .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
-              replyToMessageId: merged.messageId
+            .sendMessage(chatId, t('common.channel_message_processing_error'), {
+              ...responseOptionsFor(message)
             })
             .catch((sendErr) => {
               logger.debug('Failed to send error notification to channel', {
@@ -278,7 +331,7 @@ export class ChannelMessageHandler {
         // Do not let error notification break the queue
       }
     })
-    this.chatQueues.set(batchKey, settled)
+    this.chatQueues.set(queueKey, settled)
   }
 
   private mergeMessages(messages: ChannelMessageEvent[]): ChannelMessageEvent {
@@ -297,10 +350,12 @@ export class ChannelMessageHandler {
 
     return {
       chatId: first.chatId,
+      ...(first.conversationId ? { conversationId: first.conversationId } : {}),
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
       ...(messageId ? { messageId } : {}),
+      ...(first.replyInThread ? { replyInThread: true } : {}),
       ...(mergedImages.length > 0 ? { images: mergedImages } : {}),
       ...(mergedFiles.length > 0 ? { files: mergedFiles } : {})
     }
@@ -314,19 +369,10 @@ export class ChannelMessageHandler {
     const { agentId } = adapter
 
     try {
-      const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, message.chatId)
+      const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
-        await adapter
-          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.', {
-            replyToMessageId: message.messageId
-          })
-          .catch((err) => {
-            logger.debug('Failed to send session-error notification to channel', {
-              chatId: message.chatId,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -335,11 +381,13 @@ export class ChannelMessageHandler {
       // An orphan session (`agentId === null`) cannot run; skip it.
       if (!session.agentId) {
         logger.error('Channel message hit an orphan session', { sessionId: session.id })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
       const agent = agentService.getAgent(session.agentId)
       if (!agent) {
         logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -354,9 +402,7 @@ export class ChannelMessageHandler {
           await prepareAgentSessionWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {
-            await adapter
-              .sendMessage(message.chatId, error.message, { replyToMessageId: message.messageId })
-              .catch(() => {})
+            await adapter.sendMessage(message.chatId, error.message, responseOptionsFor(message)).catch(() => {})
           }
           throw error
         }
@@ -407,21 +453,14 @@ export class ChannelMessageHandler {
         textWithAttachments += `\n\n[Attached files saved to workspace]\n${filePaths.map((p) => `- ${p}`).join('\n')}`
       }
 
-      // Wrap untrusted channel input with security boundary markers
-      const securedContent = wrapExternalContent(textWithAttachments, {
-        chatId: message.chatId,
-        userId: message.userId,
-        userName: message.userName,
-        channelType: adapter.channelType
-      })
-
       const abortController = new AbortController()
       this.activeAbortControllers.set(session.id, abortController)
 
       // Show typing indicator immediately and keep refreshing every 4s
-      adapter.sendTypingIndicator(message.chatId).catch(() => {})
+      const responseOptions = streamResponseOptionsFor(message)
+      adapter.sendTypingIndicator(message.chatId, responseOptions).catch(() => {})
       const typingInterval = setInterval(
-        () => adapter.sendTypingIndicator(message.chatId).catch(() => {}),
+        () => adapter.sendTypingIndicator(message.chatId, responseOptions).catch(() => {}),
         TYPING_INTERVAL_MS
       )
 
@@ -432,11 +471,11 @@ export class ChannelMessageHandler {
         // read never accumulated — and reviving it would double-send.)
         await this.collectStreamResponse(
           session,
-          securedContent,
+          textWithAttachments,
           abortController,
           adapter,
           message.chatId,
-          message.messageId,
+          responseOptions,
           onAdmitted
         )
       } catch (streamError) {
@@ -445,12 +484,10 @@ export class ChannelMessageHandler {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
-          adapter
-            .sendMessage(message.chatId, streamErrorMessage, { replyToMessageId: message.messageId })
-            .catch(() => {})
+          adapter.sendMessage(message.chatId, streamErrorMessage, responseOptionsFor(message)).catch(() => {})
         } else {
           // Mid-stream error: let the adapter update its streaming UI.
-          adapter.onStreamError(message.chatId, streamErrorMessage).catch(() => {})
+          adapter.onStreamError(message.chatId, streamErrorMessage, responseOptions).catch(() => {})
         }
         throw streamError
       } finally {
@@ -488,31 +525,75 @@ export class ChannelMessageHandler {
       })
       return
     }
+
+    if (command.command === 'help' || command.command === 'whoami') {
+      return this.processCommand(adapter, command, () => {})
+    }
+
+    // Preserve transport arrival order: messages received before a command must finish before
+    // `/new` rotates the session or `/compact` starts another turn for the same conversation.
+    for (const [batchKey, batch] of this.pendingBatches) {
+      if (
+        batch.adapter.agentId === adapter.agentId &&
+        batch.adapter.channelId === adapter.channelId &&
+        conversationIdOf(batch.messages[0]) === conversationIdOf(command)
+      ) {
+        clearTimeout(batch.timer)
+        this.flushBatch(batchKey)
+      }
+    }
+
+    const queueKey = conversationKey(adapter.agentId, adapter.channelId, conversationIdOf(command))
+    const admissionId = `command:${queueKey}#${++this.admissionSeq}`
+    let admit!: () => void
+    const admission = new Promise<void>((resolve) => {
+      admit = resolve
+    })
+    this.pendingAdmissions.set(admissionId, admission)
+    void admission.then(() => this.pendingAdmissions.delete(admissionId))
+
+    const previous = this.chatQueues.get(queueKey) ?? Promise.resolve()
+    const current = previous.then(() => this.processCommand(adapter, command, admit))
+    const settled = current.finally(() => {
+      if (this.chatQueues.get(queueKey) === settled) {
+        this.chatQueues.delete(queueKey)
+      }
+    })
+    this.chatQueues.set(queueKey, settled)
+    return settled
+  }
+
+  private async processCommand(
+    adapter: ChannelAdapter,
+    command: ChannelCommandEvent,
+    onAdmitted: () => void
+  ): Promise<void> {
     const { agentId } = adapter
-    const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
+    const replyOpts = responseOptionsFor(command)
     try {
       switch (command.command) {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = this.createSessionForChannel(agentId, adapter.channelId)
-          channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
-          const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
+          const newSession = this.createSessionForConversation(agentId, adapter.channelId, conversationIdOf(command))
+          const trackerKey = conversationKey(agentId, adapter.channelId, conversationIdOf(command))
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
-          await adapter.sendMessage(command.chatId, 'New session created.', replyOpts)
+          onAdmitted()
+          await adapter.sendMessage(command.chatId, t('common.channel_new_session_created'), replyOpts)
           break
         }
         case 'compact': {
-          const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, command.chatId)
+          const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(command))
           if (!session) {
-            await adapter.sendMessage(command.chatId, 'No active session.', replyOpts)
+            await adapter.sendMessage(command.chatId, t('common.channel_no_active_session'), replyOpts)
             return
           }
           const abortController = new AbortController()
-          adapter.sendTypingIndicator(command.chatId).catch(() => {})
+          const responseOptions = streamResponseOptionsFor(command)
+          adapter.sendTypingIndicator(command.chatId, responseOptions).catch(() => {})
           const typingInterval = setInterval(
-            () => adapter.sendTypingIndicator(command.chatId).catch(() => {}),
+            () => adapter.sendTypingIndicator(command.chatId, responseOptions).catch(() => {}),
             TYPING_INTERVAL_MS
           )
           try {
@@ -522,13 +603,14 @@ export class ChannelMessageHandler {
               abortController,
               adapter,
               command.chatId,
-              command.messageId
+              responseOptions,
+              onAdmitted
             )
             // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
             // delivered any non-empty output; only send an explicit fallback when compact
             // produced no text, so we don't double-send.
             if (!response) {
-              await adapter.sendMessage(command.chatId, 'Session compacted.', replyOpts)
+              await adapter.sendMessage(command.chatId, t('common.channel_session_compacted'), replyOpts)
             }
           } finally {
             clearInterval(typingInterval)
@@ -536,15 +618,16 @@ export class ChannelMessageHandler {
           break
         }
         case 'help': {
+          onAdmitted()
           const agent = agentService.getAgent(agentId)
           const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
-          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, command.chatId)
+          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, conversationIdOf(command))
           const helpText = [
             `*${name}*`,
             description ? `_${description}_` : '',
             '',
-            'Available commands:',
+            t('common.channel_available_commands'),
             ...commands.map((cmd) => `/${cmd.name} - ${cmd.description}`)
           ]
             .filter(Boolean)
@@ -553,6 +636,7 @@ export class ChannelMessageHandler {
           break
         }
         case 'whoami': {
+          onAdmitted()
           await adapter.sendMessage(
             command.chatId,
             [
@@ -572,8 +656,8 @@ export class ChannelMessageHandler {
         error: error instanceof Error ? error.message : String(error)
       })
       adapter
-        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.', {
-          replyToMessageId: command.messageId
+        .sendMessage(command.chatId, t('common.channel_command_processing_error'), {
+          ...responseOptionsFor(command)
         })
         .catch((sendErr) => {
           logger.debug('Failed to send error notification to channel', {
@@ -581,6 +665,8 @@ export class ChannelMessageHandler {
             error: sendErr instanceof Error ? sendErr.message : String(sendErr)
           })
         })
+    } finally {
+      onAdmitted()
     }
   }
 
@@ -615,6 +701,9 @@ export class ChannelMessageHandler {
       if (key.startsWith(`${agentId}:`)) {
         clearTimeout(batch.timer)
         this.pendingBatches.delete(key)
+        batch.cancelled = true
+        batch.admit()
+        batch.release()
         // Settle the discarded batch's callers so their .catch handlers fire
         // instead of leaving handleIncoming promises hanging forever.
         batch.resolvers.forEach((r) => r.reject(new Error('Agent removed; batch discarded')))
@@ -654,13 +743,13 @@ export class ChannelMessageHandler {
   private async helpCommandsForChat(
     agentId: string,
     channelId: string,
-    chatId: string
+    conversationId: string
   ): Promise<Array<{ name: string; description: string }>> {
     const merged: Array<{ name: string; description: string }> = SLASH_COMMANDS.map((cmd) => ({
       name: cmd.name,
       description: cmd.description
     }))
-    const sessionId = this.peekSessionId(agentId, channelId, chatId)
+    const sessionId = this.peekSessionId(agentId, channelId, conversationId)
     if (!sessionId) return merged
 
     const sessionCommands =
@@ -673,29 +762,22 @@ export class ChannelMessageHandler {
     return merged
   }
 
-  /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
-   *  channel row. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
+  /** Read-only lookup of the session currently bound to a conversation — tracker first, then the persisted
+   *  conversation binding. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
    *  so a stale/reassigned channel link can't surface another agent's commands; returns null when no
    *  session is bound to this agent yet (unlike {@link resolveSession}, never creates one). */
-  private peekSessionId(agentId: string, channelId: string, chatId: string): string | null {
-    const lookup = (sessionId: string) => {
-      try {
-        return agentSessionService.getById(sessionId)
-      } catch {
-        return null
-      }
-    }
-
-    const trackedId = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
+  private peekSessionId(agentId: string, channelId: string, conversationId: string): string | null {
+    const trackerKey = conversationKey(agentId, channelId, conversationId)
+    const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {
-      const session = lookup(trackedId)
-      if (session?.agentId === agentId) return session.id
+      const session = this.findSessionOwnedByAgent(trackedId, agentId)
+      if (session) return session.id
     }
 
-    const channelRow = channelService.getChannel(channelId)
-    if (channelRow?.sessionId) {
-      const session = lookup(channelRow.sessionId)
-      if (session?.agentId === agentId) return session.id
+    const persistedId = channelService.getActiveSessionId(channelId, conversationId)
+    if (persistedId) {
+      const session = this.findSessionOwnedByAgent(persistedId, agentId)
+      if (session) return session.id
     }
     return null
   }
@@ -703,16 +785,15 @@ export class ChannelMessageHandler {
   private async resolveSession(
     agentId: string,
     channelId: string,
-    channelType: string,
-    chatId: string
+    conversationId: string
   ): Promise<AgentSessionEntity | null> {
-    const trackerKey = `${agentId}:${channelId}:${chatId}`
+    const trackerKey = conversationKey(agentId, channelId, conversationId)
 
-    // Coalesce concurrent resolutions for the same chat to avoid duplicate sessions
+    // Coalesce concurrent resolutions for the same conversation to avoid duplicate sessions
     const pending = this.pendingResolutions.get(trackerKey)
     if (pending) return pending
 
-    const resolution = this.doResolveSession(agentId, channelId, channelType, chatId, trackerKey)
+    const resolution = this.doResolveSession(agentId, channelId, conversationId, trackerKey)
     this.pendingResolutions.set(trackerKey, resolution)
     try {
       return await resolution
@@ -724,40 +805,25 @@ export class ChannelMessageHandler {
   private async doResolveSession(
     agentId: string,
     channelId: string,
-    _channelType: string,
-    _chatId: string,
+    conversationId: string,
     trackerKey: string
   ): Promise<AgentSessionEntity | null> {
     const channelRow = channelService.getChannel(channelId)
-    const lookup = (sessionId: string) => {
-      try {
-        return agentSessionService.getById(sessionId)
-      } catch {
-        return null
-      }
-    }
 
     // Check tracker first
     const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {
-      const session = lookup(trackedId)
-      if (session && session.agentId === agentId) {
-        if (channelRow && channelRow.sessionId !== session.id) {
-          try {
-            channelService.updateChannel(channelId, { sessionId: session.id })
-          } catch (err) {
-            logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
-          }
-        }
+      const session = this.findSessionOwnedByAgent(trackedId, agentId)
+      if (session) {
         return session
       }
       this.sessionTracker.delete(trackerKey)
     }
 
-    // Look up existing session via channel's session_id
-    if (channelRow?.sessionId) {
-      const existingSession = lookup(channelRow.sessionId)
-      if (existingSession && existingSession.agentId === agentId) {
+    const persistedId = channelService.getActiveSessionId(channelId, conversationId)
+    if (persistedId) {
+      const existingSession = this.findSessionOwnedByAgent(persistedId, agentId)
+      if (existingSession) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
         return existingSession
@@ -765,34 +831,64 @@ export class ChannelMessageHandler {
     }
 
     // No existing session found — create a new one
-    logger.info('No existing session for channel, creating new session', {
+    logger.info('No existing session for channel conversation, creating new session', {
       agentId,
       channelId,
-      channelSessionId: channelRow?.sessionId ?? null,
+      conversationId,
       trackerKey
     })
 
-    const newSession = this.createSessionForChannel(agentId, channelId, channelRow ?? undefined)
-    channelService.updateChannel(channelId, { sessionId: newSession.id })
+    const newSession = this.createSessionForConversation(agentId, channelId, conversationId, channelRow ?? undefined)
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()
     return newSession
   }
 
-  private createSessionForChannel(
+  private createSessionForConversation(
     agentId: string,
     channelId: string,
-    channel?: NonNullable<Awaited<ReturnType<typeof channelService.getChannel>>>
+    conversationId: string,
+    channel?: AgentChannelEntity
   ): AgentSessionEntity {
     const channelRow = channel ?? channelService.getChannel(channelId)
     if (!channelRow) {
       throw new Error(`Channel not found: ${channelId}`)
     }
-    return agentSessionService.create({
-      agentId,
-      name: 'Channel session',
-      workspace: channelRow.workspace
+    const sessionId = randomUUID()
+    application.get('DbService').withWriteTx((tx) => {
+      agentSessionService.createTx(tx, sessionId, {
+        agentId,
+        name: 'Channel session',
+        workspace: channelRow.workspace
+      })
+      channelService.activateSessionTx(tx, {
+        channelId,
+        conversationId,
+        sessionId
+      })
     })
+    agentSessionService.notifyReadModelChange([sessionId], 'membership')
+    return agentSessionService.getById(sessionId)
+  }
+
+  private findSessionOwnedByAgent(sessionId: string, agentId: string): AgentSessionEntity | null {
+    try {
+      const session = agentSessionService.getById(sessionId)
+      return session?.agentId === agentId ? session : null
+    } catch {
+      return null
+    }
+  }
+
+  private async notifySessionResolutionError(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+    await adapter
+      .sendMessage(message.chatId, t('common.channel_session_resolution_error'), responseOptionsFor(message))
+      .catch((err) => {
+        logger.debug('Failed to send session-error notification to channel', {
+          chatId: message.chatId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
   }
 
   private async collectStreamResponse(
@@ -801,7 +897,7 @@ export class ChannelMessageHandler {
     abortController: AbortController,
     adapter: ChannelAdapter,
     chatId: string,
-    replyToMessageId?: string,
+    responseOptions?: SendMessageOptions,
     onAdmitted?: () => void
   ): Promise<string> {
     if (!session.agentId) {
@@ -837,7 +933,7 @@ export class ChannelMessageHandler {
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)],
+        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
       })

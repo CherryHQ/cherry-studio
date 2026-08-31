@@ -17,6 +17,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -40,7 +41,10 @@ export interface CherryAgentContext {
   agentId: string
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
-  sourceChannelId?: string
+  /** Notification recipients authorized for this exact turn, supplied only by the runtime. */
+  trustedNotifyChannels?: readonly NotifyChannel[]
+  /** Source-channel turns may explicitly select another live channel owned by this Agent. */
+  allowAnyOwnedNotifyChannel?: boolean
   /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
   canAccessAllKnowledgeBases?: () => boolean
   /**
@@ -114,7 +118,7 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to use the current source channel when invoked from a channel; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
+          'Channel IDs to send task results to. Omit to use this turn’s configured notification recipients; use an empty array [] to skip channel delivery. Explicit IDs must be configured recipients, except a source-channel session may select another live channel owned by this Agent.'
       },
       timeout_minutes: {
         type: 'number',
@@ -133,7 +137,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: NOTIFY_TOOL_NAME,
   description:
-    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
+    'Deliver a message, a workspace file, or both to this turn’s configured notification recipients. Files are first-class deliverables: use file_path for final workspace artifacts. Telegram/Feishu/WeChat forward any file, and WeChat sends video as native video media; Discord/Slack/QQ do not support files yet. Omit channel_id to deliver to all configured recipients; provide channel_id only to select one configured recipient. In a source-channel session, channel_id may also select another live channel owned by this Agent.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -144,16 +148,16 @@ const NOTIFY_TOOL: Tool = {
       file_path: {
         type: 'string',
         description:
-          'Optional: path to a file in your workspace to forward to the user (relative to the workspace, or an absolute path inside it). The file must reside within the session workspace.'
+          'A workspace file to deliver. Provide this, message, or both. Use a relative path or an absolute path inside the session workspace.'
       },
       channel_id: {
         type: 'string',
-        description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
+        description:
+          'Optional explicit destination channel. Omit to deliver to all configured recipients for this turn.'
       }
-    },
-    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
-    // the trimmed values (empty strings must still be rejected).
-    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
+    }
+    // ponytail: no root anyOf — some providers (xAI) reject union root schemas; the handler
+    // enforces "message or file_path" on the trimmed values anyway.
   }
 }
 
@@ -365,21 +369,34 @@ export class CherryAutonomyTools {
   private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
-  private sourceChannelId: string | undefined
+  private trustedNotifyChannels: readonly NotifyChannel[]
+  private allowAnyOwnedNotifyChannel: boolean
 
   constructor(context: CherryAutonomyContext) {
     this.agentId = context.agentId
     this.sessionId = context.sessionId
     this.workspace = context.workspaceSource
     this.workspacePath = context.workspacePath
-    this.sourceChannelId = context.sourceChannelId
+    this.trustedNotifyChannels = context.trustedNotifyChannels ?? []
+    this.allowAnyOwnedNotifyChannel = context.allowAnyOwnedNotifyChannel === true
   }
 
   tools(): Tool[] {
-    return [...AUTONOMY_TOOLS]
+    return AUTONOMY_TOOLS.flatMap((tool) => {
+      if (tool.name !== NOTIFY_TOOL_NAME) return [tool]
+      return this.trustedNotifyChannels.length > 0
+        ? [
+            {
+              ...tool,
+              description: `${tool.description} Configured recipients: ${this.trustedNotifyChannels.map((channel) => `${channel.type} (${channel.id})`).join(', ')}.`
+            }
+          ]
+        : []
+    })
   }
 
   handles(toolName: string): boolean {
+    // Keep hidden tools routable so a stale catalog receives the policy error from `call()`.
     return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
   }
 
@@ -400,6 +417,12 @@ export class CherryAutonomyTools {
           }
         }
         case NOTIFY_TOOL_NAME:
+          if (this.trustedNotifyChannels.length === 0) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'notify is unavailable because this turn has no configured notification recipients'
+            )
+          }
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
@@ -653,13 +676,30 @@ export class CherryAutonomyTools {
     }
   }
 
+  private getNotifyChannelAccess(
+    channelId: string,
+    adapters?: readonly { channelId: string; connected: boolean }[]
+  ): 'allowed' | 'not-owned' | 'not-granted' {
+    const channel = channelService.getChannel(channelId)
+    if (!channel || channel.agentId !== this.agentId) return 'not-owned'
+    if (this.trustedNotifyChannels.some((trustedChannel) => trustedChannel.id === channelId)) return 'allowed'
+    // A dropped adapter stays registered for reconnection, so require a live connection here —
+    // otherwise this fallback authorizes an offline channel the turn was never granted.
+    return this.allowAnyOwnedNotifyChannel &&
+      (adapters ?? application.get('ChannelManager').getAgentAdapters(this.agentId)).some(
+        (adapter) => adapter.channelId === channelId && adapter.connected
+      )
+      ? 'allowed'
+      : 'not-granted'
+  }
+
   private async addJob(args: Record<string, unknown>) {
     const name = args.name as string | undefined
     const message = args.message as string | undefined
     const cronExpr = args.cron as string | undefined
     const every = args.every as string | undefined
     const at = args.at as string | undefined
-    const rawChannelIds = args.channel_ids as string[] | undefined
+    const rawChannelIds = args.channel_ids
     const timeoutMinutes = args.timeout_minutes as number | undefined
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add")
     if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for add")
@@ -682,20 +722,28 @@ export class CherryAutonomyTools {
       trigger = { kind: 'once', at: date.getTime() }
     }
 
-    // Resolve channel_ids: explicit array, or default to the current channel. Validate that each
-    // explicit id belongs to this agent — cron is auto-approved and injected for every agent, so an
-    // unscoped id would let one agent deliver task output into another agent's channel. Foreign (and
-    // missing) ids get the same "not found" as the config-tool guards to avoid leaking existence.
     let channelIds: string[] | undefined
-    if (Array.isArray(rawChannelIds)) {
-      for (const channelId of rawChannelIds) {
-        const channel = channelService.getChannel(channelId)
-        if (!channel || channel.agentId !== this.agentId)
-          throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (rawChannelIds !== undefined) {
+      // Callers bypassing this tool's schema can pass a non-array; rejecting keeps it from being
+      // read as omission and fanning out to every trusted recipient.
+      if (!Array.isArray(rawChannelIds) || rawChannelIds.some((id) => typeof id !== 'string')) {
+        throw new McpError(ErrorCode.InvalidParams, "'channel_ids' must be an array of channel ids")
       }
-      channelIds = rawChannelIds
-    } else if (this.sourceChannelId) {
-      channelIds = [this.sourceChannelId]
+      channelIds = rawChannelIds as string[]
+    } else if (this.trustedNotifyChannels.length > 0) {
+      channelIds = this.trustedNotifyChannels.map((channel) => channel.id)
+    }
+
+    // Task targets have the same live ownership and turn authority requirements as immediate notifications.
+    for (const channelId of channelIds ?? []) {
+      const access = this.getNotifyChannelAccess(channelId)
+      if (access === 'not-owned') throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+      if (access === 'not-granted') {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Channel "${channelId}" is not a configured notification recipient for this turn`
+        )
+      }
     }
 
     const task = application.get('AgentJobsService').createTask(this.agentId, {
@@ -732,28 +780,37 @@ export class CherryAutonomyTools {
       throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
     }
 
-    const targetChannelId = typeof args.channel_id === 'string' ? args.channel_id : undefined
-    let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
-
-    if (targetChannelId) {
-      adapters = adapters.filter((a) => a.channelId === targetChannelId)
+    const explicitChannelId = typeof args.channel_id === 'string' ? args.channel_id.trim() : undefined
+    if (args.channel_id !== undefined && !explicitChannelId) {
+      throw new McpError(ErrorCode.InvalidParams, "'channel_id' must not be empty")
     }
-
-    if (adapters.length === 0) {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: 'No connected channels found. Configure at least one channel in settings.'
-          }
-        ]
+    const targetChannelIds = explicitChannelId
+      ? [explicitChannelId]
+      : this.trustedNotifyChannels.map((channel) => channel.id)
+    const targetChannelIdSet = new Set(targetChannelIds)
+    const allAgentAdapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
+    for (const channelId of targetChannelIdSet) {
+      if (this.getNotifyChannelAccess(channelId, allAgentAdapters) !== 'allowed') {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Channel "${channelId}" is not a configured notification recipient for this turn`
+        )
       }
     }
 
-    // Resolve the file once before dispatch so a bad path fails fast (one error,
-    // not one per chat). Guard errors surface as a clean isError result via the
-    // CallTool catch. Done after the no-adapters guard so we don't read up to
-    // 100MB off disk only to discover there's nowhere to send it.
+    const adapters = allAgentAdapters.filter((adapter) => targetChannelIdSet.has(adapter.channelId))
+    const availableChannelIds = new Set(adapters.map((adapter) => adapter.channelId))
+    const unavailableChannelIds = [...targetChannelIdSet].filter((channelId) => !availableChannelIds.has(channelId))
+    if (unavailableChannelIds.length > 0) {
+      const recipients = unavailableChannelIds.join(', ')
+      const unavailableMessage =
+        unavailableChannelIds.length === 1
+          ? `Configured notification recipient is unavailable: ${recipients}.`
+          : `Configured notification recipients are unavailable: ${recipients}.`
+      throw new McpError(ErrorCode.InvalidRequest, unavailableMessage)
+    }
+
+    // Resolve the file once after recipient validation so a bad path fails before dispatch.
     const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
     const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
 

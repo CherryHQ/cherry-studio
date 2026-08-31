@@ -1,17 +1,25 @@
+import { createServer } from 'node:http'
+import { createRequire } from 'node:module'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import type { DshRuntimeEntrySpecifier } from '@cherrystudio/dsh-bridge'
 import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 vi.mock('@data/services/ProviderService', () => ({ providerService: {} }))
 vi.mock('@data/services/ModelService', () => ({ modelService: {} }))
 
-import { buildDshCompositionYaml, type DshCompositionInput, toDshPluginUrl } from '../compositionBuilder'
+import {
+  buildDshCompositionYaml,
+  type DshCompositionInput,
+  resolveDshPluginPath,
+  toDshPluginUrl
+} from '../compositionBuilder'
 import { buildDshProviderInjection } from '../modelInjection'
 
 const SECRET_API_KEY = 'sk-cherry-super-secret-key'
@@ -41,10 +49,14 @@ function makeInjection(modelOverrides: Partial<Model> = {}, reasoningEffort: Rea
   const provider = {
     id: 'deepseek',
     name: 'DeepSeek',
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs: {
-      'openai-chat-completions': { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
+      'openai-chat-completions': {
+        adapterFamily: 'openai',
+        baseUrl: 'https://api.deepseek.com',
+        dialect: { developerRole: false }
+      }
     },
     settings: { extraHeaders: { 'X-Trace': 'on' } }
   } as unknown as Provider
@@ -82,6 +94,10 @@ function makeInput(overrides: Partial<DshCompositionInput> = {}): DshComposition
 }
 
 describe('buildDshCompositionYaml', () => {
+  it('accepts only registered DSH runtime entry specifiers', () => {
+    expectTypeOf(resolveDshPluginPath).parameter(0).toEqualTypeOf<DshRuntimeEntrySpecifier>()
+  })
+
   it('emits parseable YAML whose entries all carry an id and a plugin name', () => {
     const entries = parseEntries(buildDshCompositionYaml(makeInput()))
     expect(entries.length).toBeGreaterThan(10)
@@ -150,12 +166,12 @@ describe('buildDshCompositionYaml', () => {
     const entries = parseEntries(yml)
     const names = entries.map((entry) => entry.name).join('\n')
 
-    expect(names).toContain('dsh-pwsh-sandbox')
-    expect(names).toContain('dsh-tool-pwsh')
-    expect(names).toContain('dsh-shell-env')
-    expect(names).not.toContain('dsh-bash-sandbox')
-    expect(names).toContain('dsh-sandbox-local')
-    expect(names).toContain('dsh-sandbox-policy')
+    expect(names).toContain('pwsh-sandbox.mjs')
+    expect(names).toContain('tool-pwsh.mjs')
+    expect(names).toContain('shell-env.mjs')
+    expect(names).not.toContain('bash-sandbox.mjs')
+    expect(names).toContain('sandbox-local.mjs')
+    expect(names).toContain('sandbox-policy.mjs')
     expect(entryById(yml, 'agent-spine').config?.toolBash).toBe(false)
     expect(entryById(yml, 'sandbox-policy').config?.workspaceRoot).toBe('C:\\Users\\Cherry\\workspace')
     expect(entryById(yml, 'shell-executor').config?.cwd).toBe('C:\\Users\\Cherry\\workspace')
@@ -195,7 +211,8 @@ describe('buildDshCompositionYaml', () => {
         contextWindow: 128_000,
         maxTokens: 4_096,
         input: ['text'],
-        reasoningEfforts: false
+        reasoningEfforts: false,
+        compat: { supportsDeveloperRole: false }
       }
     ])
     expect(entryById(yml, 'sessions').config?.root).toBe('/tmp/dsh-sessions')
@@ -265,7 +282,7 @@ describe('buildDshCompositionYaml', () => {
     const provider = {
       id: 'cherryin',
       name: 'CherryIN',
-      apiFeatures: DEFAULT_API_FEATURES,
+      reportsActualCost: false,
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       endpointConfigs: {
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -309,7 +326,7 @@ describe('buildDshCompositionYaml', () => {
       const provider = {
         id: providerId,
         name: providerId,
-        apiFeatures: DEFAULT_API_FEATURES,
+        reportsActualCost: false,
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
         endpointConfigs: {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
@@ -419,7 +436,107 @@ describe('buildDshCompositionYaml', () => {
     expect(providerRoute(yaml, 'deepseek').models[0].reasoningEfforts).toBe(false)
   })
 
-  it('rejects models that explicitly declare no text input', () => {
-    expect(() => makeInjection({ inputModalities: [MODALITY.AUDIO] })).toThrow('text input is required')
+  it('forwards the provider developer-role capability to the dsh model profile', () => {
+    const injection = makeInjection()
+    const yaml = buildDshCompositionYaml(makeInput({ modelConfig: injection.modelConfig }))
+
+    expect(injection.modelConfig.compat).toEqual({ supportsDeveloperRole: false })
+    expect(providerRoute(yaml, 'deepseek').models[0].compat).toEqual({ supportsDeveloperRole: false })
+  })
+
+  it('emits developer-role compatibility accepted by the bundled dsh adapter', async () => {
+    const yaml = buildDshCompositionYaml(makeInput())
+    const llmConfig = entryById(yaml, 'llm').config
+    const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
+    const { Config } = await import(pluginUrl)
+
+    expect(Config(llmConfig).providers.deepseek.models[0].compat).toEqual({ supportsDeveloperRole: false })
+  })
+
+  it('sends system only when the configured endpoint rejects the developer role', async () => {
+    const roles: string[] = []
+    const server = createServer(async (request, response) => {
+      let body = ''
+      request.setEncoding('utf8')
+      for await (const chunk of request) body += chunk
+      const payload = JSON.parse(body) as { messages: Array<{ role: string }> }
+      roles.push(payload.messages[0]?.role ?? '')
+      response.writeHead(200, { 'content-type': 'text/event-stream' })
+      response.end(
+        [
+          'data: {"choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":null}]}',
+          'data: {"choices":[{"delta":{"content":"ok"},"index":0,"finish_reason":null}]}',
+          'data: {"choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}',
+          'data: [DONE]',
+          ''
+        ].join('\n\n')
+      )
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('test server did not expose a TCP port')
+
+    vi.stubEnv('CHERRY_DSH_API_KEY', 'test-key')
+    const pluginUrl = pathToFileURL(resolveDshPluginPath('@deepseek-ai/dsh-llm-pi-ai')).href
+    const runtimeRequire = createRequire(pluginUrl)
+    const cordisUrl = pathToFileURL(runtimeRequire.resolve('@deepseek-ai/cordis')).href
+    const llmRuntimeUrl = pathToFileURL(runtimeRequire.resolve('@deepseek-ai/dsh-llm')).href
+    const [{ Context }, { default: LlmRuntime }, dshLlmPiAi] = await Promise.all([
+      import(cordisUrl),
+      import(llmRuntimeUrl),
+      import(pluginUrl)
+    ])
+    const requestWith = async (supportsDeveloperRole: boolean): Promise<void> => {
+      const injection = makeInjection(
+        {
+          capabilities: [MODEL_CAPABILITY.REASONING],
+          reasoning: { selectableEfforts: ['high'] }
+        },
+        'high'
+      )
+      const yaml = buildDshCompositionYaml(
+        makeInput({
+          baseUrl: `http://127.0.0.1:${address.port}/v1`,
+          reasoning: injection.reasoning,
+          modelConfig: {
+            ...injection.modelConfig,
+            compat: { supportsDeveloperRole }
+          }
+        })
+      )
+      const context = new Context()
+      await context.plugin(LlmRuntime)
+      await context.plugin(dshLlmPiAi, entryById(yaml, 'llm').config)
+      try {
+        for await (const chunk of context.llm.stream({
+          provider: injection.providerName,
+          model: injection.modelId,
+          reasoningEffort: 'high' as never,
+          system: 'You are a Cherry agent.',
+          messages: []
+        })) {
+          // Exhaust the real adapter stream so the captured request is complete.
+          void chunk
+        }
+      } finally {
+        await context.fiber.dispose()
+      }
+    }
+
+    try {
+      await requestWith(false)
+      await requestWith(true)
+      expect(roles).toEqual(['system', 'developer'])
+    } finally {
+      vi.unstubAllEnvs()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
+  })
+
+  it('does not reject models based on their declared input modalities', () => {
+    expect(makeInjection({ inputModalities: [MODALITY.AUDIO] }).modelConfig.input).toEqual(['text'])
   })
 })

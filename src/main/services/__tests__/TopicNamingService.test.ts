@@ -86,7 +86,7 @@ const unnamedTranslations = [
   'locales/ru-ru',
   'locales/vi-vn',
   'locales/zh-tw'
-].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
+].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8'))['common.unnamed'])
 
 function createService() {
   return new TopicNamingService()
@@ -276,6 +276,36 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', { sessionId: 'session-1' })
+  })
+
+  it('names a topic from the first user message when conversation auto naming is disabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
+
+    createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+      name: 'Hello there',
+      isNameManuallyEdited: false
+    })
+    expect(mocks.generateText).not.toHaveBeenCalled()
+  })
+
+  it('names an agent session from the first user message when conversation auto naming is disabled', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'common.unnamed',
+      isNameManuallyEdited: false
+    })
+
+    createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
+
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'First user text',
+      isNameManuallyEdited: false
+    })
+    expect(mocks.generateText).not.toHaveBeenCalled()
   })
 
   it.each(unnamedTranslations)('recognizes localized default agent session name "%s"', async (name) => {

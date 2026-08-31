@@ -64,6 +64,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
     <button {...props} type="button" onClick={onClick}>
       {children}
@@ -111,6 +112,9 @@ vi.mock('@data/hooks/usePreference', () => ({
       (value: unknown) => {
         preferenceMocks.values.set(key, value)
         preferenceMocks.setPreference(key, value)
+        // Mutations through useSidebarFavorites call `.catch` on the returned
+        // promise; resolve so those toggle paths do not throw.
+        return Promise.resolve()
       }
     ]
   }
@@ -1010,5 +1014,78 @@ describe('classic layout entity resource list actions', () => {
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('agent.session.group.expand_all')).not.toBeInTheDocument()
     expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
+  })
+
+  it('offers toggling an agent into the sidebar from the classic rail context menu', () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = screen.getByTestId('agent-1-context-menu')
+    expect(menu).toHaveTextContent('launchpad.pin_to_sidebar')
+    expect(menu).not.toHaveTextContent('launchpad.unpin_from_sidebar')
+
+    fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+      { type: 'agent', id: 'agent-1' }
+    ])
+  })
+
+  it('toggles an already-pinned agent out of the sidebar from the classic rail context menu', () => {
+    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-1' }])
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const menu = screen.getByTestId('agent-1-context-menu')
+    expect(menu).toHaveTextContent('launchpad.unpin_from_sidebar')
+
+    fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
+  })
+
+  it('offers toggling an assistant into the sidebar from the classic rail context menu', () => {
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    const menu = screen.getByTestId('assistant-1-context-menu')
+    expect(menu).toHaveTextContent('launchpad.pin_to_sidebar')
+
+    fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+      { type: 'assistant', id: 'assistant-1' }
+    ])
+  })
+
+  it('toggles an already-pinned assistant out of the sidebar from the classic rail context menu', () => {
+    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'assistant', id: 'assistant-1' }])
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    const menu = screen.getByTestId('assistant-1-context-menu')
+    expect(menu).toHaveTextContent('launchpad.unpin_from_sidebar')
+
+    fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [])
   })
 })

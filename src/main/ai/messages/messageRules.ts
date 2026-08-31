@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto'
 
-import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
+import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, routeToolResultMedia, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
@@ -16,6 +16,42 @@ import { renderPersistedToolOutputs } from './persistedOutputRendering'
 function contentToParts(content: unknown): unknown[] {
   if (typeof content === 'string') return content.length > 0 ? [{ type: 'text', text: content }] : []
   return Array.isArray(content) ? content : []
+}
+
+const TERMINAL_LOCAL_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied'])
+
+function isCompletedLocalTool(part: UIMessage['parts'][number]): boolean {
+  return isToolUIPart(part) && part.providerExecuted !== true && TERMINAL_LOCAL_TOOL_STATES.has(part.state)
+}
+
+function isAssistantContinuation(part: UIMessage['parts'][number]): boolean {
+  return part.type === 'text' || part.type === 'reasoning' || part.type === 'file'
+}
+
+/** Restore inferable step boundaries that the v1 flat-block migration could not persist. */
+function restoreLegacyToolStepBoundaries(messages: UIMessage[]): UIMessage[] {
+  let out: UIMessage[] | undefined
+  messages.forEach((message, messageIndex) => {
+    if (message.role !== 'assistant' || message.parts.some((part) => part.type === 'step-start')) return
+
+    let parts: UIMessage['parts'] | undefined
+    let completedToolGroup = false
+    message.parts.forEach((part, partIndex) => {
+      if (completedToolGroup && isAssistantContinuation(part)) {
+        parts ??= message.parts.slice(0, partIndex)
+        parts.push({ type: 'step-start' })
+        completedToolGroup = false
+      }
+      parts?.push(part)
+      if (isCompletedLocalTool(part)) completedToolGroup = true
+    })
+
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
 }
 
 /**
@@ -109,13 +145,35 @@ export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], too
 }
 
 /**
+ * Drop tool parts still parked on an unanswered approval card.
+ *
+ * A turn that ends `awaiting-approval` persists its `approval-requested` parts, and
+ * `convertToModelMessages` turns those into a `tool-call` with no tool result —
+ * `ignoreIncompleteToolCalls` only covers `input-streaming`/`input-available`. Once the
+ * card is abandoned (app restart, branch switch) every later turn replays that dangling
+ * call and strict providers reject it (DeepSeek Responses: "No tool output found for tool
+ * call …", #17936). `approval-responded` is kept: the continue-conversation turn replays
+ * exactly that to resume execution.
+ */
+export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[] {
+  return messages.map((message) => {
+    if (!message.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) return message
+    return {
+      ...message,
+      parts: message.parts.filter((part) => !isToolUIPart(part) || part.state !== 'approval-requested')
+    } as T
+  })
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * make legacy v1 tool names wire-legal → strip media the model can't accept → convert,
- * dropping incomplete tool calls that would otherwise dangle without a result → gate media
- * inside tool-result outputs by `toolResultCaps` (wire-aware, see
+ * make legacy v1 tool names wire-legal → strip media the model can't accept → drop tool
+ * calls parked on an unanswered approval → restore inferable legacy step boundaries →
+ * convert, dropping incomplete tool calls that would otherwise dangle without a result →
+ * gate media inside tool-result outputs by `toolResultCaps` (wire-aware, see
  * `resolveToolResultMediaCapabilities`; defaults to `caps`) → merge adjacent same-role turns
  * left by drops → placeholder any turn that still converted to empty content. See #16195.
  */
@@ -126,7 +184,9 @@ export async function toModelMessages(
   toolResultCaps?: MediaCapabilities
 ): Promise<ModelMessage[]> {
   const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
-  const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
+  const shaped = restoreLegacyToolStepBoundaries(
+    dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
+  )
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   const gated = routeToolResultMedia(model, caps ?? ALL_MEDIA, toolResultCaps ?? caps ?? ALL_MEDIA)
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(gated))

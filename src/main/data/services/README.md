@@ -15,7 +15,7 @@ Business-logic layer for DataApi: one service per domain, each a **direct-import
 | Concurrent writes / `SQLITE_BUSY` | [Write Serialization](../../../../docs/references/data/database-patterns.md#write-serialization-dbservicewithwritetx) |
 | Row → Entity mapping, NULL handling | [Row → Entity Mapping](../../../../docs/references/data/data-api-in-main.md#row--entity-mapping) · [`utils/`](./utils/README.md) |
 | `order_key` / reorder / FTS helpers | [`utils/`](./utils/README.md) |
-| Naming (files, `Tx` suffix, singular/plural) | [Naming Conventions](../../../../docs/references/naming-conventions.md) |
+| Naming (files, `Tx` suffix, singular/plural) | [Naming Conventions](../../../../docs/references/architecture/naming-conventions.md) |
 | Testing a service against a real DB | [Database Testing](../../../../docs/references/testing/database-testing.md) |
 | Is this data at all? (DataApi boundary) | [DataApi Scope & Boundaries](../../../../docs/references/data/api-design-guidelines.md#dataapi-scope--boundaries) |
 

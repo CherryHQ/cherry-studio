@@ -14,12 +14,16 @@ import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-s
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
+import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { buildAgentMcpServers } from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { buildCitationsGuidance } from '@main/ai/runtime/citationsGuidance'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
+import { mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getPathFromEnvironment, getShellEnv } from '@main/utils/shellEnv'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import {
   KB_READ_TOOL_NAME,
@@ -29,13 +33,11 @@ import {
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
 import { AsyncEventQueue } from '../AsyncEventQueue'
-import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -51,6 +53,7 @@ import {
   buildDshCherryToolName,
   DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS,
   DSH_AUTO_APPROVED_BRIDGED_TOOLS,
+  DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS,
   type DshCherryToolBridge,
   warmDshMcpToolCatalogs
 } from './DshCherryToolBridge'
@@ -87,7 +90,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
   private readonly committedInvocationIds = new Set<string>()
   private readonly adapter = new DshStreamAdapter({
     enqueue: (chunk) => {
-      this.observeMainChunk(chunk)
+      this.subagents.noteMainChunk(chunk)
       this.eventQueue.push({ type: 'chunk', chunk })
     },
     onAssistantUsage: (info) => this.recordProviderInvocation(info),
@@ -128,8 +131,6 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
    * comparisons keep using the stored mode alone.
    */
   private runtimePlanActive?: boolean
-  /** Latest streamed `exit_plan_mode` call — anchors the plan-review approval card. */
-  private planReviewAnchor?: string
   private disabledTools = new Set<string>()
   /** Spawn-frozen agent/model facts, excluding the live permission gate. */
   private connectionSignature?: string
@@ -151,12 +152,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     this.subagents = new DshSubagentCoordinator(input.sessionId, this.buildSubagentSink())
   }
 
-  /** Main-stream taps: subagent binding anchors and the plan-review card anchor. */
-  private observeMainChunk(chunk: CherryUIMessageChunk): void {
-    this.subagents.noteMainChunk(chunk)
-    if (chunk.type === 'tool-input-start' && chunk.toolName === 'exit_plan_mode') {
-      this.planReviewAnchor = chunk.toolCallId
+  /** Bridge-socket events. A stream-presented approval whose `tool/call` has not landed yet would
+   *  truncate the turn accumulator instead of showing a card, so materialize its tool part first. */
+  private emitBridgeEvent(event: AgentRuntimeEvent): void {
+    if (event.type === 'tool-approval-request' && event.request.presentation === 'stream') {
+      this.adapter.ensureToolCall(event.request.toolCallId, event.request.toolName, event.request.input)
     }
+    this.eventQueue.push(event)
   }
 
   /** Flip the live-turn flag; a false→true edge opens a NEW host turn identity. */
@@ -272,14 +274,13 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     const citationsGuidance = buildCitationsGuidance({
       web: isToolEnabled('cherry-tools', WEB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', WEB_FETCH_TOOL_NAME),
       kb:
-        (agent.configuration?.builtin_role === 'assistant' || knowledgeBaseScope.length > 0) &&
+        (resolveAgentCapabilities(agent).allKnowledgeBases || knowledgeBaseScope.length > 0) &&
         (isToolEnabled('cherry-tools', KB_SEARCH_TOOL_NAME) || isToolEnabled('cherry-tools', KB_READ_TOOL_NAME))
     })
     const prompt = await buildAgentRuntimePrompt({
       workspacePath,
       agentDataPath: this.agentDataPath,
       agent,
-      channelLinked: snapshot.linkedChannel !== null,
       citationsGuidance,
       // Compensates a custom base for the workspace context the native base owns (claude parity).
       customBaseContext: [
@@ -312,12 +313,12 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
     await writeFile(this.compositionPath, yaml, { encoding: 'utf8', mode: 0o600 })
 
     try {
-      const assistantMcpEnabled = agent.configuration?.builtin_role === 'assistant' && !snapshot.linkedChannel
+      const mountedServers = resolveMountedMcpServers(agent, { channelLinked: snapshot.linkedChannel !== null })
       const toolBridge = await buildDshCherryToolBridge(
         buildAgentMcpServers(
           session,
           agent,
-          assistantMcpEnabled,
+          mountedServers,
           snapshot.mcpServerSnapshots,
           snapshot.linkedChannel,
           this.agentDataPath,
@@ -339,25 +340,31 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
 
       this.bridge = new DshBridgeServer({
         sessionId: this.input.sessionId,
-        emit: (event) => this.eventQueue.push(event),
+        emit: (event) => this.emitBridgeEvent(event),
         getInteractionState: () =>
           application.get('AgentSessionRuntimeService').getInteractionState(this.input.sessionId),
         onToolCall: (name, args, signal) => toolBridge.callTool(name, args, signal),
-        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge),
-        getPlanReviewAnchor: () => this.planReviewAnchor
+        onSubagentLifecycle: (edge) => this.subagents.handleLifecycle(edge)
       })
       await this.bridge.listen()
 
       const sdk = await loadDshSdk()
+      const loginShellEnv = await getShellEnv()
+      const loginPath = getPathFromEnvironment(loginShellEnv)
+      const binaryExecutionEnv = mergeBinaryExecutionEnv(loginPath !== undefined ? { PATH: loginPath } : {})
       // Complete replacement env — deliberate credential scope: the child sees
-      // only the routed API key and the bridge socket, never Cherry's own env.
+      // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
         command: process.execPath,
         args: [resolveDshRuntimeBinPath(), this.compositionPath],
         cwd: workspacePath,
         env: {
-          ...(process.env.PATH !== undefined ? { PATH: process.env.PATH } : {}),
-          ...(process.env.HOME !== undefined ? { HOME: process.env.HOME } : {}),
+          ...binaryExecutionEnv,
+          ...(loginShellEnv.HOME !== undefined
+            ? { HOME: loginShellEnv.HOME }
+            : process.env.HOME !== undefined
+              ? { HOME: process.env.HOME }
+              : {}),
           ELECTRON_RUN_AS_NODE: '1',
           CHERRY_DSH_API_KEY: injection.apiKey,
           [BRIDGE_SOCKET_ENV]: this.bridge.socketPath,
@@ -644,6 +651,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       editTools: DSH_EDIT_TOOLS,
       autoApprovedTools: [...DSH_AUTO_APPROVED_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS],
       approvalRequiredTools: [...DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS],
+      nonBypassableApprovalTools: [...DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS],
       // Closed plan-mode allow-list: plan-safe builtins plus Cherry's auto-approved
       // bridged tools; the subagent tools stay out (delegation bypasses read-only).
       planSafeTools: [...DSH_PLAN_SAFE_BUILTIN_TOOLS, ...DSH_AUTO_APPROVED_BRIDGED_TOOLS]

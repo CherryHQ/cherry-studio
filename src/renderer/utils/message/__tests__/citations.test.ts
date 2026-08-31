@@ -83,6 +83,17 @@ const toolInvokePart = (name: string, output: unknown): CherryMessagePart =>
     output
   }) as never
 
+/** pi runs every tool through code mode, so the part is always `tool_call` with the target in its input. */
+const piToolCallPart = (name: string, output: unknown): CherryMessagePart =>
+  ({
+    type: 'dynamic-tool',
+    toolName: 'tool_call',
+    toolCallId: 'c6',
+    state: 'output-available',
+    input: { name, params: { query: 'q' } },
+    output
+  }) as never
+
 const sourceUrlPart = (n: number, url: string, title?: string): CherryMessagePart =>
   ({ type: 'source-url', sourceId: `citation-${n}`, url, title }) as never
 
@@ -117,6 +128,16 @@ describe('resolveMessageCitations', () => {
   it('resolves deferred tool_invoke parts by inner tool name', () => {
     const mc = resolveMessageCitations([toolInvokePart('web_search', webResults('t9k'))])
     expect(mc.byId.get('t9k-2')).toMatchObject({ number: 2, url: 'https://b.com/y' })
+  })
+
+  it('resolves pi tool_call parts by the cherry-tools target in its input', () => {
+    const mc = resolveMessageCitations([piToolCallPart('mcp__cherry-tools__web_search', webResults('bcef647b'))])
+    expect(mc.byId.get('bcef647b-1')).toMatchObject({ number: 1, url: 'https://a.com/x', type: 'websearch' })
+  })
+
+  it('ignores pi tool_call parts targeting a third-party MCP server', () => {
+    const mc = resolveMessageCitations([piToolCallPart('mcp__exa__web_search', webResults('bcef647b'))])
+    expect(mc.all).toHaveLength(0)
   })
 
   it('resolves citations from the skeleton of a bare entities envelope (cold load)', () => {
@@ -306,7 +327,7 @@ describe('withToolCitationTags', () => {
     // resolver's #2 and kzz-1 to its #3, but they render as 1 and 2.
     expect(content).toContain('1</sup>](https://b.com/y)')
     // Web citations link out; the URL-less KB citation must stay a bare <sup> so rehype-harden
-    // does not rewrite an empty-href anchor into "<span>… [blocked]</span>".
+    // does not unwrap an empty-href anchor into a "<span>", losing the tooltip.
     expect(content).toContain('2</sup>')
     expect(content).not.toContain('2</sup>]()')
     expect(cited.map((c) => c.number)).toEqual([1, 2])
@@ -372,10 +393,23 @@ describe('withToolCitationTags', () => {
     expect(content).toContain('[cite: ]')
   })
 
-  it('leaves unknown ids literal', () => {
+  it('drops an unknown id instead of printing it, taking its separating space with it', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
-    const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9]', mc)
-    expect(content).toContain('[cite:zzz-9]')
+    const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9] Next.', mc)
+    expect(content).toBe('Fact. Next.')
+    expect(cited).toHaveLength(0)
+  })
+
+  // #19771: a model that reuses an id minted by an earlier turn leaves this message with markers
+  // nothing can resolve. Printing them puts an internal id on screen; the export path already
+  // drops such markers, so rendering has to agree.
+  it('drops every marker when the message carries no citation at all', () => {
+    const mc = resolveMessageCitations([textPart('no tool ran in this message')])
+    const { content, cited } = withToolCitationTags(
+      '1. 工程立项审计；[cite:2598d0ab-1]\n2. 工程采购审计；[cite:2598d0ab-1]',
+      mc
+    )
+    expect(content).toBe('1. 工程立项审计；\n2. 工程采购审计；')
     expect(cited).toHaveLength(0)
   })
 

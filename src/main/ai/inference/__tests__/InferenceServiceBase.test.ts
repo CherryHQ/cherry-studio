@@ -351,7 +351,7 @@ describe('InferenceService worker init message', () => {
     expect(embedInit.cacheDir).toBeTruthy()
     expect(embedInit.appPath).toBeTruthy()
     expect(embedInit.proxyRouting).toEqual(DIRECT_ROUTING)
-    expect(embedInit.runtimeProfile?.id).toBe('cpu')
+    expect(embedInit.runtimeProfile?.id).toBe('directml')
     // Settle so the shared queue's concurrency slot is free for the OCR request below.
     embeddingWorker.emit('message', { type: 'result', id: lastRequestId(embeddingWorker), embeddings: [[0.1]] })
     await embedPending
@@ -368,7 +368,7 @@ describe('InferenceService worker init message', () => {
     expect('cacheDir' in ocrInit).toBe(false)
     expect(ocrInit.appPath).toBeTruthy()
     expect(ocrInit.proxyRouting).toEqual(DIRECT_ROUTING)
-    expect(ocrInit.runtimeProfile?.id).toBe('cpu')
+    expect(ocrInit.runtimeProfile?.id).toBe('directml')
     ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
     await ocrPending
   })
@@ -378,7 +378,7 @@ describe('InferenceService worker init message', () => {
     const workerA = await latestWorker()
     const second = embeddingInferenceService.embed(['second'], MODEL_DIR, 'q8')
 
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.local_model.hardware_acceleration.enabled', true)
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.local_model.hardware_acceleration.enabled', false)
     expect(workerA.terminate).not.toHaveBeenCalled()
 
     workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
@@ -386,7 +386,7 @@ describe('InferenceService worker init message', () => {
 
     const workerB = await latestWorker(2)
     expect(workerA.terminate).toHaveBeenCalledTimes(1)
-    expect(initMessage(workerB).runtimeProfile?.id).toBe('directml')
+    expect(initMessage(workerB).runtimeProfile?.id).toBe('cpu')
 
     workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.2]] })
     await expect(second).resolves.toEqual([[0.2]])

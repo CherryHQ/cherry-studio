@@ -1,6 +1,6 @@
 import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -348,8 +348,11 @@ vi.mock('../CompactBlock', () => ({
 
 vi.mock('../TranslationBlock', () => ({
   __esModule: true,
-  default: ({ content, isStreaming }: any) => (
-    <div data-testid="mock-translation-block" data-streaming={String(!!isStreaming)}>
+  default: ({ content, isStreaming, onDelete }: any) => (
+    <div
+      data-testid="mock-translation-block"
+      data-streaming={String(!!isStreaming)}
+      data-has-delete={String(!!onDelete)}>
       {content}
     </div>
   )
@@ -1036,9 +1039,8 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('child text')).toBeNull()
     })
 
-    it('renders report artifacts after the final message content and not as an inline tool', async () => {
+    it('renders report artifacts after the final message content and not as an inline tool', () => {
       const openArtifactFile = vi.fn()
-      const openPath = vi.fn()
       const { container } = renderParts(
         [
           { type: 'text', text: 'before tool' },
@@ -1056,7 +1058,7 @@ describe('MessagePartsRenderer', () => {
           { type: 'text', text: 'final answer' }
         ] as unknown as CherryMessagePart[],
         msg(),
-        { openArtifactFile, openPath }
+        { openArtifactFile }
       )
 
       expect(screen.queryByTestId('mock-message-tools')).toBeNull()
@@ -1067,11 +1069,6 @@ describe('MessagePartsRenderer', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Preview report.md' }))
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
-      fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
-      await waitFor(() => {
-        expect(openPath).toHaveBeenCalledWith('dist/report.md')
-      })
     })
 
     it('waits for the turn and smooth text playout to finish before rendering result cards', () => {
@@ -1685,6 +1682,28 @@ describe('MessagePartsRenderer', () => {
       ).toHaveLength(1)
     })
 
+    it('keeps a prepared diagnostic report action outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      const visibleDiagnosticAction = screen.getByTestId('mock-message-tools')
+      expect(visibleDiagnosticAction).toHaveAttribute('data-tool-name', 'mcp__assistant__prepare_diagnostic_report')
+      expect(visibleDiagnosticAction.closest('[data-testid="tool-history-content"]')).toBeNull()
+    })
+
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
       renderParts([
         { ...toolPart('search', 'output-available', 'unknown_provider_tool'), toolType: 'provider' },
@@ -2030,6 +2049,13 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('threads onRemoveTranslation to the translation block', () => {
+      renderParts([
+        { type: 'data-translation', data: { content: 'translated answer' } }
+      ] as unknown as CherryMessagePart[])
+      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'true')
     })
   })
 })

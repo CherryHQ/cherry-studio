@@ -939,7 +939,7 @@
         {
           "originalKey": "showInputEstimatedTokens",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.input.show_estimated_tokens"
@@ -1070,17 +1070,17 @@
           "originalKey": "pasteLongTextAsFile",
           "type": "boolean",
           "defaultValue": false,
-          "status": "deleted",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_as_file"
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
           "defaultValue": 1500,
-          "status": "deleted",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_threshold"
         },
         {
           "originalKey": "clickAssistantToShowTopic",
@@ -2688,7 +2688,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2697,8 +2697,8 @@
                 "enabled": true
               },
               "originalKey": "clear_topic",
-              "status": "deleted",
-              "targetKey": null,
+              "status": "classified",
+              "targetKey": "shortcut.topic.clear_messages",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
