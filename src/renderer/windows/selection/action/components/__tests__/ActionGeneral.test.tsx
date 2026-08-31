@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,
+  fallbackAssistant: undefined as { id: string } | undefined,
+  quickAssistantId: '' as string,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
@@ -47,15 +49,17 @@ vi.mock('@ai-sdk/react', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
-    if (key === 'feature.quick_assistant.assistant_id') return ['']
+    if (key === 'feature.quick_assistant.assistant_id') return [state.quickAssistantId]
     return ['en-US']
   }
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: (id: string) => ({
-    assistant: id ? state.assistant : undefined
-  })
+  useAssistant: (id: string) => {
+    if (!id) return { assistant: undefined }
+    if (id === state.quickAssistantId) return { assistant: state.fallbackAssistant }
+    return { assistant: state.assistant }
+  }
 }))
 
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
@@ -133,6 +137,8 @@ function createAction(overrides: Partial<SelectionActionItem> = {}): SelectionAc
 describe('ActionGeneral', () => {
   beforeEach(() => {
     state.assistant = undefined
+    state.fallbackAssistant = undefined
+    state.quickAssistantId = ''
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
     state.temporaryTopicOptions = []
@@ -191,6 +197,32 @@ describe('ActionGeneral', () => {
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'assistant-1' })
+  })
+
+  it('falls back to quickAssistant when built-in has no explicit assistant', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = { id: 'fallback-1' }
+
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
+  })
+
+  it('waits for fallback assistant when quickAssistant is configured but not yet loaded', async () => {
+    state.quickAssistantId = 'fallback-1'
+    state.fallbackAssistant = undefined
+
+    const { rerender } = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: false, assistantId: undefined })
+    expect(state.sendMessage).not.toHaveBeenCalled()
+
+    state.fallbackAssistant = { id: 'fallback-1' }
+    rerender(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'fallback-1' })
   })
 
   it('localizes a known error and leaves space above it', () => {
