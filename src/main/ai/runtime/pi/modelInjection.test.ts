@@ -84,7 +84,7 @@ describe('buildPiProviderInjection', () => {
     const provider = makeProvider({
       id: 'cherryin',
       name: 'CherryIN',
-      defaultChatEndpoint: 'openai-chat-completions',
+      defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: {
         'anthropic-messages': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
         'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
@@ -103,7 +103,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.providerConfig.models?.[0]?.compat).toEqual({ allowEmptySignature: true })
   })
 
-  it('prefers Anthropic Messages when a Pi model also supports OpenAI Chat', () => {
+  it('honors the provider default when a Pi model supports OpenAI Chat and Anthropic Messages', () => {
     const provider = makeProvider({
       defaultChatEndpoint: 'openai-chat-completions',
       endpointConfigs: {
@@ -115,8 +115,8 @@ describe('buildPiProviderInjection', () => {
 
     const injection = buildPiProviderInjection(provider, model, REAL_KEY)
 
-    expect(injection.providerConfig.api).toBe('anthropic-messages')
-    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com')
+    expect(injection.providerConfig.api).toBe('openai-completions')
+    expect(injection.providerConfig.baseUrl).toBe('https://gateway.example.com/v1')
   })
 
   it('does not prefer Anthropic Messages for other endpoint combinations', () => {
@@ -536,7 +536,7 @@ describe('modelInjection service resolution', () => {
     expect(serviceMocks.resolveApiKey).not.toHaveBeenCalled()
   })
 
-  it('validates the same preferred Anthropic endpoint used during materialization', async () => {
+  it('rejects an unsupported provider default instead of silently switching protocols', async () => {
     serviceMocks.getByProviderId.mockResolvedValueOnce({
       id: 'p',
       name: 'P',
@@ -555,7 +555,7 @@ describe('modelInjection service resolution', () => {
       endpointTypes: ['openai-chat-completions', 'anthropic-messages']
     })
 
-    await expect(assertPiProviderUsable('p::m')).resolves.toBeUndefined()
+    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
   })
 
   it('rejects missing credentials and unsupported providers', async () => {
