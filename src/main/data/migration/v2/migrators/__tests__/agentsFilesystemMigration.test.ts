@@ -452,7 +452,7 @@ describe('agentsFilesystemMigration', () => {
     expect(await readFile(destinationTranscript, 'utf8')).toBe('{"source":true}\n')
   })
 
-  it('replaces only the exact globally discovered Claude JSONL target', async () => {
+  it('copies only the exact globally discovered Claude JSONL target and preserves newer destination history', async () => {
     const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
     const legacyProjectsDirectory = path.join(tempRoot, '.claude', 'projects')
     const destinationProjectsDirectory = path.join(agentsDataRoot, '.claude', 'projects')
@@ -497,7 +497,7 @@ describe('agentsFilesystemMigration', () => {
     await writeFile(destinationTranscript, '{"type":"destination"}\n')
     await expect(copyLegacyClaudeSessionData(input)).resolves.toBeUndefined()
 
-    expect(await readFile(destinationTranscript, 'utf8')).toBe('{"type":"user"}\n')
+    expect(await readFile(destinationTranscript, 'utf8')).toBe('{"type":"destination"}\n')
     expect(await readFile(unrelatedDestination, 'utf8')).toBe('{"keep":true}\n')
     expect(await readFile(path.join(sourceProjectDirectory, `${CLAUDE_SESSION_ID}.jsonl`), 'utf8')).toBe(
       '{"type":"user"}\n'

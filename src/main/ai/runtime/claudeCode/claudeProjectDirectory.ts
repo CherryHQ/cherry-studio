@@ -55,6 +55,7 @@ function isSafeResumeToken(runtimeResumeToken: string): boolean {
 
 export interface ClaudeTranscriptSource {
   transcriptPath: string
+  modifiedAtMs: number
 }
 
 export async function existingClaudeProjectsDirectories(projectsDirectories: string[]): Promise<string[]> {
@@ -96,7 +97,9 @@ export async function findClaudeTranscriptInProjectDirectories(
   for (const projectDirectory of projectDirectories) {
     const transcriptPath = path.join(projectDirectory, `${runtimeResumeToken}.jsonl`)
     const transcriptStat = await lstatIfExists(transcriptPath)
-    if (transcriptStat?.isFile() && !transcriptStat.isSymbolicLink()) return { transcriptPath }
+    if (transcriptStat?.isFile() && !transcriptStat.isSymbolicLink()) {
+      return { transcriptPath, modifiedAtMs: transcriptStat.mtimeMs }
+    }
   }
   return undefined
 }
@@ -120,10 +123,15 @@ export async function findClaudeTranscriptsGlobally(
       for (const sessionEntry of sessionEntries) {
         if (!sessionEntry.isFile() || !sessionEntry.name.endsWith('.jsonl')) continue
         const runtimeResumeToken = sessionEntry.name.slice(0, -'.jsonl'.length)
-        if (!runtimeResumeTokens.has(runtimeResumeToken) || sources.has(runtimeResumeToken)) continue
-        sources.set(runtimeResumeToken, { transcriptPath: path.join(projectDirectory, sessionEntry.name) })
+        if (!runtimeResumeTokens.has(runtimeResumeToken)) continue
+        const transcriptPath = path.join(projectDirectory, sessionEntry.name)
+        const transcriptStat = await lstatIfExists(transcriptPath)
+        if (!transcriptStat?.isFile() || transcriptStat.isSymbolicLink()) continue
+        const incumbent = sources.get(runtimeResumeToken)
+        if (!incumbent || transcriptStat.mtimeMs > incumbent.modifiedAtMs) {
+          sources.set(runtimeResumeToken, { transcriptPath, modifiedAtMs: transcriptStat.mtimeMs })
+        }
       }
-      if (sources.size === runtimeResumeTokens.size) return sources
     }
   }
   return sources
@@ -172,6 +180,10 @@ export async function ensureTranscriptAvailableForWorkspace(
     await findClaudeTranscriptsGlobally([projectsDirectory], new Set([runtimeResumeToken]), projectDirectory)
   ).get(runtimeResumeToken)
   if (!source) return destinationStat ? 'present' : 'missing'
+  // A transcript may continue receiving messages after a workspace relocation.
+  // Never replace that current history with an older copy discovered under a
+  // stale project key merely because their contents differ.
+  if (destinationStat && destinationStat.mtimeMs >= source.modifiedAtMs) return 'present'
   if (destinationStat && (await transcriptsMatch(source.transcriptPath, destinationPath))) return 'present'
   if (!(await ensureRegularDirectory(projectDirectory))) return 'unsafe'
   const stagingPath = path.join(projectDirectory, `.${runtimeResumeToken}.restore-${randomUUID()}`)
