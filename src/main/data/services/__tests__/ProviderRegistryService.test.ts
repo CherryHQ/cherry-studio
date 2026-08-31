@@ -10,6 +10,7 @@ import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -191,6 +192,7 @@ describe('ProviderRegistryService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(dbh.db)
   })
@@ -248,8 +250,19 @@ describe('ProviderRegistryService', () => {
         output: { currency: 'USD' as const, perMillionTokens: 4 }
       }
 
-      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: firstPrice }])
-      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: refreshedPrice }])
+      const generation = providerRegistryService.captureRuntimePricingGeneration(providerId)
+      providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o', pricing: firstPrice }],
+        generation
+      )
+      providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o', pricing: refreshedPrice }],
+        generation
+      )
 
       expect(providerRegistryService.resolveModels(providerId, ['gpt-4o'])[0].pricing).toEqual(refreshedPrice)
       expect(providerRegistryService.lookupModel(providerId, 'gpt-4o').runtimePricing).toEqual(refreshedPrice)
@@ -257,21 +270,137 @@ describe('ProviderRegistryService', () => {
     })
 
     it('does not invent a rate and retains the last published one when a refresh omits pricing', () => {
+      setupRegistryData()
       const providerId = 'runtime-pricing-refresh-test'
       const knownPrice = {
         input: { currency: 'USD' as const, perMillionTokens: 1 },
         output: { currency: 'USD' as const, perMillionTokens: 2 }
       }
 
+      const generation = providerRegistryService.captureRuntimePricingGeneration(providerId)
       expect(
-        providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }])[0].pricing
+        providerRegistryService.resolveFetchedModels(providerId, null, [{ apiModelId: 'gpt-4o' }], generation)[0]
+          .pricing
       ).toBeUndefined()
 
-      providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o', pricing: knownPrice }])
-      const [retained] = providerRegistryService.syncRuntimePricing(providerId, [{ apiModelId: 'gpt-4o' }])
+      providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o', pricing: knownPrice }],
+        generation
+      )
+      const [retained] = providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o' }],
+        generation
+      )
 
       expect(retained.pricing).toEqual(knownPrice)
-      expect(providerRegistryService.syncRuntimePricing(providerId, [])).toEqual([])
+      const unknownPrice = {
+        input: { currency: 'USD' as const, perMillionTokens: null },
+        output: { currency: 'USD' as const, perMillionTokens: null }
+      }
+      providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o', pricing: unknownPrice }],
+        generation
+      )
+      expect(
+        providerRegistryService.resolveFetchedModels(providerId, null, [{ apiModelId: 'gpt-4o' }], generation)[0]
+          .pricing
+      ).toEqual(unknownPrice)
+      expect(providerRegistryService.resolveFetchedModels(providerId, null, [], generation)).toEqual([])
+    })
+
+    it('rejects pricing from an in-flight refresh after the provider source is invalidated', () => {
+      setupRegistryData()
+      const providerId = 'runtime-pricing-generation-test'
+      const stalePrice = {
+        input: { currency: 'USD' as const, perMillionTokens: 1 },
+        output: { currency: 'USD' as const, perMillionTokens: 2 }
+      }
+      const freshPrice = {
+        input: { currency: 'USD' as const, perMillionTokens: 3 },
+        output: { currency: 'USD' as const, perMillionTokens: 4 }
+      }
+      const staleGeneration = providerRegistryService.captureRuntimePricingGeneration(providerId)
+
+      providerRegistryService.invalidateRuntimePricing(providerId)
+      const [stale] = providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o', pricing: stalePrice }],
+        staleGeneration
+      )
+
+      expect(stale.pricing).toBeUndefined()
+      expect(providerRegistryService.lookupModel(providerId, 'gpt-4o').runtimePricing).toBeUndefined()
+
+      const freshGeneration = providerRegistryService.captureRuntimePricingGeneration(providerId)
+      const [fresh] = providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'gpt-4o', pricing: freshPrice }],
+        freshGeneration
+      )
+
+      expect(fresh.pricing).toEqual(freshPrice)
+      expect(providerRegistryService.lookupModel(providerId, 'gpt-4o').runtimePricing).toEqual(freshPrice)
+    })
+
+    it('returns fully resolved models with main-owned field precedence and registry-only entries', () => {
+      setupRegistryData()
+      const providerPrice = {
+        input: { currency: 'USD' as const, perMillionTokens: 0.135 },
+        output: { currency: 'USD' as const, perMillionTokens: 0.54 }
+      }
+      const generation = providerRegistryService.captureRuntimePricingGeneration('openai')
+
+      const [model] = providerRegistryService.resolveFetchedModels(
+        'openai',
+        'openai',
+        [
+          {
+            apiModelId: 'gpt-4o',
+            name: 'gpt-4o',
+            endpointTypes: ['anthropic-messages'],
+            pricing: providerPrice
+          }
+        ],
+        generation
+      )
+
+      expect(model).toMatchObject({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        endpointTypes: ['anthropic-messages'],
+        contextWindow: 128_000,
+        pricing: providerPrice,
+        isEnabled: true,
+        isHidden: false
+      })
+
+      expect(providerRegistryService.resolveFetchedModels('openai', 'openai', [], generation)).toHaveLength(1)
+    })
+
+    it('keeps a real provider display name for an unmatched custom model', () => {
+      setupRegistryData()
+      const providerId = 'custom-display-name-test'
+      const generation = providerRegistryService.captureRuntimePricingGeneration(providerId)
+
+      const [model] = providerRegistryService.resolveFetchedModels(
+        providerId,
+        null,
+        [{ apiModelId: 'custom-model', name: 'Provider Display Name' }],
+        generation
+      )
+
+      expect(model.name).toBe('Provider Display Name')
     })
   })
 

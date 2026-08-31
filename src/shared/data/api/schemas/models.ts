@@ -242,7 +242,7 @@ export type ModelSchemas = {
   }
 
   /**
-   * Statelessly resolve raw SDK model IDs against registry presets.
+   * Resolve raw SDK model IDs against registry presets and the current Main runtime-pricing overlay.
    * @example GET /providers/openai/models:resolve?ids=gpt-4o&ids=o3
    */
   '/providers/:providerId/models:resolve': {

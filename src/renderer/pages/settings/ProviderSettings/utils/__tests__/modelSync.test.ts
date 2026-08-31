@@ -53,171 +53,26 @@ describe('fetchResolvedProviderModels', () => {
     }
   })
 
-  it('keeps endpoint types returned by the provider when registry metadata also has endpoint types', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'new-api::agent/deepseek-v3.2',
-        providerId: 'new-api',
-        apiModelId: 'agent/deepseek-v3.2',
-        name: 'agent/deepseek-v3.2',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'new-api::agent/deepseek-v3.2',
-        providerId: 'new-api',
-        apiModelId: 'agent/deepseek-v3.2',
-        name: 'DeepSeek V3.2',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
-      }
-    ])
+  it('returns the complete models owned by Main without a renderer-side resolve request', async () => {
+    const model: Model = {
+      id: 'openai::gpt-4o-mini',
+      providerId: 'openai',
+      apiModelId: 'gpt-4o-mini',
+      presetModelId: 'gpt-4o-mini',
+      name: 'GPT-4o mini',
+      capabilities: [],
+      supportsStreaming: true,
+      pricing: {
+        input: { currency: 'USD', perMillionTokens: 0.135 },
+        output: { currency: 'USD', perMillionTokens: 0.54 }
+      },
+      isEnabled: true,
+      isHidden: false
+    }
+    listModelsMock.mockResolvedValueOnce([model])
 
-    const models = await fetchResolvedProviderModels('new-api')
-
-    expect(models[0]).toMatchObject({
-      name: 'DeepSeek V3.2',
-      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-    })
-  })
-
-  it('uses registry reasoning controls while preserving discovered thinking support', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'ollama::qwen3:32b',
-        providerId: 'ollama',
-        apiModelId: 'qwen3:32b',
-        name: 'qwen3:32b',
-        capabilities: [MODEL_CAPABILITY.REASONING]
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'ollama::qwen3:32b',
-        providerId: 'ollama',
-        apiModelId: 'qwen3:32b',
-        presetModelId: 'qwen3-32b',
-        name: 'Qwen3 32B',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
-        reasoning: {
-          controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
-          selectableEfforts: ['none', 'low', 'medium', 'high']
-        }
-      }
-    ])
-
-    const [model] = await fetchResolvedProviderModels('ollama')
-
-    expect(model).toMatchObject({
-      presetModelId: 'qwen3-32b',
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
-      reasoning: {
-        controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
-        selectableEfforts: ['none', 'low', 'medium', 'high']
-      }
-    })
-  })
-
-  it('uses the resolved friendly name when the provider only echoes the raw id', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'dashscope::qwen1.5-1.8b-chat',
-        providerId: 'dashscope',
-        apiModelId: 'qwen1.5-1.8b-chat',
-        name: 'qwen1.5-1.8b-chat'
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'dashscope::qwen1.5-1.8b-chat',
-        providerId: 'dashscope',
-        apiModelId: 'qwen1.5-1.8b-chat',
-        name: 'Qwen1.5 1.8b Chat'
-      }
-    ])
-
-    const models = await fetchResolvedProviderModels('dashscope')
-
-    expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
-  })
-
-  it('keeps a provider display name for an unmatched custom model', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'custom::custom-model',
-        providerId: 'custom',
-        apiModelId: 'custom-model',
-        name: 'Provider Display Name'
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'custom::custom-model',
-        providerId: 'custom',
-        apiModelId: 'custom-model',
-        name: 'Custom Model'
-      }
-    ])
-
-    const models = await fetchResolvedProviderModels('custom')
-
-    expect(models[0].name).toBe('Provider Display Name')
-  })
-
-  it('keeps the gateway rate card over the registry vendor list price', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      {
-        id: 'aihubmix::gpt-4o-mini',
-        providerId: 'aihubmix',
-        apiModelId: 'gpt-4o-mini',
-        name: 'GPT-4o mini',
-        pricing: {
-          input: { currency: 'USD', perMillionTokens: 0.135 },
-          output: { currency: 'USD', perMillionTokens: 0.54 }
-        }
-      }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'aihubmix::gpt-4o-mini',
-        providerId: 'aihubmix',
-        apiModelId: 'gpt-4o-mini',
-        presetModelId: 'gpt-4o-mini',
-        name: 'GPT-4o mini',
-        pricing: {
-          input: { currency: 'USD', perMillionTokens: 0.15 },
-          output: { currency: 'USD', perMillionTokens: 0.6 }
-        }
-      }
-    ])
-
-    const [model] = await fetchResolvedProviderModels('aihubmix')
-
-    expect(model.pricing?.input.perMillionTokens).toBe(0.135)
-    // The rest of the registry overlay still applies.
-    expect(model.presetModelId).toBe('gpt-4o-mini')
-  })
-
-  it('falls back to the registry price when the provider reports none', async () => {
-    listModelsMock.mockResolvedValueOnce([
-      { id: 'openai::gpt-4o-mini', providerId: 'openai', apiModelId: 'gpt-4o-mini', name: 'GPT-4o mini' }
-    ])
-    dataApiGetMock.mockResolvedValueOnce([
-      {
-        id: 'openai::gpt-4o-mini',
-        providerId: 'openai',
-        apiModelId: 'gpt-4o-mini',
-        name: 'GPT-4o mini',
-        pricing: {
-          input: { currency: 'USD', perMillionTokens: 0.15 },
-          output: { currency: 'USD', perMillionTokens: 0.6 }
-        }
-      }
-    ])
-
-    const [model] = await fetchResolvedProviderModels('openai')
-
-    expect(model.pricing?.input.perMillionTokens).toBe(0.15)
+    await expect(fetchResolvedProviderModels('openai')).resolves.toEqual([model])
+    expect(dataApiGetMock).not.toHaveBeenCalled()
   })
 })
 

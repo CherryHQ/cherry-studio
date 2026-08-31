@@ -87,17 +87,31 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
 ### 3. Resolve SDK Model List
 
 ```
-GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3
-  → providerRegistryService.resolveModels(providerId, modelIds)
+ai.provider.model.list
+  → capture provider runtime-pricing generation
+  → fetch the provider's model list
+  → providerRegistryService.resolveFetchedModels(...)
+    → publish prices only when the generation is still current
+    → resolveModels(providerId, modelIds)
     → For each modelId:
         → RegistryLoader.findModel(modelId)         // O(1), normalize fallback
         → RegistryLoader.findOverride(providerId, modelId)  // O(1)
         → mergePresetModel(preset, override, ...) or createCustomModel(...)
-    → Return merged Model[]
-
-SDK only provides model IDs. All other data (capabilities, pricing, etc.)
-comes from the registry — SDK data does not overwrite curated registry data.
+        → apply current provider-scoped runtime pricing
+    → append registry-only models
+  → Return complete Model[] to the renderer
 ```
+
+The provider response supplies discoverable model identities, endpoint hints,
+and an optional provider rate card. The registry owns curated metadata; the
+Main-process runtime-pricing overlay owns the accepted provider rate. The
+renderer consumes the complete result instead of repeating the merge.
+`AiService` validates that result against `ModelSchema[]` before it crosses the
+`ai.provider.model.list` IPC boundary.
+
+`GET /providers/:providerId/models:resolve?ids=gpt-4o&ids=o3` remains the
+registry projection for consumers that already have raw IDs. It applies the
+same current runtime-pricing overlay but performs no network request.
 
 ## Merge Functions
 

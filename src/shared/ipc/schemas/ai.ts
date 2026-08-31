@@ -199,7 +199,7 @@ export const aiRequestSchemas = {
       assistantId: z.string().optional(),
       throwOnError: z.boolean().optional()
     }),
-    output: z.array(ModelSchema.partial())
+    output: z.array(ModelSchema)
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({

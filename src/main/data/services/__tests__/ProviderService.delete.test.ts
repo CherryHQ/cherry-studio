@@ -7,6 +7,9 @@
  * deletable.
  */
 
+import { resolve } from 'node:path'
+
+import { application } from '@application'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -57,6 +60,47 @@ describe('ProviderService.delete — preset protection boundary', () => {
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai-work'))
     expect(rows).toHaveLength(0)
+  })
+
+  it('invalidates runtime pricing only after a provider is deleted successfully', async () => {
+    const providerId = 'runtime-pricing-delete'
+    const stalePrice = {
+      input: { currency: 'USD' as const, perMillionTokens: 999 },
+      output: { currency: 'USD' as const, perMillionTokens: 999 }
+    }
+    await dbh.db.insert(userProviderTable).values({
+      providerId,
+      name: 'Runtime Pricing Delete',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+    const initialGeneration = providerRegistryService.captureRuntimePricingGeneration(providerId)
+
+    providerService.delete(providerId)
+
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 1)
+    expect(() => providerService.delete(providerId)).toThrow(/not found/i)
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 1)
+
+    await dbh.db.insert(userProviderTable).values({
+      providerId,
+      name: 'Runtime Pricing Recreated',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.provider_registry.data' && filename) {
+        return resolve('packages/provider-registry/data', filename)
+      }
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+    providerRegistryService.clearCache()
+    providerRegistryService.resolveFetchedModels(
+      providerId,
+      null,
+      [{ apiModelId: 'gpt-4o', pricing: stalePrice }],
+      initialGeneration
+    )
+
+    expect(providerRegistryService.lookupModel(providerId, 'gpt-4o').runtimePricing).toBeUndefined()
   })
 
   it('should throw when deleting a canonical preset that groups under another preset (zai → zhipu)', async () => {

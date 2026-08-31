@@ -40,6 +40,7 @@ import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 import { v4 as uuidv4 } from 'uuid'
 
 import { isRetiredProvider } from '../retiredProviders'
@@ -305,6 +306,10 @@ function rotationCacheKey(providerId: string): string {
 }
 
 class ProviderService {
+  private invalidateRuntimePricing(providerId: string): void {
+    getDataService('ProviderRegistryService').invalidateRuntimePricing(providerId)
+  }
+
   private rethrowOrderError(error: unknown): never {
     if (
       error instanceof DataApiError &&
@@ -420,7 +425,7 @@ class ProviderService {
     // read the same old providerSettings and have the later write clobber the
     // other's keys (lost update); withWriteTx serializes them so each merges on
     // the latest row value.
-    const row = application.get('DbService').withWriteTx((tx) => {
+    const { row, runtimePricingChanged } = application.get('DbService').withWriteTx((tx) => {
       // Read the raw row's providerSettings, not the merged entity. PATCH
       // semantics require merging with the stored partial, not with runtime
       // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
@@ -430,6 +435,8 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
+          defaultChatEndpoint: userProviderTable.defaultChatEndpoint,
+          authConfig: userProviderTable.authConfig,
           isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
@@ -498,9 +505,19 @@ class ProviderService {
       if (!updated) {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
-      return updated
+      const nextExtraHeaders = (updated.providerSettings as Partial<ProviderSettings> | null)?.extraHeaders
+      const currentExtraHeaders = (current.providerSettings as Partial<ProviderSettings> | null)?.extraHeaders
+      return {
+        row: updated,
+        runtimePricingChanged:
+          !isEqual(current.endpointConfigs, updated.endpointConfigs) ||
+          current.defaultChatEndpoint !== updated.defaultChatEndpoint ||
+          !isEqual(current.authConfig, updated.authConfig) ||
+          !isEqual(currentExtraHeaders, nextExtraHeaders)
+      }
     })
 
+    if (runtimePricingChanged) this.invalidateRuntimePricing(providerId)
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 
     return rowToRuntimeProvider(row)
@@ -661,6 +678,7 @@ class ProviderService {
     })
 
     if (added) {
+      this.invalidateRuntimePricing(providerId)
       logger.info('Added API key to provider', { providerId })
     } else {
       logger.info('API key already exists, skipping', { providerId })
@@ -676,11 +694,12 @@ class ProviderService {
     assertManagedCherryAiProviderMutationAllowed(providerId, `replace API keys for provider ${providerId}`)
 
     const db = application.get('DbService').getDb()
-    const provider = db.transaction((tx) => {
+    const { provider, runtimePricingChanged } = db.transaction((tx) => {
       const [current] = tx
         .select({
           providerId: userProviderTable.providerId,
-          presetProviderId: userProviderTable.presetProviderId
+          presetProviderId: userProviderTable.presetProviderId,
+          apiKeys: userProviderTable.apiKeys
         })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
@@ -701,9 +720,16 @@ class ProviderService {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
 
-      return rowToRuntimeProvider(row)
+      return {
+        provider: rowToRuntimeProvider(row),
+        runtimePricingChanged: !isEqual(
+          (current.apiKeys ?? []).map(({ key, isEnabled }) => ({ key, isEnabled })),
+          normalizedApiKeys.map(({ key, isEnabled }) => ({ key, isEnabled }))
+        )
+      }
     })
 
+    if (runtimePricingChanged) this.invalidateRuntimePricing(providerId)
     logger.info('Replaced provider API keys', { providerId, count: apiKeys.length })
 
     return provider
@@ -724,7 +750,7 @@ class ProviderService {
     assertManagedCherryAiProviderMutationAllowed(providerId, `update API key for provider ${providerId}`)
 
     const db = application.get('DbService').getDb()
-    const provider = db.transaction((tx) => {
+    const { provider, runtimePricingChanged } = db.transaction((tx) => {
       const [row] = tx
         .select()
         .from(userProviderTable)
@@ -779,9 +805,15 @@ class ProviderService {
         .returning()
         .all()
 
-      return rowToRuntimeProvider(updated)
+      const currentKey = existingKeys[keyIndex]
+      const updatedKey = updatedKeys[keyIndex]
+      return {
+        provider: rowToRuntimeProvider(updated),
+        runtimePricingChanged: currentKey.key !== updatedKey.key || currentKey.isEnabled !== updatedKey.isEnabled
+      }
     })
 
+    if (runtimePricingChanged) this.invalidateRuntimePricing(providerId)
     logger.info('Updated API key', { providerId, keyId, changes: Object.keys(updates) })
 
     return provider
@@ -821,6 +853,7 @@ class ProviderService {
       return rowToRuntimeProvider(updated)
     })
 
+    this.invalidateRuntimePricing(providerId)
     logger.info('Deleted API key from provider', { providerId, keyId })
 
     return provider
@@ -886,6 +919,7 @@ class ProviderService {
       return models.length
     })
 
+    this.invalidateRuntimePricing(providerId)
     if (deletedModelCount > 0) pinService.notifyPurged()
 
     logger.info('Deleted provider', { providerId })

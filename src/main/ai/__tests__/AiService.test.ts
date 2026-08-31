@@ -1,5 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,7 +37,10 @@ const mockReadRetryPolicy = vi.fn(() => ({
 }))
 const mockGetImageGenerationSupport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
-const mockSyncRuntimePricing = vi.fn((...args: [string, Partial<Model>[], boolean?]) => args[1])
+const mockCaptureRuntimePricingGeneration = vi.fn<(providerId: string) => number>().mockReturnValue(0)
+const mockResolveFetchedModels = vi.fn(
+  (...args: [string, string | null, Partial<Model>[], number]) => args[2] as Model[]
+)
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
 const mockReconcileSkills = vi.fn()
@@ -101,8 +104,13 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
     listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args),
-    syncRuntimePricing: (providerId: string, models: Partial<Model>[], authoritative?: boolean) =>
-      mockSyncRuntimePricing(providerId, models, authoritative)
+    captureRuntimePricingGeneration: (providerId: string) => mockCaptureRuntimePricingGeneration(providerId),
+    resolveFetchedModels: (
+      providerId: string,
+      presetProviderId: string | null,
+      models: Partial<Model>[],
+      generation: number
+    ) => mockResolveFetchedModels(providerId, presetProviderId, models, generation)
   }
 }))
 
@@ -2172,6 +2180,17 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
 })
 
 describe('AiService.listModels', () => {
+  const completeModel = (providerId: string, apiModelId: string, name: string): Model => ({
+    id: createUniqueModelId(providerId, apiModelId),
+    providerId,
+    apiModelId,
+    name,
+    capabilities: [],
+    supportsStreaming: true,
+    isEnabled: true,
+    isHidden: false
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -2182,13 +2201,16 @@ describe('AiService.listModels', () => {
 
   it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
     const service = createService()
-    const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
+    const registryModels = [
+      completeModel('claude-code', 'haiku', 'Haiku'),
+      completeModel('claude-code', 'sonnet', 'Sonnet')
+    ]
     mockProviderGetByProviderId.mockReturnValue({ id: 'claude-code', modelListSource: 'registry' })
     mockListProviderRegistryModels.mockReturnValue(registryModels)
 
     const result = await service.listModels({ providerId: 'claude-code' })
 
-    expect(result).toBe(registryModels)
+    expect(result).toEqual(registryModels)
     expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
       providerId: 'claude-code',
       presetProviderId: null
@@ -2196,50 +2218,23 @@ describe('AiService.listModels', () => {
     expect(mockListModelsFromProvider).not.toHaveBeenCalled()
   })
 
-  it('pulls the model list over the API for an api-sourced provider, returning it as-is when the registry adds nothing', async () => {
+  it('captures the pricing generation before fetching and delegates complete model resolution to main', async () => {
     const service = createService()
-    const provider = { id: 'openai', modelListSource: 'api' }
+    const provider = { id: 'openai', presetProviderId: 'openai', modelListSource: 'api' }
     const apiModels = [{ id: 'openai::gpt-4o-mini', apiModelId: 'gpt-4o-mini' }]
+    const resolvedModels = [completeModel('openai', 'gpt-4o-mini', 'GPT-4o mini')]
     mockProviderGetByProviderId.mockReturnValue(provider)
+    mockCaptureRuntimePricingGeneration.mockReturnValueOnce(7)
     mockListModelsFromProvider.mockResolvedValue(apiModels)
-    mockListProviderRegistryModels.mockReturnValue([])
+    mockResolveFetchedModels.mockReturnValueOnce(resolvedModels)
 
     const result = await service.listModels({ providerId: 'openai' })
 
-    expect(result).toBe(apiModels)
+    expect(result).toEqual(resolvedModels)
     expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, {
       throwOnError: undefined
     })
-    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({
-      providerId: 'openai',
-      presetProviderId: null
-    })
-  })
-
-  it('keeps registry pricing available when a NewAPI-compatible provider has no runtime rate card', async () => {
-    const service = createService()
-    const provider = { id: 'aionly', modelListSource: 'api' }
-    const apiModels = [{ id: 'aionly::openai/gpt-4o', apiModelId: 'openai/gpt-4o' }]
-    mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
-    mockListProviderRegistryModels.mockReturnValue([])
-    mockSyncRuntimePricing.mockImplementationOnce((_providerId, models, authoritative) =>
-      models.map((model) =>
-        authoritative
-          ? {
-              ...model,
-              pricing: {
-                input: { currency: 'USD', perMillionTokens: null },
-                output: { currency: 'USD', perMillionTokens: null }
-              }
-            }
-          : model
-      )
-    )
-
-    const result = await service.listModels({ providerId: 'aionly' })
-
-    expect(result).toEqual(apiModels)
+    expect(mockResolveFetchedModels).toHaveBeenCalledWith('openai', 'openai', apiModels, 7)
   })
 
   it('does not impose a service-level timeout on model listing', async () => {
@@ -2247,36 +2242,29 @@ describe('AiService.listModels', () => {
     const service = createService()
     const provider = { id: 'openai', modelListSource: 'api' }
     const apiModels = [{ id: 'openai::slow-model', apiModelId: 'slow-model' }]
+    const resolvedModels = [completeModel('openai', 'slow-model', 'Slow Model')]
     mockProviderGetByProviderId.mockReturnValue(provider)
     mockListModelsFromProvider.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve(apiModels), 31_000))
     )
-    mockListProviderRegistryModels.mockReturnValue([])
+    mockResolveFetchedModels.mockReturnValueOnce(resolvedModels)
 
-    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(apiModels)
+    const result = expect(service.listModels({ providerId: 'openai', throwOnError: true })).resolves.toEqual(
+      resolvedModels
+    )
 
     await vi.advanceTimersByTimeAsync(31_000)
     await result
 
-    expect(mockListProviderRegistryModels).toHaveBeenCalledTimes(1)
+    expect(mockCaptureRuntimePricingGeneration).toHaveBeenCalledBefore(mockResolveFetchedModels)
   })
 
-  it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {
+  it('rejects an incomplete model before it crosses the IPC contract', async () => {
     const service = createService()
-    const provider = { id: 'ppio', modelListSource: 'api' }
-    // Live /models returns the chat model with a flat id.
-    const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
-    mockProviderGetByProviderId.mockReturnValue(provider)
-    mockListModelsFromProvider.mockResolvedValue(apiModels)
-    mockListProviderRegistryModels.mockReturnValue([
-      // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
-      { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
-      // Vendor-exclusive image model the API never lists → must be appended.
-      { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
-    ])
+    mockProviderGetByProviderId.mockReturnValue({ id: 'openai', modelListSource: 'api' })
+    mockListModelsFromProvider.mockResolvedValue([{ apiModelId: 'gpt-4o-mini' }])
+    mockResolveFetchedModels.mockReturnValueOnce([{ id: 'openai::gpt-4o-mini' }] as unknown as Model[])
 
-    const result = await service.listModels({ providerId: 'ppio' })
-
-    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
+    await expect(service.listModels({ providerId: 'openai' })).rejects.toThrow()
   })
 })

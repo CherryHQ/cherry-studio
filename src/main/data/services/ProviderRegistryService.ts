@@ -13,6 +13,7 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import { application } from '@application'
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -61,7 +62,7 @@ import type {
   RuntimeReasoning,
   ServiceTierSelection
 } from '@shared/data/types/model'
-import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY, parseUniqueModelId, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
 import { isEqual } from 'es-toolkit/compat'
 
@@ -69,6 +70,43 @@ import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'
 
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
+
+interface RuntimePricingCacheEntry {
+  generation: number
+  pricingByModel: Map<string, RuntimeModelPricing>
+}
+
+const RESOLVED_MODEL_FIELDS = [
+  'name',
+  'presetModelId',
+  'description',
+  'group',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'contextWindow',
+  'maxOutputTokens',
+  'maxInputTokens',
+  'reasoning',
+  'pricing',
+  'family',
+  'ownedBy'
+] as const
+
+function runtimePricingCacheKey(providerId: string): string {
+  return `provider.runtime_pricing.${providerId}`
+}
+
+function rawModelId(model: Partial<Model>): string {
+  return model.apiModelId ?? (model.id ? parseUniqueModelId(model.id).modelId : '')
+}
+
+function bareModelKey(apiModelId: string | undefined): string {
+  const id = apiModelId ?? ''
+  const afterSlash = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id
+  return afterSlash.toLowerCase()
+}
 
 export interface ProviderDisplayMetadata {
   description?: string
@@ -692,7 +730,6 @@ export function projectRuntimeReasoning(
  */
 class ProviderRegistryService {
   private loader: RegistryLoader | null = null
-  private runtimePricing = new Map<string, Map<string, RuntimeModelPricing>>()
 
   /** Lazily create the shared RegistryLoader instance. */
   private getLoader(): RegistryLoader {
@@ -706,32 +743,96 @@ class ProviderRegistryService {
     this.loader = null
   }
 
-  syncRuntimePricing(providerId: string, models: Partial<Model>[]): Partial<Model>[] {
+  /** Capture the provider pricing generation before starting an asynchronous catalog refresh. */
+  captureRuntimePricingGeneration(providerId: string): number {
+    return this.getRuntimePricingState(providerId).generation
+  }
+
+  /** Clear provider runtime prices and reject publications started against the previous source configuration. */
+  invalidateRuntimePricing(providerId: string): void {
+    const state = this.getRuntimePricingState(providerId)
+    application.get('CacheService').set<RuntimePricingCacheEntry>(runtimePricingCacheKey(providerId), {
+      generation: state.generation + 1,
+      pricingByModel: new Map()
+    })
+  }
+
+  /** Publish current-generation rates and return fully resolved remote plus registry-only models. */
+  resolveFetchedModels(
+    providerId: string,
+    presetProviderId: string | null,
+    models: Partial<Model>[],
+    expectedGeneration: number
+  ): Model[] {
+    const remoteModels = this.syncRuntimePricing(providerId, models, expectedGeneration)
+    const resolvedModels = this.resolveModels(providerId, remoteModels.map(rawModelId).filter(Boolean))
+    const resolvedById = new Map(resolvedModels.map((model) => [model.apiModelId ?? '', model]))
+
+    const enriched = remoteModels.flatMap((fetched) => {
+      const modelId = rawModelId(fetched)
+      const resolved = resolvedById.get(modelId)
+      if (!modelId || !resolved) return []
+
+      const merged = { ...resolved, ...fetched } as Model
+      const keepFetchedName = !resolved.presetModelId && !!fetched.name && fetched.name !== modelId
+
+      for (const field of RESOLVED_MODEL_FIELDS) {
+        if (field === 'endpointTypes' && fetched.endpointTypes?.length) continue
+        if (field === 'name' && keepFetchedName) continue
+
+        const value = resolved[field]
+        if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
+          ;(merged as Record<string, unknown>)[field] = value
+        }
+      }
+
+      return [merged]
+    })
+
+    const registryModels = this.listProviderRegistryModels({ providerId, presetProviderId })
+    const seen = new Set(enriched.map((model) => bareModelKey(model.apiModelId)))
+    return [...enriched, ...registryModels.filter((model) => !seen.has(bareModelKey(model.apiModelId)))]
+  }
+
+  private getRuntimePricingState(providerId: string): RuntimePricingCacheEntry {
+    return (
+      application.get('CacheService').get<RuntimePricingCacheEntry>(runtimePricingCacheKey(providerId)) ?? {
+        generation: 0,
+        pricingByModel: new Map()
+      }
+    )
+  }
+
+  private syncRuntimePricing(
+    providerId: string,
+    models: Partial<Model>[],
+    expectedGeneration: number
+  ): Partial<Model>[] {
     if (models.length === 0) return models
 
-    let pricingByModel = this.runtimePricing.get(providerId)
-    for (const model of models) {
-      const modelId = model.apiModelId
-      if (!modelId) continue
-
-      const pricing = model.pricing
-      if (!pricing) continue
-
-      if (!pricingByModel) {
-        pricingByModel = new Map()
-        this.runtimePricing.set(providerId, pricingByModel)
+    const state = this.getRuntimePricingState(providerId)
+    const pricingByModel = new Map(state.pricingByModel)
+    if (state.generation === expectedGeneration) {
+      for (const model of models) {
+        const modelId = rawModelId(model)
+        if (modelId && model.pricing) pricingByModel.set(modelId, model.pricing)
       }
-      pricingByModel.set(modelId, pricing)
+      application.get('CacheService').set<RuntimePricingCacheEntry>(runtimePricingCacheKey(providerId), {
+        generation: state.generation,
+        pricingByModel
+      })
     }
 
     return models.map((model) => {
-      const pricing = model.apiModelId ? pricingByModel?.get(model.apiModelId) : undefined
-      return pricing ? { ...model, pricing } : model
+      const withoutPricing = { ...model }
+      delete withoutPricing.pricing
+      const pricing = pricingByModel.get(rawModelId(model))
+      return pricing ? { ...withoutPricing, pricing } : withoutPricing
     })
   }
 
   private getRuntimePricing(providerId: string, modelId: string): RuntimeModelPricing | undefined {
-    return this.runtimePricing.get(providerId)?.get(modelId)
+    return this.getRuntimePricingState(providerId).pricingByModel.get(modelId)
   }
 
   private applyRuntimePricing(providerId: string, model: Model): Model {

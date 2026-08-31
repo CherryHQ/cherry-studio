@@ -1,17 +1,54 @@
-// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
-import '@data/services/ProviderRegistryService'
-
 import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it, type Mock } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('ProviderService.update', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    MockMainCacheServiceUtils.resetMocks()
+  })
+
+  it('invalidates runtime pricing only when a persisted price source changes', async () => {
+    const providerId = 'p-runtime-source'
+    await dbh.db.insert(userProviderTable).values({
+      providerId,
+      name: 'Runtime Source',
+      orderKey: 'a0',
+      providerSettings: { timeout: 30 }
+    })
+
+    const initialGeneration = providerRegistryService.captureRuntimePricingGeneration(providerId)
+    providerService.update(providerId, { name: 'Renamed', providerSettings: { timeout: 60 } })
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration)
+
+    providerService.update(providerId, { providerSettings: { extraHeaders: { 'X-Billing-Group': 'team-a' } } })
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 1)
+
+    providerService.update(providerId, {
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
+      }
+    })
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 2)
+
+    providerService.update(providerId, { defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS })
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 3)
+
+    providerService.update(providerId, { authConfig: { type: 'api-key', headerName: 'X-Relay-Key' } })
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 4)
+
+    providerService.update(providerId, { authConfig: { type: 'api-key', headerName: 'X-Relay-Key' } })
+    expect(providerRegistryService.captureRuntimePricingGeneration(providerId)).toBe(initialGeneration + 4)
+  })
 
   it('merges providerSettings patches without dropping existing settings', async () => {
     await dbh.db.insert(userProviderTable).values({
