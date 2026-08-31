@@ -3,7 +3,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import { MAX_MCP_PACKAGE_BYTES } from '@shared/types/mcp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ComponentProps } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AddMcpServerModal from '../AddMcpServerModal'
@@ -22,16 +22,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ...actual,
     CodeEditor: ({ value, onChange }: ComponentProps<'textarea'> & { onChange: (value: string) => void }) => (
       <textarea aria-label="server config" value={value} onChange={(event) => onChange(event.target.value)} />
-    ),
-    Dropzone: ({ children, onDrop }: { children: ReactNode; onDrop: (files: File[]) => void }) => (
-      <label>
-        {children}
-        <input
-          aria-label="package upload"
-          type="file"
-          onChange={(event) => onDrop(Array.from(event.target.files ?? []))}
-        />
-      </label>
     )
   }
 })
@@ -78,6 +68,12 @@ const toCreatedServers = (dtos: CreateMcpServerDto[]): McpServer[] =>
     id: `550e8400-e29b-41d4-a716-44665544000${index}`,
     isActive: false
   }))
+
+function getPackageInput(): HTMLInputElement {
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')
+  if (!input) throw new Error('Expected the package dropzone file input')
+  return input
+}
 
 describe('AddMcpServerModal', () => {
   beforeEach(() => {
@@ -156,13 +152,27 @@ describe('AddMcpServerModal', () => {
       />
     )
 
-    fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
+    await userEvent.upload(getPackageInput(), packageFile)
     await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     expect(mocks.toastError).toHaveBeenCalledWith('settings.mcp.addServer.importFrom.packageTooLarge')
     expect(arrayBuffer).not.toHaveBeenCalled()
     expect(mocks.checkConnectivity).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()
+  })
+
+  it('keeps a package with the wrong extension outside the upload flow', async () => {
+    const packageFile = new File(['package'], 'server.zip', { type: 'application/zip' })
+
+    render(
+      <AddMcpServerModal visible onClose={vi.fn()} onSuccess={vi.fn()} existingServers={[]} initialImportMethod="dxt" />
+    )
+
+    await userEvent.upload(getPackageInput(), packageFile)
+
+    expect(screen.getByRole('button', { name: 'common.confirm' })).toBeDisabled()
+    expect(mocks.getPathForFile).not.toHaveBeenCalled()
+    expect(mocks.checkConnectivity).not.toHaveBeenCalled()
   })
 
   it('sends only the native path for an accepted package', async () => {
@@ -182,7 +192,7 @@ describe('AddMcpServerModal', () => {
       />
     )
 
-    fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
+    await userEvent.upload(getPackageInput(), packageFile)
     await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     await waitFor(() =>
@@ -211,7 +221,7 @@ describe('AddMcpServerModal', () => {
       />
     )
 
-    fireEvent.change(screen.getByLabelText('package upload'), { target: { files: [packageFile] } })
+    await userEvent.upload(getPackageInput(), packageFile)
     await userEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     expect(mocks.toastError).toHaveBeenCalledWith('settings.mcp.addServer.importFrom.packageEmpty')

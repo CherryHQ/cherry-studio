@@ -285,17 +285,17 @@ export function validatePackageUploadSource(
   return fileName
 }
 
-async function copyPackageWithinLimit(sourcePath: string, destinationPath: string): Promise<void> {
+export async function copyPackageWithinLimit(
+  sourcePath: string,
+  destinationPath: string,
+  maxBytes = MAX_MCP_PACKAGE_BYTES
+): Promise<void> {
   let copiedBytes = 0
   const limiter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
       copiedBytes += chunk.byteLength
-      if (copiedBytes > MAX_MCP_PACKAGE_BYTES) {
-        callback(
-          new Error(
-            `Invalid MCP package upload: file exceeds the ${MAX_MCP_PACKAGE_BYTES / 1024 / 1024} MiB size limit`
-          )
-        )
+      if (copiedBytes > maxBytes) {
+        callback(new Error(`Invalid MCP package upload: file exceeds the ${maxBytes / 1024 / 1024} MiB size limit`))
         return
       }
       callback(null, chunk)
@@ -487,7 +487,13 @@ export class McpPackageService extends BaseService {
         error: error instanceof Error ? error.message : `Failed to upload ${packageLabel} file`
       }
     } finally {
-      if (tempPath) await fs.promises.rm(tempPath, { force: true })
+      if (tempPath) {
+        try {
+          await fs.promises.rm(tempPath, { force: true })
+        } catch (cleanupError) {
+          logger.warn(`Failed to remove staged ${packageLabel} upload: ${tempPath}`, cleanupError as Error)
+        }
+      }
     }
   }
 
