@@ -10,13 +10,17 @@ import { ProcessState } from './types'
 export class ProcessManager extends BaseService {
   private readonly handles = new Map<string, ChildProcessHandle>()
   private readonly logger = loggerService.withContext('ProcessManager')
+  private acceptingProcesses = true
 
   register(options: ChildProcessOptions): ChildProcessHandle {
+    if (!this.acceptingProcesses) {
+      throw new Error('ProcessManager is not accepting new processes')
+    }
     if (this.handles.has(options.id)) {
       throw new Error(`Process '${options.id}' is already registered`)
     }
 
-    const handle = new ChildProcessHandle(options)
+    const handle = new ChildProcessHandle(options, () => this.acceptingProcesses)
     this.handles.set(options.id, handle)
     return handle
   }
@@ -51,10 +55,12 @@ export class ProcessManager extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
+    this.acceptingProcesses = true
     this.logger.info('ProcessManager initialized')
   }
 
   protected async onStop(): Promise<void> {
+    this.acceptingProcesses = false
     const activeHandles = Array.from(this.handles.values()).filter(
       (handle) =>
         !handle.skipOnStop &&

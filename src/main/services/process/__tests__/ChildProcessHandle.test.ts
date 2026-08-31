@@ -5,7 +5,7 @@ vi.mock('child_process', () => ({ spawn: vi.fn() }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: vi.fn(),
   terminateProcessTree: vi.fn(),
-  waitForProcessExit: vi.fn(
+  waitForProcessClose: vi.fn(
     (child: EventEmitter, timeoutMs: number) =>
       new Promise<boolean>((resolve) => {
         const timeout = setTimeout(() => resolve(false), timeoutMs)
@@ -113,6 +113,45 @@ describe('ChildProcessHandle', () => {
       expect(handle.state).toBe('crashed')
       expect(onExited).toHaveBeenCalledOnce()
     })
+
+    it('isolates errors thrown by onStarted', async () => {
+      const mockCp = createMockChildProcess(1234, false)
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'throwing-started-callback', command: 'node' })
+      handle.onStarted = () => {
+        throw new Error('onStarted failed')
+      }
+
+      const startPromise = handle.start()
+      await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledOnce())
+
+      expect(() => mockCp.emit('spawn')).not.toThrow()
+      await expect(startPromise).resolves.toBeUndefined()
+      expect(handle.state).toBe('running')
+    })
+
+    it('cancels startup before spawning when stop arrives during shell environment resolution', async () => {
+      let resolveEnv!: (env: Record<string, string>) => void
+      mockGetShellEnv.mockReturnValueOnce(
+        new Promise<Record<string, string>>((resolve) => {
+          resolveEnv = resolve
+        })
+      )
+      mockSpawn.mockImplementation(() => {
+        throw new Error('spawn should not happen')
+      })
+      const handle = new ChildProcessHandle({ id: 'cancel-before-spawn', command: 'node' })
+
+      const startPromise = handle.start()
+      const startResult = expect(startPromise).rejects.toThrow('Process cancel-before-spawn start was cancelled')
+      const stopPromise = handle.stop()
+      resolveEnv({ PATH: '/usr/bin' })
+
+      await startResult
+      await expect(stopPromise).resolves.toBeUndefined()
+      expect(mockSpawn).not.toHaveBeenCalled()
+      expect(handle.state).toBe('stopped')
+    })
   })
 
   describe('process exit', () => {
@@ -168,6 +207,20 @@ describe('ChildProcessHandle', () => {
 
       expect(onExited).toHaveBeenCalledOnce()
       expect(onExited).toHaveBeenCalledWith(null, null)
+    })
+
+    it('isolates errors thrown by onExited', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'throwing-exited-callback', command: 'node' })
+      handle.onExited = () => {
+        throw new Error('onExited failed')
+      }
+
+      await handle.start()
+
+      expect(() => mockCp.emit('close', 0, null)).not.toThrow()
+      expect(handle.state).toBe('stopped')
     })
   })
 
@@ -316,6 +369,27 @@ describe('ChildProcessHandle', () => {
 
       expect(handle.state).toBe('stopped')
     })
+
+    it('does not resolve until close updates the handle to a terminal state', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'exit-before-close', command: 'sleep' })
+      await handle.start()
+
+      const stopPromise = handle.stop()
+      mockCp.emit('exit', 0, null)
+
+      const resolvedBeforeClose = await Promise.race([
+        stopPromise.then(() => true),
+        new Promise<false>((resolve) => setTimeout(() => resolve(false), 0))
+      ])
+      expect(resolvedBeforeClose).toBe(false)
+      expect(handle.state).toBe('stopping')
+
+      mockCp.emit('close', 0, null)
+      await expect(stopPromise).resolves.toBeUndefined()
+      expect(handle.state).toBe('stopped')
+    })
   })
 
   describe('log events', () => {
@@ -339,6 +413,20 @@ describe('ChildProcessHandle', () => {
       expect(onLog).toHaveBeenCalledWith(
         expect.objectContaining({ processId: 'log-proc', stream: 'stderr', data: 'error output\n' })
       )
+    })
+
+    it('isolates errors thrown by onLog', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'throwing-log-callback', command: 'node' })
+      handle.onLog = () => {
+        throw new Error('onLog failed')
+      }
+
+      await handle.start()
+
+      expect(() => mockCp.stdout.emit('data', Buffer.from('hello\n'))).not.toThrow()
+      expect(handle.state).toBe('running')
     })
   })
 

@@ -5,7 +5,7 @@ vi.mock('child_process', () => ({ spawn: vi.fn() }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: vi.fn(),
   terminateProcessTree: vi.fn(),
-  waitForProcessExit: vi.fn(
+  waitForProcessClose: vi.fn(
     (child: EventEmitter, timeoutMs: number) =>
       new Promise<boolean>((resolve) => {
         const timeout = setTimeout(() => resolve(false), timeoutMs)
@@ -197,6 +197,20 @@ describe('ProcessManager', () => {
 
       await expect(stopPromise).resolves.toBeUndefined()
       expect(mockCp2.kill).toHaveBeenCalledWith('SIGTERM')
+    })
+
+    it('rejects new registrations and starts after shutdown begins', async () => {
+      const { crossPlatformSpawn, ProcessManager } = await loadModules()
+      const manager = new ProcessManager()
+      const idleHandle = manager.register({ id: 'idle-before-shutdown', command: 'sleep' })
+
+      await manager._doStop()
+
+      expect(() => manager.register({ id: 'registered-after-shutdown', command: 'sleep' })).toThrow(
+        'ProcessManager is not accepting new processes'
+      )
+      await expect(idleHandle.start()).rejects.toThrow('Process idle-before-shutdown cannot start during shutdown')
+      expect(crossPlatformSpawn).not.toHaveBeenCalled()
     })
   })
 

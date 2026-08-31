@@ -100,7 +100,7 @@ Stopped / Crashed ── start ──> Starting
 
 - Concurrent `start()` calls join the same promise and cannot create two children.
 - `start()` resolves only after the child emits `spawn` and rejects on startup `error`.
-- `stop()` called during startup first joins the start transition, then stops the spawned child. A failed start is already terminal.
+- `stop()` called while shell-environment resolution is pending cancels startup before spawn. If launch has already begun, it joins the start transition and then stops the spawned child.
 - `unregister()` called during startup joins the transition before deciding whether removal is safe.
 
 An exit while stopping produces `Stopped`. A non-zero exit outside an intentional stop produces `Crashed`; a clean exit produces `Stopped`.
@@ -136,10 +136,11 @@ try {
 The registry is the ownership boundary:
 
 1. `register()` rejects duplicate IDs.
-2. The business service starts the handle and performs process-specific readiness checks.
-3. A failed spawn, failed readiness check, or normal service stop must end with the inactive handle unregistered.
-4. `unregister()` rejects `Starting`, `Running`, and `Stopping` handles. Stop the handle first.
-5. `ProcessManager.onStop()` stops every active registered handle that is not marked `skipOnStop`.
+2. Once `ProcessManager` begins stopping, it rejects new registrations and registered handles reject new starts.
+3. The business service starts the handle and performs process-specific readiness checks.
+4. A failed spawn, failed readiness check, or normal service stop must end with the inactive handle unregistered.
+5. `unregister()` rejects `Starting`, `Running`, and `Stopping` handles. Stop the handle first.
+6. `ProcessManager.onStop()` stops every active registered handle that is not marked `skipOnStop`.
 
 Do not leave a failed-readiness child registered. A later retry would correctly fail duplicate-ID registration even if the old child remained alive. A service may unregister an unexpected terminal exit immediately or clean up the terminal handle before its next registration attempt.
 
@@ -152,6 +153,8 @@ Do not leave a failed-readiness child registered. A later retry would correctly 
 3. Sends forced termination if necessary.
 4. Uses only the remaining time in the original total deadline to confirm exit.
 5. Rejects when the child still has not exited by the deadline.
+
+The stop promise settles only after the child's `close` event has updated the handle to `Stopped` or `Crashed`. This keeps immediate unregister and restart operations consistent with the observed state.
 
 On Windows, and for detached children on other platforms, termination targets the process tree. Non-detached Unix children receive `SIGTERM` followed by `SIGKILL`.
 
