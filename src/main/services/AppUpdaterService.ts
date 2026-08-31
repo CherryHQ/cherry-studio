@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
@@ -25,12 +27,31 @@ import { AppUpdater, autoUpdater } from 'electron-updater'
 const logger = loggerService.withContext('AppUpdaterService')
 
 type ReleaseRegion = 'cn' | 'global'
+type ReleaseEdition = 'cn' | 'global'
 
 const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
 const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
-function getUpdateHeaders(region: ReleaseRegion) {
+function readReleaseEdition(): ReleaseEdition {
+  const packageMetadata = JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')) as {
+    cherryEdition?: unknown
+  }
+
+  if (packageMetadata.cherryEdition === undefined || packageMetadata.cherryEdition === 'global') {
+    return 'global'
+  }
+  if (packageMetadata.cherryEdition === 'cn') {
+    return 'cn'
+  }
+  throw new Error(`Unsupported release edition: ${String(packageMetadata.cherryEdition)}`)
+}
+
+function getEditionUpdateChannel(channel: UpgradeChannel, edition: ReleaseEdition): string {
+  return edition === 'cn' ? `${channel}-cn` : channel
+}
+
+function getUpdateHeaders(region: ReleaseRegion, edition: ReleaseEdition) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
@@ -38,6 +59,7 @@ function getUpdateHeaders(region: ReleaseRegion) {
     'App-Name': APP_NAME,
     'App-Version': `v${app.getVersion()}`,
     OS: process.platform,
+    'X-Edition': edition,
     'X-Region': region
   }
 }
@@ -84,6 +106,7 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
 export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
+  private releaseEdition: ReleaseEdition | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
   private updateCheckFailures = 0
 
@@ -180,14 +203,16 @@ export class AppUpdaterService extends BaseService {
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
+    const edition = this.getReleaseEdition()
+    const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
-    const updateHeaders = getUpdateHeaders(region)
+    const updateHeaders = getUpdateHeaders(region, edition)
 
-    return { currentVersion, ipCountry, region, requestedChannel, testPlan, updateHeaders }
+    return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
   }
 
   private async configureUpdaterForCheck() {
-    const { currentVersion, ipCountry, region, requestedChannel, testPlan, updateHeaders } =
+    const { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders } =
       await this.getUpdateRequest()
 
     autoUpdater.requestHeaders = {
@@ -196,9 +221,9 @@ export class AppUpdaterService extends BaseService {
     }
 
     logger.info(
-      `Using managed update feed for version ${currentVersion}, testPlan: ${testPlan}, channel: ${requestedChannel}, region: ${region} (IP country: ${ipCountry})`
+      `Using managed update feed for version ${currentVersion}, edition: ${edition}, testPlan: ${testPlan}, channel: ${updateChannel}, region: ${region} (IP country: ${ipCountry})`
     )
-    autoUpdater.channel = requestedChannel
+    autoUpdater.channel = updateChannel
 
     // disable downgrade after change the channel
     autoUpdater.allowDowngrade = false
@@ -238,14 +263,14 @@ export class AppUpdaterService extends BaseService {
 
   public async getLatestReleaseNotes(): Promise<ReleaseNotesEntry | null> {
     try {
-      const { requestedChannel, updateHeaders } = await this.getUpdateRequest()
+      const { updateChannel, updateHeaders } = await this.getUpdateRequest()
       const updater = new ReleaseNotesUpdater()
       updater.logger = logger as Logger
       updater.forceDevUpdateConfig = !app.isPackaged
       updater.autoDownload = false
       updater.autoInstallOnAppQuit = false
       updater.requestHeaders = updateHeaders
-      updater.channel = requestedChannel
+      updater.channel = updateChannel
       updater.allowDowngrade = false
 
       const result = await updater.checkForUpdates()
@@ -273,6 +298,13 @@ export class AppUpdaterService extends BaseService {
     }
 
     return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
+  }
+
+  private getReleaseEdition(): ReleaseEdition {
+    if (this.releaseEdition === null) {
+      this.releaseEdition = readReleaseEdition()
+    }
+    return this.releaseEdition
   }
 
   public cancelDownload() {

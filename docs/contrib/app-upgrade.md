@@ -4,6 +4,7 @@ sources:
   - src/main/services/AppUpdaterService.ts
   - resources/cherry-studio/release-history.json
   - electron-builder.yml
+  - electron-builder.cn.config.cjs
   - dev-app-update.yml
 ---
 
@@ -11,25 +12,26 @@ sources:
 
 ## Overview
 
-Cherry Studio clients check for updates through the managed release service at `https://releases.cherry-ai.com`. The client selects an update channel and sends application, client, platform, and region metadata. The release service owns target-version selection, regional mirrors, rollout policy, and required upgrade gateways.
+Cherry Studio clients check for updates through the managed release service at `https://releases.cherry-ai.com`. The client selects an edition-specific update channel and sends application, edition, client, platform, and region metadata. The release service owns target-version selection, regional mirrors, rollout policy, and required upgrade gateways.
 
 The in-app release history follows the same managed path. Stable release preparation updates `resources/cherry-studio/release-history.json`, the release workflow publishes that generated file as a release asset, and clients fetch `/release-history.json` through the managed release service. The service selects GitHub or GitCode according to the request region. Each build also bundles the file as an offline fallback.
 
 ## Update Feed Configuration
 
 - Packaged builds use `publish.url` from `electron-builder.yml`. electron-builder writes this value to the packaged `app-update.yml`.
+- China edition packages include `cherryEdition: cn` in their packaged metadata. Global packages omit this marker for compatibility with existing installations.
 - Development builds set `forceDevUpdateConfig = true`, so electron-updater reads `dev-app-update.yml` from the repository root. The default development feed is `http://127.0.0.1:3378`.
 - Production base URL changes take effect through the build configuration in newly produced application builds. The client does not override the packaged feed URL at runtime.
 
 ## Channels
 
-The client requests one of these electron-updater channels:
+The global and China editions use separate electron-updater channels:
 
-- `latest`: stable release channel.
-- `rc`: release candidate channel.
-- `beta`: beta release channel.
+- `latest` / `latest-cn`: stable release channels.
+- `rc` / `rc-cn`: release candidate channels.
+- `beta` / `beta-cn`: beta release channels.
 
-When the test plan is disabled, the client selects `latest`. When it is enabled, the client uses the RC or Beta channel selected in settings. electron-updater requests the corresponding channel manifest from the managed feed.
+When the test plan is disabled, the client selects its edition's stable channel. When it is enabled, the client uses the edition-specific RC or Beta channel selected in settings. Edition comes from packaged metadata and is independent of `X-Region`, so changing network region cannot move an installation between product update channels.
 
 ## Request Contract
 
@@ -41,11 +43,12 @@ Before each update check, the client preserves existing updater headers and sets
 | `App-Name` | Application name |
 | `App-Version` | Installed version with a `v` prefix |
 | `OS` | `process.platform` value |
+| `X-Edition` | `cn` for the China package, otherwise `global` |
 | `X-Region` | `cn` for China, otherwise `global` |
 | `User-Agent` | Generated Cherry Studio user agent |
 | `Cache-Control` | `no-cache` |
 
-The selected electron-updater channel determines whether the client requests the `latest`, `rc`, or `beta` manifest; no separate release-channel header is sent.
+The selected electron-updater channel determines which edition-specific manifest the client requests; no separate release-channel header is sent.
 
 ## Check Lifecycle
 

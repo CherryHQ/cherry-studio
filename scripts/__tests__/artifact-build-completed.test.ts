@@ -47,8 +47,8 @@ describe('normalizeArtifactFilePath', () => {
   it('uses the public CN prefix for a China edition artifact', () => {
     expect(
       normalizeArtifactFilePath(
-        path.join('dist', 'Cherry Studio 中国版-2.0.9-x64.dmg'),
-        'Cherry Studio 中国版',
+        path.join('dist', 'Cherry Studio-2.0.9-x64.dmg'),
+        PRODUCT_NAME,
         VERSION,
         'mac',
         'Cherry Studio CN'

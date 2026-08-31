@@ -16,12 +16,14 @@ describe('edition packaging', () => {
 
     expect({
       appId: config.appId,
+      nsisGuid: config.nsis.guid,
       productName: config.productName,
       protocol: config.protocols[0].schemes[0],
       publish: config.publish,
       windowsArtifactName: config.win.artifactName
     }).toEqual({
       appId: 'com.kangfenmao.CherryStudio',
+      nsisGuid: '41a4ccd8-bcc0-5710-9eee-0e164da68057',
       productName: 'Cherry Studio',
       protocol: 'cherrystudio',
       publish: { provider: 'generic', url: 'https://releases.cherry-ai.com' },
@@ -29,28 +31,16 @@ describe('edition packaging', () => {
     })
   })
 
-  it('gives the China edition an independent install and update identity', async () => {
+  it('changes only the package identity, edition marker, and update channel for the China edition', async () => {
     const config = await createChinaEditionConfig({
       packageMetadata: { value: Promise.resolve({ version: '2.1.0' }) }
     })
 
-    expect(config).toMatchObject({
+    expect(config).toEqual({
       extends: './electron-builder.yml',
       appId: 'com.cherryai.cherrystudio.cn',
-      productName: 'Cherry Studio 中国版',
       extraMetadata: {
         cherryEdition: CHINA_EDITION
-      },
-      protocols: [{ name: 'Cherry Studio 中国版', schemes: ['cherrystudio-cn'] }],
-      win: { executableName: 'Cherry Studio CN' },
-      nsis: {
-        shortcutName: 'Cherry Studio 中国版',
-        uninstallDisplayName: 'Cherry Studio 中国版'
-      },
-      linux: {
-        executableName: 'CherryStudioCN',
-        desktop: { entry: { Name: 'Cherry Studio 中国版', StartupWMClass: 'CherryStudioCN' } },
-        mimeTypes: ['x-scheme-handler/cherrystudio-cn']
       },
       publish: { provider: 'generic', url: 'https://releases.cherry-ai.com', channel: 'latest-cn' }
     })
