@@ -153,7 +153,8 @@ describe('WebSearchSettings', () => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
     ipcRequestMock.mockResolvedValue({ results: [] })
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_keywords.client_tools_preferred', true)
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.fetch_urls.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', 'fetch')
@@ -176,8 +177,8 @@ describe('WebSearchSettings', () => {
     screen.getByRole('region', { name: 'settings.tool.websearch.search_provider' })
   const getFetchProviderSection = () =>
     screen.getByRole('region', { name: 'settings.tool.websearch.fetch_urls_provider' })
-  const getAdvancedSettingsTrigger = () =>
-    within(getKeywordProviderSection()).getByRole('button', { name: 'common.advanced_settings' })
+  const getAdvancedSettingsTrigger = (section = getKeywordProviderSection()) =>
+    within(section).getByRole('button', { name: 'common.advanced_settings' })
   const openAdvancedSettings = () => {
     const trigger = getAdvancedSettingsTrigger()
     if (trigger.getAttribute('aria-expanded') !== 'true') {
@@ -213,9 +214,7 @@ describe('WebSearchSettings', () => {
     expect(
       within(fetchProviderSection).queryByText('settings.tool.websearch.search_max_result.label')
     ).not.toBeInTheDocument()
-    expect(
-      within(fetchProviderSection).queryByRole('button', { name: 'common.advanced_settings' })
-    ).not.toBeInTheDocument()
+    expect(getAdvancedSettingsTrigger(fetchProviderSection)).toHaveAttribute('aria-expanded', 'false')
     expect(within(fetchProviderSection).queryByText('settings.tool.websearch.blacklist')).not.toBeInTheDocument()
     expect(
       within(keywordProviderSection).getByRole('button', {
@@ -236,20 +235,37 @@ describe('WebSearchSettings', () => {
     expect(blacklistTitle).toBeVisible()
   })
 
-  // The preference governs every capability section, so it lives in its own group rather than under
-  // one section's advanced settings — no accordion interaction needed to reach it.
-  it('defaults to client web-tool priority and persists switch changes', async () => {
+  it('persists search and fetch source priorities independently', async () => {
     render(<WebSearchSettings />)
 
-    const prioritySwitch = screen.getByRole('switch', {
-      name: 'settings.tool.websearch.client_tools_preferred.label'
-    })
-    expect(prioritySwitch).toHaveAttribute('aria-checked', 'true')
+    const keywordProviderSection = getKeywordProviderSection()
+    const fetchProviderSection = getFetchProviderSection()
+    expect(
+      within(keywordProviderSection).getByText('settings.tool.websearch.source_policy.configured_first')
+    ).toBeVisible()
+    expect(
+      within(fetchProviderSection).getByText('settings.tool.websearch.source_policy.configured_first')
+    ).toBeVisible()
 
-    fireEvent.click(prioritySwitch)
+    fireEvent.click(getAdvancedSettingsTrigger(keywordProviderSection))
+    fireEvent.click(getAdvancedSettingsTrigger(fetchProviderSection))
+
+    const searchPrioritySwitch = within(keywordProviderSection).getByRole('switch', {
+      name: 'settings.tool.websearch.search_client_tools_preferred.label'
+    })
+    const fetchPrioritySwitch = within(fetchProviderSection).getByRole('switch', {
+      name: 'settings.tool.websearch.fetch_client_tools_preferred.label'
+    })
+    expect(searchPrioritySwitch).toHaveAttribute('aria-checked', 'true')
+    expect(fetchPrioritySwitch).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(searchPrioritySwitch)
 
     await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.client_tools_preferred')).toBe(false)
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.search_keywords.client_tools_preferred')).toBe(
+        false
+      )
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.fetch_urls.client_tools_preferred')).toBe(true)
     })
   })
 

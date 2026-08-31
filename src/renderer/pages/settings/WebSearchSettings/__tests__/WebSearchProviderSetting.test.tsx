@@ -124,6 +124,7 @@ function createProps(entry = createEntry()) {
     providerOverrides: {},
     sectionTitle: 'settings.tool.websearch.search_provider',
     sectionTitleId: 'web-search-searchKeywords-title',
+    sourcePolicySummary: 'settings.tool.websearch.source_policy.model_first',
     onSetApiKeys: vi.fn().mockResolvedValue(undefined),
     onSetBasicAuth: vi.fn().mockResolvedValue(undefined),
     onSetCapabilityApiHost: vi.fn().mockResolvedValue(undefined),
@@ -215,6 +216,7 @@ describe('WebSearchProviderSetting', () => {
         {...createProps(createEntry({ provider: fetchProvider, capability: 'fetchUrls' }))}
         sectionTitle="settings.tool.websearch.fetch_urls_provider"
         sectionTitleId="web-search-fetchUrls-title"
+        sourcePolicySummary="settings.tool.websearch.source_policy.model_first"
       />
     )
 

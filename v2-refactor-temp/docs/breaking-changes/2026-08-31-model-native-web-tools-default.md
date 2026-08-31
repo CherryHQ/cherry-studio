@@ -8,16 +8,16 @@ date: 2026-08-31
 
 ## What changed
 
-Web search and URL fetching now use model-native capabilities by default, with an automatic fallback to configured services when the model does not support them or they are unavailable. During upgrade, an existing preference for configured services is reset once to the new model-native default.
+Web search and URL fetching now use model-native capabilities by default, with an automatic fallback to configured services when the model does not support them or they are unavailable. Search and URL fetching now have independent source-priority preferences; an existing shared preference is not copied to either new setting during upgrade.
 
 ## Why this matters to the user
 
-Users who previously preferred configured search services may see supported models handle web search and URL fetching directly after upgrading. Configured services remain available as an automatic fallback.
+Users who previously preferred configured services may see supported models handle web search and URL fetching directly after upgrading. Configured services remain available as automatic fallbacks, and each capability can be changed independently.
 
 ## What the user should do
 
-Nothing — automatic. To prefer configured services again, enable **Prefer configured search services** under Settings → Web Search.
+Nothing — automatic. To change the priority, open Settings → Web Search, expand **Advanced Settings** under Search or URL Fetch, and enable the corresponding configured-service preference.
 
 ## Notes for release manager
 
-The upgrade reset is one-time only. A user who enables the setting afterward keeps that choice on later launches.
+Both new preferences default to model-native-first. Choices saved after upgrade persist independently.

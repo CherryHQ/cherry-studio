@@ -64,6 +64,7 @@ interface Props {
   providerOverrides: WebSearchProviderOverrides
   sectionTitle: string
   sectionTitleId: string
+  sourcePolicySummary: string
   onSetApiKeys: (providerId: WebSearchProviderId, apiKeys: string[]) => Promise<void>
   onSetBasicAuth: (providerId: WebSearchProviderId, patch: WebSearchBasicAuthPatch) => Promise<void>
   onSetCapabilityApiHost: SetCapabilityApiHost
@@ -98,7 +99,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
   onUpdateProvider,
   providerOverrides,
   sectionTitle,
-  sectionTitleId
+  sectionTitleId,
+  sourcePolicySummary
 }) => {
   const { capability, provider } = entry
   const { theme } = useTheme()
@@ -327,6 +329,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
               </SettingTitleExternalLink>
             )}
           </div>
+          <SettingHelpText className="mt-1 block min-w-0">{sourcePolicySummary}</SettingHelpText>
         </div>
         <Select value={provider.id} onValueChange={selectProvider}>
           <SelectTrigger size="sm" className={providerSelectClassName} aria-label={sectionTitle}>
