@@ -448,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "b3b73ceeb452801e",
-    "count": 61,
+    "version": "57c65edf92b23c23",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -466,6 +466,10 @@
       {
         "id": "aihubmix",
         "name": "AiHubMix"
+      },
+      {
+        "id": "aimlapi",
+        "name": "AI/ML API"
       },
       {
         "id": "ovms",

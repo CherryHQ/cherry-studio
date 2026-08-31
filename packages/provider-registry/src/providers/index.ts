@@ -1,5 +1,6 @@
 import p_302ai from './302ai'
 import p_aihubmix from './aihubmix'
+import p_aimlapi from './aimlapi'
 import p_aionly from './aionly'
 import p_alayanew from './alayanew'
 import p_anthropic from './anthropic'
@@ -67,6 +68,7 @@ export const PROVIDERS: Provider[] = [
   p_radeon_cloud,
   p_silicon,
   p_aihubmix,
+  p_aimlapi,
   p_ovms,
   p_ocoolai,
   p_zhipu,
