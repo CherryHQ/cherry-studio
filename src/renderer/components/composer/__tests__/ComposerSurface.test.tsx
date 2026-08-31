@@ -4413,6 +4413,7 @@ describe('ComposerSurface', () => {
         draftTokens={[fileToken]}
         managedTokenKinds={['file']}
         onTokensChange={onTokensChange}
+        supportedExts={['.png']}
       />
     )
 
