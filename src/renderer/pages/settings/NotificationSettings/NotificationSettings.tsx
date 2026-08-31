@@ -74,7 +74,7 @@ const NotificationSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-notifications-mini-app-notification" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.notification.mini_app')}</SettingRowTitle>
           <Switch
             aria-label={t('settings.notification.mini_app')}
