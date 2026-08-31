@@ -86,6 +86,20 @@ describe('resolveCanonicalEndpoint', () => {
     )
   })
 
+  it('does not fall back to chat when a declared dedicated endpoint is not configured', () => {
+    const chatOnlyProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' }
+      }
+    })
+    const imageModel = model({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    expect(resolveCanonicalEndpoint(chatOnlyProvider, imageModel).endpointType).toBeUndefined()
+  })
+
   it('does not substitute another dedicated endpoint for an explicit model capability', () => {
     const mismatchedProvider = provider({
       endpointConfigs: {

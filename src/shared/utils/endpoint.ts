@@ -44,9 +44,8 @@ export function resolveCanonicalEndpoint(
     const impliedCapability = endpointImpliedCapability(endpointType)
     return impliedCapability !== undefined && capabilities.includes(impliedCapability)
   }
-  const hasMismatchedDedicatedEndpoint = model.endpointTypes?.some(
-    (endpointType) =>
-      endpointImpliedCapability(endpointType) !== undefined && !endpointMatchesExplicitCapability(endpointType)
+  const hasDeclaredDedicatedEndpoint = model.endpointTypes?.some(
+    (endpointType) => endpointImpliedCapability(endpointType) !== undefined
   )
   const defaultEndpoint = provider.defaultChatEndpoint
   const preferred =
@@ -74,9 +73,10 @@ export function resolveCanonicalEndpoint(
       if (!nonChat) return impliedCapability === undefined
       if (!hasExplicitEndpointCapability) return true
       // General-purpose protocols such as Gemini generateContent can also serve
-      // non-chat capabilities. Trust that explicit declaration only when the row
-      // does not simultaneously advertise an incompatible dedicated protocol.
-      return impliedCapability === undefined && !hasMismatchedDedicatedEndpoint
+      // non-chat capabilities. Trust that declaration only when the row does not
+      // advertise any dedicated protocol; a missing provider configuration must
+      // not silently reroute a dedicated model through a chat endpoint.
+      return impliedCapability === undefined && !hasDeclaredDedicatedEndpoint
     })
   const gatewayRoute = nonChat ? undefined : resolveGatewayChatRoute(provider, model)
   const fallback =
