@@ -26,7 +26,8 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
     // messages. The one-shot v1 -> v2 import runs after schema migrations, so
     // its messages arrived too late for that SQL migration. Recreate only the
     // refs whose message and file both predate the recorded migration boundary.
-    db.run(sql`
+    db.transaction((tx) => {
+      tx.run(sql`
       INSERT INTO ${agentSessionMessageFileRefTable}
         (id, file_entry_id, source_id, role, created_at, updated_at)
       SELECT
@@ -48,9 +49,9 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
         AND file.created_at <= ${completedAt}
       GROUP BY message.id, json_extract(part.value, '$.providerMetadata.cherry.fileEntryId')
       ON CONFLICT (file_entry_id, source_id, role) DO NOTHING
-    `)
+      `)
 
-    db.run(sql`
+      tx.run(sql`
       WITH migrated_file_ref AS (
         SELECT file_entry_id FROM ${agentSessionMessageFileRefTable}
         WHERE created_at <= ${completedAt}
@@ -72,6 +73,7 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
       WHERE cleanup_policy = 'manual'
         AND created_at <= ${completedAt}
         AND id IN (SELECT file_entry_id FROM migrated_file_ref)
-    `)
+      `)
+    })
   }
 }

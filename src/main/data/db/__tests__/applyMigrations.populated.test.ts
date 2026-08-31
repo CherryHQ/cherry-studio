@@ -664,6 +664,76 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })
 
+  it('rolls back the agent reference backfill when the coupled cleanup-policy update fails', () => {
+    applyMigrations(db, resolveMigrationsPath())
+    const now = Date.now()
+    const fileEntryId = '12121212-1212-7121-8121-121212121212'
+    const messageId = '34343434-3434-4343-8343-343434343434'
+
+    sqlite
+      .prepare(
+        `INSERT INTO file_entry
+          (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
+         VALUES (?, 'internal', 'rollback-report', 'pdf', 12, NULL, 'manual', ?, ?, NULL)`
+      )
+      .run(fileEntryId, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO app_state (key, value, description, created_at, updated_at)
+         VALUES ('migration_v2_status', ?, NULL, ?, ?)`
+      )
+      .run(
+        JSON.stringify({ status: 'completed', completedAt: now + 1, version: '2.0.0', error: null }),
+        now + 1,
+        now + 1
+      )
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-cleanup-rollback', 'Workspace', '/tmp/cleanup-rollback', 'user', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, last_activity_at, created_at, updated_at)
+         VALUES ('session-cleanup-rollback', 'Session', 'workspace-cleanup-rollback', 'a0', ?, ?, ?)`
+      )
+      .run(now, now, now)
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session_message
+          (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+         VALUES (?, 'session-cleanup-rollback', 'user', ?, '', 'success', ?, ?)`
+      )
+      .run(
+        messageId,
+        JSON.stringify({
+          parts: [
+            {
+              type: 'file',
+              providerMetadata: { cherry: { fileEntryId } }
+            }
+          ]
+        }),
+        now,
+        now
+      )
+    sqlite.exec(`
+      CREATE TRIGGER reject_cleanup_policy_update
+      BEFORE UPDATE OF cleanup_policy ON file_entry
+      WHEN NEW.id = '${fileEntryId}'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced cleanup-policy failure');
+      END;
+    `)
+
+    expect(() => new LegacyFileCleanupPolicySeeder().run(db)).toThrow()
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message_file_ref`).get()).toEqual({ count: 0 })
+    expect(sqlite.prepare(`SELECT cleanup_policy FROM file_entry WHERE id = ?`).get(fileEntryId)).toEqual({
+      cleanup_policy: 'manual'
+    })
+  })
+
   it('enables existing skills globally without changing per-agent preferences', () => {
     applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0008_abnormal_may_parker'))
     const now = Date.now()
