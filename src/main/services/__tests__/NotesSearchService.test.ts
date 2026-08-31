@@ -1,11 +1,10 @@
 import type { NotesTreeNode } from '@shared/types/note'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { preferenceGetMock, readMock, realpathMock, statMock } = vi.hoisted(() => ({
+const { preferenceGetMock, readMock, realpathMock } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
   readMock: vi.fn(),
-  realpathMock: vi.fn(),
-  statMock: vi.fn()
+  realpathMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -17,8 +16,7 @@ vi.mock('@main/utils/file', () => ({
   isSameOrInside: (candidate: string, container: string) =>
     candidate === container || candidate.startsWith(`${container}/`),
   readTextFileWithinRoots: (filePath: string, _roots: string[], options: unknown) => readMock(filePath, options),
-  realpath: realpathMock,
-  stat: statMock
+  realpath: realpathMock
 }))
 
 import { BaseService } from '@main/core/lifecycle'
@@ -67,7 +65,6 @@ describe('NotesSearchService', () => {
     applicationGetPathMock.mockReturnValue('/notes')
     preferenceGetMock.mockReturnValue('/notes')
     realpathMock.mockImplementation(async (filePath: string) => filePath)
-    statMock.mockResolvedValue({ size: 20, createdAt: NOW, modifiedAt: NOW, isDirectory: false, isFile: true })
     readMock.mockResolvedValue('')
     service = new NotesSearchService()
     await service._doInit()
@@ -132,9 +129,8 @@ describe('NotesSearchService', () => {
     expect(results[0].matches?.[0].lineContent.length).toBeLessThanOrEqual(2_005)
   })
 
-  it('uses stat size to skip oversized files before reading while retaining a filename-only match', async () => {
-    statMock.mockResolvedValue({ size: 11, createdAt: NOW, modifiedAt: NOW, isDirectory: false, isFile: true })
-
+  it('retains a filename-only match when the verified snapshot reader rejects the file', async () => {
+    readMock.mockResolvedValue(null)
     const results = await service.search(
       {
         nodes: [note('large', { name: 'alpha archive' })],
@@ -145,31 +141,12 @@ describe('NotesSearchService', () => {
       requestContext('search-large')
     )
 
-    expect(statMock).toHaveBeenCalledOnce()
-    expect(readMock).not.toHaveBeenCalled()
+    expect(readMock).toHaveBeenCalledOnce()
     expect(results).toEqual([expect.objectContaining({ id: 'large', matchType: 'filename', matches: [], score: 100 })])
   })
 
-  it('skips non-regular paths before reading while retaining a filename-only match', async () => {
-    statMock.mockResolvedValue({ size: 0, createdAt: NOW, modifiedAt: NOW, isDirectory: false, isFile: false })
-
-    const results = await service.search(
-      {
-        nodes: [note('device', { name: 'needle device' })],
-        keyword: 'needle',
-        options: {},
-        maxResults: 10
-      },
-      requestContext('search-device')
-    )
-
-    expect(readMock).not.toHaveBeenCalled()
-    expect(results).toEqual([expect.objectContaining({ id: 'device', matchType: 'filename', matches: [], score: 100 })])
-  })
-
-  it('rechecks content size after reading when a file grows after stat', async () => {
-    statMock.mockResolvedValue({ size: 5, createdAt: NOW, modifiedAt: NOW, isDirectory: false, isFile: true })
-    readMock.mockResolvedValue('content grew')
+  it('passes the configured size bound to the verified snapshot reader', async () => {
+    readMock.mockResolvedValue(null)
 
     const results = await service.search(
       {
@@ -181,7 +158,6 @@ describe('NotesSearchService', () => {
       requestContext('search-growing')
     )
 
-    expect(readMock).toHaveBeenCalledOnce()
     expect(results).toEqual([
       expect.objectContaining({ id: 'growing', matchType: 'filename', matches: [], score: 100 })
     ])
@@ -189,38 +165,6 @@ describe('NotesSearchService', () => {
       maxBytes: 5,
       signal: expect.any(AbortSignal)
     })
-  })
-
-  it('does not read renderer-provided paths outside the configured notes roots', async () => {
-    const results = await service.search(
-      {
-        nodes: [note('outside', { externalPath: '/private/outside.md', name: 'needle outside' })],
-        keyword: 'needle',
-        options: {},
-        maxResults: 10
-      },
-      requestContext('search-outside')
-    )
-
-    expect(statMock).not.toHaveBeenCalled()
-    expect(readMock).not.toHaveBeenCalled()
-    expect(results).toEqual([
-      expect.objectContaining({ id: 'outside', matchType: 'filename', matches: [], score: 100 })
-    ])
-  })
-
-  it('rejects a note path whose real target escapes the configured root through a symlink', async () => {
-    realpathMock.mockImplementation(async (filePath: string) =>
-      filePath === '/notes/link.md' ? '/private/target.md' : filePath
-    )
-
-    await service.search(
-      { nodes: [note('link')], keyword: 'needle', options: {}, maxResults: 10 },
-      requestContext('search-symlink')
-    )
-
-    expect(statMock).not.toHaveBeenCalled()
-    expect(readMock).not.toHaveBeenCalled()
   })
 
   it('bounds reads to five and aborts outstanding work after maxResults is satisfied', async () => {
@@ -260,7 +204,6 @@ describe('NotesSearchService', () => {
     expect(peakReads).toBeLessThanOrEqual(5)
     expect(activeReads).toBe(0)
     expect(readMock.mock.calls.length).toBeLessThan(nodes.length)
-    expect(statMock.mock.calls.length).toBeLessThan(nodes.length)
   })
 
   it('keeps the global top result when a later file can outrank an earlier match', async () => {
@@ -391,6 +334,23 @@ describe('NotesSearchService', () => {
     ).resolves.toEqual([expect.objectContaining({ id: 'nested', matchType: 'content' })])
   })
 
+  it('does not echo a file node child tree in a bounded search result', async () => {
+    readMock.mockResolvedValue('needle')
+    const nestedChildren = [note('nested-1'), note('nested-2')]
+    const result = await service.search(
+      {
+        nodes: [note('file-with-children', { name: 'needle', children: nestedChildren })],
+        keyword: 'needle',
+        options: {},
+        maxResults: 1
+      },
+      requestContext('search-bounded-payload')
+    )
+
+    expect(result).toHaveLength(1)
+    expect(result[0]).not.toHaveProperty('children')
+  })
+
   it('keeps a replacement request cancellable after the superseded request settles', async () => {
     const pending: Array<{
       resolve: (content: string) => void
@@ -425,38 +385,18 @@ describe('NotesSearchService', () => {
     await expect(secondSearch).resolves.toEqual([])
   })
 
-  it('waits for aborted search work to settle during service teardown', async () => {
-    const firstRead = createDeferred<string>()
-    const secondRead = createDeferred<string>()
-    readMock.mockReturnValueOnce(firstRead.promise).mockReturnValueOnce(secondRead.promise)
-    const context = requestContext('reused-during-stop')
-    const firstSearch = service.search(
-      { nodes: [note('slow')], keyword: 'needle', options: {}, maxResults: 10 },
-      context
-    )
+  it('does not keep cancellation pending on a snapshot read that ignores the signal', async () => {
+    const stuckRead = createDeferred<string>()
+    readMock.mockReturnValue(stuckRead.promise)
+    const context = requestContext('stuck-read')
+    const search = service.search({ nodes: [note('slow')], keyword: 'needle', options: {}, maxResults: 10 }, context)
 
     await vi.waitFor(() => expect(readMock).toHaveBeenCalledOnce())
-    const secondSearch = service.search(
-      { nodes: [note('replacement')], keyword: 'needle', options: {}, maxResults: 10 },
-      context
-    )
-    await vi.waitFor(() => expect(readMock).toHaveBeenCalledTimes(2))
+    service.cancel(context)
 
-    let stopped = false
-    const stop = service._doStop().then(() => {
-      stopped = true
-    })
-    await Promise.resolve()
-    expect(stopped).toBe(false)
-
-    secondRead.resolve('needle')
-    await Promise.resolve()
-    expect(stopped).toBe(false)
-
-    firstRead.resolve('needle')
-    await expect(stop).resolves.toBeUndefined()
-    await expect(firstSearch).resolves.toEqual([])
-    await expect(secondSearch).resolves.toEqual([])
+    await expect(search).resolves.toEqual([])
+    await expect(service._doStop()).resolves.toBeUndefined()
+    stuckRead.resolve('needle')
   })
 
   it('supersedes the previous search from the same sender and ignores a late cancel for it', async () => {

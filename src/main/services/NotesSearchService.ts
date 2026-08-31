@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { isSameOrInside, readTextFileWithinRoots, realpath, stat } from '@main/utils/file'
+import { readTextFileWithinRoots, realpath } from '@main/utils/file'
 import type { WindowId } from '@shared/ipc/types'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
@@ -164,6 +164,40 @@ function throwIfAborted(signal: AbortSignal): void {
   throw signal.reason instanceof Error ? signal.reason : createAbortError('Notes search aborted')
 }
 
+/**
+ * Stop awaiting a filesystem operation as soon as the search is cancelled.
+ * The underlying snapshot reader also receives the same signal and owns its
+ * eventual handle cleanup; this race keeps the request lifecycle from being
+ * pinned by an individual filesystem promise that has not settled yet.
+ */
+function waitForSearchOperation<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  throwIfAborted(signal)
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason instanceof Error ? signal.reason : createAbortError('Notes search aborted'))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    operation.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+  })
+}
+
+function resultNode(node: NotesTreeNode): Omit<NotesTreeNode, 'children'> {
+  const result = { ...node }
+  delete result.children
+  return result
+}
+
 async function findMatches(
   content: string,
   keyword: string,
@@ -236,23 +270,16 @@ async function searchFileContent(
 
   try {
     throwIfAborted(signal)
-    const realPath = await realpath(parsedPath.data)
-    if (!notesRoots.some((root) => isSameOrInside(realPath, root))) {
-      logger.warn('Skipping note search for a path outside the configured notes roots', { noteId: node.id })
-      return null
-    }
-
-    const fileStat = await stat(realPath)
-    throwIfAborted(signal)
     const maxFileSize = options.maxFileSize ?? DEFAULT_MAX_FILE_SIZE
-    if (!fileStat.isFile || fileStat.size > maxFileSize) {
-      return null
-    }
-
-    // Read through a validated open handle. The earlier realpath/stat checks are only cheap
-    // filters; this operation revalidates the opened inode against the trusted roots so a
-    // concurrent path or parent replacement cannot redirect the actual content read.
-    const content = await readTextFileWithinRoots(parsedPath.data, notesRoots, { maxBytes: maxFileSize, signal })
+    // This is the single authorization and file-shape boundary: it resolves the
+    // path under a trusted root, opens a regular-file snapshot, enforces size,
+    // verifies inode identity, and reads through that handle. Do not preflight
+    // the same path here; duplicated path/stat checks add syscalls without
+    // authorizing the inode that is actually read.
+    const content = await waitForSearchOperation(
+      readTextFileWithinRoots(parsedPath.data, notesRoots, { maxBytes: maxFileSize, signal }),
+      signal
+    )
     throwIfAborted(signal)
     if (!content || Buffer.byteLength(content, 'utf8') > maxFileSize) {
       return null
@@ -264,7 +291,7 @@ async function searchFileContent(
     }
 
     return {
-      ...node,
+      ...resultNode(node),
       matchType: 'content',
       matches,
       score: calculateRelevanceScore(node, keyword, matches, searchStartedAt)
@@ -398,7 +425,7 @@ export class NotesSearchService extends BaseService {
         if (nameMatch && contentResult) {
           result = { ...contentResult, matchType: 'both', score: contentResult.score + 100 }
         } else if (nameMatch) {
-          result = { ...node, matchType: 'filename', matches: [], score: 100 }
+          result = { ...resultNode(node), matchType: 'filename', matches: [], score: 100 }
         } else if (contentResult) {
           result = contentResult
         }
