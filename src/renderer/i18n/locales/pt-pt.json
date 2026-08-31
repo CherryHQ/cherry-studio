@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Verificar",
   "settings.tool.websearch.check_failed": "Falha na verificação",
   "settings.tool.websearch.check_success": "Verificação bem-sucedida",
-  "settings.tool.websearch.client_tools_preferred.description": "Utiliza os serviços de pesquisa e obtenção de URLs configurados acima, mesmo quando o modelo inclui pesquisa. Quando desativado, o modelo trata dessas operações.",
+  "settings.tool.websearch.client_tools_preferred.description": "Por predefinição, utiliza as funcionalidades de pesquisa e obtenção de URLs integradas no modelo, recorrendo aos serviços configurados quando não estiverem disponíveis. Ative esta opção para dar prioridade aos serviços configurados sempre que estejam disponíveis.",
   "settings.tool.websearch.client_tools_preferred.label": "Serviços de pesquisa configurados preferidos",
   "settings.tool.websearch.compression.cutoff.limit.label": "Comprimento do corte",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Comprimento de entrada",

@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Kiểm tra",
   "settings.tool.websearch.check_failed": "Xác minh thất bại",
   "settings.tool.websearch.check_success": "Xác minh thành công",
-  "settings.tool.websearch.client_tools_preferred.description": "Sử dụng các dịch vụ tìm kiếm và lấy URL được cấu hình ở trên ngay cả khi mô hình có chức năng tìm kiếm tích hợp. Khi tắt, mô hình sẽ xử lý.",
+  "settings.tool.websearch.client_tools_preferred.description": "Theo mặc định, sử dụng khả năng tìm kiếm và lấy URL tích hợp của mô hình; nếu không khả dụng, hệ thống sẽ chuyển sang các dịch vụ đã cấu hình. Bật tùy chọn này để ưu tiên các dịch vụ đã cấu hình bất cứ khi nào chúng khả dụng.",
   "settings.tool.websearch.client_tools_preferred.label": "Ưu tiên các dịch vụ tìm kiếm đã cấu hình",
   "settings.tool.websearch.compression.cutoff.limit.label": "Giới hạn cắt",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Nhập chiều dài",

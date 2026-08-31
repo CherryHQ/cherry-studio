@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "檢查",
   "settings.tool.websearch.check_failed": "驗證失敗",
   "settings.tool.websearch.check_success": "驗證成功",
-  "settings.tool.websearch.client_tools_preferred.description": "即使模型內建搜尋功能，仍使用上方設定的搜尋與網址擷取服務。關閉時，則由模型自行處理。",
+  "settings.tool.websearch.client_tools_preferred.description": "預設使用模型內建的搜尋與網址擷取能力；模型不支援或目前無法使用時，自動回退至上方設定的服務。開啟後，只要設定的服務可用，就會優先使用。",
   "settings.tool.websearch.client_tools_preferred.label": "偏好已設定的搜尋服務",
   "settings.tool.websearch.compression.cutoff.limit.label": "截斷長度",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "輸入長度",

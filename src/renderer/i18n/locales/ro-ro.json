@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Verifică",
   "settings.tool.websearch.check_failed": "Verificare eșuată",
   "settings.tool.websearch.check_success": "Verificare reușită",
-  "settings.tool.websearch.client_tools_preferred.description": "Folosește serviciile de căutare și preluare URL configurate mai sus chiar și atunci când modelul are căutare integrată. Când opțiunea este dezactivată, modelul se ocupă de căutare.",
+  "settings.tool.websearch.client_tools_preferred.description": "În mod implicit, sunt folosite funcțiile de căutare și preluare a URL-urilor integrate în model, cu revenire la serviciile configurate atunci când acestea nu sunt disponibile. Activează această opțiune pentru a acorda prioritate serviciilor configurate ori de câte ori sunt disponibile.",
   "settings.tool.websearch.client_tools_preferred.label": "Preferă serviciile de căutare configurate",
   "settings.tool.websearch.compression.cutoff.limit.label": "Limită trunchiere",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Introdu lungimea",

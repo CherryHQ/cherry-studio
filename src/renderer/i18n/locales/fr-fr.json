@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Vérifier",
   "settings.tool.websearch.check_failed": "Échec de la vérification",
   "settings.tool.websearch.check_success": "Vérification réussie",
-  "settings.tool.websearch.client_tools_preferred.description": "Utilisez les services de recherche et de récupération d'URL configurés ci-dessus même lorsque le modèle dispose d'une recherche intégrée. Lorsqu'ils sont désactivés, le modèle gère cela.",
+  "settings.tool.websearch.client_tools_preferred.description": "Par défaut, utilisez les fonctions de recherche et de récupération d’URL intégrées au modèle, avec un repli sur les services configurés lorsqu’elles sont indisponibles. Activez cette option pour donner la priorité aux services configurés dès qu’ils sont disponibles.",
   "settings.tool.websearch.client_tools_preferred.label": "Services de recherche configurés préférés",
   "settings.tool.websearch.compression.cutoff.limit.label": "Longueur de troncature",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Longueur d'entrée",

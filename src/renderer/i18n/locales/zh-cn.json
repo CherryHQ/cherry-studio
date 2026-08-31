@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "检测",
   "settings.tool.websearch.check_failed": "验证失败",
   "settings.tool.websearch.check_success": "验证成功",
-  "settings.tool.websearch.client_tools_preferred.description": "即使模型自带联网搜索，也优先使用上方配置的搜索与网页读取服务；关闭后由模型内置搜索处理。",
+  "settings.tool.websearch.client_tools_preferred.description": "默认使用模型内置的搜索与网页读取能力；模型不支持或当前不可用时，自动回退到上方配置的服务。开启后，只要配置的服务可用，就优先使用它们。",
   "settings.tool.websearch.client_tools_preferred.label": "优先使用已配置的搜索服务",
   "settings.tool.websearch.compression.cutoff.limit.label": "截断长度",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "输入长度",

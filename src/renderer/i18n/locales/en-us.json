@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "Check",
   "settings.tool.websearch.check_failed": "Verification failed",
   "settings.tool.websearch.check_success": "Verification successful",
-  "settings.tool.websearch.client_tools_preferred.description": "Use the search and URL-fetch services configured above even when the model has built-in search. When off, the model handles it.",
+  "settings.tool.websearch.client_tools_preferred.description": "By default, use the model's built-in search and URL-fetch capabilities, falling back to the configured services when unavailable. Turn this on to prefer the configured services whenever they are available.",
   "settings.tool.websearch.client_tools_preferred.label": "Prefer configured search services",
   "settings.tool.websearch.compression.cutoff.limit.label": "Cutoff Limit",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Enter length",

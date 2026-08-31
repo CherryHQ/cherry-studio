@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "проверка",
   "settings.tool.websearch.check_failed": "Проверка не прошла",
   "settings.tool.websearch.check_success": "Проверка успешна",
-  "settings.tool.websearch.client_tools_preferred.description": "Используйте настроенные выше службы поиска и получения URL даже когда у модели есть встроенный поиск. Когда выключено, модель обрабатывает это сама.",
+  "settings.tool.websearch.client_tools_preferred.description": "По умолчанию используются встроенные в модель функции поиска и получения URL; если они недоступны, выполняется переход на настроенные сервисы. Включите этот параметр, чтобы всегда отдавать приоритет настроенным сервисам, когда они доступны.",
   "settings.tool.websearch.client_tools_preferred.label": "Предпочитать настроенные поисковые службы",
   "settings.tool.websearch.compression.cutoff.limit.label": "Лимит обрезки",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "Введите длину",

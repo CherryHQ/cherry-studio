@@ -4878,7 +4878,7 @@
   "settings.tool.websearch.check": "チェック",
   "settings.tool.websearch.check_failed": "検証に失敗しました",
   "settings.tool.websearch.check_success": "検証に成功しました",
-  "settings.tool.websearch.client_tools_preferred.description": "上記で設定した検索およびURL取得サービスを、モデルに組み込み検索機能がある場合でも使用します。オフにすると、モデルが処理します。",
+  "settings.tool.websearch.client_tools_preferred.description": "デフォルトではモデル内蔵の検索およびURL取得機能を使用し、利用できない場合は設定済みのサービスに自動的に切り替えます。この設定をオンにすると、設定済みのサービスが利用可能な場合は常にそちらを優先します。",
   "settings.tool.websearch.client_tools_preferred.label": "設定された検索サービスを優先する",
   "settings.tool.websearch.compression.cutoff.limit.label": "切り捨て長",
   "settings.tool.websearch.compression.cutoff.limit.placeholder": "長さを入力",
