@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => ({
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
+  getRawShellEnv: vi.fn().mockResolvedValue({}),
   refreshShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
@@ -232,7 +233,7 @@ vi.mock('@main/utils/rtk', () => ({
 
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv,
-  getRawShellEnv: mocks.getShellEnv,
+  getRawShellEnv: mocks.getRawShellEnv,
   refreshShellEnv: mocks.refreshShellEnv
 }))
 
