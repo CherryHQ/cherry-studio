@@ -543,6 +543,8 @@
   "backup.confirm.button": "Select Backup Location",
   "backup.content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
   "backup.error.active_data_writers": "A conversation or agent is still running. Wait for it to finish, then try again.",
+  "backup.error.newer_version": "This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.progress.completed": "Backup completed",
   "backup.progress.compressing": "Compressing files...",
   "backup.progress.copying_database": "Copying database...",

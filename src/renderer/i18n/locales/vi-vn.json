@@ -543,6 +543,8 @@
   "backup.confirm.button": "Chọn Vị trí Sao lưu",
   "backup.content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
   "backup.error.active_data_writers": "Một cuộc trò chuyện hoặc Agent vẫn đang chạy. Hãy đợi hoàn tất rồi thử lại.",
+  "backup.error.newer_version": "[to be translated]:This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "[to be translated]:Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.progress.completed": "Sao lưu đã hoàn tất",
   "backup.progress.compressing": "Đang nén tệp...",
   "backup.progress.copying_database": "Đang sao chép cơ sở dữ liệu...",

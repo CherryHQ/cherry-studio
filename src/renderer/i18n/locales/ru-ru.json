@@ -543,6 +543,8 @@
   "backup.confirm.button": "Выбрать папку для резервной копии",
   "backup.content": "Резервная копия будет содержать все данные приложения, включая чаты, настройки и базу знаний. Это может занять некоторое время.",
   "backup.error.active_data_writers": "Идёт выполнение разговора или агента. Дождитесь его завершения и попробуйте снова.",
+  "backup.error.newer_version": "[to be translated]:This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "[to be translated]:Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.progress.completed": "Резервная копия создана",
   "backup.progress.compressing": "Сжатие файлов...",
   "backup.progress.copying_database": "Копирование базы данных...",

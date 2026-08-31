@@ -543,6 +543,8 @@
   "backup.confirm.button": "Seleccionar ubicación de copia de seguridad",
   "backup.content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
   "backup.error.active_data_writers": "Una conversación o agente aún está en ejecución. Espere a que termine, luego inténtelo de nuevo.",
+  "backup.error.newer_version": "[to be translated]:This backup was created by a newer version of Cherry Studio and cannot be restored on this version. Please update Cherry Studio and try again.",
+  "backup.error.operation_busy": "[to be translated]:Another backup or restore operation is already in progress. Wait for it to finish and try again.",
   "backup.progress.completed": "Copia de seguridad completada",
   "backup.progress.compressing": "Comprimiendo archivos...",
   "backup.progress.copying_database": "Copiando base de datos...",
