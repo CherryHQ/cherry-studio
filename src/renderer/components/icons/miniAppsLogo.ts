@@ -17,6 +17,7 @@ const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   application: providerIconRef('application'),
   'radeon-cloud': providerIconRef('radeon-cloud'),
   openclaw: providerIconRef('openclaw'),
+  nousresearch: providerIconRef('nousresearch'),
   openai: providerIconRef('openai'),
   gemini: providerIconRef('google'),
   google: providerIconRef('google'),

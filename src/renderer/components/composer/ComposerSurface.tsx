@@ -99,9 +99,15 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
     [props.draftTokens, props.text, props.tokens]
   )
 
-  // The fallback cannot rebase token offsets or render the editing header, so hand those states
-  // straight to the runtime instead of serving them badly.
-  const needsRuntime = Boolean(props.editingState) || Boolean(props.draftTokens?.length)
+  // The fallback cannot rebase token offsets, render the editing header, grow beyond its fixed
+  // two-line box, or represent structural variants, so hand those states to the runtime instead.
+  const needsRuntime =
+    Boolean(props.editingState) ||
+    Boolean(props.draftTokens?.length) ||
+    props.tokens.length > 0 ||
+    props.text.trim().length > 0 ||
+    Boolean(props.compactWhenSingleLine) ||
+    props.isExpanded
   useEffect(() => {
     if (needsRuntime) requestRuntime()
   }, [needsRuntime, requestRuntime])
@@ -266,6 +272,7 @@ function DeferredComposerSurface(props: ComposerSurfaceProps) {
             requestRuntime()
           }}
           onFocus={() => {
+            intentRef.current.hadFocus = true
             props.onFocus?.()
             // Start the rich runtime on focus, not on the first key: with a warm chunk the swap
             // would otherwise commit before the keystroke's input event, dropping the character.

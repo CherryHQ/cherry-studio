@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.5",
+    "version": "2.0.10",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -66,14 +66,17 @@
       "/settings/data",
       "/settings/dependencies",
       "/settings/file-processing",
+      "/settings/general",
       "/settings/local-models",
       "/settings/mcp",
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
+      "/settings/screenshot",
       "/settings/selection-assistant",
       "/settings/shortcut",
       "/settings/skills",
@@ -104,7 +107,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -336,6 +340,39 @@
       }
     },
     {
+      "id": "screenshot.capture",
+      "titleKey": "settings.shortcuts.screenshot_capture",
+      "categoryKey": "settings.shortcuts.feature.screenshot",
+      "scope": "main",
+      "enablement": "feature.screenshot.enabled",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "Shift",
+          "A"
+        ],
+        "global": true,
+        "when": "feature.screenshot.enabled",
+        "supportedPlatforms": [
+          "darwin",
+          "win32",
+          "linux"
+        ]
+      }
+    },
+    {
+      "id": "topic.clear_messages",
+      "titleKey": "chat.topics.clear.title",
+      "categoryKey": "settings.shortcuts.topic",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": [
+          "CommandOrControl",
+          "L"
+        ]
+      }
+    },
+    {
       "id": "topic.create",
       "titleKey": "settings.shortcuts.new_topic",
       "categoryKey": "settings.shortcuts.topic",
@@ -411,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "cde3bb6539c1f8fa",
-    "count": 62,
+    "version": "4a6f7225220e7a46",
+    "count": 61,
     "entries": [
       {
         "id": "cherryin",
@@ -537,10 +574,6 @@
       {
         "id": "vertexai",
         "name": "VertexAI"
-      },
-      {
-        "id": "github",
-        "name": "Github Models"
       },
       {
         "id": "copilot",
@@ -749,11 +782,69 @@
         "openclaw",
         "deepseek-harness",
         "gemini-cli",
+        "antigravity-cli",
         "qwen-code",
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes"
+      ]
+    }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
       ]
     }
   }

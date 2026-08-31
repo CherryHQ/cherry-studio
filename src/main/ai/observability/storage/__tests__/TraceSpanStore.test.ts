@@ -1,4 +1,4 @@
-import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
+import type { SpanEntity } from '@shared/data/types/trace'
 import { describe, expect, it } from 'vitest'
 
 import { TraceSpanStore } from '../TraceSpanStore'

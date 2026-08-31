@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const serviceMocks = vi.hoisted(() => ({
@@ -28,7 +28,6 @@ import {
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
-  PiMissingContextWindowError,
   PiUnsupportedProviderError,
   resolvePiProviderInjection,
   resolvePiProviderInjectionFromSnapshot
@@ -40,7 +39,7 @@ function makeProvider(overrides: Partial<Provider>): Provider {
   return {
     id: 'p',
     name: 'P',
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     ...overrides
   } as Provider
 }
@@ -212,7 +211,7 @@ describe('buildPiProviderInjection', () => {
   it.each([
     ['openai-chat-completions', 'openai-completions'],
     ['openai-responses', 'openai-responses']
-  ] as const)('maps the provider developer-role capability for %s', (endpointType, expectedApi) => {
+  ] as const)('maps the endpoint developer-role dialect for %s', (endpointType, expectedApi) => {
     const endpointConfigs = {
       [endpointType]: { adapterFamily: 'openai-compatible', baseUrl: 'https://gateway.example.com' }
     }
@@ -226,8 +225,9 @@ describe('buildPiProviderInjection', () => {
     const supported = buildPiProviderInjection(
       makeProvider({
         defaultChatEndpoint: endpointType,
-        endpointConfigs,
-        apiFeatures: { ...DEFAULT_API_FEATURES, developerRole: true }
+        endpointConfigs: {
+          [endpointType]: { ...endpointConfigs[endpointType], dialect: { developerRole: true } }
+        }
       }),
       model,
       REAL_KEY
@@ -275,6 +275,35 @@ describe('buildPiProviderInjection', () => {
 
     expect(injection.providerConfig.headers).toEqual({ 'x-tenant': 'tenant-1' })
     expect(injection.requestEnvironment).toEqual({ AZURE_OPENAI_API_VERSION: '2025-04-01-preview' })
+  })
+
+  it('hands pi header values it resolves back to the literals the user typed', async () => {
+    const { AuthStorage, ModelRegistry } = await import('@earendil-works/pi-coding-agent')
+    const provider = makeProvider({
+      id: 'p',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://example.com/v1' } },
+      settings: {
+        extraHeaders: {
+          'x-token': 'a$b${HOME}',
+          'x-command': '!echo pwned',
+          // A non-string survives from v1 settings and from `String()`-less API writes.
+          'x-legacy': 42 as unknown as string
+        }
+      }
+    })
+    const injection = buildPiProviderInjection(provider, makeModel({ apiModelId: 'm' }), REAL_KEY)
+
+    const authStorage = AuthStorage.inMemory()
+    authStorage.setRuntimeApiKey('p', injection.apiKey)
+    const registry = ModelRegistry.inMemory(authStorage)
+    registry.registerProvider('p', injection.providerConfig)
+    const auth = await registry.getApiKeyAndHeaders(registry.find('p', injection.modelId)!)
+
+    expect(auth).toMatchObject({
+      ok: true,
+      headers: { 'x-token': 'a$b${HOME}', 'x-command': '!echo pwned', 'x-legacy': '42' }
+    })
   })
 
   it('uses the gateway per-model route for both API family and base URL', () => {
@@ -340,6 +369,7 @@ describe('buildPiProviderInjection', () => {
       frozenModels: [
         {
           modelId: 'anthropic::claude',
+          apiModelId: 'claude-sonnet-4',
           modelName: 'Sonnet',
           aliases: ['anthropic::claude', 'claude-sonnet-4'],
           pricingSnapshot: null
@@ -388,16 +418,15 @@ describe('buildPiProviderInjection', () => {
     expect(() => buildPiProviderInjection(provider, makeModel({}), '   ')).toThrow(PiMissingApiKeyError)
   })
 
-  it('rejects a model whose context window is unknown', () => {
+  it('falls back to the default context window when the model declares none', () => {
     const provider = makeProvider({
       id: 'anthropic',
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
     })
 
-    expect(() => buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)).toThrow(
-      PiMissingContextWindowError
-    )
+    const injection = buildPiProviderInjection(provider, makeModel({ contextWindow: undefined }), REAL_KEY)
+    expect(injection.providerConfig.models?.[0].contextWindow).toBe(256_000)
   })
 
   it('throws PiUnsupportedProviderError for a provider with no pi mapping', () => {
@@ -469,7 +498,7 @@ function stubGrokCliServices(): void {
     id: 'grok-cli',
     name: 'Grok CLI',
     authMethods: ['oauth'],
-    apiFeatures: DEFAULT_API_FEATURES,
+    reportsActualCost: false,
     defaultChatEndpoint: 'openai-responses',
     endpointConfigs: { 'openai-responses': { adapterFamily: 'grok', baseUrl: 'https://cli-chat-proxy.grok.com/v1' } }
   })
@@ -539,19 +568,6 @@ describe('modelInjection service resolution', () => {
       endpointConfigs: { 'ollama-chat': { adapterFamily: 'ollama', baseUrl: 'http://localhost:11434' } }
     })
     await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiUnsupportedProviderError)
-  })
-
-  it('rejects an unknown context window before checking credentials', async () => {
-    serviceMocks.getByKey.mockResolvedValueOnce({
-      id: 'p::m',
-      providerId: 'p',
-      name: 'M',
-      capabilities: [],
-      contextWindow: undefined
-    })
-
-    await expect(assertPiProviderUsable('p::m')).rejects.toThrow(PiMissingContextWindowError)
-    expect(serviceMocks.getApiKeys).not.toHaveBeenCalled()
   })
 
   it('validates app-managed OAuth through its live session', async () => {

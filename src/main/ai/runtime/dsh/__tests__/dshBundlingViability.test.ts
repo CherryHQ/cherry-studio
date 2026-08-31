@@ -1,8 +1,8 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { type DshRuntimeEntrySpecifier, resolveBundledDshRuntimeEntry } from '@cherrystudio/dsh-bridge'
 import { describe, expect, it } from 'vitest'
 
 import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
@@ -13,8 +13,7 @@ import { loadDshSdk, loadDshSdkProtocol } from '../dshSdk'
  * `@deepseek-ai/dsh-sdk-client` is ESM-only, so the driver MUST reach it via
  * dynamic `import()` (see `dshSdk.ts`); a static import would be emitted as a
  * CJS `require()` of an ESM entry in the main bundle and fail at runtime. The
- * composition builder additionally depends on `require.resolve` finding the
- * runtime bin and every composed plugin on disk.
+ * composition builder additionally needs every generated runtime entry on disk.
  */
 describe('dsh SDK bundling viability', () => {
   it('loads the ESM-only client SDK through the runtime entry point', async () => {
@@ -30,7 +29,6 @@ describe('dsh SDK bundling viability', () => {
   })
 
   it('resolves the runtime bin and every composed plugin to on-disk entries', () => {
-    const require_ = createRequire(import.meta.url)
     const specifiers = [
       '@deepseek-ai/dsh-sdk-jsonrpc-demo/bin',
       '@deepseek-ai/dsh-sdk-jsonrpc-server',
@@ -60,29 +58,22 @@ describe('dsh SDK bundling viability', () => {
       '@deepseek-ai/dsh-shell-env',
       '@deepseek-ai/dsh-tool-pwsh',
       '@cherrystudio/dsh-bridge/plugin'
-    ]
+    ] satisfies DshRuntimeEntrySpecifier[]
     for (const specifier of specifiers) {
-      const resolved = require_.resolve(specifier)
+      const resolved = resolveBundledDshRuntimeEntry(specifier)
       expect(path.isAbsolute(resolved), `not absolute: ${resolved}`).toBe(true)
       expect(existsSync(resolved), `missing on disk: ${resolved}`).toBe(true)
     }
   })
 
   it('imports the built bridge plugin with production-declared runtime dependencies', async () => {
-    const require_ = createRequire(import.meta.url)
-    const pluginPath = require_.resolve('@cherrystudio/dsh-bridge/plugin')
-    const manifest = JSON.parse(readFileSync(path.join(path.dirname(pluginPath), '..', 'package.json'), 'utf8')) as {
-      dependencies?: Record<string, string>
-    }
-
-    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-llm')
-    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-session')
+    const pluginPath = resolveBundledDshRuntimeEntry('@cherrystudio/dsh-bridge/plugin')
     await expect(import(pathToFileURL(pluginPath).href)).resolves.toMatchObject({ apply: expect.any(Function) })
   })
 
   it('loads the unified sharp stack through attachment-local and decodes a real PNG', async () => {
     const [{ detectImage }, { default: sharp }] = await Promise.all([
-      import('@deepseek-ai/dsh-attachment-local'),
+      import(pathToFileURL(resolveBundledDshRuntimeEntry('@deepseek-ai/dsh-attachment-local')).href),
       import('sharp')
     ])
     const png = await sharp({

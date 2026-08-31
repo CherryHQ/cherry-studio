@@ -1,3 +1,10 @@
+---
+description: Code examples for lifecycle decorators, IPC and timer helpers, error handling, conditional activation, pause/resume
+sources:
+  - src/main/core/lifecycle
+  - src/main/core/application
+---
+
 # Lifecycle Usage Guide
 
 Practical guide for using the lifecycle system. For architecture details, see [Lifecycle Overview](./lifecycle-overview.md). For deciding whether to use lifecycle at all, see [Decision Guide](./lifecycle-decision-guide.md).
@@ -81,9 +88,9 @@ Use `@Conditional` to declare activation conditions for a service. Services whos
 class AppMenuService extends BaseService { ... }
 
 // Multiple conditions (AND logic): Windows + Intel CPU
-@Injectable('OvmsService')
+@Injectable('OvmsManager')
 @Conditional(onPlatform('win32'), onCpuVendor('intel'))
-class OvmsService extends BaseService { ... }
+class OvmsManager extends BaseService { ... }
 
 // Environment variable driven
 @Injectable('DebugService')
@@ -128,15 +135,15 @@ Conditional services must be accessed via `getOptional()`, not `get()`. The two 
 const db = application.get('DbService')
 
 // Conditional service — always use getOptional()
-const ovms = application.getOptional('OvmsService')
+const ovms = application.getOptional('OvmsManager')
 ovms?.start()
 ```
 
-Access conditional services in `onAllReady()` or later (e.g., IPC handlers) to ensure all services are initialized.
+Resolve a conditional service only after lifecycle ordering guarantees it is initialized. Runtime handlers and `onAllReady()` are the usual sites; a same-phase dependent may also resolve it in `onInit()` when it declares the conditional service in `@DependsOn` (and will itself be transitively excluded when that dependency is excluded).
 
 ## IPC Handler Management
 
-When a lifecycle service registers IPC handlers, it should use BaseService's built-in tracking instead of calling `ipcMain` directly. This ensures handlers are automatically cleaned up when the service stops, restarts, or is destroyed — eliminating the need for manual `unregisterIpcHandlers()` methods.
+New business command IPC belongs in [IpcApi](../ipc/README.md): add a shared schema and a thin handler instead of registering a channel on the service. The helpers below remain for infrastructure subsystems and legacy channels that have not migrated. In those cases, use BaseService's tracking instead of a bare `ipcMain.handle/on` so handlers are removed on stop, restart, or destroy.
 
 ### API
 
@@ -152,21 +159,20 @@ When a lifecycle service registers IPC handlers, it should use BaseService's bui
 
 > `registerTimeout()` is intentionally not provided — single-shot timers fire once and auto-clear, so they do not need lifecycle tracking.
 
-### Convention
+### Legacy-channel convention
 
 Extract all IPC registrations into a **`private registerIpcHandlers()`** method and call it from `onInit()` (or `onReady()`). This keeps the lifecycle hook focused on orchestration and makes the IPC surface easy to locate and review.
 
 ```typescript
-@Injectable('MainWindowService')
+@Injectable('StorageMonitorService')
 @ServicePhase(Phase.WhenReady)
-export class MainWindowService extends BaseService {
+export class StorageMonitorService extends BaseService {
   protected async onInit() {
     this.registerIpcHandlers()
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Windows_Minimize, () => this.mainWindow!.minimize())
-    this.ipcHandle(IpcChannel.Windows_Maximize, () => this.mainWindow!.maximize())
+    this.ipcHandle(IpcChannel.StorageMonitor_GetHealth, () => this.health)
   }
 
   protected async onStop() {
@@ -317,7 +323,7 @@ export class MainWindowService extends BaseService {
 }
 ```
 
-**Important**: Do NOT `registerDisposable()` owned Emitters. They live with the service instance and are only disposed in `onDestroy()` (not `onStop()`), so the service can be restarted without losing the Emitter.
+**Authoring rule:** do not `registerDisposable()` a field-owned Emitter. Dispose it in `onDestroy()`, not `onStop()`, so runtime `stop()` → `start()` does not leave the service with a permanently disposed emitter. Some existing services still register owned emitters through the stop-scoped disposable list; those are migration gaps, not examples to copy.
 
 ### Consumer Pattern
 
@@ -348,6 +354,8 @@ export class ShortcutService extends BaseService {
 
 Some services complete a piece of work **exactly once** that other services need to wait for or react to. For example, a database migration that runs during initialization — once done, it's done forever. Unlike `Emitter` events which fire multiple times, this needs a one-shot notification where late subscribers still get the value.
 
+`Signal` is available and unit-tested in the lifecycle framework, but no production service currently exposes one. The example below is an authoring template, not a description of `DbService` or another current API; add this surface only when a concrete consumer needs late-subscriber one-shot completion.
+
 ### When to Use
 
 - One-time initialization work that happens asynchronously (DB migration, store hydration)
@@ -362,34 +370,37 @@ Some services complete a piece of work **exactly once** that other services need
 import { BaseService, Injectable, Signal } from '@main/core/lifecycle'
 
 // Producer
-@Injectable('DbService')
-export class DbService extends BaseService {
+@Injectable('MigrationCoordinatorService')
+export class MigrationCoordinatorService extends BaseService {
   readonly migrationComplete = new Signal<void>()
 
   protected async onInit() {
-    this.registerDisposable(this.migrationComplete)
     await this.runMigrations()
     this.migrationComplete.resolve()
+  }
+
+  protected onDestroy() {
+    this.migrationComplete.dispose()
   }
 }
 
 // Consumer — await style
 @Injectable('UserService')
-@DependsOn(['DbService'])
+@DependsOn(['MigrationCoordinatorService'])
 export class UserService extends BaseService {
   protected async onInit() {
-    await application.get('DbService').migrationComplete
+    await application.get('MigrationCoordinatorService').migrationComplete
     // migration is guaranteed complete here
   }
 }
 
 // Consumer — callback style
 @Injectable('AuditService')
-@DependsOn(['DbService'])
+@DependsOn(['MigrationCoordinatorService'])
 export class AuditService extends BaseService {
   protected async onInit() {
     this.registerDisposable(
-      application.get('DbService').migrationComplete.onResolved(() => {
+      application.get('MigrationCoordinatorService').migrationComplete.onResolved(() => {
         this.logMigrationEvent()
       })
     )

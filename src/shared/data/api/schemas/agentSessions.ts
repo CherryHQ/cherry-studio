@@ -80,31 +80,35 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
+/** Optional owner scope for `GET /agent-sessions/latest`; omitted means global latest. */
+export const LatestAgentSessionQuerySchema = z.strictObject({
+  agentId: z.string().min(1).optional()
+})
+export type LatestAgentSessionQuery = z.infer<typeof LatestAgentSessionQuerySchema>
+
+/** Exact creation target for atomically reusing or creating an empty session. */
+export const ReuseOrCreateAgentSessionSchema = z.strictObject({
+  agentId: z.string().min(1),
+  workspace: AgentSessionWorkspaceSourceSchema,
+  excludeSessionId: z.string().min(1).optional()
+})
+export type ReuseOrCreateAgentSessionDto = z.infer<typeof ReuseOrCreateAgentSessionSchema>
+
 export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
-/** Response for `GET /agent-sessions/latest` — the most-recently-active session, or `null` when there are none. */
+/** Response for `GET /agent-sessions/latest` — the most-recently-active session in the requested scope, or `null`. */
 export interface LatestAgentSessionResponse {
   session: AgentSessionEntity | null
 }
 
-export const AGENT_SESSION_DELETE_MAX_IDS = 200
-
-const DeleteAgentSessionsIdsQueryValueSchema = z
-  .string()
-  .transform((value) =>
-    value
-      .split(',')
-      .map((id) => id.trim())
-      .filter(Boolean)
-  )
-  .pipe(z.array(z.string().min(1)).min(1).max(AGENT_SESSION_DELETE_MAX_IDS))
-
-export const DeleteAgentSessionsQuerySchema = z.strictObject({
-  ids: DeleteAgentSessionsIdsQueryValueSchema
-})
-export type DeleteAgentSessionsQueryParams = z.input<typeof DeleteAgentSessionsQuerySchema>
+/** The reusable empty session selected or created for the exact target. */
+export interface ReusableAgentSessionPlaceholdersResponse {
+  session: AgentSessionEntity
+  created: boolean
+  deletedDuplicateSessionIds: string[]
+}
 
 // ============================================================================
 // API Schema definitions
@@ -120,31 +124,20 @@ export type AgentSessionSchemas = {
       body: CreateAgentSessionDto
       response: AgentSessionEntity
     }
-    /**
-     * Delete an explicit set of sessions. Missing ids are ignored so overlapping
-     * multi-window deletes remain idempotent; `deletedIds` reports what was
-     * actually removed.
-     *
-     * Cascades: session pins are purged; if a requested session is backed by a
-     * system workspace, that backing workspace row is removed too.
-     */
-    DELETE: {
-      query: DeleteAgentSessionsQueryParams
-      response: DeleteAgentSessionsResult
-    }
   }
 
   /**
-   * Most-recently-active session across all agents.
+   * Most-recently-active session, globally or within one owner scope.
    *
    * First-entry restore reads this to resume the last-touched session. Declared
    * before `/agent-sessions/:sessionId` and matched exactly by the server router,
    * so `latest` is never mistaken for a session id. Proves global latest via
    * `lastActivityAt DESC LIMIT 1`, unlike the `orderKey`-paged `/agent-sessions` first
-   * page.
+   * page. `agentId=unlinked` covers sessions without a live agent.
    */
   '/agent-sessions/latest': {
     GET: {
+      query?: LatestAgentSessionQuery
       response: LatestAgentSessionResponse
     }
   }
@@ -158,16 +151,6 @@ export type AgentSessionSchemas = {
       params: { sessionId: string }
       body: UpdateAgentSessionDto
       response: AgentSessionEntity
-    }
-    /**
-     * Delete one session.
-     *
-     * Cascades: session pins are purged; if the session is backed by a system
-     * workspace, that backing workspace row is removed too.
-     */
-    DELETE: {
-      params: { sessionId: string }
-      response: void
     }
   }
 
@@ -185,19 +168,6 @@ export type AgentSessionSchemas = {
       params: { sessionId: string }
       body: SetAgentSessionWorkspaceDto
       response: AgentSessionEntity
-    }
-  }
-
-  '/agents/:agentId/sessions': {
-    /**
-     * Delete every session belonging to an agent (all-or-nothing — missing agent → NOT_FOUND).
-     *
-     * Cascades: session pins are purged; system workspaces backing deleted
-     * sessions are removed too.
-     */
-    DELETE: {
-      params: { agentId: string }
-      response: DeleteAgentSessionsResult
     }
   }
 } & OrderEndpoints<'/agent-sessions'>

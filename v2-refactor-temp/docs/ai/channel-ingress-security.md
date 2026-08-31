@@ -11,29 +11,32 @@ human watching the renderer**.
 `adapter` (webhook/socket) → `ChannelManager` registers `adapter.on('message', …)`
 (`ChannelManager.ts:301`) → `ChannelMessageHandler.handleIncoming` (per-chat 8 s debounce +
 serial queue, `:54`, `:111`) → `processIncoming` resolves the bound session+agent →
-`wrapExternalContent(...)` (`:254`) → `startAgentSessionRun({ sessionId, userParts, listeners })`
-(`:552`). One run at a time per `${agentId}:${channelId}:${chatId}`.
+`startAgentSessionRun({ sessionId, userParts, listeners })` (`:552`). One run at a time per
+`${agentId}:${channelId}:${chatId}`.
 
 ## Defenses already in place
 
 | Layer | Where | What it does |
 |---|---|---|
-| **Prompt-injection boundary** | `channels/security/ExternalContentGuard.ts` (`wrapExternalContent`, called `ChannelMessageHandler.ts:254`) | Normalizes full-width/CJK angle brackets (anti boundary-spoof), strips invisible/zero-width chars, wraps the message in `<<<EXTERNAL_UNTRUSTED_CONTENT boundary="<rand>">>> … >>>` with a `[SECURITY NOTICE: UNTRUSTED INPUT]` preamble; logs suspicious patterns (advisory) |
-| **System-prompt hardening** | `shared/ai/claudecode/constants.ts` `CHANNEL_SECURITY_PROMPT` | Standing instruction that external content is data, not commands — overrides per-message injection attempts |
 | **Output secret-redaction** | `channels/security/OutputSanitizer.ts` (`sanitizeChannelOutput`, called `ChannelMessageHandler.ts:282`) | Redacts PEM keys, AWS/GitHub/Anthropic/OpenAI keys, bearer tokens, etc. **before** any agent output leaves through the channel |
 | **Workspace isolation** | session `workspace.path`; attachments persisted under `${workspace}/.cherry-studio/channel-*` | The agent's fs reach is bounded to the session workspace — but **only as strong as the agent's tool policy**: a channel-bound agent with broad `Bash`/`Write` and no per-channel narrowing (see G3) is not effectively bounded |
 | **Channel allow-listing** | per-adapter allow-list config (`allowedChatIds` / `allowedChannelIds`) in `channels/adapters/<platform>/<Platform>Adapter.ts` | Inbound from a non-allow-listed chat/channel is silently dropped |
 | **Per-chat serialization** | `ChannelMessageHandler.ts:111` | One stream per chat; no concurrent interleave |
 
-Trust-boundary summary: **inbound text is guarded** (wrap + prompt); **inbound files/images are
+Trust-boundary summary: **inbound text is passed through unchanged**; **inbound files/images are
 not content-inspected** (persisted to the workspace, agent reads via the Read tool, bounded by
 workspace); **outbound is secret-redacted**; **sender identity is unvalidated** (see gap 1).
 
 ## Gaps to close (the actual D1 work)
 
+### G0 — Inbound content has no provenance boundary
+Inbound text is deliberately passed to the agent unchanged. It carries no sender prefix, boundary
+marker, injection warning, normalisation, or detection logging. This is an explicit owner decision:
+prompt wrappers were removed so the agent receives the literal user message. Treat all channel
+content as untrusted when configuring the agent's tools and permissions.
+
 ### G1 — Authorization is chat-level, not sender-level
-Adapters gate on the *chat/channel* allow-list; `userId`/`userName` are used only in the preamble
-and logs (`ChannelMessageHandler.ts:254`). So **any member of an allow-listed group chat can
+Adapters gate on the *chat/channel* allow-list. So **any member of an allow-listed group chat can
 trigger agent runs.** Proposed direction: an optional per-channel **sender allow-list** (user ids)
 enforced in the adapter alongside the chat check; default off (chat-level remains the baseline),
 opt-in for group chats. Deny → silent drop (consistent with the chat gate).

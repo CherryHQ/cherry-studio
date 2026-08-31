@@ -1,4 +1,5 @@
 import { defineProvider } from './types'
+import { openaiResponsesSummaryWire } from './wires'
 
 const claudeWebToolModels = [
   'claude-opus-4',
@@ -19,7 +20,8 @@ export default defineProvider({
       adapterFamily: 'azure'
     },
     'openai-responses': {
-      adapterFamily: 'azure-responses'
+      adapterFamily: 'azure-responses',
+      reasoningFormat: { type: 'openai-responses', wire: openaiResponsesSummaryWire }
     }
   },
   serverTools: [

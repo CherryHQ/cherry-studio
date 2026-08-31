@@ -49,3 +49,5 @@ export function modeWire(
 
   return profile as ReasoningWireProfile
 }
+
+export { openaiResponsesSummaryWire } from '../reasoningProfiles'

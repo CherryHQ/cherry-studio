@@ -2,9 +2,9 @@ import net from 'node:net'
 
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer } from '../DshBridgeServer'
 
@@ -43,7 +43,6 @@ function makeServer(
     getInteractionState: () => ({ userResponse }),
     onToolCall,
     onSubagentLifecycle: (edge) => lifecycleEdges.push(edge),
-    getPlanReviewAnchor: () => 'exit-plan-call-1',
     ...(readyTimeoutMs === undefined ? {} : { readyTimeoutMs })
   })
   return { server, events, lifecycleEdges }
@@ -232,6 +231,7 @@ describe('DshBridgeServer', () => {
         editTools: ['edit', 'write'],
         autoApprovedTools: [],
         approvalRequiredTools: [],
+        nonBypassableApprovalTools: [],
         planSafeTools: []
       },
       tools: []
@@ -357,6 +357,47 @@ describe('DshBridgeServer', () => {
     await expect(ask).resolves.toEqual({ outcome: 'rejected' })
   })
 
+  it('returns a trimmed rejection reason for the plugin to deliver to the agent', async () => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('approval/ask', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+      callId: 'call-with-feedback'
+    })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, {
+      approved: false,
+      reason: '  use a copy instead  '
+    })
+
+    await expect(ask).resolves.toEqual({
+      outcome: 'rejected',
+      rejectionReason: 'use a copy instead'
+    })
+  })
+
+  it('does not attach feedback to approvals, blank denials, or edited-input fallbacks', async () => {
+    const harness = await makeHarness()
+
+    for (const decision of [
+      { approved: true, reason: 'ignored' },
+      { approved: false, reason: '   ' },
+      { approved: true, reason: 'rewritten', updatedInput: { command: 'echo edited' } }
+    ]) {
+      const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+      await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+      const event = harness.events.shift()
+      if (event?.type !== 'tool-approval-request') throw new Error('unreachable')
+      toolApprovalRegistry.dispatch(event.request.approvalId, decision)
+      await expect(ask).resolves.toEqual({
+        outcome: decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected'
+      })
+    }
+  })
+
   it('answers rejected immediately when no responder is available, without surfacing a card', async () => {
     const harness = await makeHarness('unavailable')
     await expect(
@@ -369,6 +410,7 @@ describe('DshBridgeServer', () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('question/ask', {
       sessionId: SESSION_ID,
+      callId: 'exit-plan-call-1',
       questions: [
         {
           id: 'plan-review',
@@ -396,10 +438,11 @@ describe('DshBridgeServer', () => {
     await expect(ask).resolves.toEqual({ answers: [{ id: 'plan-review', selected: ['Approve'] }] })
   })
 
-  it('answers a denied plan review as keep-planning, carrying the reason as feedback', async () => {
+  it('anchors a rejected plan review retry to its new call id and carries the rejection feedback', async () => {
     const harness = await makeHarness()
     const ask = harness.transport.request('question/ask', {
       sessionId: SESSION_ID,
+      callId: 'exit-plan-call-1',
       questions: [
         {
           id: 'plan-review',
@@ -418,6 +461,30 @@ describe('DshBridgeServer', () => {
     await expect(ask).resolves.toEqual({
       answers: [{ id: 'plan-review', selected: [], custom: 'missing tests' }]
     })
+
+    const retry = harness.transport.request('question/ask', {
+      sessionId: SESSION_ID,
+      callId: 'exit-plan-call-2',
+      questions: [
+        {
+          id: 'plan-review',
+          question: 'Approve this revised plan and leave plan mode?',
+          detail: '# Revised',
+          options: [{ label: 'Approve' }, { label: 'Keep planning' }],
+          intent: { kind: 'plan-review', approve: 'Approve' }
+        }
+      ]
+    })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(2))
+    const retryEvent = harness.events[1]
+    if (retryEvent.type !== 'tool-approval-request') throw new Error('unreachable')
+    expect(retryEvent.request).toMatchObject({
+      toolCallId: 'exit-plan-call-2',
+      input: { plan: '# Revised' }
+    })
+
+    toolApprovalRegistry.dispatch(retryEvent.request.approvalId, { approved: true })
+    await expect(retry).resolves.toEqual({ answers: [{ id: 'plan-review', selected: ['Approve'] }] })
   })
 
   it('rejects non-plan-review questions and asks without a responder', async () => {
@@ -425,14 +492,32 @@ describe('DshBridgeServer', () => {
     await expect(
       harness.transport.request('question/ask', {
         sessionId: SESSION_ID,
+        callId: 'question-call-1',
         questions: [{ id: 'q1', question: 'Pick one', options: [{ label: 'A' }] }]
       })
     ).rejects.toThrow('plan-review')
+
+    await expect(
+      harness.transport.request('question/ask', {
+        sessionId: SESSION_ID,
+        callId: '',
+        questions: [
+          {
+            id: 'plan-review',
+            question: 'Approve?',
+            detail: '# P',
+            options: [{ label: 'Approve' }],
+            intent: { kind: 'plan-review', approve: 'Approve' }
+          }
+        ]
+      })
+    ).rejects.toThrow('tool call id')
 
     const unattended = await makeHarness('unavailable')
     await expect(
       unattended.transport.request('question/ask', {
         sessionId: SESSION_ID,
+        callId: 'exit-plan-call-1',
         questions: [
           {
             id: 'plan-review',

@@ -43,7 +43,23 @@ export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string
     updateElapsed()
 
     const timer = setInterval(updateElapsed, updateIntervalMs)
-    return () => clearInterval(timer)
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        updateElapsed()
+      }
+    }
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+
+    return () => {
+      clearInterval(timer)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
   }, [createdAt, isProcessing, updateIntervalMs])
 
   return elapsedMs

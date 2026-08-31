@@ -1,7 +1,11 @@
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { PERMISSION_MODE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import { defineTool, type ToolRenderContext } from '@renderer/components/composer/tools/types'
-import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
+import {
+  PermissionModeIcon,
+  PermissionModeOptionLabel,
+  PermissionModeWarning
+} from '@renderer/components/PermissionModeOption'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
@@ -32,6 +36,8 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
+  const launcherLabel = t('agent.settings.permissionMode.title', 'Permission Mode')
+  const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards.map((card, index) => ({
@@ -39,25 +45,20 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         kind: 'command' as const,
         sources: ['popover'] as const,
         order: 80 + index / 100,
-        // The quick panel row is a fixed-height single line, so the label stays one line and
-        // the mode's caveat rides along in the description column instead of stacking below.
-        label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} withWarning={false} />,
+        // The quick panel row stays single-line; the full warning remains available on demand.
+        label: <PermissionModeOptionLabel card={card} t={t} withDescription={false} />,
         // label/description are React nodes, which yield no searchable text — provide it explicitly.
         searchAliases: getQuickPanelSearchAliases(t, card.titleKey, [
           t(card.titleKey, card.titleFallback),
           t(card.descriptionKey, card.descriptionFallback)
         ]),
         description: (
-          <span className={card.dangerous ? 'text-destructive/80' : undefined}>
+          <span className={card.dangerous ? 'text-destructive' : undefined}>
             {t(card.descriptionKey, card.descriptionFallback)}
-            {card.warningKey && (
-              <span className={card.dangerous ? undefined : 'text-warning'}>
-                {' · '}
-                {t(card.warningKey, card.warningFallback ?? '')}
-              </span>
-            )}
           </span>
         ),
+        tooltip: card.warningKey ? t(card.warningKey, card.warningFallback ?? '') : undefined,
+        tooltipAnchor: card.warningKey ? <PermissionModeWarning card={card} showTooltip={false} t={t} /> : undefined,
         icon: <PermissionModeIcon mode={card.mode} />,
         active: card.mode === currentMode,
         action: () => handleSelectMode(card.mode)
@@ -70,14 +71,15 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       {
         ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
-        label: t('agent.settings.permissionMode.title', 'Permission Mode'),
+        label: launcherLabel,
         description: tooltipTitle,
+        tooltip: launcherTooltip,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: <PermissionModeIcon mode={currentMode} />,
         submenu: modeSubmenu
       }
     ])
-  }, [currentMode, launcher, modeSubmenu, t, tooltipTitle])
+  }, [currentMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, t, tooltipTitle])
 
   return { currentMode, tooltipTitle }
 }

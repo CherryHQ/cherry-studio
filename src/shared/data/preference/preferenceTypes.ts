@@ -130,6 +130,14 @@ export type SidebarFavoriteItem =
       type: 'mini_app'
       id: string
     }
+  | {
+      type: 'agent'
+      id: string
+    }
+  | {
+      type: 'assistant'
+      id: string
+    }
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -188,6 +196,20 @@ export const parseTranslateLangCode = (value: string): TranslateLangCode => Tran
 export const isTranslateLangCode = (value: unknown): value is TranslateLangCode =>
   TranslateLangCodeSchema.safeParse(value).success
 export type TranslateSourceLanguage = TranslateLangCode | 'auto'
+/**
+ * Fold a UI-side language code down to what persistence accepts.
+ *
+ * `'unknown'` and `'auto'` are UI sentinels with no `translate_language` row, so
+ * they collapse to `null` — the FK's "language not recorded" state — instead of
+ * breaking the FK or the read-side {@link PersistedLangCodeSchema} parse. Shared
+ * by the renderer's history mutations and main's `PdfTranslationService`.
+ */
+export const toPersistedLangCodeOrNull = (
+  langCode: TranslateSourceLanguage | null | undefined
+): PersistedLangCode | null => {
+  if (langCode === null || langCode === undefined || langCode === 'unknown' || langCode === 'auto') return null
+  return parsePersistedLangCode(langCode)
+}
 export type TranslateBidirectionalPair = [TranslateLangCode, TranslateLangCode]
 export const parseTranslateBidirectionalPair = (value: readonly [string, string]): TranslateBidirectionalPair => [
   parseTranslateLangCode(value[0]),
@@ -212,7 +234,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'querit',
   'fetch',
   'jina',
-  'firecrawl'
+  'firecrawl',
+  'parallel'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -283,11 +306,13 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openclaw',
   'deepseek-harness',
   'gemini-cli',
+  'antigravity-cli',
   'qwen-code',
   'kimi-code',
   'qoder-cli',
   'github-copilot-cli',
-  'pi'
+  'pi',
+  'hermes'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]

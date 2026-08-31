@@ -10,10 +10,13 @@
  * an absolute file URL at generation time: the packaged app runs the
  * composition from a foreign config dir where bare names are not resolvable.
  */
-import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 
-import type { BridgePermissionMode } from '@cherrystudio/dsh-bridge'
+import {
+  type BridgePermissionMode,
+  type DshRuntimeEntrySpecifier,
+  resolveBundledDshRuntimeEntry
+} from '@cherrystudio/dsh-bridge'
 import { isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import type { DshApi } from '@shared/ai/dshModelCompatibility'
@@ -21,11 +24,9 @@ import { stringify } from 'yaml'
 
 import type { DshModelConfig, DshReasoningEffort } from './modelInjection'
 
-const require_ = createRequire(import.meta.url)
-
 /** Resolve a composition plugin specifier to its packaged on-disk entry. */
-export function resolveDshPluginPath(specifier: string): string {
-  return toAsarUnpackedPath(require_.resolve(specifier))
+export function resolveDshPluginPath(specifier: DshRuntimeEntrySpecifier): string {
+  return toAsarUnpackedPath(resolveBundledDshRuntimeEntry(specifier))
 }
 
 /** Convert a plugin entry path into the URL form required by Node's ESM loader. */
@@ -95,7 +96,8 @@ function buildProviderRoute(input: DshCompositionInput): Record<string, unknown>
         maxTokens: input.modelConfig.maxTokens,
         input: [...input.modelConfig.input],
         reasoningEfforts:
-          input.modelConfig.reasoningEfforts === false ? false : { ...input.modelConfig.reasoningEfforts }
+          input.modelConfig.reasoningEfforts === false ? false : { ...input.modelConfig.reasoningEfforts },
+        ...(input.modelConfig.compat ? { compat: { ...input.modelConfig.compat } } : {})
       }
     ]
   }
@@ -130,7 +132,11 @@ function buildSpineConfig(input: DshCompositionInput, isWindows: boolean): Recor
 
 export function buildDshCompositionYaml(input: DshCompositionInput): string {
   const isWindows = input.platform === undefined ? isWin : input.platform === 'win32'
-  const entry = (id: string, specifier: string, config?: Record<string, unknown>): DshCompositionEntry => ({
+  const entry = (
+    id: string,
+    specifier: DshRuntimeEntrySpecifier,
+    config?: Record<string, unknown>
+  ): DshCompositionEntry => ({
     id,
     name: toDshPluginUrl(resolveDshPluginPath(specifier), isWindows),
     ...(config ? { config } : {})

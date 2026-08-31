@@ -209,7 +209,7 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: /settings/i }))
 
-    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 
   it('does not render the theme toggle in the sidebar footer action', () => {

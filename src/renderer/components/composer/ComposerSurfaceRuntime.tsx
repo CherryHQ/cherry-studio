@@ -35,10 +35,11 @@ import { useTranslation } from 'react-i18next'
 
 import { useActiveComposerOverride } from './ComposerContext'
 import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeComposerDocument } from './composerDraft'
+import { createComposerInputAdapter, insertComposerTokenAtCursor } from './composerInputAdapter'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
-  LONG_TEXT_PASTE_THRESHOLD,
+  hasSupportedClipboardImage,
   PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
@@ -67,9 +68,7 @@ import {
   type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
   createUnifiedQuickPanelOpenOptions,
-  getComposerCursorTextOffset,
   getComposerInputLeafText,
-  getComposerInputText,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
   hasComposerQuickPanelTriggerBoundary,
@@ -211,6 +210,8 @@ export interface ComposerDeferredIntent {
   transfer?: { kind: 'paste' | 'drop'; data: DataTransfer }
   openPanel?: { launcherId?: string; searchText?: string }
   insertToken?: { token: ComposerDraftToken; selection: { start: number; end: number } }
+  /** The fallback textarea was focused — an eagerly mounted runtime must not steal focus otherwise. */
+  hadFocus?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -277,57 +278,6 @@ function hasComposerTokenBeforeSelection(editor: Editor) {
   return selection.$from.nodeBefore?.type.name === COMPOSER_TOKEN_NODE_NAME
 }
 
-function insertComposerTokenAtCursor(
-  editor: Editor,
-  token: ComposerDraftToken,
-  options: { insertSeparator?: boolean } = {}
-) {
-  const chain = editor.chain().focus().insertComposerToken(token)
-  if (options.insertSeparator === false) {
-    chain.run()
-    return
-  }
-
-  chain.insertContent(' ').run()
-}
-
-function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
-  const fromOffset = Math.max(0, Math.min(range.from, range.to))
-  const toOffset = Math.max(fromOffset, range.to)
-  if (fromOffset === toOffset) return
-
-  const from = getComposerPositionAtTextOffset(editor, fromOffset)
-  const to = getComposerPositionAtTextOffset(editor, toOffset)
-  if (to <= from) return
-
-  editor.chain().focus().deleteRange({ from, to }).run()
-}
-
-function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
-  return {
-    getText: () => getComposerInputText(editor),
-    getCursorOffset: () => getComposerCursorTextOffset(editor),
-    insertText: (insertedText) => {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
-        )
-        .run()
-    },
-    insertToken: (token) => {
-      insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
-    },
-    deleteTriggerRange: (range) => {
-      deleteComposerTextRange(editor, range)
-    },
-    focus: () => {
-      editor.commands.focus()
-    }
-  }
-}
-
 function getComposerUnifiedPanelSearchText(
   inputAdapter: QuickPanelInputAdapter | undefined,
   queryAnchor: number | undefined,
@@ -367,8 +317,18 @@ const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
     )
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(text: string, supportedExts: readonly string[]) {
-  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD && supportedExts.includes(PASTED_TEXT_FILE_EXTENSION))
+function shouldDelegateLongTextPasteToFileHandler(
+  text: string,
+  supportedExts: readonly string[],
+  pasteLongTextAsFile: boolean,
+  pasteLongTextThreshold: number
+) {
+  return Boolean(
+    pasteLongTextAsFile &&
+      text &&
+      text.length > pasteLongTextThreshold &&
+      supportedExts.includes(PASTED_TEXT_FILE_EXTENSION)
+  )
 }
 
 function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
@@ -573,6 +533,8 @@ export default function ComposerSurfaceRuntime({
   const sendMessageShortcut = _sendMessageShortcut ?? resolveSendShortcut(preferredSendMessageShortcut)
   const [preferredNewlineShortcut] = usePreference('chat.input.newline_shortcut')
   const newlineShortcut = resolveNewlineShortcut(preferredNewlineShortcut, sendMessageShortcut)
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const composerOverridden = useActiveComposerOverride() !== null
@@ -711,9 +673,11 @@ export default function ComposerSurfaceRuntime({
       supportedExts,
       setFiles,
       onResize: undefined,
+      pasteLongTextAsFile,
+      pasteLongTextThreshold,
       t
     }),
-    [supportedExts, setFiles, t]
+    [supportedExts, setFiles, pasteLongTextAsFile, pasteLongTextThreshold, t]
   )
 
   const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
@@ -1684,18 +1648,27 @@ export default function ComposerSurfaceRuntime({
         return true
       }
 
-      const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(pastedText, supportedExts)
+      const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(
+        pastedText,
+        supportedExts,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold
+      )
       if (shouldDelegateLongTextPaste) {
         event.preventDefault()
         void handlePaste(event)
         return true
       }
 
+      const shouldPreferClipboardImage = hasSupportedClipboardImage(
+        Array.from(event.clipboardData?.files ?? []),
+        supportedExts
+      )
       let textToInsert = pastedText
       if (editor && pastedText) {
         const selectedText = getComposerSelectedText(editor)
         textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
-        if (!textToInsert) {
+        if (!textToInsert && !shouldPreferClipboardImage) {
           event.preventDefault()
           return true
         }
@@ -1722,6 +1695,12 @@ export default function ComposerSurfaceRuntime({
           }
           return true
         }
+      }
+
+      if (shouldPreferClipboardImage) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
@@ -1751,7 +1730,14 @@ export default function ComposerSurfaceRuntime({
       void handlePaste(event)
       return false
     },
-    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker, supportedExts]
+    [
+      handlePaste,
+      pasteLongTextAsFile,
+      pasteLongTextThreshold,
+      resolveSkillMarker,
+      resolveKnowledgeBaseMarker,
+      supportedExts
+    ]
   )
 
   const editor = useRichTextEditorKernel({
@@ -1809,6 +1795,9 @@ export default function ComposerSurfaceRuntime({
     const active = document.activeElement
     if (!document.hasFocus()) return
     if (active && active !== document.body && !frameRef.current?.contains(active)) return
+    // An eagerly mounted runtime (restored draft after a topic/agent switch) must not steal the
+    // focus the fallback never held — hand off only after real fallback interaction.
+    if (deferredIntent && !deferredIntent.hadFocus) return
 
     if (initialTextSelection) {
       editor
@@ -1822,7 +1811,7 @@ export default function ComposerSurfaceRuntime({
       return
     }
     editor.commands.focus('end')
-  }, [editor, frameRef, initialTextSelection])
+  }, [deferredIntent, editor, frameRef, initialTextSelection])
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
@@ -1867,26 +1856,7 @@ export default function ComposerSurfaceRuntime({
     if (!editor) return undefined
 
     return {
-      getText: () => getComposerInputText(editor),
-      getCursorOffset: () => getComposerCursorTextOffset(editor),
-      insertText: (insertedText) => {
-        editor
-          .chain()
-          .focus()
-          .insertContent(
-            createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
-          )
-          .run()
-      },
-      insertToken: (token) => {
-        insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
-      },
-      deleteTriggerRange: (range) => {
-        deleteComposerTextRange(editor, range)
-      },
-      focus: () => {
-        editor.commands.focus()
-      },
+      ...createComposerInputAdapter(editor),
       subscribeInput: (listener) => {
         inputListenersRef.current.add(listener)
         return () => {

@@ -50,6 +50,7 @@ type SlackSocketEnvelope = {
     user_id?: string
     user_name?: string
     channel_id?: string
+    channel_name?: string
   }
   retry_attempt?: number
   retry_reason?: string
@@ -443,7 +444,12 @@ class SlackAdapter extends ChannelAdapter {
     }
 
     if (['new', 'compact', 'help'].includes(command)) {
-      this.emit('command', { chatId, userId, userName, command: command as 'new' | 'compact' | 'help' })
+      this.emit('command', {
+        chatId,
+        userId,
+        userName,
+        command: command as 'new' | 'compact' | 'help'
+      })
     }
   }
 

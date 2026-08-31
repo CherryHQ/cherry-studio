@@ -407,7 +407,7 @@ describe('agentSessionRuntimeState', () => {
     state = transitionAgentSessionRuntime(state, {
       type: 'connection-rebuild-deferred',
       connection,
-      target: { modelId: 'model-2', reasoningEffort: 'default', knowledgeBaseIds: ['kb-1'] }
+      target: { modelId: 'model-2', reasoningEffort: 'default', serviceTier: 'standard', knowledgeBaseIds: ['kb-1'] }
     }).state
     expect(state.connection).toMatchObject({ kind: 'connected', pendingRebuild: { modelId: 'model-2' } })
 

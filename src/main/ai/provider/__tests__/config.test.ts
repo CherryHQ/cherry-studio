@@ -11,7 +11,8 @@ import {
   LOCAL_EMBEDDING_UNIQUE_MODEL_ID
 } from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import type { AuthConfig } from '@shared/data/types/provider'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,8 +28,9 @@ const { resolveApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted
   getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
-const { generateSignatureMock } = vi.hoisted(() => ({
-  generateSignatureMock: vi.fn()
+const { generateSignatureMock, getCopilotTokenMock } = vi.hoisted(() => ({
+  generateSignatureMock: vi.fn(),
+  getCopilotTokenMock: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -43,6 +45,12 @@ vi.mock('@main/ai/provider/cherryai', () => ({
   generateSignature: generateSignatureMock
 }))
 
+vi.mock('@main/services/CopilotService', () => ({
+  copilotService: {
+    getToken: getCopilotTokenMock
+  }
+}))
+
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig, resolveProviderAiSdkConfig } = await import('../config')
 
@@ -55,6 +63,7 @@ beforeEach(() => {
       : { attribution: 'explicit', id: 'test-key', masked: 'sk-t****-key' }
   }))
   getAuthConfigMock.mockReturnValue(null)
+  getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
 })
 
 afterEach(() => {
@@ -140,6 +149,37 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const resolved = await resolveProviderAiSdkConfig(provider, model)
 
     expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+  })
+
+  it('merges Copilot extra headers over defaults case-insensitively', async () => {
+    const provider = makeProvider({
+      id: 'copilot',
+      authType: 'oauth',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.githubcopilot.com',
+          adapterFamily: 'github-copilot-openai-compatible'
+        }
+      },
+      settings: {
+        extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
+      } as never
+    })
+    const model = makeModel({
+      id: 'copilot::gpt-4o',
+      apiModelId: 'gpt-4o',
+      providerId: 'copilot',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const headers = (config.providerSettings as { headers: Record<string, string> }).headers
+    const normalizedHeaders = new Headers(headers)
+
+    expect(normalizedHeaders.get('user-agent')).toBe('CustomAgent/1.0')
+    expect(normalizedHeaders.get('x-custom')).toBe('on')
+    expect(Object.keys(headers).filter((name) => name.toLowerCase() === 'user-agent')).toHaveLength(1)
   })
 
   describe('OpenCode Go session header', () => {
@@ -928,11 +968,11 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
       const provider = makeProvider({
         id: 'dashscope',
-        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            dialect: { streamOptions: true }
           }
         }
       })
@@ -948,6 +988,28 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // A builder that installs no fetch of its own must default to the proxy-aware customFetch
       // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
       expect(settings.fetch).toBe(customFetch)
+    })
+
+    it('routes a preset-derived DashScope instance (UUID id) through DashScope config', async () => {
+      // Same defect class as #18537: keyed on a bare `id === 'dashscope'`, a user-added
+      // instance stopped at providerId 'openai-compatible', which has no async image
+      // transport — its image models hit the generic OpenAICompatibleImageModel instead
+      // of DashScope's submit/poll one.
+      const provider = makeProvider({
+        id: 'd4e5f6-uuid',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'd4e5f6-uuid', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('dashscope')
     })
 
     it('routes ModelScope IMAGE models through ModelScope config (so the async submit/poll transport is used)', async () => {
@@ -978,12 +1040,12 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     it('leaves ModelScope CHAT models on openai-compatible (image-only override; keeps includeUsage)', async () => {
       const provider = makeProvider({
         id: 'modelscope',
-        apiFeatures: { ...DEFAULT_API_FEATURES, streamOptions: true },
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
             baseUrl: 'https://api-inference.modelscope.cn/v1/',
-            adapterFamily: 'openai-compatible'
+            adapterFamily: 'openai-compatible',
+            dialect: { streamOptions: true }
           }
         }
       })
@@ -1093,6 +1155,32 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).toBe('https://ark.cn-beijing.volces.com/api/v3')
     })
 
+    it('routes a preset-derived Doubao instance (UUID id, custom host) through Doubao config (REGRESSION #18537)', async () => {
+      // A user-added Ark provider carries a UUID id + presetProviderId 'doubao'. Keying the
+      // image override on a bare `id === 'doubao'` left this instance on openai-compatible,
+      // whose image model POSTs multipart /images/edits once a reference image is attached
+      // — 404 on Ark, while text-to-image kept working on /images/generations.
+      const host = 'https://ark.cn-beijing.volces.com/api/plan/v3'
+      const provider = makeProvider({
+        id: 'a1b2c3-uuid',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: host, adapterFamily: 'openai-compatible' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'a1b2c3-uuid',
+        apiModelId: 'doubao-seedream-5-0-lite',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('doubao')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(host)
+    })
+
     it('leaves Doubao CHAT models on openai-compatible (image-only override)', async () => {
       const provider = makeProvider({
         id: 'doubao',
@@ -1110,18 +1198,44 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('openai-compatible')
     })
 
+    it('keeps the DashScope web_extractor fetch appender on the Responses route', async () => {
+      vi.mocked(net.fetch).mockResolvedValue(new Response('{}', { status: 200 }))
+      const provider = makeProvider({
+        id: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+            adapterFamily: 'openai'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'dashscope',
+        apiModelId: 'qwen3-max',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai')
+      const settings = config.providerSettings as Record<string, unknown>
+      const fetch = settings.fetch as typeof globalThis.fetch
+
+      await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/responses', {
+        method: 'POST',
+        body: JSON.stringify({ tools: [{ type: 'web_search' }] })
+      })
+
+      const requestBody = JSON.parse(vi.mocked(net.fetch).mock.calls[0][1]?.body as string)
+      expect(requestBody.tools).toEqual([{ type: 'web_search' }, { type: 'web_extractor' }])
+    })
+
     it('composes Doubao Responses request and response compatibility in its fetch wrapper', async () => {
       vi.mocked(net.fetch).mockResolvedValue(
         new Response(
           JSON.stringify({
             id: 'resp_ark',
             output: [
-              {
-                type: 'message',
-                role: 'assistant',
-                id: 'msg_ark',
-                content: [{ type: 'output_text', text: 'Hi there!' }]
-              }
+              { type: 'message', role: 'assistant', id: 'msg_ark', content: [{ type: 'output_text', text: 'Hi!' }] }
             ]
           }),
           { status: 200, headers: { 'content-type': 'application/json; charset=utf-8' } }
@@ -1139,7 +1253,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
       const model = makeModel({
         providerId: 'doubao',
-        apiModelId: 'doubao-seed-2-0-code-preview-260215',
+        apiModelId: 'doubao-seed-2-1-pro-260628',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
       })
       const config = await providerToAiSdkConfig(provider, model)
@@ -1152,11 +1266,35 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const requestBody = JSON.parse(vi.mocked(net.fetch).mock.calls[0][1]?.body as string)
-      const responseBody = (await response.json()) as {
-        output: Array<{ content: Array<{ annotations?: unknown[] }> }>
-      }
+      const responseBody = (await response.json()) as { output: Array<{ content: Array<{ annotations?: unknown[] }> }> }
       expect(requestBody).not.toHaveProperty('include')
       expect(responseBody.output[0].content[0].annotations).toEqual([])
+    })
+
+    it('adds the X-Fornax-Trace header for Doubao Responses in developer mode', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', true)
+      try {
+        const provider = makeProvider({
+          id: 'doubao',
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+              baseUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+              adapterFamily: 'openai'
+            }
+          }
+        })
+        const model = makeModel({
+          providerId: 'doubao',
+          apiModelId: 'doubao-seed-2-1-pro-260628',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        })
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+        expect((settings.headers as Record<string, string>)['X-Fornax-Trace']).toBe('true')
+      } finally {
+        MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+      }
     })
 
     it('routes DMXAPI bespoke-family IMAGE models (e.g. qwen-image) through DMXAPI config', async () => {

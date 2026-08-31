@@ -1,16 +1,19 @@
 import { createHash } from 'node:crypto'
 
 import { application } from '@application'
-import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import type { McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
+import {
+  type McpServerSnapshotMap,
+  type NotifyChannel,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
 import { skillService } from '@main/ai/skills/SkillService'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -35,7 +38,7 @@ export interface PiConnectionSnapshot {
   enabledApiKeys: readonly ApiKeyEntry[]
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
-  linkedChannel: Pick<AgentChannelEntity, 'id'> | null
+  linkedChannel: NotifyChannel | null
   signature: string
 }
 
@@ -60,10 +63,11 @@ export async function capturePiConnectionSnapshot(
 
   const modelId = requestedModelId ?? agent.model
   const parsed = parseUniqueModelId(modelId)
-  const [provider, model, skills] = await Promise.all([
+  const [provider, model, skills, workspaceSkillPaths] = await Promise.all([
     providerService.getByProviderId(parsed.providerId),
     modelService.getByKey(parsed.providerId, parsed.modelId),
-    skillService.list({ agentId: agent.id })
+    skillService.list({ agentId: agent.id }),
+    skillService.listLocalSkillPaths(session.workspace.path)
   ])
   const enabledSkills = skills.filter((skill) => skill.isEnabled)
   const mcpServerSnapshots = new Map<string, ReturnType<typeof mcpServerService.findByIdOrName>>()
@@ -76,9 +80,8 @@ export async function capturePiConnectionSnapshot(
   const mcpTools = mcpServers.flatMap((server) =>
     'id' in server ? [{ serverId: server.id, tools: catalog.listTools(server.id, { includeDisabled: false }) }] : []
   )
-  const linkedChannel = agentChannelService
-    .listChannels({ agentId: agent.id })
-    .find((channel) => channel.sessionId === sessionId)
+  const linkedChannel = resolveLinkedNotifyChannel(sessionId, agent.id)
+  const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
 
@@ -93,9 +96,11 @@ export async function capturePiConnectionSnapshot(
           model,
           apiKeys,
           enabledSkills,
+          workspaceSkillPaths,
           mcpServers,
           mcpTools,
-          linkedChannelId: linkedChannel?.id ?? null,
+          linkedChannel,
+          notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
         })
       )
@@ -108,9 +113,12 @@ export async function capturePiConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
-    additionalSkillPaths: enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+    additionalSkillPaths: [
+      ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
+      ...workspaceSkillPaths
+    ],
     mcpServerSnapshots,
-    linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+    linkedChannel,
     signature
   }
 }

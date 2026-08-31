@@ -131,6 +131,74 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  it('keeps a foreground task result when its lifecycle event is present', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Repository review complete'
+    )
+    const started = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'started',
+        taskId: 'task-1',
+        toolUseId: 'root',
+        status: 'in_progress',
+        title: 'Explore the repo'
+      }
+    } as unknown as CherryMessagePart
+    const parts = [selected, started]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      { type: 'text', text: 'Repository review complete' }
+    ])
+  })
+
+  it('hides a legacy background launch receipt without borrowing task status', () => {
+    const selected = toolPart(
+      'root',
+      'Agent',
+      undefined,
+      'output-available',
+      { prompt: 'Explore the repo' },
+      'Async agent launched successfully. Internal id: task-1; output_file: /tmp/task-1.output'
+    )
+    const parts = [selected, textPart('child agent text', 'root')]
+
+    const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+    const assistantParts = projection.partsByMessageId['root:agent-flow-assistant'] as Array<{ text?: string }>
+
+    expect(assistantParts.map((part) => part.text).filter(Boolean)).toEqual(['child agent text'])
+    expect(JSON.stringify(assistantParts)).not.toContain('Async agent launched successfully')
+    expect(JSON.stringify(assistantParts)).not.toContain('/tmp/task-1.output')
+  })
+
+  it.each(['async_launched', 'remote_launched'] as const)(
+    'hides a structured %s receipt without borrowing task status',
+    (status) => {
+      const selected = toolPart(
+        'root',
+        'Agent',
+        undefined,
+        'output-available',
+        { prompt: 'Explore the repo' },
+        { status, agentId: 'internal-agent-id' }
+      )
+      const parts = [selected, textPart('child agent text', 'root')]
+
+      const projection = buildAgentToolFlowProjection([message('m1', parts)], { m1: parts }, 'root')
+      const assistantParts = projection.partsByMessageId['root:agent-flow-assistant']
+
+      expect(assistantParts).toEqual([expect.objectContaining({ type: 'text', text: 'child agent text' })])
+      expect(JSON.stringify(assistantParts)).not.toContain('internal-agent-id')
+    }
+  )
+
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Run the subagent' }),
@@ -314,6 +382,131 @@ describe('agent right pane projections', () => {
       }
     ])
     expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('keeps a session-wide TaskList scoped when loaded history starts at the current plan', () => {
+    const parts = [
+      toolPart(
+        'create-current',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Start the current task' },
+        'Task #11 created successfully: Start the current task'
+      ),
+      toolPart(
+        'list-all',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Finish the unloaded old task', status: 'completed', blockedBy: [] },
+            { id: '11', subject: 'Start the current task', status: 'pending', blockedBy: [] }
+          ]
+        }
+      )
+    ]
+    const messages = [message('m2', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m2: parts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '11', title: 'Start the current task', status: 'pending' })
+    ])
+  })
+
+  it('starts a new task plan when a later turn creates tasks after the previous plan completed', () => {
+    const completedParts = [
+      toolPart('create-old', 'TaskCreate', undefined, 'input-available', { subject: 'Finish the old task' }),
+      toolPart('complete-old-1', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '1',
+        status: 'completed'
+      })
+    ]
+    const newParts = [
+      toolPart(
+        'create-new',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Start the new task' },
+        'Task #11 created successfully: Start the new task'
+      ),
+      toolPart('complete-new', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '11',
+        status: 'completed'
+      }),
+      toolPart(
+        'list-all',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Finish the old task', status: 'completed', blockedBy: [] },
+            { id: '11', subject: 'Start the new task', status: 'completed', blockedBy: [] }
+          ]
+        }
+      )
+    ]
+    const messages = [message('m1', completedParts), message('m2', newParts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: completedParts, m2: newParts })
+
+    expect(status.tasks).toHaveLength(1)
+    expect(status.tasks[0]).toMatchObject({ id: '11', title: 'Start the new task', status: 'completed' })
+    expect(status.completedTaskCount).toBe(1)
+    expect(status.totalTaskCount).toBe(1)
+  })
+
+  it('starts a new task plan after the previous plan completes earlier in the same assistant message', () => {
+    const oldParts = [
+      toolPart(
+        'create-old',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Finish the old task' },
+        'Task #1 created successfully: Finish the old task'
+      )
+    ]
+    const transitionParts = [
+      toolPart('complete-old', 'TaskUpdate', undefined, 'output-available', {
+        taskId: '1',
+        status: 'completed'
+      }),
+      toolPart(
+        'create-new',
+        'TaskCreate',
+        undefined,
+        'output-available',
+        { subject: 'Start the new task' },
+        'Task #11 created successfully: Start the new task'
+      ),
+      toolPart(
+        'list-all',
+        'TaskList',
+        undefined,
+        'output-available',
+        {},
+        {
+          tasks: [
+            { id: '1', subject: 'Finish the old task', status: 'completed', blockedBy: [] },
+            { id: '11', subject: 'Start the new task', status: 'pending', blockedBy: [] }
+          ]
+        }
+      )
+    ]
+    const messages = [message('m1', oldParts), message('m2', transitionParts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: oldParts, m2: transitionParts })
+
+    expect(status.tasks).toEqual([
+      expect.objectContaining({ id: '11', title: 'Start the new task', status: 'pending' })
+    ])
   })
 
   // SDK task events describe spawned processes, not the agent's own plan, so they populate

@@ -14,6 +14,7 @@ import {
   checkEntityImageSize,
   convertToBase64,
   getImageBlobFromSource,
+  IMAGE_CAPTURE_ATTRIBUTE,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
@@ -280,6 +281,34 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
 
       expect(result).toBe(finalCanvas)
+    })
+
+    it('marks the capture root during capture and removes the marker afterward', async () => {
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node) => {
+        expect(node.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(true)
+        return finalCanvas
+      })
+
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('removes the capture marker when capture fails', async () => {
+      vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('capture failed'))
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
     })
 
     it('should exclude HTML artifacts from image capture', async () => {
@@ -577,6 +606,7 @@ describe('utils/image', () => {
 
     beforeEach(() => {
       fetchMock.mockReset().mockResolvedValue({
+        ok: true,
         blob: async () => new Blob(['remote'], { type: 'image/webp' })
       })
       ipcMocks.request.mockResolvedValue({
@@ -624,6 +654,72 @@ describe('utils/image', () => {
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp')
       expect(blob.type).toBe('image/webp')
+    })
+
+    it('throws on a non-ok remote response instead of returning the error page', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 404, blob: async () => new Blob(['gone']) })
+
+      await expect(getImageBlobFromSource('https://example.com/gone.webp')).rejects.toThrow('404')
+    })
+
+    it('throws when a 200 response carries non-image content (proxy/login page)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html>signin</html>'], { type: 'text/html' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
+    })
+
+    it('accepts a remote blob with an empty content type', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
+
+      const blob = await getImageBlobFromSource('https://example.com/unknown.bin')
+
+      expect(blob.type).toBe('')
+    })
+
+    it('accepts a remote image served as octet-stream (mislabelled, not a non-image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['imagedata'], { type: 'application/octet-stream' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/mislabeled.png')
+
+      expect(blob.type).toBe('application/octet-stream')
+    })
+
+    it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['png'], { type: ' image/png' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/padded.png')
+
+      expect(blob.type).toBe(' image/png')
+    })
+
+    it('rejects a non-image content type carrying header parameters', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html/>'], { type: 'text/html; charset=utf-8' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
+    })
+
+    it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
+      ipcMocks.request.mockResolvedValueOnce({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'application/octet-stream',
+        version: { mtime: 1, size: 3 }
+      })
+
+      const blob = await getImageBlobFromSource('file:///data/Files/noext')
+
+      expect(blob.type).toBe('application/octet-stream')
     })
 
     it('throws on a data URL with no media type', async () => {

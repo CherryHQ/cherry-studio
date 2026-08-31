@@ -1,4 +1,12 @@
-import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  CircularProgress,
+  ConfirmDialog,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
@@ -32,8 +40,10 @@ import {
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
@@ -46,7 +56,7 @@ import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@rendere
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
+import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -55,6 +65,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
+  ArrowLeft,
   Bot,
   CheckCircle,
   Circle,
@@ -101,6 +112,7 @@ const logger = loggerService.withContext('AgentRightPane')
 // ── Agent-specific composition over the generic right panel ─────────────────
 
 const FLOW_TAB_PREFIX = 'flow:'
+const STATUS_PANE_ID = 'status'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 const TracePane = lazy(() =>
@@ -747,7 +759,8 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
         selection: undefined,
         renderConfig: {
           ...providerValue.state.renderConfig,
-          collapseCompletedToolHistory: false
+          collapseCompletedToolHistory: true,
+          messageStyle: 'bubble' as const
         }
       }
     }),
@@ -756,7 +769,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
+      <div className="h-full min-h-0 bg-muted/15 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
     </MessageListProvider>
@@ -799,6 +812,28 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   return (
     <div className="h-full min-h-0 overflow-hidden">
       <AgentToolFlowMessageList messages={flow.messages} partsByMessageId={flow.partsByMessageId} />
+    </div>
+  )
+}
+
+function AgentFlowPanelTitle({ title }: { title: string }) {
+  const panelActions = useRightPanelActions()
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex min-w-0 items-center gap-0.5">
+      <Tooltip content={t('common.back')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={t('common.back')}
+          onClick={() => panelActions.tryOpen(STATUS_PANE_ID)}>
+          <ArrowLeft size={16} />
+        </Button>
+      </Tooltip>
+      <span className="min-w-0 flex-1 truncate px-1">{title}</span>
     </div>
   )
 }
@@ -981,29 +1016,29 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] | AgentR
   return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
-/** Foreground runs belong to one assistant row; detached runs use the SDK's per-task edge state. */
-function useAgentRunLiveness(messages: CherryUIMessage[], taskEvents: AgentSessionTaskEvents): AgentRunLiveness {
+/** Foreground runs belong to one assistant row; detached runs use the runtime's current membership snapshot. */
+function useAgentRunLiveness(
+  messages: CherryUIMessage[],
+  backgroundTasks: AgentSessionBackgroundTasks
+): AgentRunLiveness {
   return useMemo(() => {
     const activeMessageIds = new Set(
       messages
         .filter((message) => message.role === 'assistant' && message.metadata?.status === 'pending')
         .map((message) => message.id)
     )
-    const liveBackgroundTaskIds = new Set(
-      Object.values(taskEvents)
-        .filter((event) => event.isBackgrounded === true && event.status !== 'completed' && event.status !== 'error')
-        .map((event) => event.taskId)
-    )
+    const liveBackgroundTaskIds = new Set(backgroundTasks.map((task) => task.id))
     return { activeMessageIds, liveBackgroundTaskIds }
-  }, [messages, taskEvents])
+  }, [backgroundTasks, messages])
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
   const meta = useAgentRightPaneMeta()
+  const backgroundTasks = useAgentSessionBackgroundTasks(meta.sessionId)
   // Current-process per-task lifecycle edges.
   const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
-  const liveness = useAgentRunLiveness(runtime.messages, lateTaskEvents)
+  const liveness = useAgentRunLiveness(runtime.messages, backgroundTasks)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>
@@ -1018,10 +1053,97 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   return status
 }
 
+export function AgentTaskProgressCapsule() {
+  const { t } = useTranslation()
+  const runtime = useAgentRightPaneRuntime()
+  const status = useAgentRightPaneStatus()
+
+  if (status.totalTaskCount === 0 || status.completedTaskCount === status.totalTaskCount) return null
+
+  const hasActiveAssistantRun = runtime.messages.some(
+    (message) => message.role === 'assistant' && message.metadata?.status === 'pending'
+  )
+  const explicitActiveTaskIndex = status.tasks.findIndex((task) => task.status === 'in_progress')
+  const inferredActiveTaskIndex =
+    hasActiveAssistantRun && explicitActiveTaskIndex < 0
+      ? status.tasks.findIndex((task) => task.status === 'pending')
+      : -1
+  const currentTaskIndex =
+    explicitActiveTaskIndex >= 0
+      ? explicitActiveTaskIndex
+      : inferredActiveTaskIndex >= 0
+        ? inferredActiveTaskIndex
+        : status.tasks.findIndex((task) => task.status !== 'completed')
+  const inferredActiveTaskId = inferredActiveTaskIndex >= 0 ? status.tasks[inferredActiveTaskIndex]?.id : undefined
+  const currentTaskNumber = currentTaskIndex >= 0 ? currentTaskIndex + 1 : status.completedTaskCount + 1
+  const progressPercentage = (status.completedTaskCount / status.totalTaskCount) * 100
+  const progressLabel = t('agent.right_pane.status.task_count', {
+    completed: status.completedTaskCount,
+    total: status.totalTaskCount
+  })
+  const compactProgressLabel = t('agent.right_pane.status.task_progress_compact', {
+    current: currentTaskNumber,
+    total: status.totalTaskCount
+  })
+
+  return (
+    <div className="pointer-events-none flex w-full justify-center px-4 pb-2" data-testid="agent-task-progress-capsule">
+      <HoverCard openDelay={120} closeDelay={100}>
+        <HoverCardTrigger asChild>
+          <ComposerFloatingCapsule tabIndex={0} className="gap-1.5 px-2.5">
+            <span
+              role="progressbar"
+              aria-label={progressLabel}
+              aria-valuemin={0}
+              aria-valuemax={status.totalTaskCount}
+              aria-valuenow={status.completedTaskCount}
+              className="flex shrink-0 items-center justify-center">
+              <CircularProgress
+                value={progressPercentage}
+                size={17}
+                strokeWidth={2}
+                className="stroke-border"
+                progressClassName="stroke-info transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
+              />
+            </span>
+            <span aria-live="polite" className="tabular-nums">
+              {compactProgressLabel}
+            </span>
+          </ComposerFloatingCapsule>
+        </HoverCardTrigger>
+        <HoverCardContent
+          align="center"
+          side="top"
+          sideOffset={8}
+          className="w-64 max-w-[calc(100vw-2rem)] overflow-hidden p-2.5 shadow-lg">
+          <Scrollbar className="max-h-64" data-testid="agent-task-progress-details">
+            <ul className="space-y-1 pr-1">
+              {status.tasks.map((task) => {
+                const displayStatus = task.id === inferredActiveTaskId ? 'in_progress' : task.status
+                return (
+                  <li key={task.id} className="flex min-w-0 items-start gap-2 rounded-md px-1.5 py-1">
+                    <TaskStatusIcon status={displayStatus} />
+                    <span
+                      className={cn(
+                        'wrap-break-word min-w-0 flex-1 whitespace-normal text-xs leading-5',
+                        displayStatus === 'completed' ? 'text-muted-foreground' : 'text-foreground'
+                      )}>
+                      {displayStatus === 'in_progress' && task.activeText ? task.activeText : task.title}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </Scrollbar>
+        </HoverCardContent>
+      </HoverCard>
+    </div>
+  )
+}
+
 function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
   const meta = useAgentRightPaneMeta()
   const actions = useAgentRightPaneActions()
-  const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
   const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
@@ -1030,38 +1152,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
 
   return (
     <div className="h-full space-y-4 overflow-auto p-3 text-sm">
-      {status.tasks.length > 0 && (
-        <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.tasks')}</h3>
-            <Badge variant="outline" className="text-[11px]">
-              {t('agent.right_pane.status.task_count', {
-                completed: status.completedTaskCount,
-                total: status.totalTaskCount
-              })}
-            </Badge>
-          </div>
-          <div className="space-y-1.5">
-            {status.tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-                <TaskStatusIcon status={task.status} />
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={cn(
-                      'wrap-break-word text-foreground text-xs leading-5',
-                      task.status === 'completed' && 'text-muted-foreground line-through'
-                    )}>
-                    {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={false} />}
 
       <AgentContextUsageSummary
@@ -1071,7 +1161,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
-      <AgentRightPaneHighlights status={status} includeTasks={false} includeArtifacts={false} />
+      <AgentRightPaneHighlights status={status} includeArtifacts={false} />
     </div>
   )
 }
@@ -1130,7 +1220,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
   {
     component: AgentStatusRightPanel,
     resolve: (scope) => ({
-      id: 'status',
+      id: STATUS_PANE_ID,
       instanceKey: `session:${scope.meta.sessionId ?? ''}`,
       title: scope.statusTitle,
       readiness: scope.meta.conversationState
@@ -1145,7 +1235,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       return {
         id: getFlowTabValue(tab.toolCallId),
         instanceKey: `session:${scope.meta.sessionId ?? ''}:flow:${tab.toolCallId}`,
-        title: tab.title,
+        title: <AgentFlowPanelTitle title={tab.title} />,
         readiness: scope.meta.conversationState
       }
     }
@@ -1214,12 +1304,10 @@ function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: Age
 function AgentRightPaneHighlights({
   status,
   compact = false,
-  includeTasks = true,
   includeArtifacts = true
 }: {
   status: AgentRightPaneStatus
   compact?: boolean
-  includeTasks?: boolean
   includeArtifacts?: boolean
 }) {
   const actions = useAgentRightPaneActions()
@@ -1228,36 +1316,13 @@ function AgentRightPaneHighlights({
   const shellRunTasks = status.runTasks.filter(isShellRunTask)
   const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
   const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
-  const tasks = includeTasks ? status.tasks : []
   const artifacts = includeArtifacts && actions.canOpenArtifactFile ? status.artifacts : []
-  const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
+  const hasHighlights = status.runTasks.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
 
   return (
     <div className={cn('space-y-2.5', compact ? 'text-xs' : 'text-sm')}>
-      {tasks.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.status.tasks')}
-          icon={<Activity size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <ul className="space-y-1">
-            {tasks.map((task) => (
-              <li key={task.id} className="flex min-w-0 items-start gap-2">
-                <TaskStatusIcon status={task.status} />
-                <span
-                  className={cn(
-                    'wrap-break-word min-w-0 flex-1 text-xs leading-5',
-                    task.status === 'completed' ? 'text-muted-foreground line-through' : 'text-muted-foreground'
-                  )}>
-                  {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </AgentRightPaneHighlightSection>
-      )}
-
       {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={compact} />}
 
       {workflowRunTasks.length > 0 && (
@@ -1316,11 +1381,11 @@ function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
   const panelState = useRightPanelState()
   const panelActions = useRightPanelActions()
   const { t } = useTranslation()
-  if (disabled || panelState.presentationMaximized || !panelActions.canOpen('status')) return null
+  if (disabled || panelState.presentationMaximized || !panelActions.canOpen(STATUS_PANE_ID)) return null
 
   const shortcut = (
     <RightPanelShortcut
-      tab="status"
+      tab={STATUS_PANE_ID}
       label={t('agent.right_pane.tabs.status')}
       icon={<Activity className="size-3.5" />}
       tooltip={false}

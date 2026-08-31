@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import {
+  HTML_PREVIEW_IFRAME_SANDBOX,
   HTML_PREVIEW_RESTRICTED_CSP,
   HTML_PREVIEW_RESTRICTED_SANDBOX,
   HtmlPreviewFrame,
@@ -10,16 +11,33 @@ import {
 } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
-  it('renders non-empty HTML in an iframe with the shared sandbox and default srcdoc base', () => {
+  it('fails closed by default: script-less sandbox and strict CSP with no explicit props', () => {
     const html = '<html><head><title>Preview</title></head><body><a href="#">Home</a></body></html>'
 
     render(<HtmlPreviewFrame html={html} title="common.html_preview" />)
     const iframe = screen.getByTitle('common.html_preview')
 
     expect(iframe).not.toBeNull()
-    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
-    expect(iframe).toHaveAttribute('title', 'common.html_preview')
+    // Unconsented scripts must never run by default — the caller has to opt into the
+    // interactive sandbox explicitly.
+    expect(iframe).toHaveAttribute('sandbox', '')
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
+    expect(iframe?.getAttribute('srcdoc')).toContain("default-src 'none'")
+  })
+
+  it('keeps the interactive artifact sandbox an explicit opt-in without a CSP', () => {
+    render(
+      <HtmlPreviewFrame
+        html="<html><body><script>window.x = 1</script></body></html>"
+        title="common.html_preview"
+        sandbox={HTML_PREVIEW_IFRAME_SANDBOX}
+      />
+    )
+    const iframe = screen.getByTitle('common.html_preview')
+
+    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
+    // Interactive artifacts need full network access; no CSP meta is injected for that tier.
+    expect(iframe?.getAttribute('srcdoc')).not.toContain('Content-Security-Policy')
   })
 
   it('uses a white browser canvas when HTML does not declare a background', () => {

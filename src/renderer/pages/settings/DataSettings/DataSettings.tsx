@@ -4,7 +4,6 @@ import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
@@ -14,22 +13,24 @@ import {
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
-import type { FC } from 'react'
+import { type FC, lazy, Suspense } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
-import ExportMenuOptions from './ExportMenuSettings'
-import JoplinSettings from './JoplinSettings'
-import LocalBackupSettings from './LocalBackupSettings'
-import MarkdownExportSettings from './MarkdownExportSettings'
-import NotionSettings from './NotionSettings'
-import NutstoreSettings from './NutstoreSettings'
-import ObsidianSettings from './ObsidianSettings'
-import S3Settings from './S3Settings'
-import SiyuanSettings from './SiyuanSettings'
-import WebDavSettings from './WebDavSettings'
-import YuqueSettings from './YuqueSettings'
+
+const ExportMenuOptions = lazy(() => import('./ExportMenuSettings'))
+const JoplinSettings = lazy(() => import('./JoplinSettings'))
+const LocalBackupSettings = lazy(() => import('./LocalBackupSettings'))
+const MarkdownExportSettings = lazy(() => import('./MarkdownExportSettings'))
+const NotionSettings = lazy(() => import('./NotionSettings'))
+const NutstoreSettings = lazy(() => import('./NutstoreSettings'))
+const ObsidianSettings = lazy(() => import('./ObsidianSettings'))
+const S3Settings = lazy(() => import('./S3Settings'))
+const SiyuanSettings = lazy(() => import('./SiyuanSettings'))
+const WebDavSettings = lazy(() => import('./WebDavSettings'))
+const YuqueSettings = lazy(() => import('./YuqueSettings'))
+const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -97,19 +98,24 @@ const DataSettings: FC = () => {
         </Scrollbar>
       </div>
       <SettingsContentColumn theme={theme}>
-        {menu === 'data' && <BasicDataSettings />}
-        {menu === 'webdav' && <WebDavSettings />}
-        {menu === 'nutstore' && <NutstoreSettings />}
-        {menu === 's3' && <S3Settings />}
-        {menu === 'import_settings' && <ImportMenuOptions />}
-        {menu === 'export_menu' && <ExportMenuOptions />}
-        {menu === 'markdown_export' && <MarkdownExportSettings />}
-        {menu === 'local_backup' && <LocalBackupSettings />}
-        {menu === 'notion' && <NotionSettings />}
-        {menu === 'yuque' && <YuqueSettings />}
-        {menu === 'joplin' && <JoplinSettings />}
-        {menu === 'obsidian' && <ObsidianSettings />}
-        {menu === 'siyuan' && <SiyuanSettings />}
+        {menu === 'data' ? (
+          <BasicDataSettings />
+        ) : (
+          <Suspense fallback={null}>
+            {menu === 'webdav' && <WebDavSettings />}
+            {menu === 'nutstore' && <NutstoreSettings />}
+            {menu === 's3' && <S3Settings />}
+            {menu === 'import_settings' && <ImportMenuOptions />}
+            {menu === 'export_menu' && <ExportMenuOptions />}
+            {menu === 'markdown_export' && <MarkdownExportSettings />}
+            {menu === 'local_backup' && <LocalBackupSettings />}
+            {menu === 'notion' && <NotionSettings />}
+            {menu === 'yuque' && <YuqueSettings />}
+            {menu === 'joplin' && <JoplinSettings />}
+            {menu === 'obsidian' && <ObsidianSettings />}
+            {menu === 'siyuan' && <SiyuanSettings />}
+          </Suspense>
+        )}
       </SettingsContentColumn>
     </RowFlex>
   )

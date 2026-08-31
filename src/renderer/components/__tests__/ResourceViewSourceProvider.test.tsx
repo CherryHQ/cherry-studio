@@ -84,6 +84,8 @@ function createAssistantSource(
     isRefreshing: refreshing,
     error,
     refetch: vi.fn(),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    reuseOrCreateTopic: vi.fn(),
     mutate: vi.fn()
   } as unknown as AssistantTopicsSource
 }
@@ -123,7 +125,9 @@ function createAgentSource(
     togglePin: vi.fn(),
     isFullyLoaded: complete,
     isLoadingAll: !complete,
-    isPinsLoading: false
+    isPinsLoading: false,
+    loadLatestSession: vi.fn().mockResolvedValue(null),
+    reuseOrCreateSession: vi.fn()
   } as unknown as AgentSessionsSource
 }
 

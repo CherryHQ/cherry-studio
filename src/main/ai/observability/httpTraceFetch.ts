@@ -2,6 +2,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { context, type Span, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
 import { KB } from '@shared/utils/constants'
+import { redactRecord, redactUrlParams } from '@shared/utils/redaction'
 
 import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../utils/customFetch'
 import { TRACER_NAME } from './constants'
@@ -15,22 +16,6 @@ const logger = loggerService.withContext('httpTraceFetch')
  * every chunk.
  */
 export const MAX_BODY_BYTES = 512 * KB
-
-/**
- * Header names whose values are secrets or session identifiers. We never
- * record their real value into a span — they're replaced with `***`.
- */
-const SENSITIVE_HEADER_KEYS = new Set([
-  'authorization',
-  'x-api-key',
-  'api-key',
-  'cookie',
-  'set-cookie',
-  'x-goog-api-key',
-  'openai-organization',
-  'openai-project',
-  'anthropic-api-key'
-])
 
 export interface HttpTraceOptions {
   topicId?: string
@@ -74,9 +59,9 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
 
       const url = normalizeUrl(input)
       const method = normalizeMethod(input, init)
-      span.setAttribute('http.url', redactUrl(url))
+      span.setAttribute('http.url', redactUrlParams(url))
       span.setAttribute('http.method', method)
-      span.setAttribute('http.request.headers', JSON.stringify(redactHeaders(headersToRecord(init?.headers))))
+      span.setAttribute('http.request.headers', JSON.stringify(redactRecord(headersToRecord(init?.headers))))
       // `inputs` carries the request body only — url/method/headers are dedicated attributes so the
       // viewer can render them as detail rows / their own tabs instead of cramming them into the body.
       const requestBody = readRequestBody(init?.body, maxBodyBytes)
@@ -104,10 +89,10 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
 
     span.setAttribute('http.status', response.status)
     span.setAttribute('http.statusText', response.statusText)
-    span.setAttribute('http.response.headers', JSON.stringify(redactHeaders(headersToRecord(response.headers))))
+    span.setAttribute('http.response.headers', JSON.stringify(redactRecord(headersToRecord(response.headers))))
     // response.url is not always populated after a redirect, but when present it
     // carries the same `?key=`/userinfo secrets as the request url — redact it too.
-    if (response.url) span.setAttribute('http.response.url', redactUrl(response.url))
+    if (response.url) span.setAttribute('http.response.url', redactUrlParams(response.url))
 
     // No body (GET/HEAD/204) → nothing to tee; settle the span now.
     if (!response.body) {
@@ -203,14 +188,18 @@ async function accumulateBody(
 
 /**
  * Overwrite the span's `inputs` with the body the innermost fetch actually sent,
- * when a provider transform rewrote it via the trace slot. No-op when the slot is
- * absent (no transform in the chain) or carries no string body.
+ * when a provider transform rewrote it via the trace slot. A `null` body clears
+ * stale inputs after redirect handling changed the request to GET.
  */
 function applyFinalBodyInputs(span: Span, init: RequestInit | undefined, maxBodyBytes: number): void {
   const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
     HTTP_TRACE_FINAL_BODY_SLOT
   ]
   const finalBody = slot?.body
+  if (finalBody === null) {
+    span.setAttribute('inputs', '')
+    return
+  }
   if (typeof finalBody !== 'string') return
   const parsed = readRequestBody(finalBody, maxBodyBytes)
   if (parsed !== undefined) span.setAttribute('inputs', stringifyBody(parsed))
@@ -240,14 +229,6 @@ function truncate(str: string, max: number): string {
   return str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max} chars]` : str
 }
 
-function redactHeaders(headers: Record<string, string>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [key, value] of Object.entries(headers)) {
-    out[key] = SENSITIVE_HEADER_KEYS.has(key.toLowerCase()) ? '***' : value
-  }
-  return out
-}
-
 function headersToRecord(headers: HeadersInit | undefined): Record<string, string> {
   const out: Record<string, string> = {}
   if (!headers) return out
@@ -267,34 +248,6 @@ function normalizeUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
   if (input instanceof URL) return input.toString()
   return input.url
-}
-
-// Some providers carry the API key in the query string (Gemini `?key=`, proxies `?api-key=`).
-// Redact those so secrets don't reach the NDJSON trace file, the way header redaction prevents.
-const SENSITIVE_QUERY_KEYS = new Set(['key', 'api_key', 'api-key', 'apikey', 'access_token', 'token', 'x-goog-api-key'])
-
-function redactUrl(rawUrl: string): string {
-  try {
-    const u = new URL(rawUrl)
-    let changed = false
-    for (const k of [...u.searchParams.keys()]) {
-      if (SENSITIVE_QUERY_KEYS.has(k.toLowerCase())) {
-        u.searchParams.set(k, '***')
-        changed = true
-      }
-    }
-    // Userinfo (`user:pass@host`) carries the same credentials as a `?key=` — strip it too so a
-    // proxy URL like `https://user:secret@host/v1` never lands verbatim in the trace file.
-    if (u.username || u.password) {
-      u.username = ''
-      u.password = ''
-      changed = true
-    }
-    return changed ? u.toString() : rawUrl
-  } catch {
-    // Relative or malformed URL (no host) — nothing to parse safely; leave it untouched.
-    return rawUrl
-  }
 }
 
 function normalizeMethod(input: RequestInfo | URL, init?: RequestInit): string {

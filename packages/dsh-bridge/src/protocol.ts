@@ -56,8 +56,10 @@ export interface BridgePolicy {
   editTools: string[]
   /** First-party bridged tools that may run without a per-call approval. */
   autoApprovedTools: string[]
-  /** Sensitive bridged tools that still require approval in bypass mode. */
+  /** Sensitive bridged tools needing per-call approval; Full Access lifts ordinary entries. */
   approvalRequiredTools: string[]
+  /** Approval-required tools whose live-user ceiling remains under bypassPermissions. */
+  nonBypassableApprovalTools: string[]
   /**
    * The only tools executable while plan mode is active, beyond contained reads.
    * Host-computed closed list (dsh plan mode enforces nothing itself) — notably it
@@ -130,15 +132,21 @@ export interface BridgePluginRequestMap {
   ready: { params: { pid: number; token: string }; result: Record<string, never> }
   'approval/ask': {
     params: { sessionId: string; toolName: string; callId?: string; args?: unknown; reason?: string }
-    result: { outcome: 'allowed-once' | 'rejected' }
+    result: { outcome: 'allowed-once' | 'rejected'; rejectionReason?: string }
   }
   'tool/call': {
+    /** `sessionId` is always the root session id — the host rejects child session ids. */
     params: { sessionId: string; callId: string; name: string; args: unknown }
     result: BridgeToolCallResult
   }
   /** One `ctx.userQuestions` ask (today only plan review reaches it) relayed to the host UI. */
   'question/ask': {
-    params: { sessionId: string; questions: AskUserQuestionItem[] }
+    params: {
+      sessionId: string
+      /** Exact `exit_plan_mode` call correlated from the plugin's authoritative session log. */
+      callId: string
+      questions: AskUserQuestionItem[]
+    }
     result: AskUserQuestionAnswer
   }
 }

@@ -12,6 +12,7 @@ const {
   moveMock,
   reorderBatchMock,
   reorderMock,
+  reuseOrCreatePlaceholderMock,
   setActiveNodeMock,
   updateMock
 } = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ const {
   moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
+  reuseOrCreatePlaceholderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
   updateMock: vi.fn()
 }))
@@ -43,6 +45,7 @@ vi.mock('@data/services/TopicService', () => ({
     move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
+    reuseOrCreatePlaceholder: reuseOrCreatePlaceholderMock,
     setActiveNode: setActiveNodeMock,
     update: updateMock
   }
@@ -106,6 +109,41 @@ describe('topicHandlers', () => {
       getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+    })
+
+    it('narrows the latest lookup to one assistant when assistantId is given', async () => {
+      const topic = { id: 'topic-assistant' }
+      getLatestActiveMock.mockReturnValueOnce(topic)
+
+      await expect(
+        topicHandlers['/topics/latest'].GET({ query: { assistantId: 'assistant-1' } } as never)
+      ).resolves.toEqual({ topic })
+
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    })
+
+    it('rejects an empty assistantId', async () => {
+      await expect(topicHandlers['/topics/latest'].GET({ query: { assistantId: '' } } as never)).rejects.toThrow()
+
+      expect(getLatestActiveMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/topics/reusable-placeholder', () => {
+    it('forwards the exact nullable owner and exclusion to the atomic service operation', async () => {
+      const response = { topic: { id: 'topic-created' }, created: true }
+      reuseOrCreatePlaceholderMock.mockReturnValueOnce(response)
+
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].POST({
+          body: { assistantId: null, excludeTopicId: 'topic-deleted' }
+        } as never)
+      ).resolves.toBe(response)
+
+      expect(reuseOrCreatePlaceholderMock).toHaveBeenCalledWith({
+        assistantId: null,
+        excludeTopicId: 'topic-deleted'
+      })
     })
   })
 

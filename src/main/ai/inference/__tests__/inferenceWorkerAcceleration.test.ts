@@ -160,7 +160,7 @@ describe('inference worker hardware acceleration', () => {
         type: 'ocr.recognize',
         id: 'ocr',
         modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-        imagePath: import.meta.filename
+        source: { kind: 'path', imagePath: import.meta.filename }
       })
     ).resolves.toMatchObject({ type: 'result', text: 'hardware result' })
 
@@ -253,13 +253,13 @@ describe('inference worker hardware acceleration', () => {
       type: 'ocr.recognize',
       id: 'hardware',
       modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: import.meta.filename
+      source: { kind: 'path', imagePath: import.meta.filename }
     })
     const fallback = await request({
       type: 'ocr.recognize',
       id: 'fallback',
       modelPaths: { detection: '/runtime-fail', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: import.meta.filename
+      source: { kind: 'path', imagePath: import.meta.filename }
     })
 
     expect(hardware).toMatchObject({ type: 'result', text: 'hardware result' })
@@ -273,13 +273,13 @@ describe('inference worker hardware acceleration', () => {
       type: 'ocr.recognize',
       id: 'internal-fallback',
       modelPaths: { detection: '/initialize-fallback', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: import.meta.filename
+      source: { kind: 'path', imagePath: import.meta.filename }
     })
     const nextModel = await request({
       type: 'ocr.recognize',
       id: 'next-model',
       modelPaths: { detection: '/hardware-ok-after-fallback', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: import.meta.filename
+      source: { kind: 'path', imagePath: import.meta.filename }
     })
 
     expect(fallback).toMatchObject({ type: 'result', text: 'cpu result' })
@@ -294,13 +294,13 @@ describe('inference worker hardware acceleration', () => {
       type: 'ocr.recognize',
       id: 'unreadable',
       modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: path.join(appPath, 'missing.png')
+      source: { kind: 'path', imagePath: path.join(appPath, 'missing.png') }
     })
     const next = await request({
       type: 'ocr.recognize',
       id: 'next',
       modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: import.meta.filename
+      source: { kind: 'path', imagePath: import.meta.filename }
     })
 
     expect(unreadable).toMatchObject({ type: 'error' })
@@ -315,7 +315,7 @@ describe('inference worker hardware acceleration', () => {
       type: 'ocr.recognize',
       id: 'both-fail',
       modelPaths: { detection: '/both-fail', recognition: '/rec', charactersDictionary: '/dict' },
-      imagePath: import.meta.filename
+      source: { kind: 'path', imagePath: import.meta.filename }
     })
 
     expect(response).toMatchObject({ type: 'error' })

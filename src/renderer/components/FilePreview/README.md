@@ -2,14 +2,15 @@
 
 `FilePreview` is the canonical read-only preview host for local files. Callers provide a file path and decide where the preview appears. The host validates the path target and selects the preview strategy; the matching plugin owns file I/O, format rendering, toolbar controls, and format-specific state.
 
-The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
+The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.avif`, `.ico`, `.svg` — SVG renders via `<img>`, which never executes embedded scripts), PDF, Word (`.docx`), PowerPoint (`.pptx`), spreadsheets (`.xlsx`), Markdown (`.md`, `.markdown`, `.mdx`), and text/source files. Files outside the text extension whitelist still use the text plugin when content sniffing identifies them as text.
 
 ## Path Contract
 
 - Accept local absolute `AbsoluteFilePath` values only. POSIX and Windows paths are supported.
 - Do not pass relative paths, `file://` URLs, HTTP URLs, Base64 values, or in-memory data.
 - `FilePreview` lexically normalizes the path before resolving a plugin. It does not resolve symlinks or call `realpath`.
-- `FilePreview` calls `getMetadata` before selecting a plugin. Directories and inaccessible paths never reach a file plugin.
+- `FilePreview` starts the extension plugin module load alongside `getMetadata`, but metadata still decides whether the
+  candidate can render. Directories and inaccessible paths never reach a file plugin component.
 - When a path comes from IPC or another untyped string source, validate it with `normalizeFilePreviewPath`. Do not bypass runtime validation with a type assertion.
 
 ```ts

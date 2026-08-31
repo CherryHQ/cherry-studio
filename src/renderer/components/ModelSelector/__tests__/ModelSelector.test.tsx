@@ -160,7 +160,7 @@ const provider: Provider = {
   name: 'OpenAI',
   apiKeys: [],
   authType: 'api-key',
-  apiFeatures: {} as Provider['apiFeatures'],
+  reportsActualCost: false,
   settings: {} as Provider['settings'],
   isEnabled: true
 } as Provider
@@ -183,6 +183,7 @@ function makeModelItem(modelId: UniqueModelId, overrides: Partial<ModelSelectorM
   return {
     key: modelId,
     type: 'model' as const,
+    groupKind: 'provider' as const,
     model,
     provider,
     modelId,
@@ -250,6 +251,63 @@ describe('ModelSelector', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('shows only the model identifier under a persistent provider group', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
+      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+      modelIdentifier: 'gpt-4-variant-a',
+      showIdentifier: true
+    })
+    const listItems: FlatListItem[] = [
+      {
+        key: 'provider-openai',
+        type: 'group',
+        title: 'OpenAI',
+        groupKind: 'provider',
+        provider,
+        canNavigateToSettings: true
+      },
+      item
+    ]
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems, modelItems: [item] }))
+
+    render(
+      <ModelSelector
+        multiple={false}
+        open
+        trigger={<button type="button">Open</button>}
+        value={item.model}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('| gpt-4-variant-a')).toBeInTheDocument()
+    expect(screen.queryByText(/OpenAI · gpt-4-variant-a/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the provider in a pinned row without a provider group', () => {
+    const item = makeModelItem('openai::gpt-4-variant-a' as UniqueModelId, {
+      key: 'openai::gpt-4-variant-a_pinned',
+      groupKind: 'pinned',
+      model: { ...makeModel('openai::gpt-4-variant-a' as UniqueModelId), name: 'GPT-4' },
+      modelIdentifier: 'gpt-4-variant-a',
+      isPinned: true,
+      showIdentifier: true
+    })
+    mocks.useModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
+
+    render(
+      <ModelSelector
+        multiple={false}
+        open
+        trigger={<button type="button">Open</button>}
+        value={item.model}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('| OpenAI · gpt-4-variant-a')).toBeInTheDocument()
   })
 
   it('selects a model and closes the selector in single-select mode', async () => {

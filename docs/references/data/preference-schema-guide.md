@@ -1,173 +1,132 @@
+---
+description: How to add Preference keys through the data-classify generator without editing generated schemas
+sources:
+  - v2-refactor-temp/tools/data-classify/data/classification.json
+  - v2-refactor-temp/tools/data-classify/data/target-key-definitions.json
+  - v2-refactor-temp/tools/data-classify/scripts/generate-preferences.js
+  - src/shared/data/preference/preferenceTypes.ts
+---
+
 # Preference Schema Guide
 
-This guide explains how to add new preference keys to Cherry Studio.
+`src/shared/data/preference/preferenceSchemas.ts` is generated. Never edit its
+`PreferenceSchemas` interface or `DefaultPreferences` object by hand. Change the
+generator inputs, run the generator, and commit the generated result.
 
-## Key Naming Conventions
+## Choose the Source File
 
-### Format
+| Kind of key | Source of truth |
+|---|---|
+| New v2 setting with no v1 source | `v2-refactor-temp/tools/data-classify/data/target-key-definitions.json` |
+| Simple v1-to-v2 mapping | `v2-refactor-temp/tools/data-classify/data/classification.json` |
+| Complex migration output | `target-key-definitions.json`, plus the transformer and complex mapping owned by the v2 migrator |
+| Reusable TypeScript type | `src/shared/data/preference/preferenceTypes.ts` |
 
-All preference keys MUST follow the format: `namespace.sub.key_name`
+`target-key-definitions.json` entries with `status: "classified"` are emitted.
+Entries with `status: "pending"` are not part of the generated Preference schema.
 
-**Rules:**
+## Key Naming
 
-- At least 2 segments separated by dots (.)
-- Each segment uses lowercase letters, numbers, and underscores only
-- Pattern: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/`
+Preference keys use at least two dot-separated lowercase segments. Multi-word
+segments use underscores:
 
-### Naming Principles
-
-1. **Semantic Grouping**: Group related settings under common namespaces
-
-   - `app.*` - Application-level settings
-   - `chat.*` - Chat/message settings
-   - `feature.*` - Feature toggles
-   - `ui.*` - UI/theme settings
-   - `data.*` - Data/backup settings
-   - `shortcut.*` - Keyboard shortcuts
-
-   **Namespace principles:**
-
-   - Namespaces represent major features with **global impact** across the application
-   - The existing namespaces should already cover most use cases
-   - If you believe a new namespace is needed, think from a **global perspective** - it should represent a fundamental category, not just a single feature
-
-2. **Hierarchy**: Use dots for hierarchy, underscores for multi-word names
-
-   - `chat.message.font_size` (not `chat.messageFontSize`)
-   - `feature.quick_assistant.enabled` (not `feature.quickAssistant.enabled`)
-
-3. **Boolean Naming**: Use positive names with `.enabled` suffix for toggles
-   - `feature.quick_assistant.enabled` (not `feature.quick_assistant.disabled`)
-   - `app.spell_check.enabled`
-
-### Examples
-
-| Valid                     | Invalid                | Reason                 |
-| ------------------------- | ---------------------- | ---------------------- |
-| `app.user.avatar`         | `userAvatar`           | Missing dot separator  |
-| `chat.multi_select_mode`  | `chat.multiSelectMode` | camelCase not allowed  |
-| `feature.quick_assistant.enabled` | `Feature.quickAssistant` | camelCase not allowed |
-
-## Design Principles
-
-### Prefer Flat Over Nested
-
-Prefer granular, flat preference keys over storing complex objects.
-
-**Why:**
-
-1. **Visibility**: Individual config items are more explicit and discoverable
-2. **Performance**: Avoids parsing entire objects when reading/writing common items
-
-**When to use flat keys:**
-
-```typescript
-// Good: Flat keys for independent settings
-'chat.code.collapsible': boolean
-'chat.code.show_line_numbers': boolean
-'chat.code.wrappable': boolean
+```text
+namespace.category.key_name
 ```
 
-**When to keep as object:**
+The `data-schema-key/valid-key` lint rule enforces
+`/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/`.
 
-Only use object values when the data is frequently read/written as a whole unit.
+Prefer an existing domain namespace. A new namespace should represent a real
+cross-application domain, not one call site.
 
-```typescript
-// Acceptable: Shortcut config is always read/written together
-'shortcut.general.show_main_window': { binding: string[], enabled: boolean }
+```text
+app.spell_check.enabled
+chat.message.font_size
+feature.quick_assistant.enabled
+shortcut.general.show_main_window
 ```
 
-**Rule of thumb:** If you find yourself frequently accessing just one property of an object, split it into separate keys.
+## Value Shape
 
-### Keep Values Atomic
+- Keep independent settings in independent keys.
+- Store one object only when callers read and write it as one logical value.
+- Every emitted key has a default. The generator writes that default into
+  `DefaultPreferences` and the Preference seeder materializes missing rows.
+- Put shared unions, enums, branded types, and object contracts in
+  `preferenceTypes.ts`; reference them as `PreferenceTypes.X` in the generator
+  input.
 
-Each preference should represent one logical setting. Don't combine unrelated settings.
+Example new key:
 
-```typescript
-// Good: One setting per key
-'chat.message.font_size': number
-'chat.message.font_family': string
-
-// Bad: Multiple settings in one key
-'chat.message.font': { size: number, family: string }
-```
-
-### Provide Sensible Defaults
-
-All preferences MUST have default values in `DefaultPreferences`.
-
-## Adding a New Preference
-
-### Step 1: Define Custom Types (if needed)
-
-If your preference uses a custom type (enum, union type, etc.), add it first.
-
-**File:** `src/shared/data/preference/preferenceTypes.ts`
-
-```typescript
-// Example: Adding a new enum type
-export enum MyFeatureMode {
-  auto = 'auto',
-  manual = 'manual',
-  disabled = 'disabled'
+```json
+{
+  "targetKey": "feature.my_feature.enabled",
+  "type": "boolean",
+  "defaultValue": false,
+  "status": "classified",
+  "description": "Enable My Feature"
 }
 ```
 
-### Step 2: Add to Schema Interface
+For a TypeScript expression rather than a JSON literal, use the generator's
+`VALUE:` form:
 
-**File:** `src/shared/data/preference/preferenceSchemas.ts`
-
-Add your key to the `PreferenceSchemas` interface:
-
-```typescript
-export interface PreferenceSchemas {
-  default: {
-    // ...existing keys (alphabetically sorted)...
-    'feature.my_feature.enabled': boolean
-    'feature.my_feature.mode': PreferenceTypes.MyFeatureMode
-  }
+```json
+{
+  "targetKey": "feature.my_feature.mode",
+  "type": "PreferenceTypes.MyFeatureMode",
+  "defaultValue": "VALUE: PreferenceTypes.MyFeatureMode.Auto",
+  "status": "classified",
+  "description": "My Feature mode"
 }
 ```
 
-### Step 3: Add Default Value
+## Generate and Use
 
-In the same file, add default value to `DefaultPreferences`:
+Run the supported generator pipeline from its package directory:
 
-```typescript
-export const DefaultPreferences: PreferenceSchemas = {
-  default: {
-    // ...existing defaults (alphabetically sorted)...
-    'feature.my_feature.enabled': true,
-    'feature.my_feature.mode': PreferenceTypes.MyFeatureMode.auto,
-  }
-}
+```bash
+cd v2-refactor-temp/tools/data-classify
+npm run generate
 ```
 
-### Step 4: Use in Code
+This regenerates all four coupled outputs:
+
+- `src/shared/data/preference/preferenceSchemas.ts`
+- `src/shared/data/bootConfig/bootConfigSchemas.ts`
+- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
+- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
+
+Then consume the generated key through the normal Preference API:
 
 ```typescript
 import { usePreference } from '@data/hooks/usePreference'
 
 const [enabled, setEnabled] = usePreference('feature.my_feature.enabled')
-const [mode, setMode] = usePreference('feature.my_feature.mode')
 ```
 
-## File Structure
+Run `pnpm lint` after changing a key. It checks generated types, key naming,
+formatting, and all Preference call sites.
 
-| File                                                  | Purpose                                     |
-| ----------------------------------------------------- | ------------------------------------------- |
-| `src/shared/data/preference/preferenceSchemas.ts`| Schema interface and default values         |
-| `src/shared/data/preference/preferenceTypes.ts`  | Custom type definitions (enums, unions)     |
+## Migration-only Additions
 
-## Best Practices Summary
+For a simple migrated value, update the corresponding classified entry in
+`classification.json` with its legacy source and target key. For a value that
+combines or transforms multiple legacy inputs:
 
-1. **Flat over nested**: Split objects into individual keys unless frequently accessed as a whole
-2. **Atomic values**: One preference = one logical setting
-3. **Sensible defaults**: All preferences must have default values
-4. **Consistent naming**: Follow `namespace.category.key_name` pattern
-5. **2-3 levels**: Don't over-nest; 2-3 dot-separated segments is usually sufficient
+1. Define the emitted target key in `target-key-definitions.json`.
+2. Add the conversion to
+   `src/main/data/migration/v2/migrators/transformers/PreferenceTransformers.ts`.
+3. Register it in
+   `src/main/data/migration/v2/migrators/mappings/ComplexPreferenceMappings.ts`.
+4. Run `npm run generate`.
+
+Do not add a v1 read fallback or a second runtime source of truth. Legacy data
+reaches the current Preference table only through the v2 migrator.
 
 ## Related Documentation
 
-- [Preference Overview](./preference-overview.md) - Architecture and sync mechanism
-- [Preference Usage](./preference-usage.md) - Hooks and service API
+- [Preference Overview](./preference-overview.md)
+- [Preference Usage](./preference-usage.md)
+- [Migration V2](./v2-migration-guide.md)

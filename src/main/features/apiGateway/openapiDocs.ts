@@ -78,7 +78,7 @@ export const DOC_DESCRIPTIONS = {
 type DocDescriptionSlot = keyof typeof DOC_DESCRIPTIONS
 
 /**
- * One literal `t` call per slot: `scripts/check-i18n.ts` statically verifies
+ * One literal `t` call per slot: `scripts/i18n-check.ts` statically verifies
  * that every translation call in main passes a literal key, so the keys cannot
  * be fed in from `DOC_DESCRIPTIONS` by variable. The return type ties the two
  * together instead — a slot missing here is a type error.

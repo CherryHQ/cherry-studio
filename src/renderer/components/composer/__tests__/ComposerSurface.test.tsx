@@ -635,6 +635,20 @@ describe('ComposerSurface', () => {
     }
   })
 
+  it('does not restore mount focus for an eagerly loaded draft the fallback never focused', () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{}} />)
+
+    expect(mocks.focus).not.toHaveBeenCalled()
+  })
+
+  it('restores mount focus when the fallback textarea held focus', () => {
+    mocks.stabilizeEditor = true
+    render(<ComposerSurface {...baseProps} text="draft" deferredIntent={{ hadFocus: true }} />)
+
+    expect(mocks.focus).toHaveBeenCalled()
+  })
+
   it('applies the transferred text selection when the editor is created', async () => {
     const text = 'previous chat prompt'
     const textEndPosition = text.length + 1
@@ -4194,7 +4208,9 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('delegates text longer than the fixed threshold to the long-text file handler', async () => {
+  it('delegates text longer than the threshold to the long-text file handler when enabled', async () => {
+    mocks.preferences['chat.input.paste_long_text_as_file'] = true
+    mocks.preferences['chat.input.paste_long_text_threshold'] = 1500
     render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
@@ -4211,6 +4227,90 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
+  it('uses the configured long-text paste threshold', async () => {
+    mocks.preferences['chat.input.paste_long_text_as_file'] = true
+    mocks.preferences['chat.input.paste_long_text_threshold'] = 2500
+    render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const atThresholdEvent = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2500) : ''))
+      }
+    }
+
+    expect(mocks.editorOptions.handlePaste(mocks.currentView, atThresholdEvent)).toBe(true)
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'a'.repeat(2500) }])
+
+    const aboveThresholdEvent = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2501) : ''))
+      }
+    }
+
+    expect(mocks.editorOptions.handlePaste(mocks.currentView, aboveThresholdEvent)).toBe(true)
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(aboveThresholdEvent)
+  })
+
+  it('inlines long pasted text when the paste-as-file feature is disabled', async () => {
+    render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const pastedText = 'a'.repeat(2001)
+    const insertContent = vi.fn(() => ({ run: mocks.chainRun }))
+    const viewEditor = {
+      isDestroyed: false,
+      state: {
+        selection: mocks.selection,
+        doc: { descendants: mocks.docDescendants }
+      },
+      chain: () => ({
+        focus: () => ({
+          setMeta: () => ({ insertContent })
+        })
+      })
+    }
+    const view = { dom: { editor: viewEditor } }
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? pastedText : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(view, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
+  })
+
+  it('prefers a supported clipboard image over long text when the input is full', async () => {
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(40000)} supportedExts={['.png', '.txt']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2001) : '')),
+        files: [{ name: 'screenshot.png', type: 'image/png' }]
+      }
+    }
+
+    expect(mocks.editorOptions.handlePaste(mocks.currentView, event)).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+    expect(mocks.insertContent).not.toHaveBeenCalled()
   })
 
   it('keeps long pasted text in the active editor when its ref is stale', async () => {

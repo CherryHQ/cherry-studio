@@ -15,13 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import {
-  type DshApi,
-  hasDshTextInput,
-  hasKnownDshContextWindow,
-  mapEndpointToDshApi,
-  resolveDshEndpointType
-} from '@shared/ai/dshModelCompatibility'
+import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -32,6 +26,8 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { resolveAgentContextWindow } from '../agentContextWindow'
+import { toAgentProviderHeaders } from '../agentProviderHeaders'
 import type { AgentSessionUsageCapture } from '../types'
 
 // dsh-llm-pi-ai uses maxTokens as a per-request output cap. Keep pi's
@@ -57,28 +53,6 @@ export class DshMissingApiKeyError extends Error {
     super(`Provider "${providerId}" has no API key configured for dsh agents`)
     this.name = 'DshMissingApiKeyError'
     this.providerId = providerId
-  }
-}
-
-/** Thrown when dsh cannot safely drive a model without its real context window. */
-export class DshMissingContextWindowError extends Error {
-  readonly modelId: string
-
-  constructor(modelId: string) {
-    super(`Model "${modelId}" has no context window configured; set it in model settings before using dsh`)
-    this.name = 'DshMissingContextWindowError'
-    this.modelId = modelId
-  }
-}
-
-/** Thrown when a model explicitly declares no text input, which DSH rc.6 requires. */
-export class DshUnsupportedModelInputError extends Error {
-  readonly modelId: string
-
-  constructor(modelId: string) {
-    super(`Model "${modelId}" is not supported by dsh agents: text input is required`)
-    this.name = 'DshUnsupportedModelInputError'
-    this.modelId = modelId
   }
 }
 
@@ -147,6 +121,8 @@ export interface DshModelConfig {
   maxTokens: number
   input: DshInputModality[]
   reasoningEfforts: false | DshReasoningEfforts
+  /** OpenAI-compatible protocol overrides owned by Cherry's provider settings. */
+  compat?: { supportsDeveloperRole: boolean }
 }
 
 export interface DshProviderInjection {
@@ -211,13 +187,11 @@ export function buildDshProviderInjection(
   if (!api) {
     throw new DshUnsupportedProviderError(provider.id)
   }
-  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
   if (!apiKey.trim()) throw new DshMissingApiKeyError(provider.id)
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = provider.settings?.extraHeaders
+  const headers = toAgentProviderHeaders(provider.settings?.extraHeaders)
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {
@@ -232,10 +206,20 @@ export function buildDshProviderInjection(
     modelConfig: {
       id: modelId,
       ...(model.name ? { name: model.name } : {}),
-      contextWindow: model.contextWindow,
+      contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
-      reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
+      reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
+      ...(api === 'openai-completions' || api === 'openai-responses'
+        ? {
+            compat: {
+              supportsDeveloperRole:
+                (resolvedEndpoint.endpointType
+                  ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.dialect?.developerRole
+                  : undefined) ?? false
+            }
+          }
+        : {})
     },
     usageCapture: {
       owner: 'agent-sdk',
@@ -246,6 +230,7 @@ export function buildDshProviderInjection(
       frozenModels: [
         {
           modelId: model.id,
+          apiModelId: modelId,
           modelName: model.name ?? model.id,
           aliases: [...new Set([model.id, modelId])],
           pricingSnapshot: createAiUsagePricingSnapshot(model.pricing)
@@ -259,36 +244,37 @@ export function buildDshProviderInjection(
  * Gateway-route counterpart of {@link buildDshProviderInjection}: the local API
  * Gateway fronts a model with no native dsh wire family as OpenAI-compatible.
  * The gateway key is a secret like any native key — it reaches the child only
- * through `CHERRY_DSH_API_KEY`, never the YAML.
+ * through `CHERRY_DSH_API_KEY`, never the YAML. The session usage headers ride
+ * the route's `headers` so the gateway can attach provider usage to the owning
+ * agent message and apply the stable per-session prompt cache key.
  *
  * @throws DshUnsupportedProviderError when the model is not gateway-routable either.
  */
 export function buildDshGatewayInjection(
   provider: Provider,
   model: Model,
-  gateway: { baseUrl: string; apiKey: string },
+  gateway: { baseUrl: string; apiKey: string; usageHeaders: Record<string, string> },
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
-  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
-
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
   return {
     providerName: provider.id,
     api: 'openai-completions',
     baseUrl: formatDshBaseUrl(gateway.baseUrl, 'openai-completions'),
+    ...(Object.keys(gateway.usageHeaders).length ? { headers: gateway.usageHeaders } : {}),
     apiKey: gateway.apiKey,
     modelId,
     ...(reasoning ? { reasoning } : {}),
     modelConfig: {
       id: modelId,
       ...(model.name ? { name: model.name } : {}),
-      contextWindow: model.contextWindow,
+      contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
-      reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
+      reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
+      compat: { supportsDeveloperRole: true }
     },
     // The gateway middleware records provider usage; agent-sdk capture would double-count.
     usageCapture: { owner: 'provider-calls' }
@@ -352,15 +338,10 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {
     if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
-    if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-    if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
     // Consent only (persisted intent) — no ensureRunning/ensureValidApiKey side effects here.
     if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
-  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-  if (!hasKnownDshContextWindow(model)) throw new DshMissingContextWindowError(model.id)
-
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
   if (!apiKeys.some((entry) => entry.key.trim())) throw new DshMissingApiKeyError(providerId)
 }

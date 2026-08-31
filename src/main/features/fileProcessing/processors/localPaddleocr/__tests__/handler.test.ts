@@ -72,14 +72,14 @@ describe('localPaddleocrImageToTextHandler', () => {
       throw new Error('Expected local PaddleOCR handler to prepare a background task')
     }
 
-    recognizeMock.mockResolvedValueOnce('hello world')
+    recognizeMock.mockResolvedValueOnce({ text: 'hello world', lines: [] })
     const signal = new AbortController().signal
 
     await expect(prepared.execute({ signal, reportProgress: vi.fn() })).resolves.toEqual({
       kind: 'text',
       text: 'hello world'
     })
-    expect(recognizeMock).toHaveBeenCalledWith(MODEL_PATHS, '/tmp/input.png', signal)
+    expect(recognizeMock).toHaveBeenCalledWith(MODEL_PATHS, { kind: 'path', imagePath: '/tmp/input.png' }, signal)
   })
 
   it('rejects non-image files', () => {

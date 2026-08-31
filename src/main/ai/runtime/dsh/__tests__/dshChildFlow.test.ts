@@ -33,6 +33,19 @@ function spawnAnchor(callId: string, description: string, toolName = 'subagent')
   } as CherryUIMessageChunk
 }
 
+function sendAnchor(callId: string, subagentId: string): CherryUIMessageChunk {
+  return {
+    type: 'tool-input-available',
+    toolCallId: callId,
+    toolName: 'send_message',
+    input: { subagent_id: subagentId, message: 'go on' }
+  } as CherryUIMessageChunk
+}
+
+function toolError(callId: string): CherryUIMessageChunk {
+  return { type: 'tool-output-error', toolCallId: callId, errorText: 'failed' } as CherryUIMessageChunk
+}
+
 function makeSink() {
   return {
     currentTurnToken: vi.fn<() => number | null>().mockReturnValue(null),
@@ -104,18 +117,74 @@ describe('DshSubagentCoordinator binding', () => {
     coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
     coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
 
-    // send_message wake: its own anchor exists, but the known child keeps its root card.
-    coordinator.noteMainChunk(spawnAnchor('call-send', 'follow up', 'send_message'))
+    // send_message wake: the known child keeps its root card.
+    coordinator.noteMainChunk(sendAnchor('call-send', 'child-1'))
     coordinator.handleLifecycle(startEdge('child-1', 'run-2'))
     coordinator.handleChildEvent('child-1', textDelta(1, 0, 'again'))
     expect(sink.emitFlowChunk.mock.calls.every(([root]) => root === 'call-1')).toBe(true)
   })
 
-  it('binds a cold-resumed unknown child to the send_message anchor', () => {
-    coordinator.noteMainChunk(spawnAnchor('call-send', 'resume it', 'send_message'))
+  it('never leaks a warm send_message anchor onto the next spawned child', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-1', 'first task'))
+    coordinator.handleLifecycle(startEdge('child-1', 'run-1'))
+    coordinator.handleLifecycle(endEdge('child-1', 'run-1'))
+    coordinator.noteMainChunk(sendAnchor('call-send', 'child-1'))
+    coordinator.handleLifecycle(startEdge('child-1', 'run-2'))
+
+    coordinator.noteMainChunk(spawnAnchor('call-2', 'second task'))
+    coordinator.handleLifecycle(startEdge('child-2', 'run-3'))
+    coordinator.handleChildEvent('child-2', textDelta(0, 0, 'fresh'))
+    const roots = sink.emitFlowChunk.mock.calls.map(([root]) => root)
+    expect(roots).toContain('call-2')
+    expect(roots).not.toContain('call-send')
+  })
+
+  it('binds a cold-resumed unknown child to its targeted send_message anchor', () => {
+    coordinator.noteMainChunk(sendAnchor('call-send', 'revived-child'))
     coordinator.handleLifecycle(startEdge('revived-child', 'run-9'))
     coordinator.handleChildEvent('revived-child', textDelta(3, 0, 'resumed'))
+    const deltas = sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0][0]).toBe('call-send')
     expect(sink.emitFlowChunk.mock.calls.every(([root]) => root === 'call-send')).toBe(true)
+  })
+
+  it('cold resume matches its targeted anchor instead of stealing an older spawn anchor', () => {
+    coordinator.noteMainChunk(spawnAnchor('call-2', 'pending spawn'))
+    coordinator.noteMainChunk(sendAnchor('call-send', 'revived-child'))
+    coordinator.handleLifecycle(startEdge('revived-child', 'run-9'))
+    coordinator.handleChildEvent('revived-child', textDelta(0, 0, 'resumed'))
+    const deltas = sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0][0]).toBe('call-send')
+    expect(sink.emitFlowChunk.mock.calls.every(([root]) => root === 'call-send')).toBe(true)
+
+    coordinator.handleLifecycle(startEdge('child-2', 'run-10'))
+    coordinator.handleChildEvent('child-2', textDelta(0, 0, 'spawned'))
+    expect(sink.emitFlowChunk.mock.calls.some(([root]) => root === 'call-2')).toBe(true)
+  })
+
+  it('drops a failed send_message anchor so a successful retry binds the resumed child', () => {
+    coordinator.noteMainChunk(sendAnchor('call-send-failed', 'revived-child'))
+    coordinator.noteMainChunk(toolError('call-send-failed'))
+    coordinator.noteMainChunk(sendAnchor('call-send-retry', 'revived-child'))
+    coordinator.handleLifecycle(startEdge('revived-child', 'run-9'))
+    coordinator.handleChildEvent('revived-child', textDelta(0, 0, 'resumed'))
+
+    const deltas = sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0][0]).toBe('call-send-retry')
+    expect(sink.emitFlowChunk.mock.calls.map(([root]) => root)).not.toContain('call-send-failed')
+  })
+
+  it('keeps a pending anchor when an unrelated tool call fails', () => {
+    coordinator.noteMainChunk(sendAnchor('call-send', 'revived-child'))
+    coordinator.noteMainChunk(toolError('call-other'))
+    coordinator.handleLifecycle(startEdge('revived-child', 'run-9'))
+    coordinator.handleChildEvent('revived-child', textDelta(0, 0, 'resumed'))
+    const deltas = sink.emitFlowChunk.mock.calls.filter(([, chunk]) => chunk.type === 'text-delta')
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0][0]).toBe('call-send')
   })
 
   it('ignores non-anchor tools when queueing anchors', () => {

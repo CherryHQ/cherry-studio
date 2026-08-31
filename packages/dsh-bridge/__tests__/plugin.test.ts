@@ -5,7 +5,10 @@ import os from 'node:os'
 import path from 'node:path'
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import type { ApprovalOutcome, ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
+import type { UserQuestionProvider } from '@deepseek-ai/dsh-user-questions'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { apply } from '../src/plugin'
@@ -25,7 +28,9 @@ afterEach(async () => {
 })
 
 /** Host peer: answers the plugin's `ready` and drives host→plugin requests. */
-async function startHost() {
+async function startHost(
+  respond: (method: string, params: Record<string, unknown>) => unknown | Promise<unknown> = () => ({})
+) {
   const socketPath =
     process.platform === 'win32'
       ? `\\\\.\\pipe\\cherry-dsh-plugin-${randomUUID()}`
@@ -38,7 +43,7 @@ async function startHost() {
     transport = new JsonRpcLineTransport(socket, socket)
     transport.onRequest(async (method, params) => {
       requests.push({ method, params })
-      return {}
+      return respond(method, params)
     })
     transport.start()
   })
@@ -86,7 +91,8 @@ const openParams = {
     readTools: [],
     editTools: [],
     autoApprovedTools: [],
-    approvalRequiredTools: []
+    approvalRequiredTools: [],
+    nonBypassableApprovalTools: []
   },
   tools: []
 }
@@ -114,6 +120,141 @@ describe('cherry bridge plugin', () => {
 
     await expect(host.request('session/open', openParams)).rejects.toThrow('does not match')
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('routes a delegated subagent tool call through the root session', async () => {
+    const host = await startHost()
+    const register = vi.fn().mockReturnValue(() => {})
+    const rootAgent = { id: 'session-1', session: { header: { cwd: '/new-workspace' } } }
+    const get = vi.fn((id: string) => (id === 'session-1' ? rootAgent : undefined))
+    const ctx = makeContext({
+      agents: { resume: vi.fn(), create: vi.fn().mockResolvedValue(rootAgent), get },
+      tools: { register, guard: vi.fn() }
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+
+    await host.request('session/open', {
+      ...openParams,
+      resume: false,
+      tools: [{ name: 'echo', description: 'echoes its input', inputSchema: { type: 'object' } }]
+    })
+    expect(register).toHaveBeenCalledOnce()
+
+    const definition = register.mock.calls[0][0]
+    const child = { id: 'child-1', session: { header: { parentSession: 'session-1' } } }
+    await definition.execute({ value: 1 }, { agent: child })
+
+    const toolCall = host.requests.find((entry) => entry.method === 'tool/call')
+    expect(toolCall?.params).toMatchObject({ sessionId: 'session-1', name: 'echo', args: { value: 1 } })
+  })
+
+  it('correlates a plan review with the newest matching exit_plan_mode call', async () => {
+    const host = await startHost()
+    const plan = '# Revised plan'
+    const agent = {
+      id: 'session-1',
+      session: {
+        events: [
+          {
+            type: 'tool/call',
+            data: { callId: 'exit-plan-call-1', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
+          },
+          {
+            type: 'tool/call',
+            data: { callId: 'exit-plan-call-2', name: 'exit_plan_mode', arguments: JSON.stringify({ plan }) }
+          }
+        ]
+      }
+    } as unknown as Agent
+    let provider: UserQuestionProvider | undefined
+    const registerProvider = vi.fn((candidate: UserQuestionProvider) => {
+      provider = candidate
+      return () => undefined
+    })
+    const effect = vi.fn((factory: () => unknown) => {
+      const disposer = factory()
+      if (typeof disposer === 'function') cleanup.push(disposer as () => void)
+      return () => undefined
+    })
+    const ctx = makeContext({
+      agents: { resume: vi.fn(), create: vi.fn(), get: vi.fn(() => agent) },
+      userQuestions: { registerProvider },
+      effect
+    })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!provider) throw new Error('user-questions provider was not registered')
+
+    const answer = provider.ask({
+      agent,
+      questions: [
+        {
+          id: 'plan-review',
+          question: 'Approve?',
+          detail: plan,
+          options: [{ label: 'Approve' }],
+          intent: { kind: 'plan-review', approve: 'Approve' }
+        }
+      ]
+    })
+    await expect
+      .poll(() => host.requests.find((request) => request.method === 'question/ask'))
+      .toMatchObject({
+        params: { sessionId: 'session-1', callId: 'exit-plan-call-2' }
+      })
+    await expect(answer).resolves.toEqual({})
+  })
+
+  it('delivers rejected approval feedback to the same agent after settling the outcome', async () => {
+    const host = await startHost((method) =>
+      method === 'approval/ask' ? { outcome: 'rejected', rejectionReason: 'use a copy instead' } : {}
+    )
+    const followup = vi.fn()
+    const agent = { id: 'session-1', followup, session: { events: [] } } as unknown as Agent
+    let approvalHandler: ((request: ApprovalRequest) => Promise<ApprovalOutcome>) | undefined
+    const on = vi.fn((event: string, handler: unknown) => {
+      if (event === 'approval/request') {
+        approvalHandler = handler as (request: ApprovalRequest) => Promise<ApprovalOutcome>
+      }
+      return () => undefined
+    })
+    const ctx = makeContext({ on })
+    process.env[BRIDGE_SOCKET_ENV] = host.socketPath
+    process.env[BRIDGE_TOKEN_ENV] = 'one-time-token'
+
+    apply(ctx)
+    await expect.poll(() => host.requests[0]?.method).toBe('ready')
+    if (!approvalHandler) throw new Error('approval handler was not registered')
+
+    await expect(
+      approvalHandler({
+        agent,
+        toolName: 'bash',
+        callId: 'call-with-feedback',
+        reason: 'needs approval'
+      } as ApprovalRequest)
+    ).resolves.toBe('rejected')
+    expect(followup).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(followup).toHaveBeenCalledOnce())
+    expect(followup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'user',
+        source: { kind: 'user' },
+        content: [
+          {
+            type: 'text',
+            text: 'Tool approval feedback for "bash":\nuse a copy instead'
+          }
+        ]
+      })
+    )
   })
 
   it('rejects an unknown method instead of answering it', async () => {

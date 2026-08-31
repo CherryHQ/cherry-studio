@@ -3,14 +3,16 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
-import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import { PRESET_MCP_SERVERS } from '@shared/data/presets/mcpServers'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import { Check, ExternalLink, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { QVERIS_API_KEY_REGISTRATION_URL } from './QVerisApiKeyGuide'
 import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
@@ -22,19 +24,17 @@ const BuiltinMcpServerList: FC = () => {
   const filteredServers = useMemo(() => {
     const keyword = searchText.trim().toLowerCase()
 
-    return builtinMcpServers
-      .filter((server) => {
-        const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
+    return PRESET_MCP_SERVERS.filter((server) => {
+      const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
-        if (filter === 'installed' && !isInstalled) return false
-        if (filter === 'uninstalled' && isInstalled) return false
+      if (filter === 'installed' && !isInstalled) return false
+      if (filter === 'uninstalled' && isInstalled) return false
 
-        if (!keyword) return true
+      if (!keyword) return true
 
-        const description = t(getBuiltInMcpServerDescriptionLabelKey(server.name)).toLowerCase()
-        return server.name.toLowerCase().includes(keyword) || description.includes(keyword)
-      })
-      .sort((a, b) => Number(Boolean(a.shouldConfig)) - Number(Boolean(b.shouldConfig)))
+      const description = t(getBuiltInMcpServerDescriptionLabelKey(server.name)).toLowerCase()
+      return server.name.toLowerCase().includes(keyword) || description.includes(keyword)
+    }).sort((a, b) => Number(Boolean(a.shouldConfig)) - Number(Boolean(b.shouldConfig)))
   }, [filter, mcpServers, searchText, t])
 
   return (
@@ -68,7 +68,7 @@ const BuiltinMcpServerList: FC = () => {
 
           return (
             <div
-              key={server.id}
+              key={server.name}
               className={cn(
                 'group flex min-h-16 items-center gap-3 rounded-lg border border-border-subtle px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
                 isInstalled && 'bg-muted/25'
@@ -105,6 +105,15 @@ const BuiltinMcpServerList: FC = () => {
                           href={server.reference}
                           className="wrap-break-word mt-2 inline-block text-link hover:underline">
                           {server.reference}
+                        </a>
+                      )}
+                      {server.name === BuiltinMcpServerNames.qveris && (
+                        <a
+                          href={QVERIS_API_KEY_REGISTRATION_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wrap-break-word mt-2 block text-link hover:underline">
+                          {t('settings.mcp.qveris.get_api_key')}
                         </a>
                       )}
                     </div>

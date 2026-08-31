@@ -3,15 +3,27 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { skillService } from '@main/ai/skills/SkillService'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBundledGitDir } from '@main/utils/bundledGit'
-import { sanitizeEnvForLogging } from '@main/utils/envRedaction'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
-import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import {
+  CODE_CLI_TOOL_PRESET_BY_EXECUTABLE,
+  CODE_CLI_TOOL_PRESET_MAP,
+  CODE_CLI_TOOL_PRESETS,
+  type CodeCliToolPreset
+} from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type {
+  BinaryInstallByNameRequest,
+  BinaryRemoveRequest,
+  BinaryRemoveResult,
+  BinaryToolSnapshot
+} from '@shared/types/binary'
 import {
   CodeCli,
   LOGIN_CAPABLE_CLI_TOOLS,
@@ -21,11 +33,14 @@ import {
 } from '@shared/types/codeCli'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
-import type { CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import type { CliConfigTarget, CliConfigWriteFile, FileConfiguredCli } from '@shared/utils/cliConfig'
+import { REDACTED } from '@shared/utils/redaction'
 import { execFile, spawn } from 'child_process'
+import { app } from 'electron'
 import { promisify } from 'util'
 
-import { writeCliConfigFiles } from './configWriter'
+import { prepareAntigravityLaunch } from './antigravity'
+import { type CliConfigReadFile, readCliConfigFiles, writeCliConfigFiles } from './configWriter'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -63,6 +78,7 @@ const MACOS_APPLICATION_LOOKUP_SCRIPT = [
 
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
+@DependsOn(['BinaryManager'])
 export class CodeCliService extends BaseService {
   // Static properties for cleanup management (avoid listener accumulation)
   private static pendingBatCleanups = new Set<string>()
@@ -77,6 +93,75 @@ export class CodeCliService extends BaseService {
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
       void this.preloadTerminals()
+    }
+  }
+
+  protected override async onAllReady(): Promise<void> {
+    await this.reconcileCliSkills().catch((error) => {
+      logger.error('Failed to reconcile Code CLI skills', error as Error)
+    })
+  }
+
+  async installCli(request: BinaryInstallByNameRequest): Promise<void> {
+    const preset = this.requirePreset(request.name)
+    await application.get('BinaryManager').installByName(request)
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+    if (!snapshot || snapshot.availability.source === 'none') {
+      throw new Error(`${preset.executable} is unavailable after installation`)
+    }
+    await this.installCliSkill(preset)
+  }
+
+  async removeCli(request: BinaryRemoveRequest): Promise<BinaryRemoveResult> {
+    const preset = this.requirePreset(request.name)
+    const result = await application.get('BinaryManager').removeTool(request)
+    if (result.status === 'cleanup_blocked') return result
+
+    const snapshot = (await application.get('BinaryManager').getToolSnapshots([preset.executable]))[preset.executable]
+    if (snapshot) await this.reconcileCliSkill(preset, snapshot)
+    return result
+  }
+
+  async reconcileCliSkills(): Promise<void> {
+    const snapshots = await application
+      .get('BinaryManager')
+      .getToolSnapshots(CODE_CLI_TOOL_PRESETS.map((preset) => preset.executable))
+
+    for (const preset of CODE_CLI_TOOL_PRESETS) {
+      const snapshot = snapshots[preset.executable]
+      if (!snapshot) continue
+      try {
+        await this.reconcileCliSkill(preset, snapshot)
+      } catch (error) {
+        logger.warn('Failed to reconcile Code CLI skill', {
+          cliTool: preset.id,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+  }
+
+  private requirePreset(executable: string): CodeCliToolPreset {
+    const preset = CODE_CLI_TOOL_PRESET_BY_EXECUTABLE[executable]
+    if (!preset) throw new Error(`Unknown Code CLI: ${executable}`)
+    return preset
+  }
+
+  private async installCliSkill(preset: CodeCliToolPreset): Promise<void> {
+    const sourcePath = path.join(
+      toAsarUnpackedPath(application.getPath('feature.code_cli.skills.builtin')),
+      preset.skillFolderName
+    )
+    await skillService.syncBuiltinSkill(preset.skillFolderName, sourcePath, app.getVersion(), preset.skillNamespace)
+  }
+
+  private async reconcileCliSkill(preset: CodeCliToolPreset, snapshot: BinaryToolSnapshot): Promise<void> {
+    if (snapshot.availability.source !== 'none') {
+      await this.installCliSkill(preset)
+      return
+    }
+    if (snapshot.application?.status === 'absent') {
+      await skillService.uninstallBuiltinSkill(preset.skillFolderName, preset.skillNamespace)
     }
   }
 
@@ -350,7 +435,15 @@ export class CodeCliService extends BaseService {
 
   /** Transactional write of a file-configured CLI's config files (code_cli.write_config). */
   public async writeConfigFiles(cliTool: FileConfiguredCli, files: CliConfigWriteFile[]): Promise<void> {
+    if (cliTool === CodeCli.HERMES) {
+      return application.get('HermesDashboardService').writeConfigFiles(() => writeCliConfigFiles(cliTool, files))
+    }
     return writeCliConfigFiles(cliTool, files)
+  }
+
+  /** Batch read of CLI config files (code_cli.read_config); content === null ⇔ file missing. */
+  public async readConfigFiles(targets: readonly CliConfigTarget[]): Promise<CliConfigReadFile[]> {
+    return readCliConfigFiles(targets)
   }
 
   async run(input: CodeCliRunInput): Promise<OperationResult> {
@@ -364,6 +457,11 @@ export class CodeCliService extends BaseService {
     }
     if (cliTool === CodeCli.DEEPSEEK_HARNESS) {
       const message = 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message }
+    }
+    if (cliTool === CodeCli.HERMES) {
+      const message = 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
       logger.error(message)
       return { success: false, message }
     }
@@ -416,7 +514,7 @@ export class CodeCliService extends BaseService {
         // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
         // recipe itself and writes no Preference — the CLI is a code-owned tool,
         // not a user-added custom one.
-        await binaryManager.installByName({ name: executableName })
+        await this.installCli({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -430,6 +528,15 @@ export class CodeCliService extends BaseService {
         const message = `${cliTool} is not available after install`
         logger.error(message)
         return { success: false, message }
+      }
+    } else {
+      try {
+        await this.installCliSkill(preset)
+      } catch (error) {
+        logger.warn('Failed to sync an available Code CLI skill before launch', {
+          cliTool,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
     }
 
@@ -467,7 +574,6 @@ export class CodeCliService extends BaseService {
       }
 
       logger.info('Setting environment variables:', Object.keys(env))
-      logger.debug('Environment variable values:', sanitizeEnvForLogging(env))
 
       if (isWindows) {
         // Windows uses set command
@@ -490,7 +596,7 @@ export class CodeCliService extends BaseService {
         const envCommands = validEntries
           .map(([key, value]) => {
             const exportCmd = `export ${key}=${posixQuote(String(value))}`
-            logger.debug(`Setting env var: ${key}=<redacted>`)
+            logger.debug(`Setting env var: ${key}=${REDACTED}`)
             return exportCmd
           })
           .join(' && ')
@@ -546,6 +652,34 @@ export class CodeCliService extends BaseService {
         }
         baseCommand = `${baseCommand} --model ${modelArg}`
       }
+    }
+
+    if (cliTool === CodeCli.ANTIGRAVITY_CLI && normal) {
+      let launchConfig
+      try {
+        launchConfig = await prepareAntigravityLaunch(normal)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to prepare Antigravity CLI launch', error as Error)
+        return { success: false, message }
+      }
+
+      // `prepareAntigravityLaunch` already rejects unsafe ids (before it writes settings),
+      // but this is the boundary where the model is concatenated into a shell string and a
+      // .bat, so it re-checks rather than trust its caller.
+      if (!isShellSafeModelId(launchConfig.model)) {
+        const message = `Unsupported model id for ${cliTool}: ${launchConfig.model}`
+        logger.error(message)
+        return { success: false, message }
+      }
+
+      Object.assign(env, launchConfig.env)
+      const geminiDirArg =
+        platform === 'win32'
+          ? `"--gemini_dir=${launchConfig.geminiDir.replace(/%/g, '%%')}"`
+          : posixQuote(`--gemini_dir=${launchConfig.geminiDir}`)
+      const modelArg = platform === 'win32' ? `"${launchConfig.model}"` : posixQuote(launchConfig.model)
+      baseCommand = `${baseCommand} ${geminiDirArg} --model ${modelArg}`
     }
 
     // The Claude Code settings panel lands its terminal on the login flow rather
@@ -784,7 +918,6 @@ export class CodeCliService extends BaseService {
     // Launch terminal process
     try {
       logger.info(`Launching terminal with command: ${terminalCommand}`)
-      logger.debug(`Terminal arguments:`, terminalArgs)
       logger.debug(`Working directory: ${directory}`)
       logger.debug(`Process environment keys: ${Object.keys(processEnv)}`)
 

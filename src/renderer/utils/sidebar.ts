@@ -1,4 +1,5 @@
 import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import { CONVERSATION_ROUTES, conversationRouteUrl } from '@shared/utils/conversationRoute'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -62,18 +63,20 @@ export function isMessageOnlyConversationUrl(url: string): boolean {
 const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'assistants',
+    // `routePrefix` must stay a string literal — the knowledge-manifest generator reads it
+    // with ts-morph. `conversationRoute` below carries the same path from the shared contract.
     routePrefix: '/app/chat',
     conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'topicId'),
-      urlForKey: (key) => `/app/chat?topicId=${encodeURIComponent(key)}`
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.assistant.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'assistant', conversationId: key })
     }
   },
   {
     id: 'agents',
     routePrefix: '/app/agents',
     conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'sessionId'),
-      urlForKey: (key) => `/app/agents?sessionId=${encodeURIComponent(key)}`
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
     }
   },
   {
@@ -140,13 +143,6 @@ export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
  */
 export const SIDEBAR_FAVORITE_ORDER: SidebarAppId[] = SIDEBAR_APPS.map((app) => app.id)
 
-/**
- * 必须显示的侧边栏收藏项（不能被隐藏）
- * 这些收藏项必须始终在侧边栏中可见
- * 抽取为参数方便未来扩展
- */
-export const REQUIRED_SIDEBAR_FAVORITES: SidebarAppId[] = ['assistants']
-
 const sidebarFavoriteSet = new Set<SidebarAppId>(SIDEBAR_FAVORITE_ORDER)
 
 export function getSidebarMenuPath(favorite: SidebarAppId, defaultPaintingProvider: string): string {
@@ -168,10 +164,6 @@ function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
   return { type: 'app', id }
 }
 
-function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
-  return { type: 'mini_app', id }
-}
-
 /**
  * Stable identity for a favorite — its react key and reorder-matching key.
  *
@@ -188,6 +180,8 @@ function isForwardCompatibleSidebarFavoriteItem(favorite: SidebarFavoriteItem): 
     typeof item.type === 'string' &&
     item.type !== 'app' &&
     item.type !== 'mini_app' &&
+    item.type !== 'agent' &&
+    item.type !== 'assistant' &&
     typeof item.id === 'string' &&
     item.id.length > 0
   )
@@ -230,6 +224,9 @@ function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFav
       return isSidebarAppId(favorite.id) ? { ...favorite } : undefined
     case 'mini_app':
       return favorite.id ? { ...favorite } : undefined
+    case 'agent':
+    case 'assistant':
+      return favorite.id ? { ...favorite } : undefined
     default: {
       // Untrusted storage boundary: an unknown type (corrupt or written by a newer
       // build) is dropped, not thrown, so a downgrade never crashes. The `never`
@@ -269,21 +266,15 @@ export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavorite
 
 /**
  * The full ordered, deduped sidebar list — apps and mini apps interleaved in
- * their stored order. Required apps missing from storage are prepended so they
- * are always visible. This is the single source of truth the sidebar renders
+ * their stored order. This is the single source of truth the sidebar renders
  * from; every mutation below operates on this list in place, preserving the
  * mixed order instead of segregating apps before mini apps.
  */
 export function getOrderedVisibleSidebarFavoriteItems(
   favorites: readonly SidebarFavoriteItem[] | undefined
 ): SidebarFavoriteItem[] {
-  const items = getSidebarFavoriteItems(favorites)
   // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const missingRequired = REQUIRED_SIDEBAR_FAVORITES.filter(
-    (id) => !items.some((item) => item.type === 'app' && item.id === id)
-  ).map(createSidebarAppFavorite)
-
-  return [...missingRequired, ...items]
+  return getSidebarFavoriteItems(favorites)
 }
 
 /** Built-in app ids projected out of the mixed list, in order. */
@@ -294,6 +285,20 @@ export function getOrderedVisibleSidebarFavorites(
   return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
     favorite.type === 'app' && isSidebarAppId(favorite.id) ? [favorite.id] : []
   )
+}
+
+/**
+ * The url to land on at launch: the first visible sidebar app, resolved through
+ * its menu path. Mini apps are excluded — they need async data to resolve and a
+ * stale id would land on an unusable tab. Returns `''` when no app is visible
+ * (or only mini apps are), so the caller can fall back to its default tab.
+ */
+export function getSidebarDefaultLandingUrl(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  defaultPaintingProvider: string
+): string {
+  const firstApp = getOrderedVisibleSidebarFavorites(favorites)[0]
+  return firstApp ? getSidebarMenuPath(firstApp, defaultPaintingProvider) : ''
 }
 
 // --- Favorites mutations -----------------------------------------------------
@@ -338,8 +343,9 @@ export function reorderSidebarFavorites(
 
 /**
  * Pin or unpin a built-in app, preserving everything else in place. Pinning
- * appends to the end of the list; unpinning a required app is a no-op — required
- * apps are always visible.
+ * appends to the end of the list; unpinning removes the app from the list.
+ * At least one built-in app is always retained so the sidebar never becomes
+ * empty with no recovery entry.
  */
 export function setSidebarAppPinned(
   favorites: readonly SidebarFavoriteItem[] | undefined,
@@ -351,7 +357,10 @@ export function setSidebarAppPinned(
   const isTarget = (item: SidebarFavoriteItem) => item.type === 'app' && item.id === id
 
   if (!pinned) {
-    if (REQUIRED_SIDEBAR_FAVORITES.includes(id)) return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+    const visibleAppIds = getOrderedVisibleSidebarFavorites(favorites)
+    if (visibleAppIds.length === 1 && visibleAppIds[0] === id) {
+      return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+    }
     return preserveForwardCompatibleSidebarFavoriteItems(
       favorites,
       items.filter((item) => !isTarget(item))
@@ -362,22 +371,44 @@ export function setSidebarAppPinned(
   return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarAppFavorite(id)])
 }
 
+type SidebarLeafFavoriteType = 'mini_app' | 'agent' | 'assistant'
+
+// LEAF-ONLY: recurse into group.items when a 'group' variant is added.
+const isSidebarLeafFavorite = (item: SidebarFavoriteItem, type: SidebarLeafFavoriteType, id: string) =>
+  item.type === type && item.id === id
+
+/** Toggle a leaf favorite in place: present → filtered out, absent → appended to the end. */
+function toggleSidebarLeafFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string
+): SidebarFavoriteItem[] {
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+
+  if (items.some((item) => isSidebarLeafFavorite(item, type, id))) {
+    return removeSidebarLeafFavorite(favorites, type, id)
+  }
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+}
+
+/** Remove a leaf favorite, preserving everything else in place. */
+function removeSidebarLeafFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string
+): SidebarFavoriteItem[] {
+  return preserveForwardCompatibleSidebarFavoriteItems(
+    favorites,
+    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !isSidebarLeafFavorite(item, type, id))
+  )
+}
+
 /** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
 export function toggleSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const isTarget = (item: SidebarFavoriteItem) => item.type === 'mini_app' && item.id === id
-
-  if (items.some(isTarget)) {
-    return preserveForwardCompatibleSidebarFavoriteItems(
-      favorites,
-      items.filter((item) => !isTarget(item))
-    )
-  }
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarMiniAppFavorite(id)])
+  return toggleSidebarLeafFavorite(favorites, 'mini_app', id)
 }
 
 /** Remove a mini app favorite, preserving everything else in place. */
@@ -385,11 +416,29 @@ export function removeSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  return preserveForwardCompatibleSidebarFavoriteItems(
-    favorites,
-    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === 'mini_app' && item.id === id))
-  )
+  return removeSidebarLeafFavorite(favorites, 'mini_app', id)
+}
+
+/**
+ * Toggle a pinned user entity (agent / assistant) favorite, preserving
+ * everything else in place. Adding appends to the end of the whole list,
+ * removing filters the target out — mirrors {@link toggleSidebarMiniApp}.
+ */
+export function toggleSidebarEntityFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: 'agent' | 'assistant',
+  id: string
+): SidebarFavoriteItem[] {
+  return toggleSidebarLeafFavorite(favorites, type, id)
+}
+
+/** Remove a pinned user entity (agent / assistant) favorite, preserving everything else in place. */
+export function removeSidebarEntityFavorite(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: 'agent' | 'assistant',
+  id: string
+): SidebarFavoriteItem[] {
+  return removeSidebarLeafFavorite(favorites, type, id)
 }
 
 // --- Launchpad app order --------------------------------------------------

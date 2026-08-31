@@ -283,6 +283,30 @@ describe('error', () => {
       ).toBe('model access denied')
     })
 
+    it('reads a message nested under detail.error.message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: '429 Too Many Requests',
+          stack: null,
+          statusCode: 429,
+          responseBody:
+            '{"detail":{"error":{"message":"Model API rate limit exceeded; please retry later","type":"rate_limit_error","code":"global_concurrency_rate_limit_exceeded"}}}'
+        })
+      ).toBe('Model API rate limit exceeded; please retry later')
+    })
+
+    it('reads a message nested under detail.message', () => {
+      expect(
+        providerErrorText({
+          name: 'AI_APICallError',
+          message: 'Bad Request',
+          stack: null,
+          responseBody: '{"detail":{"message":"invalid model id"}}'
+        })
+      ).toBe('invalid model id')
+    })
+
     it('falls back to the raw body for an unrecognised shape', () => {
       expect(
         providerErrorText({
