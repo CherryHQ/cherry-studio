@@ -195,6 +195,12 @@ describe('client web provider readiness', () => {
     expect(resolveReadyWebSearchProvider([tavily, exaMcp], tavily, 'searchKeywords')).toBe(tavily)
   })
 
+  it('does not select a fallback until a primary provider has been configured', () => {
+    const exaMcp = provider('exa-mcp')
+
+    expect(resolveReadyWebSearchProvider([exaMcp], undefined, 'searchKeywords')).toBeUndefined()
+  })
+
   it('uses the fixed keyless provider when the primary capability is not ready', () => {
     const tavily = provider('tavily')
     const exaMcp = provider('exa-mcp')

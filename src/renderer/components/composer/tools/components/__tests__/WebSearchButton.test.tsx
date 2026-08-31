@@ -189,9 +189,6 @@ describe('WebSearchButton', () => {
   })
 
   it('opens web search settings and restores trigger focus when external providers are missing', () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
-      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
-    })
     vi.mocked(popup.confirm).mockResolvedValue(false)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
@@ -212,9 +209,6 @@ describe('WebSearchButton', () => {
   })
 
   it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
-      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
-    })
     vi.mocked(popup.confirm).mockResolvedValue(true)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
@@ -340,13 +334,7 @@ describe('WebSearchButton', () => {
 
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.search_keywords.client_tools_preferred', false)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.fetch_urls.client_tools_preferred', false)
-    mocks.provider = {
-      id: 'gemini',
-      serverTools: [
-        { id: 'web-search', modelScope: 'model-dependent' },
-        { id: 'url-context', modelScope: 'model-dependent' }
-      ]
-    }
+    mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
     mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
@@ -379,9 +367,6 @@ describe('WebSearchButton', () => {
   })
 
   it('restores composer focus after the missing-provider confirmation closes from the tool menu', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
-      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
-    })
     vi.mocked(popup.confirm).mockResolvedValue(false)
     const inputAdapter = {
       getText: vi.fn(() => ''),

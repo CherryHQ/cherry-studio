@@ -250,6 +250,7 @@ export function resolveReadyWebSearchProvider(
   primary: WebSearchProvider | undefined,
   capability: WebSearchCapability
 ): WebSearchProvider | undefined {
+  if (!primary) return undefined
   if (isWebSearchProviderReady(primary, capability)) return primary
 
   const fallbackProviderId = WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY[capability]
