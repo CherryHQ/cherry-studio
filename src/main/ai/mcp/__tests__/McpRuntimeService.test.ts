@@ -29,10 +29,12 @@ vi.mock('@data/services/McpServerService', () => ({
 }))
 
 const shellEnvMock = vi.hoisted(() => ({
-  getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+  getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' }),
+  getRawShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
 }))
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: shellEnvMock.getShellEnv
+  getShellEnv: shellEnvMock.getShellEnv,
+  getRawShellEnv: shellEnvMock.getRawShellEnv
 }))
 
 const commandResolverMock = vi.hoisted(() => ({

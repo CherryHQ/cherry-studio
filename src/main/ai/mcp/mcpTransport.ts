@@ -6,8 +6,8 @@ import {
   getBuiltinRegistryEnv,
   hasInMemoryImplementation
 } from '@main/ai/mcp/servers/factory'
-import { defaultAppHeaders } from '@main/utils/http'
 import { getBinarySearchDirs, mergePathSuffixes } from '@main/utils/binaryEnv'
+import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'

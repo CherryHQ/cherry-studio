@@ -232,6 +232,7 @@ vi.mock('@main/utils/rtk', () => ({
 
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv,
+  getRawShellEnv: mocks.getShellEnv,
   refreshShellEnv: mocks.refreshShellEnv
 }))
 

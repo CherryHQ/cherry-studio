@@ -160,6 +160,7 @@ vi.mock('./piSdk', () => ({
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 vi.mock('@main/utils/shellEnv', () => ({
   getShellEnv: mocks.getShellEnv,
+  getRawShellEnv: mocks.getShellEnv,
   getPathFromEnvironment: (env: Record<string, string | undefined>) =>
     Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
 }))

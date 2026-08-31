@@ -21,7 +21,8 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
   hasInMemoryImplementation: () => false
 }))
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: async () => ({ PATH: process.env.PATH ?? '' })
+  getShellEnv: async () => ({ PATH: process.env.PATH ?? '' }),
+  getRawShellEnv: async () => ({ PATH: process.env.PATH ?? '' })
 }))
 
 const { createTransport } = await import('../mcpTransport')

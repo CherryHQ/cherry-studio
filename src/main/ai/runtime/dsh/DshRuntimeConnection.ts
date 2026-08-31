@@ -363,10 +363,7 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
         getBinarySearchDirs()
       )
       const cherryMiseEnv = getBinaryExecutionEnv()
-      const miseEnv =
-        Object.keys(rawMiseEnv).length > 0
-          ? rawMiseEnv
-          : cherryMiseEnv
+      const miseEnv = Object.keys(rawMiseEnv).length > 0 ? rawMiseEnv : cherryMiseEnv
       // Complete replacement env — deliberate credential scope: the child sees
       // only managed binary locations, the routed API key, and the bridge socket.
       const client = new sdk.HarnessClient({
