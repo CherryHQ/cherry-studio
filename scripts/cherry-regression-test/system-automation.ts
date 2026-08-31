@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, statSync } from 'node:fs'
-import { basename, dirname, extname } from 'node:path'
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, extname, join } from 'node:path'
 
 import { readAppRecord } from './lifecycle'
 import type { RunPaths } from './paths'
@@ -8,7 +8,7 @@ import { resolveAllowedPath } from './paths'
 import type { Platform } from './types'
 
 const ALLOWED_KEYS = new Set(['Alt', 'Control', 'Enter', 'Escape', 'Meta', 'Shift', 'Space', 'a', 'e', 'k', 's'])
-let activeWindowsExternalTextPid: number | undefined
+let activeWindowsTextFixturePid: number | undefined
 
 function escapePowerShell(value: string): string {
   return value.replace(/'/g, "''")
@@ -58,18 +58,18 @@ function runWindowsHotkey(keys: string[]): void {
   const keyCode = virtualKeys[key] ?? key.toUpperCase().charCodeAt(0)
   const script = [
     `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public struct NativeRect { public int Left; public int Top; public int Right; public int Bottom; } public static class NativeKeyboard { [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra); [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out NativeRect rect); [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y); }'`,
-    activeWindowsExternalTextPid
-      ? `$notepad = Get-Process -Id ${activeWindowsExternalTextPid} -ErrorAction SilentlyContinue`
-      : '$notepad = $null',
-    'if ($notepad) {',
+    activeWindowsTextFixturePid
+      ? `$fixture = Get-Process -Id ${activeWindowsTextFixturePid} -ErrorAction SilentlyContinue`
+      : '$fixture = $null',
+    'if ($fixture) {',
     '  $shell = New-Object -ComObject WScript.Shell',
-    '  if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
+    '  if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
     '  Start-Sleep -Milliseconds 200',
     '  $shell.SendKeys("^a")',
     '  Start-Sleep -Milliseconds 200',
     // selection-hook reads the window under the pointer on Windows.
     '  $rect = [NativeRect]::new()',
-    '  if (-not [NativeKeyboard]::GetWindowRect($notepad.MainWindowHandle, [ref]$rect)) { throw "Notepad bounds could not be read" }',
+    '  if (-not [NativeKeyboard]::GetWindowRect($fixture.MainWindowHandle, [ref]$rect)) { throw "External text window bounds could not be read" }',
     '  $null = [NativeKeyboard]::SetCursorPos([int](($rect.Left + $rect.Right) / 2), [int](($rect.Top + $rect.Bottom) / 2))',
     '  Start-Sleep -Milliseconds 100',
     '}',
@@ -115,20 +115,43 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       { stdio: 'ignore', timeout: 10_000 }
     )
   } else {
+    const fixtureScriptPath = join(paths.fixtures, 'windows-selection-fixture.ps1')
+    writeFileSync(
+      fixtureScriptPath,
+      [
+        'param([Parameter(Mandatory = $true)][string]$FixturePath)',
+        'Add-Type -AssemblyName System.Drawing',
+        'Add-Type -AssemblyName System.Windows.Forms',
+        '[System.Windows.Forms.Application]::EnableVisualStyles()',
+        '$form = [System.Windows.Forms.Form]::new()',
+        '$form.Text = "Cherry Regression Selection Fixture"',
+        '$form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen',
+        '$form.Width = 800',
+        '$form.Height = 320',
+        '$textArea = [System.Windows.Forms.RichTextBox]::new()',
+        '$textArea.AccessibleName = "External selection text"',
+        '$textArea.Dock = [System.Windows.Forms.DockStyle]::Fill',
+        '$textArea.Font = [System.Drawing.Font]::new("Segoe UI", 16)',
+        '$textArea.Text = (Get-Content -Raw -LiteralPath $FixturePath).Trim()',
+        '$form.Controls.Add($textArea)',
+        '$form.Add_Shown({ $textArea.Focus(); $textArea.SelectAll() })',
+        '$form.Add_Activated({ $textArea.Focus() })',
+        '[System.Windows.Forms.Application]::Run($form)'
+      ].join('\r\n'),
+      'utf8'
+    )
     const script = [
-      `$expected = (Get-Content -Raw -LiteralPath '${escapePowerShell(filePath)}').Trim()`,
-      '$notepad = Start-Process notepad.exe -PassThru',
+      `$fixtureArgs = @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-File', '"${escapePowerShell(fixtureScriptPath)}"', '"${escapePowerShell(filePath)}"')`,
+      '$fixture = Start-Process powershell.exe -ArgumentList $fixtureArgs -PassThru',
       '$deadline = [DateTime]::UtcNow.AddSeconds(10)',
-      'do { $notepad.Refresh(); if ($notepad.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 } } while ($notepad.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $deadline)',
-      'if ($notepad.MainWindowHandle -eq 0) { throw "Notepad window was not found" }',
+      'do { $fixture.Refresh(); if ($fixture.MainWindowHandle -eq 0) { Start-Sleep -Milliseconds 200 } } while ($fixture.MainWindowHandle -eq 0 -and -not $fixture.HasExited -and [DateTime]::UtcNow -lt $deadline)',
+      'if ($fixture.MainWindowHandle -eq 0) { throw "External text window was not found" }',
       '$shell = New-Object -ComObject WScript.Shell',
-      'if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
+      'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
       'Start-Sleep -Milliseconds 300',
-      '$shell.SendKeys($expected)',
-      'Start-Sleep -Milliseconds 200',
       '$shell.SendKeys("^a")',
       'Start-Sleep -Milliseconds 500',
-      '$notepad.Id'
+      '$fixture.Id'
     ].join('\n')
     const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
       encoding: 'utf8',
@@ -136,8 +159,8 @@ export function openExternalText(platform: Platform, paths: RunPaths, candidateP
       timeout: 15_000
     })
     const processId = Number.parseInt(output.trim(), 10)
-    if (!Number.isInteger(processId) || processId <= 0) throw new Error('Notepad process ID was not returned')
-    activeWindowsExternalTextPid = processId
+    if (!Number.isInteger(processId) || processId <= 0) throw new Error('External text process ID was not returned')
+    activeWindowsTextFixturePid = processId
   }
   return filePath
 }
@@ -147,17 +170,17 @@ export function selectExternalText(platform: Platform): void {
     runMacHotkey(['Meta', 'a'])
     return
   }
-  if (!activeWindowsExternalTextPid) throw new Error('No external text window is active')
+  if (!activeWindowsTextFixturePid) throw new Error('No external text window is active')
 
   const script = [
     'Add-Type -AssemblyName UIAutomationClient',
     'Add-Type -AssemblyName UIAutomationTypes',
-    `$notepad = Get-Process -Id ${activeWindowsExternalTextPid} -ErrorAction Stop`,
+    `$fixture = Get-Process -Id ${activeWindowsTextFixturePid} -ErrorAction Stop`,
     '$shell = New-Object -ComObject WScript.Shell',
-    'if (-not $shell.AppActivate($notepad.Id)) { throw "Notepad window could not be activated" }',
+    'if (-not $shell.AppActivate($fixture.Id)) { throw "External text window could not be activated" }',
     'Start-Sleep -Milliseconds 200',
-    '$window = [System.Windows.Automation.AutomationElement]::FromHandle($notepad.MainWindowHandle)',
-    'if (-not $window) { throw "Notepad automation window was not found" }',
+    '$window = [System.Windows.Automation.AutomationElement]::FromHandle($fixture.MainWindowHandle)',
+    'if (-not $window) { throw "External text automation window was not found" }',
     '$documentType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Document)',
     '$editType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)',
     '$textAreaTypes = [System.Windows.Automation.Condition[]]@($documentType, $editType)',
