@@ -1194,7 +1194,13 @@ class BackupManager {
   }
 
   private isChainBundledPrefix(chain: RestoreJournal['db']['chain']): boolean {
-    const bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+    let bundled: ReturnType<typeof readMigrationFiles>
+    try {
+      bundled = readMigrationFiles({ migrationsFolder: application.getPath('app.database.migrations') })
+    } catch (error) {
+      logger.warn('[restoreDirect] Failed to read bundled migrations for downgrade check, allowing promotion gate to decide', error as Error)
+      return true
+    }
     if (chain.length > bundled.length) {
       return false
     }
