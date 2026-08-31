@@ -2,7 +2,6 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type {
-  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
   QuickPanelListItem,
@@ -45,7 +44,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { ComposerToolFooterActionsSync, ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { createComposerFolderToken } from './folderToken'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
@@ -181,7 +180,6 @@ export interface ComposerSurfaceProps {
   queueContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
-  rootPanelFooterActions?: readonly QuickPanelFooterAction[]
   onRootPanelOpen?: () => void
   onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
   renderLeftControls?: (
@@ -516,7 +514,6 @@ export default function ComposerSurfaceRuntime({
   queueContent,
   rootPanelLeadingItems,
   rootPanelAdditionalItems,
-  rootPanelFooterActions,
   onRootPanelOpen,
   onToolLauncherSelect,
   renderLeftControls,
@@ -945,7 +942,6 @@ export default function ComposerSurfaceRuntime({
     resourceProvider,
     rootPanelLeadingItems,
     rootPanelAdditionalItems,
-    rootPanelFooterActions,
     pinnedLauncherIdSet,
     unifiedResourceItems
   })
@@ -959,7 +955,6 @@ export default function ComposerSurfaceRuntime({
       resourceProvider,
       rootPanelLeadingItems,
       rootPanelAdditionalItems,
-      rootPanelFooterActions,
       pinnedLauncherIdSet,
       unifiedResourceItems
     }
@@ -971,7 +966,6 @@ export default function ComposerSurfaceRuntime({
     quickPanel,
     resourceProvider,
     rootPanelAdditionalItems,
-    rootPanelFooterActions,
     rootPanelLeadingItems,
     unifiedResourceItems
   ])
@@ -998,7 +992,6 @@ export default function ComposerSurfaceRuntime({
         pinnedLauncherIdSet,
         quickPanel,
         rootPanelAdditionalItems,
-        rootPanelFooterActions,
         rootPanelLeadingItems
       } = rootSuggestionStateRef.current
       const launchers = getToolLaunchers?.() ?? []
@@ -1011,7 +1004,6 @@ export default function ComposerSurfaceRuntime({
         title: t('settings.quickPanel.title'),
         leadingItems: rootPanelLeadingItems,
         additionalItems: rootPanelAdditionalItems,
-        footerActions: rootPanelFooterActions,
         resourceItems,
         queryAnchor,
         triggerInfo,
@@ -2340,6 +2332,7 @@ export default function ComposerSurfaceRuntime({
           : {})
       }}>
       <div className="w-full">
+        <ComposerToolFooterActionsSync />
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
           onDragEnter={handleDragEnter}

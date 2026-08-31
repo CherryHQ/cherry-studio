@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   openRoute: vi.fn(),
   projectNotesTree: vi.fn(),
-  registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
+  registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[], footerActions?: unknown[]) => () => void>(
+    () => () => undefined
+  ),
   resolveNotesPath: vi.fn(),
   root: null as object | null,
   notesPath: '/notes',
@@ -123,11 +125,11 @@ describe('noteReferenceTool', () => {
 
     expect(mocks.open).toHaveBeenCalledWith(
       expect.objectContaining({
-        footerActions: [expect.objectContaining({ id: 'note-reference:manage' })],
         symbol: ComposerPanelSymbol.Notes
       })
     )
-    const footerAction = mocks.open.mock.calls.at(-1)?.[0].footerActions[0]
+    expect(mocks.open.mock.calls.at(-1)?.[0]).not.toHaveProperty('footerActions')
+    const footerAction = mocks.registerLaunchers.mock.calls.at(-1)?.[1]?.[0] as { action: () => void }
     await act(async () => footerAction.action())
     expect(mocks.openRoute).toHaveBeenCalledWith('/app/notes')
     await waitFor(() => expect(mocks.directoryTreeCalls.at(-1)).toMatchObject({ path: '/notes' }))

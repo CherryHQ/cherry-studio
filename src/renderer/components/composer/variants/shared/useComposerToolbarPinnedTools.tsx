@@ -1,4 +1,5 @@
-import type { QuickPanelFooterAction } from '@renderer/components/QuickPanel'
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
@@ -12,7 +13,7 @@ type ComposerToolbarPinnedToolsKey = 'chat.input.toolbar.pinned_tools' | 'agent.
  * Single entry point for a composer variant's pinned toolbar tools preference:
  * the ordered launcher/custom-tool ids rendered as persistent shortcut buttons.
  * Also owns the customize-popover open state, opened via the "+" panel's
- * bottom-fixed item.
+ * root-panel footer action.
  */
 export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedToolsKey) {
   const { t } = useTranslation()
@@ -35,10 +36,12 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
   )
   const resetPinnedIds = useCallback(() => setPinnedIds([...defaultPinnedIds]), [defaultPinnedIds, setPinnedIds])
 
-  const customizeFooterAction = useMemo<QuickPanelFooterAction>(() => {
+  const customizeFooterAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.toolbar.customize')
     return {
       id: 'composer:customize-toolbar',
+      panelSymbol: ComposerPanelSymbol.Root,
+      order: 10,
       label,
       ariaLabel: label,
       tooltip: label,

@@ -519,7 +519,8 @@ const ChatComposerInner = ({
   const scope = TopicType.Chat
   const config = getComposerToolConfig(scope)
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded, toolsRegistry } =
+    useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
   const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
@@ -1342,7 +1343,10 @@ const ChatComposerInner = ({
     })
     return items
   }, [chatWrite, clearContextDisabled, handleStartNewContext, pinnedToolIds, t])
-  const rootPanelFooterActions = useMemo(() => [customizeFooterAction], [customizeFooterAction])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -1919,7 +1923,6 @@ const ChatComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelAdditionalItems}
-          rootPanelFooterActions={rootPanelFooterActions}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}

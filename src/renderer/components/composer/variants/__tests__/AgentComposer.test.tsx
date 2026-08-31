@@ -26,6 +26,7 @@ import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
+import type { ComposerToolFooterAction } from '../../toolLauncher'
 import { useAgentResourceMentionSource } from '../agent/useAgentResourceMentionSource'
 import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
@@ -75,6 +76,7 @@ const mocks = vi.hoisted(() => ({
   availableSkillsRefresh: vi.fn(),
   openResourceEditDialog: vi.fn(),
   registeredLaunchers: new Map<string, ComposerToolLauncher[]>(),
+  registeredFooterActions: new Map<string, ComposerToolFooterAction[]>(),
   optionalQuickPanel: null as { isVisible: boolean; symbol: string; updateList: (items: unknown) => void } | null,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   getDraft: vi.fn(),
@@ -455,8 +457,13 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     addNewTopic: vi.fn(),
     onTextChange: vi.fn(),
     toolsRegistry: {
-      registerLaunchers: (key: string, entries: ComposerToolLauncher[]) => {
+      registerLaunchers: (
+        key: string,
+        entries: ComposerToolLauncher[],
+        footerActions: ComposerToolFooterAction[] = []
+      ) => {
         mocks.registeredLaunchers.set(key, entries)
+        mocks.registeredFooterActions.set(key, footerActions)
         return vi.fn()
       }
     },
@@ -753,6 +760,7 @@ describe('AgentComposer', () => {
     }) as never)
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
+    mocks.registeredFooterActions.clear()
     mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
@@ -1731,7 +1739,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
 
     act(() => {
-      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     const newSessionSwitch = screen.getByRole('switch', { name: 'agent.session.new' })
     expect(newSessionSwitch).toBeChecked()
@@ -1761,7 +1769,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([expect.objectContaining({ id: 'composer:new-session' })])
 
     act(() => {
-      mocks.surfaceProps?.rootPanelFooterActions?.[0]?.action?.({} as any)
+      mocks.registeredFooterActions.get('composer-toolbar-settings')?.[0]?.action?.({} as any)
     })
     expect(screen.getAllByRole('switch')[0]).toHaveAccessibleName('agent.session.new')
   })
@@ -3102,7 +3110,7 @@ describe('AgentComposer', () => {
     )
 
     expect(mocks.surfaceProps?.rootPanelAdditionalItems).toBeUndefined()
-    expect(mocks.surfaceProps?.rootPanelFooterActions).toEqual([
+    expect(mocks.registeredFooterActions.get('composer-toolbar-settings')).toEqual([
       expect.objectContaining({ id: 'composer:customize-toolbar', ariaLabel: 'chat.input.toolbar.customize' })
     ])
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
@@ -3114,6 +3122,7 @@ describe('AgentComposer', () => {
     expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
     const panelOptions = getAgentSkillsPanelOptions()
+    expect(panelOptions).not.toHaveProperty('footerActions')
     const items = panelOptions.list
     expect(items).not.toContainEqual(expect.objectContaining({ id: 'composer:customize-toolbar' }))
     const skillItem = items[0]
@@ -3127,7 +3136,7 @@ describe('AgentComposer', () => {
     )
     expect(skillItem?.suffix).toBeUndefined()
 
-    const manageItem = panelOptions.footerActions[0]
+    const manageItem = mocks.registeredFooterActions.get('agent-skills')?.[0]
     expect(items).not.toContainEqual(expect.objectContaining({ id: 'agent-skills:manage' }))
     expect(manageItem).toEqual(
       expect.objectContaining({ id: 'agent-skills:manage', ariaLabel: 'plugins.manage_skills' })

@@ -1,14 +1,9 @@
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import {
-  type QuickPanelFooterAction,
-  type QuickPanelInputAdapter,
-  type QuickPanelListItem,
-  useQuickPanel
-} from '@renderer/components/QuickPanel'
+import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentMutationsById, useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
@@ -223,7 +218,7 @@ export function resolveMcpConfigTarget(options: {
 export function buildMcpConfigFooterItem(
   target: ResourceEditDialogTarget | null,
   t: TFunction
-): QuickPanelFooterAction | null {
+): ComposerToolFooterAction | null {
   if (!target) return null
   const ariaLabel =
     target.kind === 'assistant'
@@ -231,6 +226,8 @@ export function buildMcpConfigFooterItem(
       : t('settings.quickPanel.mcp.manageCurrentAgent', 'Manage current Agent MCP servers')
   return {
     id: 'mcp-status:open-config',
+    panelSymbol: ComposerPanelSymbol.McpStatus,
+    order: 10,
     label:
       target.kind === 'assistant'
         ? t('settings.quickPanel.scope.currentAssistant', 'Current Assistant')
@@ -242,10 +239,12 @@ export function buildMcpConfigFooterItem(
   }
 }
 
-export function buildMcpGlobalConfigFooterItem(t: TFunction): QuickPanelFooterAction {
+export function buildMcpGlobalConfigFooterItem(t: TFunction): ComposerToolFooterAction {
   const ariaLabel = t('settings.quickPanel.mcp.manageGlobal', 'Manage global MCP servers')
   return {
     id: 'mcp-status:open-global-config',
+    panelSymbol: ComposerPanelSymbol.McpStatus,
+    order: 20,
     label: t('settings.quickPanel.scope.global', 'Global'),
     ariaLabel,
     tooltip: ariaLabel,
@@ -274,8 +273,7 @@ export function createMcpStatusLauncher(
   t: TFunction,
   mode?: McpMode,
   editable = false,
-  onOpen?: () => void,
-  footerActions: QuickPanelFooterAction[] = []
+  onOpen?: () => void
 ): ComposerToolLauncher {
   const modeLabel = mode ? getMcpModeLabel(t, mode) : undefined
   const isDisabled = mode === 'disabled'
@@ -298,7 +296,6 @@ export function createMcpStatusLauncher(
       clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
       quickPanel.open({
         title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
-        footerActions,
         list: items,
         symbol: ComposerPanelSymbol.McpStatus,
         parentPanel,
@@ -410,11 +407,14 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   }, [configTarget, t])
 
   const mcpStatusLauncher = useMemo(
-    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true), footerActions),
-    [bindingPanelEditable, footerActions, items, mode, t]
+    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true)),
+    [bindingPanelEditable, items, mode, t]
   )
 
-  useEffect(() => launcher.registerLaunchers([mcpStatusLauncher]), [launcher, mcpStatusLauncher])
+  useEffect(
+    () => launcher.registerLaunchers([mcpStatusLauncher], footerActions),
+    [footerActions, launcher, mcpStatusLauncher]
+  )
 
   useEffect(() => {
     if (!isVisible || symbol !== ComposerPanelSymbol.McpStatus) return

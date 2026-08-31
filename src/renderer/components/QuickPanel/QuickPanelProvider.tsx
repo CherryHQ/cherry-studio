@@ -100,6 +100,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     [ensureListItemIds]
   )
 
+  const updateFooterActions = useCallback((actions: QuickPanelFooterAction[]) => {
+    setFooterActions(actions)
+  }, [])
+
   const clearPanelState = useCallback(() => {
     setList([])
     setFooterActions([])
@@ -217,6 +221,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       close,
       updateItemSelection,
       updateList,
+      updateFooterActions,
 
       isVisible,
       symbol,
@@ -251,6 +256,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       close,
       updateItemSelection,
       updateList,
+      updateFooterActions,
       dispatchKeyDown,
       getPanelGeneration,
       registerKeyDownHandler,

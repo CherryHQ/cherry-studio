@@ -1,7 +1,7 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
-import type { QuickPanelFooterAction, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -62,10 +62,12 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
     if (!root || !resolvedNotesPath) return []
     return flattenTreeToFiles(projectNotesTree(root, resolvedNotesPath))
   }, [resolvedNotesPath, root, version])
-  const manageNotesAction = useMemo<QuickPanelFooterAction>(() => {
+  const manageNotesAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('chat.input.note_reference.manage')
     return {
       id: 'note-reference:manage',
+      panelSymbol: ComposerPanelSymbol.Notes,
+      order: 10,
       label,
       ariaLabel: label,
       tooltip: label,
@@ -146,7 +148,6 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         .catch((error) => setPathError(error instanceof Error ? error : new Error(String(error))))
 
       quickPanel.open({
-        footerActions: [manageNotesAction],
         title: t('chat.input.note_reference.title'),
         list: panelItems,
         symbol: ComposerPanelSymbol.Notes,
@@ -156,24 +157,27 @@ export const NoteReferenceComposerRuntime = ({ context }: { context: NoteReferen
         trackInputQuery: true
       })
     },
-    [manageNotesAction, notesPath, panelItems, t]
+    [notesPath, panelItems, t]
   )
 
   useEffect(() => {
-    return launcher.registerLaunchers([
-      {
-        id: NOTE_REFERENCE_LAUNCHER_ID,
-        kind: 'panel',
-        sources: ['root-panel'],
-        order: 60,
-        label: t('chat.input.note_reference.title'),
-        description: t('chat.input.note_reference.description'),
-        icon: <NotebookPen />,
-        panelSymbol: ComposerPanelSymbol.Notes,
-        action: openNoteReferencePanel
-      }
-    ])
-  }, [launcher, openNoteReferencePanel, t])
+    return launcher.registerLaunchers(
+      [
+        {
+          id: NOTE_REFERENCE_LAUNCHER_ID,
+          kind: 'panel',
+          sources: ['root-panel'],
+          order: 60,
+          label: t('chat.input.note_reference.title'),
+          description: t('chat.input.note_reference.description'),
+          icon: <NotebookPen />,
+          panelSymbol: ComposerPanelSymbol.Notes,
+          action: openNoteReferencePanel
+        }
+      ],
+      [manageNotesAction]
+    )
+  }, [launcher, manageNotesAction, openNoteReferencePanel, t])
 
   return null
 }

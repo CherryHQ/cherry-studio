@@ -2,11 +2,11 @@ import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolFooterAction } from '@renderer/components/composer/toolLauncher'
 import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
-  type QuickPanelFooterAction,
   type QuickPanelListItem,
   type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
@@ -183,10 +183,12 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     return newList
   }, [handleItemSelect, isPromptsLoading, promptItems, promptsEnabled, promptsError, t])
 
-  const footerActions = useMemo<QuickPanelFooterAction[]>(() => {
-    const actions: QuickPanelFooterAction[] = [
+  const footerActions = useMemo<ComposerToolFooterAction[]>(() => {
+    const actions: ComposerToolFooterAction[] = [
       {
         id: 'quick-phrases:add',
+        panelSymbol: ComposerPanelSymbol.QuickPhrases,
+        order: 10,
         label: t('settings.prompts.add'),
         ariaLabel: t('settings.prompts.add'),
         tooltip: t('settings.prompts.add'),
@@ -202,6 +204,8 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
           : t('settings.prompts.manageCurrentAgent')
       actions.push({
         id: 'quick-phrases:manage-current',
+        panelSymbol: ComposerPanelSymbol.QuickPhrases,
+        order: 20,
         label:
           bindingTarget.type === 'assistant'
             ? t('settings.quickPanel.scope.currentAssistant')
@@ -216,6 +220,8 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
     const globalAriaLabel = t('settings.prompts.manageGlobal')
     actions.push({
       id: 'quick-phrases:manage-global',
+      panelSymbol: ComposerPanelSymbol.QuickPhrases,
+      order: 30,
       label: t('settings.quickPanel.scope.global'),
       ariaLabel: globalAriaLabel,
       tooltip: globalAriaLabel,
@@ -229,12 +235,11 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
       title: t('settings.prompts.title'),
-      footerActions,
       list: phraseItems,
       symbol: ComposerPanelSymbol.QuickPhrases,
       trackInputQuery: true
     }),
-    [footerActions, phraseItems, t]
+    [phraseItems, t]
   )
 
   const quickPanelOpenOptionsRef = useRef(quickPanelOpenOptions)
@@ -262,24 +267,27 @@ const useQuickPhrasesToolController = ({ agentId, assistantId, launcher, setInpu
   )
 
   useEffect(() => {
-    const disposeLauncher = launcher.registerLaunchers([
-      {
-        ...QUICK_PHRASES_TOOLBAR_MANIFEST.toolbar,
-        sources: ['popover', 'root-panel'],
-        label: t('settings.prompts.title'),
-        description: '',
-        searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-        action: ({ parentPanel, queryAnchor }) => {
-          setPromptsEnabled(true)
-          openQuickPanel(parentPanel, queryAnchor)
+    const disposeLauncher = launcher.registerLaunchers(
+      [
+        {
+          ...QUICK_PHRASES_TOOLBAR_MANIFEST.toolbar,
+          sources: ['popover', 'root-panel'],
+          label: t('settings.prompts.title'),
+          description: '',
+          searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
+          action: ({ parentPanel, queryAnchor }) => {
+            setPromptsEnabled(true)
+            openQuickPanel(parentPanel, queryAnchor)
+          }
         }
-      }
-    ])
+      ],
+      footerActions
+    )
 
     return () => {
       disposeLauncher()
     }
-  }, [launcher, openQuickPanel, t])
+  }, [footerActions, launcher, openQuickPanel, t])
 
   return {
     handleAddModalSave,

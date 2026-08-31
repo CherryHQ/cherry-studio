@@ -20,13 +20,12 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolFooterAction, ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
-  type QuickPanelFooterAction,
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
   useOptionalQuickPanel
@@ -1126,10 +1125,12 @@ const AgentComposerInner = ({
     [selectedSkills]
   )
 
-  const skillManageFooterAction = useMemo<QuickPanelFooterAction>(() => {
+  const skillManageFooterAction = useMemo<ComposerToolFooterAction>(() => {
     const label = t('plugins.manage_skills')
     return {
       id: 'agent-skills:manage',
+      panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      order: 10,
       label,
       ariaLabel: label,
       tooltip: label,
@@ -1164,7 +1165,6 @@ const AgentComposerInner = ({
         })
         quickPanel.open({
           title: skillLabel,
-          footerActions: [skillManageFooterAction],
           list: skillItems,
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
@@ -1174,11 +1174,11 @@ const AgentComposerInner = ({
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillLabel, skillManageFooterAction])
+  }, [refreshAvailableSkills, skillItems, skillLabel])
 
   useEffect(
-    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
-    [skillsLauncher, toolsRegistry]
+    () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher], [skillManageFooterAction]),
+    [skillManageFooterAction, skillsLauncher, toolsRegistry]
   )
 
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
@@ -1190,7 +1190,10 @@ const AgentComposerInner = ({
     updateQuickPanelList(skillItems)
   }, [skillsPanelVisible, skillItems, updateQuickPanelList])
 
-  const rootPanelFooterActions = useMemo(() => [customizeFooterAction], [customizeFooterAction])
+  useEffect(
+    () => toolsRegistry.registerLaunchers('composer-toolbar-settings', [], [customizeFooterAction]),
+    [customizeFooterAction, toolsRegistry]
+  )
 
   const handleRootPanelOpen = useCallback(() => {
     void refreshAvailableSkills().catch((error) => {
@@ -1795,7 +1798,6 @@ const AgentComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           suggestionSources={resourceMentionSources}
           rootPanelLeadingItems={rootPanelNewSessionItems}
-          rootPanelFooterActions={rootPanelFooterActions}
           onRootPanelOpen={handleRootPanelOpen}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}

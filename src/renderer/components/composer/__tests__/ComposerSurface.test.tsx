@@ -289,6 +289,7 @@ vi.mock('@tiptap/react', () => ({
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
+  ComposerToolFooterActionsSync: () => null,
   ComposerToolMenu: () => <button type="button">add tool</button>,
   useComposerPinnedTools: () => mocks.pinnedLauncherIds
 }))
@@ -1788,16 +1789,6 @@ describe('ComposerSurface', () => {
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
         rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
-        rootPanelFooterActions={[
-          {
-            id: 'composer:customize-toolbar',
-            label: 'Customize toolbar',
-            ariaLabel: 'Customize toolbar',
-            tooltip: 'Customize toolbar',
-            icon: 'settings',
-            action: vi.fn()
-          }
-        ]}
         renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
           <>
             <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
@@ -1821,9 +1812,6 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
       'attachment'
     ])
-    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].footerActions).toEqual([
-      expect.objectContaining({ id: 'composer:customize-toolbar' })
-    ])
 
     mocks.quickPanelOpen.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
@@ -1838,8 +1826,7 @@ describe('ComposerSurface', () => {
             expect.objectContaining({ id: 'new-topic' }),
             expect.objectContaining({ id: 'thinking' }),
             expect.objectContaining({ id: 'attachment' })
-          ],
-          footerActions: undefined
+          ]
         })
       })
     )

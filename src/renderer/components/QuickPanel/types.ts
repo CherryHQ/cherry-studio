@@ -169,6 +169,7 @@ export interface QuickPanelContextType {
   readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void
   readonly updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void
   readonly updateList: (newList: QuickPanelListItem[]) => void
+  readonly updateFooterActions: (actions: QuickPanelFooterAction[]) => void
   readonly isVisible: boolean
   readonly symbol: string
   readonly list: QuickPanelListItem[]

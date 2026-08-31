@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   mcpServerOptions: [] as Array<{ enabled?: boolean } | undefined>,
   open: vi.fn(),
   openSettingsTab: vi.fn(),
-  registerLaunchers: vi.fn<(launchers: unknown[]) => () => void>(() => () => undefined),
+  registerLaunchers: vi.fn<(launchers: unknown[], footerActions?: unknown[]) => () => void>(() => () => undefined),
   toastError: vi.fn(),
   updateAgent: vi.fn(),
   updateAssistant: vi.fn(),
@@ -400,8 +400,7 @@ describe('mcpStatusTool', () => {
   })
 
   it('keeps the MCP launcher openable when disabled so the config entry stays reachable', () => {
-    const footer = buildMcpConfigFooterItem({ kind: 'assistant', id: 'a1', initialTab: 'tools.mcp' }, t)!
-    const launcher = createMcpStatusLauncher([], t, 'disabled', false, undefined, [footer])
+    const launcher = createMcpStatusLauncher([], t, 'disabled', false)
 
     expect(launcher).toMatchObject({ id: 'mcp-status', description: 'Disabled' })
     expect(launcher.disabled).toBeFalsy()
@@ -409,9 +408,26 @@ describe('mcpStatusTool', () => {
 
     const quickPanel = { open: vi.fn() }
     launcher.action?.({ quickPanel } as any)
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({ footerActions: [footer], readOnly: true, list: [] })
-    )
+    expect(quickPanel.open).toHaveBeenCalledWith(expect.objectContaining({ readOnly: true, list: [] }))
+    expect(quickPanel.open.mock.calls[0][0]).not.toHaveProperty('footerActions')
+  })
+
+  it('registers scoped MCP management actions alongside its launcher', async () => {
+    renderMcpRuntime({
+      assistant: { id: 'assistant-1', settings: { mcpMode: 'manual' }, mcpServerIds: [] },
+      scope: TopicType.Chat
+    })
+    await waitFor(() => expect(mocks.registerLaunchers).toHaveBeenCalled())
+
+    const footerActions = mocks.registerLaunchers.mock.calls.at(-1)?.[1] as Array<{
+      id: string
+      panelSymbol: string
+      order: number
+    }>
+    expect(footerActions).toEqual([
+      expect.objectContaining({ id: 'mcp-status:open-config', panelSymbol: 'mcp-status', order: 10 }),
+      expect.objectContaining({ id: 'mcp-status:open-global-config', panelSymbol: 'mcp-status', order: 20 })
+    ])
   })
 
   it('defers MCP server and session-agent reads until the launcher opens', async () => {

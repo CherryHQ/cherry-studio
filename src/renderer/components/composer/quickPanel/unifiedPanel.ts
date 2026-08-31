@@ -1,7 +1,6 @@
 import type {
   QuickPanelContextType,
   QuickPanelFilterFn,
-  QuickPanelFooterAction,
   QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
@@ -442,13 +441,11 @@ export function hasUnifiedQuickPanelRootContent(
   options: {
     leadingItems?: readonly QuickPanelListItem[]
     additionalItems?: readonly QuickPanelListItem[]
-    footerActions?: readonly QuickPanelFooterAction[]
     resourceItems?: readonly QuickPanelListItem[]
   } = {}
 ) {
   if ((options.leadingItems?.length ?? 0) > 0) return true
   if ((options.additionalItems?.length ?? 0) > 0) return true
-  if ((options.footerActions?.length ?? 0) > 0) return true
   if ((options.resourceItems?.length ?? 0) > 0) return true
 
   const seenLauncherIds = new Set<string>()
@@ -467,7 +464,6 @@ export function createUnifiedQuickPanelOpenOptions(
     title?: string
     leadingItems?: readonly QuickPanelListItem[]
     additionalItems?: readonly QuickPanelListItem[]
-    footerActions?: readonly QuickPanelFooterAction[]
     resourceItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
@@ -507,7 +503,6 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
-  const isCategoryView = (options.initialSearchText ?? '').length > 0
   // Leading items (e.g. Chat's new-conversation / Agent's new-task shortcuts) go through the same
   // exclusion filter as launchers, so pinning one to the toolbar removes it here too.
   const leadingItems = options.excludedLauncherIds
@@ -525,7 +520,6 @@ export function createUnifiedQuickPanelOpenOptions(
 
   return {
     title: options.title,
-    footerActions: isCategoryView ? undefined : [...(options.footerActions ?? [])],
     list,
     symbol: ComposerPanelSymbol.Root,
     queryAnchor: options.queryAnchor,
