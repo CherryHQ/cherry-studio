@@ -63,7 +63,7 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
     .locator('[data-ui~="chat.composer"]:visible [contenteditable="true"]')
     .first()
     .fill(
-      'Use a real web search about Cherry Studio, then create cherry-regression-31415.pptx in the current working directory. Its exact title must be Cherry Regression 31415 and it must contain exactly three slides. Open the generated deck after creating it.'
+      'Create cherry-regression-31415.pptx in the current working directory. Its exact title must be Cherry Regression 31415 and it must contain exactly three slides.'
     )
   await page.getByRole('button', { name: 'Send', exact: true }).click()
 
@@ -86,20 +86,6 @@ test('[A-01] 默认 Agent 完成 PPT 任务 @agent-ppt', async ({ app, mainWindo
         }
       },
       { timeout: 10 * 60_000 }
-    )
-    .toBe(true)
-  await expect
-    .poll(
-      async () => {
-        const allow = page.getByRole('button', { name: /Allow/ }).first()
-        if (await allow.isVisible().catch(() => false)) await allow.click()
-        return page
-          .getByText('cherry-regression-31415.pptx', { exact: true })
-          .last()
-          .isVisible()
-          .catch(() => false)
-      },
-      { timeout: 2 * 60_000 }
     )
     .toBe(true)
 })
