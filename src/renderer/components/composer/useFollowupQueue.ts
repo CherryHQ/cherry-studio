@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { FollowupQueueItem } from '@shared/data/cache/cacheValueTypes'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ComposerSerializedDraft } from './tokens'
@@ -61,6 +62,19 @@ function persistState(scopeKey: string, items: FollowupQueueItem[], paused: bool
     }
     return next
   })
+}
+
+function isWindowFocused(): boolean {
+  if (typeof document === 'undefined' || typeof document.hasFocus !== 'function') return true
+  try {
+    if (!document.hasFocus()) {
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+      if (!/jsdom|vitest/i.test(ua)) return false
+    }
+  } catch {
+    // hasFocus may throw in some environments — fall through as focused.
+  }
+  return true
 }
 
 interface UseFollowupQueueParams {
@@ -249,6 +263,7 @@ export function useFollowupQueue({
       setState(next)
       stateRef.current = next
       if (!nextPaused && isFulfilledRef.current && !failedItemIdRef.current && drainingIdRef.current === null) {
+        if (!isWindowFocused()) return
         const head = next.items[0]
         if (head) {
           markSeenRef.current()
@@ -269,21 +284,33 @@ export function useFollowupQueue({
     if (!isFulfilled || stateRef.current.paused || failedItemIdRef.current || drainingIdRef.current !== null) {
       return
     }
-    if (typeof document !== 'undefined' && typeof document.hasFocus === 'function') {
-      try {
-        if (!document.hasFocus()) {
-          const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-          if (!/jsdom|vitest/i.test(ua)) return
-        }
-      } catch {
-        // hasFocus may throw in some environments — fall through to drain.
-      }
-    }
+    if (!isWindowFocused()) return
     const head = stateRef.current.items[0]
     if (!head) return
     markSeen()
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
+
+  // Keep local queue in sync with cross-window persist broadcasts. The hook writes via
+  // imperative getPersist/setPersist so without a subscription an unfocused window would
+  // keep a stale stateRef and attempt to drain an already-removed head when it regains focus.
+  useEffect(() => {
+    return cacheService.subscribe(QUEUE_STORAGE_KEY, () => {
+      const next = loadState(scopeKeyRef.current)
+      if (isEqual(next, stateRef.current)) return
+      // If the failed item was removed externally, clear the failure so drains can resume.
+      if (failedItemIdRef.current && !next.items.some((item) => item.id === failedItemIdRef.current)) {
+        setFailedItemId(null)
+      }
+      // If the draining item disappeared externally, invalidate its resolution.
+      if (drainingIdRef.current && !next.items.some((item) => item.id === drainingIdRef.current)) {
+        drainEpochRef.current += 1
+        drainingIdRef.current = null
+      }
+      stateRef.current = next
+      setState(next)
+    })
+  }, [])
 
   const retryFailed = useCallback(() => {
     const failed = failedItemIdRef.current
