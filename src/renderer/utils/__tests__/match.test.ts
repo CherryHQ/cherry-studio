@@ -93,7 +93,7 @@ describe('match', () => {
 
     it('should match i18n name, id, and name for system provider', () => {
       expect(matchKeywordsInProvider('dashscope', sysProvider)).toBe(true)
-      expect(matchKeywordsInProvider('Alibaba', sysProvider)).toBe(true)
+      expect(matchKeywordsInProvider('Qwen', sysProvider)).toBe(true)
       // system provider 现在也可以通过 name 字段匹配
       expect(matchKeywordsInProvider('doesnt matter', sysProvider)).toBe(true)
     })
