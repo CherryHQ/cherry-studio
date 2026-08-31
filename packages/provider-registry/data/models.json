@@ -14597,10 +14597,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+            "values": ["none", "minimal", "low", "medium", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max"]
       }
     },
     {
@@ -21346,13 +21346,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+            "values": ["high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -21677,5 +21677,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "acf8223fb645bb72"
+  "version": "bfca195342e1e62b"
 }
