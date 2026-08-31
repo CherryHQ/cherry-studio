@@ -4,6 +4,7 @@ import { WEB_SEARCH_PROVIDER_IDS, type WebSearchProvider } from '../../preferenc
 import {
   isWebSearchProviderReady,
   PRESETS_WEB_SEARCH_PROVIDERS,
+  resolveReadyWebSearchProvider,
   WebSearchProviderIdSchema,
   WebSearchProviderOverrideSchema,
   WebSearchProviderOverridesSchema,
@@ -185,5 +186,30 @@ describe('client web provider readiness', () => {
         'searchKeywords'
       )
     ).toBe(false)
+  })
+
+  it('keeps a ready primary provider instead of replacing it with the fallback', () => {
+    const tavily = provider('tavily', ['key'])
+    const exaMcp = provider('exa-mcp')
+
+    expect(resolveReadyWebSearchProvider([tavily, exaMcp], tavily, 'searchKeywords')).toBe(tavily)
+  })
+
+  it('uses the fixed keyless provider when the primary capability is not ready', () => {
+    const tavily = provider('tavily')
+    const exaMcp = provider('exa-mcp')
+    const querit = provider('querit')
+    const fetch = provider('fetch')
+
+    expect(resolveReadyWebSearchProvider([tavily, exaMcp], tavily, 'searchKeywords')).toBe(exaMcp)
+    expect(resolveReadyWebSearchProvider([querit, fetch], querit, 'fetchUrls')).toBe(fetch)
+  })
+
+  it('reports the client capability unavailable when neither primary nor fallback is ready', () => {
+    const tavily = provider('tavily')
+    const exaMcp = provider('exa-mcp')
+    exaMcp.capabilities = [{ ...exaMcp.capabilities[0], apiHost: '' }]
+
+    expect(resolveReadyWebSearchProvider([tavily, exaMcp], tavily, 'searchKeywords')).toBeUndefined()
   })
 })

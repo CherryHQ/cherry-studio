@@ -4,6 +4,7 @@ import {
   WEB_SEARCH_CAPABILITIES,
   WEB_SEARCH_PROVIDER_IDS,
   WEB_SEARCH_PROVIDER_TYPES,
+  type WebSearchCapability,
   type WebSearchProvider,
   type WebSearchProviderCapabilityOverride,
   type WebSearchProviderCapabilityOverrides,
@@ -214,6 +215,11 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = 
   ...WEB_SEARCH_PROVIDER_PRESET_MAP[id]
 }))
 
+export const WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY = {
+  searchKeywords: 'exa-mcp',
+  fetchUrls: 'fetch'
+} as const satisfies Record<WebSearchCapability, WebSearchProviderId>
+
 /** Whether the selected client provider has enough local configuration to execute a capability. */
 export function isWebSearchProviderReady(
   provider: WebSearchProvider | undefined,
@@ -237,4 +243,18 @@ export function isWebSearchProviderReady(
   }
 
   return !capability.requiresApiKey || provider.apiKeys.some((apiKey) => apiKey.trim().length > 0)
+}
+
+export function resolveReadyWebSearchProvider(
+  providers: readonly WebSearchProvider[],
+  primary: WebSearchProvider | undefined,
+  capability: WebSearchCapability
+): WebSearchProvider | undefined {
+  if (isWebSearchProviderReady(primary, capability)) return primary
+
+  const fallbackProviderId = WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY[capability]
+  if (fallbackProviderId === primary?.id) return undefined
+
+  const fallback = providers.find((provider) => provider.id === fallbackProviderId)
+  return isWebSearchProviderReady(fallback, capability) ? fallback : undefined
 }
