@@ -457,11 +457,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   maxInputTokens={maxInputTokens}
                   maxOutputTokens={maxOutputTokens}
                   onContextWindowChange={setContextWindow}
-                  onContextWindowBlur={() => autoSave({ contextWindow })}
+                  onContextWindowCommit={(value) => autoSave({ contextWindow: value })}
                   onMaxInputTokensChange={setMaxInputTokens}
-                  onMaxInputTokensBlur={() => autoSave({ maxInputTokens })}
+                  onMaxInputTokensCommit={(value) => autoSave({ maxInputTokens: value })}
                   onMaxOutputTokensChange={setMaxOutputTokens}
-                  onMaxOutputTokensBlur={() => autoSave({ maxOutputTokens })}
+                  onMaxOutputTokensCommit={(value) => autoSave({ maxOutputTokens: value })}
                 />
               </div>
 

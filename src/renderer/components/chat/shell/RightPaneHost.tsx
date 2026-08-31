@@ -7,6 +7,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { RESOURCE_LIST_RIGHT_PANE_CACHE_KEY } from './paneLayout'
 import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT,
@@ -35,7 +36,7 @@ import { getVerticalSplitterProps } from './splitterA11y'
 
 export type { RightPaneLayoutMode } from './rightPaneTransition'
 
-type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY
+type RightPaneResizeCacheKey = typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
 
 interface RightPaneFrameProps {
   children?: ReactNode
@@ -407,20 +408,20 @@ export function PersistentRightPaneHost({
   })
   const mainRegionWidth = useMainRegionWidth(paneRef)
   useLayoutEffect(() => {
-    spaceCapRef.current = mainRegionWidth === null ? null : getPaneSpaceCap(mainRegionWidth)
-  }, [mainRegionWidth])
+    spaceCapRef.current = mainRegionWidth === null ? null : getPaneSpaceCap(mainRegionWidth, minWidth)
+  }, [mainRegionWidth, minWidth])
   const resolvedWidth = resizable ? paneWidth : width
   // One expression drives both the pane and its spacer; diverging them would let the
   // pane paint wider than the reserved space and overlap the center.
-  const dockedWidthExpression = buildDockedPaneWidthExpression(resolvedWidth)
+  const dockedWidthExpression = buildDockedPaneWidthExpression(resolvedWidth, minWidth)
   const effectiveWidth =
     mainRegionWidth === null || typeof resolvedWidth !== 'number'
       ? paneWidth
-      : Math.round(resolveDockedPaneWidth(mainRegionWidth, resolvedWidth))
+      : Math.round(resolveDockedPaneWidth(mainRegionWidth, resolvedWidth, minWidth))
   const splitterMinWidth =
-    mainRegionWidth === null ? minWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, minWidth))
+    mainRegionWidth === null ? minWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, minWidth, minWidth))
   const splitterMaxWidth =
-    mainRegionWidth === null ? maxWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, maxWidth))
+    mainRegionWidth === null ? maxWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, maxWidth, minWidth))
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
   const [visualState, setVisualStateState] = useState<PersistentRightPaneVisualState>(() =>

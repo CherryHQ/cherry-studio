@@ -113,6 +113,17 @@ describe('UsageSettings', () => {
     expect(screen.getByRole('combobox', { name: 'Top' })).toHaveTextContent('20')
   })
 
+  it('caps the dashboard column so ultrawide windows do not stretch charts', () => {
+    render(<UsageSettings />)
+
+    const overview = screen.getByRole('heading', { name: '概览' })
+    const column = overview.closest('.mx-auto')
+
+    // Layout contract: the usage dashboard is bounded (`max-w-6xl`), not full-bleed (`max-w-none`).
+    expect(column).toHaveClass('max-w-6xl')
+    expect(column).not.toHaveClass('max-w-none')
+  })
+
   it('keeps the overview insight row when usage data exists', () => {
     usageDataOverride.current = {
       overviewTotals: {

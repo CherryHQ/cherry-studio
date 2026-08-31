@@ -773,6 +773,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
+    trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' as const }],
     getKnowledgeBaseIds: () => KB_SCOPE
   }
 

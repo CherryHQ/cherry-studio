@@ -52,6 +52,12 @@ describe('builtinToolPolicy', () => {
     ).toBe(true)
   })
 
+  it('auto-approves preparing a diagnostic draft because it has no side effects', () => {
+    expect(findBuiltinToolPolicy('mcp__assistant__prepare_diagnostic_report', WITH_HOST_TOOLS)).toMatchObject({
+      approval: 'auto'
+    })
+  })
+
   it('does not auto-approve an undeclared future tool', () => {
     expect(findBuiltinToolPolicy('mcp__cherry-tools__future_mutator', WITHOUT_HOST_TOOLS)).toBeUndefined()
     expect(

@@ -1,3 +1,4 @@
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { UIMessageChunk } from 'ai'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
@@ -24,6 +25,7 @@ export interface AgentSessionRuntimeConnectionTarget {
   reasoningEffort: string
   serviceTier: string
   knowledgeBaseIds: readonly string[]
+  trustedNotifyChannels?: readonly NotifyChannel[]
 }
 
 /**
