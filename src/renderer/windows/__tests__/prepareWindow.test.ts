@@ -8,7 +8,9 @@ const { initI18nMock } = vi.hoisted(() => ({ initI18nMock: vi.fn(async () => {})
 vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
-vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
+vi.mock('@data/services/dataApiDevtools', () => ({
+  DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock }
+}))
 
 describe('prepareWindow', () => {
   beforeEach(() => {

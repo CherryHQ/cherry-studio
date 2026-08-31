@@ -1,30 +1,35 @@
 import type { DataResponse, HttpMethod } from '@shared/data/api/types'
 
+export interface DataApiInstrumentationIdentity {
+  requestId: string
+  method: HttpMethod
+  path: string
+}
+
+export type DataApiInstrumentationStart = DataApiInstrumentationIdentity & {
+  query?: unknown
+  body?: unknown
+  retryAttempt: number
+}
+
+export type DataApiInstrumentationSuccess = DataApiInstrumentationIdentity & { response: DataResponse }
+
+export type DataApiInstrumentationError = DataApiInstrumentationIdentity & {
+  error: unknown
+  status?: number
+  metadata?: DataResponse['metadata']
+}
+
+export type DataApiInstrumentationRetry = DataApiInstrumentationIdentity & {
+  retryAttempt: number
+  error: unknown
+}
+
 interface DataApiInstrumentation {
-  recordStart(input: {
-    requestId: string
-    method: HttpMethod
-    path: string
-    query?: unknown
-    body?: unknown
-    retryAttempt: number
-  }): void
-  recordSuccess(input: { requestId: string; method: HttpMethod; path: string; response: DataResponse }): void
-  recordError(input: {
-    requestId: string
-    method: HttpMethod
-    path: string
-    error: unknown
-    status?: number
-    metadata?: DataResponse['metadata']
-  }): void
-  recordRetry(input: {
-    requestId: string
-    method: HttpMethod
-    path: string
-    retryAttempt: number
-    error: unknown
-  }): void
+  recordStart(input: DataApiInstrumentationStart): void
+  recordSuccess(input: DataApiInstrumentationSuccess): void
+  recordError(input: DataApiInstrumentationError): void
+  recordRetry(input: DataApiInstrumentationRetry): void
 }
 
 const noOpInstrumentation: DataApiInstrumentation = {
@@ -49,19 +54,19 @@ export class DataApiInstrumentationService implements DataApiInstrumentation {
     this.instrumentation = noOpInstrumentation
   }
 
-  recordStart(input: Parameters<DataApiInstrumentation['recordStart']>[0]): void {
+  recordStart(input: DataApiInstrumentationStart): void {
     this.instrumentation.recordStart(input)
   }
 
-  recordSuccess(input: Parameters<DataApiInstrumentation['recordSuccess']>[0]): void {
+  recordSuccess(input: DataApiInstrumentationSuccess): void {
     this.instrumentation.recordSuccess(input)
   }
 
-  recordError(input: Parameters<DataApiInstrumentation['recordError']>[0]): void {
+  recordError(input: DataApiInstrumentationError): void {
     this.instrumentation.recordError(input)
   }
 
-  recordRetry(input: Parameters<DataApiInstrumentation['recordRetry']>[0]): void {
+  recordRetry(input: DataApiInstrumentationRetry): void {
     this.instrumentation.recordRetry(input)
   }
 }
