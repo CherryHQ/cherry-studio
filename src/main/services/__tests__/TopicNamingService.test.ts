@@ -5,6 +5,7 @@ import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -143,6 +144,22 @@ describe('TopicNamingService', () => {
 
   it('requests a title in the language selected in system settings', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Chinese (Simplified)')
+      })
+    )
+  })
+
+  it('follows the system locale when app.language is null', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', null)
+    vi.mocked(app.getLocale).mockReturnValueOnce('zh-CN')
 
     await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
       role: 'assistant',
