@@ -63,6 +63,38 @@ describe('resolveCanonicalEndpoint', () => {
     }
   )
 
+  it('skips chat endpoints when resolving a dedicated embedding model', () => {
+    const embeddingProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://relay.example/embeddings' }
+      }
+    })
+    const embeddingModel = model({
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+    })
+
+    expect(resolveCanonicalEndpoint(embeddingProvider, embeddingModel).endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_EMBEDDINGS
+    )
+  })
+
+  it('does not substitute another dedicated endpoint for an explicit model capability', () => {
+    const mismatchedProvider = provider({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example/chat' },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://relay.example/images' }
+      }
+    })
+    const embeddingModel = model({
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+
+    expect(resolveCanonicalEndpoint(mismatchedProvider, embeddingModel).endpointType).toBeUndefined()
+  })
+
   it('returns the configured gateway route and its provider-options key together', () => {
     const gateway = provider({
       id: 'aihubmix',

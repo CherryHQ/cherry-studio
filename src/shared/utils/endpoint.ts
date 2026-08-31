@@ -1,5 +1,5 @@
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, endpointImpliedCapability, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 
@@ -33,6 +33,20 @@ export function resolveCanonicalEndpoint(
     Boolean(endpointType && (!allowedEndpointTypes || allowedEndpointTypes.includes(endpointType)))
   const hasEndpointConfig = (endpointType: EndpointType | undefined): endpointType is EndpointType =>
     isAllowed(endpointType) && Boolean(provider.endpointConfigs?.[endpointType])
+  const endpointBackedCapabilities = new Set(
+    Object.values(ENDPOINT_TYPE)
+      .map(endpointImpliedCapability)
+      .filter((capability) => capability !== undefined)
+  )
+  const hasExplicitEndpointCapability = model.capabilities.some((capability) =>
+    endpointBackedCapabilities.has(capability)
+  )
+  const matchesModelMode = (endpointType: EndpointType): boolean => {
+    const impliedCapability = endpointImpliedCapability(endpointType)
+    if (!nonChat) return impliedCapability === undefined
+    if (impliedCapability === undefined) return false
+    return !hasExplicitEndpointCapability || model.capabilities.includes(impliedCapability)
+  }
   const defaultEndpoint = provider.defaultChatEndpoint
   const preferred =
     !nonChat &&
@@ -45,7 +59,9 @@ export function resolveCanonicalEndpoint(
     !nonChat && defaultEndpoint && model.endpointTypes?.includes(defaultEndpoint) && hasEndpointConfig(defaultEndpoint)
       ? defaultEndpoint
       : undefined
-  const modelEndpoint = model.endpointTypes?.find(hasEndpointConfig)
+  const modelEndpoint = model.endpointTypes?.find(
+    (endpointType) => hasEndpointConfig(endpointType) && matchesModelMode(endpointType)
+  )
   const gatewayRoute = nonChat ? undefined : resolveGatewayChatRoute(provider, model)
   const fallback =
     !nonChat && !model.endpointTypes?.length && hasEndpointConfig(defaultEndpoint) ? defaultEndpoint : undefined
