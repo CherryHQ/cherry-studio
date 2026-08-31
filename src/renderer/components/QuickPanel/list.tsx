@@ -42,7 +42,6 @@ interface QuickPanelReadOnlyHeaderProps {
 interface QuickPanelRowProps<T extends QuickPanelRowData> {
   active: boolean
   className?: string
-  contentClassName?: string
   dataId?: string
   hoverEnabled?: boolean
   item: T
@@ -155,7 +154,6 @@ export function QuickPanelReadOnlyHeader({ onClose, title }: QuickPanelReadOnlyH
 export function QuickPanelRow<T extends QuickPanelRowData>({
   active,
   className,
-  contentClassName = 'max-w-[68%]',
   dataId,
   hoverEnabled = true,
   item,
@@ -176,6 +174,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   ) : item.isMenu && !item.disabled && !readOnly ? (
     <ChevronRight size={14} />
   ) : null
+  const hasDescription = Boolean(item.description)
   const canHover = hoverEnabled && !isReadOnlyLocked && !item.disabled
   const isUnavailable = isReadOnlyLocked || item.disabled
   const tooltipAnchor =
@@ -224,21 +223,23 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
         event.stopPropagation()
         onSelect()
       }}>
-      <div className={cn('flex min-w-0 flex-1 items-center gap-1.5', contentClassName)}>
+      <div className={cn('flex min-w-0 items-center gap-1.5', hasDescription ? 'max-w-[40%] shrink-0' : 'flex-1')}>
         {reserveIconSlot || item.icon ? (
-          <span className="flex items-center justify-center text-[13px] text-muted-foreground [&>svg:not([class*='text-'])]:text-muted-foreground [&>svg]:size-[1em]">
+          <span className="flex shrink-0 items-center justify-center text-[13px] text-muted-foreground [&>svg:not([class*='text-'])]:text-muted-foreground [&>svg]:size-[1em]">
             {item.icon}
           </span>
         ) : null}
         <span className="min-w-0 flex-1 truncate text-[13px] leading-4">{item.label}</span>
       </div>
-      <div className="flex min-w-[20%] items-center justify-end gap-1 text-[12px] text-muted-foreground leading-4">
-        {item.description ? (
-          <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
-        ) : null}
+      <div
+        className={cn(
+          'flex min-w-0 items-center justify-end gap-1 text-[12px] text-muted-foreground leading-4',
+          hasDescription ? 'flex-1' : 'shrink-0'
+        )}>
+        {hasDescription ? <span className="min-w-0 flex-1 truncate text-right">{item.description}</span> : null}
         {tooltipAnchor}
         {suffixContent ? (
-          <span className="flex min-w-3 shrink-0 items-center justify-end gap-[3px] [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
+          <span className="flex min-w-3 max-w-full shrink-0 items-center justify-end gap-[3px] truncate [&>svg]:size-[1em] [&>svg]:text-muted-foreground">
             {suffixContent}
           </span>
         ) : null}

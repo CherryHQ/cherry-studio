@@ -6,10 +6,6 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
-  type TranslationOverlayEntry,
-  type TranslationOverlaySetter
-} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
@@ -36,7 +32,7 @@ import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
 import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -52,6 +48,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
+    serviceTier?: ServiceTierSelection
     fastMode?: boolean
     chatTarget?: ComposerChatTarget
   }
@@ -144,7 +141,6 @@ export function useChatRuntimeState({
   // anchor resolution — that snapshot now happens synchronously at the call
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
-  const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const [branchLiveActiveNodeOverride, setBranchLiveActiveNodeOverride] = useState<{
@@ -171,27 +167,6 @@ export function useChatRuntimeState({
       current && current.previousActiveNodeId !== activeNodeId ? null : current
     )
   }, [activeNodeId])
-  const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
-    setTranslationOverlayMap((prev) => {
-      if (entry == null) {
-        if (!(messageId in prev)) return prev
-        const next = { ...prev }
-        delete next[messageId]
-        return next
-      }
-      const existing = prev[messageId]
-      if (
-        existing &&
-        existing.content === entry.content &&
-        existing.targetLanguage === entry.targetLanguage &&
-        existing.sourceLanguage === entry.sourceLanguage
-      ) {
-        return prev
-      }
-      return { ...prev, [messageId]: entry }
-    })
-  }, [])
-
   const branchActiveExecutions = useMemo(
     () => mergeActiveExecutions([...activeExecutions], branchLiveExecutions),
     [activeExecutions, branchLiveExecutions]
@@ -225,8 +200,7 @@ export function useChatRuntimeState({
     messages,
     overlay,
     executions: branchActiveExecutions,
-    liveAssistants,
-    translationOverlay
+    liveAssistants
   })
   const activeAwaitingInputMessageId = useMemo(
     () =>
@@ -305,13 +279,8 @@ export function useChatRuntimeState({
     }),
     [cache.rollbackBranch, refresh, seedReservedMessages]
   )
-  const turnController = useConversationTurnController<
-    ChatTurnInput,
-    { topicId: string; parentAnchorId: string | null }
-  >({
-    scopeKey: topic.id,
-    historyAdapter,
-    ensureConversation: async ({ options }) => {
+  const ensureConversation = useCallback(
+    async ({ options }: ChatTurnInput) => {
       if (isHistoryLoading) return null
 
       return {
@@ -319,23 +288,41 @@ export function useChatRuntimeState({
         parentAnchorId: options?.chatTarget ? options.chatTarget.parentAnchorId : (activeNodeId ?? null)
       }
     },
-    buildStreamRequest: ({ text, options }, conversation) => {
+    [activeNodeId, isHistoryLoading, topic.id]
+  )
+  const buildStreamRequest = useCallback(
+    ({ text, options }: ChatTurnInput, conversation: { topicId: string; parentAnchorId: string | null }) => {
       const requestOptions = {
         topicId: conversation.topicId,
         mentionedModelIds: options?.mentionedModels,
         reasoningEffort: options?.reasoningEffort,
+        serviceTier: options?.serviceTier,
         ...(options?.fastMode ? { fastMode: true as const } : {})
       }
 
       return {
         ...requestOptions,
-        trigger: 'submit-message',
+        trigger: 'submit-message' as const,
         parentAnchorId: conversation.parentAnchorId ?? undefined,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
         ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
       }
     },
-    refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
+    []
+  )
+  const refreshMetadata = useCallback(
+    ({ topicId }: { topicId: string }) => invalidateCache(['/topics', `/topics/${topicId}`]),
+    [invalidateCache]
+  )
+  const { phase: turnPhase, send } = useConversationTurnController<
+    ChatTurnInput,
+    { topicId: string; parentAnchorId: string | null }
+  >({
+    scopeKey: topic.id,
+    historyAdapter,
+    ensureConversation,
+    buildStreamRequest,
+    refreshMetadata
   })
 
   const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -462,21 +449,21 @@ export function useChatRuntimeState({
       isHistoryLoading ||
       isTopicStreamPending ||
       isTopicAwaitingApproval ||
-      turnController.phase === 'persisting' ||
-      turnController.phase === 'opening',
+      turnPhase === 'persisting' ||
+      turnPhase === 'opening',
     assistant
   })
 
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        return await turnController.send({ text, options })
+        return await send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [turnController]
+    [send]
   )
 
   return {
@@ -489,8 +476,6 @@ export function useChatRuntimeState({
     locateMessage,
     sendMessage,
     composerChatTarget,
-    composerContext,
-    translationOverlay,
-    setTranslationOverlay
+    composerContext
   }
 }

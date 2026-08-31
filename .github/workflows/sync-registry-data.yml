@@ -28,7 +28,9 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/sync-registry-data.yml'
       - 'packages/provider-registry/data/**'
+      - 'scripts/buildRegistrySyncRequest.js'
       # A REGISTRY_SCHEMA_VERSION bump changes the publish dir (v{N}); watch its
       # source so a version-only change still creates the new vN/ directory.
       - 'packages/provider-registry/src/registry-loader.ts'
@@ -127,17 +129,40 @@ jobs:
             '{minAppVersion: $minAppVersion, sourceAppVersion: $sourceAppVersion, revision: $revision, schemaVersion: $schema, files: {"models.json": $models, "providers.json": $providers, "provider-models.json": $providerModels}}' \
             > "$DEST/manifest.json"
 
-      - name: Commit and push if changed
+      - name: Commit if changed
         working-directory: pub
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Commits go through GraphQL rather than `git push`: GitHub signs
+          # API-authored commits, which the branch's required-signatures rule demands.
           git add "${{ steps.ver.outputs.dir }}"
           if git diff --cached --quiet; then
             echo "No catalog changes to publish."
             exit 0
           fi
-          git commit -m "chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
-            -m "Source: ${{ github.repository }}@${{ github.sha }}
-          Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          git push origin x-files/provider-registry
+
+          REPO="${{ github.repository }}"
+          REF=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$ref:String!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){id target{oid}}}}' \
+            -f owner="${REPO%/*}" -f name="${REPO#*/}" -f ref="refs/heads/x-files/provider-registry")
+          REF_ID=$(jq -er '.data.repository.ref.id' <<< "$REF")
+          HEAD_OID=$(jq -er '.data.repository.ref.target.oid' <<< "$REF")
+
+          REQUEST_FILE=$(mktemp)
+          trap 'rm -f "$REQUEST_FILE"' EXIT
+          REGISTRY_SYNC_REF_ID="$REF_ID" \
+          REGISTRY_SYNC_EXPECTED_HEAD_OID="$HEAD_OID" \
+          REGISTRY_SYNC_HEADLINE="chore(provider-registry): sync catalog to ${{ steps.ver.outputs.dir }}" \
+          REGISTRY_SYNC_BODY="Source: ${{ github.repository }}@${{ github.sha }}
+          Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            node ../main/scripts/buildRegistrySyncRequest.js "$REQUEST_FILE"
+
+          RESP=$(gh api graphql --input "$REQUEST_FILE")
+
+          # gh does not always exit non-zero on a GraphQL `errors` payload.
+          if jq -e '.errors' <<< "$RESP" >/dev/null; then
+            echo "$RESP" >&2
+            exit 1
+          fi
+          jq -er '.data.createCommitOnBranch.commit.url' <<< "$RESP"

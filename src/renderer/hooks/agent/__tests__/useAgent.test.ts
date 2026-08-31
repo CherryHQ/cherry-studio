@@ -142,6 +142,19 @@ describe('useAgents', () => {
   })
 
   describe('agents list', () => {
+    it('refetches after a main-process Agent creation notification', () => {
+      const refetch = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockQueryResult('/agents', {
+        data: { items: [], total: 0, page: 1 } as any,
+        refetch
+      })
+
+      renderHook(() => useAgents())
+      MockUseDataApiUtils.emitDataChange([{ endpoint: '/agents', kind: 'membership', entityIds: ['agent-created'] }])
+
+      expect(refetch).toHaveBeenCalledOnce()
+    })
+
     it('returns empty array when data is undefined', () => {
       MockUseDataApiUtils.mockQueryLoading('/agents')
 
@@ -249,7 +262,13 @@ describe('useAgents', () => {
         agentId: 'agent-1',
         deleteSessions: false
       })
-      expect(invalidateSpy).toHaveBeenCalledWith('/agents')
+      expect(invalidateSpy).toHaveBeenCalledWith([
+        '/agents',
+        '/agents/agent-1',
+        '/agent-sessions',
+        '/agent-channels',
+        '/pins'
+      ])
       expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 

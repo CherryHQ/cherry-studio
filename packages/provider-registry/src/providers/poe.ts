@@ -118,10 +118,7 @@ export default openaiCompatible({
       imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
     }
   ],
-  apiFeatures: {
-    arrayContent: false,
-    developerRole: false
-  },
+  dialect: { developerRole: false },
   overrides: [
     {
       apiModelId: 'GPT-5.4',

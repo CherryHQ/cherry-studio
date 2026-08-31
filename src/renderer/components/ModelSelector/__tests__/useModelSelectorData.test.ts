@@ -34,7 +34,7 @@ function makeProvider(id: string, overrides: Partial<Provider> = {}): Provider {
     name: `name(${id})`,
     apiKeys: [],
     authType: 'apiKey',
-    apiFeatures: {} as Provider['apiFeatures'],
+    reportsActualCost: false,
     settings: {} as Provider['settings'],
     isEnabled: true,
     ...overrides
@@ -252,7 +252,8 @@ describe('useModelSelectorData', () => {
     expect(result.current.modelItems).toHaveLength(1)
     expect(result.current.modelItems[0]).toMatchObject({
       modelId: 'anthropic::claude-3',
-      isPinned: true
+      isPinned: true,
+      groupKind: 'provider'
     })
   })
 
@@ -332,5 +333,23 @@ describe('useModelSelectorData', () => {
     expect(byModelId.get('openai::variant-a')?.showIdentifier).toBe(true)
     expect(byModelId.get('openai::variant-b')?.showIdentifier).toBe(true)
     expect(byModelId.get('openai::unique')?.showIdentifier).toBe(false)
+  })
+
+  it('uses provider groups to disambiguate matching names from different providers', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('anthropic')],
+      models: [
+        makeModel('gpt-4', 'openai', { name: 'Shared model' }),
+        makeModel('claude-alias', 'anthropic', { name: 'Shared model' })
+      ]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+    const byModelId = new Map<string, ModelSelectorModelItem>(
+      result.current.modelItems.map((item) => [item.modelId, item])
+    )
+
+    expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(false)
+    expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(false)
   })
 })

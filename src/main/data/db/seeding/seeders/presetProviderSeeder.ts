@@ -8,7 +8,7 @@ import type { DbType, ISeeder } from '../../types'
 
 /**
  * Seed rows are DELTA rows: registry-owned connection config
- * (endpointConfigs, apiFeatures, defaultChatEndpoint) is NOT persisted —
+ * (endpointConfigs, defaultChatEndpoint) is NOT persisted —
  * it resolves from the registry at read time (#17096), so registry updates
  * reach existing installs without reconciliation. Only user-editable
  * scaffolding is seeded: identity, display name, and the auth shell below.

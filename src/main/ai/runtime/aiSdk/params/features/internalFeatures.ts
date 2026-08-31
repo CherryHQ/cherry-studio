@@ -16,6 +16,7 @@ import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
 import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
+import { deepseekResponsesReasoningReplayFeature } from './deepseekResponsesReasoningReplay'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { inLoopCompactionFeature } from './inLoopCompaction'
@@ -29,6 +30,7 @@ import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
+import { stripReasoningReplayFeature } from './stripReasoningReplay'
 import { terminalToolFailureFeature } from './terminalToolFailure'
 import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 
@@ -37,6 +39,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   gatewayUsageNormalizeFeature,
   // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
   deepseekDsmlParserFeature,
+  // DeepSeek-only: tag replayed reasoning so the Responses serializer passes it back (#18150).
+  deepseekResponsesReasoningReplayFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams
@@ -46,13 +50,15 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
-  // Provider-agnostic: tool schemas lose the keywords providers reject.
+  // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
   qwenEnableThinkingFeature,
   skipGeminiThoughtSignatureFeature,
+  // The HuggingFace router rejects reasoning input items — strip them on replay.
+  stripReasoningReplayFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.

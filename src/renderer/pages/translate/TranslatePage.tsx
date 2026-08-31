@@ -108,9 +108,13 @@ const useBabelDoc = (enabled: boolean) => {
     if (installing) return
     setInstalling(true)
     try {
+      // A fresh install asks for the exact version too, not `@latest`: that
+      // resolves against whichever PyPI mirror answers, and a lagging mirror
+      // hands back a build Cherry's progress parser predates — which the next
+      // availability check flags as outdated, costing a second full download.
       await ipcApi.request('binary.install_tool', {
         name: BABELDOC_TOOL_NAME,
-        ...(availability === 'outdated' ? { targetVersion: BABELDOC_MINIMUM_VERSION } : {})
+        targetVersion: BABELDOC_MINIMUM_VERSION
       })
       setAvailability('available')
     } catch (error) {
@@ -120,7 +124,7 @@ const useBabelDoc = (enabled: boolean) => {
     } finally {
       setInstalling(false)
     }
-  }, [availability, installing, t])
+  }, [installing, t])
 
   const refresh = useCallback(() => setAvailabilityRevision((revision) => revision + 1), [])
 
@@ -209,7 +213,9 @@ const TranslatePage: FC = () => {
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
-  const { add: addHistory } = useTranslateHistory()
+  const { add: addHistory, update: updateHistory } = useTranslateHistory({
+    update: { showErrorToast: false, rethrowError: false }
+  })
   const { notesPath } = useNotesSettings()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
@@ -372,9 +378,9 @@ const TranslatePage: FC = () => {
   const translate = useCallback(
     async (
       rawText: string,
-      actualSourceLanguage: TranslateLangCode,
+      actualSourceLanguage: TranslateLangCode | null,
       actualTargetLanguage: TranslateLangCode
-    ): Promise<void> => {
+    ): Promise<TranslateHistory | undefined> => {
       if (isTranslating) return
 
       smoothReset('')
@@ -399,7 +405,7 @@ const TranslatePage: FC = () => {
         )
       }
 
-      await addHistory({
+      return addHistory({
         sourceText: rawText,
         targetText: translated,
         sourceLanguage: actualSourceLanguage,
@@ -409,12 +415,38 @@ const TranslatePage: FC = () => {
     [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
   )
 
+  // Off the translation critical path: a failed detection or patch just leaves
+  // the stored source language unset, so every outcome stays silent.
+  //
+  // Backfills for different history ids can overlap on this one template-path
+  // mutation, which shares `isMutating`/`error` across them (see
+  // docs/references/data/data-api-in-renderer.md). Harmless today because
+  // nothing here reads that state — revisit if this call site ever does.
+  const backfillHistorySourceLanguage = useCallback(
+    (historyId: string, rawText: string) => {
+      void detectLanguageOrUnknown(rawText, detectLanguage, () => undefined)
+        .then((language) => {
+          if (language === UNKNOWN_LANG_CODE) return
+          return updateHistory(historyId, { sourceLanguage: language })
+        })
+        .catch(() => undefined)
+    },
+    [detectLanguage, updateHistory]
+  )
+
   const translateTextContent = useCallback(
     async (rawText: string, allowBidirectional: boolean, isCurrent?: () => boolean): Promise<void> => {
       if (!rawText.trim() || !selectedModelId || isDetecting || isTranslating) return
 
+      if (allowBidirectional && !isBidirectional) {
+        setDetectedLanguage(null)
+        const history = await translate(rawText, null, targetLanguage)
+        if (history) backfillHistorySourceLanguage(history.id, rawText)
+        return
+      }
+
       let actualSourceLanguage = sourceLanguage
-      if (sourceLanguage === 'auto') {
+      if ((allowBidirectional && isBidirectional) || sourceLanguage === 'auto') {
         setIsDetecting(true)
         try {
           actualSourceLanguage = await detectLanguageOrUnknown(rawText, detectLanguage, (error) => {
@@ -448,6 +480,7 @@ const TranslatePage: FC = () => {
       await translate(rawText, actualSourceLanguage, targetResult.language)
     },
     [
+      backfillHistorySourceLanguage,
       bidirectionalPair,
       detectLanguage,
       isBidirectional,
@@ -595,7 +628,9 @@ const TranslatePage: FC = () => {
         setTranslateOutput(history.targetText)
       }
 
-      void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
+      if (history.kind === 'file' || history.sourceLanguage) {
+        void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
+      }
       void safePersist(setTargetLanguage(nextTargetLanguage), 'translate target language')
       setHistoryOpen(false)
     },
@@ -900,6 +935,7 @@ const TranslatePage: FC = () => {
             onTargetChange={(language) => void safePersist(setTargetLanguage(language), 'translate target language')}
             detectedLanguage={detectedLanguage}
             isBidirectional={isPdfMode ? false : isBidirectional}
+            showSourceControls={isPdfMode}
             bidirectionalPair={bidirectionalPair}
             couldExchange={couldExchange}
             onExchange={handleExchange}
