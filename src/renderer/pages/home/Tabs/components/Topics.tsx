@@ -80,7 +80,6 @@ import {
   sortTopicsForDisplayGroups,
   TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
@@ -760,20 +759,15 @@ export function Topics({
             unlinked: t('chat.topics.group.unknown_assistant')
           }
         },
-        now: groupNow,
-        pinnedAsSection: isAssistantDisplayMode
+        now: groupNow
       }),
-    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
+    [assistantById, displayMode, groupNow, t]
   )
 
   const topicSectionBy = useMemo(() => {
     if (!isAssistantDisplayMode) return undefined
 
     return (topic: Topic): ResourceListSection => {
-      if (topic.pinned) {
-        return { id: TOPIC_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
-      }
-
       if (isGroupGrouping) {
         const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
         const group = assistant?.groupId ? assistantGroupById.get(assistant.groupId) : undefined
@@ -905,13 +899,13 @@ export function Topics({
     (topic: Topic) => {
       conversationNav.openConversationTab(topic.id, topic.name, { forceNew: true })
     },
-    [conversationNav, t]
+    [conversationNav]
   )
   const openTopicInNewWindow = useCallback(
     (topic: Topic) => {
       conversationNav.openConversationWindow(topic.id, topic.name)
     },
-    [conversationNav, t]
+    [conversationNav]
   )
 
   const handleToggleAssistantPin = useCallback(
@@ -1264,8 +1258,9 @@ export function Topics({
   )
 
   const canDropTopicItem = useCallback(
-    ({ targetGroupId }: { targetGroupId: string }) =>
+    ({ overItem, targetGroupId }: { overItem?: Topic; targetGroupId: string }) =>
       isAssistantDisplayMode &&
+      !overItem?.pinned &&
       targetGroupId !== TOPIC_PINNED_GROUP_ID &&
       targetGroupId !== TOPIC_UNLINKED_ASSISTANT_GROUP_ID &&
       resolveAssistantIdForTopicGroup(targetGroupId, assistantById) !== undefined,
@@ -1401,6 +1396,9 @@ export function Topics({
 
       const topic = topics.find((candidate) => candidate.id === payload.activeId)
       if (!topic || topic.pinned) return
+      const overTopic =
+        payload.overType === 'item' ? topics.find((candidate) => candidate.id === payload.overId) : undefined
+      if (overTopic?.pinned) return
 
       const targetAssistantId = resolveAssistantIdForTopicGroup(payload.targetGroupId, assistantById)
       if (targetAssistantId === undefined) return

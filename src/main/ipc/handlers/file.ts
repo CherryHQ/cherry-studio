@@ -11,7 +11,7 @@ import {
   writeIfUnchangedByPath
 } from '@main/services/file'
 import { DirectoryTreeStoppedError, StaleVersionError } from '@main/services/file'
-import { PathStaleVersionError } from '@main/utils/file'
+import { copyNew, PathStaleVersionError } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -51,7 +51,11 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     return dispatchHandle(
       handle as FileHandle,
       (entryId) => fileManager.read(entryId, { encoding: options.encoding }),
-      (path) => readByPath(path, { encoding: options.encoding })
+      (path) =>
+        readByPath(path, {
+          encoding: options.encoding,
+          ...(options.withContentHash && { withContentHash: true })
+        })
     )
   },
   'file.write_if_unchanged': async ({ handle, data, expectedVersion, expectedContentHash }) => {
@@ -132,6 +136,14 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
+  // Guard the destination only: sources legitimately live inside managed storage
+  // (attachments, generated images) and copying reads them without mutating.
+  'file.copy': async ({ sourcePath, destPath }, { senderId }) => {
+    // Side-effecting route: refuse trusted-but-unmanaged senders (ipc-overview.md §Caller Identity).
+    if (senderId == null) throw new Error('file.copy requires a managed window sender')
+    await assertOutsideManagedStorageMutation(destPath)
+    await copyNew(sourcePath, destPath)
+  },
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')
     return dispatchHandle(handle as FileHandle, (entryId) => fileManager.open(entryId), safeOpen)
