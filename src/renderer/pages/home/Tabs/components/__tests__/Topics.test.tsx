@@ -649,6 +649,7 @@ function renderTopicList({
   assistantTopicsSource,
   assistantIdFilter,
   clearActiveTopic = vi.fn(),
+  initiallyCollapsed = false,
   onActiveAssistantDeleted,
   onAddAssistant = vi.fn(),
   historyRecordsActive,
@@ -665,6 +666,7 @@ function renderTopicList({
   assistantTopicsSource?: AssistantTopicsSource
   assistantIdFilter?: string | null
   clearActiveTopic?: Mock<() => void>
+  initiallyCollapsed?: boolean
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
   historyRecordsActive?: ComponentProps<typeof Topics>['historyRecordsActive']
@@ -702,7 +704,7 @@ function renderTopicList({
       revealRequest={nextRevealRequest}
     />
   )
-  const view = render(renderNode())
+  const view = render(renderNode(revealRequest, activeTopic, initiallyCollapsed))
   return {
     ...view,
     clearActiveTopic,
@@ -2134,6 +2136,46 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
     )
+  })
+
+  it('keeps the empty selection a no-op when deleting an inactive topic', async () => {
+    // No selection at all (e.g. a cross-window deletion collapsed the active topic):
+    // deleting a background topic must not navigate anywhere.
+    const topics = [
+      createApiTopic({
+        id: 'topic-a1-first',
+        name: 'A1 First',
+        assistantId: 'assistant-1',
+        orderKey: 'a'
+      }),
+      createApiTopic({
+        id: 'topic-a1-second',
+        name: 'A1 Second',
+        assistantId: 'assistant-1',
+        orderKey: 'b'
+      })
+    ]
+    const { clearActiveTopic, setActiveTopic } = renderTopicList({
+      assistantTopicsSource: createAssistantTopicsSource(topics),
+      initiallyCollapsed: true
+    })
+
+    const topicRow = screen.getByText('A1 First').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-first'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(clearActiveTopic).not.toHaveBeenCalled()
   })
 
   it('switches to the latest topic from another assistant after deleting an assistant last topic', async () => {

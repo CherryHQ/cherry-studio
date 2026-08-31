@@ -639,6 +639,7 @@ export function Topics({
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: Topic) => {
+      const wasActiveAtStart = topic.id === activeTopicIdRef.current
       const assistantTopicsBeforeDelete = topicsRef.current.filter(
         (candidate) => candidate.assistantId === topic.assistantId
       )
@@ -655,10 +656,12 @@ export function Topics({
         return
       }
 
-      // A mid-delete switch to another topic must win. An empty ('') mirror — e.g. the
-      // broadcast race wiping the selection mid-delete (#19583) — reselects the replacement.
+      // A mid-delete switch to another topic must win. An empty ('') mirror only reselects
+      // when the deleted topic was active at delete start (#19583 race collapse); deleting
+      // with no selection at all stays a no-op.
       const currentActiveTopicId = activeTopicIdRef.current
       if (currentActiveTopicId && currentActiveTopicId !== topic.id) return
+      if (!currentActiveTopicId && !wasActiveAtStart) return
 
       if (replacement) {
         setActiveTopic(replacement)
