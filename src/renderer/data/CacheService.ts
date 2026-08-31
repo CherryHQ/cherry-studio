@@ -1179,8 +1179,29 @@ export class CacheService {
         this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
-        // Update persist cache (other windows only update memory, not localStorage)
-        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
+        const persistKey = message.key as RendererPersistCacheKey
+        // Follow-up queues are a per-conversation map persisted under one key;
+        // two windows queuing to different conversations can broadcast whole-map
+        // values that are each stale for the other's entry. Shallow-merge that
+        // key so concurrent different-scope writes do not clobber each other.
+        // Deletions resurrect until the owning window's next write cleans them;
+        // that is stale-but-harmless compared to silent data loss.
+        if (
+          persistKey === 'ui.composer.followup_queue' &&
+          this.persistCache.has(persistKey) &&
+          message.value !== undefined &&
+          typeof message.value === 'object' &&
+          !Array.isArray(message.value)
+        ) {
+          const existing = this.persistCache.get(persistKey) as Record<string, unknown>
+          if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
+            const merged = { ...(existing as Record<string, unknown>), ...(message.value as Record<string, unknown>) }
+            this.persistCache.set(persistKey, merged as never)
+            this.notifySubscribers(message.key)
+            return
+          }
+        }
+        this.persistCache.set(persistKey, message.value)
         this.notifySubscribers(message.key)
       }
     })
