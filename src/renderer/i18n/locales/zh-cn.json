@@ -4040,6 +4040,7 @@
   "settings.models.add.model_name.label": "模型名称",
   "settings.models.add.model_name.placeholder": "例如 GPT-5.5",
   "settings.models.add.model_type.label": "模型类型",
+  "settings.models.add.operations.label": "模型操作",
   "settings.models.add.preferred_endpoint.inherit": "跟随默认",
   "settings.models.add.preferred_endpoint.inherit_resolved": "跟随默认（{{endpoint}}）",
   "settings.models.add.preferred_endpoint.label": "首选端点",

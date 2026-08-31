@@ -17,7 +17,8 @@ const CAPABILITY = {
   FUNCTION_CALL: 'function-call',
   IMAGE_RECOGNITION: 'image-recognition',
   REASONING: 'reasoning',
-  EMBEDDING: 'embedding'
+  EMBEDDING: 'embedding',
+  TEXT_GENERATION: 'text-generation'
 } as const
 
 const registryDataUrl = new URL('../../../../../packages/provider-registry/data/', import.meta.url)
@@ -59,6 +60,10 @@ describe('applyCapabilityOverride', () => {
     expect(result).toEqual([CAPABILITY.EMBEDDING])
   })
 
+  it('treats an empty force list as an explicit empty replacement', () => {
+    expect(applyCapabilityOverride(base, { force: [] })).toEqual([])
+  })
+
   it('force takes precedence over add/remove', () => {
     const result = applyCapabilityOverride(base, {
       force: [CAPABILITY.EMBEDDING] as any[],
@@ -83,7 +88,7 @@ describe('createCustomModel', () => {
     expect(model.name).toBe('my-custom-model')
     expect(model.id).toContain('my-custom-model')
     expect(model.providerId).toBe('openai')
-    expect(model.capabilities).toEqual([])
+    expect(model.capabilities).toEqual([CAPABILITY.TEXT_GENERATION])
     expect(model.isEnabled).toBe(true)
   })
 })

@@ -1,5 +1,5 @@
 import type { StreamListener } from '@main/ai/streamManager/types'
-import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -85,7 +85,7 @@ beforeEach(() => {
       id: createUniqueModelId(PROVIDER_ID, MODEL_ID),
       providerId: PROVIDER_ID,
       apiModelId: MODEL_ID,
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
     }
   ])

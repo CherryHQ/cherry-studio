@@ -6,8 +6,9 @@ import {
   CURRENCY,
   type Currency,
   ENDPOINT_TYPE,
-  endpointImpliedCapability,
+  endpointDefaultOperationCapability,
   type EndpointType,
+  getModelOperationCapabilities,
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@cherrystudio/provider-registry'
@@ -479,12 +480,14 @@ function mapCapabilities(
     mapped.push(result)
   }
 
-  const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
-  if (impliedCapability && !disabled.has(impliedCapability)) {
-    mapped.push(impliedCapability)
+  for (const endpointType of endpointTypes ?? []) {
+    const operation = endpointDefaultOperationCapability(endpointType)
+    if (operation && !disabled.has(operation)) mapped.push(operation)
   }
 
-  return mapped.length > 0 ? Array.from(new Set(mapped)) : []
+  const result = Array.from(new Set(mapped))
+  if (getModelOperationCapabilities(result).length === 0) result.push(MODEL_CAPABILITY.TEXT_GENERATION)
+  return result
 }
 
 function mapEndpointTypes(

@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 
 /**
  * Minimal valid Model fixture for main/ai tests.
@@ -12,7 +12,7 @@ export function makeModel(overrides: Partial<Model> = {}): Model {
     id: 'openai::gpt-4',
     providerId: 'openai',
     name: 'GPT-4',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,

@@ -14,8 +14,8 @@ import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
-import type { EndpointType, Model } from '@shared/data/types/model'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { EndpointType, Model, ModelOperationCapability } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import {
   formatApiHost,
@@ -74,6 +74,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
+  operationCapability?: ModelOperationCapability
   resolvedEndpoint?: ResolvedEndpoint
   sessionId?: string
 }
@@ -173,7 +174,7 @@ function withoutCredential(build: ProviderConfigBuilder): ConfigBuilderEntry['bu
   })
 }
 
-/** Endpoint priority: `model.preferredEndpointType` > `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
+/** Build provider config from the endpoint already resolved for the requested operation. */
 export async function providerToAiSdkConfig(
   provider: Provider,
   model: Model,
@@ -188,7 +189,11 @@ export async function resolveProviderAiSdkConfig(
   model: Model,
   options?: ProviderToAiSdkConfigOptions
 ): Promise<ResolvedProviderAiSdkConfig> {
-  const { endpointType, baseUrl } = options?.resolvedEndpoint ?? resolveEffectiveEndpoint(provider, model)
+  const { endpointType, baseUrl } =
+    options?.resolvedEndpoint ??
+    resolveEffectiveEndpoint(provider, model, {
+      operationCapability: options?.operationCapability ?? MODEL_CAPABILITY.TEXT_GENERATION
+    })
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 

@@ -50,6 +50,10 @@ export default openaiCompatible({
   id: 'silicon',
   name: 'Silicon',
   baseUrl: 'https://api.siliconflow.cn/v1',
+  additionalEndpointConfigs: {
+    'openai-embeddings': { adapterFamily: 'silicon' },
+    'openai-image-generation': { adapterFamily: 'silicon' }
+  },
   reasoningFormat: { type: 'openai-chat' },
   anthropic: 'https://api.siliconflow.cn',
   website: {

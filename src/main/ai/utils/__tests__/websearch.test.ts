@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -181,7 +181,7 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
       id: 'dashscope::qwen3-max',
       providerId: 'dashscope',
       apiModelId: 'qwen3-max',
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     })
     expect(getWebSearchParams(extractorModel, dashscopeWithExtractor)).toEqual({
       enable_search: true,

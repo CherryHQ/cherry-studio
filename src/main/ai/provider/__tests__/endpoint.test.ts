@@ -1,15 +1,26 @@
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import {
   resolveAiSdkProviderId,
-  resolveEffectiveEndpoint,
+  resolveEffectiveEndpoint as resolveEffectiveEndpointForOperation,
   resolveProviderOptionsKey,
   resolveProviderVariant,
   resolveWireModelId
 } from '../endpoint'
+
+function resolveEffectiveEndpoint(
+  provider: Parameters<typeof resolveEffectiveEndpointForOperation>[0],
+  model: Parameters<typeof resolveEffectiveEndpointForOperation>[1],
+  options: Omit<Parameters<typeof resolveEffectiveEndpointForOperation>[2], 'operationCapability'> = {}
+) {
+  return resolveEffectiveEndpointForOperation(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION,
+    ...options
+  })
+}
 
 const ENDPOINT_TYPES_USED = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -320,6 +331,87 @@ describe('resolveProviderVariant', () => {
 })
 
 describe('resolveEffectiveEndpoint', () => {
+  it('routes each operation through its compatible declared endpoint', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = {
+      id: 'multi-operation',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    } as never
+
+    expect(
+      resolveEffectiveEndpointForOperation(provider, model, {
+        operationCapability: MODEL_CAPABILITY.EMBEDDING
+      })
+    ).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+      baseUrl: 'https://api.example.com/v1'
+    })
+  })
+
+  it('does not borrow a default chat route for a non-text operation', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' }
+      }
+    })
+
+    expect(
+      resolveEffectiveEndpointForOperation(provider, { id: 'embedding-without-endpoint' } as never, {
+        operationCapability: MODEL_CAPABILITY.EMBEDDING
+      })
+    ).toEqual({ endpointType: undefined, baseUrl: '', providerOptionsKey: undefined })
+  })
+
+  it('inherits the shared host for a configured provider operation route omitted by the model', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://api.example.com/v1',
+          adapterFamily: 'openai-compatible'
+        },
+        [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { adapterFamily: 'openai-compatible' }
+      }
+    })
+    const model = {
+      id: 'multi-operation',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as never
+
+    expect(
+      resolveEffectiveEndpointForOperation(provider, model, {
+        operationCapability: MODEL_CAPABILITY.EMBEDDING
+      })
+    ).toMatchObject({
+      endpointType: ENDPOINT_TYPE.OPENAI_EMBEDDINGS,
+      baseUrl: 'https://api.example.com/v1'
+    })
+  })
+
+  it('keeps an unserved compatible endpoint fail closed', () => {
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' }
+      }
+    })
+    const model = { id: 'embedding', endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] } as never
+
+    expect(
+      resolveEffectiveEndpointForOperation(provider, model, {
+        operationCapability: MODEL_CAPABILITY.EMBEDDING
+      })
+    ).toEqual({ endpointType: ENDPOINT_TYPE.OPENAI_EMBEDDINGS, baseUrl: '', providerOptionsKey: undefined })
+  })
+
   it('prefers model.preferredEndpointType over the supported-set order', () => {
     const provider = makeProvider({
       id: 'doubao',
@@ -590,13 +682,13 @@ describe('resolveEffectiveEndpoint', () => {
       })
     })
 
-    it('leaves the gateway route untouched for models that declare no endpoints', () => {
+    it('honors an available required endpoint when the model declares no protocol restriction', () => {
       const model = { id: 'm' } as never
       expect(
         resolveEffectiveEndpoint(deepseek, model, {
           requiredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
         }).endpointType
-      ).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      ).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
     })
   })
 

@@ -1,4 +1,4 @@
-import { CURRENCY, type Model } from '@shared/data/types/model'
+import { CURRENCY, ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -398,5 +398,50 @@ describe('EditModelDrawer pricing', () => {
       perImage: { price: 0.04, unit: 'image' },
       perMinute: { price: 0.2 }
     })
+  })
+})
+
+describe('EditModelDrawer operation routing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    updateModelMock.mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom',
+        name: 'Custom',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://example.com' },
+          [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: { baseUrl: 'https://example.com' }
+        }
+      }
+    })
+  })
+
+  it('removes incompatible endpoints and preference in the operation patch', async () => {
+    const user = userEvent.setup()
+    const model = {
+      id: 'custom::multi-model',
+      providerId: 'custom',
+      name: 'Multi model',
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model
+
+    render(<EditModelDrawer providerId="custom" open onClose={vi.fn()} model={model} />)
+    await user.click(screen.getByRole('button', { name: 'models.type.text' }))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+        preferredEndpointType: null
+      })
+    )
   })
 })

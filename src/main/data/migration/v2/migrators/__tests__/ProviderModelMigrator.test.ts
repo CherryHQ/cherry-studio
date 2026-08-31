@@ -1272,7 +1272,7 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.outputModalities).toBeNull()
     })
 
-    it('preserves an explicit rerank disable for matching model ids and registry presets', async () => {
+    it('classifies an explicitly disabled rerank preset as text generation', async () => {
       registryFixtures.providers = [{ id: 'voyageai', name: 'Voyage AI', endpointConfigs: {} }]
       registryFixtures.models.set('rerank-2', {
         id: 'rerank-2',
@@ -1292,7 +1292,7 @@ describe('ProviderModelMigrator', () => {
 
       expect(result.success).toBe(true)
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'voyageai::rerank-2'))
-      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
     })
 
     it('normalizes Jina rerank endpoint metadata for opaque NewAPI model ids', async () => {
@@ -1319,7 +1319,7 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 
-    it('preserves an explicit rerank disable for opaque models with a primary Jina endpoint', async () => {
+    it('classifies an explicitly disabled opaque rerank model as text generation', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
@@ -1343,10 +1343,10 @@ describe('ProviderModelMigrator', () => {
         .from(userModelTable)
         .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
       expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
-      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
     })
 
-    it('does not infer rerank from a secondary Jina endpoint', async () => {
+    it('infers every operation exposed by a multi-endpoint model', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
@@ -1366,7 +1366,7 @@ describe('ProviderModelMigrator', () => {
         .from(userModelTable)
         .where(eq(userModelTable.id, 'new-api::multi-endpoint-chat-model'))
       expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.JINA_RERANK])
-      expect(modelRow.capabilities).toEqual([])
+      expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.RERANK])
     })
 
     it('tolerates a provider whose models field is null or undefined', async () => {

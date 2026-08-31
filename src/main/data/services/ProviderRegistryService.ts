@@ -29,6 +29,7 @@ import type {
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
+  applyModelCapabilityOverride,
   buildPersistedEndpointConfigs,
   configureOpenAIResponsesSummary,
   deriveLegacyReasoningFields,
@@ -295,26 +296,7 @@ export function applyCapabilityOverride(
   base: ModelCapability[],
   override: { add?: ModelCapability[]; remove?: ModelCapability[]; force?: ModelCapability[] } | null | undefined
 ): ModelCapability[] {
-  if (!override) {
-    return [...base]
-  }
-
-  if (override.force && override.force.length > 0) {
-    return [...override.force]
-  }
-
-  let result = [...base]
-
-  if (override.add?.length) {
-    result = Array.from(new Set([...result, ...override.add]))
-  }
-
-  if (override.remove?.length) {
-    const removeSet = new Set(override.remove)
-    result = result.filter((c) => !removeSet.has(c))
-  }
-
-  return result
+  return applyModelCapabilityOverride(base, override ?? undefined)
 }
 
 /**
@@ -425,7 +407,7 @@ export function createCustomModel(
     apiModelId: modelId,
     name: modelId,
     ownedBy: inferReasoningOwnedBy(modelId),
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     reasoning,
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
     supportsStreaming: true,
@@ -948,7 +930,8 @@ class ProviderRegistryService {
           presetProviderId: context.presetProviderId ?? undefined,
           defaultChatEndpoint,
           endpointConfigs: context.endpointConfigs
-        }
+        },
+        MODEL_CAPABILITY.TEXT_GENERATION
       )
     }
 
@@ -1023,12 +1006,16 @@ class ProviderRegistryService {
     // candidate; without one the heuristic still ranks the whole supported set.
     const effectiveEndpoint =
       endpointType ??
-      getModelPreferredEndpoint(model, {
-        id: provider.id,
-        presetProviderId: provider.presetProviderId ?? undefined,
-        defaultChatEndpoint: provider.defaultChatEndpoint,
-        endpointConfigs: provider.endpointConfigs
-      }) ??
+      getModelPreferredEndpoint(
+        model,
+        {
+          id: provider.id,
+          presetProviderId: provider.presetProviderId ?? undefined,
+          defaultChatEndpoint: provider.defaultChatEndpoint,
+          endpointConfigs: provider.endpointConfigs
+        },
+        MODEL_CAPABILITY.TEXT_GENERATION
+      ) ??
       resolveChatEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))

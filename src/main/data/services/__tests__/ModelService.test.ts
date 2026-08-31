@@ -18,7 +18,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -83,18 +83,33 @@ function providerRow(providerId: string, name: string, orderKey = generateOrderK
 type InsertUserModelRow = typeof userModelTable.$inferInsert
 
 function modelRow(providerId: string, modelId: string, values: Partial<InsertUserModelRow> = {}): InsertUserModelRow {
+  const operationCapabilities = new Set<string>([
+    MODEL_CAPABILITY.TEXT_GENERATION,
+    MODEL_CAPABILITY.EMBEDDING,
+    MODEL_CAPABILITY.RERANK,
+    MODEL_CAPABILITY.IMAGE_GENERATION,
+    MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
+    MODEL_CAPABILITY.AUDIO_GENERATION,
+    MODEL_CAPABILITY.VIDEO_GENERATION
+  ])
+  const capabilities = Array.isArray(values.capabilities)
+    ? values.capabilities.some((capability) => operationCapabilities.has(capability))
+      ? values.capabilities
+      : [...values.capabilities, MODEL_CAPABILITY.TEXT_GENERATION]
+    : values.capabilities
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
     modelId,
     name: modelId,
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,
     isDeprecated: false,
     orderKey: generateOrderKeyBetween(null, null),
-    ...values
+    ...values,
+    ...(capabilities !== undefined ? { capabilities } : {})
   }
 }
 
@@ -184,7 +199,7 @@ describe('ModelService.update', () => {
       modelRow('openai', 'gpt-4o', {
         presetModelId: 'gpt-4o',
         name: 'GPT-4o',
-        capabilities: ['function-call'],
+        capabilities: ['function-call', MODEL_CAPABILITY.TEXT_GENERATION],
         inputModalities: ['text'],
         outputModalities: ['text'],
         contextWindow: 128_000,
@@ -219,7 +234,7 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.name).toBe('New Name')
-    expect(row.capabilities).toEqual(['function-call'])
+    expect(row.capabilities).toEqual(['function-call', 'text-generation'])
     expect(row.contextWindow).toBe(128_000)
     expect(row.maxOutputTokens).toBe(4096)
   })
@@ -244,7 +259,7 @@ describe('ModelService.update', () => {
     )
   })
 
-  it('clears a stored preference when the supported endpoint set removes it', async () => {
+  it('clears a stored preference when the same patch removes its endpoint', async () => {
     await dbh.db.insert(userProviderTable).values({
       ...providerRow('relay', 'Relay'),
       presetProviderId: null,
@@ -261,7 +276,10 @@ describe('ModelService.update', () => {
       })
     )
 
-    modelService.update('relay', 'model', { endpointTypes: ['openai-chat-completions'] })
+    modelService.update('relay', 'model', {
+      endpointTypes: ['openai-chat-completions'],
+      preferredEndpointType: null
+    })
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'relay::model'))
     expect(row.preferredEndpointType).toBeNull()
@@ -391,7 +409,7 @@ describe('ModelService.update', () => {
       .where(eq(userModelTable.id, createUniqueModelId('tokenhub', apiModelId)))
     expect(row.name).toBeNull()
     expect(updated.name).toBe('DeepSeek-V4-Flash 原厂直供')
-    expect(lookupModelMock).toHaveBeenNthCalledWith(1, 'tokenhub', apiModelId, undefined)
+    expect(lookupModelMock).toHaveBeenNthCalledWith(1, 'tokenhub', apiModelId, expect.any(Map))
   })
 
   it('does not freeze the edit drawer empty-pricing echo when the registry has no pricing', async () => {
@@ -551,7 +569,7 @@ describe('ModelService.update', () => {
       presetModel: {
         id: 'gpt-4o',
         name: 'GPT-4o',
-        capabilities: ['function-call'],
+        capabilities: ['function-call', MODEL_CAPABILITY.TEXT_GENERATION],
         contextWindow: 128_000
       },
       registryOverride: null,
@@ -615,7 +633,7 @@ describe('ModelService.create', () => {
       presetModel: {
         id: 'gpt-4o',
         name: 'GPT-4o',
-        capabilities: ['function-call'],
+        capabilities: ['function-call', MODEL_CAPABILITY.TEXT_GENERATION],
         inputModalities: ['text'],
         contextWindow: 128_000,
         maxOutputTokens: 4096
@@ -628,7 +646,7 @@ describe('ModelService.create', () => {
     const [created] = modelService.create([{ dto, registryData }])
 
     expect(created.name).toBe('GPT-4o')
-    expect(created.capabilities).toEqual(['function-call'])
+    expect(created.capabilities).toEqual(['function-call', MODEL_CAPABILITY.TEXT_GENERATION])
     expect(created.contextWindow).toBe(128_000)
 
     const [row] = await dbh.db
@@ -669,7 +687,7 @@ describe('ModelService.create', () => {
     ).toThrowError(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
   })
 
-  it('persists a provider-configured preference for a custom model without endpointTypes', async () => {
+  it('persists a provider-configured preference declared by a custom model', async () => {
     await dbh.db.insert(userProviderTable).values({
       ...providerRow('relay', 'Relay'),
       presetProviderId: null,
@@ -685,13 +703,15 @@ describe('ModelService.create', () => {
         dto: {
           providerId: 'relay',
           modelId: 'manual-model',
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+          endpointTypes: ['openai-responses'],
           preferredEndpointType: 'openai-responses'
         }
       }
     ])
 
     expect(created).toMatchObject({
-      endpointTypes: undefined,
+      endpointTypes: ['openai-responses'],
       preferredEndpointType: 'openai-responses'
     })
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'relay::manual-model'))
@@ -712,9 +732,13 @@ describe('ModelService.create', () => {
       presetModel: {
         id: 'preset-model',
         name: 'Preset Model',
-        endpointTypes: ['openai-chat-completions', 'openai-responses']
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
       } as any,
-      registryOverride: null,
+      registryOverride: {
+        providerId: 'relay',
+        modelId: 'preset-model',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      },
       reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
     }
     lookupModelMock.mockReturnValue(registryData)
@@ -753,6 +777,7 @@ describe('ModelService.create', () => {
           presetModel: {
             id: 'gpt-4o',
             name: 'GPT-4o',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
             maxInputTokens: 128_000,
             maxOutputTokens: 4_096
           } as any,
@@ -786,14 +811,14 @@ describe('ModelService.create', () => {
           providerId: 'openai',
           modelId: 'gpt-4o',
           name: 'GPT-4o',
-          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+          capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION],
           supportsStreaming: true
         },
         registryData: {
           presetModel: {
             id: 'gpt-4o',
             name: 'GPT-4o',
-            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION]
           } as any,
           registryOverride: null,
           reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
@@ -818,7 +843,8 @@ describe('ModelService.create', () => {
           providerId: 'openai',
           modelId: 'custom-gpt',
           presetModelId: 'preset-from-dto',
-          name: 'Custom GPT'
+          name: 'Custom GPT',
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
         }
       }
     ])
@@ -827,7 +853,7 @@ describe('ModelService.create', () => {
     expect(row).toMatchObject({
       presetModelId: null,
       name: 'Custom GPT',
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       supportsStreaming: true
     })
     expect(infoSpy).toHaveBeenCalledWith('Created custom model (no registry match)', {
@@ -847,7 +873,8 @@ describe('ModelService.create', () => {
           dto: {
             providerId: 'openai',
             modelId: 'gpt-4o',
-            name: 'Duplicate GPT-4o'
+            name: 'Duplicate GPT-4o',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
           }
         }
       ])
@@ -902,7 +929,7 @@ describe('ModelService.create', () => {
           presetModel: {
             id: 'gpt-4o',
             name: 'GPT-4o',
-            capabilities: ['function-call'],
+            capabilities: ['function-call', MODEL_CAPABILITY.TEXT_GENERATION],
             inputModalities: ['text'],
             contextWindow: 128_000,
             maxOutputTokens: 4096
@@ -916,7 +943,8 @@ describe('ModelService.create', () => {
           providerId: 'custom',
           modelId: 'my-model',
           name: 'My Model',
-          endpointTypes: ['openai']
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+          endpointTypes: ['openai-chat-completions']
         }
       }
     ]
@@ -938,7 +966,7 @@ describe('ModelService.create', () => {
       providerId: 'openai',
       apiModelId: 'gpt-4o',
       name: 'GPT-4o',
-      capabilities: ['function-call'],
+      capabilities: ['function-call', MODEL_CAPABILITY.TEXT_GENERATION],
       contextWindow: 128_000
     })
     expect(created[1]).toMatchObject({
@@ -946,7 +974,7 @@ describe('ModelService.create', () => {
       providerId: 'custom',
       apiModelId: 'my-model',
       name: 'My Model',
-      endpointTypes: ['openai']
+      endpointTypes: ['openai-chat-completions']
     })
 
     const rows = await dbh.db
@@ -976,7 +1004,7 @@ describe('ModelService.create', () => {
       modelId: 'my-model',
       presetModelId: null,
       name: 'My Model',
-      endpointTypes: ['openai']
+      endpointTypes: ['openai-chat-completions']
     })
   })
 
@@ -991,14 +1019,16 @@ describe('ModelService.create', () => {
           dto: {
             providerId: 'openai',
             modelId: 'gpt-new',
-            name: 'New Model'
+            name: 'New Model',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
           }
         },
         {
           dto: {
             providerId: 'openai',
             modelId: 'gpt-4o',
-            name: 'Duplicate GPT-4o'
+            name: 'Duplicate GPT-4o',
+            capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
           }
         }
       ])
@@ -1283,6 +1313,7 @@ describe('ModelService.list — registry enrichment', () => {
           providerId: 'openai',
           modelId: 'future-model',
           name: 'Future Model',
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
           maxOutputTokens: 4096
         }
       }
@@ -1327,7 +1358,7 @@ describe('ModelService.list — registry enrichment', () => {
       presetModelId: null,
       name: 'Future Model',
       description: 'Registry description',
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       inputModalities: ['text', 'image'],
       outputModalities: ['image'],
       contextWindow: 256_000,
@@ -1351,6 +1382,7 @@ describe('ModelService.list — registry enrichment', () => {
           modelId: 'future-model',
           name: 'Future Model',
           description: 'Custom description',
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
           inputModalities: ['audio'],
           outputModalities: ['video']
         }
@@ -1421,6 +1453,7 @@ describe('ModelService.list — registry enrichment', () => {
         dto: {
           providerId: 'openai',
           modelId: 'explicit-empty-model',
+          capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
           inputModalities: []
         }
       }
@@ -1564,7 +1597,7 @@ describe('ModelService.list — registry enrichment', () => {
 
     expect(model.name).toBe('')
     expect(model.group).toBe('')
-    expect(model.capabilities).toEqual([])
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
     expect(model.supportsStreaming).toBe(false)
   })
 
@@ -1631,7 +1664,7 @@ describe('ModelService.list — registry enrichment', () => {
       capability: MODEL_CAPABILITY.IMAGE_GENERATION
     })
 
-    expect(model.capabilities).toEqual([])
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
     expect(model.imageGeneration).toEqual(imageGenerationMeta)
     expect(imageModels).toEqual([])
   })
@@ -1665,7 +1698,7 @@ describe('ModelService.list — registry enrichment', () => {
 
     const [model] = modelService.list({ providerId: 'anthropic' })
 
-    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.TEXT_GENERATION])
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
   })
 })
@@ -1924,7 +1957,13 @@ describe('ModelService — reasoning descriptor enrichment', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('my-compat', 'My Compat'))
 
     const [created] = modelService.create([
-      { dto: { providerId: 'my-compat', modelId: 'glm-4.6', capabilities: [MODEL_CAPABILITY.REASONING] } }
+      {
+        dto: {
+          providerId: 'my-compat',
+          modelId: 'glm-4.6',
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION]
+        }
+      }
     ])
 
     expect(created.reasoning?.controls).toEqual([{ kind: 'toggle' }])
@@ -1950,7 +1989,7 @@ describe('ModelService — reasoning descriptor enrichment', () => {
         dto: {
           providerId: 'ollama',
           modelId: 'acme-thinker:latest',
-          capabilities: [MODEL_CAPABILITY.REASONING]
+          capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.TEXT_GENERATION]
         },
         registryData
       }
@@ -2629,8 +2668,9 @@ describe('ModelService.reconcileForProvider', () => {
       dto: {
         providerId: 'openai',
         modelId: `bulk-model-${index}`,
-        name: `Bulk Model ${index}`
-      } as const,
+        name: `Bulk Model ${index}`,
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+      },
       registryData: undefined
     }))
 

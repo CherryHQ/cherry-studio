@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest'
 import { canonOf, isModelsDevRoutingAlias, prefixHit } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
 import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
-import { SERVER_TOOL } from '../schemas/enums'
+import { getModelEndpointContractIssues } from '../registry-utils'
+import { MODEL_CAPABILITY, type ModelCapability, SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
@@ -215,6 +216,24 @@ describe('catalog invariants (data/*.json)', () => {
 
   it('does not encode provider-native web search as a generic model capability', () => {
     expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
+  })
+
+  it('every base model declares at least one operation capability', () => {
+    expect(
+      models
+        .filter(
+          (model) =>
+            getModelEndpointContractIssues({ capabilities: model.capabilities as ModelCapability[] | undefined })
+              .length > 0
+        )
+        .map((model) => model.id)
+    ).toEqual([])
+  })
+
+  it('keeps Jina ColBERT models as embedding and rerank models', () => {
+    expect(models.find((model) => model.id === 'jina-colbert-v2')?.capabilities).toEqual(
+      expect.arrayContaining([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])
+    )
   })
 
   // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.

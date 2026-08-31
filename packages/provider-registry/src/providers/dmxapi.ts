@@ -73,6 +73,12 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'dmxapi',
       baseUrl: 'https://www.dmxapi.cn'
+    },
+    'openai-embeddings': {
+      adapterFamily: 'dmxapi'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'dmxapi'
     }
   },
   metadata: {

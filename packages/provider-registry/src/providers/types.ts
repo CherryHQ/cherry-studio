@@ -87,6 +87,7 @@ export function openaiCompatible(
     name: string
     baseUrl: string
     anthropic?: string
+    additionalEndpointConfigs?: ProviderConnection['endpointConfigs']
     website: ProviderWebsite
     /** Dialect deviations of this host's chat-completions implementation. */
     dialect?: EndpointDialect
@@ -109,6 +110,7 @@ export function openaiCompatible(
     }
   }
   if (p.anthropic) endpointConfigs['anthropic-messages'] = { adapterFamily: 'anthropic', baseUrl: p.anthropic }
+  Object.assign(endpointConfigs, p.additionalEndpointConfigs)
   return defineProvider({
     id: p.id,
     name: p.name,

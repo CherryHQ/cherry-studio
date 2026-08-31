@@ -127,7 +127,9 @@ export function buildPiProviderInjection(
 ): PiProviderInjection {
   // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
   // claude-code) has no key by design, and "missing API key" would misdiagnose it.
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined
@@ -256,7 +258,9 @@ export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Prom
   // Unsupported beats missing-credential (parity with buildPiProviderInjection):
   // a login-based provider with no adapter has no key by design, and reporting
   // "missing API key" for it would misdiagnose an unsupported provider.
-  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
+  const resolvedEndpoint = resolveEffectiveEndpoint(provider, model, {
+    operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+  })
   const adapterFamily = resolvedEndpoint.endpointType
     ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.adapterFamily
     : undefined

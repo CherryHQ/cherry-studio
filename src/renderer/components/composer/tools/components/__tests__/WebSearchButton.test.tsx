@@ -156,7 +156,7 @@ describe('WebSearchButton', () => {
       providerId: 'anthropic',
       apiModelId: 'claude-3-5-sonnet',
       name: 'Claude 3.5 Sonnet',
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
@@ -241,7 +241,7 @@ describe('WebSearchButton', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
     mocks.model = {
       ...mocks.model!,
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
@@ -259,7 +259,7 @@ describe('WebSearchButton', () => {
     })
     mocks.model = {
       ...mocks.model!,
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
@@ -277,7 +277,7 @@ describe('WebSearchButton', () => {
     MockUseDataApiUtils.mockQueryData('/providers/:providerId/api-keys', { keys: [] })
     mocks.model = {
       ...mocks.model!,
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
@@ -295,7 +295,7 @@ describe('WebSearchButton', () => {
     MockUseDataApiUtils.mockQueryLoading('/providers/:providerId/api-keys')
     mocks.model = {
       ...mocks.model!,
-      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
@@ -310,7 +310,10 @@ describe('WebSearchButton', () => {
   // so the tooltip is the only place the user can see which side will serve the request.
   it('names the serving side in the tooltip', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
-    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+    }
 
     const { unmount } = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
@@ -328,7 +331,10 @@ describe('WebSearchButton', () => {
   // when the launcher carries no tooltip — which is how the globe kept showing the plain label.
   it('carries the serving side on the registered launcher too', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
-    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+    mocks.model = {
+      ...mocks.model!,
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.FUNCTION_CALL]
+    }
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 

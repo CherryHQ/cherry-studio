@@ -13,7 +13,7 @@ import { loggerService } from '@logger'
 import { providerToAiSdkConfig } from '@main/ai/provider/config'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 import { resolveContextWindow } from './resolveContextWindow'
 
@@ -59,7 +59,9 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Compr
   }
 
   try {
-    const config = await providerToAiSdkConfig(provider, model)
+    const config = await providerToAiSdkConfig(provider, model, {
+      operationCapability: MODEL_CAPABILITY.TEXT_GENERATION
+    })
     // ai-core's createExecutor type accepts only the registered union of
     // provider ids; the union match was already validated by `providerToAiSdkConfig`.
     const executor = await createExecutor(

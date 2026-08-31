@@ -5,9 +5,8 @@
  * capability matrix. Claude Code uses the API Gateway's routability predicate;
  * Pi additionally validates that its provider wire protocol is supported.
  *
- * Default `null`-typed agents fall through to the shared "agent-friendly"
- * filter (drops embedding / rerank / image-generation models — none of
- * those make sense as chat targets).
+ * Default `null`-typed agents require the text-generation operation; models
+ * may still expose embedding, rerank, or image generation alongside it.
  */
 
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'

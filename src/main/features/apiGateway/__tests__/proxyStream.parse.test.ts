@@ -1,5 +1,5 @@
 import type { StreamListener } from '@main/ai/streamManager/types'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -86,7 +86,7 @@ function mockAvailableModel(providerId: string, internalModelId: string, apiMode
       id: createUniqueModelId(providerId, internalModelId),
       providerId,
       apiModelId,
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     }
   ])
 }

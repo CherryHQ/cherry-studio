@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
@@ -79,7 +79,7 @@ function makeModel(overrides: Partial<Model> = {}): Model {
     providerId: 'vertexai',
     apiModelId: 'gemini-2.5-pro',
     name: 'Gemini 2.5 Pro',
-    capabilities: [],
+    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
     contextWindow: 1_000_000,
     maxOutputTokens: 8_192,
     ...overrides
@@ -136,7 +136,10 @@ describe('buildDshGatewayInjection', () => {
   })
 
   it('rejects models the gateway cannot route and defaults an undeclared context window', () => {
-    const nonChat = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] })
+    const nonChat = makeModel({
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+      capabilities: [MODEL_CAPABILITY.EMBEDDING]
+    })
     expect(() => buildDshGatewayInjection(vertexProvider, nonChat, GATEWAY)).toThrow(DshUnsupportedProviderError)
 
     const windowless = makeModel({ contextWindow: undefined })
@@ -226,7 +229,12 @@ describe('assertDshProviderUsable', () => {
 
   it('still reports unsupported when the model is not gateway-routable either', async () => {
     mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
+    mocks.getByKey.mockResolvedValue(
+      makeModel({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+    )
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedProviderError)
   })

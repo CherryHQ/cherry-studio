@@ -26,7 +26,7 @@ import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/da
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   ImageGenerationModeSchema,
-  ModelSchema,
+  PartialModelSchema,
   ServiceTierSelectionSchema,
   UniqueModelIdSchema
 } from '@shared/data/types/model'
@@ -199,7 +199,7 @@ export const aiRequestSchemas = {
       assistantId: z.string().optional(),
       throwOnError: z.boolean().optional()
     }),
-    output: z.array(ModelSchema.partial())
+    output: z.array(PartialModelSchema)
   }),
   'ai.provider.model.check': defineRoute({
     input: z.strictObject({

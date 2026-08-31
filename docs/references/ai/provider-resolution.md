@@ -3,6 +3,7 @@ description: Endpoint resolution chain from provider.endpointConfigs and adapter
 sources:
   - src/main/ai/provider/endpoint.ts
   - src/main/ai/provider/config.ts
+  - packages/provider-registry/src/registry-utils.ts
   - packages/aiCore/src/core/providers/core/initialization.ts
 ---
 
@@ -30,7 +31,7 @@ See [Adapter Family](./adapter-family.md) for the full design.
 `src/main/ai/provider/endpoint.ts` exposes four pure helpers:
 
 ```ts
-resolveEffectiveEndpoint(provider, model, { requiredEndpointType? }): {
+resolveEffectiveEndpoint(provider, model, { operationCapability, requiredEndpointType? }): {
   endpointType,
   baseUrl,
   providerOptionsKey?
@@ -40,22 +41,25 @@ resolveAiSdkProviderId(provider, endpointType): AppProviderId
 resolveProviderOptionsKey(aiSdkProviderId, context): string
 ```
 
-`resolveEffectiveEndpoint` resolves candidates in this order:
+Every request supplies its operation capability (`text-generation`, `embedding`, `rerank`,
+`image-generation`, `audio-transcript`, `audio-generation`, or `video-generation`). The endpoint
+operation contract in provider-registry defines which protocols can carry each operation. For that
+operation, `resolveEffectiveEndpoint` resolves candidates in this order:
 
-1. A caller's hard requirement for a runtime that speaks exactly one protocol.
-2. The model's persisted `preferredEndpointType`.
-3. The first model-declared endpoint with a configured provider route.
-4. A registered per-model gateway route.
-5. `provider.defaultChatEndpoint`.
+1. A compatible, configured caller requirement for a runtime that speaks exactly one protocol.
+2. The model's compatible, configured `preferredEndpointType`.
+3. The first compatible model-declared endpoint with a configured provider route.
+4. If compatible declarations exist but none is configured, retain the first one and fail closed with
+   an empty URL.
+5. Only for `text-generation`, a registered per-model gateway route or `provider.defaultChatEndpoint`.
+6. For other operations, a compatible endpoint explicitly configured by the provider; otherwise the
+   operation is not routable.
 
-Every chat protocol requires a live endpoint configuration; a hand-added model with no
-`endpointTypes` can use any configured provider route. An adapter-only endpoint configuration can
-inherit the provider's user-configured URL; the upstream-reported endpoint set still narrows which
-routes each model accepts. Invalid stored
-preferences are skipped, as are runtime requirements without a model declaration
-or registered gateway route. If a model declares protocols but none has a configured route, the
-resolver retains its first declaration so URL resolution fails closed instead of borrowing the
-provider default.
+`endpointTypes` is a protocol restriction, not a second model-type system. A model may support
+multiple operations and multiple endpoints; it does not have to declare one endpoint for every
+capability. Invalid or operation-incompatible preferences are ignored for that request. A configured
+adapter-only endpoint can inherit the provider's shared host, while an undeclared adapter or an
+unconfigured protocol does not borrow another protocol's host.
 
 `resolveAiSdkProviderId` is the runtime hot-path entry. It reads
 `provider.endpointConfigs[endpointType].adapterFamily`, applies the

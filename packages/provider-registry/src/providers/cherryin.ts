@@ -113,6 +113,15 @@ export default defineProvider({
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net',
       reasoningFormat: { type: 'openai-chat' }
+    },
+    'openai-embeddings': {
+      adapterFamily: 'cherryin'
+    },
+    'openai-image-generation': {
+      adapterFamily: 'cherryin'
+    },
+    'jina-rerank': {
+      adapterFamily: 'cherryin'
     }
   },
   // Gateway-mapped delivery: `resolveToolCapability` falls back to the vendor

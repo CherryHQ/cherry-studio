@@ -1,7 +1,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
+import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -143,7 +143,7 @@ beforeEach(() => {
       id: createUniqueModelId('openai', 'gpt-4'),
       providerId: 'openai',
       apiModelId: 'gpt-4',
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     }
   ])
   mockStreamPrompt.mockImplementation((opts: { listener: StreamListener }) => {
@@ -193,7 +193,7 @@ function useGatewayModel(
       id: createUniqueModelId(providerId, apiModelId),
       providerId,
       apiModelId,
-      capabilities: [],
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
       endpointTypes: [endpointType]
     }
   ])

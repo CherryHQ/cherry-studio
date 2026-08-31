@@ -1,6 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { HealthStatus, type ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import type { Model } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,7 +11,7 @@ const chatModel: Model = {
   id: 'openai::chat',
   providerId: 'openai',
   name: 'Chat',
-  capabilities: [],
+  capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
   supportsStreaming: true,
   isEnabled: true,
   isHidden: false
@@ -24,6 +24,12 @@ const imageModel: Model = {
   supportsStreaming: false,
   isEnabled: true,
   isHidden: false
+}
+const unsupportedModel: Model = {
+  ...imageModel,
+  id: 'openai::audio',
+  name: 'Audio',
+  capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION]
 }
 const { showErrorDetailPopup } = vi.hoisted(() => ({ showErrorDetailPopup: vi.fn() }))
 const startSingleModelCheck = vi.fn()
@@ -265,7 +271,7 @@ describe('ModelCheckDialog', () => {
 
   it('disables a single-model run with an unsupported-only placeholder', async () => {
     const user = userEvent.setup()
-    health.models = [imageModel]
+    health.models = [unsupportedModel]
 
     render(<ModelCheckDialog />)
 
@@ -280,7 +286,7 @@ describe('ModelCheckDialog', () => {
 
   it('allows an all-model run when every model will be skipped', async () => {
     const user = userEvent.setup()
-    health.models = [imageModel]
+    health.models = [unsupportedModel]
 
     render(<ModelCheckDialog />)
     await user.click(screen.getByRole('button', { name: 'settings.models.check.model_button_caption' }))

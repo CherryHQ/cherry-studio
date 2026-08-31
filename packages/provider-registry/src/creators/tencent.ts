@@ -17,7 +17,8 @@ export default defineCreator({
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: 'hunyuan-t1' },
     { pattern: 'hunyuan-a13b' },
-    { pattern: '^hy3' }
+    { pattern: '^hy3' },
+    { pattern: '^hy4-preview$' }
   ],
   models: [
     { id: 'hunyuan-turbos', name: 'Hunyuan TurboS', capabilities: ['function-call'] },

@@ -4040,6 +4040,7 @@
   "settings.models.add.model_name.label": "Nom du modèle",
   "settings.models.add.model_name.placeholder": "Par exemple, GPT-5.5",
   "settings.models.add.model_type.label": "Type de modèle",
+  "settings.models.add.operations.label": "Opérations du modèle",
   "settings.models.add.preferred_endpoint.inherit": "Hériter",
   "settings.models.add.preferred_endpoint.inherit_resolved": "Hériter ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Point d'extrémité préféré",

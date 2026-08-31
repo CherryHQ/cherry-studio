@@ -90,6 +90,10 @@ export default openaiCompatible({
   id: 'minimax',
   name: 'MiniMax',
   baseUrl: 'https://api.minimaxi.com/v1/',
+  additionalEndpointConfigs: {
+    'openai-embeddings': { adapterFamily: 'minimax' },
+    'openai-image-generation': { adapterFamily: 'minimax' }
+  },
   anthropic: 'https://api.minimaxi.com/anthropic',
   website: {
     apiKey: 'https://platform.minimaxi.com/user-center/basic-information/interface-key',

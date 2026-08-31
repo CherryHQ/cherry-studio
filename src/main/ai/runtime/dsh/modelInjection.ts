@@ -16,7 +16,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { type DshApi, hasDshTextInput, mapEndpointToDshApi } from '@shared/ai/dshModelCompatibility'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
@@ -156,7 +156,7 @@ export interface DshProviderInjection {
 }
 
 function resolveDshEndpoint(provider: Provider, model: Model) {
-  return resolveEffectiveEndpoint(provider, model)
+  return resolveEffectiveEndpoint(provider, model, { operationCapability: MODEL_CAPABILITY.TEXT_GENERATION })
 }
 
 /**

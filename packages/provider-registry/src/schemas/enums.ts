@@ -36,6 +36,7 @@ export type EndpointType = (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const MODEL_CAPABILITY = {
+  TEXT_GENERATION: 'text-generation',
   FUNCTION_CALL: 'function-call',
   REASONING: 'reasoning',
   IMAGE_RECOGNITION: 'image-recognition',

@@ -4040,6 +4040,7 @@
   "settings.models.add.model_name.label": "Имя модели",
   "settings.models.add.model_name.placeholder": "Например, GPT-5.5",
   "settings.models.add.model_type.label": "Тип модели",
+  "settings.models.add.operations.label": "Операции модели",
   "settings.models.add.preferred_endpoint.inherit": "Наследовать",
   "settings.models.add.preferred_endpoint.inherit_resolved": "Наследовать ({{endpoint}})",
   "settings.models.add.preferred_endpoint.label": "Предпочтительная конечная точка",

@@ -13,6 +13,7 @@ import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
   showEndpointType: boolean
+  endpointTypeOptions?: readonly EndpointType[]
   /** Routable endpoints for this model. The caller decides when there is a choice worth showing. */
   preferredEndpointOptions?: readonly EndpointType[]
   /** The pinned endpoint, or `undefined` when the model inherits its route. */
@@ -39,6 +40,7 @@ interface ModelBasicFieldsProps {
 export function ModelBasicFields({
   values,
   showEndpointType,
+  endpointTypeOptions,
   preferredEndpointOptions,
   preferredEndpointType,
   inheritedEndpointType,
@@ -144,7 +146,11 @@ export function ModelBasicFields({
           className={drawerClasses.field}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
-            <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
+            <ModelEndpointTypeSelect
+              value={values.endpointTypes ?? []}
+              endpointTypes={endpointTypeOptions ?? []}
+              onChange={onEndpointTypesChange}
+            />
           </div>
         </ProviderField>
       )}

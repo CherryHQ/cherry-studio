@@ -7,8 +7,7 @@ import {
 } from '@shared/utils/model'
 
 /**
- * Dedicated / text-to-image model = `IMAGE_GENERATION` without `REASONING`.
- * Registry populates both capabilities.
+ * Dedicated / text-to-image model = `IMAGE_GENERATION` without `TEXT_GENERATION`.
  */
 export const isDedicatedImageModel = (model: Model): boolean => sharedIsTextToImageModel(model)
 
@@ -41,7 +40,7 @@ export const isGenerateImageModel = (model: Model): boolean => !!model && shared
 
 /**
  * Pure image generator — can produce images without also acting as a chat /
- * tool-call model. Equivalent to `isTextToImageModel` (IMAGE_GEN && !REASONING).
+ * tool-call model. Equivalent to `isTextToImageModel` (IMAGE_GEN && !TEXT_GENERATION).
  */
 export const isPureGenerateImageModel = isTextToImageModel
 

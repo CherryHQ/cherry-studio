@@ -6,7 +6,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
-import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
 import { isCherryAIProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
@@ -61,7 +61,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const makeModelFilter = useCallback(
     (providerId: string) =>
       (model: Model): boolean => {
-        if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
+        if (isNonChatModel(model)) return false
         // The gateway does dialect conversion, so any chat model of any enabled provider is usable
         // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
         // keeping only what the gateway can route (same predicate as its /v1/models listing).
