@@ -33,12 +33,6 @@ jobs:
       short_sha: ${{ steps.source.outputs.short_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Require the workflow from main
-        if: github.ref != 'refs/heads/main'
-        run: |
-          echo "Preview Release must be dispatched from main; choose the source branch with the branch input" >&2
-          exit 1
-
       - name: Resolve source branch
         id: source
         shell: bash

@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Confirmar antes de eliminar mensaje",
   "settings.messages.input.enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
   "settings.messages.input.newline_shortcuts": "Atajo de salto de línea",
+  "settings.messages.input.paste_long_text_as_file": "Pegar texto largo como archivo",
+  "settings.messages.input.paste_long_text_threshold": "Límite de longitud del texto largo",
   "settings.messages.input.send_shortcuts": "Atajos de teclado para enviar",
   "settings.messages.input.show_estimated_tokens": "Mostrar número estimado de tokens",
   "settings.messages.input.steer_shortcuts": "Atajo de guía",

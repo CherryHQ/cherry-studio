@@ -791,5 +791,61 @@
         "hermes"
       ]
     }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
+      ]
+    }
   }
 }

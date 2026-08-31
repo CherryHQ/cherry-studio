@@ -4128,6 +4128,8 @@
   "settings.messages.input.confirm_delete_message": "Confirm before deleting messages",
   "settings.messages.input.enable_quick_triggers": "Enable / to open the input quick panel",
   "settings.messages.input.newline_shortcuts": "Line break shortcut",
+  "settings.messages.input.paste_long_text_as_file": "Paste long text as file",
+  "settings.messages.input.paste_long_text_threshold": "Paste long text length",
   "settings.messages.input.send_shortcuts": "Send shortcuts",
   "settings.messages.input.show_estimated_tokens": "Show estimated tokens",
   "settings.messages.input.steer_shortcuts": "Steer shortcut",
