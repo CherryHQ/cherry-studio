@@ -319,6 +319,19 @@ describe('WebSearchService', () => {
     expect(result.results.map(({ title }) => title)).toEqual(['Fallback first', 'Fallback second'])
   })
 
+  it('surfaces the selected provider configuration error when fallback is disabled', async () => {
+    setWebSearchPreferences({ providerApiKeys: { tavily: [] } })
+    const searchKeywords = vi.fn()
+    createWebSearchProviderMock.mockReturnValue({ searchKeywords })
+
+    await expect(
+      webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first'] }, undefined, { fallback: false })
+    ).rejects.toMatchObject({ name: 'WebSearchConfigError', code: 'api_key_missing' })
+
+    expect(createWebSearchProviderMock).toHaveBeenCalledOnce()
+    expect(searchKeywords).not.toHaveBeenCalled()
+  })
+
   it('retries only failed keywords through ExaMCP and preserves input order', async () => {
     const tavilySearch = vi.fn((input: string) =>
       input === 'first'
