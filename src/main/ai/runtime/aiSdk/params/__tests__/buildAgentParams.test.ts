@@ -1,18 +1,23 @@
 import path from 'node:path'
 
+import { createOpenAI } from '@ai-sdk/openai'
+import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
+import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/FsReadTool'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
+import type { AgentOptions } from '../../loop/types'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
@@ -45,16 +50,23 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
+      // No connected MCP server in these tests, so nothing declares the resources capability.
+      if (name === 'McpRuntimeService') return { getConnectedServerCapabilities: () => undefined }
       throw new Error(`unexpected service: ${name}`)
     }
   }
 }))
 
+// No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
+vi.mock('@main/data/services/McpServerService', () => ({
+  mcpServerService: { list: () => ({ items: [] }) }
+}))
+
 const {
   applyCallOverrides,
+  applyResponsesInstructions,
   buildAgentParams,
   composeStopWhen,
-  resolveRequestedMaxOutputTokens,
   resolveToolCallLimit,
   resolveTools
 } = await import('../buildAgentParams')
@@ -64,6 +76,188 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('passes the conversation id to provider configuration as the session id', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
+    })
+    const provider = makeProvider({ id: 'opencode' })
+    const model = makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+
+    await buildAgentParams({
+      request: { chatId: 'topic-123' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({ sessionId: 'topic-123' })
+    )
+  })
+
+  it('maps Groq service tiers after assistant custom parameters and before call overrides', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'groq', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'groq',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'groq', baseUrl: 'https://api.groq.com/openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'groq::openai/gpt-oss-120b',
+      providerId: 'groq',
+      apiModelId: 'openai/gpt-oss-120b'
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [{ name: 'groq', type: 'json', value: JSON.stringify({ serviceTier: 'auto', seed: 7 }) }]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: {
+        serviceTier: 'fast',
+        callOverrides: { providerOptions: { groq: { serviceTier: 'flex', extra: true } } }
+      },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.options.providerOptions?.groq).toEqual({ serviceTier: 'flex', seed: 7, extra: true })
+  })
+
+  it('falls an unsupported Groq Performance selection back to Standard', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'groq', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'groq',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'groq', baseUrl: 'https://api.groq.com/openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'groq::llama-3.1-8b-instant',
+      providerId: 'groq',
+      apiModelId: 'llama-3.1-8b-instant'
+    })
+
+    const result = await buildAgentParams({ request: { serviceTier: 'fast' }, signal: undefined, provider, model })
+
+    expect(result.options.providerOptions?.groq).toMatchObject({ serviceTier: 'on_demand' })
+  })
+
+  it('maps OpenRouter Chat tiers into the OpenRouter provider-options namespace', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openrouter', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'openrouter::openai/gpt-5.4',
+      providerId: 'openrouter',
+      apiModelId: 'openai/gpt-5.4'
+    })
+
+    const result = await buildAgentParams({
+      request: { serviceTier: 'flex', callOverrides: { providerOptions: { openrouter: { extra: true } } } },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions?.openrouter).toEqual({ service_tier: 'flex', extra: true })
+  })
+
+  it('injects OpenRouter Messages service_tier at the top level after custom request-body parameters', async () => {
+    let sentBody: Record<string, unknown> | undefined
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      sentBody = JSON.parse(String(init?.body)) as Record<string, unknown>
+      return new Response('{}')
+    })
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: { fetch: innerFetch } },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://openrouter.ai/api'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'openrouter::anthropic/claude-sonnet-4.6',
+      providerId: 'openrouter',
+      apiModelId: 'anthropic/claude-sonnet-4.6',
+      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    const assistant = makeAssistant({
+      settings: {
+        customParameters: [
+          { name: 'service_tier', type: 'string', value: 'custom' },
+          { name: 'route_hint', type: 'string', value: 'keep-me' }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { serviceTier: 'fast' },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+    await (result.sdkConfig.providerSettings.fetch as typeof globalThis.fetch)('https://openrouter.ai/api/messages', {
+      method: 'POST',
+      body: JSON.stringify({ model: model.apiModelId })
+    })
+
+    expect(sentBody).toEqual({ route_hint: 'keep-me', service_tier: 'priority', model: model.apiModelId })
+    expect(result.options.providerOptions?.anthropic).not.toHaveProperty('service_tier')
+  })
+
+  it('omits service tier parameters when the endpoint declares no capability', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({ id: 'opencode' })
+    const model = makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+
+    const result = await buildAgentParams({
+      request: { serviceTier: 'flex' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.options.providerOptions).toBeUndefined()
+  })
+
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -84,7 +278,11 @@ describe('buildAgentParams provider resolution', () => {
       id: 'vertex::openai/gpt-oss-120b-maas',
       providerId: 'vertex',
       apiModelId: 'openai/gpt-oss-120b-maas',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [
+        MODEL_CAPABILITY.REASONING,
+        MODEL_CAPABILITY.AUDIO_RECOGNITION,
+        MODEL_CAPABILITY.VIDEO_RECOGNITION
+      ],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -112,6 +310,7 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
@@ -169,9 +368,9 @@ describe('buildAgentParams provider resolution', () => {
       serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
     })
     const model = makeModel({
-      id: 'gemini::gemini-3-pro-preview',
+      id: 'gemini::gemini-3-1-pro-preview',
       providerId: 'gemini',
-      apiModelId: 'gemini-3-pro-preview',
+      apiModelId: 'gemini-3-1-pro-preview',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     })
     const assistant = makeAssistant({ settings: { enableWebSearch: true } })
@@ -558,6 +757,29 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it('disables Responses storage for assistant-backed calls too', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'openai',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' } }
+    })
+    const model = makeModel({
+      id: 'openai::gpt-5.6',
+      providerId: 'openai',
+      apiModelId: 'gpt-5.6',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(result.options.providerOptions?.openai).toMatchObject({ store: false })
+  })
+
   it.each([
     { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
     {
@@ -705,6 +927,156 @@ describe('buildAgentParams web-tool routing', () => {
 })
 
 describe('buildAgentParams assistant-less reasoning', () => {
+  it('disables Bailian qwen3.7-max reasoning in the serialized Responses request', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: {
+        providerId: 'openai',
+        providerSettings: {}
+      },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'dashscope',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
+      }
+    })
+    const model = makeModel({
+      id: 'dashscope::qwen3-7-max',
+      providerId: 'dashscope',
+      apiModelId: 'qwen3.7-max',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'none' },
+      signal: undefined,
+      provider,
+      model
+    })
+    const prompt: LanguageModelV3CallOptions['prompt'] = [
+      { role: 'user', content: [{ type: 'text', text: 'Translate this.' }] }
+    ]
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('qwen3.7-max')
+
+    await expect(sdkModel.doGenerate({ prompt, providerOptions: result.options.providerOptions })).rejects.toThrow(
+      'request captured'
+    )
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
+  it('serializes gateway reasoning overrides with Responses storage disabled', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' } }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { providerOptions: { openai: { reasoningEffort: 'none', forceReasoning: true } } } },
+      signal: undefined,
+      provider,
+      model
+    })
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('gpt-5.6-sol')
+
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Run the task.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestBody).toMatchObject({ store: false, reasoning: { effort: 'none' } })
+  })
+
+  it('serializes reasoning.summary when a compatible Responses endpoint explicitly opts in', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'newapi', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'new-api',
+      presetProviderId: 'new-api',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+          adapterFamily: 'newapi',
+          dialect: { reasoningSummary: true }
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'new-api::gpt-5.6-sol',
+      providerId: 'new-api',
+      apiModelId: 'gpt-5.6-sol',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({
+      settings: { reasoning_effort: 'high', reasoning_summary: 'detailed' }
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+    let requestBody: Record<string, unknown> | undefined
+    const sdkModel = createOpenAI({
+      apiKey: 'sk-test',
+      baseURL: 'https://example.com/v1',
+      fetch: async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body))
+        throw new Error('request captured')
+      }
+    }).responses('gpt-5.6-sol')
+
+    await expect(
+      sdkModel.doGenerate({
+        prompt: [{ role: 'user', content: [{ type: 'text', text: 'Run the task.' }] }],
+        providerOptions: result.options.providerOptions
+      })
+    ).rejects.toThrow('request captured')
+    expect(requestBody).toMatchObject({
+      store: false,
+      reasoning: { effort: 'high', summary: 'detailed' }
+    })
+  })
+
   const makeOffCapableSetup = () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -732,6 +1104,29 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
     return { provider, model }
   }
+
+  it('applies the Ollama context-window default without an assistant', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'ollama', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'ollama' } }
+    })
+    const model = makeModel({
+      id: 'ollama::qwen3',
+      providerId: 'ollama',
+      apiModelId: 'qwen3',
+      contextWindow: 131072
+    })
+
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model })
+
+    expect(result.options.providerOptions?.ollama).toMatchObject({ options: { num_ctx: 131072 } })
+  })
 
   it("encodes an explicit 'none' selection into the off wire mode without an assistant (translate)", async () => {
     const { provider, model } = makeOffCapableSetup()
@@ -767,6 +1162,42 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
 
     expect(result.options.providerOptions).toBeUndefined()
+  })
+
+  it.each([
+    { providerId: 'opencode', runtimeProviderId: 'openai-compatible', adapterFamily: 'openai-compatible' },
+    { providerId: 'openrouter', runtimeProviderId: 'openrouter', adapterFamily: 'openrouter' }
+  ])('treats stale Auto as Default for mandatory-thinking GLM on $providerId', async (providerConfig) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: providerConfig.runtimeProviderId, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const endpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const provider = makeProvider({
+      id: providerConfig.providerId,
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: { [endpointType]: { adapterFamily: providerConfig.adapterFamily } }
+    })
+    const model = makeModel({
+      id: `${providerConfig.providerId}::glm-5.3-flash`,
+      providerId: providerConfig.providerId,
+      apiModelId: 'glm-5.3-flash',
+      presetModelId: 'glm-5-3-flash',
+      endpointTypes: [endpointType],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'auto' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const providerOptions = result.options.providerOptions?.[result.sdkConfig.providerOptionsKey] ?? {}
+    expect(providerOptions).not.toHaveProperty('reasoning')
+    expect(providerOptions).not.toHaveProperty('reasoningEffort')
+    expect(providerOptions).not.toHaveProperty('reasoning_effort')
   })
 
   it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
@@ -808,9 +1239,10 @@ describe('buildAgentParams assistant-less reasoning', () => {
     // turning reasoning off must send `thinkingBudget: 0`. This row is exactly
     // the shape that used to leak the Gemini 3 field: a catalog-backed custom
     // row (resolvable apiModelId, no presetModelId) on a gateway with no pin.
-    expect(result.options.providerOptions).toEqual({
-      google: { thinkingConfig: { includeThoughts: false, thinkingBudget: 0 } }
+    expect(result.options.providerOptions?.google).toMatchObject({
+      thinkingConfig: { includeThoughts: false, thinkingBudget: 0 }
     })
+    expect(Object.keys(result.options.providerOptions ?? {})).toEqual(['google'])
   })
 
   it('leaves assistant-less requests without an explicit selection un-emitted (gateway regression guard)', async () => {
@@ -1007,6 +1439,38 @@ describe('buildAgentParams retained context', () => {
   })
 })
 
+describe('buildAgentParams — Responses instructions delivery', () => {
+  it('lands the system prompt on the namespace the resolved responses model reads', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai', baseUrl: 'https://relay.example/v1' }
+      }
+    })
+    const model = makeModel({ id: 'relay::gpt-5', providerId: 'relay', apiModelId: 'gpt-5' })
+    const assistant = makeAssistant({ prompt: 'YOU-ARE-REPRO-BOT' })
+
+    const { options, sdkConfig, system } = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(system).toContain('YOU-ARE-REPRO-BOT')
+    expect(options.providerOptions?.[sdkConfig.providerOptionsKey]).toMatchObject({
+      instructions: system,
+      systemMessageMode: 'remove'
+    })
+  })
+})
+
 describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
   it("forwards the assistant's contextSettings override to the resolver", async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
@@ -1026,48 +1490,6 @@ describe('buildAgentParams — assistant context-settings passthrough (P2-D)', (
     await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
 
     expect(resolveRequestContextSettingsSpy).toHaveBeenCalledWith(model, override)
-  })
-})
-
-describe('resolveRequestedMaxOutputTokens', () => {
-  const model = makeModel({ maxOutputTokens: 64_000 })
-
-  it('uses the model limit for Anthropic Messages when assistant max tokens are disabled', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
-
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ).toBe(64_000)
-  })
-
-  it('uses an enabled assistant limit before the Anthropic model default', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
-
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
-    ).toBe(16_000)
-  })
-
-  it('uses a custom parameter before the assistant limit', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
-
-    expect(resolveRequestedMaxOutputTokens(undefined, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
-      24_000
-    )
-  })
-
-  it('gives the per-request override highest precedence', () => {
-    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
-
-    expect(resolveRequestedMaxOutputTokens(32_000, 24_000, assistant, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toBe(
-      32_000
-    )
-  })
-
-  it('does not use the model limit as an automatic cap for non-Anthropic endpoints', () => {
-    expect(
-      resolveRequestedMaxOutputTokens(undefined, undefined, undefined, model, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    ).toBeUndefined()
   })
 })
 
@@ -1136,6 +1558,60 @@ describe('applyCallOverrides', () => {
   })
 })
 
+describe('applyResponsesInstructions', () => {
+  const optionsWith = (providerOptions?: ProviderOptions): AgentOptions =>
+    ({ maxRetries: 0, ...(providerOptions && { providerOptions }) }) as AgentOptions
+
+  it('mirrors the system prompt into instructions and drops the duplicate system input message', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'YOU-ARE-REPRO-BOT', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    // Without `systemMessageMode: 'remove'` @ai-sdk/openai keeps the system input
+    // message alongside `instructions` and the prompt ships twice.
+    expect(options.providerOptions?.openai).toEqual({
+      instructions: 'YOU-ARE-REPRO-BOT',
+      systemMessageMode: 'remove'
+    })
+  })
+
+  it('writes to the namespace the model reads, not a hardcoded openai one', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES, 'my-relay')
+    expect(options.providerOptions?.['my-relay']?.instructions).toBe('SYS')
+    expect(options.providerOptions?.openai).toBeUndefined()
+  })
+
+  it('merges into an existing providerOptions block without clobbering siblings', () => {
+    const options = optionsWith({ openai: { reasoningEffort: 'low' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    expect(options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'low', instructions: 'SYS' })
+  })
+
+  it('leaves an instructions value the user already set completely alone', () => {
+    const options = optionsWith({ openai: { instructions: 'USER-SET' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    // Their prompt is authoritative — including which messages reach the model.
+    expect(options.providerOptions?.openai).toEqual({ instructions: 'USER-SET' })
+  })
+
+  it('does nothing for non-Responses endpoints (Chat Completions)', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai')
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when the endpoint is undefined', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', undefined, 'openai')
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when there is no system prompt', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, undefined, ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    expect(options.providerOptions).toBeUndefined()
+  })
+})
+
 describe('composeStopWhen', () => {
   const cond = (): StopCondition<ToolSet> => () => false
 
@@ -1172,11 +1648,15 @@ describe('resolveToolCallLimit', () => {
 
   it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
     expect(resolveToolCallLimit(undefined)).toBe(20)
-    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(100)
   })
 
   it('falls back when the configured limit is outside the supported range', () => {
-    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 1001 } }))).toBe(100)
+  })
+
+  it('accepts a limit above the previous 100-round ceiling', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 500 } }))).toBe(500)
   })
 })
 
@@ -1324,5 +1804,62 @@ describe('resolveTools citation provenance', () => {
 
     expect(result.tools?.web_search).toBe(customTool)
     expect(result.hasCitableTools).toBe(false)
+  })
+})
+
+describe('resolveTools fs_read gating', () => {
+  const OTHER_TOOL_NAME = 'test-plain-tool'
+  const otherEntry: ToolEntry = {
+    name: OTHER_TOOL_NAME,
+    namespace: 'test',
+    description: 'ungated test tool',
+    defer: 'never',
+    tool: {} as Tool
+  }
+
+  beforeEach(() => registry.register(createFsReadToolEntry()))
+  afterEach(() => {
+    registry.deregister(FS_READ_TOOL_NAME)
+    registry.deregister(OTHER_TOOL_NAME)
+  })
+
+  it('drops a lone fs_read when no markers exist (nothing else can be offloaded)', async () => {
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, false, true)
+    expect(tools).toBeUndefined()
+  })
+
+  it('keeps fs_read alongside another function tool when offload is possible', async () => {
+    registry.register(otherEntry)
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, false, true)
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
+    expect(tools?.[OTHER_TOOL_NAME]).toBeDefined()
+  })
+
+  it('keeps a lone fs_read when the conversation already has persisted-output markers', async () => {
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, true, false)
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
+  })
+
+  it('omits fs_read when offload is impossible and no markers exist, even with other tools', async () => {
+    registry.register(otherEntry)
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [], undefined, undefined, false, false)
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeUndefined()
+    expect(tools?.[OTHER_TOOL_NAME]).toBeDefined()
+  })
+
+  it('keeps a lone fs_read when gateway client tools are present', async () => {
+    const { tools } = await resolveTools(
+      { callOverrides: { tools: { client_tool: {} as Tool } } },
+      undefined,
+      makeModel(),
+      false,
+      [],
+      undefined,
+      undefined,
+      false,
+      true
+    )
+    expect(tools?.[FS_READ_TOOL_NAME]).toBeDefined()
+    expect(tools?.client_tool).toBeDefined()
   })
 })

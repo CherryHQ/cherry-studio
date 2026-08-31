@@ -6,6 +6,10 @@ introduced_in_pr: #15705
 date: 2026-06-05
 ---
 
+> **Superseded for `/v1/mcps*`** — those endpoints were restored after v2.0.0; see
+> [2026-08-07-api-gateway-mcp-http-restored.md](./2026-08-07-api-gateway-mcp-http-restored.md). The Claw transport below
+> remains removed.
+
 ## What changed
 
 The v1 API server exposed MCP (Model Context Protocol) over HTTP for agents. The v2 API gateway (ported in #15705) does not carry these endpoints over, so they now return 404:

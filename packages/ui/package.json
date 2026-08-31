@@ -130,7 +130,8 @@
     "vitest": "^3.2.7"
   },
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./src/components/composites/markdown/styles.ts"
   ],
   "engines": {
     "node": ">=18.0.0"
@@ -174,6 +175,13 @@
       "import": "./dist/icons/index.mjs",
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
+    },
+    "./icons/providers": {
+      "types": "./dist/icons/providers/index.d.ts",
+      "react-native": "./dist/icons/providers/index.js",
+      "import": "./dist/icons/providers/index.mjs",
+      "require": "./dist/icons/providers/index.js",
+      "default": "./dist/icons/providers/index.js"
     },
     "./styles/tokens.css": "./dist/styles/tokens.css",
     "./styles/theme.css": "./dist/styles/theme.css"

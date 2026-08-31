@@ -64,12 +64,11 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const vertex = rows.find((r) => r.providerId === 'vertexai')
     const bedrock = rows.find((r) => r.providerId === 'aws-bedrock')
 
-    // Delta rows: defaultChatEndpoint/endpointConfigs/apiFeatures are NOT
-    // seeded — they resolve from the registry at read time (#17096). Only the
+    // Delta rows: defaultChatEndpoint/endpointConfigs are NOT seeded — they
+    // resolve from the registry at read time (#17096). Only the
     // user-editable auth shell is materialized.
     expect(azure?.defaultChatEndpoint).toBeNull()
     expect(azure?.endpointConfigs).toBeNull()
-    expect(azure?.apiFeatures).toBeNull()
     expect(azure?.authConfig).toEqual({ type: 'iam-azure', apiVersion: '' })
     expect(vertex?.defaultChatEndpoint).toBeNull()
     expect(vertex?.authConfig).toEqual({ type: 'iam-gcp', project: '', location: '' })
@@ -102,7 +101,6 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const rows = await dbh.db.select().from(userProviderTable)
     // No row freezes a registry connection snapshot (#17096).
     expect(rows.every((r) => r.endpointConfigs === null)).toBe(true)
-    expect(rows.every((r) => r.apiFeatures === null)).toBe(true)
   })
 
   it('should not insert anything when all registry providers already exist', async () => {

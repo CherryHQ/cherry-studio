@@ -9,11 +9,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   collectCrashDumpInventory,
   collectDiagnosticSources,
-  selectSourceCandidates,
   SourceChangedError,
   stageSourceCandidate
 } from '../sourceCollector'
-import type { DiagnosticWarning, SourceCandidate } from '../types'
+import type { DiagnosticWarning } from '../types'
 
 const ALL_SOURCES = { includeLogs: true, includeTraces: true } as const
 
@@ -64,11 +63,13 @@ describe('diagnostic source collection', () => {
       writeFile(path.join(logsDir, `app-error.${logDate}.log`), recentError)
     ])
 
-    const topicDir = path.join(tracesDir, 'topic:one')
+    // `:` and `*` exercise archive-name sanitisation but are unwriteable on Windows.
+    const isWin = process.platform === 'win32'
+    const topicDir = path.join(tracesDir, isWin ? 'topic-one' : 'topic:one')
     await mkdir(topicDir)
     const recentTrace = `${JSON.stringify({ id: 'recent', startTime: now - 3_000 })}\n`
     const oldTrace = `${JSON.stringify({ id: 'old', startTime: now - 2 * 86_400_000 })}\n`
-    await writeFile(path.join(topicDir, 'trace*one'), `${oldTrace}${recentTrace}`)
+    await writeFile(path.join(topicDir, isWin ? 'trace-one' : 'trace*one'), `${oldTrace}${recentTrace}`)
 
     const range = { fromMs: now - 86_400_000, toMs: now }
     const collection = await collectDiagnosticSources(range, ALL_SOURCES)
@@ -212,32 +213,6 @@ describe('diagnostic source collection', () => {
     await expect(
       stageSourceCandidate(collection.logs[0], range, path.join(tempDir, 'rewritten.jsonl') as AbsoluteFilePath)
     ).rejects.toBeInstanceOf(SourceChangedError)
-  })
-
-  it('keeps one newest file from each enabled source before filling the shared budget', () => {
-    const mib = 1024 * 1024
-    const candidate = (
-      kind: SourceCandidate['kind'],
-      archiveName: string,
-      eligibleBytes: number,
-      latestAt: number
-    ): SourceCandidate => ({
-      archiveName,
-      eligibleBytes,
-      identity: { dev: 1, ino: latestAt, modifiedAt: latestAt, size: eligibleBytes },
-      kind,
-      latestAt,
-      malformedLineCount: 0,
-      sourcePath: `/tmp/${archiveName.replaceAll('/', '-')}` as AbsoluteFilePath
-    })
-    const newestLog = candidate('logs', 'logs/new.jsonl', 30 * mib, 40)
-    const newestTrace = candidate('traces', 'traces/new.jsonl', 18 * mib, 30)
-    const olderLog = candidate('logs', 'logs/old.jsonl', 10 * mib, 20)
-
-    const result = selectSourceCandidates([olderLog, newestTrace, newestLog], 50 * mib)
-
-    expect(result.selected).toEqual([newestLog, newestTrace])
-    expect(result.omitted).toEqual([olderLog])
   })
 
   it('reports only nested crash dumps as an anonymous inventory and never follows symlinks', async () => {

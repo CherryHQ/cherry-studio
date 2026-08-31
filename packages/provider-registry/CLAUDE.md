@@ -41,3 +41,24 @@ pnpm --filter @cherrystudio/provider-registry test        # vitest: schema confo
 ```
 
 Commit the regenerated `data/*.json` alongside your `src/` change. Generation also re-pulls live upstream, so the data diff may include unrelated metadata/pricing drift since the last run — that's expected. CI enforces sync in **both** directions: the `catalog-hand-edit-check` job rejects a `data/*.json` change with no `src/`/`scripts/` change (a hand-edit), and the `catalog-source-sync` test (in `test:provider-registry`) rejects the reverse — a `src/` change you forgot to regenerate — by re-deriving the source-controlled facts (provider connection config, hand-listed creator models + their `ownedBy`/`name`, provider overrides) and diffing them against the committed JSON. It's deterministic (no upstream fetch), so it only covers source-derived data; upstream-enriched fields (pricing, inferred metadata) and overall correctness still rely on the schema/catalog-invariant tests above and code review.
+
+## Remote wire compatibility
+
+Catalogs published under `x-files/provider-registry/vN/` must remain parseable by every vN client.
+`compat/vN-validator.mjs` freezes the first client's Zod validator, and CI runs the current catalog
+through it. Existing validators are immutable.
+
+If compatibility fails, either keep the emitted data compatible or increment
+`REGISTRY_SCHEMA_VERSION` by exactly one and generate the new baseline:
+
+```bash
+pnpm --filter @cherrystudio/provider-registry compat:baseline
+```
+
+Do not bump the version for a schema refactor that still emits vN-compatible data. Do not edit or
+replace an existing baseline.
+
+Structural compatibility is not enough for runtime-interpreted values. When catalog data starts
+using a new adapter family, endpoint type, reasoning wire behavior, or another value older app code
+cannot execute, bump `REGISTRY_MIN_APP_VERSION` to the first compatible application version. The
+publish manifest admits a client only when `minAppVersion <= appVersion <= sourceAppVersion`.

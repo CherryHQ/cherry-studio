@@ -31,6 +31,11 @@ function uniqueById(models: Model[]): Model[] {
   return Array.from(result.values())
 }
 
+interface ProviderModelLoadResult {
+  models: Model[]
+  error: unknown | null
+}
+
 async function deleteModelsSkippingDefaults(
   uniqueIds: UniqueModelId[],
   deleteModels: (ids: UniqueModelId[]) => Promise<void>
@@ -120,6 +125,8 @@ export function useProviderModelPullReconcile(providerId: string) {
       (model) => !remoteModelIds.has(model.id) && model.presetModelId != null && model.presetModelId !== ''
     )
   }, [hasLoadedCompleteRemoteModels, models, remoteModelIds])
+  const defaultModelIdList = useMemo(() => [...defaultModelIds], [defaultModelIds])
+  const staleModelIds = useMemo(() => staleModels.map((model) => model.id), [staleModels])
 
   const loadModels = useCallback(async () => {
     const sequence = ++loadModelsSequenceRef.current
@@ -134,25 +141,40 @@ export function useProviderModelPullReconcile(providerId: string) {
         fetchResolvedProviderModels(providerId)
       ])
       if (!isLatestLoad()) {
-        return
+        return null
       }
 
-      const catalog = catalogResult.status === 'fulfilled' ? catalogResult.value : []
-      const fetched = fetchedResult.status === 'fulfilled' ? fetchedResult.value : []
+      const catalog = (catalogResult.status === 'fulfilled' ? catalogResult.value : []).filter((model) =>
+        model.name?.trim()
+      )
+      const fetched = (fetchedResult.status === 'fulfilled' ? fetchedResult.value : []).filter((model) =>
+        model.name?.trim()
+      )
       const hasLoadedAllModels = catalogResult.status === 'fulfilled' && fetchedResult.status === 'fulfilled'
+      const loadError =
+        fetchedResult.status === 'rejected'
+          ? fetchedResult.reason
+          : catalogResult.status === 'rejected'
+            ? catalogResult.reason
+            : null
 
-      setCatalogModels(catalog.filter((model) => model.name?.trim()))
-      setFetchedModels(fetched.filter((model) => model.name?.trim()))
+      setCatalogModels(catalog)
+      setFetchedModels(fetched)
       setHasLoadedCompleteRemoteModels(hasLoadedAllModels)
 
       if (!hasLoadedAllModels) {
         logger.error('Failed to load provider models for manage drawer', {
           providerId,
-          catalogError: catalogResult.status === 'rejected' ? catalogResult.reason : undefined,
-          upstreamError: fetchedResult.status === 'rejected' ? fetchedResult.reason : undefined
+          catalogFailed: catalogResult.status === 'rejected',
+          upstreamFailed: fetchedResult.status === 'rejected'
         })
         setLoadErrorMessage(t('settings.models.manage.sync_pull_failed'))
       }
+
+      return {
+        models: uniqueById([...fetched, ...catalog]),
+        error: loadError
+      } satisfies ProviderModelLoadResult
     } finally {
       if (isLatestLoad()) {
         setIsLoadingModels(false)
@@ -271,9 +293,9 @@ export function useProviderModelPullReconcile(providerId: string) {
     provider,
     localModels: models,
     removableModelIds,
-    defaultModelIds: [...defaultModelIds],
+    defaultModelIds: defaultModelIdList,
     staleModelCount: staleModels.length,
-    staleModelIds: staleModels.map((model) => model.id),
+    staleModelIds,
     openPullReconcile,
     closePullReconcile,
     reloadModels: loadModels,

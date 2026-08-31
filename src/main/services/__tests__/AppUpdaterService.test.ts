@@ -1,7 +1,10 @@
 import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { trackAppUpdateMock } = vi.hoisted(() => ({
+const { netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } = vi.hoisted(() => ({
+  netFetchMock: vi.fn(),
+  releaseNotesCheckMock: vi.fn(),
+  releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
   trackAppUpdateMock: vi.fn()
 }))
 
@@ -61,37 +64,58 @@ vi.mock('electron', () => ({
   app: {
     isPackaged: true,
     getVersion: vi.fn(() => '1.0.0')
-  }
+  },
+  net: { fetch: netFetchMock }
 }))
 
-vi.mock('electron-updater', () => ({
-  autoUpdater: {
-    logger: null,
-    forceDevUpdateConfig: false,
-    autoDownload: false,
-    autoInstallOnAppQuit: false,
-    requestHeaders: {},
-    on: vi.fn(),
-    removeListener: vi.fn(),
-    checkForUpdates: vi.fn(),
-    downloadUpdate: vi.fn(),
-    quitAndInstall: vi.fn(),
-    channel: '',
-    allowDowngrade: false,
-    disableDifferentialDownload: false,
-    currentVersion: '1.0.0'
-  },
-  Logger: vi.fn(),
-  NsisUpdater: vi.fn(),
-  AppUpdater: vi.fn()
-}))
+vi.mock('electron-updater', () => {
+  class MockAppUpdater {
+    allowDowngrade = false
+    autoDownload = true
+    autoInstallOnAppQuit = true
+    channel = ''
+    forceDevUpdateConfig = false
+    logger: unknown = null
+    requestHeaders: Record<string, string> = {}
+
+    constructor(public options?: unknown) {
+      releaseNotesUpdaterInstances.push(this as unknown as Record<string, unknown>)
+    }
+
+    checkForUpdates() {
+      return releaseNotesCheckMock()
+    }
+  }
+
+  return {
+    autoUpdater: {
+      logger: null,
+      forceDevUpdateConfig: false,
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+      requestHeaders: {},
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      checkForUpdates: vi.fn(),
+      downloadUpdate: vi.fn(),
+      quitAndInstall: vi.fn(),
+      channel: '',
+      allowDowngrade: false,
+      disableDifferentialDownload: false,
+      currentVersion: '1.0.0'
+    },
+    AppUpdater: MockAppUpdater,
+    Logger: vi.fn(),
+    NsisUpdater: vi.fn()
+  }
+})
 
 import { application } from '@application'
 import { regionService } from '@main/services/RegionService'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
 import { AppUpdaterService } from '../AppUpdaterService'
@@ -107,6 +131,9 @@ describe('AppUpdaterService', () => {
     vi.mocked(app.getVersion).mockReturnValue('1.0.0')
     vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
+    netFetchMock.mockReset()
+    releaseNotesCheckMock.mockReset().mockResolvedValue(null)
+    releaseNotesUpdaterInstances.length = 0
     autoUpdater.requestHeaders = {}
     autoUpdater.channel = ''
     autoUpdater.allowDowngrade = false
@@ -191,96 +218,79 @@ describe('AppUpdaterService', () => {
 
       expect(autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
     })
-  })
 
-  describe('parseMultiLangReleaseNotes', () => {
-    const sampleReleaseNotes = `<!--LANG:en-->
-🚀 New Features:
-- Feature A
-- Feature B
+    it('fetches and validates release history through the managed release service', async () => {
+      vi.mocked(regionService.getCountry).mockResolvedValue('CN')
+      const releaseNotes = '<!--LANG:en-->Remote notes<!--LANG:zh-CN-->远端说明<!--LANG:END-->'
+      const history = [{ releaseNotes, version: '1.1.0' }]
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify(history)))
 
-🎨 UI Improvements:
-- Improvement A
-<!--LANG:zh-CN-->
-🚀 新功能：
-- 功能 A
-- 功能 B
+      await expect(appUpdater.getReleaseHistory()).resolves.toEqual(history)
 
-🎨 界面改进：
-- 改进 A
-<!--LANG:END-->`
-
-    it('returns Chinese notes for zh-CN users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('新功能')
-      expect(result).toContain('功能 A')
-      expect(result).not.toContain('New Features')
+      expect(net.fetch).toHaveBeenCalledWith(
+        'https://releases.cherry-ai.com/release-history.json',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'App-Version': 'v1.0.0',
+            'X-Region': 'cn'
+          }),
+          redirect: 'follow',
+          signal: expect.any(AbortSignal)
+        })
+      )
+      expect(releaseNotesUpdaterInstances).toHaveLength(1)
     })
 
-    it('returns Chinese notes for zh-TW users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-TW')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('新功能')
-      expect(result).not.toContain('New Features')
-    })
-
-    it('returns English notes for non-Chinese users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('New Features')
-      expect(result).not.toContain('新功能')
-    })
-
-    it('returns English notes for other languages', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ru-RU')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('New Features')
-      expect(result).not.toContain('新功能')
-    })
-
-    it('handles release notes without language markers', () => {
-      const releaseNotes = 'Simple release notes without markers'
-
-      expect((appUpdater as any).parseMultiLangReleaseNotes(releaseNotes)).toBe(releaseNotes)
-    })
-
-    it('cleans malformed markers', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes('<!--LANG:en-->English only')
-
-      expect(result).toBe('English only')
-    })
-
-    it('handles empty release notes', () => {
-      expect((appUpdater as any).parseMultiLangReleaseNotes('')).toBe('')
-    })
-
-    it('returns the original notes when language lookup fails', () => {
-      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
-        throw new Error('Test error')
+    it('merges a newer channel release with stable release history', async () => {
+      const stableNotes = '<!--LANG:en-->Stable notes<!--LANG:zh-CN-->稳定版说明<!--LANG:END-->'
+      const rcNotes = '<!--LANG:en-->RC notes<!--LANG:zh-CN-->测试版说明<!--LANG:END-->'
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify([{ releaseNotes: stableNotes, version: '1.1.0' }])))
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: { releaseNotes: rcNotes, version: '1.2.0-rc.1' }
       })
 
-      expect((appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)).toBe(sampleReleaseNotes)
-    })
-  })
-
-  describe('hasMultiLanguageMarkers', () => {
-    it('detects language markers', () => {
-      expect((appUpdater as any).hasMultiLanguageMarkers('<!--LANG:en-->Test')).toBe(true)
+      await expect(appUpdater.getReleaseHistory()).resolves.toEqual([
+        { releaseNotes: rcNotes, version: '1.2.0-rc.1' },
+        { releaseNotes: stableNotes, version: '1.1.0' }
+      ])
     })
 
-    it('rejects unmarked notes', () => {
-      expect((appUpdater as any).hasMultiLanguageMarkers('Simple release notes')).toBe(false)
+    it('keeps newer updater notes when release history is unavailable', async () => {
+      netFetchMock.mockRejectedValue(new Error('offline'))
+      releaseNotesCheckMock.mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: { releaseNotes: 'New release notes', version: '1.1.0' }
+      })
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toEqual([
+        { releaseNotes: 'New release notes', version: '1.1.0' }
+      ])
+    })
+
+    it('falls back to bundled history when the managed response is invalid', async () => {
+      netFetchMock.mockResolvedValue(new Response(JSON.stringify([{ releaseNotes: 'English only', version: '1.1.0' }])))
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toBeNull()
+    })
+
+    it('falls back to bundled history when the managed request fails', async () => {
+      netFetchMock.mockRejectedValue(new Error('offline'))
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toBeNull()
+    })
+
+    it('rejects release history larger than the response limit before reading it', async () => {
+      const text = vi.fn()
+      netFetchMock.mockResolvedValue({
+        headers: new Headers({ 'content-length': String(1024 * 1024 + 1) }),
+        ok: true,
+        status: 200,
+        text
+      })
+
+      await expect(appUpdater.getReleaseHistory()).resolves.toBeNull()
+      expect(text).not.toHaveBeenCalled()
     })
   })
 
@@ -341,6 +351,22 @@ describe('AppUpdaterService', () => {
       } as UpdateInfo
 
       expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBeNull()
+    })
+
+    it('leaves marked release notes unchanged when language lookup fails', () => {
+      const releaseInfo = {
+        version: '1.0.0',
+        files: [],
+        path: '',
+        sha512: '',
+        releaseDate: new Date().toISOString(),
+        releaseNotes: '<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->'
+      } as UpdateInfo
+      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
+        throw new Error('Test error')
+      })
+
+      expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe(releaseInfo.releaseNotes)
     })
   })
 })

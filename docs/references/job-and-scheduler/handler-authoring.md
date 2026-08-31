@@ -1,10 +1,17 @@
+---
+description: Writing a JobHandler — onInit registration timing, minimal echo example, and JobRegistry type binding
+sources:
+  - src/main/core/job/JobManager.ts
+  - src/main/core/job/jobRegistry.ts
+---
+
 # Handler Authoring
 
 Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are added as real consumers migrate — speculative examples bit-rot before anyone uses them.
 
 ## Registration timing
 
-Handlers MUST be registered in the owning service's `onInit`. JobManager's [Startup Recovery](./overview.md#startup-recovery) is scheduled inside JobManager's own `onAllReady` (a `setTimeout` whose 60 s "quiet window" then expires) and walks `this.handlers` when the timer fires. **What matters is not the 60 s — it's whether your registration happens before or after JobManager's `onAllReady` hook is invoked.**
+Handlers MUST be registered in the owning service's `onInit`. JobManager's [Startup Recovery](./overview.md#startup-recovery) is scheduled inside JobManager's own `onAllReady` and walks `this.handlers` when the 60-second quiet window expires. `onInit` is the lifecycle boundary that guarantees the registry is complete before any `onAllReady` hook is invoked.
 
 `onInit` runs during phase initialization, which the framework completes for every service *before* it starts invoking any `onAllReady` hook. So a registration inside `onInit` is guaranteed to be in `this.handlers` by the time JobManager schedules recovery, regardless of phase or service order.
 
@@ -15,22 +22,20 @@ protected override async onInit(): Promise<void> {
   application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 }
 
-// ❌ Unsafe — your onAllReady fires in parallel with JobManager's. Whether
-//             your registerHandler lands before JobManager schedules its
-//             setTimeout is undefined order. Even if you "win" the race, no
-//             future code change can rely on it; reviewers will assume the
-//             registry was complete by the start of `allReady`.
-protected override onAllReady(): void {
+// ❌ Unsafe — LifecycleManager does not await onAllReady promises. Any await
+//             or deferred preparation can cross JobManager's recovery timer.
+protected override async onAllReady(): Promise<void> {
+  await prepareHandler()
   application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 }
 ```
 
-The race is not about the 60 s being "not enough" — by the time the timer fires, every service's `onAllReady` synchronous body has long since run. The race is about **the registration's position relative to JobManager's `onAllReady` scheduling the timer**. Registering in `onInit` puts you before `allReady` even starts; registering in `onAllReady` puts you in an unordered set of peer hooks. The framework cannot enforce this — registration in `onAllReady` will not throw, it will just leak non-terminal rows of unregistered types to `cancelled` whenever JobManager observes the registry first.
+A purely synchronous `onAllReady` body currently runs on the same tick and will normally beat the 60-second timer, but that is timing, not the framework contract: `LifecycleManager.allReady()` does not await hook completion. Registering in `onInit` remains the enforceable rule and survives later async preparation or a change to the quiet-window duration. A late registration does not throw at registration time; recovery may already have classified that type's non-terminal rows as orphaned and cancelled them.
 
 ## 1. dummy.echo (minimal handler)
 
 ```typescript
-import { jobManager } from '@main/core/job/JobManager'
+import { application } from '@application'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
@@ -38,7 +43,7 @@ declare module '@main/core/job/jobRegistry' {
   }
 }
 
-jobManager.registerHandler('dummy.echo', {
+application.get('JobManager').registerHandler('dummy.echo', {
   recovery: 'abandon',
   defaultConcurrency: 1,
   defaultTimeoutMs: 5000,
@@ -151,12 +156,12 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
 - **In-flight rows are never touched by recovery.** Everything above describes *prior-process* leftovers. A job the **current** process is still executing (tracked in `JobManager.inFlightExecuted`) is excluded before any strategy or the `cancelRequested` override, so it is neither reset/re-dispatched (`retry` / `singleton`) nor cancelled mid-flight (`abandon` / `cancelRequested`) — this prevents a job started during the startup quiet window from running twice (#16291). The exclusion is scoped to the current process: crash leftovers from a previous process are not in that set and recover normally.
 - **`isScheduleOverdue` has three branches** (relevant when picking `catchUpPolicy: 'after-startup'`):
   - **`cron`** triggers compare `nextRun ≤ now()` from the persisted column.
-  - **`interval`** triggers compare `lastRun + intervalMs ≤ now()` (SchedulerService does not maintain `nextRun` for interval schedules — `lastRun` is the canonical anchor).
+  - **`interval`** triggers compare persisted `nextRun ≤ now()`. Rows written before interval due times were persisted fall back to `(lastRun ?? createdAt) + intervalMs`, so upgrades do not lose catch-up detection.
   - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally. Startup recovery enforces the complementary invariant: natural `once` fires persist `lastRun` clamped to no earlier than `trigger.at` (the once timer elapses on the monotonic clock, so an unclamped wall-clock read can land at `at - 1`), and `armSchedule` skips rows with `lastRun >= trigger.at` instead of re-arming them, while a never-fired past-due `once` still re-arms and fires immediately. This is a recovery-side guard, not strict exactly-once delivery — a crash between a fire's enqueue and its `markFired` write can still replay the one-shot on the next startup.
 
-## 5. Error codes (renderer maps via i18next)
+## 5. Error codes
 
-Constants live in `JOB_ERROR_CODES` at `src/shared/data/api/schemas/jobs.ts` and are thrown by `JobManager` / `JobScheduleService`. Renderer reads the `code` string off `JobSnapshot.error`.
+Constants live in `JOB_ERROR_CODES` at `src/shared/data/api/schemas/jobs.ts` and are thrown by `JobManager` / `JobScheduleService`. The persisted `JobSnapshot.error.code` is the machine-readable contract; a domain UI may branch on it or provide its own localized presentation. There is no generic renderer error-code mapper today.
 
 | Code | Origin | Retryable | Meaning |
 |---|---|---|---|
@@ -173,38 +178,28 @@ Constants live in `JOB_ERROR_CODES` at `src/shared/data/api/schemas/jobs.ts` and
 | `JOB_HANDLER_THREW` | runtime | yes | Handler threw a non-abort error |
 | `JOB_CANCELLED` | recovery / cancel | no | Job cancelled by user, recovery, or shutdown |
 
-Renderer: `t(\`errors.jobs.${code.toLowerCase()}\`, params)`.
-
 ### Timeout sentinel
 
 `JOB_HANDLER_TIMEOUT` is dispatched by aborting the handler's `AbortController` with a `JobHandlerTimeoutError` sentinel (a dedicated `Error` subclass), not by matching the message string. This means a handler that throws a plain `new Error('request timeout')` is classified as `JOB_HANDLER_THREW`, not `JOB_HANDLER_TIMEOUT` — the dispatcher only trusts the abort reason, not text. Consumers therefore don't need to worry about accidentally triggering the "timeout" branch when their own error happens to mention the word.
 
 ## 6. Handler organization convention
 
-Business job handlers live inside the owning business module under a dedicated `tasks/` sub-directory. File names use a `JobHandler.ts` suffix:
+Business job handlers live with the owning business module, normally under a dedicated `tasks/` sub-directory. Function/handler-object modules use a camelCase `JobHandler.ts` suffix:
 
 ```
-src/main/services/knowledge/tasks/PrepareRootJobHandler.ts
-src/main/services/knowledge/tasks/IndexLeafJobHandler.ts
+src/main/features/knowledge/tasks/prepareRootJobHandler.ts
+src/main/features/fileProcessing/tasks/remotePollJobHandler.ts
+src/main/services/file/tasks/contentHashBackfillJobHandler.ts
 ```
 
 | Aspect | Convention |
 |---|---|
-| Location | `<module>/tasks/<Name>JobHandler.ts` |
-| Default export | Same name as the file (class or const handler object both fine) |
-| Co-located test | `<module>/tasks/__tests__/<Name>JobHandler.test.ts` |
+| Location | `<module>/tasks/<name>JobHandler.ts` (or the owning module root when it is already a narrow handler module, such as `ai/agents/agentTaskJobHandler.ts`) |
+| Export | Named handler object or named `create...JobHandler` factory |
+| Co-located test | the owning module's `__tests__/<name>JobHandler.test.ts` |
 
 ### Why "inside each business module" instead of `core/job/handlers/`
 
-- Handlers are tightly coupled to business domain knowledge (input/output schema, `recovery` strategy, `catchUpPolicy` are all defined by the business). Co-locating them with the owning service matches ownership boundaries.
-- `registerHandler` must be called from the business service's `onInit` so the handler is in place before `JobManager.onAllReady`'s startup recovery (§4). Keeping the implementation file next to the registration call site reads more naturally.
+- Handlers are tightly coupled to business domain knowledge (payload, recovery strategy, and resource ownership). Co-locating them with the owning service matches ownership boundaries.
+- `registerHandler` must be called from the business service's `onInit` so the handler is in place before startup recovery (see [Registration timing](#registration-timing)). Keeping the implementation file next to the registration call site reads more naturally.
 - `src/main/core/job/` stays a pure framework module, free of business code.
-
-### Applicability
-
-| Scenario | Required |
-|---|---|
-| First batch of handlers (file-processing, knowledge, agent-task) | ✅ Yes |
-| All new handlers added later | ✅ Yes |
-| Experimental handlers (not in `JobRegistry`) | ⚠ Recommended, not blocking |
-| Pre-existing handlers, if any | Migrate opportunistically when touching nearby code |

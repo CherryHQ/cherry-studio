@@ -21,3 +21,5 @@ Nothing. Images with recognizable text keep the existing OCR-to-text behavior; c
 ## Notes for release manager
 
 Only the empty-OCR / OCR-unavailable path changed; OCR-with-text, explicit OCR features (translation workflow), and the `read_file` tool are unchanged.
+
+#18297 replaced this fallback with a localized error that failed the turn before the request (shipped in v2.0.5 with an "action required" release note); the behavior described above is what v2 ships. Users on a gateway or proxy that accepts images could not send any image while the block was in place, and because attachment routing replays the whole conversation, one such image failed every later turn of it too. Describe the net behavior once — do not carry the v2.0.5 "action required" wording into the release note.

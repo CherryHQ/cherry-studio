@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@renderer/utils/markdown', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
+vi.mock('@renderer/utils/markdownLight', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({ __esModule: true, default: mocks.Favicon }))
 vi.mock('../CitationTooltip', () => ({ default: mocks.CitationTooltip }))
 vi.mock('../Hyperlink', () => ({ default: mocks.Hyperlink }))

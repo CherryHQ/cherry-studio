@@ -1,0 +1,42 @@
+{
+  "doNotTranslate": ["Cherry Studio", "MCP", "OpenAI", "Ollama", "WebDAV", "GitHub"],
+  "terms": {
+    "Provider": {
+      "note": "A model vendor such as OpenAI or Anthropic, not a generic supplier or a service provider in the telecom sense.",
+      "de-de": "Anbieter",
+      "es-es": "proveedor",
+      "fr-fr": "fournisseur",
+      "ja-jp": "プロバイダー",
+      "pt-pt": "fornecedor",
+      "ru-ru": "провайдер",
+      "zh-cn": "提供商",
+      "zh-tw": "供應商"
+    },
+    "Assistant": {
+      "note": "A user-configured chat persona (system prompt + model settings). Distinct from Agent.",
+      "ja-jp": "アシスタント",
+      "zh-cn": "助手",
+      "zh-tw": "助手"
+    },
+    "Agent": {
+      "note": "An autonomous coding agent with tool access and its own session, not a synonym for Assistant.",
+      "ja-jp": "エージェント",
+      "zh-cn": "智能体",
+      "zh-tw": "智能體"
+    },
+    "Knowledge Base": {
+      "note": "A user-built document collection queried via retrieval.",
+      "de-de": "Wissensdatenbank",
+      "ja-jp": "ナレッジベース",
+      "ru-ru": "База знаний",
+      "zh-cn": "知识库",
+      "zh-tw": "知識庫"
+    },
+    "Topic": {
+      "note": "One conversation thread inside an assistant, comparable to a chat in other clients.",
+      "ja-jp": "トピック",
+      "zh-cn": "话题",
+      "zh-tw": "話題"
+    }
+  }
+}

@@ -60,7 +60,7 @@ Electron E2E 基础设施：
 
 - 从 `fixtures/electron.fixture.ts` 导入 `test`、`expect`、`electronApp` 和 `mainWindow`。
 - 使用 `utils/ui-locator.ts` 定位
-  [UI Semantic Contract](../../docs/references/ui-semantic-contract.md)中的稳定应用边界。
+  [UI Semantic Contract](../../docs/references/components/ui-semantic-contract.md)中的稳定应用边界。
 - 运行参数以根目录 `playwright.config.ts` 为准。
 
 新增 E2E 应围绕跨进程的完整用户结果，直接使用稳定的语义定位器和可观察条件。

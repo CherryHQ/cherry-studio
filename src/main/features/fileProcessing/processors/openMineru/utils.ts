@@ -1,21 +1,11 @@
 import { openAsBlob } from 'node:fs'
-import fs from 'node:fs/promises'
 
-import { MB } from '@shared/utils/constants'
 import { net } from 'electron'
 
 import type { PreparedOpenMineruContext } from './types'
 
-const OPEN_MINERU_MAX_FILE_SIZE = 200 * MB
-
 export async function executeTask(context: PreparedOpenMineruContext): Promise<Response> {
   const endpoint = `${context.apiHost}/file_parse`
-  const stat = await fs.stat(context.file.path)
-
-  if (stat.size >= OPEN_MINERU_MAX_FILE_SIZE) {
-    throw new Error('Open MinerU file is too large (must be smaller than 200MB)')
-  }
-
   const fileBlob = await openAsBlob(context.file.path)
 
   const formData = new FormData()

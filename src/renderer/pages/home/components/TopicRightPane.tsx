@@ -19,7 +19,7 @@ import type { PropsWithChildren } from 'react'
 import { createContext, lazy, Suspense, use, useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import TopicBranchPanel from './TopicBranchPanel'
+const TopicBranchPanel = lazy(() => import('./TopicBranchPanel'))
 
 const TracePane = lazy(() =>
   import('@renderer/components/chat/trace/TracePane').then((module) => ({ default: module.TracePane }))
@@ -34,8 +34,6 @@ interface TopicRightPaneMeta {
 
 interface TopicRightPaneViewportCallbacks {
   onLocateMessage?: (messageId: string) => void
-  onStartBranchDraft?: (messageId: string) => Promise<void> | void
-  onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
 }
 
 interface TopicRightPanelScope extends TopicRightPaneMeta {
@@ -126,21 +124,22 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   if (!scope.topicId) return null
 
   return (
-    <TopicBranchPanel
-      open={active}
-      topicId={scope.topicId}
-      topicName={scope.topicName}
-      liveState={branchLiveState}
-      focusKey={canvasFocusKey}
-      layoutReady={canvasLayoutReady}
-      onLocateMessage={callbacks.onLocateMessage}
-      onStartBranchDraft={callbacks.onStartBranchDraft}
-      onCancelBranchDraft={callbacks.onCancelBranchDraft}
-    />
+    <Suspense fallback={null}>
+      <TopicBranchPanel
+        open={active}
+        topicId={scope.topicId}
+        topicName={scope.topicName}
+        liveState={branchLiveState}
+        focusKey={canvasFocusKey}
+        layoutReady={canvasLayoutReady}
+        onLocateMessage={callbacks.onLocateMessage}
+      />
+    </Suspense>
   )
 }
 
-function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!active) return null
   return (
     <Suspense fallback={null}>
       <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
@@ -228,15 +227,8 @@ function TopicRightPaneProvider({
   )
 }
 
-function TopicRightPaneViewport({
-  onLocateMessage,
-  onStartBranchDraft,
-  onCancelBranchDraft
-}: TopicRightPaneViewportCallbacks) {
-  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(
-    () => ({ onLocateMessage, onStartBranchDraft, onCancelBranchDraft }),
-    [onCancelBranchDraft, onLocateMessage, onStartBranchDraft]
-  )
+function TopicRightPaneViewport({ onLocateMessage }: TopicRightPaneViewportCallbacks) {
+  const callbacks = useMemo<TopicRightPaneViewportCallbacks>(() => ({ onLocateMessage }), [onLocateMessage])
 
   return (
     <TopicRightPaneViewportContext value={callbacks}>

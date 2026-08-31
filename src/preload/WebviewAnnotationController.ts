@@ -9,7 +9,7 @@ import {
   type WebviewAnnotationTheme,
   type WebviewElementLocator,
   type WebviewRegionRect
-} from '@shared/types/webview'
+} from '@shared/types/webviewAnnotation'
 
 const TEST_ATTRIBUTES = ['data-testid', 'data-test', 'data-cy'] as const
 const FORM_ELEMENTS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION'])

@@ -19,19 +19,22 @@ async function lstatIfExists(targetPath: string) {
   }
 }
 
-async function resolveRealOrNearestExistingPath(targetPath: AbsoluteFilePath): Promise<AbsoluteFilePath> {
+export async function resolveRealOrNearestExistingPath(targetPath: string): Promise<AbsoluteFilePath> {
+  const absoluteTargetPath = asAbsolutePath(path.resolve(targetPath))
   try {
-    return await realpath(targetPath)
+    return await realpath(absoluteTargetPath)
   } catch {
-    let currentPath = asAbsolutePath(path.dirname(targetPath))
+    let currentPath = asAbsolutePath(path.dirname(absoluteTargetPath))
 
     while (true) {
       try {
         const realCurrentPath = await realpath(currentPath)
-        return asAbsolutePath(path.normalize(path.join(realCurrentPath, path.relative(currentPath, targetPath))))
+        return asAbsolutePath(
+          path.normalize(path.join(realCurrentPath, path.relative(currentPath, absoluteTargetPath)))
+        )
       } catch {
         const parentPath = asAbsolutePath(path.dirname(currentPath))
-        if (parentPath === currentPath) return asAbsolutePath(path.normalize(targetPath))
+        if (parentPath === currentPath) return absoluteTargetPath
         currentPath = parentPath
       }
     }

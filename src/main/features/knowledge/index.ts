@@ -9,6 +9,7 @@ export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVec
 export { type MaterialFieldSource, toMaterialRelativePath } from './items'
 export {
   assertSafeKnowledgeRelativePath,
+  CHERRY_META_DIR,
   collectKnowledgeReservedRelativePaths,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
@@ -19,3 +20,8 @@ export { buildUrlSnapshotFile } from './pipeline/sources/urlSnapshot'
 export { createKnowledgeIndexStoreAtPath } from './pipeline/vectorstore/indexStore/createIndexStore'
 export { hashEmbeddingText } from './pipeline/vectorstore/indexStore/hashing'
 export type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from './pipeline/vectorstore/indexStore/model'
+export type {
+  KnowledgeBaseDiscoveryOptions,
+  KnowledgeBaseDiscoveryPage,
+  KnowledgeBaseDiscoveryScope
+} from './types'

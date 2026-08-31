@@ -1,3 +1,4 @@
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -5,6 +6,8 @@ import {
   type McpFormValues,
   resolveMcpConfigInstallSource,
   resolveMcpConfigTransportType,
+  showsEnvEditor,
+  toMcpFormDefaultValues,
   toMcpServerFields
 } from '../McpServerFields'
 
@@ -33,6 +36,19 @@ describe('toMcpServerFields', () => {
     expect(toMcpServerFields(stdioFormValues()).env).toEqual({})
   })
 
+  it('keeps the API key of a hosted built-in server that connects over HTTP', () => {
+    // QVeris authenticates with env.QVERIS_API_KEY whatever transport it uses; dropping env
+    // on save would leave a migrated or freshly installed server permanently unconfigurable.
+    const values = stdioFormValues({
+      serverType: 'streamableHttp',
+      baseUrl: 'https://mcp.qveris.ai/mcp',
+      command: '',
+      env: 'QVERIS_API_KEY=secret'
+    })
+
+    expect(toMcpServerFields(values).env).toEqual({ QVERIS_API_KEY: 'secret' })
+  })
+
   it('clears headers when the remote server headers input is empty', () => {
     const values = stdioFormValues({
       serverType: 'streamableHttp',
@@ -41,6 +57,47 @@ describe('toMcpServerFields', () => {
     })
 
     expect(toMcpServerFields(values).headers).toEqual({})
+  })
+})
+
+describe('toMcpFormDefaultValues', () => {
+  it('maps persisted server values into the initial form state', () => {
+    const server = {
+      id: '6559f6b3-0f0e-4dc7-aab8-8f0906a9eaa3',
+      name: 'Remote server',
+      type: 'streamableHttp',
+      baseUrl: 'https://example.com/mcp',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server)).toMatchObject({
+      name: 'Remote server',
+      serverType: 'streamableHttp',
+      baseUrl: 'https://example.com/mcp'
+    })
+  })
+
+  it('leaves a missing server type unset instead of guessing from the URL', () => {
+    const server = {
+      id: '756b5a35-63f0-43d5-ab5f-163619d8798b',
+      name: 'Legacy remote server',
+      baseUrl: 'https://example.com/sse',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBeUndefined()
+  })
+
+  it('normalizes the legacy online-package built-in transport without guessing other missing types', () => {
+    const server = {
+      id: '7676dffa-53d7-4c35-abbb-e30cd9b27169',
+      name: '@cherry/mcp-auto-install',
+      type: 'inMemory',
+      command: 'npx',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
   })
 })
 
@@ -88,5 +145,22 @@ describe('buildMcpSchema', () => {
     expect(result.error?.issues).toContainEqual(
       expect.objectContaining({ path: ['command'], message: 'settings.mcp.command' })
     )
+  })
+})
+
+describe('showsEnvEditor', () => {
+  it('offers env wherever the runtime reads it', () => {
+    expect(showsEnvEditor('stdio')).toBe(true)
+    expect(showsEnvEditor('inMemory')).toBe(true)
+  })
+
+  it('offers env to a hosted built-in that authenticates with one, such as QVeris', () => {
+    expect(showsEnvEditor('streamableHttp', true)).toBe(true)
+  })
+
+  it('hides env from remote servers that never read it', () => {
+    // flomo and Nowledge Mem are built-in HTTP servers with no env consumer.
+    expect(showsEnvEditor('streamableHttp')).toBe(false)
+    expect(showsEnvEditor('sse')).toBe(false)
   })
 })

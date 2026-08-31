@@ -1,9 +1,9 @@
 import { EventEmitter } from 'node:events'
 
+import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { InferenceModelSource } from '../inferenceProtocol'
 
 /**
  * A stand-in for the real `worker_threads` Worker: captures the lifecycle event
@@ -17,6 +17,24 @@ class FakeWorker extends EventEmitter {
 }
 
 const fakeWorkers: FakeWorker[] = []
+const getRoutingSnapshot = vi.hoisted(() => vi.fn())
+const resolveLocalInferenceProfile = vi.hoisted(() =>
+  vi.fn((enabled: boolean) =>
+    enabled
+      ? {
+          id: 'directml',
+          transformersDevice: 'dml',
+          sessionOptions: {
+            executionProviders: ['dml', 'cpu'],
+            enableMemPattern: false,
+            executionMode: 'sequential'
+          }
+        }
+      : { id: 'cpu', transformersDevice: 'cpu', sessionOptions: { executionProviders: ['cpu'] } }
+  )
+)
+
+const DIRECT_ROUTING: ProxyRoutingSnapshot = { version: 1, mode: 'direct' }
 
 vi.mock('node:worker_threads', () => ({
   Worker: vi.fn(() => {
@@ -26,9 +44,29 @@ vi.mock('node:worker_threads', () => ({
   })
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'ProxyService') return { getRoutingSnapshot }
+    return originalGet(name)
+  })
+  return result
+})
+
 // Pin to a supported platform so this suite is deterministic regardless of the
 // machine it runs on (see InferenceServiceBase.darwinX64.test.ts for the gate itself).
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+
+vi.mock('../inferenceAcceleration', () => ({
+  CPU_LOCAL_INFERENCE_PROFILE: {
+    id: 'cpu',
+    transformersDevice: 'cpu',
+    sessionOptions: { executionProviders: ['cpu'] }
+  },
+  resolveLocalInferenceProfile
+}))
 
 // Import the SUT after the worker mock is declared (it constructs a Worker lazily on first send).
 const { EmbeddingInferenceService } = await import('../EmbeddingInferenceService')
@@ -36,10 +74,31 @@ const { OcrInferenceService } = await import('../OcrInferenceService')
 const embeddingInferenceService = new EmbeddingInferenceService()
 const ocrInferenceService = new OcrInferenceService()
 
-const SOURCE: InferenceModelSource = {
-  remoteHost: 'https://huggingface.co',
-  remotePathTemplate: '{model}/resolve/{revision}',
-  revision: 'main'
+/** Where the main process probed the complete cache — inference loads the model from here. */
+const MODEL_DIR = '/models/qwen3-embedding/org/model'
+
+getRoutingSnapshot.mockResolvedValue(DIRECT_ROUTING)
+
+beforeEach(() => {
+  MockMainPreferenceServiceUtils.resetMocks()
+  getRoutingSnapshot.mockResolvedValue(DIRECT_ROUTING)
+})
+
+async function latestWorker(minimumCount = 1): Promise<FakeWorker> {
+  for (let attempt = 0; attempt < 20 && fakeWorkers.length < minimumCount; attempt += 1) {
+    await Promise.resolve()
+  }
+  if (fakeWorkers.length < minimumCount) throw new Error(`expected ${minimumCount} inference worker(s)`)
+  return fakeWorkers.at(-1)!
+}
+
+async function waitForPostedRequests(worker: FakeWorker, count: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const posted = worker.postMessage.mock.calls.filter(([msg]) => (msg as { id?: string }).id !== undefined)
+    if (posted.length >= count) return
+    await Promise.resolve()
+  }
+  throw new Error(`expected ${count} inference request(s)`)
 }
 
 /** The id InferenceServiceBase stamped onto the embed request (the init message carries none). */
@@ -67,8 +126,8 @@ describe('InferenceService worker exit / failAll', () => {
   })
 
   it('rejects in-flight requests when the worker exits cleanly (code 0) instead of hanging forever', async () => {
-    const pending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
 
     worker.emit('exit', 0)
 
@@ -78,8 +137,8 @@ describe('InferenceService worker exit / failAll', () => {
   })
 
   it('logs an abnormal (non-zero) exit even when no request is in flight (idle crash visibility)', async () => {
-    const pending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
 
     // Settle the request so the worker goes idle (pending empty) before it crashes.
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1, 0.2]] })
@@ -92,8 +151,8 @@ describe('InferenceService worker exit / failAll', () => {
   })
 
   it('does not double-report when terminate() is followed by the worker exit event', async () => {
-    const pending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
 
     await embeddingInferenceService.terminate()
     await expect(pending).rejects.toThrow(/terminated/)
@@ -105,12 +164,31 @@ describe('InferenceService worker exit / failAll', () => {
     expect(mockMainLoggerService.error.mock.calls.length).toBe(afterTerminate)
   })
 
+  it('does not spawn a worker after terminate wins a pending proxy-snapshot race', async () => {
+    let resolveRouting!: (routing: ProxyRoutingSnapshot) => void
+    getRoutingSnapshot.mockReturnValueOnce(
+      new Promise<ProxyRoutingSnapshot>((resolve) => {
+        resolveRouting = resolve
+      })
+    )
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    for (let attempt = 0; attempt < 10 && getRoutingSnapshot.mock.calls.length === 0; attempt += 1) {
+      await Promise.resolve()
+    }
+
+    await embeddingInferenceService.terminate()
+    resolveRouting(DIRECT_ROUTING)
+
+    await expect(pending).rejects.toThrow(/terminated/)
+    expect(fakeWorkers).toHaveLength(0)
+  })
+
   it('terminate() resolves only once the worker has actually exited, not just been asked to', async () => {
     // terminate() rejects this in-flight request synchronously — swallow it here, but still
     // await it below so the shared queue's concurrency slot is fully released before the
     // test ends (concurrency: 1 means a lingering unsettled request blocks the next test).
-    const rejected = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
-    const worker = fakeWorkers.at(-1)!
+    const rejected = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8').catch(() => {})
+    const worker = await latestWorker()
     let releaseExit: (code: number) => void = () => {}
     worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
 
@@ -134,14 +212,14 @@ describe('InferenceService worker exit / failAll', () => {
   })
 
   it("ignores a superseded worker's late exit instead of tearing down the live worker", async () => {
-    const stale = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const workerA = fakeWorkers.at(-1)!
+    const stale = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const workerA = await latestWorker()
 
     // Tear down A (rejecting its own in-flight), then start a fresh request → worker B.
     await embeddingInferenceService.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
-    const live = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8')
-    const workerB = fakeWorkers.at(-1)!
+    const live = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8')
+    const workerB = await latestWorker(2)
     expect(workerB).not.toBe(workerA)
 
     let liveRejected = false
@@ -160,20 +238,21 @@ describe('InferenceService worker exit / failAll', () => {
     workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.1]] })
     await live
 
-    const reused = embeddingInferenceService.embed(['c'], SOURCE, 'org/model', 'q8')
+    const reused = embeddingInferenceService.embed(['c'], MODEL_DIR, 'q8')
     expect(fakeWorkers).toHaveLength(2)
+    await waitForPostedRequests(workerB, 2)
     workerB.emit('message', { type: 'result', id: lastPostedId(workerB), embeddings: [[0.2]] })
     await reused
   })
 
   it("ignores a superseded worker's late error instead of rejecting the live worker's requests", async () => {
-    const stale = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const workerA = fakeWorkers.at(-1)!
+    const stale = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const workerA = await latestWorker()
 
     await embeddingInferenceService.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
-    const live = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8')
-    const workerB = fakeWorkers.at(-1)!
+    const live = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8')
+    const workerB = await latestWorker(2)
     expect(workerB).not.toBe(workerA)
 
     let liveRejected = false
@@ -207,12 +286,12 @@ describe('embeddingInferenceService / ocrInferenceService isolation', () => {
   it('terminating the embedding host does not touch an in-flight OCR request or its worker', async () => {
     const ocrPending = ocrInferenceService.recognize(
       { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
-      '/img.png'
+      { kind: 'path', imagePath: '/img.png' }
     )
-    const ocrWorker = fakeWorkers.at(-1)!
+    const ocrWorker = await latestWorker()
 
-    const embedRejected = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
-    const embeddingWorker = fakeWorkers.at(-1)!
+    const embedRejected = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8').catch(() => {})
+    const embeddingWorker = await latestWorker(2)
     expect(embeddingWorker).not.toBe(ocrWorker)
 
     await embeddingInferenceService.terminate()
@@ -231,7 +310,7 @@ describe('embeddingInferenceService / ocrInferenceService isolation', () => {
     expect(ocrSettled).toBe(false)
 
     ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
-    await expect(ocrPending).resolves.toBe('ok')
+    await expect(ocrPending).resolves.toEqual({ text: 'ok', lines: [] })
   })
 })
 
@@ -247,35 +326,111 @@ describe('InferenceService worker init message', () => {
   })
 
   /** The one-time init message is the first thing posted to a freshly spawned worker. */
-  function initMessage(worker: FakeWorker): { type: string; cacheDir?: string; appPath?: string } {
-    return worker.postMessage.mock.calls[0][0] as { type: string; cacheDir?: string; appPath?: string }
+  function initMessage(worker: FakeWorker): {
+    type: string
+    cacheDir?: string
+    appPath?: string
+    proxyRouting?: ProxyRoutingSnapshot
+    runtimeProfile?: { id: string }
+  } {
+    return worker.postMessage.mock.calls[0][0] as {
+      type: string
+      cacheDir?: string
+      appPath?: string
+      proxyRouting?: ProxyRoutingSnapshot
+      runtimeProfile?: { id: string }
+    }
   }
 
   it('sends cacheDir to the embedding worker but omits it for the OCR worker', async () => {
-    const embedPending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')
-    const embeddingWorker = fakeWorkers.at(-1)!
+    const embedPending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const embeddingWorker = await latestWorker()
     const embedInit = initMessage(embeddingWorker)
     expect(embedInit.type).toBe('init')
     // Embedding must still receive the transformers.js model cache dir (unchanged behavior).
     expect(embedInit.cacheDir).toBeTruthy()
     expect(embedInit.appPath).toBeTruthy()
+    expect(embedInit.proxyRouting).toEqual(DIRECT_ROUTING)
+    expect(embedInit.runtimeProfile?.id).toBe('directml')
     // Settle so the shared queue's concurrency slot is free for the OCR request below.
     embeddingWorker.emit('message', { type: 'result', id: lastRequestId(embeddingWorker), embeddings: [[0.1]] })
     await embedPending
 
     const ocrPending = ocrInferenceService.recognize(
       { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
-      '/img.png'
+      { kind: 'path', imagePath: '/img.png' }
     )
-    const ocrWorker = fakeWorkers.at(-1)!
+    const ocrWorker = await latestWorker(2)
     const ocrInit = initMessage(ocrWorker)
     expect(ocrInit.type).toBe('init')
     // The OCR worker uses explicit modelPaths and never reads cacheDir — the field is
     // omitted entirely (absent, not set to undefined). This is the load-bearing half of #9.
     expect('cacheDir' in ocrInit).toBe(false)
     expect(ocrInit.appPath).toBeTruthy()
+    expect(ocrInit.proxyRouting).toEqual(DIRECT_ROUTING)
+    expect(ocrInit.runtimeProfile?.id).toBe('directml')
     ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
     await ocrPending
+  })
+
+  it('finishes the active request before applying an updated acceleration profile to the next worker', async () => {
+    const first = embeddingInferenceService.embed(['first'], MODEL_DIR, 'q8')
+    const workerA = await latestWorker()
+    const second = embeddingInferenceService.embed(['second'], MODEL_DIR, 'q8')
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.local_model.hardware_acceleration.enabled', false)
+    expect(workerA.terminate).not.toHaveBeenCalled()
+
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    await first
+
+    const workerB = await latestWorker(2)
+    expect(workerA.terminate).toHaveBeenCalledTimes(1)
+    expect(initMessage(workerB).runtimeProfile?.id).toBe('cpu')
+
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.2]] })
+    await expect(second).resolves.toEqual([[0.2]])
+  })
+
+  it('restarts the worker before the next request when ProxyService advances the routing version', async () => {
+    const first = embeddingInferenceService.embed(['first'], MODEL_DIR, 'q8')
+    const workerA = await latestWorker()
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    await first
+
+    const updatedRouting: ProxyRoutingSnapshot = { version: 2, mode: 'direct' }
+    getRoutingSnapshot.mockResolvedValue(updatedRouting)
+    const second = embeddingInferenceService.embed(['second'], MODEL_DIR, 'q8')
+    const workerB = await latestWorker(2)
+
+    expect(workerA.terminate).toHaveBeenCalledTimes(1)
+    expect(workerB).not.toBe(workerA)
+    expect(initMessage(workerB).proxyRouting).toEqual(updatedRouting)
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.2]] })
+    await expect(second).resolves.toEqual([[0.2]])
+  })
+
+  it('does not respawn after terminate wins a routing-version teardown race', async () => {
+    const first = embeddingInferenceService.embed(['first'], MODEL_DIR, 'q8')
+    const workerA = await latestWorker()
+    workerA.emit('message', { type: 'result', id: lastRequestId(workerA), embeddings: [[0.1]] })
+    await first
+
+    let releaseExit!: (code: number) => void
+    workerA.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
+    getRoutingSnapshot.mockResolvedValue({ version: 2, mode: 'direct' })
+    const second = embeddingInferenceService.embed(['second'], MODEL_DIR, 'q8')
+    const rejected = expect(second).rejects.toThrow(/terminated/)
+    for (let attempt = 0; attempt < 20 && workerA.terminate.mock.calls.length === 0; attempt += 1) {
+      await Promise.resolve()
+    }
+    expect(workerA.terminate).toHaveBeenCalledTimes(1)
+
+    await embeddingInferenceService.terminate()
+    releaseExit(0)
+
+    await rejected
+    expect(fakeWorkers).toHaveLength(1)
   })
 })
 
@@ -293,8 +448,8 @@ describe('InferenceService idle-release timer', () => {
   it('releases the worker after an idle timeout', async () => {
     vi.useFakeTimers()
 
-    const pending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
     await pending
 
@@ -308,14 +463,15 @@ describe('InferenceService idle-release timer', () => {
   it('keeps the worker alive when another request arrives before the idle timeout', async () => {
     vi.useFakeTimers()
 
-    const first = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const first = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
     await first
 
     await vi.advanceTimersByTimeAsync(30_000)
 
-    const second = embeddingInferenceService.embed(['bye'], SOURCE, 'org/model', 'q8')
+    const second = embeddingInferenceService.embed(['bye'], MODEL_DIR, 'q8')
+    await waitForPostedRequests(worker, 2)
     worker.emit('message', { type: 'result', id: lastPostedId(worker), embeddings: [[0.2]] })
     await second
 
@@ -342,9 +498,9 @@ describe('InferenceService request queue', () => {
   })
 
   it('serializes concurrent requests so only one is in flight to the worker at a time', async () => {
-    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
-    const second = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8')
+    const first = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
+    const second = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8')
 
     const postedRequestCount = () =>
       worker.postMessage.mock.calls.filter(([msg]) => (msg as { id?: string }).id !== undefined).length
@@ -366,10 +522,10 @@ describe('InferenceService request queue', () => {
   })
 
   it('rejects a queued request immediately once dequeued if its signal was already aborted while waiting', async () => {
-    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const first = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     const controller = new AbortController()
-    const second = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8', controller.signal)
+    const second = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8', controller.signal)
 
     controller.abort()
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
@@ -392,10 +548,10 @@ describe('InferenceService terminateThen', () => {
   })
 
   it('blocks a request queued behind the in-flight one from respawning a worker while `after` runs', async () => {
-    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const first = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     // Queued behind `first` (concurrency: 1) — not yet dispatched to any worker.
-    const second = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8')
+    const second = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8')
 
     const after = vi.fn(async () => {})
     const done = embeddingInferenceService.terminateThen(after)
@@ -411,8 +567,8 @@ describe('InferenceService terminateThen', () => {
     expect(after).toHaveBeenCalledTimes(1)
 
     // Normal service resumes once terminateThen settles.
-    const third = embeddingInferenceService.embed(['c'], SOURCE, 'org/model', 'q8')
-    const newWorker = fakeWorkers.at(-1)!
+    const third = embeddingInferenceService.embed(['c'], MODEL_DIR, 'q8')
+    const newWorker = await latestWorker(2)
     expect(newWorker).not.toBe(worker)
     newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), embeddings: [[0.3]] })
     await expect(third).resolves.toEqual([[0.3]])
@@ -424,17 +580,17 @@ describe('InferenceService terminateThen', () => {
     await expect(embeddingInferenceService.terminateThen(after)).resolves.toBe('done')
     expect(after).toHaveBeenCalledTimes(1)
 
-    const pending = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
     await expect(pending).resolves.toEqual([[0.1]])
   })
 
   it('lifecycle shutdown (onStop) also blocks a queued request from respawning a worker', async () => {
-    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const first = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     // Queued behind `first` (concurrency: 1) — not yet dispatched to any worker.
-    const second = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8')
+    const second = embeddingInferenceService.embed(['b'], MODEL_DIR, 'q8')
 
     const stopped = (embeddingInferenceService as any).onStop()
 
@@ -447,11 +603,51 @@ describe('InferenceService terminateThen', () => {
     await stopped
 
     // Normal service resumes once shutdown settles.
-    const third = embeddingInferenceService.embed(['c'], SOURCE, 'org/model', 'q8')
-    const newWorker = fakeWorkers.at(-1)!
+    const third = embeddingInferenceService.embed(['c'], MODEL_DIR, 'q8')
+    const newWorker = await latestWorker(2)
     expect(newWorker).not.toBe(worker)
     newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), embeddings: [[0.3]] })
     await expect(third).resolves.toEqual([[0.3]])
+  })
+})
+
+describe('EmbeddingInferenceService.embed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceService.terminate()
+  })
+
+  it('sends the local source candidates and resolves with the worker-reported embeddings', async () => {
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
+
+    const request = worker.postMessage.mock.calls.find(([msg]) => (msg as { id?: string }).id !== undefined)![0] as {
+      type: string
+      modelDir: string
+      texts: string[]
+    }
+    expect(request.type).toBe('embedding.embed')
+    expect(request.modelDir).toBe(MODEL_DIR)
+    expect(request.texts).toEqual(['hi'])
+
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1, 0.2]] })
+
+    await expect(pending).resolves.toEqual([[0.1, 0.2]])
+  })
+
+  it('rejects a result that carries no embeddings instead of resolving empty', async () => {
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
+
+    // A protocol drift (field renamed / dropped) must fail the request loudly —
+    // resolving [] would let empty vectors flow into the index as real ones.
+    worker.emit('message', { type: 'result', id: lastRequestId(worker) })
+
+    await expect(pending).rejects.toThrow('without embeddings')
   })
 })
 
@@ -466,14 +662,16 @@ describe('EmbeddingInferenceService.countTokens', () => {
   })
 
   it('sends an embedding.countTokens request and resolves with the worker-reported counts', async () => {
-    const pending = embeddingInferenceService.countTokens(['hi', 'there'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.countTokens(['hi', 'there'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
 
     const request = worker.postMessage.mock.calls.find(([msg]) => (msg as { id?: string }).id !== undefined)![0] as {
       type: string
+      modelDir: string
       texts: string[]
     }
     expect(request.type).toBe('embedding.countTokens')
+    expect(request.modelDir).toBe(MODEL_DIR)
     expect(request.texts).toEqual(['hi', 'there'])
 
     worker.emit('message', { type: 'result', id: lastRequestId(worker), tokenCounts: [1, 2] })
@@ -481,11 +679,20 @@ describe('EmbeddingInferenceService.countTokens', () => {
     await expect(pending).resolves.toEqual([1, 2])
   })
 
+  it('rejects a result that carries no token counts instead of resolving empty', async () => {
+    const pending = embeddingInferenceService.countTokens(['hi'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
+
+    worker.emit('message', { type: 'result', id: lastRequestId(worker) })
+
+    await expect(pending).rejects.toThrow('without token counts')
+  })
+
   it('supports aborting a queued countTokens request', async () => {
-    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
-    const worker = fakeWorkers.at(-1)!
+    const first = embeddingInferenceService.embed(['a'], MODEL_DIR, 'q8')
+    const worker = await latestWorker()
     const controller = new AbortController()
-    const second = embeddingInferenceService.countTokens(['b'], SOURCE, 'org/model', 'q8', controller.signal)
+    const second = embeddingInferenceService.countTokens(['b'], MODEL_DIR, 'q8', controller.signal)
 
     controller.abort()
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
@@ -509,8 +716,8 @@ describe('InferenceService abort listener cleanup', () => {
     const controller = new AbortController()
     const removeSpy = vi.spyOn(controller.signal, 'removeEventListener')
 
-    const pending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8', controller.signal)
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8', controller.signal)
+    const worker = await latestWorker()
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
     await pending
 
@@ -524,8 +731,8 @@ describe('InferenceService abort listener cleanup', () => {
     const controller = new AbortController()
     const removeSpy = vi.spyOn(controller.signal, 'removeEventListener')
 
-    const pending = embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8', controller.signal)
-    const worker = fakeWorkers.at(-1)!
+    const pending = embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8', controller.signal)
+    const worker = await latestWorker()
     worker.emit('exit', 1)
 
     await expect(pending).rejects.toThrow()

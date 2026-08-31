@@ -5,6 +5,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +39,10 @@ interface UseLaunchDialogControllerOptions {
   apiGatewayProvider?: ApiGatewayProviderBundle | null
   /** Models currently available through the gateway, keyed by UniqueModelId. */
   gatewayModelsById: Map<UniqueModelId, Model>
+  /** Every enabled model, keyed by UniqueModelId — the direct-launch counterpart of the map above. */
+  modelById: Map<UniqueModelId, Model>
+  /** True while the model query is in flight, when a miss in either map above proves nothing. */
+  isModelsLoading: boolean
   upsertProviderConfig: (
     providerId: string,
     partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
@@ -63,6 +68,8 @@ export function useLaunchDialogController({
   selectedTerminal,
   apiGatewayProvider,
   gatewayModelsById,
+  modelById,
+  isModelsLoading,
   upsertProviderConfig,
   setCurrentProvider,
   setTerminal,
@@ -120,8 +127,14 @@ export function useLaunchDialogController({
       return
     }
 
+    const isGatewayProvider = !!enabledProvider && isApiGatewayProviderId(enabledProvider.id)
     const cliConfigContext = enabledProvider
-      ? resolveCliConfigApplyContext(selectedCliTool, enabledProvider.id, currentProviderConfig ?? undefined)
+      ? resolveCliConfigApplyContext(
+          selectedCliTool,
+          enabledProvider.id,
+          currentProviderConfig ?? undefined,
+          isGatewayProvider ? gatewayModelsById : undefined
+        )
       : null
     if (!cliConfigContext) {
       logger.error('Invalid CLI model id configured for launch', {
@@ -129,10 +142,14 @@ export function useLaunchDialogController({
         toolId: selectedCliTool,
         providerId: enabledProvider?.id
       })
-      if (enabledProvider) {
-        await upsertProviderConfig(enabledProvider.id, { modelId: null })
+      // Gateway resolution depends on the live model query, so a miss may be transient. Preserve
+      // the saved gateway selection and let the user retry instead of treating it as corrupt data.
+      if (!isGatewayProvider) {
+        if (enabledProvider) {
+          await upsertProviderConfig(enabledProvider.id, { modelId: null })
+        }
+        await setCurrentProvider(null)
       }
-      await setCurrentProvider(null)
       toast.error(t('code.launch.validation_error'))
       return
     }
@@ -140,10 +157,24 @@ export function useLaunchDialogController({
     try {
       setLaunching(true)
       // The gateway may have been stopped or re-keyed/re-ported since "enable" wrote the CLI
-      // config; re-verify it's serving and rewrite the config with the fresh context so the
-      // CLI never launches against a dead endpoint or a stale key.
-      if (enabledProvider && isApiGatewayProviderId(enabledProvider.id) && apiGatewayProvider) {
-        const apiKey = await apiGatewayProvider.ensureReady()
+      // config; re-verify it's serving and rewrite the config with the configured context so the
+      // CLI never launches against a dead endpoint.
+      // A miss only means "gone" once the query has settled; on a cold map it would silently
+      // hand the CLI the internal id instead of the provider-facing apiModelId.
+      if (isModelsLoading) {
+        throw new Error('Model list is still loading')
+      }
+      // Every launch, not just the file-configured ones: the reconciliation below skips tools
+      // like Antigravity, so a stale selection would start a session that cannot route.
+      const launchModelRecord = (isGatewayProvider ? gatewayModelsById : modelById).get(cliConfigContext.modelId)
+      if (!launchModelRecord) {
+        throw new Error(`Model is no longer available: ${cliConfigContext.modelId}`)
+      }
+      if (isGatewayProvider && apiGatewayProvider) {
+        await apiGatewayProvider.ensureRunning()
+      }
+      if (isGatewayProvider && apiGatewayProvider && isFileConfiguredCli(selectedCliTool)) {
+        const apiKey = await apiGatewayProvider.getApiKey()
         let onDiskFiles: CliConfigFileDraft[] | undefined
         try {
           onDiskFiles = await readCliConfigFiles(selectedCliTool)
@@ -184,12 +215,16 @@ export function useLaunchDialogController({
           gateway: { provider: apiGatewayProvider.provider, apiKey }
         })
       }
+      // Both routes address a model by its provider-facing apiModelId: the gateway matches on it,
+      // and a direct launch hands it straight to the provider's own API. A record without one
+      // legitimately falls back to the raw id — unlike a missing record, rejected above.
+      const launchModel = launchModelRecord.apiModelId ?? cliConfigContext.rawModelId
       const runResult = await ipcApi.request('code_cli.run', {
         mode: 'normal',
         cliTool: selectedCliTool,
-        model: cliConfigContext.rawModelId,
+        model: launchModel,
         providerId: cliConfigContext.providerId,
-        gateway: !!enabledProvider && isApiGatewayProviderId(enabledProvider.id),
+        gateway: isGatewayProvider,
         directory,
         terminal: effectiveTerminal
       })
@@ -214,6 +249,8 @@ export function useLaunchDialogController({
     effectiveTerminal,
     apiGatewayProvider,
     gatewayModelsById,
+    modelById,
+    isModelsLoading,
     setCurrentProvider,
     t
   ])

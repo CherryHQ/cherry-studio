@@ -9,6 +9,7 @@ import {
   type ServiceSpan
 } from '@main/core/diagnostics'
 
+import { SERVICE_STOP_TIMEOUT_MS } from './constants'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
 import {
@@ -19,10 +20,57 @@ import {
   LifecycleEvents,
   LifecycleState,
   Phase,
-  ServiceInitError
+  ServiceInitError,
+  type TeardownOutcome,
+  type TeardownSummary
 } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
+
+/**
+ * Race a teardown against a ceiling. The loser is NOT cancelled — it keeps
+ * running in the background, overlapping whatever the shutdown pass does next.
+ * That overlap is accepted during shutdown: the process is about to disappear,
+ * and no service pins its correctness on `onStop` (crash and `kill -9` bypass
+ * it entirely, so every service already carries atomic writes or self-healing).
+ *
+ * `run` carries its own rejection handler, so a late failure from the loser is
+ * still logged rather than vanishing.
+ *
+ * The timer must be cleared: one leaked multi-second timer per service would
+ * hold the event loop open long after an otherwise instant shutdown.
+ */
+async function raceWithTimeout(run: Promise<TeardownOutcome>, timeoutMs: number): Promise<TeardownOutcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<TeardownOutcome>((resolve) => {
+    timer = setTimeout(() => resolve('timed_out'), timeoutMs)
+  })
+  try {
+    return await Promise.race([run, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Emit the aggregate log for one teardown pass.
+ *
+ * A clean pass keeps the historical `All services stopped/destroyed` line. Any
+ * other pass must NOT print it: that line is the first thing read when
+ * diagnosing a bad shutdown, and claiming success over a starved or failed
+ * service is exactly the false signal this mechanism exists to remove.
+ */
+function logTeardownSummary(pass: 'stop' | 'destroy', summary: TeardownSummary, durationMs: number): void {
+  const elapsed = `${durationMs.toFixed(3)}ms`
+  if (summary.timedOut.length === 0 && summary.failed.length === 0) {
+    logger.info(`All services ${pass === 'stop' ? 'stopped' : 'destroyed'} (${elapsed})`)
+    return
+  }
+  logger.warn(
+    `Service ${pass} pass finished with ${summary.timedOut.length} timeout(s), ${summary.failed.length} failure(s) (${elapsed})`,
+    { timedOut: summary.timedOut, failed: summary.failed }
+  )
+}
 
 /**
  * LifecycleManager
@@ -178,12 +226,27 @@ export class LifecycleManager extends EventEmitter {
   }
 
   /**
-   * Stop all services in reverse initialization order
+   * Stop all services in reverse initialization order.
+   *
+   * Every service gets its own `SERVICE_STOP_TIMEOUT_MS` ceiling. On expiry the
+   * pass abandons that service and moves on, so one stuck `onStop()` can no
+   * longer starve every service queued behind it.
+   *
+   * What this guarantees is that each service's stop is *initiated* in reverse
+   * order and that no single service's *async wait* exceeds the ceiling — not
+   * that the pass runs strictly serially (an abandoned teardown keeps running)
+   * and not a hard wall-clock bound (a synchronously blocking `onStop()` cannot
+   * be preempted by a timer, and the ceiling starts counting only once
+   * `_doStop()` reaches its first `await`).
+   *
+   * @returns Which services timed out or failed. Both empty = clean pass.
    */
-  public async stopAll(): Promise<void> {
+  public async stopAll(): Promise<TeardownSummary> {
+    const summary: TeardownSummary = { timedOut: [], failed: [] }
+
     if (!this.initialized) {
       logger.warn('Services not initialized')
-      return
+      return summary
     }
 
     logger.info('Stopping all services...')
@@ -193,31 +256,41 @@ export class LifecycleManager extends EventEmitter {
     const stopOrder = [...this.initializationOrder].reverse()
 
     for (const serviceName of stopOrder) {
-      await this.stopSingle(serviceName)
+      const outcome = await this.stopSingle(serviceName, SERVICE_STOP_TIMEOUT_MS)
+      if (outcome === 'timed_out') summary.timedOut.push(serviceName)
+      else if (outcome === 'failed') summary.failed.push(serviceName)
     }
 
-    logger.info(`All services stopped (${(performance.now() - start).toFixed(3)}ms)`)
+    logTeardownSummary('stop', summary, performance.now() - start)
+    return summary
   }
 
   /**
-   * Destroy all services and release resources
+   * Destroy all services and release resources.
+   * Same per-service ceiling and same guarantees as {@link stopAll}.
+   *
+   * @returns Which services timed out or failed. Both empty = clean pass.
    */
-  public async destroyAll(): Promise<void> {
+  public async destroyAll(): Promise<TeardownSummary> {
     logger.info('Destroying all services...')
     const start = performance.now()
+    const summary: TeardownSummary = { timedOut: [], failed: [] }
 
     // Destroy in reverse order
     const destroyOrder = [...this.initializationOrder].reverse()
 
     for (const serviceName of destroyOrder) {
-      await this.destroyService(serviceName)
+      const outcome = await this.destroyService(serviceName, SERVICE_STOP_TIMEOUT_MS)
+      if (outcome === 'timed_out') summary.timedOut.push(serviceName)
+      else if (outcome === 'failed') summary.failed.push(serviceName)
     }
 
     this.initialized = false
     this.initializationOrder = []
     this.pausedByCascade.clear()
     this.stoppedByCascade.clear()
-    logger.info(`All services destroyed (${(performance.now() - start).toFixed(3)}ms)`)
+    logTeardownSummary('destroy', summary, performance.now() - start)
+    return summary
   }
 
   /**
@@ -262,36 +335,95 @@ export class LifecycleManager extends EventEmitter {
   /**
    * Stop a single service (no cascade).
    * Internal method used by stopAll and stop.
+   *
    * @param serviceName - Service name to stop
+   * @param timeoutMs - Ceiling for the async wait on `_doStop()`. Omitting it
+   *   waits indefinitely, which is what the runtime `stop()` / `restart()` path
+   *   does. Those have no production callers today, and bounding them would
+   *   require inventing a cascade failure-propagation contract (what a public
+   *   `Promise<void>` becomes, whether the cascade continues past a failure,
+   *   whether a failed dependent is recorded, whether `restart()` still starts)
+   *   with nobody to validate it against.
+   * @returns How the attempt ended. Only `completed` emits SERVICE_STOPPED.
    */
-  private async stopSingle(serviceName: string): Promise<void> {
+  private async stopSingle(serviceName: string, timeoutMs?: number): Promise<TeardownOutcome> {
     const instance = this.container.getInstance(serviceName)
-    if (!instance || instance.state === LifecycleState.Stopped) return
+    if (!instance || instance.state === LifecycleState.Stopped) return 'completed'
 
-    try {
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPING, serviceName, LifecycleState.Stopping)
-      const start = performance.now()
-      await instance._doStop()
-      const duration = performance.now() - start
-      this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
-      logger.debug(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
-    } catch (error) {
-      logger.error(`Error stopping service '${serviceName}':`, error as Error)
+    // Defensive: a service left mid-stop must not get a second concurrent
+    // _doStop(). Unreachable today — the runtime path has no ceiling, so
+    // nothing lingers in Stopping — but cheap insurance if that ever changes.
+    if (instance.state === LifecycleState.Stopping) {
+      logger.warn(`Service '${serviceName}' is already stopping — skipping duplicate stop`)
+      return 'timed_out'
     }
+
+    this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPING, serviceName, LifecycleState.Stopping)
+    const start = performance.now()
+
+    // Attach the handlers up-front so a rejection arriving AFTER a timeout is
+    // still logged instead of disappearing into an abandoned promise. This is
+    // an observability need, not crash protection — `Promise.race` attaches its
+    // own handlers to every entrant, so the loser never goes unhandled.
+    const run = instance._doStop().then(
+      (): TeardownOutcome => 'completed',
+      (error): TeardownOutcome => {
+        logger.error(`Error stopping service '${serviceName}':`, error as Error)
+        return 'failed'
+      }
+    )
+
+    const outcome = timeoutMs === undefined ? await run : await raceWithTimeout(run, timeoutMs)
+
+    if (outcome === 'timed_out') {
+      logger.warn(`Service '${serviceName}' stop timed out — proceeding`, { timeoutMs })
+      return outcome
+    }
+    if (outcome === 'failed') return outcome
+
+    this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
+    logger.debug(`Service '${serviceName}' stopped (${(performance.now() - start).toFixed(3)}ms)`)
+    return outcome
   }
 
   /**
-   * Destroy a single service
+   * Destroy a single service.
+   *
+   * @param serviceName - Service name to destroy
+   * @param timeoutMs - Ceiling for the async wait on `_doDestroy()`. Omitting it
+   *   waits indefinitely — same rationale as {@link stopSingle}.
+   * @returns How the attempt ended. Only `completed` emits SERVICE_DESTROYED.
    */
-  private async destroyService(serviceName: string): Promise<void> {
+  private async destroyService(serviceName: string, timeoutMs?: number): Promise<TeardownOutcome> {
     const instance = this.container.getInstance(serviceName)
-    if (!instance || instance.state === LifecycleState.Destroyed) return
+    if (!instance || instance.isDestroyed) return 'completed'
 
-    try {
-      await instance._doDestroy()
+    const run = instance._doDestroy().then(
+      (): TeardownOutcome => 'completed',
+      (error): TeardownOutcome => {
+        logger.error(`Error destroying service '${serviceName}':`, error as Error)
+        return 'failed'
+      }
+    )
+
+    let outcome = timeoutMs === undefined ? await run : await raceWithTimeout(run, timeoutMs)
+
+    if (outcome === 'timed_out') {
+      logger.warn(`Service '${serviceName}' destroy timed out — proceeding`, { timeoutMs })
+    } else if (outcome === 'completed' && !instance.isDestroyed) {
+      // `_doDestroy()`'s stop-still-in-flight guard returns normally, so a
+      // fulfilled promise is NOT proof the service was destroyed. Judge by the
+      // final state, or a skipped service aggregates as a success and
+      // `destroyAll()` prints `All services destroyed` over it.
+      //
+      // 'failed' rather than 'timed_out': this step never started, let alone ran
+      // out of time. The timeout that caused the skip is already attributed in
+      // the stop pass's summary; repeating it here would double-count.
+      outcome = 'failed'
+    }
+
+    if (outcome === 'completed') {
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DESTROYED, serviceName, LifecycleState.Destroyed)
-    } catch (error) {
-      logger.error(`Error destroying service '${serviceName}':`, error as Error)
     }
 
     // Clean cascade tracking maps
@@ -303,6 +435,8 @@ export class LifecycleManager extends EventEmitter {
     for (const [, set] of this.stoppedByCascade) {
       set.delete(serviceName)
     }
+
+    return outcome
   }
 
   /**

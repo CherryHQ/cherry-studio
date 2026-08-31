@@ -2,6 +2,7 @@ import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import MiniAppDetailPanel from '@renderer/components/MiniApp/MiniAppDetailPanel'
 import { WebviewAnnotationControls } from '@renderer/components/WebviewAnnotationControls'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
@@ -10,9 +11,9 @@ import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
+import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, ExternalLink, LayoutGrid, Link, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,6 +50,9 @@ function isExternalUrl(value: string): boolean {
   }
 }
 
+/** `open` splits the view in two; `close` is the split pane's way back to one. */
+export type SplitMode = 'open' | 'close'
+
 interface Props {
   app: MiniApp
   webviewRef: React.RefObject<WebviewTag | null>
@@ -57,6 +61,10 @@ interface Props {
   isHostActive: boolean
   onReload: () => void
   onOpenDevTools: () => void
+  splitMode: SplitMode
+  /** Whether the view is currently split, so the control reads as engaged. */
+  splitActive?: boolean
+  onSplit: () => void
 }
 
 const MinimalToolbar: FC<Props> = ({
@@ -66,15 +74,22 @@ const MinimalToolbar: FC<Props> = ({
   isWebviewReady,
   isHostActive,
   onReload,
-  onOpenDevTools
+  onOpenDevTools,
+  splitMode,
+  splitActive = false,
+  onSplit
 }) => {
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [currentPageUrl, setCurrentPageUrl] = useState(currentUrl || app.url)
   const [addressValue, setAddressValue] = useState(currentUrl || app.url)
+  // While split, the primary pane's control closes the split rather than being
+  // a dead "open it again" button.
+  const splitLabelKey = splitMode === 'close' || splitActive ? 'miniApp.split.close' : 'miniApp.split.open'
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
   const canOpenExternalLink = isExternalUrl(currentPageUrl)
@@ -107,9 +122,7 @@ const MinimalToolbar: FC<Props> = ({
   const updateCurrentPageUrl = useCallback((url: string) => {
     if (!url) return
     setCurrentPageUrl(url)
-    if (!isAddressEditingRef.current) {
-      setAddressValue(url)
-    }
+    if (!isAddressEditingRef.current) setAddressValue(url)
   }, [])
 
   const restoreCurrentPageUrl = useCallback(() => {
@@ -117,7 +130,7 @@ const MinimalToolbar: FC<Props> = ({
     try {
       url = webviewRef.current?.getURL() || url
     } catch {
-      // The WebView may be detaching; the last committed URL is still safe to display.
+      // The WebView may be detaching; keep the last committed URL.
     }
     updateCurrentPageUrl(url)
     setAddressValue(url)
@@ -257,7 +270,7 @@ const MinimalToolbar: FC<Props> = ({
       if (navigationListener) navigationListener()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app.appId, updateCurrentPageUrl, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
+  }, [app.appId, scheduleNavigationUpdate, updateCurrentPageUrl, updateNavigationState]) // webviewRef excluded as it's a ref object
 
   const handleGoBack = useCallback(() => {
     if (webviewRef.current) {
@@ -411,36 +424,53 @@ const MinimalToolbar: FC<Props> = ({
         </div>
       </div>
 
-      <form className="mx-1 min-w-0 flex-1" onSubmit={handleAddressSubmit}>
-        <Input
-          ref={addressInputRef}
-          type="text"
-          inputMode="url"
-          value={addressValue}
-          onChange={(event) => setAddressValue(event.target.value)}
-          onFocus={handleAddressFocus}
-          onBlur={handleAddressBlur}
-          onKeyDown={handleAddressKeyDown}
-          disabled={!isWebviewReady}
-          aria-label={t('settings.miniApps.custom.url')}
-          title={currentPageUrl}
-          placeholder={t('settings.miniApps.custom.url_placeholder')}
-          autoCapitalize="none"
-          autoComplete="off"
-          autoCorrect="off"
-          spellCheck={false}
-          className="h-7 rounded-md border-input bg-background px-2.5 text-foreground-secondary text-xs shadow-none focus-visible:text-foreground"
-        />
-      </form>
-
-      <div className="flex shrink-0 items-center">
-        <div className="flex items-center gap-0.5">
-          <WebviewAnnotationControls
-            webviewRef={webviewRef}
-            isWebviewReady={isWebviewReady}
-            isHostActive={isHostActive}
-            target={annotationTarget}
+      {app.kind === 'site' && (
+        <form className="mx-1 min-w-0 flex-1" onSubmit={handleAddressSubmit}>
+          <Input
+            ref={addressInputRef}
+            type="text"
+            inputMode="url"
+            value={addressValue}
+            onChange={(event) => setAddressValue(event.target.value)}
+            onFocus={handleAddressFocus}
+            onBlur={handleAddressBlur}
+            onKeyDown={handleAddressKeyDown}
+            disabled={!isWebviewReady}
+            aria-label={t('settings.miniApps.custom.url')}
+            title={currentPageUrl}
+            placeholder={t('settings.miniApps.custom.url_placeholder')}
+            autoCapitalize="none"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            className="h-7 rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
           />
+        </form>
+      )}
+
+      <div className="ml-auto flex shrink-0 items-center">
+        <div className="flex items-center gap-0.5">
+          <Tooltip content={t(splitLabelKey)} placement="bottom">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onSplit}
+              className={toolbarButtonClassName({ active: splitActive })}
+              aria-label={t(splitLabelKey)}
+              aria-pressed={splitMode === 'open' ? splitActive : undefined}>
+              {splitMode === 'open' ? <Columns2 size={14} /> : <X size={14} />}
+            </Button>
+          </Tooltip>
+
+          {app.kind === 'site' && (
+            <WebviewAnnotationControls
+              webviewRef={webviewRef}
+              isWebviewReady={isWebviewReady}
+              isHostActive={isHostActive}
+              target={annotationTarget}
+            />
+          )}
 
           {canOpenExternalLink && (
             <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">
@@ -473,24 +503,44 @@ const MinimalToolbar: FC<Props> = ({
             </Tooltip>
           )}
 
-          <Tooltip
-            content={
-              openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
-            }
-            placement="bottom">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleToggleOpenExternal}
-              className={toolbarButtonClassName({ active: openLinkExternal })}
-              aria-label={
+          {/* Sites only: a local app can open nothing outside itself, so the switch would lie. */}
+          {app.kind === 'site' && (
+            <Tooltip
+              content={
                 openLinkExternal ? t('miniApp.popup.open_link_external_on') : t('miniApp.popup.open_link_external_off')
               }
-              aria-pressed={openLinkExternal}>
-              <Link size={14} />
-            </Button>
-          </Tooltip>
+              placement="bottom">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleToggleOpenExternal}
+                className={toolbarButtonClassName({ active: openLinkExternal })}
+                aria-label={
+                  openLinkExternal
+                    ? t('miniApp.popup.open_link_external_on')
+                    : t('miniApp.popup.open_link_external_off')
+                }
+                aria-pressed={openLinkExternal}>
+                <Link size={14} />
+              </Button>
+            </Tooltip>
+          )}
+
+          {/* The same panel the launcher tile's context menu opens; sites have no package to describe. */}
+          {app.kind === 'app' && (
+            <Tooltip content={t('miniApp.detail.open')} placement="bottom">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setDetailOpen(true)}
+                className={toolbarButtonClassName()}
+                aria-label={t('miniApp.detail.open')}>
+                <Info size={14} />
+              </Button>
+            </Tooltip>
+          )}
 
           {isDev && (
             <Tooltip content={t('miniApp.popup.devtools')} placement="bottom">
@@ -507,6 +557,7 @@ const MinimalToolbar: FC<Props> = ({
           )}
         </div>
       </div>
+      {detailOpen && <MiniAppDetailPanel appId={app.appId} onClose={() => setDetailOpen(false)} />}
     </div>
   )
 }

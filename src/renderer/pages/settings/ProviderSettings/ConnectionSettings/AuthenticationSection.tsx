@@ -1,30 +1,27 @@
-import { ApiKeyProvider } from '../hooks/providerSetting/useAuthenticationApiKey'
-import { useProviderApiKey } from '../hooks/providerSetting/useProviderApiKey'
 import AuthConnectionSlotsLayout from './AuthConnectionSlotsLayout'
 import { AuthenticationSectionContent } from './AuthenticationSectionContent'
 
 interface AuthenticationSectionProps {
   providerId: string
-  onOpenModelHealthCheck?: () => void
   onRequestModelPullGuide?: () => void
+  onOpenApiSetup?: () => void
+  onContinueApiSetup?: () => void
 }
 
 export default function AuthenticationSection({
   providerId,
-  onOpenModelHealthCheck,
-  onRequestModelPullGuide
+  onRequestModelPullGuide,
+  onOpenApiSetup,
+  onContinueApiSetup
 }: AuthenticationSectionProps) {
-  const apiKey = useProviderApiKey(providerId)
-
   return (
-    <ApiKeyProvider value={apiKey}>
-      <AuthConnectionSlotsLayout providerId={providerId}>
-        <AuthenticationSectionContent
-          providerId={providerId}
-          onOpenModelHealthCheck={onOpenModelHealthCheck}
-          onRequestModelPullGuide={onRequestModelPullGuide}
-        />
-      </AuthConnectionSlotsLayout>
-    </ApiKeyProvider>
+    <AuthConnectionSlotsLayout providerId={providerId}>
+      <AuthenticationSectionContent
+        providerId={providerId}
+        onRequestModelPullGuide={onRequestModelPullGuide}
+        onOpenApiSetup={onOpenApiSetup}
+        onContinueApiSetup={onContinueApiSetup}
+      />
+    </AuthConnectionSlotsLayout>
   )
 }

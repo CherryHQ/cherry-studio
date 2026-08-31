@@ -19,7 +19,6 @@ import p_doubao from './doubao'
 import p_fireworks from './fireworks'
 import p_gateway from './gateway'
 import p_gemini from './gemini'
-import p_github from './github'
 import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_grok_cli from './grok-cli'
@@ -95,7 +94,6 @@ export const PROVIDERS: Provider[] = [
   p_azure_openai,
   p_gemini,
   p_vertexai,
-  p_github,
   p_copilot,
   p_moonshot,
   p_baichuan,

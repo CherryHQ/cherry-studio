@@ -67,6 +67,58 @@ describe('toModelMessages', () => {
     ])
   })
 
+  it('drops a tool call parked on an unanswered approval (#17936)', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          { type: 'text', text: 'let me check' },
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-requested',
+            input: {},
+            approval: { id: 'ap-1' }
+          }
+        ],
+        'a1'
+      ),
+      ui('user', [{ type: 'text', text: '继续' }], 'u2')
+    ])
+    expect(model).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'Q' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'let me check' }] },
+      { role: 'user', content: [{ type: 'text', text: '继续' }] }
+    ])
+  })
+
+  it('keeps an answered approval so the continuation can resume it', async () => {
+    const model = await toModelMessages([
+      ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
+      ui(
+        'assistant',
+        [
+          {
+            type: 'tool-kb_manage',
+            toolCallId: '1',
+            state: 'approval-responded',
+            input: {},
+            approval: { id: 'ap-1', approved: true }
+          }
+        ],
+        'a1'
+      )
+    ])
+    expect(model[1]).toEqual({
+      role: 'assistant',
+      content: [
+        { type: 'tool-call', toolCallId: '1', toolName: 'kb_manage', input: {}, providerExecuted: undefined },
+        { type: 'tool-approval-request', approvalId: 'ap-1', toolCallId: '1' }
+      ]
+    })
+  })
+
   it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
       [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],
@@ -117,6 +169,79 @@ describe('toModelMessages', () => {
     })
     expect(JSON.stringify(model)).not.toContain(imageData)
     expect(messages).toEqual(originalMessages)
+  })
+
+  it('replays a completed legacy MCP tool name unchanged', async () => {
+    const legacyToolName = 'mcp__mysql__executeSql'
+    const model = await toModelMessages([
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: legacyToolName,
+          toolCallId: 'legacy-call',
+          state: 'output-available',
+          input: { sql: 'select 1' },
+          output: { ok: true }
+        }
+      ])
+    ])
+
+    expect(model[0]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolName: legacyToolName })]
+    })
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
+    })
+  })
+
+  const legacyTool = (toolName: string, toolCallId: string): UIMessage['parts'][number] => ({
+    type: 'dynamic-tool',
+    toolName,
+    toolCallId,
+    state: 'output-available',
+    input: {},
+    output: { ok: true }
+  })
+
+  const namesOf = (message: ModelMessage) => (message.content as { toolName: string }[]).map((p) => p.toolName)
+
+  it('rewrites a v1 "server: tool" name to a wire-legal one on both call and result (#18199)', async () => {
+    const model = await toModelMessages([ui('assistant', [legacyTool('jina: jina_reader', 'call_00_1')])])
+
+    const wireName = namesOf(model[0])[0]
+    expect(wireName).toMatch(/^jina__jina_reader_[0-9a-f]{8}$/)
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: wireName })]
+    })
+  })
+
+  it('keeps distinct v1 names distinct past the 64-char / leading-letter provider limits', async () => {
+    const server = `1${'长'.repeat(80)}`
+    const model = await toModelMessages([
+      ui('assistant', [legacyTool(`${server}: search`, 'call_00_2'), legacyTool(`${server}: fetch`, 'call_00_3')])
+    ])
+
+    const [search, fetch] = namesOf(model[0])
+    expect(search).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(fetch).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(search).not.toBe(fetch)
+  })
+
+  // The API Gateway shares this path and keys its ToolSet by the client's own function name.
+  it('leaves a declared tool name untouched even when it holds provider-specific characters', async () => {
+    const declared = 'maps.lookup'
+    const model = await toModelMessages([ui('assistant', [legacyTool(declared, 'call_00_4')])], undefined, {
+      [declared]: tool({ inputSchema: z.object({}), toModelOutput: () => ({ type: 'text', value: 'formatted' }) })
+    })
+
+    expect(namesOf(model[0])).toEqual([declared])
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ toolName: declared, output: { type: 'text', value: 'formatted' } })]
+    })
   })
 })
 

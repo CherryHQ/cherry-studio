@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
-import { diagnoseError } from '@renderer/utils/errorDiagnosis'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,6 +67,7 @@ const AiDiagnosisSectionWithStatus = memo(
       onStatusChange('loading')
       setDiagError('')
       try {
+        const { diagnoseError } = await import('@renderer/utils/errorDiagnosis')
         const diagnosis = await diagnoseError(error, i18n.language, diagnosisContext)
         if (cancelledRef.current) return
         setResult(diagnosis)

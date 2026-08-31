@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CherryInBalance, CherryInProfile } from '@shared/ipc/schemas/cherryin'
+import { isSensitiveKey, REDACTED, redactSecretText } from '@shared/utils/redaction'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
@@ -80,14 +81,10 @@ export class CherryInOAuthService {
     }
   }
 
+  // OAuth's `code` is sensitive in text but must not redact JSON keys globally — scope it here.
   private redactDiagnosticValue = (value: unknown): unknown => {
     if (typeof value === 'string') {
-      return value
-        .replace(/Bearer\s+\S+/gi, 'Bearer <redacted>')
-        .replace(/\b(refresh_token|access_token|code|client_secret)=([^&\s]+)/gi, '$1=<redacted>')
-        .replace(/[\w-]*token["']?\s*:\s*["'][^"']+["']/gi, (match) =>
-          match.replace(/:\s*["'][^"']+["']/, ': "<redacted>"')
-        )
+      return redactSecretText(value, ['code'])
     }
 
     if (Array.isArray(value)) {
@@ -98,7 +95,7 @@ export class CherryInOAuthService {
       return Object.fromEntries(
         Object.entries(value).map(([key, item]) => [
           key,
-          /token|authorization|api[-_]?key/i.test(key) ? '<redacted>' : this.redactDiagnosticValue(item)
+          isSensitiveKey(key) ? REDACTED : this.redactDiagnosticValue(item)
         ])
       )
     }

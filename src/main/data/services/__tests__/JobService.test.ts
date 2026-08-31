@@ -122,6 +122,88 @@ describe('JobService.list/count filters', () => {
   })
 })
 
+describe('JobService.getRunStatesByScheduleIds', () => {
+  setupTestDatabase()
+
+  const createSchedule = (name: string) =>
+    jobScheduleService.create({
+      type: 'agent.task',
+      name,
+      trigger: { kind: 'interval', ms: 60_000 },
+      jobInputTemplate: {},
+      catchUpPolicy: { kind: 'skip-missed' }
+    })
+
+  it('returns one prioritized run state per requested schedule', () => {
+    const runningSchedule = createSchedule('running-summary')
+    const unfinishedSchedule = createSchedule('unfinished-summary')
+    const terminalSchedule = createSchedule('terminal-summary')
+    const emptySchedule = createSchedule('empty-summary')
+    const now = Date.now()
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'completed',
+        scheduleId: runningSchedule.id,
+        startedAt: now - 3_000,
+        finishedAt: now - 2_000
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'pending', scheduleId: runningSchedule.id }))
+    jobService.create(
+      baseRow({ type: 'agent.task', status: 'running', scheduleId: runningSchedule.id, startedAt: now - 1_000 })
+    )
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'failed',
+        scheduleId: unfinishedSchedule.id,
+        startedAt: now - 3_000,
+        finishedAt: now - 2_000
+      })
+    )
+    jobService.create(baseRow({ type: 'agent.task', status: 'delayed', scheduleId: unfinishedSchedule.id }))
+
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'failed',
+        scheduleId: terminalSchedule.id,
+        startedAt: now - 4_000,
+        finishedAt: now - 3_000
+      })
+    )
+    jobService.create(
+      baseRow({
+        type: 'agent.task',
+        status: 'cancelled',
+        scheduleId: terminalSchedule.id,
+        startedAt: now - 2_000,
+        finishedAt: now - 1_000
+      })
+    )
+    jobService.create(baseRow({ type: 'other.type', status: 'running', scheduleId: terminalSchedule.id }))
+
+    expect(
+      jobService.getRunStatesByScheduleIds('agent.task', [
+        runningSchedule.id,
+        unfinishedSchedule.id,
+        terminalSchedule.id,
+        emptySchedule.id,
+        runningSchedule.id
+      ])
+    ).toEqual(
+      new Map([
+        [runningSchedule.id, { kind: 'running' }],
+        [unfinishedSchedule.id, { kind: 'unfinished' }],
+        [terminalSchedule.id, { kind: 'terminal', status: 'cancelled', finishedAt: now - 1_000 }]
+      ])
+    )
+  })
+})
+
 describe('JobService.addFileRefsTx', () => {
   setupTestDatabase()
 

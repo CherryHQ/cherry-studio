@@ -1,12 +1,14 @@
 import { Button } from '@cherrystudio/ui'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LoginOauthPanel')
@@ -28,47 +30,141 @@ interface LoginOauthPanelProps {
  */
 const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAccountId = false }) => {
   const { t } = useTranslation()
-  const { updateProvider } = useProvider(providerId)
+  const invalidateCache = useInvalidateCache()
   const ns = `settings.provider.${i18nNs}`
 
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
   const [signingIn, setSigningIn] = useState(false)
+  const [cancellingSignIn, setCancellingSignIn] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const mountedRef = useRef(false)
+  const signInRequestRef = useRef<Promise<void> | null>(null)
+  const signInRequestIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const refreshProviderData = useCallback(
+    () => invalidateCache(['/providers', `/providers/${providerId}`, `/providers/${providerId}/*`]),
+    [invalidateCache, providerId]
+  )
+
+  const applySignInSuccess = useCallback(
+    async (account: { accountId: string | null }) => {
+      if (mountedRef.current) {
+        setLoggedIn(true)
+        setAccountId(account.accountId)
+      }
+      // The main process owns the write; revalidate this window's DataApi reads.
+      await refreshProviderData()
+      if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
+    },
+    [ns, refreshProviderData, t]
+  )
+
+  const startSignIn = useCallback((): Promise<void> => {
+    const existing = signInRequestRef.current
+    if (existing) return existing
+
+    setSigningIn(true)
+    const requestId = crypto.randomUUID()
+    signInRequestIdRef.current = requestId
+    const request = Promise.resolve().then(async () => {
+      try {
+        const account = await ipcApi.request('oauth.sign_in', { providerId, requestId })
+        await applySignInSuccess(account)
+      } catch (error) {
+        if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+        if (!mountedRef.current) return
+        logger.error(`${providerId} sign-in failed`, error as Error)
+        toast.error(t(`${ns}.sign_in_failed`))
+      } finally {
+        if (signInRequestRef.current === request) {
+          signInRequestRef.current = null
+          if (signInRequestIdRef.current === requestId) signInRequestIdRef.current = null
+          if (mountedRef.current) setSigningIn(false)
+        }
+      }
+    })
+    signInRequestRef.current = request
+    return request
+  }, [applySignInSuccess, providerId, ns, t])
+
+  const attachActiveSignIn = useCallback(async () => {
+    const requestId = crypto.randomUUID()
+    signInRequestIdRef.current = requestId
+    setSigningIn(true)
+    try {
+      const result = await ipcApi.request('oauth.sign_in.attach', { providerId, requestId })
+      if (result.status === 'completed') {
+        await applySignInSuccess(result.account)
+        return
+      }
+
+      const hasToken = await ipcApi.request('oauth.has_token', { providerId })
+      if (!mountedRef.current) return
+      if (hasToken) {
+        const account = showAccountId ? await ipcApi.request('oauth.get_account', { providerId }) : { accountId: null }
+        await applySignInSuccess(account)
+        return
+      }
+
+      setLoggedIn(false)
+      setAccountId(null)
+    } catch (error) {
+      if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+      if (!mountedRef.current) return
+      logger.error(`${providerId} attached sign-in failed`, error as Error)
+      toast.error(t(`${ns}.sign_in_failed`))
+    } finally {
+      if (signInRequestIdRef.current === requestId) {
+        signInRequestIdRef.current = null
+        if (mountedRef.current) setSigningIn(false)
+      }
+    }
+  }, [applySignInSuccess, ns, providerId, showAccountId, t])
 
   const refreshStatus = useCallback(async () => {
     try {
       const hasToken = await ipcApi.request('oauth.has_token', { providerId })
       setLoggedIn(hasToken)
-      setAccountId(
-        hasToken && showAccountId ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null
-      )
+      if (hasToken) {
+        setAccountId(showAccountId ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null)
+        return
+      }
+
+      setLoggedIn(false)
+      setAccountId(null)
+      await attachActiveSignIn()
     } catch (error) {
       logger.error(`Failed to check ${providerId} login status`, error as Error)
       setLoggedIn(false)
     }
-  }, [providerId, showAccountId])
+  }, [attachActiveSignIn, providerId, showAccountId])
 
   useEffect(() => {
     void refreshStatus()
   }, [refreshStatus])
 
-  const handleSignIn = useCallback(async () => {
-    setSigningIn(true)
+  const handleCancelSignIn = useCallback(async () => {
+    const requestId = signInRequestIdRef.current
+    if (!requestId) return
+
+    setCancellingSignIn(true)
     try {
-      const account = await ipcApi.request('oauth.sign_in', { providerId })
-      setLoggedIn(true)
-      setAccountId(account.accountId)
-      // The main process enabled the provider; mirror it into the renderer cache.
-      await updateProvider({ isEnabled: true })
-      toast.success(t(`${ns}.sign_in_success`))
+      await ipcApi.request('oauth.cancel_sign_in', { providerId, requestId })
     } catch (error) {
-      logger.error(`${providerId} sign-in failed`, error as Error)
+      logger.error(`Failed to cancel ${providerId} sign-in`, error as Error)
       toast.error(t(`${ns}.sign_in_failed`))
     } finally {
-      setSigningIn(false)
+      if (mountedRef.current) setCancellingSignIn(false)
     }
-  }, [providerId, ns, t, updateProvider])
+  }, [ns, providerId, t])
 
   const handleLogout = useCallback(async () => {
     const confirmed = await popup.confirm({
@@ -81,9 +177,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     setLoggingOut(true)
     try {
       await ipcApi.request('oauth.logout', { providerId })
-      // The main process reset auth to api-key and disabled the provider;
-      // mirror it into the renderer cache (DataApi does not auto-sync).
-      await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
+      await refreshProviderData()
       setLoggedIn(false)
       setAccountId(null)
       toast.success(t('settings.provider.oauth.logout_success'))
@@ -93,7 +187,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     } finally {
       setLoggingOut(false)
     }
-  }, [providerId, t, updateProvider])
+  }, [providerId, refreshProviderData, t])
 
   if (loggedIn === null) {
     return (
@@ -128,11 +222,16 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
               <div className="mt-1 text-xs">{t(`${ns}.description_detail`)}</div>
             </div>
           </div>
-          <div>
-            <Button disabled={signingIn} onClick={() => void handleSignIn()}>
+          <div className="flex items-center gap-2">
+            <Button disabled={signingIn} onClick={() => void startSignIn()}>
               {signingIn ? <RefreshCw className="size-4 animate-spin" /> : <LogIn className="size-4" />}
               {signingIn ? t(`${ns}.signing_in`) : t(`${ns}.sign_in_button`)}
             </Button>
+            {signingIn ? (
+              <Button variant="outline" disabled={cancellingSignIn} onClick={() => void handleCancelSignIn()}>
+                {t('common.cancel')}
+              </Button>
+            ) : null}
           </div>
         </div>
       )}

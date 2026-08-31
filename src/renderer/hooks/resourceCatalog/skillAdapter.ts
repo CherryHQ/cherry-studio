@@ -1,4 +1,4 @@
-import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
@@ -16,7 +16,7 @@ const logger = loggerService.withContext('SkillAdapter')
  * `.claude/skills/`) and aren't a good fit for the DataApi contract.
  *
  * No `agentId` is passed by the resource library: it reads the global skill
- * library, so `isEnabled` is always `false` there. Per-agent enablement state
+ * library, so cards use `isGlobalEnabled`; `isEnabled` remains agent-scoped and
  * belongs to the agent edit dialog's Skills tab (`useInstalledSkills(agentId)`).
  *
  * `search` is forwarded to `GET /skills` and evaluated server-side.
@@ -29,6 +29,7 @@ function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSk
       ...(query?.search ? { search: query.search } : {})
     }
   })
+  useDataChange(enabled ? '/skills' : [], () => refetch())
 
   // Surface agent-authored skills without an app restart (see the hook's docs). Shared with the
   // agent edit dialog's Skills tab so both entry points reconcile.
@@ -66,11 +67,20 @@ function unwrapSkillResult<T>(
 }
 
 /**
- * Per-skill mutation hook. Only uninstall lives here today; agent-scoped
- * enablement is edited through the agent form and saved via PATCH /agents.
+ * Per-skill library mutations. Agent-scoped enablement remains owned by the
+ * agent form and is saved via PATCH /agents.
  */
 export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateCache()
+  const path = `/skills/${id}` as const
+  const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', path, {
+    refresh: ['/skills', path]
+  })
+
+  const updateGlobalEnabled = useCallback(
+    (isGlobalEnabled: boolean): Promise<InstalledSkill> => updateTrigger({ body: { isGlobalEnabled } }),
+    [updateTrigger]
+  )
 
   const uninstallSkill = useCallback(async (): Promise<void> => {
     const result = await ipcApi.request('skill.uninstall', { skillId: id })
@@ -82,5 +92,5 @@ export function useSkillMutationsById(id: string) {
     }
   }, [id, invalidate])
 
-  return { uninstallSkill }
+  return { uninstallSkill, updateGlobalEnabled, isUpdating }
 }

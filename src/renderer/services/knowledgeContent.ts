@@ -64,11 +64,7 @@ export function processMessagesContent(
   const textParts: string[] = []
   const files: FileMetadata[] = []
 
-  // 添加标题（如果选择了文本类型）
   const selectedTypeSet = new Set(selectedTypes)
-  if (selectedTypeSet.has(CONTENT_TYPES.TEXT)) {
-    textParts.push(`# ${title}`)
-  }
 
   // 处理每个消息
   for (const message of messages) {
@@ -84,8 +80,12 @@ export function processMessagesContent(
     files.push(...messageResult.files)
   }
 
+  // 标题不参与 `---` 分隔，否则标题和首条消息之间会多出一条分割线
+  const body = textParts.join('\n\n---\n\n')
+  const heading = selectedTypeSet.has(CONTENT_TYPES.TEXT) ? `# ${title}` : ''
+
   return {
-    text: textParts.join('\n\n---\n\n'),
+    text: [heading, body].filter(Boolean).join('\n\n'),
     files
   }
 }

@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { PathStaleVersionError } from '@main/utils/file'
+import { hashContent, PathStaleVersionError } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -38,6 +38,21 @@ describe('file/utils/content', () => {
     expect(new TextDecoder().decode(result.content)).toBe('hello')
     expect(result.mime).toBe('text/plain')
     expect(result.version.size).toBe(5)
+    expect(result.contentHash).toBeUndefined()
+  })
+
+  it('binds a content hash to the returned bytes when asked', async () => {
+    const target = path.join(tmp, 'hashed.txt') as AbsoluteFilePath
+    await writeFile(target, 'hello', 'utf-8')
+
+    const result = await readByPath(target, { encoding: 'binary', withContentHash: true })
+
+    expect(result.contentHash).toBe(hashContent(new TextEncoder().encode('hello')))
+    // the pair survives write_if_unchanged's ambiguity tiebreaker end-to-end
+    await expect(
+      writeIfUnchangedByPath(target, new TextEncoder().encode('bye'), result.version, result.contentHash)
+    ).resolves.toBeTruthy()
+    expect(await readFile(target, 'utf-8')).toBe('bye')
   })
 
   it('reads a byte range directly by path', async () => {

@@ -4,7 +4,9 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
+import { agentInlineResultPresentationRegistry } from '../tools/agent'
 import { isChannelAuthQrPart } from '../tools/channelConfigTool'
+import { isGeneratedImageResultPart } from '../tools/painting/generateImageTool'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
 
 export interface PartEntry {
@@ -131,6 +133,14 @@ function isAskUserQuestionPart(part: CherryMessagePart): boolean {
   return isToolUIPart(part) && isAskUserQuestionToolName(getPartToolName(part))
 }
 
+function isInlineResultToolPart(part: CherryMessagePart): boolean {
+  return (
+    isChannelAuthQrPart(part) ||
+    agentInlineResultPresentationRegistry.isResultPart(part) ||
+    isGeneratedImageResultPart(part)
+  )
+}
+
 function isVisibleReasoningPart(part: CherryMessagePart): boolean {
   if (part.type !== 'reasoning') return false
   return part.state === 'streaming' || isReasoningMessagePart(part)
@@ -138,7 +148,7 @@ function isVisibleReasoningPart(part: CherryMessagePart): boolean {
 
 export function isProcessToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part) || isReportToolPart(part)) return false
-  return !isAskUserQuestionPart(part) && !isChannelAuthQrPart(part)
+  return !isAskUserQuestionPart(part) && !isInlineResultToolPart(part)
 }
 
 function isVisibleProcessPart(part: CherryMessagePart): boolean {
@@ -347,7 +357,7 @@ export function projectCompletedMessageParts(entries: readonly PartEntry[]): Com
   }
 
   const isDirectResult = (entry: PartEntry, position: number) =>
-    isChannelAuthQrPart(entry.part) ||
+    isInlineResultToolPart(entry.part) ||
     (position >= resultStart &&
       position < resultEnd &&
       (isSubstantiveAnswerPart(entry.part) || isAssociatedResultPart(entry.part) || isHiddenPart(entry.part)))

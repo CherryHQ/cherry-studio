@@ -26,16 +26,24 @@ export type CompactionTrigger = 'manual' | 'auto'
 
 /**
  * Streamed twice under the SAME part id: once as `compacting` when the work
- * starts, then replaced by `done` when it finishes. AI SDK data parts are
- * keyed by id, so the second write updates the first in place and the UI can
+ * starts, then replaced by a terminal state when it finishes. AI SDK data parts
+ * are keyed by id, so the second write updates the first in place and the UI can
  * move from a spinner to the settled anchor without a second element.
  *
- * A compaction that fails emits nothing further — the `compacting` part is
- * superseded by the turn's own error, and both chat paths fail open (they keep
+ * The two terminal states are not interchangeable:
+ * - `done` — the fold actually replaced messages; carries the before/after metrics.
+ * - `skipped` — the attempt changed nothing (nothing old enough to summarize, an
+ *   empty summary, or a compressor failure the turn recovered from). It carries no
+ *   metrics, renders no timeline marker, and is dropped from the persisted message.
+ *   Settling a no-op as `done` is what made an untouched history report "context
+ *   compacted" with `preTokens === postTokens` and `foldedCount: 0` (#17837).
+ *
+ * A turn-start compaction that fails emits nothing further — the `compacting` part
+ * is superseded by the turn's own error, and both chat paths fail open (they keep
  * serving the un-compacted history), so there is no user-visible dead end.
  */
 export interface CompactionAnchorData {
-  status: 'compacting' | 'done'
+  status: 'compacting' | 'done' | 'skipped'
   phase: CompactionPhase
   trigger?: CompactionTrigger
   startedAt?: string

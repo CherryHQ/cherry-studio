@@ -27,7 +27,7 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '../binaryEnv'
+import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv, mergePathSuffixes } from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -83,6 +83,14 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     })
 
     expect(Path.split(';')).toEqual([shims, 'C:/Windows'])
+  })
+
+  it('appends and deduplicates a fallback after all caller PATH casings', () => {
+    const merged = mergePathSuffixes({ Path: 'C:\\User\\Bin', PATH: 'C:\\Windows;C:\\DATA\\BIN' }, ['C:\\data\\bin'])
+
+    const pathKeys = Object.keys(merged).filter((key) => key.toLowerCase() === 'path')
+    expect(pathKeys).toHaveLength(1)
+    expect(merged[pathKeys[0]].split(';')).toEqual(['C:\\User\\Bin', 'C:\\Windows', 'C:\\DATA\\BIN'])
   })
 
   it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {

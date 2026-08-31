@@ -1,4 +1,18 @@
+import type { ImageModeDef } from '../schemas/model'
 import { defineCreator } from './types'
+
+/** qwen-image-3.0 / -pro serve text-to-image and editing off one model id, so both modes share a set. */
+const qwenImage3Supports: ImageModeDef['supports'] = {
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  size: {
+    default: 'auto',
+    options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+    render: 'chips',
+    type: 'enum'
+  }
+}
 
 export default defineCreator({
   id: 'alibaba',
@@ -17,6 +31,12 @@ export default defineCreator({
     // `qwen3.8-max-preview` serves thinking mode only, unlike the hybrid
     // `qwen3.8-max` (help.aliyun.com/zh/model-studio/text-generation-model).
     { pattern: '^qwen3[.-]8-max-preview', toggle: false },
+    {
+      pattern: '^qwen3[.-]8-flash$',
+      effort: ['low', 'medium', 'xhigh'],
+      budget: { min: 0, max: 262144 },
+      toggle: true
+    },
     // QwQ/QVQ always-reasoning previews.
     { pattern: '^qwq|^qvq', toggle: false },
     { pattern: '^qwen', toggle: true, template: true },
@@ -54,6 +74,26 @@ export default defineCreator({
     { pattern: '^(?!.*(?:coder|instruct))qwen-?3-(?:vl|omni|next)' }
   ],
   models: [
+    {
+      id: 'qwen3-5-4b',
+      name: 'Qwen3.5 4B',
+      family: 'qwen',
+      capabilities: ['function-call', 'reasoning', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 262144
+    },
+    {
+      id: 'qwen3-8-flash',
+      name: 'Qwen3.8 Flash',
+      family: 'qwen',
+      capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'structured-output'],
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text'],
+      contextWindow: 1000000,
+      maxInputTokens: 991808,
+      maxOutputTokens: 131072
+    },
     {
       id: 'qwen3-8-max',
       name: 'Qwen3.8 Max',
@@ -101,6 +141,34 @@ export default defineCreator({
               }
             }
           }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-3-0',
+      name: 'Qwen Image 3.0',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { supports: qwenImage3Supports },
+          generate: { supports: qwenImage3Supports }
+        }
+      }
+    },
+    {
+      id: 'qwen-image-3-0-pro',
+      name: 'Qwen Image 3.0 Pro',
+      family: 'qwen',
+      capabilities: ['image-recognition', 'image-generation'],
+      inputModalities: ['text', 'image'],
+      outputModalities: ['image'],
+      imageGeneration: {
+        modes: {
+          edit: { supports: qwenImage3Supports },
+          generate: { supports: qwenImage3Supports }
         }
       }
     },

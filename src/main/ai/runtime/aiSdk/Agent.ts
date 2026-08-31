@@ -7,6 +7,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { isAbortError } from '@main/utils/error'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
+import { ALL_MEDIA, routeToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
@@ -63,11 +64,31 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const params = this.params
     const opts = params.options ?? {}
     const toolsWithHooks = wrapToolsWithExecutionHooks(params.tools, hooks)
+    const forwardedPrepareStep = wrapForwardedHook('prepareStep', hooks.prepareStep)
+    const prepareStep: AgentLoopHooks['prepareStep'] = async (options) => {
+      const routedMessages = routeToolResultMedia(
+        options.messages,
+        params.mediaCapabilities ?? ALL_MEDIA,
+        params.toolResultMediaCapabilities ?? params.mediaCapabilities ?? ALL_MEDIA
+      )
+      const prepared = await forwardedPrepareStep?.({ ...options, messages: routedMessages })
+      const preparedMessages = prepared?.messages
+        ? routeToolResultMedia(
+            prepared.messages,
+            params.mediaCapabilities ?? ALL_MEDIA,
+            params.toolResultMediaCapabilities ?? params.mediaCapabilities ?? ALL_MEDIA
+          )
+        : routedMessages
+
+      if (!prepared && preparedMessages === options.messages) return undefined
+      return { ...prepared, ...(preparedMessages !== options.messages && { messages: preparedMessages }) }
+    }
     return createAgent<AppProviderSettingsMap, T, ToolSet>({
       providerId: params.providerId,
       providerSettings: params.providerSettings,
       modelId: params.modelId,
       plugins: params.plugins,
+      wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
         tools: toolsWithHooks as ToolSet,
@@ -96,7 +117,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         experimental_context: opts.context,
         experimental_repairToolCall: opts.repairToolCall,
         experimental_download: opts.download,
-        prepareStep: wrapForwardedHook('prepareStep', hooks.prepareStep),
+        prepareStep,
         onStepFinish: wrapForwardedHook('onStepFinish', hooks.onStepFinish)
       }
     })
@@ -114,7 +135,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
-          : { messages: input.messages, ...(signal && { abortSignal: signal }) }
+          : {
+              // Same wire-media gate `stream()` applies: without it, structured tool-result
+              // media (images/audio) rides as JSON/base64 or is rejected on OpenAI/Ollama.
+              messages: routeToolResultMedia(
+                input.messages,
+                this.params.mediaCapabilities ?? ALL_MEDIA,
+                this.params.toolResultMediaCapabilities ?? this.params.mediaCapabilities ?? ALL_MEDIA
+              ),
+              ...(signal && { abortSignal: signal })
+            }
       const result = await aiAgent.generate(generateInput)
       signal?.throwIfAborted()
       const terminalError = resolveToolLoopTerminalError({
@@ -235,7 +265,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const messages = initialMessages
       // Shape only the conversion input — keep `messages` (originalMessages for the
       // UI stream) untouched, so placeholders/strips never leak to the UI. See #16195.
-      const modelMessages = await toModelMessages(initialMessages, params.mediaCapabilities, params.tools)
+      const modelMessages = await toModelMessages(
+        initialMessages,
+        params.mediaCapabilities,
+        params.tools,
+        params.toolResultMediaCapabilities
+      )
       let hasUsedProvidedMessageId = false
 
       const result = await aiAgent.stream({

@@ -1,3 +1,12 @@
+---
+description: Fractional-indexing ordering spec for sortable resources - orderKey column, order endpoints, and useReorder hook
+sources:
+  - src/main/data/services/utils/orderKey.ts
+  - src/shared/data/api/schemas/_endpointHelpers.ts
+  - src/main/data/db/schemas/_columnHelpers.ts
+  - src/renderer/data/hooks/useReorder.ts
+---
+
 # Ordering Guide
 
 Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /mini-apps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).
@@ -49,7 +58,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
 
 export type McpServerSchemas = {
   '/mcp-servers': { GET: { ... }; POST: { ... } }
-  '/mcp-servers/:id': { GET: { ... }; PATCH: { ... }; DELETE: { ... } }
+  '/mcp-servers/:id': { GET: { ... }; PATCH: { ... } }
 } & OrderEndpoints<'/mcp-servers'>
 // Adds '/mcp-servers/:id/order' (PATCH) and '/mcp-servers/order:batch' (PATCH)
 // with correct params / body (OrderRequest, OrderBatchRequest) / response.
@@ -64,10 +73,10 @@ File: `src/main/data/services/utils/orderKey.ts`. Use these helpers on any `POST
 ```typescript
 import { insertWithOrderKey, insertManyWithOrderKey, applyMoves, resetOrder } from './utils/orderKey'
 
-await insertWithOrderKey(tx, mcpServerTable, values, { pkColumn: mcpServerTable.id })
-await insertManyWithOrderKey(tx, mcpServerTable, valuesList, { pkColumn: mcpServerTable.id })
-await applyMoves(tx, mcpServerTable, moves, { pkColumn: mcpServerTable.id })
-await resetOrder(tx, mcpServerTable, orderedRows, { pkColumn: mcpServerTable.id })
+insertWithOrderKey(tx, mcpServerTable, values, { pkColumn: mcpServerTable.id })
+insertManyWithOrderKey(tx, mcpServerTable, valuesList, { pkColumn: mcpServerTable.id })
+applyMoves(tx, mcpServerTable, moves, { pkColumn: mcpServerTable.id })
+resetOrder(tx, mcpServerTable, orderedRows, { pkColumn: mcpServerTable.id })
 
 // Scoped variants pass a `scope` SQL expression, e.g.:
 //   scope: eq(userModelTable.providerId, providerId)
@@ -99,7 +108,14 @@ function PinList() {
 
 // Non-`id` primary key (e.g. miniapp.appId):
 useReorder('/mini-apps', { idKey: 'appId' })
+
+// Parameterized collection — params resolve both cache and mutation paths:
+useReorder('/prompt-bindings/:targetType/:targetId', {
+  params: { targetType: 'assistant', targetId: assistantId }
+})
 ```
+
+`id` is reserved for the reordered item (`/:id/order`), so parameterized collection paths must use distinct parent parameter names such as `targetId` or `providerId`.
 
 Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
 
@@ -161,7 +177,6 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
 - **Known partition dimensions** in the codebase:
   - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
-  - Planned / hypothetical: none currently.
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
 ---
@@ -191,7 +206,7 @@ Scoped usage:
 
 ```typescript
 // user_model: scope by providerId
-await applyMoves(tx, userModelTable, moves, {
+applyMoves(tx, userModelTable, moves, {
   pkColumn: userModelTable.id,
   scope: eq(userModelTable.providerId, providerId),
 })
@@ -203,7 +218,7 @@ await applyMoves(tx, userModelTable, moves, {
 
 Scope inference is a **service-layer** responsibility. The HTTP client sends `{ before: X }` / `{ after: X }` / `{ position: 'first' | 'last' }` — it never names the scope. The handler validates the body with `OrderRequestSchema` and forwards the id and anchor verbatim; it does not read the row or resolve the scope. The service SELECTs the target row, reads its scope column, and applies `eq(scopeColumn, value)` to `applyMoves`.
 
-`applyScopedMoves` (`src/main/data/services/utils/orderKey.ts`) is the infra-level helper that encodes this pattern. `GroupService` and `PinService` are its first two consumers; any future table scoped by a discriminator column should prefer it over hand-rolling `SELECT → applyMoves` boilerplate.
+`applyScopedMoves` (`src/main/data/services/utils/orderKey.ts`) is the infra-level helper that encodes this pattern. `GroupService` and `PinService` use it instead of hand-rolling `SELECT → applyMoves` scope handling.
 
 **Contract**:
 
@@ -212,7 +227,7 @@ Scope inference is a **service-layer** responsibility. The HTTP client sends `{ 
 - Empty `moves` is a no-op (no DB access).
 
 ```ts
-await applyScopedMoves(tx, pinTable, moves, {
+applyScopedMoves(tx, pinTable, moves, {
   pkColumn: pinTable.id,
   scopeColumn: pinTable.entityType
 })
@@ -339,7 +354,9 @@ Pure-function helpers `assignOrderKeysInSequence` / `assignOrderKeysByScope` sta
 - **DB column**: `order_key` (SQL) / `orderKey` (TS), always `TEXT NOT NULL`. No nullable variants.
 - **Type names**: every order-related export prefixed with `Order` (`OrderRequest`, `OrderRequestSchema`, `OrderBatchRequest`, `OrderBatchRequestSchema`, `OrderEndpoints`). No `Sort*` / `Position*` / `Rank*` aliases — the `Order` prefix is what keeps `_endpointHelpers.ts` classifiable as it grows.
 
-**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested ordering URLs like `/parents/:parentId/items/:id/order`.
+Parameterized segments are allowed when they define the scope of the resource's canonical collection route. For example, the canonical collection `/prompt-bindings/:targetType/:targetId` produces `/prompt-bindings/:targetType/:targetId/:id/order`.
+
+**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, or an ad hoc nested ordering URL like `/parents/:parentId/items/:id/order` when the resource already has a canonical collection route.
 
 ---
 
@@ -369,9 +386,18 @@ Complete in one PR:
 
 **Is `order:reset` safe under concurrent calls?** Yes. Reset is deterministic (same preset + row data → same keys via `generateOrderKeySequence`). SQLite's write lock serializes concurrent resets; the second overwrites the first and the end state is consistent.
 
-**Known boundary — fractional-indexing collisions.** Two transactions reading the same anchor pair could call `generateKeyBetween` and produce **identical** new keys. `order_key` is not `UNIQUE`, so both rows would succeed — the effect is a tie in `ORDER BY order_key` (two rows alternate in the UI). No data loss; the next drag self-repairs. It is extremely rare in practice: the single synchronous better-sqlite3 connection runs each write transaction to completion in one JS turn, so same-anchor inserts serialize by construction and cannot each read the old neighborhood and insert against it (the serialization comes from the synchronous single connection, not `BEGIN IMMEDIATE`). Cursor pagination now applies a deterministic `(order_key, id)` tiebreaker through the shared `keysetOrdering` (`services/utils/keysetCursor.ts`), so keyset page-walking stays deterministic under an `order_key` tie **by construction**, rather than relying on `order_key` being unique — this is pagination determinism, not a fix for an observed skip/dup. Read/display paths that sort by `order_key` **alone** (no id tiebreaker) can still briefly alternate two tied rows until the next drag. The composite `(order_key, pk)` index from the original "future fix" is still **not** added (negligible at single-user scale; avoids schema↔migration drift) — only the deterministic tiebreaker landed, applied at the query layer.
+**Known boundary — fractional-indexing collisions.** `order_key` is not
+`UNIQUE`. The single synchronous better-sqlite3 connection serializes local
+write transactions, so two local writes cannot both read the same old anchor
+pair before inserting. Imported or otherwise duplicated keys can still tie.
+Cursor pagination remains deterministic because `keysetOrdering` uses
+`(order_key, id)`; display paths that sort only by `order_key` may alternate tied
+rows until a later reorder assigns a new key.
 
-**Known boundary — multi-window drag flicker.** Window A mid-drag receives window B's cache invalidation → revalidates with server state (not yet including A's in-flight reorder) → optimistic value overwritten → UI snaps back → A's PATCH returns → another revalidate brings new order in → UI jumps forward. ~150–300 ms, visual-only, no data loss. Future fix: suspend external revalidations while an in-flight PATCH holds the key.
+**Known boundary — multi-window drag flicker.** Window A mid-drag can receive
+window B's cache invalidation, briefly revalidate to server state that does not
+yet include A's in-flight reorder, then revalidate again after A's PATCH. This
+is visual-only; the server write remains authoritative.
 
 **Why no dual-mode sort (default-by-createdAt / switch-to-custom)?** `order_key` is always present and maintained regardless of which sort mode the UI shows. Mode switching belongs at the **query layer** — a business-level Preference picks `ORDER BY lastAccessedAt DESC` or `ORDER BY order_key ASC` at read time. Keeping `order_key` unconditional gives a uniform write path and avoids "when do we first materialize keys" complexity.
 

@@ -1,14 +1,30 @@
-import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from '@cherrystudio/ui'
+import {
+  EditableNumber,
+  Flex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Switch
+} from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ipcApi } from '@renderer/ipc'
 import type { CodeStyleVarious } from '@renderer/types/app'
-import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import {
+  COMPOSER_SHORTCUTS,
+  composerShortcutId,
+  getComposerShortcutLabel,
+  resolveNewlineShortcut,
+  resolveSendShortcut,
+  resolveSteerShortcut
+} from '@renderer/utils/input'
 import { isMac } from '@renderer/utils/platform'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -49,7 +65,13 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
 const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassName }) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
-  const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [storedSendShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [steerShortcut, setSteerShortcut] = usePreference('chat.input.steer_shortcut')
+  const [newlineShortcut, setNewlineShortcut] = usePreference('chat.input.newline_shortcut')
+  // Newline and steer are stored as null until the user overrides them; show the effective default.
+  const resolvedSendShortcut = resolveSendShortcut(storedSendShortcut)
+  const resolvedNewlineShortcut = resolveNewlineShortcut(newlineShortcut, resolvedSendShortcut)
+  const resolvedSteerShortcut = resolveSteerShortcut(steerShortcut, resolvedSendShortcut, resolvedNewlineShortcut)
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
@@ -60,6 +82,8 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
   )
@@ -85,7 +109,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
 
   const { theme } = useTheme()
-  const { themeNames } = useCodeStyle()
+  const { loadThemeNames, themeNames } = useCodeStyleThemeCatalog()
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const { t } = useTranslation()
 
@@ -93,10 +117,9 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     setFontSizeValue(fontSize)
   }, [fontSize])
 
-  const handleSpellCheckChange = (checked: boolean) => {
-    void setEnableSpellCheck(checked)
-    void ipcApi.request('app.set_spell_check_enabled', checked)
-  }
+  useEffect(() => {
+    void loadThemeNames()
+  }, [loadThemeNames])
 
   const messageStyleItems = useMemo<SelectOption<'plain' | 'bubble'>[]>(
     () => [
@@ -120,14 +143,20 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
     [themeNames]
   )
 
-  const sendMessageShortcutItems = useMemo<SelectOption<SendMessageShortcut>[]>(
-    () => [
-      { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
-      { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
-      { value: 'Alt+Enter', label: getSendMessageShortcutLabel('Alt+Enter') },
-      { value: 'Command+Enter', label: getSendMessageShortcutLabel('Command+Enter') },
-      { value: 'Shift+Enter', label: getSendMessageShortcutLabel('Shift+Enter') }
-    ],
+  // Send / newline / steer are mutually exclusive: each select hides the two keys already in use.
+  // Bindings are arrays, so the select trades in their ids and maps back on change.
+  const shortcutItemsExcluding = useCallback((...taken: ComposerShortcut[]): SelectOption<string>[] => {
+    const takenIds = taken.map(composerShortcutId)
+    return COMPOSER_SHORTCUTS.filter((shortcut) => !takenIds.includes(composerShortcutId(shortcut))).map(
+      (shortcut) => ({ value: composerShortcutId(shortcut), label: getComposerShortcutLabel(shortcut) })
+    )
+  }, [])
+
+  const setShortcutById = useCallback(
+    (setter: (value: ComposerShortcut) => unknown) => (id: string) => {
+      const shortcut = COMPOSER_SHORTCUTS.find((candidate) => composerShortcutId(candidate) === id)
+      if (shortcut) void setter(shortcut)
+    },
     []
   )
 
@@ -172,12 +201,50 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
         <>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
-            <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
+            <Select
+              value={composerShortcutId(resolvedSendShortcut)}
+              onValueChange={setShortcutById(setSendMessageShortcut)}>
               <SelectTrigger size="sm" className="w-[220px] text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-sm">
-                {sendMessageShortcutItems.map((item) => (
+                {shortcutItemsExcluding(resolvedNewlineShortcut, resolvedSteerShortcut).map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.newline_shortcuts')}</SettingRowTitleSmall>
+            <Select
+              value={composerShortcutId(resolvedNewlineShortcut)}
+              onValueChange={setShortcutById(setNewlineShortcut)}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {shortcutItemsExcluding(resolvedSendShortcut, resolvedSteerShortcut).map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall hint={t('settings.messages.input.steer_shortcuts_hint')}>
+              {t('settings.messages.input.steer_shortcuts')}
+            </SettingRowTitleSmall>
+            <Select value={composerShortcutId(resolvedSteerShortcut)} onValueChange={setShortcutById(setSteerShortcut)}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {shortcutItemsExcluding(resolvedSendShortcut, resolvedNewlineShortcut).map((item) => (
                   <SelectItem className="text-sm" key={item.value} value={item.value}>
                     {item.label}
                   </SelectItem>
@@ -210,7 +277,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                 />
               )}
             </Flex>
-            <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
+            <Switch checked={enableSpellCheck} onCheckedChange={(checked) => void setEnableSpellCheck(checked)} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -228,6 +295,32 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.markdown_rendering_input_message')}
             />
           </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
+              checked={pasteLongTextAsFile}
+              onCheckedChange={setPasteLongTextAsFile}
+              label={t('settings.messages.input.paste_long_text_as_file')}
+            />
+          </SettingRow>
+          {pasteLongTextAsFile && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
+                <EditableNumber
+                  size="small"
+                  className="w-20 text-sm"
+                  aria-label={t('settings.messages.input.paste_long_text_threshold')}
+                  min={500}
+                  max={10000}
+                  step={100}
+                  value={pasteLongTextThreshold}
+                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
+                />
+              </SettingRow>
+            </>
+          )}
           <SettingDivider />
           <SettingRow>
             <SettingSwitch

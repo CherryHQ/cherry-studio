@@ -1,5 +1,8 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
@@ -7,8 +10,11 @@ import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const logger = loggerService.withContext('LocalModelsSection')
+
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
+  incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
   inUse: 'settings.dependencies.localModels.notice.inUse'
 } as const
@@ -52,7 +58,12 @@ function useLocalModelCard(model: LocalModelKind) {
 
   return {
     ...localModel,
-    notice: localModel.status === 'error' ? 'downloadFailed' : notice,
+    notice:
+      localModel.status === 'error'
+        ? localModel.errorCode === 'incomplete_cache'
+          ? 'incompleteCache'
+          : 'downloadFailed'
+        : notice,
     download,
     remove
   }
@@ -164,9 +175,26 @@ const ModelCard: FC<ModelCardProps> = ({
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
+  const [hardwareAccelerationEnabled, setHardwareAccelerationEnabled] = usePreference(
+    'feature.local_model.hardware_acceleration.enabled'
+  )
+  const [accelerationSupported, setAccelerationSupported] = useState(false)
 
   const embedding = useLocalModelCard('embedding')
   const ocr = useLocalModelCard('ocr')
+
+  useEffect(() => {
+    let mounted = true
+    void ipcApi
+      .request('local_model.get_acceleration_capability')
+      .then(({ supported }) => {
+        if (mounted) setAccelerationSupported(supported)
+      })
+      .catch((error) => logger.warn('Failed to detect local inference hardware acceleration', error as Error))
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   // Both models share the same inference runtime, so they're unsupported together
   // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding).
@@ -180,6 +208,17 @@ const LocalModelsSection: FC = () => {
       <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
         {t('settings.dependencies.localModels.description')}
       </p>
+      {accelerationSupported && !unsupported ? (
+        <div className="mb-3 border-border border-y py-1">
+          <DescriptionSwitch
+            size="sm"
+            label={t('settings.dependencies.localModels.acceleration.label')}
+            description={t('settings.dependencies.localModels.acceleration.description')}
+            checked={hardwareAccelerationEnabled}
+            onCheckedChange={(enabled) => void setHardwareAccelerationEnabled(enabled)}
+          />
+        </div>
+      ) : null}
       {unsupported ? (
         <div
           role="status"

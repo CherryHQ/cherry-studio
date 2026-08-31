@@ -135,10 +135,14 @@ async function createLegacyVectorDb(
     INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
     VALUES (?, ?, ?, ?, ?, '{}')
   `)
-  for (const row of rows) {
-    // Raw little-endian float32 bytes — byte-identical to the legacy libsql F32_BLOB/vector32 payload.
-    insert.run(row.id, row.pageContent, row.uniqueLoaderId, row.source, Buffer.from(encodeVectorBlob(row.vector)))
-  }
+  // One commit, not one per row: the OOM guard seeds 501 chunks, and 501 durable commits time it
+  // out on CI disks. Raw little-endian float32 bytes — byte-identical to the legacy libsql
+  // F32_BLOB/vector32 payload.
+  db.transaction(() => {
+    for (const row of rows) {
+      insert.run(row.id, row.pageContent, row.uniqueLoaderId, row.source, Buffer.from(encodeVectorBlob(row.vector)))
+    }
+  })()
 
   db.close()
 }
@@ -3045,7 +3049,10 @@ describe('KnowledgeVectorMigrator', () => {
         migratedItems: [
           createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
             type: 'note',
-            data: { source: 'Meeting notes', content: 'original note body' }
+            // A legacy note with no sourceUrl migrates with `source = content`, so a multi-line
+            // source is the ordinary shape here — and the one that folds the body into the
+            // snapshot name if the slug is not reduced to the title line first.
+            data: { source: 'Meeting notes\n\n- item one', content: 'original note body' }
           })
         ],
         reduxData: {
@@ -3087,7 +3094,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrationCtx.db.updateCalls).toHaveLength(1)
       expect(migrationCtx.db.updateCalls[0].values).toEqual({
         data: {
-          source: 'Meeting notes',
+          source: 'Meeting notes\n\n- item one',
           content: 'original note body',
           relativePath: 'Meeting notes.md'
         }

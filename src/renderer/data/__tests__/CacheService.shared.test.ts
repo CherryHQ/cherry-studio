@@ -10,7 +10,7 @@
  *    NOT notify subscribers; value changes and deletion tombstones do notify.
  *    Equality is judged against the raw physical entry, never TTL-aware.
  */
-import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL CacheService
@@ -107,6 +107,23 @@ describe('getSharedSnapshot (pure physical read)', () => {
 })
 
 describe('inbound sync gating (fix A3)', () => {
+  it('keeps a live update that arrives while the initial snapshot is in flight', async () => {
+    let resolveInitialSync!: (entries: Record<string, CacheEntry>) => void
+    getAllShared.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveInitialSync = resolve
+        })
+    )
+    const { service, inbound } = await createService()
+
+    inbound({ type: 'shared', key: KEY, value: { progress: 50 } })
+    resolveInitialSync({ [KEY]: { value: { progress: 0 } } })
+    await vi.waitFor(() => expect(service.isSharedCacheReady()).toBe(true))
+
+    expect(service.getSharedSnapshot(KEY)).toEqual({ progress: 50 })
+  })
+
   it('deletion tombstone physically deletes and always notifies', async () => {
     const { service, inbound } = await createService()
     inbound({ type: 'shared', key: KEY, value: { progress: 100 } })

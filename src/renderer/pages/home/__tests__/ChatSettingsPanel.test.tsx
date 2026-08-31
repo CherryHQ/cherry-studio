@@ -1,5 +1,6 @@
 import type { Topic } from '@renderer/types/topic'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,9 +11,6 @@ const renderCounters = vi.hoisted(() => ({
   chatContent: 0,
   navbar: 0,
   eventEmit: vi.fn(),
-  invalidateCache: vi.fn().mockResolvedValue(undefined),
-  putActiveNode: vi.fn().mockResolvedValue(undefined),
-  readBranchAnchor: vi.fn(),
   setBranchLiveState: vi.fn()
 }))
 
@@ -21,17 +19,6 @@ vi.mock('@data/hooks/usePreference', () => ({
     if (key === 'chat.message.style') return ['message-style']
 
     return [undefined, vi.fn()]
-  }
-}))
-
-vi.mock('@data/hooks/useDataApi', async () => ({
-  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
-  useInvalidateCache: () => renderCounters.invalidateCache
-}))
-
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    put: renderCounters.putActiveNode
   }
 }))
 
@@ -124,24 +111,10 @@ vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = {
     Scope: ({ children }: PropsWithChildren) => <div>{children}</div>,
     Shortcuts: () => <button type="button">branch shortcuts</button>,
-    Viewport: ({
-      onLocateMessage,
-      onCancelBranchDraft,
-      onStartBranchDraft
-    }: {
-      onLocateMessage?: (messageId: string) => void
-      onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
-      onStartBranchDraft?: (messageId: string) => void | Promise<void>
-    }) => (
+    Viewport: ({ onLocateMessage }: { onLocateMessage?: (messageId: string) => void }) => (
       <div data-testid="topic-right-pane-viewport">
         <button type="button" onClick={() => onLocateMessage?.('message-x')}>
           locate branch message
-        </button>
-        <button type="button" onClick={() => void onStartBranchDraft?.('assistant-old')}>
-          start branch draft
-        </button>
-        <button type="button" onClick={() => onCancelBranchDraft?.('assistant-next')}>
-          cancel branch draft to next
         </button>
       </div>
     )
@@ -155,14 +128,14 @@ vi.mock('../components/TopicRightPane', () => {
 
 vi.mock('../ChatContent', () => ({
   default: ({
+    topic,
     onBranchLiveStateChange,
-    getBranchDraftAnchorId,
     onLocateMessageHandled,
     onOpenCitationsPanel,
     locateMessageId
   }: {
+    topic: Topic
     onBranchLiveStateChange?: (state: unknown) => void
-    getBranchDraftAnchorId?: () => string | null
     onLocateMessageHandled?: () => void
     onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
     locateMessageId?: string
@@ -174,7 +147,9 @@ vi.mock('../ChatContent', () => ({
         <button type="button" onClick={() => onLocateMessageHandled?.()}>
           handled locate
         </button>
-        <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+        <button
+          type="button"
+          onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `https://${topic.id}.example` }] })}>
           open citations
         </button>
         <button
@@ -188,9 +163,6 @@ vi.mock('../ChatContent', () => ({
           }>
           push live branch state
         </button>
-        <button type="button" onClick={() => renderCounters.readBranchAnchor(getBranchDraftAnchorId?.() ?? null)}>
-          read branch anchor
-        </button>
         <div data-testid="chat-main" />
       </>
     )
@@ -198,8 +170,17 @@ vi.mock('../ChatContent', () => ({
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
+  default: ({
+    open,
+    onClose,
+    citations
+  }: {
+    open: boolean
+    onClose: () => void
+    citations: Array<{ number: number; url: string }>
+  }) => (
     <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+      {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
       {open && (
         <button type="button" onClick={onClose}>
           close citations
@@ -218,6 +199,7 @@ describe('Chat panels', () => {
     id: 'topic-1',
     name: 'Topic',
     assistantId: 'assistant-1',
+    lastActivityAt: '2026-05-14T00:00:00.000Z',
     createdAt: '2026-05-14T00:00:00.000Z',
     updatedAt: '2026-05-14T00:00:00.000Z',
     messages: []
@@ -227,11 +209,6 @@ describe('Chat panels', () => {
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
-    renderCounters.invalidateCache.mockReset()
-    renderCounters.invalidateCache.mockResolvedValue(undefined)
-    renderCounters.putActiveNode.mockReset()
-    renderCounters.putActiveNode.mockResolvedValue(undefined)
-    renderCounters.readBranchAnchor.mockReset()
     renderCounters.setBranchLiveState.mockReset()
   })
 
@@ -249,6 +226,20 @@ describe('Chat panels', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('closes citations when switching topics', async () => {
+    const user = userEvent.setup()
+    const view = renderChat(activeTopic)
+
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(screen.getByText('https://topic-1.example')).toBeInTheDocument()
+
+    view.rerender(<Chat activeTopic={{ ...activeTopic, id: 'topic-2' }} />)
+    expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
+
+    view.rerender(<Chat activeTopic={activeTopic} />)
+    expect(screen.queryByText('https://topic-1.example')).not.toBeInTheDocument()
   })
 
   it('keeps navbar and branch pane actions visible for an empty persisted topic', () => {
@@ -290,63 +281,5 @@ describe('Chat panels', () => {
     fireEvent.click(screen.getByRole('button', { name: 'handled locate' }))
 
     expect(screen.getByTestId('chat-content-locate-message-id')).toHaveTextContent('')
-  })
-
-  it('starts a branch draft from the right pane without re-rendering chat content', async () => {
-    renderChat(activeTopic)
-
-    const initialNavbarRenders = renderCounters.navbar
-    const initialChatContentRenders = renderCounters.chatContent
-    renderCounters.setBranchLiveState.mockClear()
-
-    fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
-
-    await waitFor(() => {
-      expect(renderCounters.putActiveNode).toHaveBeenCalledWith('/topics/topic-1/active-node', {
-        body: { nodeId: 'assistant-old' }
-      })
-    })
-    expect(renderCounters.navbar).toBe(initialNavbarRenders)
-    expect(renderCounters.chatContent).toBe(initialChatContentRenders)
-    expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
-      activeNodeId: 'branch-draft:assistant-old',
-      nodes: [
-        expect.objectContaining({
-          id: 'branch-draft:assistant-old',
-          isInputDraft: true,
-          parentId: 'assistant-old',
-          preview: 'chat.message.flow.status.awaiting_input',
-          role: 'user',
-          status: 'paused'
-        })
-      ],
-      topicId: 'topic-1'
-    })
-    expect(renderCounters.invalidateCache).toHaveBeenCalledWith('/topics/topic-1/messages')
-    expect(renderCounters.invalidateCache).not.toHaveBeenCalledWith('/topics/topic-1/tree')
-    expect(renderCounters.eventEmit).toHaveBeenCalledWith('FOCUS_CHAT_COMPOSER', { topicId: 'topic-1' })
-  })
-
-  it('cancels a branch draft into active-only live state and updates the send anchor override', async () => {
-    renderChat(activeTopic)
-
-    fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
-
-    await waitFor(() => {
-      expect(renderCounters.putActiveNode).toHaveBeenCalledWith('/topics/topic-1/active-node', {
-        body: { nodeId: 'assistant-old' }
-      })
-    })
-
-    renderCounters.setBranchLiveState.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: 'cancel branch draft to next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'read branch anchor' }))
-
-    expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
-      activeNodeId: 'assistant-next',
-      nodes: [],
-      topicId: 'topic-1'
-    })
-    expect(renderCounters.readBranchAnchor).toHaveBeenCalledWith('assistant-next')
   })
 })

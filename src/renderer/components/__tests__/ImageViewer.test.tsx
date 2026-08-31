@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { toast } from '@renderer/services/toast'
+import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,12 +10,18 @@ import ImageViewer from '../ImageViewer'
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   fsRead: vi.fn(),
+  transformImageToPng: vi.fn(),
   clipboard: {
     write: vi.fn(),
     writeText: vi.fn()
   },
   saveImage: vi.fn()
 }))
+
+vi.mock('@renderer/utils/image', async (importOriginal) => {
+  const actual = await importOriginal<typeof ImageUtils>()
+  return { ...actual, transformImageToPng: mocks.transformImageToPng }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -39,6 +46,7 @@ describe('ImageViewer', () => {
     })
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
     mocks.saveImage.mockResolvedValue(true)
+    mocks.transformImageToPng.mockResolvedValue(new Blob(['transformed'], { type: 'image/png' }))
 
     Object.assign(window, {
       api: { file: { saveImage: mocks.saveImage }, fs: { read: mocks.fsRead } }
@@ -100,6 +108,29 @@ describe('ImageViewer', () => {
       expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,aGVsbG8=')
     })
     expect(toast.success).toHaveBeenCalledWith('common.saved')
+  })
+
+  it('bakes the external content transform when saving from the context menu', async () => {
+    render(
+      <ImageViewer
+        src="data:image/png;base64,aGVsbG8="
+        alt="Example image"
+        contextMenuTransform={{ flipX: true, offsetX: 20, rotation: -90, zoom: 2 }}
+        preview={false}
+      />
+    )
+
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
+
+    await waitFor(() => {
+      expect(mocks.transformImageToPng).toHaveBeenCalledWith(expect.any(Blob), {
+        flipX: true,
+        flipY: false,
+        rotation: -90
+      })
+      expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,dHJhbnNmb3JtZWQ=')
+    })
   })
 
   it('does not expose a download action in the preview toolbar or context menu', () => {

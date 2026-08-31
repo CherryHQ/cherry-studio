@@ -192,6 +192,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const [fileTreeData, setFileTreeData] = useState<TreeSelectOption[]>([])
   const [selectedVault, setSelectedVault] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exportReasoning, setExportReasoning] = useState(false)
 
@@ -261,39 +262,44 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return
     }
-    let markdown = ''
-    if (rawContent) {
-      markdown = rawContent
-    } else if (topic) {
-      markdown = await topicToMarkdown(topic, exportReasoning)
-    } else if (messages && messages.length > 0) {
-      markdown = await messagesToMarkdown(messages, exportReasoning)
-    } else if (message) {
-      markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
-    } else {
-      markdown = ''
+    setSubmitting(true)
+    try {
+      let markdown = ''
+      if (rawContent) {
+        markdown = rawContent
+      } else if (topic) {
+        markdown = await topicToMarkdown(topic, exportReasoning)
+      } else if (messages && messages.length > 0) {
+        markdown = await messagesToMarkdown(messages, exportReasoning)
+      } else if (message) {
+        markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
+      } else {
+        markdown = ''
+      }
+      let content = ''
+      if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
+        content = `\n---\n${markdown}`
+      } else {
+        content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
+      }
+      if (content === '') {
+        toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+        return
+      }
+      await navigator.clipboard.writeText(content)
+      const success = await exportMarkdownToObsidian({
+        ...state,
+        folder: state.folder,
+        vault: selectedVault
+      })
+      if (!success) {
+        return
+      }
+      setOpen(false)
+      resolve(true)
+    } finally {
+      setSubmitting(false)
     }
-    let content = ''
-    if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
-      content = `\n---\n${markdown}`
-    } else {
-      content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
-    }
-    if (content === '') {
-      toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
-      return
-    }
-    await navigator.clipboard.writeText(content)
-    const success = await exportMarkdownToObsidian({
-      ...state,
-      folder: state.folder,
-      vault: selectedVault
-    })
-    if (!success) {
-      return
-    }
-    setOpen(false)
-    resolve(true)
   }
 
   const [openState, setOpen] = useState(open)
@@ -498,6 +504,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           </Button>
           <Button
             type="button"
+            loading={submitting}
             disabled={vaults.length === 0 || loading || !!error || !state.title.trim()}
             onClick={handleOk}>
             {i18n.t('chat.topics.export.obsidian_btn')}

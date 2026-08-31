@@ -30,6 +30,7 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  copyFile as fsCopyFile,
   type FileHandle,
   lstat as fsLstat,
   mkdir as fsMkdirPromise,
@@ -754,6 +755,17 @@ export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal
 }
 
 /**
+ * Copy a file to a destination that must not exist yet — an existing name,
+ * including a (dangling) symlink, rejects with `EEXIST` instead of being
+ * overwritten. Unlike {@link copy} this is not atomic: a crash mid-copy can
+ * leave a partial `dest`, acceptable only for callers whose destination names
+ * are fresh and disposable.
+ */
+export async function copyNew(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
+  await fsCopyFile(src, dest, constants.COPYFILE_EXCL)
+}
+
+/**
  * Move/rename a file. Tries `rename` first (atomic on the same filesystem);
  * falls back to copy + unlink on `EXDEV` (cross-mount).
  *
@@ -796,9 +808,9 @@ export async function remove(target: AbsoluteFilePath): Promise<void> {
   }
 }
 
-/** Remove a directory recursively. Idempotent on missing path. */
+/** Remove a directory recursively, retrying transient filesystem locks. Idempotent on missing path. */
 export async function removeDir(target: AbsoluteFilePath): Promise<void> {
-  await fsRm(target, { recursive: true, force: true })
+  await fsRm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 
 /** Create a single directory. Throws if it already exists. */

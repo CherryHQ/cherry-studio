@@ -97,7 +97,7 @@ function withSessionGroupIdPrefix<T>(resolver: ResourceListGroupResolver<T>): Re
   return withResourceListGroupIdPrefix('session:', resolver)
 }
 
-function getSessionAgentGroupId(agentId: string) {
+export function getSessionAgentGroupId(agentId: string) {
   return `${SESSION_AGENT_GROUP_ID_PREFIX}${agentId}`
 }
 
@@ -220,20 +220,10 @@ export function createSessionWorkdirDisplayMaps(
   const pathByGroupId = new Map<string, string>()
   const rankByGroupId = new Map<string, number>()
   const workspaceIdByGroupId = new Map<string, string>()
-  const referencedWorkspaceIds = new Set(
-    sessions
-      .map((session) => session.workspaceId)
-      .filter((workspaceId): workspaceId is string => typeof workspaceId === 'string' && workspaceId.length > 0)
-  )
-  const referencedWorkspacePaths = new Set(
-    sessions.map(getPrimarySessionWorkdir).filter((path): path is string => typeof path === 'string')
-  )
-
   for (const workspace of workspaces) {
     if (workspace.type === 'system') continue
     const path = normalizeSessionWorkdirPath(workspace.path)
     if (!path || groupIdByWorkspaceId.has(workspace.id)) continue
-    if (!referencedWorkspaceIds.has(workspace.id) && !referencedWorkspacePaths.has(path)) continue
 
     const groupId = getWorkspaceSessionGroupId(workspace.id)
 
@@ -296,7 +286,7 @@ export function createSessionDisplayGroupResolver<T extends SessionListItem>({
       composeResourceListGroupResolvers(
         pinnedResolver,
         createTimeGroupResolver<T>({
-          getTimestamp: (session) => session.updatedAt,
+          getTimestamp: (session) => session.lastActivityAt,
           labels: labels.time,
           now
         })
@@ -371,9 +361,11 @@ export function sortSessionsForDisplayGroups<T extends SessionListItem>(
   if (options.mode === 'time') {
     return sortRankedResourceItems(sessions, {
       getRank: (session) =>
-        session.pinned === true ? 0 : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.updatedAt, options.now)],
+        session.pinned === true
+          ? 0
+          : SESSION_TIME_BUCKET_RANK[getResourceTimeBucket(session.lastActivityAt, options.now)],
       isPinned,
-      compareWithinGroup: compareResourceRecency((session) => session.updatedAt)
+      compareWithinGroup: compareResourceRecency((session) => session.lastActivityAt)
     })
   }
 

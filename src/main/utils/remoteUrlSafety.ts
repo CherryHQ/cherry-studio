@@ -15,6 +15,8 @@ export type ResolvedRemoteFetchUrl = {
 
 export type ResolveRemoteFetchUrlOptions = {
   readonly signal?: AbortSignal
+  /** Skip local/private address rejection, from the `app.fetch.allow_private_network` preference. */
+  readonly allowPrivateNetwork?: boolean
 }
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'localhost.'])
@@ -36,7 +38,6 @@ const BLOCKED_IPV6_RANGES = new Set([
   'loopback',
   'multicast',
   'reserved',
-  'rfc6052',
   'rfc6145',
   'teredo',
   'uniqueLocal',
@@ -49,6 +50,10 @@ const BLOCKED_IPV6_CIDR_RANGES: ReadonlyArray<readonly [ipaddr.IPv6, number]> = 
   [ipaddr.IPv6.parse('5f00::'), 16]
 ]
 const PUBLIC_IPV6_RANGE: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('2000::'), 3]
+const NAT64_WELL_KNOWN_PREFIX: readonly [ipaddr.IPv6, number] = [ipaddr.IPv6.parse('64:ff9b::'), 96]
+// Clash/mihomo TUN and Surge Enhanced Mode resolve every domain into this range; the answers are
+// proxy handles routed back out through the tunnel, not intranet hosts.
+const FAKE_IP_IPV4_RANGE: readonly [ipaddr.IPv4, number] = [ipaddr.IPv4.parse('198.18.0.0'), 15]
 
 function normalizeHostname(hostname: string): string {
   if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -74,6 +79,23 @@ function isLocalHostname(hostname: string): boolean {
   return BLOCKED_HOSTNAMES.has(normalized) || normalized.endsWith('.localhost') || normalized.endsWith('.localhost.')
 }
 
+/** Embedded IPv4 of a NAT64 well-known-prefix address, which is how IPv6-only networks reach IPv4. */
+function getNat64EmbeddedIpv4(address: ipaddr.IPv6): ipaddr.IPv4 | undefined {
+  const [prefixAddress, prefixBits] = NAT64_WELL_KNOWN_PREFIX
+
+  if (!address.match(prefixAddress, prefixBits)) {
+    return undefined
+  }
+
+  return new ipaddr.IPv4(address.toByteArray().slice(12))
+}
+
+function isBlockedIpv4(address: ipaddr.IPv4): boolean {
+  const [fakeIpAddress, fakeIpBits] = FAKE_IP_IPV4_RANGE
+
+  return !address.match(fakeIpAddress, fakeIpBits) && BLOCKED_IPV4_RANGES.has(address.range())
+}
+
 function isBlockedIpHostname(hostname: string): boolean {
   const address = parseIpHostname(hostname)
 
@@ -81,8 +103,13 @@ function isBlockedIpHostname(hostname: string): boolean {
     return false
   }
 
-  if (address.kind() === 'ipv4') {
-    return BLOCKED_IPV4_RANGES.has(address.range())
+  if (address instanceof ipaddr.IPv4) {
+    return isBlockedIpv4(address)
+  }
+
+  const nat64EmbeddedIpv4 = getNat64EmbeddedIpv4(address)
+  if (nat64EmbeddedIpv4) {
+    return isBlockedIpv4(nat64EmbeddedIpv4)
   }
 
   const [publicRangeAddress, publicRangeBits] = PUBLIC_IPV6_RANGE
@@ -155,16 +182,20 @@ function hasMatchingConfiguredOrigin(url: URL, configuredApiHost: string): boole
  * Pass `configuredApiHost` to allow a provider's own loopback/private endpoint
  * when it matches the user-configured host.
  *
+ * Pass `allowPrivateNetwork` from the `app.fetch.allow_private_network`
+ * preference when this precheck guards a `fetchRemoteText()` call, so the
+ * literal guard does not reject what the pinned fetch would accept.
+ *
  * Direct main-process fetches should use `resolveRemoteFetchUrl()` so hostname
  * DNS results are checked before the network request and can be pinned.
  */
-export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): string {
+export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string, allowPrivateNetwork = false): string {
   const parsedUrl = parseRemoteUrl(rawUrl)
 
   const allowMatchingConfiguredOrigin =
     configuredApiHost !== undefined && hasMatchingConfiguredOrigin(parsedUrl, configuredApiHost)
 
-  if (isBlockedHostname(parsedUrl.hostname) && !allowMatchingConfiguredOrigin) {
+  if (!allowPrivateNetwork && isBlockedHostname(parsedUrl.hostname) && !allowMatchingConfiguredOrigin) {
     throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
   }
 
@@ -222,24 +253,32 @@ function raceWithAbort<T>(operation: Promise<T>, signal: AbortSignal | undefined
 /**
  * SSRF guard for direct main-process fetches. Combines literal URL validation
  * with DNS-level rejection for hostnames that resolve to private/local addresses.
+ * `allowPrivateNetwork` drops both rejections; scheme, credential, and connection
+ * pinning rules always apply.
  */
 export async function resolveRemoteFetchUrl(
   rawUrl: string,
   options: ResolveRemoteFetchUrlOptions = {}
 ): Promise<ResolvedRemoteFetchUrl> {
-  const safeUrl = sanitizeRemoteUrl(rawUrl)
-  const parsedUrl = parseRemoteUrl(safeUrl)
-  const address = await resolveRemoteFetchAddress(parsedUrl, options.signal)
+  const parsedUrl = parseRemoteUrl(rawUrl)
+  const allowPrivateNetwork = options.allowPrivateNetwork === true
+
+  if (!allowPrivateNetwork && isBlockedHostname(parsedUrl.hostname)) {
+    throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
+  }
+
+  const safeUrl = parsedUrl.toString()
+  const address = await resolveRemoteFetchAddress(parsedUrl, options.signal, allowPrivateNetwork)
 
   return { url: safeUrl, address }
 }
 
-async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | undefined): Promise<RemoteFetchAddress> {
+async function resolveRemoteFetchAddress(
+  parsedUrl: URL,
+  signal: AbortSignal | undefined,
+  allowPrivateNetwork: boolean
+): Promise<RemoteFetchAddress> {
   throwIfAborted(signal)
-
-  if (isBlockedHostname(parsedUrl.hostname)) {
-    throw new Error(`Unsafe remote url: local or private addresses are not allowed (${parsedUrl.hostname})`)
-  }
 
   const literalAddress = parseIpHostname(parsedUrl.hostname)
   if (literalAddress) {
@@ -247,20 +286,22 @@ async function resolveRemoteFetchAddress(parsedUrl: URL, signal: AbortSignal | u
   }
 
   const addresses = await raceWithAbort(lookup(normalizeHostname(parsedUrl.hostname), { all: true }), signal)
-  const blockedAddress = addresses.find((address) => isBlockedIpHostname(address.address))
 
-  if (blockedAddress) {
-    throw new Error(
-      `Unsafe remote url: DNS resolved to local or private address (${parsedUrl.hostname} -> ${blockedAddress.address})`
-    )
+  // The connection is pinned to the address returned here, so a rejected answer only has to be
+  // skipped rather than fail the whole hostname.
+  const safeAddress = addresses.find((address) => allowPrivateNetwork || !isBlockedIpHostname(address.address))
+  if (safeAddress) {
+    return toRemoteFetchAddress(safeAddress)
   }
 
-  const firstAddress = addresses[0]
-  if (!firstAddress) {
+  const blockedAddress = addresses[0]
+  if (!blockedAddress) {
     throw new Error(`Unsafe remote url: DNS returned no addresses (${parsedUrl.hostname})`)
   }
 
-  return toRemoteFetchAddress(firstAddress)
+  throw new Error(
+    `Unsafe remote url: DNS resolved to local or private address (${parsedUrl.hostname} -> ${blockedAddress.address})`
+  )
 }
 
 function toRemoteFetchAddress(address: ipaddr.IPv4 | ipaddr.IPv6 | LookupAddress): RemoteFetchAddress {

@@ -9,7 +9,8 @@ vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   }
 }))
 
@@ -45,6 +46,32 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.agents.claude.skills']).toBe(path.join(claudeRoot, 'skills'))
   })
 
+  it('keeps conditional Code Mate skill templates in read-only app resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.code_cli.skills.builtin']).toBe(
+      path.join(registry['app.root.resources'], 'code-cli-skills')
+    )
+    expect(shouldAutoEnsure('feature.code_cli.skills.builtin')).toBe(false)
+  })
+
+  it('keeps pi runtime state under the Agents data directory', () => {
+    const registry = buildPathRegistry()
+    const piRoot = path.join('/mock/userData', 'Data', 'Agents', '.pi')
+
+    expect(registry['feature.agents.pi.root']).toBe(piRoot)
+    expect(registry['feature.agents.pi.sessions']).toBe(path.join(piRoot, 'sessions'))
+  })
+
+  it('keeps the provider registry override under userData Runtime', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.provider_registry.override']).toBe(
+      path.join('/mock/userData', 'Runtime', 'provider-registry-override')
+    )
+    expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
+  })
+
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -52,6 +79,39 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('keeps persisted MCP resource blobs in Cherry temporary storage', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.mcp.resource_results.temp']).toBe(
+      path.join('/mock/temp', 'CherryStudio', 'mcp-resource-results')
+    )
+  })
+
+  it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.trace']).toBe(path.join('/mock/userData', 'Runtime', 'trace'))
+    expect(registry['v1.trace']).toBe(path.join(registry['cherry.home'], 'trace'))
+    expect(shouldAutoEnsure('feature.trace')).toBe(true)
+    expect(shouldAutoEnsure('v1.trace')).toBe(false)
+  })
+
+  it('keeps the old CLI install root cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.cli.install']).toBe(path.join(registry['cherry.home'], 'install'))
+    expect(shouldAutoEnsure('v1.cli.install')).toBe(false)
+  })
+
+  it('keeps the root database and Claude config cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.database.file']).toBe(path.join('/mock/userData', 'cherrystudio.sqlite'))
+    expect(registry['v1.agents.claude']).toBe(path.join('/mock/userData', '.claude'))
+    expect(shouldAutoEnsure('v1.database.file')).toBe(false)
+    expect(shouldAutoEnsure('v1.agents.claude')).toBe(false)
   })
 
   it('falls back when Electron cannot resolve an optional user system path', () => {
@@ -73,8 +133,71 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
 
     expect(registry['feature.agents.assistant.manifest.file']).toBe(
-      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+      path.join('/mock/app', 'resources', 'builtin-agents', 'cherry-assistant', 'product-manifest.json')
     )
+  })
+
+  it('uses the shared user-owned DeepSeek Harness home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['external.deepseek_harness.config']).toBe(path.join(os.homedir(), '.dsh'))
+  })
+
+  it('registers the platform-native default Hermes home as external data', () => {
+    const registry = buildPathRegistry()
+    const windowsBase = process.env.LOCALAPPDATA?.trim() || path.join(os.homedir(), 'AppData', 'Local')
+    const expected =
+      process.platform === 'win32' ? path.join(windowsBase, 'hermes') : path.join(os.homedir(), '.hermes')
+
+    expect(registry['external.hermes.default_home']).toBe(expected)
+    expect(shouldAutoEnsure('external.hermes.default_home')).toBe(false)
+  })
+
+  it('isolates the managed DeepSeek Harness workspace from the user home', () => {
+    const registry = buildPathRegistry()
+    expect(registry['feature.deepseek_harness.workspace']).toBe(
+      path.join('/mock/userData', 'Data', 'DeepSeekHarness', 'Workspace')
+    )
+    expect(shouldAutoEnsure('feature.deepseek_harness.workspace')).toBe(true)
+  })
+
+  it('exposes the mini app package root under userData/Data', () => {
+    expect(buildPathRegistry()['feature.mini_app.packages']).toBe(
+      path.join('/mock/userData', 'Data', 'MiniApps', 'packages')
+    )
+  })
+
+  it('keeps mini app data OUTSIDE the package tree', () => {
+    // `packages/<id>` is wholesale-renamed on update and hashed by `hashTree`; a save
+    // file inside it would die with the next update and churn `contentHash` per write.
+    expect(buildPathRegistry()['feature.mini_app.data']).toBe(path.join('/mock/userData', 'Data', 'MiniApps', 'data'))
+  })
+
+  it('exposes the publish journal directory as its own key', () => {
+    // Its own key, not a filename under `packages`: the journal is a DIRECTORY of per-app
+    // files, and `getPath`'s filename argument names a file, not a subtree.
+    expect(buildPathRegistry()['feature.mini_app.publish_journal']).toBe(
+      path.join('/mock/userData', 'Data', 'MiniApps', '.publish-journal')
+    )
+  })
+
+  it('ships builtin packages inside the bundle and never auto-creates them', () => {
+    expect(buildPathRegistry()['feature.mini_app.builtin']).toBe(path.join('/mock/app/resources', 'builtin-mini-apps'))
+    expect(buildPathRegistry()['feature.mini_app.logs']).toBe(path.join('/mock/logs', 'mini-apps'))
+    // Same reason `feature.agents.builtin` is in NO_ENSURE: a signed, read-only tree.
+    expect(shouldAutoEnsure('feature.mini_app.builtin')).toBe(false)
+  })
+
+  it('keeps Antigravity session data in a Cherry-owned isolated directory', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.cli.antigravity.root']).toBe(path.join('/mock/userData', 'Data', 'CodeCli', 'Antigravity'))
+    expect(shouldAutoEnsure('feature.cli.antigravity.root')).toBe(true)
+    // The settings file must sit under the dir handed to the CLI as `--gemini_dir`,
+    // in the fixed `antigravity-cli/` subdir the binary itself resolves.
+    expect(registry['feature.cli.antigravity.settings.file']).toBe(
+      path.join(registry['feature.cli.antigravity.root'], 'antigravity-cli', 'settings.json')
+    )
+    expect(shouldAutoEnsure('feature.cli.antigravity.settings.file')).toBe(true)
   })
 })
 
@@ -110,6 +233,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for feature.files.data', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
+    })
+
+    it('returns true for the provider registry override (writable, not opted out)', () => {
+      // The remote-updated override dir under Runtime is Cherry-owned and
+      // writable — unlike the read-only bundled feature.provider_registry.data.
+      expect(shouldAutoEnsure('feature.provider_registry.override')).toBe(true)
     })
 
     it('returns true for feature.mcp', () => {
@@ -234,6 +363,13 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for the bundled Cherry Assistant product manifest', () => {
       expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
+    })
+
+    it('does not auto-create the persist:webview session directory', () => {
+      const registry = buildPathRegistry()
+
+      expect(registry['app.session.webview']).toBe(path.join('/mock/sessionData', 'Partitions', 'webview'))
+      expect(shouldAutoEnsure('app.session.webview')).toBe(false)
     })
   })
 

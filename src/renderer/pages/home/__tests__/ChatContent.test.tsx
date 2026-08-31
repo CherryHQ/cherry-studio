@@ -1,4 +1,6 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -39,7 +41,10 @@ const mockToolApprovalOverridesOptions = vi.hoisted(() => ({
 }))
 const mockInvalidateCache = vi.fn<(keys?: string | string[] | boolean) => Promise<void>>(async () => undefined)
 let capturedOnSend:
-  | ((text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void)
+  | ((
+      text: string,
+      options?: { userMessageParts?: CherryMessagePart[]; chatTarget?: ComposerChatTarget }
+    ) => Promise<void> | void)
   | undefined
 
 vi.mock('@renderer/hooks/useChatWithHistory', () => ({
@@ -137,30 +142,51 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     placement,
     onSend,
     sendDisabled,
-    onDraftAssistantChange
+    onDraftAssistantChange,
+    contextUsage,
+    chatTarget
   }: {
     placement: 'home' | 'docked'
-    onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
+    onSend: (
+      text: string,
+      options?: { userMessageParts?: CherryMessagePart[]; chatTarget?: ComposerChatTarget }
+    ) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    contextUsage?: { contextTokens: number; modelId: string } | null
+    chatTarget?: ComposerChatTarget
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
       return (
-        <button type="button" data-testid="chat-home-composer" onClick={() => onDraftAssistantChange?.('assistant-2')}>
-          home composer
-        </button>
+        <>
+          <button
+            type="button"
+            data-testid="chat-home-composer"
+            onClick={() => onDraftAssistantChange?.('assistant-2')}>
+            home composer
+          </button>
+          {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+        </>
       )
     }
 
     return (
-      <button
-        type="button"
-        data-use-mentioned-model-selector="true"
-        disabled={sendDisabled}
-        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })}>
-        send
-      </button>
+      <>
+        <button
+          type="button"
+          data-use-mentioned-model-selector="true"
+          disabled={sendDisabled}
+          onClick={() =>
+            onSend('hello', {
+              userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart],
+              chatTarget
+            })
+          }>
+          send
+        </button>
+        {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+      </>
     )
   }
 }))
@@ -179,9 +205,7 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
-  RefreshProvider: ({ children }: { children: ReactNode }) => children,
-  TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,
-  TranslationOverlaySetterProvider: ({ children }: { children: ReactNode }) => children
+  RefreshProvider: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
@@ -247,7 +271,7 @@ describe('ChatContent', () => {
   let streamOpen: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
+    streamOpen = vi.fn().mockResolvedValue({ mode: 'started' })
     // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
     ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
@@ -344,46 +368,101 @@ describe('ChatContent', () => {
     expect(sendMessage).not.toHaveBeenCalled()
   })
 
-  it('uses a branch draft anchor for the next send and clears it after stream open', async () => {
-    const clearBranchDraft = vi.fn()
-    const getBranchDraftAnchorId = vi.fn(() => 'assistant-old')
+  it('hides context usage while topic history is stale', () => {
+    const activeAssistant = {
+      ...createUiMessage('history-assistant', 'assistant'),
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        modelId: 'provider::model-a',
+        stats: { contextTokens: 42 }
+      }
+    } as CherryUIMessage
+    const topicMessagesResult = {
+      uiMessages: [activeAssistant],
+      siblingsMap: {},
+      isLoading: false,
+      isStale: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: activeAssistant.id,
+      rootId: 'root-1',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }
+    mockUseTopicMessages.mockReturnValue(topicMessagesResult)
 
-    render(
-      <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={getBranchDraftAnchorId} />
-    )
+    const view = render(<ChatContent topic={topic} />)
+
+    expect(screen.getByRole('meter', { name: 'context usage' })).toBeInTheDocument()
+
+    mockUseTopicMessages.mockReturnValue({ ...topicMessagesResult, isLoading: true, isStale: true })
+    view.rerender(<ChatContent topic={topic} />)
+
+    expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
+  })
+
+  it('submits against the captured empty branch without patching it first and hides its empty bubble', async () => {
+    const patchAwaitingInput = vi.fn().mockResolvedValue({
+      id: 'awaiting-input-user',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] }
+    })
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger:
+        method === 'PATCH' && path === '/messages/:id'
+          ? patchAwaitingInput
+          : vi.fn(async () => ({ deleted: true, deletedIds: [] })),
+      isLoading: false,
+      error: undefined
+    }))
+    const awaitingInput = {
+      id: 'awaiting-input-user',
+      role: 'user',
+      parts: [],
+      metadata: {
+        parentId: 'assistant-old',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:02.000Z'
+      }
+    } as CherryUIMessage
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [
+        createUiMessage('history-user', 'user'),
+        createUiMessage('assistant-old', 'assistant'),
+        awaitingInput
+      ],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: awaitingInput.id,
+      rootId: 'root-1',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    expect(screen.getByTestId('messages')).toHaveTextContent('history-user,assistant-old')
+    expect(screen.getByTestId('messages')).not.toHaveTextContent(awaitingInput.id)
 
     await act(async () => {
-      await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
+      fireEvent.click(screen.getByRole('button', { name: 'send' }))
       await Promise.resolve()
     })
 
     await waitFor(() => {
       expect(streamOpen).toHaveBeenCalledWith(
         expect.objectContaining({
-          parentAnchorId: 'assistant-old',
-          topicId: 'topic-1'
+          trigger: 'submit-message',
+          parentAnchorId: awaitingInput.id,
+          topicId: 'topic-1',
+          targetMode: 'reserved-branch',
+          userMessageParts: [{ type: 'text', text: 'hello' }]
         })
       )
+      expect(patchAwaitingInput).not.toHaveBeenCalled()
     })
-    expect(getBranchDraftAnchorId).toHaveBeenCalled()
-    expect(clearBranchDraft).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps a branch draft anchor when stream open fails', async () => {
-    const clearBranchDraft = vi.fn()
-    streamOpen.mockRejectedValueOnce(new Error('open failed'))
-
-    render(
-      <ChatContent topic={topic} clearBranchDraft={clearBranchDraft} getBranchDraftAnchorId={() => 'assistant-old'} />
-    )
-
-    await act(async () => {
-      await expect(
-        capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
-      ).rejects.toThrow('open failed')
-    })
-
-    expect(clearBranchDraft).not.toHaveBeenCalled()
   })
 
   it('resend opens a regenerate stream and seeds reserved messages without waiting for stream terminal', async () => {
@@ -407,7 +486,8 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      reservedMessages: [reservedAssistant]
+      reservedMessages: [reservedAssistant],
+      activeExecutions: [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }]
     })
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [historyUser, historyAssistant],
@@ -716,8 +796,8 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      userMessageId: 'reserved-user',
-      reservedMessages: [reservedUser, reservedAssistant]
+      reservedMessages: [reservedUser, reservedAssistant],
+      activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
     })
 
     const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
@@ -926,7 +1006,13 @@ describe('ChatContent', () => {
       error: null,
       status: 'ready',
       setMessages,
-      activeExecutions: [{ executionId: 'forked-exec', anchorMessageId: 'forked-assistant' }] as never
+      activeExecutions: [
+        {
+          executionId: 'forked-exec',
+          attemptId: 9,
+          anchorMessageId: 'forked-assistant'
+        }
+      ] as never
     })
 
     render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
@@ -975,13 +1061,11 @@ describe('ChatContent', () => {
 
     const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
     expect(overlayCall).toBeDefined()
-    const finish = (overlayCall![3] as any).onFinish as (
-      executionId: string,
-      event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
-    ) => void
+    const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
 
     act(() => {
       finish('forked-exec', {
+        attemptId: 9,
         message: {
           id: 'forked-assistant',
           role: 'assistant',
@@ -1351,8 +1435,19 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      userMessageId: 'reserved-user',
-      reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB]
+      reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB],
+      activeExecutions: [
+        {
+          executionId: 'provider::model-a',
+          attemptId: 1,
+          anchorMessageId: 'reserved-assistant-a'
+        },
+        {
+          executionId: 'provider::model-b',
+          attemptId: 2,
+          anchorMessageId: 'reserved-assistant-b'
+        }
+      ]
     })
     const refresh = vi.fn().mockResolvedValue([])
     mockUseTopicMessages.mockReturnValue({
@@ -1378,8 +1473,16 @@ describe('ChatContent', () => {
       expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
         'topic-1',
         [
-          { executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant-a' },
-          { executionId: 'provider::model-b', anchorMessageId: 'reserved-assistant-b' }
+          {
+            executionId: 'provider::model-a',
+            attemptId: 1,
+            anchorMessageId: 'reserved-assistant-a'
+          },
+          {
+            executionId: 'provider::model-b',
+            attemptId: 2,
+            anchorMessageId: 'reserved-assistant-b'
+          }
         ],
         expect.any(Array),
         expect.any(Object)
@@ -1388,15 +1491,13 @@ describe('ChatContent', () => {
 
     const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
     expect(overlayCall).toBeDefined()
-    const finish = (overlayCall![3] as any).onFinish as (
-      executionId: string,
-      event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
-    ) => void
+    const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
     const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
     refresh.mockClear()
 
     act(() => {
       finish('provider::model-a', {
+        attemptId: 1,
         message: { ...reservedAssistantA, parts: [{ type: 'text', text: 'model a final' }] as CherryMessagePart[] },
         isAbort: false,
         isError: false
@@ -1412,6 +1513,7 @@ describe('ChatContent', () => {
 
     act(() => {
       finish('provider::model-b', {
+        attemptId: 2,
         message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
         isAbort: false,
         isError: false

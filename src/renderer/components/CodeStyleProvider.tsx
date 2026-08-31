@@ -1,10 +1,9 @@
 import { type CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { CodeStyleContext } from '@renderer/hooks/useCodeStyle'
-import { useMermaid } from '@renderer/hooks/useMermaid'
+import { CodeStyleContext, CodeStyleThemeCatalogContext } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
-import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
+import { getMarkdownIt, getShiki } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type React from 'react'
 import { type PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
@@ -20,17 +19,23 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   const { theme } = useTheme()
   const [shikiThemesInfo, setShikiThemesInfo] = useState<BundledThemeInfo[]>([])
   const [cmThemeNames, setCmThemeNames] = useState<string[]>([])
-  useMermaid()
 
-  useEffect(() => {
+  const loadShikiThemesInfo = useCallback(async () => {
+    const { bundledThemesInfo } = await getShiki()
+    setShikiThemesInfo(bundledThemesInfo)
+    return bundledThemesInfo
+  }, [])
+
+  const loadThemeNames = useCallback(async () => {
     if (codeEditorEnabled) {
-      void getCmThemeNames().then(setCmThemeNames)
-    } else {
-      void getShiki().then(({ bundledThemesInfo }) => {
-        setShikiThemesInfo(bundledThemesInfo)
-      })
+      const names = await getCmThemeNames()
+      setCmThemeNames(names)
+      return names
     }
-  }, [codeEditorEnabled])
+
+    const themesInfo = await loadShikiThemesInfo()
+    return ['auto', ...themesInfo.map((info) => info.id)]
+  }, [codeEditorEnabled, loadShikiThemesInfo])
 
   // 获取支持的主题名称列表
   const themeNames = useMemo(() => {
@@ -43,20 +48,25 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return ['auto', ...shikiThemesInfo.map((info) => info.id)]
   }, [codeEditorEnabled, cmThemeNames, shikiThemesInfo])
 
+  const storedShikiTheme = theme === ThemeMode.light ? codeViewerThemeLight : codeViewerThemeDark
+
+  // Consumers like AgentFileDiffRenderer read the theme synchronously and throw on an unknown id
+  // without ever asking for the catalog, so a stored id has to be validated before it is handed out.
+  useEffect(() => {
+    if (storedShikiTheme && storedShikiTheme !== 'auto') void loadShikiThemesInfo()
+  }, [storedShikiTheme, loadShikiThemesInfo])
+
   // 获取当前使用的 Shiki 主题名称（只用于代码预览）
   const activeShikiTheme = useMemo(() => {
-    const codeStyle = theme === ThemeMode.light ? codeViewerThemeLight : codeViewerThemeDark
-
-    if (!codeStyle || codeStyle === 'auto' || !themeNames.includes(codeStyle)) {
-      return theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
-    }
-    return codeStyle
-  }, [theme, codeViewerThemeLight, codeViewerThemeDark, themeNames])
+    const fallback = theme === ThemeMode.light ? 'one-light' : 'material-theme-darker'
+    if (!storedShikiTheme || storedShikiTheme === 'auto') return fallback
+    return shikiThemesInfo.some((info) => info.id === storedShikiTheme) ? storedShikiTheme : fallback
+  }, [theme, storedShikiTheme, shikiThemesInfo])
 
   const isShikiThemeDark = useMemo(() => {
     const themeInfo = shikiThemesInfo.find((info) => info.id === activeShikiTheme)
-    return themeInfo?.type === 'dark'
-  }, [activeShikiTheme, shikiThemesInfo])
+    return themeInfo ? themeInfo.type === 'dark' : theme !== ThemeMode.light
+  }, [activeShikiTheme, shikiThemesInfo, theme])
 
   // 获取当前使用的 CodeMirror 主题对象（只用于编辑器；异步解析，到位前用基础明暗主题）
   const [activeCmTheme, setActiveCmTheme] = useState<CodeMirrorTheme>(() =>
@@ -64,9 +74,11 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   )
 
   useEffect(() => {
+    // Every CodeMirror consumer (Notes, MCP editors, ArtifactPane, previews) reads this, so it must
+    // not depend on the chat-editor flag. getCmThemeByName already falls back for unknown names.
     const codeStyle = theme === ThemeMode.light ? codeEditorThemeLight : codeEditorThemeDark
     let themeName = codeStyle
-    if (!themeName || themeName === 'auto' || !themeNames.includes(themeName)) {
+    if (!themeName || themeName === 'auto') {
       themeName = theme === ThemeMode.light ? 'materialLight' : 'dark'
     }
 
@@ -79,7 +91,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     return () => {
       cancelled = true
     }
-  }, [theme, codeEditorThemeLight, codeEditorThemeDark, themeNames])
+  }, [theme, codeEditorThemeLight, codeEditorThemeDark])
 
   // 自定义 shiki 语言别名
   const languageAliases = useMemo(() => {
@@ -102,10 +114,11 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 流式代码高亮，返回已高亮的 token lines
   const highlightCodeChunk = useCallback(
     async (trunk: string, language: string, callerId: string) => {
+      await loadShikiThemesInfo()
       const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.highlightCodeChunk(trunk, normalizedLang, activeShikiTheme, callerId)
     },
-    [activeShikiTheme, languageAliases]
+    [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
   // 清理代码高亮资源
@@ -116,41 +129,44 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 高亮流式输出的代码
   const highlightStreamingCode = useCallback(
     async (fullContent: string, language: string, callerId: string) => {
+      await loadShikiThemesInfo()
       const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.highlightStreamingCode(fullContent, normalizedLang, activeShikiTheme, callerId)
     },
-    [activeShikiTheme, languageAliases]
+    [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
   // 获取 Shiki pre 标签属性
   const getShikiPreProperties = useCallback(
     async (language: string) => {
+      await loadShikiThemesInfo()
       const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.getShikiPreProperties(normalizedLang, activeShikiTheme)
     },
-    [activeShikiTheme, languageAliases]
+    [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
+  // Static one-shot highlight; routed through the worker to keep the main thread free
   const highlightCode = useCallback(
     async (code: string, language: string) => {
-      const highlighter = await getHighlighter()
-      await loadLanguageIfNeeded(highlighter, language)
-      await loadThemeIfNeeded(highlighter, activeShikiTheme)
-      return highlighter.codeToHtml(code, { lang: language, theme: activeShikiTheme })
+      await loadShikiThemesInfo()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
+      return shikiStreamService.highlightCodeToHtml(code, normalizedLang, activeShikiTheme)
     },
-    [activeShikiTheme]
+    [activeShikiTheme, languageAliases, loadShikiThemesInfo]
   )
 
   // 使用 Shiki 和 Markdown-it 渲染代码
   const shikiMarkdownIt = useCallback(
     async (code: string) => {
+      await loadShikiThemesInfo()
       const renderer = await getMarkdownIt(activeShikiTheme, code)
       if (!renderer) {
         return code
       }
       return renderer.render(code)
     },
-    [activeShikiTheme]
+    [activeShikiTheme, loadShikiThemesInfo]
   )
 
   const contextValue = useMemo(
@@ -161,7 +177,6 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       getShikiPreProperties,
       highlightCode,
       shikiMarkdownIt,
-      themeNames,
       activeShikiTheme,
       isShikiThemeDark,
       activeCmTheme
@@ -173,12 +188,23 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       getShikiPreProperties,
       highlightCode,
       shikiMarkdownIt,
-      themeNames,
       activeShikiTheme,
       isShikiThemeDark,
       activeCmTheme
     ]
   )
 
-  return <CodeStyleContext value={contextValue}>{children}</CodeStyleContext>
+  const themeCatalogContextValue = useMemo(
+    () => ({
+      loadThemeNames,
+      themeNames
+    }),
+    [loadThemeNames, themeNames]
+  )
+
+  return (
+    <CodeStyleContext value={contextValue}>
+      <CodeStyleThemeCatalogContext value={themeCatalogContextValue}>{children}</CodeStyleThemeCatalogContext>
+    </CodeStyleContext>
+  )
 }

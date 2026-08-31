@@ -23,8 +23,33 @@ import { read as fsRead } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import mime from 'mime'
 
 const logger = loggerService.withContext('ai:fileProcessor')
+
+// `type/subtype`, per RFC 6838; `*` in the subtype allows the `image/*`
+// placeholder the ai-sdk gateway converters emit for remote images with no
+// discoverable mime. Anything else (a bare extension like `.png`, a token
+// like `png`, `image`) gets replaced — providers throw
+// `file part media type <raw>` on the ai-sdk side otherwise.
+const PROPER_MEDIA_TYPE_RE = /^[a-z]+\/[a-z0-9+.*-]+$/i
+
+/**
+ * Last-line defense before provider dispatch: any FileUIPart heading out of the
+ * chat pipeline gets a `type/subtype` mediaType or a filename/URL-inferred
+ * fallback. Covers stale rows migrated with a bad mediaType and any future
+ * intake path that skips the disk-mime overwrite.
+ */
+function sanitizeFilePartMediaType(part: FileUIPart): FileUIPart {
+  if (PROPER_MEDIA_TYPE_RE.test(part.mediaType ?? '')) return part
+  const fallback = mime.getType(part.filename ?? part.url ?? '') ?? 'application/octet-stream'
+  logger.warn('Replaced malformed mediaType before provider dispatch', {
+    raw: part.mediaType,
+    fallback,
+    filename: part.filename
+  })
+  return { ...part, mediaType: fallback }
+}
 
 /**
  * Resolve a FileEntryId via FileManager → base64 data URL + its on-disk MIME.
@@ -73,6 +98,11 @@ async function fileUrlToDataUrl(fileUrl: string) {
  * need to change.
  */
 export async function materializeNativeFilePart(part: FileUIPart): Promise<FileUIPart | null> {
+  const materialized = await materializeInner(part)
+  return materialized === null ? null : sanitizeFilePartMediaType(materialized)
+}
+
+async function materializeInner(part: FileUIPart): Promise<FileUIPart | null> {
   const fileEntryId = readCherryMeta(part)?.fileEntryId
   if (fileEntryId) {
     const inlined = await fileEntryIdToDataUrl(fileEntryId)

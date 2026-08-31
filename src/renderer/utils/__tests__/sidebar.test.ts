@@ -9,17 +9,21 @@ import {
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   isMessageOnlyConversationUrl,
+  removeSidebarEntityFavorite,
   removeSidebarMiniApp,
   reorderLaunchpadApps,
   reorderSidebarFavorites,
   resolveSidebarActiveItem,
   setSidebarAppPinned,
   SIDEBAR_FAVORITE_ORDER,
+  toggleSidebarEntityFavorite,
   toggleSidebarMiniApp
 } from '../sidebar'
 
 const appFavorite = (id: SidebarFavorite): SidebarFavoriteItem => ({ type: 'app', id })
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+const agentFavorite = (id: string): SidebarFavoriteItem => ({ type: 'agent', id })
+const assistantFavorite = (id: string): SidebarFavoriteItem => ({ type: 'assistant', id })
 
 describe('sidebar config helpers', () => {
   it('keeps the fixed sidebar app order available', () => {
@@ -73,6 +77,24 @@ describe('sidebar config helpers', () => {
     expect(getOrderedVisibleSidebarFavoriteItems([miniAppFavorite('calculator'), appFavorite('assistants')])).toEqual([
       miniAppFavorite('calculator'),
       appFavorite('assistants')
+    ])
+  })
+
+  it('keeps a stored Agent-first order when required Chat is already present', () => {
+    expect(
+      getOrderedVisibleSidebarFavoriteItems([
+        appFavorite('agents'),
+        appFavorite('assistants'),
+        appFavorite('translate'),
+        appFavorite('paintings'),
+        appFavorite('knowledge')
+      ])
+    ).toEqual([
+      appFavorite('agents'),
+      appFavorite('assistants'),
+      appFavorite('translate'),
+      appFavorite('paintings'),
+      appFavorite('knowledge')
     ])
   })
 
@@ -198,6 +220,65 @@ describe('sidebar favorites mutations', () => {
     expect(toggleSidebarMiniApp([appFavorite('assistants'), group], 'weather')).toEqual([
       appFavorite('assistants'),
       miniAppFavorite('weather'),
+      group
+    ])
+  })
+
+  it('normalizes agent and assistant favorites into the visible list', () => {
+    expect(
+      getOrderedVisibleSidebarFavoriteItems([
+        appFavorite('assistants'),
+        agentFavorite('agent-1'),
+        assistantFavorite('assistant-1')
+      ])
+    ).toEqual([appFavorite('assistants'), agentFavorite('agent-1'), assistantFavorite('assistant-1')])
+  })
+
+  it('drops agent/assistant favorites without an id during normalization', () => {
+    expect(
+      getSidebarFavoriteItems([
+        appFavorite('assistants'),
+        { type: 'agent' } as unknown as SidebarFavoriteItem,
+        { type: 'assistant' } as unknown as SidebarFavoriteItem
+      ])
+    ).toEqual([appFavorite('assistants')])
+  })
+
+  it('toggles an entity favorite on and off, preserving apps and other entities', () => {
+    const added = toggleSidebarEntityFavorite(
+      [appFavorite('assistants'), assistantFavorite('assistant-1')],
+      'agent',
+      'agent-1'
+    )
+    expect(added).toEqual([appFavorite('assistants'), assistantFavorite('assistant-1'), agentFavorite('agent-1')])
+
+    expect(toggleSidebarEntityFavorite(added, 'assistant', 'assistant-1')).toEqual([
+      appFavorite('assistants'),
+      agentFavorite('agent-1')
+    ])
+  })
+
+  it('removes an entity favorite while preserving apps and the other entity type', () => {
+    expect(
+      removeSidebarEntityFavorite(
+        [appFavorite('assistants'), agentFavorite('agent-1'), assistantFavorite('assistant-1')],
+        'agent',
+        'agent-1'
+      )
+    ).toEqual([appFavorite('assistants'), assistantFavorite('assistant-1')])
+  })
+
+  it('does not treat known agent/assistant favorites as forward-compatible unknown items on mutation', () => {
+    const group = { type: 'group', id: 'g1', name: 'Group', items: [] } as unknown as SidebarFavoriteItem
+
+    // Mutations operate on the ordered visible list, so the required assistants
+    // app is prepended next to the preserved future-typed group item.
+    expect(toggleSidebarEntityFavorite([agentFavorite('agent-1'), group], 'agent', 'agent-1')).toEqual([
+      appFavorite('assistants'),
+      group
+    ])
+    expect(toggleSidebarEntityFavorite([assistantFavorite('assistant-1'), group], 'assistant', 'assistant-1')).toEqual([
+      appFavorite('assistants'),
       group
     ])
   })

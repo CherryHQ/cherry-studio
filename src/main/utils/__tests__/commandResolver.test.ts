@@ -3,11 +3,13 @@ import { EventEmitter } from 'events'
 import fs from 'fs'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import which from 'which'
 
 import {
   autoDiscoverGitBash,
   findCommandInShellEnv,
   findExecutable,
+  findExecutableInEnv,
   findGitBash,
   findViaMise,
   validateGitBashPath
@@ -17,31 +19,47 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
+vi.mock('../shellEnv', () => ({
+  getShellEnv: vi.fn(),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
+vi.mock('which')
+
+// On win32 `path` and `path.win32` are the same object, so a mock installed on one is
+// visible through the other — both must share this implementation or they clobber it.
+function resolveWindowsPath(...args: string[]): string {
+  let result = args.join('\\')
+
+  // Handle .. navigation
+  while (result.includes('\\..')) {
+    result = result.replace(/\\[^\\]+\\\.\./g, '')
+  }
+
+  // Ensure absolute path
+  if (!result.match(/^[A-Z]:/)) {
+    result = `C:\\cwd\\${result}`
+  }
+
+  return result
+}
 
 // These tests only run on Windows since the functions have platform guards
 describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(which)
+      .mockReset()
+      .mockResolvedValue(null as never)
+    vi.mocked(which.sync)
+      .mockReset()
+      .mockReturnValue(null as never)
 
     // Mock path.join to concatenate paths with backslashes (Windows-style)
     vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
 
     // Mock path.resolve to handle path resolution with .. support
-    vi.mocked(path.resolve).mockImplementation((...args) => {
-      let result = args.join('\\')
-
-      // Handle .. navigation
-      while (result.includes('\\..')) {
-        result = result.replace(/\\[^\\]+\\\.\./g, '')
-      }
-
-      // Ensure absolute path
-      if (!result.match(/^[A-Z]:/)) {
-        result = `C:\\cwd\\${result}`
-      }
-
-      return result
-    })
+    vi.mocked(path.resolve).mockImplementation(resolveWindowsPath)
 
     // Mock path.dirname
     vi.mocked(path.dirname).mockImplementation((p) => {
@@ -50,8 +68,19 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       return parts.join('\\')
     })
 
+    vi.mocked(path.basename).mockImplementation((p) => p.split('\\').at(-1) ?? p)
+
     // Mock path.sep
     Object.defineProperty(path, 'sep', { value: '\\', writable: true })
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
+    vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
+    vi.mocked(path.win32.relative).mockImplementation((from, to) => {
+      const lowerFrom = from.toLowerCase()
+      const lowerTo = to.toLowerCase()
+      return lowerTo.startsWith(`${lowerFrom}\\`) ? to.slice(from.length + 1) : to
+    })
+    vi.mocked(path.win32.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
+    Object.defineProperty(path.win32, 'sep', { value: '\\', writable: true })
 
     // Mock process.cwd()
     vi.spyOn(process, 'cwd').mockReturnValue('C:\\cwd')
@@ -96,85 +125,40 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
     })
 
-    describe('where.exe PATH lookup', () => {
+    describe('PATH lookup', () => {
       beforeEach(() => {
         Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
         // Common paths don't exist
         vi.mocked(fs.existsSync).mockReturnValue(false)
       })
 
-      it('should find executable via where.exe', () => {
+      it('should find executable through the supplied PATH', () => {
         const gitPath = 'C:\\Git\\bin\\git.exe'
-
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findExecutable('git')
 
         expect(result).toBe(gitPath)
-        // Now searches without extension and filters by allowed extensions
-        // Check that execFileSync was called with 'where.exe' and ['git']
-        expect(execFileSync).toHaveBeenCalledWith('where.exe', ['git'], expect.any(Object))
+        expect(which.sync).toHaveBeenCalledWith(
+          'git',
+          expect.objectContaining({ all: true, nothrow: true, pathExt: '.exe;.cmd' })
+        )
+        expect(execFileSync).not.toHaveBeenCalled()
       })
 
-      it('should search without extension and filter results', () => {
-        vi.mocked(execFileSync).mockImplementation(() => {
-          throw new Error('Not found')
-        })
-
-        findExecutable('node')
-
-        // Now searches without extension (filters by allowed extensions afterward)
-        expect(execFileSync).toHaveBeenCalledWith('where.exe', ['node'], expect.any(Object))
-      })
-
-      it('should handle Windows line endings (CRLF)', () => {
+      it('should return the first safe candidate', () => {
         const gitPath1 = 'C:\\Git\\bin\\git.exe'
-        const gitPath2 = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(execFileSync).mockReturnValue(`${gitPath1}\r\n${gitPath2}\r\n`)
-
-        const result = findExecutable('git')
-
-        // Should return the first valid path
-        expect(result).toBe(gitPath1)
-      })
-
-      it('should handle Unix line endings (LF)', () => {
-        const gitPath1 = 'C:\\Git\\bin\\git.exe'
-        const gitPath2 = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(execFileSync).mockReturnValue(`${gitPath1}\n${gitPath2}\n`)
+        const gitPath2 = 'C:\\Tools\\Git\\cmd\\git.exe'
+        vi.mocked(which.sync).mockReturnValue([gitPath1, gitPath2] as never)
 
         const result = findExecutable('git')
 
         expect(result).toBe(gitPath1)
       })
 
-      it('should handle mixed line endings', () => {
-        const gitPath1 = 'C:\\Git\\bin\\git.exe'
-        const gitPath2 = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(execFileSync).mockReturnValue(`${gitPath1}\r\n${gitPath2}\n`)
-
-        const result = findExecutable('git')
-
-        expect(result).toBe(gitPath1)
-      })
-
-      it('should trim whitespace from paths', () => {
+      it('should trim candidate paths', () => {
         const gitPath = 'C:\\Git\\bin\\git.exe'
-
-        vi.mocked(execFileSync).mockReturnValue(`  ${gitPath}  \n`)
-
-        const result = findExecutable('git')
-
-        expect(result).toBe(gitPath)
-      })
-
-      it('should filter empty lines', () => {
-        const gitPath = 'C:\\Git\\bin\\git.exe'
-
-        vi.mocked(execFileSync).mockReturnValue(`\n\n${gitPath}\n\n`)
+        vi.mocked(which.sync).mockReturnValue([`  ${gitPath}  `] as never)
 
         const result = findExecutable('git')
 
@@ -192,17 +176,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const maliciousPath = 'C:\\cwd\\git.exe'
         const safePath = 'C:\\Git\\bin\\git.exe'
 
-        vi.mocked(execFileSync).mockReturnValue(`${maliciousPath}\n${safePath}`)
-
-        vi.mocked(path.resolve).mockImplementation((p) => {
-          if (p.includes('cwd\\git.exe')) return 'c:\\cwd\\git.exe'
-          return 'c:\\git\\bin\\git.exe'
-        })
-
-        vi.mocked(path.dirname).mockImplementation((p) => {
-          if (p.includes('cwd\\git.exe')) return 'c:\\cwd'
-          return 'c:\\git\\bin'
-        })
+        vi.mocked(which.sync).mockReturnValue([maliciousPath, safePath] as never)
 
         const result = findExecutable('git')
 
@@ -214,17 +188,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const maliciousPath = 'C:\\cwd\\subdir\\git.exe'
         const safePath = 'C:\\Git\\bin\\git.exe'
 
-        vi.mocked(execFileSync).mockReturnValue(`${maliciousPath}\n${safePath}`)
-
-        vi.mocked(path.resolve).mockImplementation((p) => {
-          if (p.includes('cwd\\subdir')) return 'c:\\cwd\\subdir\\git.exe'
-          return 'c:\\git\\bin\\git.exe'
-        })
-
-        vi.mocked(path.dirname).mockImplementation((p) => {
-          if (p.includes('cwd\\subdir')) return 'c:\\cwd\\subdir'
-          return 'c:\\git\\bin'
-        })
+        vi.mocked(which.sync).mockReturnValue([maliciousPath, safePath] as never)
 
         const result = findExecutable('git')
 
@@ -234,10 +198,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       it('should return null when only malicious executables are found', () => {
         const maliciousPath = 'C:\\cwd\\git.exe'
 
-        vi.mocked(execFileSync).mockReturnValue(maliciousPath)
-
-        vi.mocked(path.resolve).mockReturnValue('c:\\cwd\\git.exe')
-        vi.mocked(path.dirname).mockReturnValue('c:\\cwd')
+        vi.mocked(which.sync).mockReturnValue([maliciousPath] as never)
 
         const result = findExecutable('git')
 
@@ -251,8 +212,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         vi.mocked(fs.existsSync).mockReturnValue(false)
       })
 
-      it('should return null when where.exe fails', () => {
-        vi.mocked(execFileSync).mockImplementation(() => {
+      it('should return null when PATH lookup fails', () => {
+        vi.mocked(which.sync).mockImplementation(() => {
           throw new Error('Command failed')
         })
 
@@ -261,16 +222,8 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         expect(result).toBeNull()
       })
 
-      it('should return null when where.exe returns empty output', () => {
-        vi.mocked(execFileSync).mockReturnValue('')
-
-        const result = findExecutable('git')
-
-        expect(result).toBeNull()
-      })
-
-      it('should return null when where.exe returns only whitespace', () => {
-        vi.mocked(execFileSync).mockReturnValue('   \n\n  ')
+      it('should return null when PATH lookup has no candidates', () => {
+        vi.mocked(which.sync).mockReturnValue(null as never)
 
         const result = findExecutable('git')
 
@@ -286,7 +239,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       it('should skip common paths check for non-git executables', () => {
         const nodePath = 'C:\\Program Files\\nodejs\\node.exe'
 
-        vi.mocked(execFileSync).mockReturnValue(nodePath)
+        vi.mocked(which.sync).mockReturnValue([nodePath] as never)
 
         const result = findExecutable('node')
 
@@ -303,8 +256,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
 
       it('should filter results by custom extensions', () => {
-        // where.exe returns multiple files with different extensions
-        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm\nC:\\nodejs\\npm.cmd\nC:\\nodejs\\npm.ps1\n')
+        vi.mocked(which.sync).mockReturnValue(['C:\\nodejs\\npm.cmd'] as never)
 
         const result = findExecutable('npm', { extensions: ['.cmd'] })
 
@@ -312,7 +264,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
 
       it('should accept multiple extensions', () => {
-        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm\nC:\\nodejs\\npm.cmd\nC:\\nodejs\\npm.exe\n')
+        vi.mocked(which.sync).mockReturnValue(['C:\\nodejs\\npm.cmd', 'C:\\nodejs\\npm.exe'] as never)
 
         const result = findExecutable('npm', { extensions: ['.cmd', '.exe'] })
 
@@ -321,7 +273,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
 
       it('should return null when no results match allowed extensions', () => {
-        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm\nC:\\nodejs\\npm.ps1\n')
+        vi.mocked(which.sync).mockReturnValue(['C:\\nodejs\\npm.ps1'] as never)
 
         const result = findExecutable('npm', { extensions: ['.cmd', '.exe'] })
 
@@ -329,7 +281,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
 
       it('should match both .exe and .cmd by default', () => {
-        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\node.cmd\nC:\\nodejs\\node.exe\n')
+        vi.mocked(which.sync).mockReturnValue(['C:\\nodejs\\node.cmd', 'C:\\nodejs\\node.exe'] as never)
 
         const result = findExecutable('node')
 
@@ -338,7 +290,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       })
 
       it('should handle case-insensitive extension matching', () => {
-        vi.mocked(execFileSync).mockReturnValue('C:\\nodejs\\npm.CMD\n')
+        vi.mocked(which.sync).mockReturnValue(['C:\\nodejs\\npm.CMD'] as never)
 
         const result = findExecutable('npm', { extensions: ['.cmd'] })
 
@@ -415,7 +367,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash(customPath)
 
@@ -466,7 +418,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -494,7 +446,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const gitPath = 'C:\\PortableGit\\bin\\git.exe'
         const bashPath = 'C:\\PortableGit\\bin\\bash.exe'
 
-        // Mock: common git paths don't exist, but where.exe finds portable git
+        // Common Git paths do not exist, but PATH contains portable Git.
         vi.mocked(fs.existsSync).mockImplementation((p) => {
           const pathStr = p?.toString() || ''
           // Common git paths don't exist
@@ -505,8 +457,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        // where.exe returns portable git path
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -527,7 +478,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -548,7 +499,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -558,13 +509,13 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       it('should handle when git.exe is found but bash.exe is not at any derived location', () => {
         const gitPath = 'C:\\Git\\cmd\\git.exe'
 
-        // git.exe exists via where.exe, but bash.exe doesn't exist at any derived location
+        // git.exe exists on PATH, but bash.exe does not exist at any derived location.
         vi.mocked(fs.existsSync).mockImplementation(() => {
           // Only return false for all bash.exe checks
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -575,10 +526,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
 
     describe('common paths fallback', () => {
       beforeEach(() => {
-        // git.exe not found
-        vi.mocked(execFileSync).mockImplementation(() => {
-          throw new Error('Not found')
-        })
+        vi.mocked(which.sync).mockReturnValue(null as never)
       })
 
       it('should check Program Files path', () => {
@@ -648,7 +596,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         // Both exist
         vi.mocked(fs.existsSync).mockImplementation((p) => {
           const pathStr = p?.toString() || ''
-          // Common git paths don't exist (so findExecutable uses where.exe)
+          // Common Git paths do not exist, so findExecutable uses PATH.
           if (pathStr.includes('Program Files\\Git\\cmd\\git.exe')) return false
           if (pathStr.includes('Program Files (x86)\\Git\\cmd\\git.exe')) return false
           // Both bash paths exist, but derived should be checked first
@@ -657,7 +605,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -669,9 +617,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     describe('error scenarios', () => {
       it('should return null when Git is not installed anywhere', () => {
         vi.mocked(fs.existsSync).mockReturnValue(false)
-        vi.mocked(execFileSync).mockImplementation(() => {
-          throw new Error('Not found')
-        })
+        vi.mocked(which.sync).mockReturnValue(null as never)
 
         const result = findGitBash()
 
@@ -686,7 +632,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return p === gitPath
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -723,7 +669,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -745,7 +691,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
           return false
         })
 
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
+        vi.mocked(which.sync).mockReturnValue([gitPath] as never)
 
         const result = findGitBash()
 
@@ -815,87 +761,90 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 })
 
+describe('validateGitBashPath filename validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(path.resolve).mockImplementation((input) => input)
+    vi.mocked(path.basename).mockImplementation((input) => input.split('\\').at(-1) ?? input)
+  })
+
+  it('rejects the Git Bash terminal launcher', () => {
+    const launcherPath = 'C:\\PortableGit\\git-bash.exe'
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+
+    expect(validateGitBashPath(launcherPath)).toBeNull()
+  })
+})
+
 describe.skipIf(process.platform !== 'win32')('findViaMise', () => {
   const misePath = 'C:\\Users\\User\\AppData\\Local\\mise\\bin\\mise.exe'
   const env = { PATH: 'C:\\Windows\\system32' }
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    // Mock path.isAbsolute to recognise Windows absolute paths
-    vi.mocked(path.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
+    vi.mocked(which)
+      .mockReset()
+      .mockResolvedValue(null as never)
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
+    vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
+    vi.mocked(path.win32.relative).mockImplementation((_from, to) => to)
+    vi.mocked(path.win32.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
   })
 
-  it('returns null when mise is not installed', () => {
-    // where.exe mise fails
-    vi.mocked(execFileSync).mockImplementation(() => {
-      throw new Error('Not found')
-    })
+  it('returns null when mise is not installed', async () => {
+    vi.mocked(which).mockResolvedValue(null as never)
 
-    const result = findViaMise('node', env)
+    const result = await findViaMise('node', env)
 
     expect(result).toBeNull()
+    expect(execFileSync).not.toHaveBeenCalled()
   })
 
-  it('returns null when mise is installed but tool is not managed', () => {
-    let callCount = 0
+  it('returns null when mise is installed but tool is not managed', async () => {
+    vi.mocked(which).mockResolvedValue([misePath] as never)
     vi.mocked(execFileSync).mockImplementation(() => {
-      callCount++
-      // First call: where.exe mise -> returns mise path
-      if (callCount === 1) return `${misePath}\r\n`
-      // Second call: mise which node -> tool not managed
       throw new Error('No runtime found for node')
     })
 
-    const result = findViaMise('node', env)
+    const result = await findViaMise('node', env)
 
     expect(result).toBeNull()
   })
 
-  it('returns the resolved path when mise manages the tool', () => {
+  it('returns the resolved path when mise manages the tool', async () => {
     const nodePath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
 
-    let callCount = 0
-    vi.mocked(execFileSync).mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return `${misePath}\r\n`
-      return `${nodePath}\n`
-    })
+    vi.mocked(which).mockResolvedValue([misePath] as never)
+    vi.mocked(execFileSync).mockReturnValue(`${nodePath}\n`)
     vi.mocked(fs.existsSync).mockImplementation((p) => p === nodePath)
 
-    const result = findViaMise('node', env)
+    const result = await findViaMise('node', env)
 
     expect(result).toBe(nodePath)
   })
 
-  it('returns null when mise which times out', () => {
-    let callCount = 0
+  it('returns null when mise which times out', async () => {
+    vi.mocked(which).mockResolvedValue([misePath] as never)
     vi.mocked(execFileSync).mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return `${misePath}\r\n`
       const err = new Error('ETIMEDOUT') as NodeJS.ErrnoException
       err.code = 'ETIMEDOUT'
       throw err
     })
 
-    const result = findViaMise('node', env)
+    const result = await findViaMise('node', env)
 
     expect(result).toBeNull()
   })
 
-  it('returns null when mise which returns a non-existent path', () => {
+  it('returns null when mise which returns a non-existent path', async () => {
     const ghostPath = 'C:\\Users\\User\\AppData\\Local\\mise\\installs\\node\\22.0.0\\node.exe'
 
-    let callCount = 0
-    vi.mocked(execFileSync).mockImplementation(() => {
-      callCount++
-      if (callCount === 1) return `${misePath}\r\n`
-      return `${ghostPath}\n`
-    })
+    vi.mocked(which).mockResolvedValue([misePath] as never)
+    vi.mocked(execFileSync).mockReturnValue(`${ghostPath}\n`)
     // The resolved path does not exist on disk
     vi.mocked(fs.existsSync).mockReturnValue(false)
 
-    const result = findViaMise('node', env)
+    const result = await findViaMise('node', env)
 
     expect(result).toBeNull()
   })
@@ -919,15 +868,35 @@ function createMockChildProcess() {
 describe('findCommandInShellEnv', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(which)
+      .mockReset()
+      .mockResolvedValue(null as never)
+    vi.mocked(which.sync)
+      .mockReset()
+      .mockReturnValue(null as never)
     // Reset path.isAbsolute to real implementation for these tests
     vi.mocked(path.isAbsolute).mockImplementation((p) => p.startsWith('/') || /^[A-Z]:/i.test(p))
+    vi.mocked(path.resolve).mockImplementation((p: string) => p)
+    vi.mocked(path.win32.resolve).mockImplementation(resolveWindowsPath)
+    vi.mocked(path.win32.extname).mockImplementation((p) => p.match(/\.[^\\/.]+$/)?.[0] ?? '')
+    vi.mocked(path.win32.relative).mockImplementation((from, to) => {
+      const lowerFrom = from.toLowerCase()
+      const lowerTo = to.toLowerCase()
+      return lowerTo.startsWith(`${lowerFrom}\\`) ? to.slice(from.length + 1) : to
+    })
+    vi.mocked(path.win32.isAbsolute).mockImplementation((p) => /^[A-Z]:/i.test(p))
+    Object.defineProperty(path.win32, 'sep', { value: '\\', writable: true })
   })
 
   describe('command name validation', () => {
+    // Clearing validation means the platform lookup ran: `which` on Windows,
+    // `sh -c 'command -v'` everywhere else.
+    const commandLookup = () => (process.platform === 'win32' ? which : spawn)
+
     it('should reject empty command name', async () => {
       const result = await findCommandInShellEnv('', {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject command names with shell metacharacters', async () => {
@@ -943,14 +912,14 @@ describe('findCommandInShellEnv', () => {
       for (const cmd of maliciousCommands) {
         const result = await findCommandInShellEnv(cmd, {})
         expect(result).toBeNull()
-        expect(spawn).not.toHaveBeenCalled()
+        expect(commandLookup()).not.toHaveBeenCalled()
       }
     })
 
     it('should reject command names starting with hyphen', async () => {
       const result = await findCommandInShellEnv('-npx', {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject path traversal attempts', async () => {
@@ -959,15 +928,47 @@ describe('findCommandInShellEnv', () => {
       for (const cmd of pathTraversalCommands) {
         const result = await findCommandInShellEnv(cmd, {})
         expect(result).toBeNull()
-        expect(spawn).not.toHaveBeenCalled()
+        expect(commandLookup()).not.toHaveBeenCalled()
       }
+    })
+
+    it('should return an existing absolute executable without shell lookup', async () => {
+      const absolute = 'C:\\Program Files\\nodejs\\npx.cmd'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => true } as fs.Stats)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBe(absolute)
+      expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('should reject an absolute path that does not exist', async () => {
+      const absolute = 'C:\\missing\\uvx.exe'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
+      expect(commandLookup()).not.toHaveBeenCalled()
+    })
+
+    it('should reject an absolute path that is a directory', async () => {
+      const absolute = '/usr/local/bin'
+      vi.mocked(path.isAbsolute).mockReturnValue(true)
+      vi.mocked(path.resolve).mockReturnValue(absolute)
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      vi.mocked(fs.statSync).mockReturnValue({ isFile: () => false } as fs.Stats)
+
+      await expect(findCommandInShellEnv(absolute, {})).resolves.toBeNull()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should reject command names exceeding max length', async () => {
       const longCommand = 'a'.repeat(129)
       const result = await findCommandInShellEnv(longCommand, {})
       expect(result).toBeNull()
-      expect(spawn).not.toHaveBeenCalled()
+      expect(commandLookup()).not.toHaveBeenCalled()
     })
 
     it('should accept valid command names', async () => {
@@ -982,7 +983,7 @@ describe('findCommandInShellEnv', () => {
 
       const result = await resultPromise
       expect(result).toBeNull()
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
 
     it('should accept command names with underscores and hyphens', async () => {
@@ -993,7 +994,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 1)
 
       await resultPromise
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
 
     it('should accept command names at max length (128 chars)', async () => {
@@ -1005,7 +1006,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 1)
 
       await resultPromise
-      expect(spawn).toHaveBeenCalled()
+      expect(commandLookup()).toHaveBeenCalled()
     })
   })
 
@@ -1084,60 +1085,53 @@ describe('findCommandInShellEnv', () => {
   })
 
   describe.skipIf(process.platform !== 'win32')('Windows behavior', () => {
-    it('should find .exe files via where command', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
+    it('should find .exe files through PATH lookup', async () => {
+      vi.mocked(which).mockResolvedValue(['C:\\Program Files\\nodejs\\npx.exe'] as never)
 
-      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
+      const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
 
-      // Simulate where output
-      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.exe\r\n')
-      mockChild.emit('close', 0)
-
-      const result = await resultPromise
       expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
-      expect(spawn).toHaveBeenCalledWith('where', ['npx'], expect.any(Object))
+      expect(which).toHaveBeenCalledWith('npx', {
+        all: true,
+        delimiter: ';',
+        nothrow: true,
+        path: 'C:\\nodejs',
+        pathExt: '.exe;.cmd'
+      })
+      expect(spawn).not.toHaveBeenCalled()
     })
 
     it('should find .cmd launchers on Windows', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
+      vi.mocked(which).mockResolvedValue(['C:\\Program Files\\nodejs\\npx.cmd'] as never)
 
-      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
-
-      // Simulate where output with only .cmd file
-      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.cmd\r\n')
-      mockChild.emit('close', 0)
-
-      const result = await resultPromise
+      const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
       expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
 
     it('should prefer .exe over .cmd when both exist', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
+      vi.mocked(which).mockResolvedValue([
+        'C:\\Program Files\\nodejs\\npx.cmd',
+        'C:\\Program Files\\nodejs\\npx.exe'
+      ] as never)
 
-      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
-
-      // Simulate where output with both .cmd and .exe
-      mockChild.stdout.emit('data', 'C:\\Program Files\\nodejs\\npx.cmd\r\nC:\\Program Files\\nodejs\\npx.exe\r\n')
-      mockChild.emit('close', 0)
-
-      const result = await resultPromise
+      const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
       expect(result).toBe('C:\\Program Files\\nodejs\\npx.exe')
     })
 
-    it('should handle spawn errors gracefully', async () => {
-      const mockChild = createMockChildProcess()
-      vi.mocked(spawn).mockReturnValue(mockChild as never)
+    it('should handle lookup errors gracefully', async () => {
+      vi.mocked(which).mockRejectedValue(new Error('lookup failed'))
 
-      const resultPromise = findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
-
-      // Simulate spawn error
-      mockChild.emit('error', new Error('spawn failed'))
-
-      const result = await resultPromise
+      const result = await findCommandInShellEnv('npx', { PATH: 'C:\\nodejs' })
       expect(result).toBeNull()
+    })
+
+    it('findExecutableInEnv should resolve npx.cmd through the shell PATH', async () => {
+      const { getShellEnv } = await import('../shellEnv')
+      vi.mocked(getShellEnv).mockResolvedValue({ PATH: 'C:\\nodejs' })
+      vi.mocked(which).mockResolvedValue(['C:\\Program Files\\nodejs\\npx.cmd'] as never)
+
+      const result = await findExecutableInEnv('npx')
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
   })
 })

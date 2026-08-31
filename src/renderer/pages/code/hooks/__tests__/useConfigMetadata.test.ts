@@ -2,6 +2,7 @@ import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/pr
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,9 +19,15 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/pages/code/cliConfig', () => ({
   hasClaudeDetailedModels: (config: Record<string, unknown>) =>
     Boolean((config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL),
-  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+  getClaudeContextModelId: (
+    providerId: string,
+    config: Record<string, unknown>,
+    gatewayModels?: Map<string, Model>
+  ) => {
     const model = (config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL
-    return model ? `${providerId}::${model}` : undefined
+    if (!model) return undefined
+    if (!gatewayModels) return `${providerId}::${model}`
+    return [...gatewayModels.values()].find((entry) => `${entry.providerId}:${entry.apiModelId}` === model)?.id
   }
 }))
 
@@ -55,6 +62,7 @@ const makeModel = (providerId: string, modelId: string, capabilities: string[] =
 
 beforeEach(() => {
   modelRecords.length = 0
+  MockUsePreferenceUtils.resetMocks()
 })
 
 describe('useConfigMetadata.gatewayModelsById', () => {
@@ -71,6 +79,21 @@ describe('useConfigMetadata.gatewayModelsById', () => {
 
     expect([...result.current.gatewayModelsById.keys()]).toEqual([routableModel.id])
   })
+
+  it('uses the global default model only when the gateway can route it', () => {
+    const routableModel = makeModel('anthropic', 'claude-chat')
+    modelRecords.push(routableModel)
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', routableModel.id)
+
+    const { result, rerender } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [apiKeyProvider]))
+
+    expect(result.current.defaultGatewayModelId).toBe(routableModel.id)
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'disabled::chat')
+    rerender()
+
+    expect(result.current.defaultGatewayModelId).toBeUndefined()
+  })
 })
 
 describe('useConfigMetadata.filterProviders', () => {
@@ -80,6 +103,13 @@ describe('useConfigMetadata.filterProviders', () => {
     const filtered = result.current.filterProviders([oauthProvider, apiKeyProvider])
 
     expect(filtered).toEqual([apiKeyProvider])
+  })
+
+  it('filters providers with the requested CLI tool instead of the active one', () => {
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, []))
+
+    expect(result.current.filterProvidersForTool(CodeCli.CLAUDE_CODE, [apiKeyProvider])).toEqual([apiKeyProvider])
+    expect(result.current.filterProvidersForTool(CodeCli.OPENAI_CODEX, [apiKeyProvider])).toEqual([])
   })
 })
 
@@ -145,6 +175,24 @@ describe('useConfigMetadata.resolveProviderMeta', () => {
     })
 
     expect(meta.modelName).toBe('claude-fable-5')
+  })
+
+  it('resolves a detailed gateway address to the model name', () => {
+    const model = {
+      ...makeModel('anthropic', 'claude-chat'),
+      apiModelId: 'claude-chat',
+      name: 'Claude Chat'
+    } as Model
+    modelRecords.push(model)
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [apiKeyProvider]))
+
+    const meta = result.current.resolveProviderMeta(gatewayProvider, {
+      modelId: null,
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-chat' } }
+    })
+
+    expect(meta.modelName).toBe('Claude Chat')
   })
 
   it('resolves the plain configured model for non-detailed configs', () => {

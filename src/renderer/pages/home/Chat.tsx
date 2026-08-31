@@ -1,8 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
@@ -14,16 +12,21 @@ import {
 } from '@renderer/components/composer/variants/chat/ChatConversationControls'
 import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
+import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/types/conversationLayout'
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
@@ -67,24 +70,30 @@ interface Props {
   resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
+interface CitationPanelState {
+  topicId: string
+  citations: Citation[]
+}
+
 const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
+  const clearTopicMessages = useClearTopicMessages()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
-  const invalidateCache = useInvalidateCache()
-  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
-  const branchDraftAnchorIdRef = useRef<string | null>(null)
-  const branchSendAnchorOverrideIdRef = useRef<string | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
+  const isActiveTab = useIsActiveTab()
   const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
+  const citationPanelCitations =
+    citationPanelState && citationPanelState.topicId === activeTopicId ? citationPanelState.citations : null
   const assistantContext = useAssistant(activeTopic?.assistantId, {
     loadDefaultModel: Boolean(activeTopic)
   })
@@ -92,29 +101,30 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  // Provider metadata is only used by the selected-model details popover. A normal single-model
-  // conversation already carries everything its trigger needs on the Model entity itself.
+  // Provider metadata supplies the user-facing name for both the single-model trigger and
+  // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
     activeTopic &&
-      activeConversationControlsSnapshot &&
-      (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
-        activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
-        activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
+      (assistantContext.model ||
+        (activeConversationControlsSnapshot &&
+          (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
+            activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
+            activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
   useEffect(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
+    setCitationPanelState(null)
+  }, [activeTopicId])
+
+  useEffect(() => {
     setBranchLocateMessageId(undefined)
     if (!activeTopicId) return
 
     setTopicBranchLiveState(activeTopicId, null)
     return () => {
-      branchDraftAnchorIdRef.current = null
-      branchSendAnchorOverrideIdRef.current = null
       setTopicBranchLiveState(activeTopicId, null)
     }
   }, [activeTopicId, setTopicBranchLiveState])
@@ -139,12 +149,34 @@ const Chat: FC<Props> = (props) => {
     },
     { enabled: showConversation }
   )
+  useCommandHandler(
+    'topic.clear_messages',
+    async () => {
+      if (!activeTopic) return
+      const confirmed = await popup.confirm({
+        title: t('chat.input.clear.title'),
+        content: t('chat.input.clear.content'),
+        centered: true
+      })
+      if (!confirmed) return
+      try {
+        await clearTopicMessages(activeTopic.id)
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+      }
+    },
+    { enabled: showConversation && isActiveTab }
+  )
 
   const citationsPanelOpen = citationPanelCitations !== null
 
-  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
-    setCitationPanelCitations(citations)
-  }, [])
+  const handleOpenCitationsPanel = useCallback(
+    ({ citations }: { citations: Citation[] }) => {
+      if (!activeTopicId) return
+      setCitationPanelState({ topicId: activeTopicId, citations })
+    },
+    [activeTopicId]
+  )
   const handleAssistantChange = useCallback(
     async (nextAssistantId: string | null) => {
       if (!activeTopic || !nextAssistantId || nextAssistantId === activeTopic.assistantId) return
@@ -164,67 +196,6 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const getBranchDraftAnchorId = useCallback(
-    () => branchDraftAnchorIdRef.current ?? branchSendAnchorOverrideIdRef.current,
-    []
-  )
-  const clearBranchDraft = useCallback(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
-  }, [])
-  const handleCancelBranchDraft = useCallback(
-    (nextActiveNodeId?: string | null) => {
-      branchDraftAnchorIdRef.current = null
-      branchSendAnchorOverrideIdRef.current = nextActiveNodeId ?? null
-      if (!activeTopicId) return
-
-      if (nextActiveNodeId === undefined) {
-        setTopicBranchLiveState(activeTopicId, null)
-        return
-      }
-
-      setTopicBranchLiveState(activeTopicId, {
-        topicId: activeTopicId,
-        activeNodeId: nextActiveNodeId,
-        nodes: []
-      })
-    },
-    [activeTopicId, setTopicBranchLiveState]
-  )
-  const handleStartBranchDraft = useCallback(
-    async (anchorMessageId: string) => {
-      if (!activeTopicId) return
-
-      await dataApiService.put(`/topics/${activeTopicId}/active-node`, {
-        body: { nodeId: anchorMessageId }
-      })
-
-      branchDraftAnchorIdRef.current = anchorMessageId
-      branchSendAnchorOverrideIdRef.current = null
-      const draftNodeId = `branch-draft:${anchorMessageId}`
-      const draftState: TopicMessageFlowLiveState = {
-        topicId: activeTopicId,
-        activeNodeId: draftNodeId,
-        nodes: [
-          {
-            id: draftNodeId,
-            parentId: anchorMessageId,
-            role: 'user',
-            preview: t('chat.message.flow.status.awaiting_input'),
-            modelId: null,
-            status: 'paused',
-            createdAt: new Date().toISOString(),
-            isInputDraft: true
-          }
-        ]
-      }
-
-      setTopicBranchLiveState(activeTopicId, draftState)
-      void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
-      await invalidateCache(`/topics/${activeTopicId}/messages`)
-    },
-    [activeTopicId, invalidateCache, setTopicBranchLiveState, t]
-  )
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -232,7 +203,7 @@ const Chat: FC<Props> = (props) => {
       onLocateMessageHandledProp?.()
     }
   }, [locateMessageIdProp, onLocateMessageHandledProp])
-  const center =
+  const centerContent =
     centerSurface?.content ??
     (activeTopic ? (
       <ChatContent
@@ -244,9 +215,6 @@ const Chat: FC<Props> = (props) => {
         locateMessageId={locateMessageId}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
-        clearBranchDraft={clearBranchDraft}
-        getBranchDraftAnchorId={getBranchDraftAnchorId}
-        onStartBranchDraft={handleStartBranchDraft}
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
@@ -256,6 +224,8 @@ const Chat: FC<Props> = (props) => {
       // the empty center rather than spinning forever. Same split as AgentChat.
       <ConversationCenterState state={props.topicPending ? 'loading' : 'empty'} />
     ))
+  // ChatContent is keyed by topic; keep width-derived layout state outside that remount boundary.
+  const center = <ChatLayoutModeProvider>{centerContent}</ChatLayoutModeProvider>
 
   return (
     <ConversationShell
@@ -332,19 +302,13 @@ const Chat: FC<Props> = (props) => {
         showConversation ? (
           <CitationsPanel
             open={citationsPanelOpen}
-            onClose={() => setCitationPanelCitations(null)}
+            onClose={() => setCitationPanelState(null)}
             citations={citationPanelCitations ?? []}
           />
         ) : undefined
       }
       center={center}
-      rightPane={
-        <TopicRightPane.Viewport
-          onLocateMessage={setBranchLocateMessageId}
-          onStartBranchDraft={handleStartBranchDraft}
-          onCancelBranchDraft={handleCancelBranchDraft}
-        />
-      }
+      rightPane={<TopicRightPane.Viewport onLocateMessage={setBranchLocateMessageId} />}
       centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
       centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
       centerClassName={

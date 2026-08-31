@@ -1,3 +1,4 @@
+import { type Canvas, createCanvas } from '@napi-rs/canvas'
 import * as htmlToImage from 'html-to-image'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,9 +14,11 @@ import {
   checkEntityImageSize,
   convertToBase64,
   getImageBlobFromSource,
+  IMAGE_CAPTURE_ATTRIBUTE,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
-  prepareEntityImageBytes
+  prepareEntityImageBytes,
+  transformImageToPng
 } from '../image'
 
 // mock 依赖
@@ -45,6 +48,80 @@ beforeEach(() => {
 })
 
 describe('utils/image', () => {
+  describe('transformImageToPng', () => {
+    const sourcePixels = [
+      ['A', [255, 0, 0, 255]],
+      ['B', [0, 255, 0, 255]],
+      ['C', [0, 0, 255, 255]],
+      ['D', [255, 255, 0, 255]],
+      ['E', [255, 0, 255, 255]],
+      ['F', [0, 255, 255, 255]]
+    ] as const
+    const labelByRgb = new Map(sourcePixels.map(([label, [red, green, blue]]) => [`${red},${green},${blue}`, label]))
+    let closeBitmap: ReturnType<typeof vi.fn>
+    let outputCanvas: Canvas
+
+    beforeEach(() => {
+      const sourceCanvas = createCanvas(2, 3)
+      const sourceContext = sourceCanvas.getContext('2d')
+      const sourceImageData = sourceContext.createImageData(2, 3)
+      sourceImageData.data.set(sourcePixels.flatMap(([, rgba]) => rgba))
+      sourceContext.putImageData(sourceImageData, 0, 0)
+      closeBitmap = vi.fn()
+      Object.assign(sourceCanvas, { close: closeBitmap })
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(sourceCanvas))
+
+      const createElement = document.createElement.bind(document)
+      vi.spyOn(document, 'createElement').mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+        if (tagName !== 'canvas') {
+          return createElement(tagName, options)
+        }
+
+        outputCanvas = createCanvas(1, 1)
+        Object.assign(outputCanvas, {
+          toBlob: (callback: BlobCallback, type?: string) => callback(new Blob(['png'], { type }))
+        })
+        return outputCanvas as unknown as HTMLCanvasElement
+      }) as typeof document.createElement)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it.each([
+      ['rotation=90', { flipX: false, flipY: false, rotation: 90 }, 3, 2, ['E', 'C', 'A', 'F', 'D', 'B']],
+      ['rotation=180', { flipX: false, flipY: false, rotation: 180 }, 2, 3, ['F', 'E', 'D', 'C', 'B', 'A']],
+      ['rotation=270', { flipX: false, flipY: false, rotation: 270 }, 3, 2, ['B', 'D', 'F', 'A', 'C', 'E']],
+      ['rotation=-90', { flipX: false, flipY: false, rotation: -90 }, 3, 2, ['B', 'D', 'F', 'A', 'C', 'E']],
+      ['flipX', { flipX: true, flipY: false, rotation: 0 }, 2, 3, ['B', 'A', 'D', 'C', 'F', 'E']],
+      ['flipY', { flipX: false, flipY: true, rotation: 0 }, 2, 3, ['E', 'F', 'C', 'D', 'A', 'B']]
+    ])('bakes $0 into the output dimensions and pixels', async (_name, transform, width, height, expectedPixels) => {
+      const result = await transformImageToPng(new Blob(['source'], { type: 'image/png' }), transform)
+      const imageData = outputCanvas.getContext('2d').getImageData(0, 0, outputCanvas.width, outputCanvas.height)
+      const actualPixels = Array.from({ length: outputCanvas.width * outputCanvas.height }, (_, index) => {
+        const offset = index * 4
+        return labelByRgb.get(`${imageData.data[offset]},${imageData.data[offset + 1]},${imageData.data[offset + 2]}`)
+      })
+
+      expect(result.type).toBe('image/png')
+      expect([outputCanvas.width, outputCanvas.height]).toEqual([width, height])
+      expect(actualPixels).toEqual(expectedPixels)
+      expect(closeBitmap).toHaveBeenCalledOnce()
+    })
+
+    it('expands the output canvas to preserve image corners at an arbitrary angle', async () => {
+      await transformImageToPng(new Blob(['source'], { type: 'image/png' }), {
+        flipX: false,
+        flipY: false,
+        rotation: 45
+      })
+
+      expect([outputCanvas.width, outputCanvas.height]).toEqual([4, 4])
+    })
+  })
+
   describe('convertToBase64', () => {
     it('should convert file to base64 string', async () => {
       const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
@@ -204,6 +281,34 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
 
       expect(result).toBe(finalCanvas)
+    })
+
+    it('marks the capture root during capture and removes the marker afterward', async () => {
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (node) => {
+        expect(node.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(true)
+        return finalCanvas
+      })
+
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+      await expect(captureScrollable(ref)).resolves.toBe(finalCanvas)
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
+    })
+
+    it('removes the capture marker when capture fails', async () => {
+      vi.mocked(htmlToImage.toCanvas).mockRejectedValue(new Error('capture failed'))
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+      expect(div.hasAttribute(IMAGE_CAPTURE_ATTRIBUTE)).toBe(false)
     })
 
     it('should exclude HTML artifacts from image capture', async () => {
@@ -501,6 +606,7 @@ describe('utils/image', () => {
 
     beforeEach(() => {
       fetchMock.mockReset().mockResolvedValue({
+        ok: true,
         blob: async () => new Blob(['remote'], { type: 'image/webp' })
       })
       ipcMocks.request.mockResolvedValue({
@@ -548,6 +654,72 @@ describe('utils/image', () => {
 
       expect(fetchMock).toHaveBeenCalledWith('https://example.com/image.webp')
       expect(blob.type).toBe('image/webp')
+    })
+
+    it('throws on a non-ok remote response instead of returning the error page', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: false, status: 404, blob: async () => new Blob(['gone']) })
+
+      await expect(getImageBlobFromSource('https://example.com/gone.webp')).rejects.toThrow('404')
+    })
+
+    it('throws when a 200 response carries non-image content (proxy/login page)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html>signin</html>'], { type: 'text/html' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/wallpaper.png')).rejects.toThrow('not an image')
+    })
+
+    it('accepts a remote blob with an empty content type', async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, blob: async () => new Blob(['bytes']) })
+
+      const blob = await getImageBlobFromSource('https://example.com/unknown.bin')
+
+      expect(blob.type).toBe('')
+    })
+
+    it('accepts a remote image served as octet-stream (mislabelled, not a non-image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['imagedata'], { type: 'application/octet-stream' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/mislabeled.png')
+
+      expect(blob.type).toBe('application/octet-stream')
+    })
+
+    it('trims the content type before judging it (stray whitespace does not reject an image)', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['png'], { type: ' image/png' })
+      })
+
+      const blob = await getImageBlobFromSource('https://cdn.example.com/padded.png')
+
+      expect(blob.type).toBe(' image/png')
+    })
+
+    it('rejects a non-image content type carrying header parameters', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        blob: async () => new Blob(['<html/>'], { type: 'text/html; charset=utf-8' })
+      })
+
+      await expect(getImageBlobFromSource('https://cdn.example.com/signin')).rejects.toThrow('not an image')
+    })
+
+    it('accepts an octet-stream local file (extension-less entries are real images)', async () => {
+      ipcMocks.request.mockResolvedValueOnce({
+        content: new Uint8Array([1, 2, 3]),
+        mime: 'application/octet-stream',
+        version: { mtime: 1, size: 3 }
+      })
+
+      const blob = await getImageBlobFromSource('file:///data/Files/noext')
+
+      expect(blob.type).toBe('application/octet-stream')
     })
 
     it('throws on a data URL with no media type', async () => {

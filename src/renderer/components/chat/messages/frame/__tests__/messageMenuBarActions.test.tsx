@@ -2,6 +2,7 @@ import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/com
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 const tooltipOpenValues = vi.hoisted(() => [] as Array<boolean | undefined>)
@@ -373,8 +374,14 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.find((action) => action.id === 'assistant-regenerate')?.confirm).toBeUndefined()
   })
 
-  it('renders mention-model picker with a direct button trigger', () => {
-    const renderRegenerateModelPicker = vi.fn(({ trigger }) => <div data-testid="model-picker">{trigger}</div>)
+  it('does not bubble mention-model picker trigger or portal clicks to the message card', () => {
+    const renderRegenerateModelPicker = vi.fn(({ trigger }) => (
+      <div data-testid="model-picker">
+        {trigger}
+        {createPortal(<button type="button">model-a</button>, document.body)}
+      </div>
+    ))
+    const onCardClick = vi.fn()
     const context = createActionContext({
       actions: { renderRegenerateModelPicker } as unknown as MessageListActions
     })
@@ -383,14 +390,16 @@ describe('messageMenuBarActions', () => {
     expect(action).toBeTruthy()
 
     render(
-      renderModelPickerToolbarAction({
-        action: action!,
-        actionContext: context,
-        executeAction: vi.fn(),
-        menuActions: [],
-        softHoverBg: false,
-        translationItems: []
-      })
+      <div onClick={onCardClick}>
+        {renderModelPickerToolbarAction({
+          action: action!,
+          actionContext: context,
+          executeAction: vi.fn(),
+          menuActions: [],
+          softHoverBg: false,
+          translationItems: []
+        })}
+      </div>
     )
 
     expect(renderRegenerateModelPicker).toHaveBeenCalledWith(
@@ -400,7 +409,13 @@ describe('messageMenuBarActions', () => {
       })
     )
     expect(screen.getByTestId('model-picker')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'message.mention.title' })).toHaveClass('message-action-button')
+    const trigger = screen.getByRole('button', { name: 'message.mention.title' })
+    expect(trigger).toHaveClass('message-action-button')
+
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: 'model-a' }))
+
+    expect(onCardClick).not.toHaveBeenCalled()
   })
 
   it('keeps the more menu tooltip controlled while opening the menu with one click', () => {
@@ -753,7 +768,7 @@ describe('messageMenuBarActions', () => {
     ])
   })
 
-  it('shows disabled new branch with a reason in the latest message menu', () => {
+  it('enables new branch in the latest message menu', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createActionContext({
         actions: {
@@ -772,15 +787,36 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select'])
     expect(menuActions[0]?.availability).toEqual({
       visible: true,
-      enabled: false,
-      reason: 'chat.message.new.branch.disabled.latest'
+      enabled: true
     })
   })
 
-  it('hides new branch from user message menus', () => {
+  it('copies the selected assistant path from beside the new branch action', async () => {
+    const copyBranchToNewTopic = vi.fn()
+    const notifySuccess = vi.fn()
+    const context = createActionContext({
+      actions: {
+        copyBranchToNewTopic,
+        notifySuccess,
+        startMessageBranch: vi.fn()
+      } as MessageListActions
+    })
+
+    const menuActions = resolveMessageMenuBarMenuActions(context)
+
+    expect(menuActions.slice(0, 2).map((action) => action.id)).toEqual(['new-branch', 'copy-to-new-topic'])
+
+    await executeMessageMenuBarAction('copy-to-new-topic', context)
+
+    expect(copyBranchToNewTopic).toHaveBeenCalledWith('message-1')
+    expect(notifySuccess).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
+  })
+
+  it('hides branch actions from user message menus', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createActionContext({
         actions: {
+          copyBranchToNewTopic: vi.fn(),
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
         } as MessageListActions,

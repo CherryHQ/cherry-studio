@@ -1,15 +1,18 @@
 import { EventEmitter } from 'node:events'
 
-import type { WebviewAnnotation } from '@shared/types/webview'
+import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
+import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ACCESSIBILITY_CAPTURE_TIMEOUT_MS_FOR_TEST = 5_001
 
-const { cacheValues, guestById, getWindow, getPath } = vi.hoisted(() => ({
+const { cacheValues, guestById, getWindow, getPath, siteSession, localSession } = vi.hoisted(() => ({
   cacheValues: new Map<string, unknown>(),
   guestById: new Map<number, unknown>(),
   getWindow: vi.fn(),
-  getPath: vi.fn(() => '/app/out/preload/webview.js')
+  getPath: vi.fn(() => '/app/out/preload/webview.js'),
+  siteSession: {},
+  localSession: {}
 }))
 
 const cacheService = {
@@ -37,8 +40,15 @@ vi.mock('@logger', () => ({
 
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
+    private readonly disposables: Array<() => void> = []
+
     registerDisposable<T>(disposable: T) {
+      if (typeof disposable === 'function') this.disposables.push(disposable as () => void)
       return disposable
+    }
+
+    disposeRegistered() {
+      for (const dispose of this.disposables.splice(0).reverse()) dispose()
     }
   },
   Injectable: () => () => undefined,
@@ -48,11 +58,17 @@ vi.mock('@main/core/lifecycle', () => ({
 
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US', t: (key: string) => key }))
 vi.mock('../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: () => true }))
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof FsModule>()
+  return { ...actual, default: actual, existsSync: () => true }
+})
 
 vi.mock('electron', () => ({
   app: { on: vi.fn(), removeListener: vi.fn() },
   dialog: { showSaveDialog: vi.fn() },
-  session: { fromPartition: vi.fn() },
+  session: {
+    fromPartition: vi.fn((partition: string) => (partition === 'persist:webview' ? siteSession : localSession))
+  },
   shell: { openExternal: vi.fn() },
   webContents: {
     fromId: (id: number) => guestById.get(id),
@@ -65,6 +81,7 @@ import { WebviewService } from '../WebviewService'
 interface MockContents extends EventEmitter {
   id: number
   hostWebContents: object | null
+  session: object
   debugger: {
     attach: ReturnType<typeof vi.fn>
     detach: ReturnType<typeof vi.fn>
@@ -89,12 +106,14 @@ function createContents(
     devToolsOpened?: boolean
     debuggerAttached?: boolean
     sendCommand?: ReturnType<typeof vi.fn>
+    session?: object
   } = {}
 ): MockContents {
   const contents = new EventEmitter() as MockContents
   let debuggerAttached = options.debuggerAttached ?? false
   contents.id = id
   contents.hostWebContents = hostWebContents
+  contents.session = options.session ?? siteSession
   contents.debugger = {
     attach: vi.fn(() => {
       debuggerAttached = true
@@ -148,7 +167,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       sandbox: false
     }
 
-    host.emit('will-attach-webview', {}, preferences, {})
+    host.emit('will-attach-webview', {}, preferences, { partition: 'persist:webview' })
 
     expect(preferences).toMatchObject({
       preload: '/app/out/preload/webview.js',
@@ -157,6 +176,28 @@ describe('WebviewService annotation security and lifecycle', () => {
       contextIsolation: true,
       sandbox: true
     })
+  })
+
+  it('does not replace the local mini app capability bridge preload', () => {
+    const host = createContents(1, null, { type: 'window' })
+    ;(service as any).attachWebviewPreload(host)
+    const preferences = { preload: '/app/out/preload/miniAppBridge.js', sandbox: true }
+
+    host.emit('will-attach-webview', {}, preferences, { partition: 'persist:miniapp:com.example.app' })
+
+    expect(preferences).toEqual({ preload: '/app/out/preload/miniAppBridge.js', sandbox: true })
+  })
+
+  it('can reattach listeners after lifecycle cleanup', () => {
+    const host = createContents(1, null, { type: 'window' })
+    ;(service as any).attachWebviewPreload(host)
+    expect(host.listenerCount('will-attach-webview')).toBe(1)
+
+    ;(service as any).disposeRegistered()
+    expect(host.listenerCount('will-attach-webview')).toBe(0)
+
+    ;(service as any).attachWebviewPreload(host)
+    expect(host.listenerCount('will-attach-webview')).toBe(1)
   })
 
   it('accepts snapshots only from the window that owns the webview and sanitizes page metadata', () => {
@@ -184,6 +225,20 @@ describe('WebviewService annotation security and lifecycle', () => {
       service.replaceAnnotations(
         { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
         'other'
+      )
+    ).toThrow('The caller does not own this webview')
+  })
+
+  it('rejects annotation access to a local mini app guest even when the host owns it', () => {
+    const hostWebContents = {}
+    const guest = createContents(7, hostWebContents, { session: localSession })
+    guestById.set(7, guest)
+    getWindow.mockReturnValue({ webContents: hostWebContents })
+
+    expect(() =>
+      service.replaceAnnotations(
+        { webviewId: 7, target: { id: 'mini-app:local', label: 'Local' }, annotations: [annotation] },
+        'owner'
       )
     ).toThrow('The caller does not own this webview')
   })

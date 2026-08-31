@@ -4,8 +4,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-import { cn } from '@renderer/utils/style'
-import { History, MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,8 +12,6 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResourceListGroupDropAnchor,
   compareResourceOrderKey,
-  ConversationResourceMenu,
-  type ConversationResourceMenuItem,
   ResourceList,
   type ResourceListGroup,
   type ResourceListOrderAnchor,
@@ -100,16 +97,14 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
    * on top). Off → the flat "助手"/"智能体" section.
    */
   groupByGroup?: boolean
+  collapsedState?: readonly string[]
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   headerActions?: ReactNode
-  historyRecordsActive?: boolean
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
-  /** When provided, a history-records button sits next to the add button. */
-  onOpenHistoryRecords?: () => void
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
+  onCollapsedStateChange?: (collapsedIds: string[]) => void
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   /** Reorder canonical groups while `groupByGroup` is enabled. Pinned and ungrouped buckets stay fixed. */
   onGroupReorder?: (groupId: string, anchor: ResourceListOrderAnchor) => void | Promise<void>
@@ -119,6 +114,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onSelectedClick?: (item: T) => void | Promise<void>
   selectedClickId?: string | null
   selectedId?: string | null
+  /** Hides the row selection while a conversation-level center surface owns the content pane. */
+  selectionSuppressed?: boolean
   status?: ResourceListStatus
   variant: 'agent' | 'assistant'
   items: readonly T[]
@@ -130,33 +127,19 @@ const ENTITY_RAIL_LEADING_SLOT_CLASS =
 const ENTITY_RAIL_TITLE_CLASS =
   'font-normal text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
-function getEntityRailTrailingActionPaddingClassName(actionCount: number) {
-  if (actionCount >= 3) {
-    return 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-  }
-  if (actionCount === 2) {
-    return 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-  }
-  if (actionCount === 1) {
-    return 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-  }
-  return ''
-}
-
 export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionContext = unknown>({
   addIcon,
   addLabel,
   ariaLabel,
   defaultGroupLabel,
   groupByGroup = false,
+  collapsedState,
   emptyFallback,
   getContextMenuActions,
   headerActions,
-  historyRecordsActive = false,
   listRef,
   onAdd,
-  onOpenHistoryRecords,
-  resourceMenuItems,
+  onCollapsedStateChange,
   onContextMenuAction,
   onReorder,
   onGroupReorder,
@@ -165,6 +148,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   onSelectedClick,
   selectedClickId,
   selectedId,
+  selectionSuppressed = false,
   status = 'idle',
   variant,
   items
@@ -175,10 +159,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const hasReorderHandler = !!onReorder || !!onGroupReorder
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const effectiveSelectedId = hasActiveCenterSurface ? null : selectedId
-  const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
+  const effectiveSelectedId = selectionSuppressed ? null : selectedId
+  const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
   const handleItemClick = useCallback(
     (item: T) => {
       if (effectiveSelectedClickId === item.id && onSelectedClick) {
@@ -227,8 +209,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
       const hasTrailingAction = Boolean(item.trailingAction)
-      const trailingActionCount = (hasTrailingAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
-      const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
@@ -242,9 +222,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
               {item.icon}
             </ResourceList.ItemLeadingSlot>
           )}
-          <ResourceList.ItemTitle
-            className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.tooltip ? undefined : item.name}>
+          <ResourceList.ItemTitle className={ENTITY_RAIL_TITLE_CLASS} title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (
@@ -357,6 +335,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}
+      collapsedState={collapsedState}
+      onCollapsedStateChange={onCollapsedStateChange}
       defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
       dragCapabilities={{
         groups: groupReorderEnabled,
@@ -375,35 +355,16 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         sourceGroupId === targetGroupId
       }
       onReorder={hasReorderHandler ? handleReorder : undefined}>
-      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
-        <ResourceList.Header className="gap-1">
+      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`} presentation="left-panel">
+        <ResourceList.Header>
           <ResourceList.HeaderItem
             type="button"
             icon={addIcon}
             label={addLabel}
             aria-label={addLabel}
             onClick={() => void onAdd()}
-            actions={
-              headerActions || onOpenHistoryRecords ? (
-                <>
-                  {headerActions}
-                  {onOpenHistoryRecords && (
-                    <Tooltip title={t('history.records.shortTitle')} delay={500}>
-                      <ResourceList.HeaderActionButton
-                        type="button"
-                        aria-label={t('history.records.shortTitle')}
-                        aria-current={historyRecordsActive ? 'page' : undefined}
-                        className={cn(historyRecordsActive && 'bg-muted text-foreground!')}
-                        onClick={() => onOpenHistoryRecords()}>
-                        <History className="block" />
-                      </ResourceList.HeaderActionButton>
-                    </Tooltip>
-                  )}
-                </>
-              ) : undefined
-            }
+            actions={headerActions}
           />
-          <ConversationResourceMenu items={resourceMenuItems} />
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}

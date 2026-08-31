@@ -199,6 +199,18 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.content).toContain('401')
     })
 
+    it('requires all diagnosis fields to use the language selected in settings', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'summary', category: 'category', explanation: 'explanation', steps: [] })
+      )
+
+      await diagnoseError(makeError(), 'preferred-language')
+
+      expect(mockFetchGenerate.mock.calls[0][0].prompt).toContain(
+        'Write all values for summary, category, explanation, and steps[].text in preferred-language'
+      )
+    })
+
     it('defaults category to unknown when missing', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({
@@ -259,6 +271,83 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.prompt).not.toContain('Network or proxy error')
     })
 
+    it('does not route an unqualified proxy mention to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'something proxy related' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium ERR_PROXY_CONNECTION_FAILED to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes a SOCKS proxy rejected connection to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'Socks5 proxy rejected connection' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('does not route an unrelated ERR_ token near proxy configuration prose to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('routes an undici ProxyAgent CONNECT failure to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'Proxy response (407) !== 200 when HTTP Tunneling' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
+    it('routes an https-proxy-agent CONNECT close to network/proxy context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'proxy', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'Proxy connection ended before receiving CONNECT response' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('Network or proxy error')
+    })
+
     it('forwards finishReason for safety-blocked responses', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
@@ -293,6 +382,56 @@ describe('ErrorDiagnosisService', () => {
       const callArgs = mockFetchGenerate.mock.calls[0][0]
       expect(callArgs.prompt).toContain('quota or account balance is exhausted')
       expect(callArgs.prompt).not.toContain('hitting a rate limit')
+    })
+
+    // The inline card classifies 403 as `permission`; the prompt must not then tell the user
+    // their key is invalid. Region and quota keep winning, matching `classifyError`.
+    it('routes HTTP 403 to permission context instead of auth context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'permission', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"no access"}' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('refused this request with HTTP 403')
+      expect(callArgs.prompt).not.toContain('got an authentication error')
+    })
+
+    it('keeps a geo-blocked 403 in region context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'region', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, message: 'unsupported_country_region_territory' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('IP region is not supported')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
+    it('keeps a billing 403 in quota context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
+    })
+
+    it('still routes HTTP 401 to auth context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 401, message: 'Unauthorized' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('got an authentication error')
+      expect(callArgs.prompt).not.toContain('refused this request with HTTP 403')
     })
 
     it('falls back to provider and model fields on the error', async () => {

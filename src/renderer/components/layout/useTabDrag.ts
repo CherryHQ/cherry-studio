@@ -3,11 +3,27 @@ import { ipcApi } from '@renderer/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { applyHorizontalRubberBandTranslateX } from './tabDragRubberBand'
+
 const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30
 const TAB_GAP = 6
+const TAB_DRAG_SAFE_INSET = 16
 
 type DragMode = 'pending' | 'reorder' | 'detach'
+type HorizontalRect = Pick<DOMRectReadOnly, 'left' | 'width'>
+
+const getElementLayoutRect = (element: HTMLElement): HorizontalRect => {
+  const rect = element.getBoundingClientRect()
+  const translateX = Number.parseFloat(element.style.transform.match(/translateX\(([-\d.]+)px\)/)?.[1] ?? '0')
+
+  return { left: rect.left - translateX, width: rect.width }
+}
+
+const getRightInsetWidth = (boundaryRect: DOMRectReadOnly | null, insetElement: HTMLElement | null): number => {
+  if (!boundaryRect || !insetElement) return 0
+  return Math.max(0, boundaryRect.right - insetElement.getBoundingClientRect().left) + TAB_GAP
+}
 
 interface DragState {
   tabId: string
@@ -27,6 +43,8 @@ interface UseTabDragOptions {
 
 export interface UseTabDragReturn {
   tabBarRef: React.RefObject<HTMLDivElement | null>
+  tabListRef: React.RefObject<HTMLDivElement | null>
+  rightInsetRef: React.RefObject<HTMLButtonElement | null>
   tabRefs: React.MutableRefObject<Map<string, HTMLButtonElement>>
   noTransition: boolean
   getTranslateX: (tabId: string, tabType: 'pinned' | 'normal') => number
@@ -60,7 +78,10 @@ export function useTabDrag({
     tabType: 'normal' as 'pinned' | 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>(),
+    originalRects: new Map<string, HorizontalRect>(),
+    boundaryRect: null as DOMRectReadOnly | null,
+    leftInsetWidth: 0,
+    rightInsetWidth: 0,
     grabOffsetX: 0,
     grabOffsetY: 0
   })
@@ -69,6 +90,8 @@ export function useTabDrag({
   const didDragRef = useRef(false)
 
   const tabBarRef = useRef<HTMLDivElement>(null)
+  const tabListRef = useRef<HTMLDivElement>(null)
+  const rightInsetRef = useRef<HTMLButtonElement>(null)
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
   const rafId = useRef<number | null>(null)
 
@@ -110,7 +133,20 @@ export function useTabDrag({
       const { insertIndex } = dragState
 
       if (tabId === dragState.tabId) {
-        return dragRef.current.currentX - dragRef.current.startX
+        const translateX = dragRef.current.currentX - dragRef.current.startX
+        const draggedRect = dragRef.current.originalRects.get(tabId)
+        const { boundaryRect, leftInsetWidth, rightInsetWidth } = dragRef.current
+
+        if (!draggedRect || !boundaryRect) {
+          return translateX
+        }
+
+        return applyHorizontalRubberBandTranslateX(translateX, draggedRect, boundaryRect, {
+          physicalLeftInset: leftInsetWidth,
+          physicalRightInset: rightInsetWidth,
+          leftInset: TAB_DRAG_SAFE_INSET,
+          rightInset: TAB_DRAG_SAFE_INSET
+        })
       }
 
       const draggedRect = dragRef.current.originalRects.get(dragState.tabId)
@@ -136,12 +172,16 @@ export function useTabDrag({
 
       const list = tabType === 'pinned' ? pinnedTabs : normalTabs
       const index = list.findIndex((t) => t.id === tab.id)
+      const tabList = tabListRef.current
+      const leftInsetWidth = tabList ? Number.parseFloat(window.getComputedStyle(tabList).paddingLeft) || 0 : 0
+      const boundaryRect = tabList?.getBoundingClientRect() ?? null
+      const rightInsetWidth = getRightInsetWidth(boundaryRect, rightInsetRef.current)
 
       const target = e.currentTarget as HTMLElement
       target.setPointerCapture(e.pointerId)
 
       // Store original positions of all tabs
-      const originalRects = new Map<string, { left: number; width: number }>()
+      const originalRects = new Map<string, HorizontalRect>()
       for (const t of list) {
         const el = tabRefs.current.get(t.id)
         if (el) {
@@ -159,6 +199,9 @@ export function useTabDrag({
         detachedCreated: false,
         tabClosed: false,
         originalRects,
+        boundaryRect,
+        leftInsetWidth,
+        rightInsetWidth,
         grabOffsetX: e.screenX - window.screenX,
         grabOffsetY: e.screenY - window.screenY
       }
@@ -189,6 +232,17 @@ export function useTabDrag({
       if (e.pointerId !== dragRef.current.pointerId) return
 
       dragRef.current.currentX = e.clientX
+      // Refresh live geometry so resizing and sticky-button changes do not leave stale drag bounds.
+      const liveTabList = tabListRef.current
+      if (liveTabList) {
+        dragRef.current.boundaryRect = liveTabList.getBoundingClientRect()
+        dragRef.current.leftInsetWidth = Number.parseFloat(window.getComputedStyle(liveTabList).paddingLeft) || 0
+      }
+      const draggedElement = tabRefs.current.get(dragState.tabId)
+      if (draggedElement) {
+        dragRef.current.originalRects.set(dragState.tabId, getElementLayoutRect(draggedElement))
+      }
+      dragRef.current.rightInsetWidth = getRightInsetWidth(dragRef.current.boundaryRect, rightInsetRef.current)
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 
@@ -260,7 +314,24 @@ export function useTabDrag({
         }
       }
 
-      if (dragState.mode === 'reorder') {
+      // `dragState.mode` lags behind (setState flushes after the pointer events), so
+      // key off the ref that the detach branch sets synchronously.
+      const detaching = dragState.mode === 'detach' || dragRef.current.detachedCreated
+      if (detaching) {
+        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
+          closeTab(dragState.tabId)
+        }
+        // A fast drop can beat the pointermoves that position the fresh sub-window
+        // (SubWindowService keeps position-aware windows hidden until a move shows them).
+        if (dragRef.current.detachedCreated) {
+          window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
+            tabId: dragState.tabId,
+            x: e.screenX - 400,
+            y: e.screenY - 20
+          })
+        }
+        void ipcApi.request('tab.drag_end')
+      } else if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
         const oldIndex = list.findIndex((t) => t.id === dragState.tabId)
@@ -275,11 +346,6 @@ export function useTabDrag({
             reorderTabs(dragRef.current.tabType, oldIndex, adjustedIndex)
           }
         }
-      } else if (dragState.mode === 'detach') {
-        if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
-          closeTab(dragState.tabId)
-        }
-        void ipcApi.request('tab.drag_end')
       }
 
       if (rafId.current !== null) {
@@ -312,6 +378,8 @@ export function useTabDrag({
 
   return {
     tabBarRef,
+    tabListRef,
+    rightInsetRef,
     tabRefs,
     noTransition: settling,
     getTranslateX,

@@ -152,7 +152,7 @@ const ChannelLogModal: FC<{
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-150">
+      <DialogContent className="max-w-150" closeLabel={t('common.close')}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>{`${channelName} — ${t('agent.channels.logs')}`}</span>
@@ -260,7 +260,7 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent closeOnOverlayClick={false} className="max-w-125">
+      <DialogContent closeOnOverlayClick={false} className="max-w-125" closeLabel={t('common.close')}>
         {renderedChannel && (
           <>
             <DialogHeader>
@@ -433,7 +433,6 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         type: ch.type,
         name: ch.name,
         agentId: ch.agentId,
-        sessionId: ch.sessionId,
         workspace: ch.workspace,
         config: ch.config,
         isActive: ch.isActive,
@@ -501,9 +500,9 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
       workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
       config: channelDef.defaultConfig,
-      // Feishu can register credentials by QR, so binding its active channel to an
-      // agent starts the adapter flow. Credential-gated channels start inactive.
-      isActive: channelDef.type === 'feishu'
+      // Feishu and WeChat register by QR, so binding an active channel to an agent
+      // starts the adapter flow. Credential-gated channels start inactive.
+      isActive: channelDef.type === 'feishu' || channelDef.type === 'wechat'
     } as never)
     if (newChannel) {
       openEditModal(newChannel.id)

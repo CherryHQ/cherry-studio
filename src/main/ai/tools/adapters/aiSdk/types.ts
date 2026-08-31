@@ -26,8 +26,17 @@ export interface ToolApplyScope {
   }
   /** Server allowlist + per-tool disable already applied. */
   readonly mcpToolIds: ReadonlySet<string>
+  /**
+   * In-scope MCP servers that declared the `resources` capability — gates the `mcp_resource_*`
+   * tools. Empty (the default) means no server can serve a resource, so neither tool is exposed.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
   /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
   readonly hasFileAttachments?: boolean
+  /** True when the conversation already references persisted tool-output blobs — gates the `fs_read` tool. Defaults to false. */
+  readonly hasPersistedOutputs?: boolean
+  /** True when the context-build truncate lane can offload tool outputs this request — gates the `fs_read` tool. Defaults to false. */
+  readonly canOffloadToolOutputs?: boolean
   /** True when the user has at least one knowledge base — gates the `kb_*` tools. Defaults to false. */
   readonly hasAnyKnowledgeBase?: boolean
   /**
@@ -49,7 +58,7 @@ export interface ToolEntry {
   /**
    * Unique wire-name the LLM emits.
    *   builtin: 'web_search', 'web_fetch', 'kb_search'
-   *   mcp:     'mcp__{camelCase(serverName)}__{camelCase(toolName)}' (see `buildFunctionCallToolName`)
+   *   mcp:     'mcp__{serverSlug}__{toolSlug}_{identityDigest}'
    *   meta:    'tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec'
    *
    * Double underscore is the segment separator so single `_` stays unambiguous.
@@ -82,12 +91,18 @@ export interface ToolEntry {
   codec?: ToolOutputCodec
 
   /**
-   * Grouping for `tool_search`. NOT part of the wire-name.
+   * Ownership key. NOT part of the wire-name, and never shown to the model.
    *   builtin: 'web', 'kb'
-   *   mcp:     'mcp:{serverName}'  (raw display name, not camelCased)
+   *   mcp:     'mcp:{serverId}'  (stable ownership key, not a display name)
    *   meta:    'meta'  (excluded from search results)
    */
   namespace: string
+
+  /**
+   * What `tool_search` groups by and shows the model. Defaults to `namespace`;
+   * set it when the namespace is an opaque id (MCP uses `mcp:{serverName}`).
+   */
+  namespaceLabel?: string
 
   /** One-line summary for `tool_search`. Full schema description lives on `tool.description`. */
   description: string

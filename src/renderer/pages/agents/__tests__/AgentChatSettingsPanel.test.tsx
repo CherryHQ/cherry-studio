@@ -1,5 +1,6 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,12 +15,12 @@ const topicStreamStatusMock = vi.hoisted(() => ({
 }))
 
 const activeAgentMock = vi.hoisted(() => ({
-  value: { id: 'agent-1', model: 'provider:model-1' } as any,
+  value: { id: 'agent-1', model: 'provider::model-1' } as any,
   isLoading: false,
   lookupId: undefined as string | null | undefined
 }))
 const activeModelMock = vi.hoisted(() => ({
-  value: { id: 'provider:model-1', name: 'Model 1' } as any,
+  value: { id: 'provider::model-1', name: 'Model 1' } as any,
   isLoading: false,
   lookupId: undefined as string | null | undefined
 }))
@@ -56,7 +57,8 @@ vi.mock('@renderer/ipc', () => ({
     request: (route: string, input: unknown) =>
       route === 'ai.tool.respond_approval' ? toolApprovalRespondMock(input) : Promise.resolve(undefined),
     on: () => () => {}
-  }
+  },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
@@ -187,7 +189,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
           change topbar workspace
         </button>
-        <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider:model-2', name: 'Model 2' })}>
+        <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider::model-2', name: 'Model 2' })}>
           change topbar model
         </button>
       </div>
@@ -260,6 +262,7 @@ vi.mock('../components/AgentRightPane', () => {
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
     },
+    AgentTaskProgressCapsule: () => null,
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,
@@ -286,9 +289,17 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
-  default: ({ onOpenCitationsPanel }: { onOpenCitationsPanel: (payload: { citations: unknown[] }) => void }) => (
+  default: ({
+    sessionId,
+    onOpenCitationsPanel
+  }: {
+    sessionId: string
+    onOpenCitationsPanel: (payload: { citations: unknown[] }) => void
+  }) => (
     <div data-testid="agent-messages">
-      <button type="button" onClick={() => onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+      <button
+        type="button"
+        onClick={() => onOpenCitationsPanel({ citations: [{ number: 1, url: `/tmp/${sessionId}.md` }] })}>
         open citations
       </button>
     </div>
@@ -296,8 +307,17 @@ vi.mock('../components/AgentSessionMessages', () => ({
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: ({ open, onClose, citations }: { open: boolean; onClose: () => void; citations: unknown[] }) => (
+  default: ({
+    open,
+    onClose,
+    citations
+  }: {
+    open: boolean
+    onClose: () => void
+    citations: Array<{ number: number; url: string }>
+  }) => (
     <div data-testid="citations-panel" data-open={String(open)} data-count={citations.length}>
+      {open && citations.map((citation) => <span key={citation.number}>{citation.url}</span>)}
       {open && (
         <button type="button" onClick={onClose}>
           close citations
@@ -330,10 +350,10 @@ describe('AgentChat settings panel', () => {
   beforeEach(() => {
     partsByMessageIdMock.value = {}
     topicStreamStatusMock.isPending = false
-    activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
+    activeAgentMock.value = { id: 'agent-1', model: 'provider::model-1' }
     activeAgentMock.isLoading = false
     activeAgentMock.lookupId = undefined
-    activeModelMock.value = { id: 'provider:model-1', name: 'Model 1' }
+    activeModelMock.value = { id: 'provider::model-1', name: 'Model 1' }
     activeModelMock.isLoading = false
     activeModelMock.lookupId = undefined
     modelSwitchConfirmationCacheMock.value = false
@@ -372,6 +392,22 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
+  it('closes citations when switching sessions', async () => {
+    const user = userEvent.setup()
+    const view = renderAgentChat()
+
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+    expect(screen.getByText('/tmp/session-1.md')).toBeInTheDocument()
+
+    view.rerender(
+      <AgentChat conversationBootstrap={createConversationBootstrap({ ...defaultSession, id: 'session-2' })} />
+    )
+    expect(screen.queryByText('/tmp/session-1.md')).not.toBeInTheDocument()
+
+    view.rerender(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    expect(screen.queryByText('/tmp/session-1.md')).not.toBeInTheDocument()
+  })
+
   it('uses page-owned resources without subscribing to agent and model', () => {
     renderAgentChat()
 
@@ -407,7 +443,7 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.value = {
       id: 'agent-1',
       name: 'Blank avatar agent',
-      model: 'provider:model-1',
+      model: 'provider::model-1',
       configuration: { avatar: '   ' }
     }
 
@@ -435,7 +471,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-external-context-controls', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider:model-1')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
     expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
@@ -565,7 +601,7 @@ describe('AgentChat settings panel', () => {
       expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
         {
           agentId: 'agent-1',
-          modelId: 'provider:model-2'
+          modelId: 'provider::model-2'
         },
         { showSuccessToast: false }
       )
@@ -600,7 +636,7 @@ describe('AgentChat settings panel', () => {
       expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
         {
           agentId: 'agent-1',
-          modelId: 'provider:model-2'
+          modelId: 'provider::model-2'
         },
         { showSuccessToast: false }
       )

@@ -38,6 +38,10 @@ resolves migration storage through the live application path registry.
   synchronous Agent import transaction begins. The transaction then drains the
   staging table in batches, so source JSON and transformed parts are never all
   retained in the V8 heap at once.
+- After messages are imported, each Session's `last_activity_at` is initialized
+  from user creation times and terminal assistant completion times. Transient
+  assistant rows contribute only their creation time. Empty transcripts fall
+  back to Session creation.
 - Agent and per-Agent Session ordering is converted to fractional order keys.
 - Scheduled-task trigger fields become JobManager trigger objects. Legacy task
   run logs are intentionally not migrated.
@@ -78,27 +82,29 @@ For each migrated Agent:
 - Imported resume tokens remain unchanged. If the latest Claude transcript
   cannot be made available, the normal runtime resume attempt surfaces the
   failure to the user.
-- A symlinked v1 Agent root is treated as an external user workspace: identity
-  may be read from its resolved directory, but the target is never removed.
-- Identity symlinks are followed only when they resolve inside the source
-  workspace and are materialized as ordinary files/directories.
-- Ordinary workspace symlinks remain links. Targets under identity entries are
-  rewritten to Agent data; other internal targets are rewritten to the new
-  Session workspace; external and dangling targets retain their meaning.
+- A symlinked v1 Agent root is skipped without following or removing it.
+- Identity and ordinary workspace symlinks are skipped. Migration copies only
+  regular files and directories so link permissions or unsupported link targets
+  cannot block the rest of the migration.
 - Ordinary workspace content is scanned once. The first verified private
   staging copy is reused as the regular-content source for later Sessions, so
-  migration does not need an additional full-size template. Symlinks are
-  omitted while cloning and recreated with each Session's rewritten target.
+  migration does not need an additional full-size template.
 
 Before reading or copying Agent identity and workspace content, migration
 validates every exact v2 target against every v1 source, then clears the final
 `Data/Agents/{agentId}` directories and planned managed Session workspaces that
 are not themselves legacy sources. A target already used as the same Agent's
 exact legacy workspace is retained, including case-only path variants on
-Windows and macOS; a cross-Agent or ancestor/descendant overlap still aborts.
-Validation completes for the whole cleanup plan before any target is removed.
-This avoids hashing or copying data only to fail on stale retry output, while
-leaving legacy short-ID and external user workspaces unchanged. A target
+Windows and macOS, even when another Agent also references it. Any other
+cross-Agent, ancestor/descendant, or resolved-path overlap preserves the legacy
+source and skips filesystem output for that target instead of aborting the
+database migration. The affected Agent may omit identity, memory, or managed
+workspace files, while the remaining targets continue normally. The completed
+migration surfaces the number of skipped targets as a warning; detailed paths
+remain in the diagnostic log. When an external workspace's real path fails with
+the observed `UNKNOWN` error, migration also retains every existing cleanup
+target whose overlap can no longer be ruled out, while resolution failures
+inside the managed Agent root remain fatal. A target
 recreated after cleanup is accepted only when it is identical to the verified
 staging copy.
 
@@ -117,7 +123,8 @@ The filesystem migration is copy-only with respect to v1. It never removes or
 rewrites the v1 `.claude`, `agents.db`, `Data/Agents/{legacyAgentId suffix}`, or
 external user workspace because those paths remain the source of truth when a
 user downgrades to v1. Retry cleanup removes only the exact v2 Agent and managed
-Session targets owned by the current migration plan.
+Session targets owned by the current migration plan that do not overlap a
+legacy source.
 
 Filesystem copies use content fingerprints rather than source metadata. Each
 source is fingerprinted before copying, and the complete private staging entry
@@ -158,11 +165,14 @@ remain excluded for as long as v1 downgrade support exists.
 | `agents.allowed_tools` | `agent.disabled_tools` | Starts empty; the concepts are not equivalent |
 | `agents.mcps[]` | `agent_mcp_server` | IDs remapped through the MCP migrator |
 | `session_messages.agent_session_id` | `agent_session_message.runtime_resume_token` | Preserves runtime resume state |
+| `session_messages.created_at` / `updated_at` + `role` / source status | `agent_session.last_activity_at` | Maximum user creation / terminal assistant completion time; transient assistant rows use creation time; empty Sessions use Session creation |
 | `scheduled_tasks.schedule_*` | `job_schedule.trigger` | Converted to cron, interval, or once |
 
 ## Intentionally dropped data
 
 - v1 scheduled-task run logs.
+- Malformed or non-array legacy Agent MCP payloads, and non-string entries in
+  MCP arrays. Valid string MCP IDs in mixed arrays are retained.
 - Dangling Agent/MCP, Agent/skill, channel/task, and other relationship rows
   that cannot satisfy v2 foreign keys.
 - Additional legacy accessible paths after the primary workspace.

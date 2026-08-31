@@ -47,7 +47,7 @@ import AgentContent from '../AgentContent'
 const agentA = {
   id: 'agent-a',
   name: 'Agent A',
-  model: 'provider:model-a',
+  model: 'provider::model-a',
   type: 'claude_code'
 } as any
 

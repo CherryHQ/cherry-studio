@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const isLocalInferenceHardwareAccelerationSupported = vi.hoisted(() => vi.fn(() => true))
+
+vi.mock('@main/ai/inference/inferenceAcceleration', () => ({
+  isLocalInferenceHardwareAccelerationSupported
+}))
+
 vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
   localEmbeddingDownloadService: {
     getStatus: vi.fn(),
+    getStatusInfo: vi.fn(),
     download: vi.fn(),
     cancel: vi.fn(),
     remove: vi.fn()
@@ -12,6 +19,7 @@ vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
 vi.mock('@main/services/localModel/LocalOcrDownloadService', () => ({
   localOcrDownloadService: {
     getStatus: vi.fn(),
+    getStatusInfo: vi.fn(),
     download: vi.fn(),
     cancel: vi.fn(),
     remove: vi.fn()
@@ -35,17 +43,26 @@ describe('localModelHandlers', () => {
   })
 
   it('get_status/download/cancel dispatch to the owning service', async () => {
-    vi.mocked(localEmbeddingDownloadService.getStatus).mockReturnValue('ready')
+    vi.mocked(localEmbeddingDownloadService.getStatusInfo).mockReturnValue({ status: 'ready' })
     vi.mocked(localOcrDownloadService.download).mockResolvedValue('ready')
 
-    await localModelHandlers['local_model.get_status']({ model: 'embedding' }, ctx)
+    const status = await localModelHandlers['local_model.get_status']({ model: 'embedding' }, ctx)
     const result = await localModelHandlers['local_model.download']({ model: 'ocr' }, ctx)
     await localModelHandlers['local_model.cancel']({ model: 'embedding' }, ctx)
 
-    expect(localEmbeddingDownloadService.getStatus).toHaveBeenCalled()
+    expect(localEmbeddingDownloadService.getStatusInfo).toHaveBeenCalled()
+    expect(status).toEqual({ status: 'ready' })
     expect(localOcrDownloadService.download).toHaveBeenCalled()
     expect(result).toEqual({ result: 'ready' })
     expect(localEmbeddingDownloadService.cancel).toHaveBeenCalled()
+  })
+
+  it('reports the main-process hardware acceleration capability', async () => {
+    await expect(localModelHandlers['local_model.get_acceleration_capability'](undefined, ctx)).resolves.toEqual({
+      supported: true
+    })
+
+    expect(isLocalInferenceHardwareAccelerationSupported).toHaveBeenCalledOnce()
   })
 
   describe('download', () => {

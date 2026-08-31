@@ -24,6 +24,17 @@ function isToolPart(part: CherryMessagePart): boolean {
   return t.startsWith('tool-') || t === 'dynamic-tool'
 }
 
+/**
+ * Drop transient status parts that must never reach storage. `data-retry`
+ * (model retry/fallback status) is emitted live for the renderer but is not
+ * part of the assistant's answer, so it is stripped before persistence.
+ * Returns the same array reference when nothing was removed.
+ */
+export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => part.type !== 'data-retry')
+  return filtered.length === parts.length ? parts : filtered
+}
+
 export function finalizeInterruptedParts(
   parts: CherryMessagePart[],
   status: 'success' | 'paused' | 'error'
@@ -119,13 +130,16 @@ export interface PersistenceBackend {
    */
   readonly canPersistEmptyTerminal?: boolean
 
+  /** True only when an empty successful response is itself a valid terminal result. */
+  readonly canPersistEmptySuccessTerminal?: boolean
+
   persistAssistant(input: PersistAssistantInput): void | Promise<void>
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
    * placeholder row to a terminal `error` state so a reload shows a terminal
-   * bubble instead of a frozen `pending` one. Only backends that finalize a
-   * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
+   * bubble instead of a frozen `pending` one. Backends that finalize a
+   * pre-existing placeholder implement this.
    */
   markTerminalError?(): void
 

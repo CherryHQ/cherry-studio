@@ -2,7 +2,7 @@ import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand
-} from '@shared/types/webview'
+} from '@shared/types/webviewAnnotation'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import type { ReactNode } from 'react'
@@ -140,7 +140,12 @@ describe('WebviewAnnotationControls', () => {
     })
 
     act(() => {
-      webview.dispatchEvent(new Event('did-navigate-in-page'))
+      webview.dispatchEvent(Object.assign(new Event('did-navigate-in-page'), { isMainFrame: false }))
+    })
+    expect(screen.getByText('1')).toBeInTheDocument()
+
+    act(() => {
+      webview.dispatchEvent(Object.assign(new Event('did-navigate-in-page'), { isMainFrame: true }))
     })
     await waitFor(() => expect(screen.queryByText('1')).not.toBeInTheDocument())
     expect(request).toHaveBeenCalledWith('webview.replace_annotations', {

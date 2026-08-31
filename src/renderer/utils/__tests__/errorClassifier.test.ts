@@ -32,9 +32,16 @@ describe('classifyError', () => {
     expect(result.navTarget).toBe('/settings/provider?id=openai')
   })
 
-  it('classifies 403 as auth', () => {
-    const result = classifyError(makeError({ statusCode: 403 }))
-    expect(result.category).toBe('auth')
+  // Permission — 403 means the key was accepted, so it must not read as "invalid API key".
+  it('classifies 403 as permission, not auth', () => {
+    const result = classifyError(makeError({ statusCode: 403 }), 'openai')
+    expect(result.category).toBe('permission')
+    expect(result.navTarget).toBe('/settings/provider?id=openai')
+  })
+
+  it('classifies a 403 with billing signals as quota, not permission', () => {
+    const result = classifyError(makeError({ statusCode: 403, responseBody: '{"detail":"insufficient balance"}' }))
+    expect(result.category).toBe('quota')
   })
 
   it('classifies a 403 unsupported-country response as region', () => {
@@ -45,7 +52,7 @@ describe('classifyError', () => {
       })
     )
     expect(result.category).toBe('region')
-    expect(result.navTarget).toBe('/settings/system')
+    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies a service unavailable in the user region as region', () => {
@@ -65,9 +72,14 @@ describe('classifyError', () => {
     expect(result.category).toBe('auth')
   })
 
-  it('classifies forbidden message as auth', () => {
-    const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
+  it('classifies a plain invalid API key message as auth', () => {
+    const result = classifyError(makeError({ message: 'Invalid API key' }))
     expect(result.category).toBe('auth')
+  })
+
+  it('classifies forbidden message as permission', () => {
+    const result = classifyError(makeError({ message: 'Forbidden: access denied' }))
+    expect(result.category).toBe('permission')
   })
 
   // Model
@@ -157,11 +169,16 @@ describe('classifyError', () => {
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/system')
+    expect(result.navTarget).toBe('/settings/general')
   })
 
   it('classifies timeout as network', () => {
     const result = classifyError(makeError({ message: 'Request timeout after 30000ms' }))
+    expect(result.category).toBe('network')
+  })
+
+  it('classifies a timed-out request as network', () => {
+    const result = classifyError(makeError({ message: 'Request timed out' }))
     expect(result.category).toBe('network')
   })
 
@@ -300,6 +317,72 @@ describe('classifyError', () => {
   it('does not match plain "mcp" without qualifier', () => {
     const result = classifyError(makeError({ message: 'something mcp related' }))
     expect(result.category).not.toBe('mcp')
+  })
+
+  // Proxy — live Chromium net.fetch / undici / https-proxy-agent strings, not guessed English.
+  it('classifies Chromium ERR_PROXY_CONNECTION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_CONNECTION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies Chromium ERR_PROXY_AUTH_REQUESTED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_PROXY_AUTH_REQUESTED' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  // Electron net.fetch surfaces mandatory PAC failure as this Chromium code, not ERR_PROXY_*.
+  it('classifies Chromium ERR_MANDATORY_PROXY_CONFIGURATION_FAILED as proxy', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_MANDATORY_PROXY_CONFIGURATION_FAILED' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies a Chromium socket-to-proxies failure as proxy', () => {
+    const result = classifyError(
+      makeError({ message: 'Failed to establish a socket connection to proxies: PROXY 127.0.0.1:7890' })
+    )
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies an undici ProxyAgent CONNECT failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'Proxy response (407) !== 200 when HTTP Tunneling' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies an https-proxy-agent CONNECT close as proxy', () => {
+    const result = classifyError(makeError({ message: 'Proxy connection ended before receiving CONNECT response' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('still classifies a SOCKS failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'Socks5 proxy rejected connection' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('still classifies a certificate failure as proxy', () => {
+    const result = classifyError(makeError({ message: 'unable to verify the first certificate' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('does not match plain "proxy" without qualifier', () => {
+    const result = classifyError(makeError({ message: 'something proxy related' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify reverse-proxy configuration as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'reverse proxies are configured' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not classify proxying prose as a proxy transport failure', () => {
+    const result = classifyError(makeError({ message: 'proxying requests through a local gateway' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  it('does not treat an unrelated ERR_ token near proxy configuration prose as a proxy failure', () => {
+    const result = classifyError(makeError({ message: 'net::ERR_INVALID_ARGUMENT in proxy configuration' }))
+    expect(result.category).not.toBe('proxy')
   })
 
   // Status as string

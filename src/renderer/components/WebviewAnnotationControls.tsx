@@ -12,10 +12,10 @@ import {
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationState,
   type WebviewAnnotationTarget
-} from '@shared/types/webview'
-import type { WebviewTag } from 'electron'
+} from '@shared/types/webviewAnnotation'
+import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewAnnotationControls')
@@ -46,6 +46,14 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
     }),
     [t]
   )
+  const guestConfigurationRef = useRef({
+    locale,
+    theme: theme === ThemeMode.dark ? ('dark' as const) : ('light' as const)
+  })
+  guestConfigurationRef.current = {
+    locale,
+    theme: theme === ThemeMode.dark ? 'dark' : 'light'
+  }
 
   const sendCommand = useCallback(
     (command: WebviewAnnotationHostCommand, webview = webviewRef.current): boolean => {
@@ -107,12 +115,15 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       void replaceMainSnapshot([], attachedWebview)
     }
 
+    const handleInPageNavigation = (event: DidNavigateInPageEvent) => {
+      if (event.isMainFrame) resetForNavigation()
+    }
+
     const configureGuest = () => {
       sendCommand(
         {
           type: 'configure',
-          locale,
-          theme: theme === ThemeMode.dark ? 'dark' : 'light'
+          ...guestConfigurationRef.current
         },
         attachedWebview
       )
@@ -124,7 +135,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       attachedWebview.removeEventListener('ipc-message', handleGuestMessage)
       attachedWebview.removeEventListener('did-start-loading', resetForNavigation)
       attachedWebview.removeEventListener('did-navigate', resetForNavigation)
-      attachedWebview.removeEventListener('did-navigate-in-page', resetForNavigation)
+      attachedWebview.removeEventListener('did-navigate-in-page', handleInPageNavigation)
       attachedWebview.removeEventListener('dom-ready', configureGuest)
       attachedWebview = null
     }
@@ -145,7 +156,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       webview.addEventListener('ipc-message', handleGuestMessage)
       webview.addEventListener('did-start-loading', resetForNavigation)
       webview.addEventListener('did-navigate', resetForNavigation)
-      webview.addEventListener('did-navigate-in-page', resetForNavigation)
+      webview.addEventListener('did-navigate-in-page', handleInPageNavigation)
       webview.addEventListener('dom-ready', configureGuest)
       configureGuest()
     }
@@ -157,7 +168,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       if (attachedWebview) sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
       detach()
     }
-  }, [isHostActive, locale, replaceMainSnapshot, sendCommand, theme, webviewRef])
+  }, [isHostActive, replaceMainSnapshot, sendCommand, webviewRef])
 
   useEffect(() => {
     if (!isWebviewReady) return
@@ -184,10 +195,10 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   const handleCopy = async () => {
     const webview = webviewRef.current
     if (!webview || state.annotations.length === 0) return
-    const webviewId = webview.getWebContentsId()
-    if (!webviewId) return
     setIsCopying(true)
     try {
+      const webviewId = webview.getWebContentsId()
+      if (!webviewId) throw new Error('Current webview is detached')
       const synchronized = await replaceMainSnapshot(state.annotations, webview)
       if (!synchronized) throw new Error('Failed to synchronize current webview annotations')
       const markdown = await ipcApi.request('webview.get_annotations_markdown', { webviewId })
@@ -234,7 +245,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
           <>
             <Badge
               variant="secondary"
-              className="h-4 min-w-4 border-0 px-1 text-[10px] text-foreground-secondary tabular-nums"
+              className="h-4 min-w-4 border-0 px-1 text-[10px] text-muted-foreground tabular-nums"
               aria-label={t('webview.annotation.count', { count })}>
               {count}
             </Badge>
@@ -285,5 +296,5 @@ const controlButtonClassName = (active = false) =>
     'rounded shadow-none active:scale-95',
     active
       ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-      : 'text-foreground-secondary hover:text-foreground'
+      : 'text-muted-foreground hover:text-foreground'
   )

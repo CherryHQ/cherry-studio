@@ -7,7 +7,6 @@ import {
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
@@ -20,12 +19,13 @@ import {
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
+import { invalidateCachedMessageUiStates } from '@renderer/services/messageUiStateCache'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -109,7 +109,7 @@ export interface AgentChatRuntimeState {
   loadOlder?: () => void
   isPending: boolean
   stop: () => Promise<void>
-  sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
+  sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<boolean>
   deleteMessage: (messageId: string) => Promise<void>
   respondToolApproval: (input: MessageToolApprovalInput) => Promise<void>
   composerContext: ComposerContextValue
@@ -163,6 +163,7 @@ export function useAgentChatRuntimeState({
       topicId: conversation.topicId,
       userMessageParts: getAgentTurnParts(input),
       reasoningEffort: input.options?.body?.reasoningEffort,
+      serviceTier: input.options?.body?.serviceTier,
       ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
     }),
     []
@@ -175,7 +176,7 @@ export function useAgentChatRuntimeState({
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      await send({ text: message?.text ?? '', options })
+      return send({ text: message?.text ?? '', options })
     },
     [send]
   )
@@ -206,7 +207,13 @@ export function useAgentChatRuntimeState({
   // Deterministic overlay→DB handoff at terminal (see hook docs).
   useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // setState bail-out and force a re-render on every tab switch.
+  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
+    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
+    optimisticInputsResetTopicIdRef.current = sessionTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
 

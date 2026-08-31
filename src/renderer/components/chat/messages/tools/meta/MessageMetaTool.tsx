@@ -2,7 +2,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { ComponentPropsWithoutRef, FC } from 'react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -147,6 +147,7 @@ interface SearchOutput {
  * a multi-namespace match. Group by namespace, list names as chips.
  */
 const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+  const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const out = (toolResponse.response ?? undefined) as SearchOutput | undefined
   const matchedNamespaces = out?.matchedNamespaces ?? []
@@ -154,7 +155,9 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   return (
     <BodyContainer>
       <ArgsBlock args={args} />
-      {toolResponse.status === 'done' && matchedNamespaces.length === 0 && <Empty>No tools matched.</Empty>}
+      {toolResponse.status === 'done' && matchedNamespaces.length === 0 && (
+        <Empty>{t('message.tools.meta.no_tools_matched')}</Empty>
+      )}
       {matchedNamespaces.map((group) => (
         <NamespaceGroup key={group.namespace}>
           <NamespaceTitle>
@@ -174,13 +177,14 @@ const ToolSearchBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
 // ── tool_inspect ───────────────────────────────────────────────────
 
 const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+  const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const jsDoc = typeof toolResponse.response === 'string' ? toolResponse.response : undefined
   return (
     <BodyContainer>
       <ArgsBlock args={args} />
       {jsDoc && (
-        <ResponseBlock title="JSDoc">
+        <ResponseBlock title={t('message.tools.sections.jsdoc')}>
           <CodeBlock>{jsDoc}</CodeBlock>
         </ResponseBlock>
       )}
@@ -197,6 +201,7 @@ const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolRespons
  * which duplicated the name/status and buried the params an extra expand deep.
  */
 const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+  const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const innerName = typeof args?.name === 'string' ? args.name : undefined
   const innerParams = isRecord(args?.params) ? args.params : undefined
@@ -205,7 +210,7 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
   if (!innerName) {
     return (
       <BodyContainer>
-        <Empty>tool_invoke called without a tool name.</Empty>
+        <Empty>{t('message.tools.meta.invoke_missing_name')}</Empty>
       </BodyContainer>
     )
   }
@@ -214,7 +219,7 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
     <BodyContainer>
       <ArgsBlock args={innerParams} />
       {response !== undefined && response !== null && (
-        <ResponseBlock title="Response">
+        <ResponseBlock title={t('message.tools.sections.output')}>
           <CodeBlock>{stringifyResponse(response)}</CodeBlock>
         </ResponseBlock>
       )}
@@ -232,6 +237,7 @@ interface ExecOutput {
 }
 
 const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
+  const { t } = useTranslation()
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const code = typeof args?.code === 'string' ? args.code : ''
   const out = (toolResponse.response ?? undefined) as ExecOutput | undefined
@@ -239,11 +245,18 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')
 
+  // Tracks the inputs of the last completed highlight so an <Activity> re-show
+  // (which re-runs this effect with unchanged inputs) skips the shiki pass.
+  const highlightedForRef = useRef<{ code: string; highlight: typeof highlightCode } | null>(null)
   useEffect(() => {
     if (!code) return
+    const last = highlightedForRef.current
+    if (last && last.code === code && last.highlight === highlightCode) return
     let cancelled = false
     void highlightCode(code, 'javascript').then((html) => {
-      if (!cancelled) setHighlighted(html)
+      if (cancelled) return
+      highlightedForRef.current = { code, highlight: highlightCode }
+      setHighlighted(html)
     })
     return () => {
       cancelled = true
@@ -252,7 +265,7 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
 
   return (
     <BodyContainer>
-      <ResponseBlock title="Code">
+      <ResponseBlock title={t('message.tools.sections.code')}>
         {highlighted ? (
           <Highlighted className="markdown" dangerouslySetInnerHTML={{ __html: highlighted }} />
         ) : (
@@ -260,17 +273,17 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
         )}
       </ResponseBlock>
       {out?.logs && out.logs.length > 0 && (
-        <ResponseBlock title={`Logs (${out.logs.length})`}>
+        <ResponseBlock title={t('message.tools.sections.logs', { count: out.logs.length })}>
           <CodeBlock>{out.logs.join('\n')}</CodeBlock>
         </ResponseBlock>
       )}
       {out?.error && (
-        <ResponseBlock title="Error">
+        <ResponseBlock title={t('message.tools.status.error')}>
           <CodeBlock data-error>{out.error}</CodeBlock>
         </ResponseBlock>
       )}
       {!out?.isError && out?.result !== undefined && (
-        <ResponseBlock title="Result">
+        <ResponseBlock title={t('message.tools.sections.output')}>
           <CodeBlock>{stringifyResponse(out.result)}</CodeBlock>
         </ResponseBlock>
       )}
@@ -281,11 +294,12 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
 // ── Shared render helpers ──────────────────────────────────────────
 
 const ArgsBlock: FC<{ args?: Record<string, unknown> }> = ({ args }) => {
+  const { t } = useTranslation()
   const entries = useMemo(() => (args ? Object.entries(args) : []), [args])
   if (entries.length === 0) return null
   return (
     <ArgsSection>
-      <ArgsSectionTitle>Arguments</ArgsSectionTitle>
+      <ArgsSectionTitle>{t('message.tools.sections.args')}</ArgsSectionTitle>
       <ArgsTable>
         <tbody>
           {entries.map(([k, v]) => (

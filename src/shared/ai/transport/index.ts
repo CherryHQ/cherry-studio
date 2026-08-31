@@ -1,17 +1,9 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
 export {
-  DEFER_TOOL_OUTPUT_BYTES,
   type DeferredToolOutput,
   type DeferredToolResultRef,
-  deferToolOutput,
-  isDeferredToolOutput,
-  shouldDeferToolOutput
+  isDeferredToolOutput
 } from './deferredToolResult'
-export {
-  projectMessagePartForRenderer,
-  projectMessagePartsForRenderer,
-  projectStreamChunkForRenderer
-} from './outboundProjection'
 export {
   blobRefsOf,
   envelopeDisplayExcerpt,
@@ -30,6 +22,7 @@ export type {
   AiAgentSessionWarmRequest,
   AiChatRequestBody,
   AiStreamAbortRequest,
+  AiStreamAdmissionReason,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
@@ -40,6 +33,7 @@ export type {
   AiToolResultRequest,
   AiToolResultResponse,
   ApprovalDecision,
+  ComposerChatTarget,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,
   StreamDonePayload,
@@ -47,5 +41,6 @@ export type {
   TopicStatusSnapshotEntry,
   TopicStreamStatus
 } from './stream'
+export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'

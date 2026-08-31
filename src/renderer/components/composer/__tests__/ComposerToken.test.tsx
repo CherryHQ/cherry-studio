@@ -2,7 +2,7 @@ import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/type
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
-import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
+import { AllSelection, NodeSelection, Selection, TextSelection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,10 +20,22 @@ import {
 import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } from '../tokenView'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const imagePreviewShowMock = vi.hoisted(() => vi.fn())
+const openFilePreviewTabMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => openFilePreviewTabMock
+}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: ipcRequestMock
+  }
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewShowMock
   }
 }))
 
@@ -204,6 +216,10 @@ const readPastedTextMock = vi.fn()
 beforeEach(() => {
   ipcRequestMock.mockReset()
   ipcRequestMock.mockResolvedValue(undefined)
+  imagePreviewShowMock.mockReset()
+  imagePreviewShowMock.mockResolvedValue(undefined)
+  openFilePreviewTabMock.mockReset()
+  openFilePreviewTabMock.mockReturnValue('file-preview-tab')
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -286,22 +302,18 @@ function getTokenTrigger(container: HTMLElement, kind: string) {
   return trigger as HTMLElement
 }
 
-function openFileTokenPopover(container: HTMLElement) {
-  return openTokenPopover(container, 'file')
+async function openFileTokenPopover(container: HTMLElement) {
+  const user = userEvent.setup()
+  const trigger = getFileTokenTrigger(container)
+  await user.hover(trigger)
+  await waitFor(() => expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true'))
+  return trigger
 }
 
 function expectNoComposerTokenPopover(container: HTMLElement) {
   expect(container.querySelector('[data-popover-trigger="true"]')).toBeNull()
   expect(screen.queryByTestId('composer-token-popover')).toBeNull()
   expect(screen.queryByTestId('composer-token-popover-content')).toBeNull()
-}
-
-function openTokenPopover(container: HTMLElement, kind: string) {
-  const trigger = getTokenTrigger(container, kind)
-  fireEvent.focus(trigger)
-  fireEvent.keyDown(trigger, { key: 'Enter' })
-  expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
-  return trigger
 }
 
 function expectFileTokenVariant(container: HTMLElement, variant: string) {
@@ -333,6 +345,42 @@ describe('ComposerToken', () => {
     )
   })
 
+  it('renders link tokens with the fixed link affordance color instead of the theme primary', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link:1',
+          kind: 'link',
+          label: 'Cherry Studio',
+          promptText: 'https://cherry-ai.com'
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="link"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveClass('text-link')
+    expect(token).not.toHaveClass('text-primary')
+  })
+
+  it('keeps unparseable link tokens on the fixed link affordance color too', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'link:2',
+          kind: 'link',
+          label: 'Broken Link',
+          promptText: 'not-a-valid-url'
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="link"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveClass('text-link')
+    expect(token).not.toHaveClass('text-primary')
+  })
+
   it('renders folder tokens as compact inline chips with the full path in a tooltip', () => {
     const { container } = render(
       <ComposerToken
@@ -353,7 +401,7 @@ describe('ComposerToken', () => {
     expectTokenPathTooltip(container, '/Users/jd/Notes/Project Notes')
   })
 
-  it('renders image file tokens with image variant metadata and preview', () => {
+  it('renders image file tokens with image variant metadata and preview', async () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -374,7 +422,7 @@ describe('ComposerToken', () => {
     )
 
     expectFileTokenVariant(container, 'image')
-    openFileTokenPopover(container)
+    await openFileTokenPopover(container)
     const popoverContent = screen.getByTestId('composer-token-popover-content')
     expect(popoverContent).not.toHaveTextContent('avatar-preview.png')
     expect(popoverContent).not.toHaveTextContent('PNG')
@@ -391,7 +439,8 @@ describe('ComposerToken', () => {
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toBeInTheDocument()
   })
 
-  it('renders input raster images as chips with a thumbnail in the icon slot', () => {
+  it('renders input raster images as chips with a thumbnail in the icon slot', async () => {
+    const user = userEvent.setup()
     const onRemove = vi.fn()
     const { container } = render(
       <FileComposerToken
@@ -429,11 +478,16 @@ describe('ComposerToken', () => {
 
     const removeButton = screen.getByRole('button', { name: '删除' })
 
-    openFileTokenPopover(container)
+    const trigger = await openFileTokenPopover(container)
     expect(screen.getByAltText('avatar-preview.png')).toBeInTheDocument()
 
-    fireEvent.click(removeButton)
+    await user.click(trigger)
+    expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///tmp/avatar-preview.png')
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+
+    await user.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
+    expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the default image icon for SVG input files', () => {
@@ -510,6 +564,63 @@ describe('ComposerToken', () => {
     const token = expectFileTokenVariant(container, 'pdf')
     expect(token.querySelector('[data-composer-token-remove]')).toBeInTheDocument()
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
+  })
+
+  it('opens an editable Markdown attachment in the file preview tab by pointer or keyboard', async () => {
+    const user = userEvent.setup()
+    render(
+      <ComposerToken
+        token={{
+          id: 'file:markdown',
+          kind: 'file',
+          label: 'requirements.md',
+          payload: createFileMetadata({
+            name: 'managed-file.md',
+            origin_name: 'requirements.md',
+            path: '/tmp/managed-file.md',
+            ext: '.md',
+            type: FILE_TYPE.TEXT
+          })
+        }}
+      />
+    )
+
+    const attachment = screen.getByRole('button', { name: 'requirements.md' })
+    await user.click(attachment)
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+
+    openFilePreviewTabMock.mockClear()
+    attachment.focus()
+    await user.keyboard('{Enter}')
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+  })
+
+  it('opens a sent Markdown attachment from its managed file URL', async () => {
+    const user = userEvent.setup()
+    render(
+      <FileComposerToken
+        readOnly
+        readOnlyFilePreview={{ url: 'file:///tmp/message-files/managed-file.md', mediaType: 'text/markdown' }}
+        token={{
+          id: 'file:sent-markdown',
+          kind: 'file',
+          label: 'requirements.md',
+          payload: createFileMetadata({
+            name: 'managed-file.md',
+            origin_name: 'requirements.md',
+            path: '/tmp/original-file.md',
+            ext: '.md',
+            type: FILE_TYPE.TEXT
+          })
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'requirements.md' }))
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/managed-file.md', 'requirements.md')
   })
 
   it('renders office file tokens with dedicated variants', () => {
@@ -1363,4 +1474,23 @@ describe('ComposerToken', () => {
     await waitFor(() => expect(editor!.state.selection).toBeInstanceOf(AllSelection))
     expect(screen.queryByLabelText('${city}')).toBeNull()
   })
+
+  it.each(['Backspace', 'Delete'])(
+    'collapses an all-selection after deleting the whole composer with %s',
+    async (key) => {
+      let editor: Editor | null = null
+      render(<ComposerEditorHarness text="draft" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+      await waitFor(() => expect(editor).not.toBeNull())
+
+      fireEvent.keyDown(editor!.view.dom, { key: 'a', ctrlKey: true })
+      expect(editor!.state.selection).toBeInstanceOf(AllSelection)
+
+      fireEvent.keyDown(editor!.view.dom, { key })
+
+      expect(serializeComposerDocument(editor!).text).toBe('')
+      expect(editor!.state.selection).toBeInstanceOf(TextSelection)
+      expect(editor!.state.selection.empty).toBe(true)
+    }
+  )
 })

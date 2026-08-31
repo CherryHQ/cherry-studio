@@ -1,4 +1,4 @@
-import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotationState } from '@shared/types/webview'
+import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotationState } from '@shared/types/webviewAnnotation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {

@@ -1,0 +1,540 @@
+---
+description: Authoritative naming rules for files, directories, and identifiers, including singular/plural and barrel policies
+sources:
+  - src
+  - packages/ui
+---
+
+# Naming Conventions
+
+> Version: 1.1
+> Last Updated: 2026-06
+> **This document is the authoritative source. `CLAUDE.md` only links here.**
+
+This document defines naming rules for files, directories, and identifiers across the Cherry Studio monorepo. It encodes both industry consensus (React/TypeScript, Node.js, shadcn/Next.js) and project-specific conventions.
+
+---
+
+## Table of Contents
+
+1. [Quick Reference](#1-quick-reference)
+2. [Core Principles](#2-core-principles)
+3. [File Naming](#3-file-naming)
+4. [Directory Naming](#4-directory-naming)
+5. [Identifier Naming](#5-identifier-naming)
+6. [Edge Cases](#6-edge-cases)
+7. [Decision Tree](#7-decision-tree)
+8. [Lint Enforcement](#8-lint-enforcement)
+9. [Appendix: References](#appendix-references)
+
+---
+
+## 1. Quick Reference
+
+The 90% case. See later sections for full rules and edge cases.
+
+| What you're naming | Convention | Example |
+|---|---|---|
+| Business React component file | `PascalCase.tsx` | `Sidebar.tsx` |
+| `packages/ui/` shadcn component file | `kebab-case.tsx` | `button.tsx`, `input-group.tsx` |
+| Hook file | `useXxx.ts` (camelCase, `use` prefix) | `useChatContext.ts` |
+| Util / function file (function-as-default-export) | `camelCase.ts` | `markdownConverter.ts` |
+| Class-as-default-export file | `PascalCase.ts` (matches class name) | `KnowledgeService.ts`, `IpcChannel.ts` |
+| Test file | `*.test.ts(x)` | `mcp.test.ts` |
+| Config file | `*.config.ts` | `vitest.config.ts` |
+| Type declaration | `*.d.ts` (lowercase / kebab) | `env.d.ts` |
+| Top-level meta doc | `UPPERCASE.md` | `README.md`, `CLAUDE.md` |
+| Regular doc | `kebab-case.md` | `database-testing.md` |
+| npm package directory (`packages/*`) | `kebab-case` | `ai-sdk-provider/` |
+| Business React component directory | `PascalCase` | `CodeEditor/` |
+| Bucket directory (categorical container) | camelCase, **plural** noun | `services/`, `utils/`, `hooks/` |
+| Business / domain module directory | `camelCase` | `apiServer/`, `fileProcessing/` |
+| Feature module directory (large, multi-file domain) | `features/<camelCase>/` | `features/apiGateway/` |
+| `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
+| TanStack route file under `src/renderer/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
+
+> Stateful singleton capabilities use only `Service` (default) or `Manager` (instance pool); multi-instance helper classes take no suffix — see §5.2. Files placed inside any `utils/` directory drop the `Utils` suffix — the directory already declares the role; see §3.2.
+
+---
+
+## 2. Core Principles
+
+Three rules trump any specific table below when in conflict:
+
+1. **Consistency beats style choice.** A directory that consistently uses a "suboptimal" convention is healthier than one mixing two "correct" conventions.
+2. **Cross-platform case safety.** Never rely on case to distinguish two files (e.g. `Foo.ts` and `foo.ts` in the same directory). macOS/Windows are case-insensitive by default; Linux is case-sensitive. Mixing breaks CI.
+3. **Toolchain constraints win.** npm package names, shadcn CLI conventions, and Next.js routing rules are hard requirements — they override stylistic preference.
+
+---
+
+## 3. File Naming
+
+### 3.1 React Component Files (`.tsx`)
+
+| Primary role | Convention | Rationale |
+|---|---|---|
+| One named business component/page under `src/renderer/**` | `PascalCase.tsx` | Filename mirrors the primary exported component name. |
+| JSX-bearing helper/registry/variant module under `src/renderer/**` | `camelCase.tsx` | The file is a module, not one component identity (for example `sidebarVariants.tsx`). |
+| `packages/ui/**` (shadcn-derived) | `kebab-case.tsx` | Follows the package's shadcn file convention. |
+
+The component's **exported identifier** is always `PascalCase`, regardless of filename style:
+
+```tsx
+// packages/ui/src/components/primitives/button.tsx
+export function Button() { /* ... */ }
+
+// src/renderer/components/Sidebar.tsx
+export function Sidebar() { /* ... */ }
+```
+
+### 3.2 TypeScript Source Files (`.ts`)
+
+Choose based on **what the file's default / primary export is**:
+
+| Primary export | Convention | Example |
+|---|---|---|
+| Hook function (`useXxx`) | `camelCase.ts`, must start with `use` | `useShortcuts.ts` |
+| Plain function or function group | `camelCase.ts` | `markdownConverter.ts`, `fileOperations.ts` |
+| Class (especially services) | `PascalCase.ts` (matches class name) | `KnowledgeService.ts`, `IpcChannel.ts`, `WindowManager.ts` |
+| Constants / enums only | `camelCase.ts` | `errorCodes.ts` |
+| Re-export barrel | `index.ts` | — |
+
+**Note:** Files under `packages/ui/` use `kebab-case.ts` regardless of export type (e.g. `use-dnd-reorder.ts`, `reorder-visible-subset.ts`), per §4.6 — that scope-specific rule overrides this section. The exported identifier (e.g. `useDndReorder`) remains `camelCase`.
+
+**Inside any `utils/` directory** — the directory declares the role, so the filename does not repeat it:
+
+```
+utils/assistant.ts   ✅
+utils/model.ts       ✅
+utils/notesTree.ts   ✅
+```
+
+A `*Utils` suffix is used only when the file lives outside any `utils/` directory.
+
+**Hooks (`useXxx.ts`)** — live in `src/renderer/hooks/` (default, may group into sub-folders by feature) or co-located with the consuming feature.
+
+**Renderer wrappers around `window.api.*`** — the renderer does not use `*Api`, `*Client`, or any other IPC-wrapper suffix. Categorize wrappers by module shape per §5.2.
+
+**Leading-underscore files (`_xxx.ts`)** — inside a resource-file directory (one file per resource/domain, e.g. `db/schemas/`, `api/schemas/`), a `_`-prefixed file is a **cross-resource shared construct, not a private file**. It holds helpers reused across sibling resource files and is deliberately deep-imported by both siblings and external consumers. Examples: `db/schemas/_columnHelpers.ts`, `api/schemas/_endpointHelpers.ts`. The `_` marks "not itself a resource," never "internal — do not import."
+
+### 3.3 Test Files
+
+- **Suffix**: `*.test.ts` or `*.test.tsx`. Do **not** use `.spec.*`.
+- **Location**: prefer co-location in `__tests__/` subdirectory next to source. Inline (`foo.ts` + `foo.test.ts` in same dir) is also acceptable.
+- **Filename base**: match the file under test (`mcp.ts` → `mcp.test.ts`).
+
+### 3.4 Config Files
+
+- Pattern: `*.config.ts` (or `*.config.js` / `*.config.mjs` when TS is unsupported).
+- Examples: `vitest.config.ts`, `electron.vite.config.ts`, `drizzle.config.ts`.
+
+### 3.5 Type Declaration Files
+
+- Pattern: `*.d.ts`, all-lowercase or `kebab-case`.
+- Examples: `env.d.ts`, `global-types.d.ts`.
+
+### 3.6 Markdown / Documentation
+
+| Type | Convention | Example |
+|---|---|---|
+| Top-level meta docs at repo root | `UPPERCASE.md` | `README.md`, `CLAUDE.md`, `DESIGN.md`, `CONTRIBUTING.md` |
+| Per-directory README | `README.md` (always uppercase) | `src/main/core/paths/README.md` |
+| All other docs (under `docs/`, `packages/*/docs/`, etc.) | `kebab-case.md` | `database-testing.md`, `lan-transfer-protocol.md` |
+
+### 3.7 JSON / YAML / TOML
+
+- `package.json`, `tsconfig.json`: tool-mandated names; do not customize.
+- Project-specific config JSON: `kebab-case.json` (`turbo.json` is an exception — tool-mandated).
+
+---
+
+## 4. Directory Naming
+
+Directory naming splits into category rules (§4.1–§4.3, §4.5–§4.7, §4.10) and cross-cutting rules: §4.4 (file vs subdirectory), §4.8 (top-level closed), §4.9 (singular vs plural).
+
+> **Out of scope — assets.** Directories and files under `assets/**` (fonts, images, CSS, media) follow path/URL convention (`kebab-case`), not the code-module rules in this section. Their names bind to URLs and filesystem paths, not to code identifiers, so §2 principle 2 (cross-platform case safety) governs them instead — vendor-supplied font files may also keep their original names.
+
+### 4.1 npm Package Directories — `kebab-case`
+
+New or renamed `packages/*` directory names must be `kebab-case`. For a package that owns a `package.json`, the directory name must equal its `name` field after removing the scope.
+
+```
+packages/ai-sdk-provider/      ✅
+packages/provider-registry/    ✅
+packages/extension-table-plus/ ✅
+packages/somePkg/              ❌ (camelCase not allowed)
+packages/SomePkg/              ❌ (PascalCase not allowed)
+```
+
+**Known legacy exception:** `packages/aiCore/` publishes `@cherrystudio/ai-core`. It predates this rule and has not yet been renamed; do not copy its casing into new packages. This package-directory rule is review-enforced outside `packages/ui/`.
+
+### 4.2 Business React Component Directories — `PascalCase`
+
+When a directory **is** a component (i.e. contains the component's named file such as `Sidebar.tsx`, or groups files under one component name), use `PascalCase`.
+
+```
+src/renderer/components/Sidebar/         ✅
+src/renderer/components/CodeEditor/      ✅
+src/renderer/components/MarkdownEditor/  ✅
+```
+
+### 4.3 Bucket Directories — `camelCase, plural noun`
+
+"Bucket" = a categorical container holding many unrelated items of the same kind.
+
+```
+services/   utils/   hooks/   components/   pages/   types/
+```
+
+Bucket names are **plural** (see §4.9 for singular-vs-plural rules across all directory kinds). Casing follows the same camelCase family as domain-module directories (§4.5); the all-lowercase look of `services/`, `utils/`, etc. is incidental — they happen to be single words. A multi-word bucket is camelCase-plural: `chatModels/`, never `chatmodels/` or `chat-models/`. Do **not** invent variants like `Services/` (PascalCase) or `helpers-and-utils/` (kebab).
+
+### 4.4 File-Level vs Subdirectory Organization Inside a Bucket
+
+Inside any bucket or domain directory, a **single file is the default**. Promote to a subdirectory only when the topic requires multiple files.
+
+| Situation | Layout | Examples |
+|---|---|---|
+| One file can express the entire capability / topic | One `.ts` file | `services/CacheService.ts`, `utils/assistant.ts`, `hooks/useChatContext.ts` |
+| Implementation is too large for one file, **or** the topic owns several closely related artifacts (helpers, types, sub-files) that belong together | A subdirectory grouping the files | `services/messageStreaming/`, `services/ocr/`, `utils/markdown/`, `hooks/translate/` |
+
+Do not pre-create a subdirectory for anticipated growth — promote only when the second file actually arrives.
+
+### 4.5 Business / Domain Module Directories — `camelCase`
+
+When a directory represents a **named domain** (a coherent business module with its own internal structure), use `camelCase`.
+
+```
+src/main/ai/streamManager           ✅
+src/main/services/fileProcessing/   ✅
+```
+
+Placement — whether a domain module lives as a top-level `features/<domain>/` or as a subdirectory inside a bucket like `services/` — is governed by §4.10; this section governs only its name.
+
+### 4.6 shadcn / `packages/ui` Directories — `kebab-case`
+
+Everything inside `packages/ui/` (both files and directories) follows shadcn conventions:
+
+```
+packages/ui/src/components/primitives/        ✅
+packages/ui/src/components/primitives/button-group/  ✅
+```
+
+### 4.7 Convention-Mandated Directories
+
+These have fixed names dictated by tools or community convention:
+
+| Directory | Purpose |
+|---|---|
+| `__tests__/` | Test files (Jest/Vitest convention) |
+| `__mocks__/` | Mock files (Jest/Vitest convention) |
+| `node_modules/` | Dependencies (npm) |
+| `dist/`, `build/`, `out/` | Build output |
+
+### 4.8 Top-Level Directories — Closed by Default
+
+The set of top-level directories under each of:
+
+- repository root `/`
+- `/src/`
+- `/src/main/`, `/src/renderer/`, `/src/preload/`
+- `/src/shared/`
+
+is **closed by default**. Adding one is a structural commitment.
+
+**A new top-level directory MAY be added only when the PR description establishes both:**
+
+1. **Necessity** — no existing top-level bucket can host the new files without semantic loss.
+2. **Completeness** — the new directory has a clear scope, follows §4.3 (plural bucket) or §4.5 (singular domain module) form, and does not overlap with any existing bucket.
+
+If either is in doubt, place the files inside an existing bucket. Subdirectories under existing buckets are unrestricted.
+
+For the per-root applications of this rule, see [Main Process Architecture §4](./main-process.md) (`/src/main/`), [Renderer Architecture §6](./renderer.md) (`/src/renderer/`), and [Shared Layer Architecture §2](./shared-layer.md) (`/src/shared/`).
+
+### 4.9 Singular vs Plural
+
+Choose number based on what the directory **conceptually contains**, not on which sounds nicer.
+
+| Directory role | Number | Examples |
+|---|---|---|
+| **Collection bucket** — holds many items of the same kind | **plural** | `services/`, `utils/`, `hooks/`, `components/`, `pages/`, `types/`, `models/`, `shortcuts/`, `agents/` |
+| **Namespace / theme** — represents one subject area, not a collection | **singular** | `config/`, `data/`, `auth/`, `api/`, `ipc/`, `file/` |
+| **Business / domain module** — named action or concept | **singular** (default) | `apiServer/`, `fileProcessing/`, `webSearch/`, `bootConfig/` |
+| **Component directory** (dir = component) | follows the **component name** | `Avatar/`, `CodeEditor/` (singular component); `SearchResults/` (component representing a group) |
+
+Decision rule: ask "does this directory hold **many of X**?" — yes → plural; no → singular. When two readings both make sense, pick the one that matches the directory's **default import name** (e.g. `import { ... } from './config'` reads naturally with `config/` singular).
+
+**Same stem, different number — decide by role, not by the word.** A name like `agent` is not inherently singular or plural; its number follows the role the directory plays. The `agents/` listed above is the **collection-bucket** reading — e.g. `src/main/ai/agents/`, which holds many agent implementations (`builtin/`, …). The same stem is **singular** when the directory is a feature **namespace** that groups one feature's code rather than many agents — `src/renderer/hooks/agent/` (holds the agent feature's hooks, not agents) and `src/renderer/components/chat/agent/` are singular, matching their sibling namespaces (`hooks/chat/`, `hooks/tab/`, `hooks/translate/`). Reading the `agents/` entry as "the word *agent* is always plural" is the trap: apply the decision rule to the directory's actual contents.
+
+### 4.10 Feature Modules — `features/` vs Type Buckets
+
+A **feature module** is a self-contained domain directory under a process root's `features/` bucket — `src/main/features/` and `src/renderer/features/` — that co-locates *everything* one domain owns: its services or components, domain-local utils and hooks, and any adapters, routes, or other domain-specific helpers, in one tree.
+`features/` is itself a bucket (camelCase, plural, §4.3); each module inside is a `camelCase` domain directory (§4.5).
+
+**A domain earns a `features/<domain>/` home only when it is large, complex, and multi-file** — cohesion alone is not enough.
+
+| The domain is… | Home | Layout |
+|---|---|---|
+| Large / complex — spans more than one concern (e.g. a service plus its own adapters, routes, utils) | `features/<domain>/` | self-contained tree; the service class lives inside it (§5.2) |
+| Headless multi-file capability — a service plus its **private, topic-specific** satellites (adapters, stateless helpers, per-instance classes); no UI | `services/<topic>/` | one curated `index.ts` barrel; internals private and exempt from shape routing ([Renderer Architecture §3.1](./renderer.md)) |
+| One cohesive service, even if domain-specific | `services/<Domain>Service.ts` | a single file — private helpers stay **inline**; a **generic** helper → `utils/<topic>.ts`; its first **topic-specific** satellite file → grow into `services/<topic>/` (row above) |
+| A small cross-domain / standalone helper | `services/` or `utils/` | a single file |
+
+This is the §4.4 promotion rule applied at the top level: a domain graduates in steps — a single file → a `services/<topic>/` topic directory → its own `features/` module — only as the additional files actually arrive and span more than one concern.
+Do not pre-create a `features/<domain>/` for an anticipated module.
+`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `services/` + `utils/` in the renderer) hold everything below that bar — single-file pieces and `services/<topic>/` capabilities.
+A large, multi-file domain left scattered across the `services/` and `utils/` buckets instead of gathered into one `features/<domain>/` is the §6.7 scattered/impure anti-pattern.
+
+**Canonical example** — `src/main/features/apiGateway/`:
+
+```
+features/apiGateway/
+├── ApiGatewayService.ts   # the domain service (§5.2)
+├── adapters/              # domain-specific sub-modules
+├── middleware/
+├── routes/
+└── utils/                 # domain-local utils, not the global src/main/utils/ bucket
+```
+
+For the main process, [Main Process Architecture](./main-process.md) covers `features/` vs the type-buckets (`services/` / `utils/`) and the dependency direction; for the renderer, [Renderer Architecture](./renderer.md) places `features/` within the full layering (windows → pages → features → components → packages/ui), with per-directory responsibilities and dependency rules.
+
+---
+
+## 5. Identifier Naming
+
+Names inside source code — separate axis from filenames.
+
+| Identifier kind | Convention | Example |
+|---|---|---|
+| Component, Class, Interface, Type alias, Enum type | `PascalCase` | `class KnowledgeService`, `interface UserConfig`, `type Status` |
+| Variable, function, method, parameter | `camelCase` | `fetchUser`, `isReady` |
+| Hook | `camelCase` with mandatory `use` prefix | `useChatContext` |
+| Top-level constant | `UPPER_SNAKE_CASE` | `MAX_RETRY_COUNT` |
+| Enum member | Follow the enum's established domain style | `WindowType.Main`, `ThemeMode.dark`, `IpcChannel.App_Select` |
+| Private class member | no `_` prefix; use `private` modifier | `private cache` |
+| Generic type parameter | `PascalCase`, prefer descriptive | `<TItem>`, `<TError>` (avoid bare `T` for non-trivial cases) |
+
+### 5.1 Singular vs Plural in Identifiers
+
+| Identifier kind | Number | Example |
+|---|---|---|
+| Class, interface, type alias, enum type | **singular** | `User`, `OrderItem`, `LogLevel` (not `Users`, `OrderItems`) |
+| Variable / property holding a single value | **singular** | `const user = ...`, `currentOrder` |
+| Variable / property holding a collection (array, `Map`, `Set`) | **plural** | `const users = [...]`, `orderItems`, `connectedClients` |
+| Boolean | no plural; use `is` / `has` / `can` / `should` prefix | `isReady`, `hasPermission`, `canEdit`, `shouldRetry` |
+| Function returning one item | **singular** verb phrase | `getUser(id)`, `findOrder()` |
+| Function returning many items | **plural** noun in name | `getUsers()`, `listOrders()`, `fetchPendingJobs()` |
+| Function that mutates a collection | verb + plural object | `addUsers(...)`, `removeTags(...)` |
+| Event / handler name | follows the event subject | `onMessageReceived` (one), `onItemsLoaded` (many) |
+
+### 5.2 Suffix for Stateful Singleton Capabilities — `Service` (default) / `Manager` (instance pool)
+
+A module that owns **retained module-level state, resources, or a lifecycle** — a **singleton capability** — MUST be implemented as a class managed as a singleton (two valid forms — see below) and take exactly one of two suffixes:
+
+| Suffix | Use when the class… | Examples |
+|---|---|---|
+| `Service` | Provides a cohesive **domain capability / API surface**. The **default** for any singleton capability. | `CacheService`, `DataApiService`, `FileService`, `ExportService` |
+| `Manager` | Owns and coordinates a **pool / registry of many homogeneous instances**, and that coordination is its defining job. | `WindowManager` (window pool), `TabLruManager` |
+
+**Decision rule:** ask "is this class's primary job to own and coordinate a *set of many like instances*?" — yes → `Manager`; otherwise → `Service` (default when unsure).
+
+A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/main/data/CacheService.ts`, `src/main/core/window/WindowManager.ts`); placement under `services/` is not required.
+
+**The criterion is statefulness, not mechanism.** Module-scope mutable bindings, closure-held registries, and retained top-level third-party instances (`const listeners = new Map()`, `export const emitter = new Emittery()`) qualify exactly as class fields do — normalize them into the class + singleton + suffix form instead of keeping a plain name: a plain camelCase name asserts statelessness (routing table below).
+
+**What counts as state** — values retained **across calls** that change observable behavior. Not state: a transparent perf cache (memoization that changes only latency), and transient in-flight values confined to a single async flow (e.g. a listener registered and removed within one operation).
+
+**Multi-instance helper classes take no suffix.** A class with per-instance state, instantiated by its consumers (a tokenizer, a transport, a subscription — `ShikiStreamTokenizer`, `IpcChatTransport`, `TopicStreamSubscription`), is not a singleton capability: name it a plain `PascalCase` descriptive noun. The suffix marks the singleton-capability **role**, not the presence of fields.
+
+**Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state stay plain modules and do not receive a `Service` / `Manager` suffix.
+
+**If a module looks like it wants to be a `Service` but is not a stateful singleton capability, route it — ownership first, then shape.** A module consumed by exactly **one** owner co-locates with that owner (feature internals, or a private satellite behind a `services/<topic>/` barrel — [Renderer Architecture §3.1](./renderer.md), [Main Process Architecture](./main-process.md)) and skips this table. The table routes **shared** modules; stateless shared modules default to `utils/`:
+
+| Actual shape of the module | Right home | Naming |
+|---|---|---|
+| Stateless helper — computes values (queries, conversions, predicates, formatters); **reads** via downward infra (`data` / `ipc`) are fine | `utils/` (or feature-local `utils/` subdirectory) — the **default** for stateless shared modules | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
+| Stateless module with **outward side effects** (opens windows / popups, writes the clipboard, fires app events, performs `data` / `ipc` **writes**, drives other subsystems; logging does not count) — or **dependency-forced** out of `utils/` (must import `services/`, which `utils/` may not) | `services/` (or feature-local `services/`) — state the reason in the PR | `<topic>.ts` (camelCase; **no** `Service` suffix — it is not a stateful class) |
+| Multi-instance stateful helper class | co-located with its consumer (topic dir / feature), or `services/` | `PascalCase` descriptive noun, **no suffix** (`IpcChatTransport`) |
+| Depends on React lifecycle / state / context | `hooks/` (or co-located with the consuming feature) | `useXxx.ts` (the `use` prefix is the role marker — see §3.2) |
+| Renders JSX / owns view markup | `components/` (shared) or `pages/` (route-bound) | `Xxx.tsx` (PascalCase — see §3.1) |
+| Single-call pass-through to `window.api.*` | inlined at the call site | (no file) |
+
+#### Two valid forms of a `Service`
+
+The `Service` suffix names a **role** (a stateful domain capability), not a **mechanism**. A class earning the suffix may be implemented as either:
+
+| Form | Pattern | Used when |
+|---|---|---|
+| Lifecycle service | `@Injectable('XxxService')` + `extends BaseService`, accessed via `application.get('XxxService')` | The service owns long-lived resources OR registers persistent side effects |
+| Direct-import singleton service | `export const xxxService = new XxxService()` | No long-lived resources, no persistent side effects, but still has class-level state (e.g. cached SDK instances) |
+
+The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](../lifecycle/lifecycle-decision-guide.md).
+
+### 5.3 Drizzle Schema Inferred Row Types
+
+Every Drizzle table in `src/main/data/db/schemas/` exports its inferred select/insert types using the **`Row` suffix** form:
+
+| Inferred from | Type name | Example |
+|---|---|---|
+| `xxxTable.$inferSelect` | `XxxRow` | `AgentRow`, `McpServerRow` |
+| `xxxTable.$inferInsert` | `InsertXxxRow` | `InsertAgentRow`, `InsertMcpServerRow` |
+
+```ts
+export const mcpServerTable = sqliteTable('mcp_server', { /* ... */ })
+
+export type McpServerRow = typeof mcpServerTable.$inferSelect
+export type InsertMcpServerRow = typeof mcpServerTable.$inferInsert
+```
+
+`Row` names the raw database row and is deliberately distinct from the API entity type (`XxxEntity`, e.g. `WorkspaceEntity`) the row is mapped to in the shared layer. The `Xxx` stem matches the table-derived `xxxTable` const (see §3.2), so `agent_workspace` → `agentWorkspaceTable` → `AgentWorkspaceRow` / `InsertAgentWorkspaceRow`.
+
+Do **not** use the alternatives that previously coexisted here: `XxxSelect` / `XxxInsert`, `Xxx` / `NewXxx`, or Drizzle's docs-style `SelectXxx` / `InsertXxx`. The `Row` suffix is chosen over Drizzle's docs form precisely because it keeps the DB-row type visibly separate from the API `XxxEntity` type.
+
+---
+
+## 6. Edge Cases
+
+### 6.1 Acronyms and Initialisms
+
+For project-owned names, treat ordinary acronyms (API, URL, ID, HTTP, MCP) as words inside `PascalCase` or `camelCase`:
+
+- **First letter uppercase, rest lowercase** — `HttpClient`, `UserId`, `ApiServer`, `McpService`.
+- **Do not introduce all-caps acronym runs for project-owned concepts** — use `HttpClient`, `UserId`, and `ApiServer`, not `HTTPClient`, `UserID`, or `APIServer`.
+- **At the start of `camelCase`** — entirely lowercase: `httpClient`, `userId`, `apiServer`.
+- **Same form applies to filenames** — `McpService.ts`, not `MCPService.ts`.
+
+Preserve an official product/SDK spelling when the identifier mirrors that external name, for example `OpenAIServiceTier`. Existing unnormalized identifiers such as `currentURL` are review-only legacy gaps because `naming/path-case` does not inspect identifier internals; do not copy them into new APIs.
+
+### 6.2 Case-Only Renames
+
+`git` on macOS defaults to `core.ignorecase=true`, which silently swallows pure case-change renames. Always use the two-step pattern:
+
+```bash
+git mv Foo.tsx _tmp_foo.tsx
+git mv _tmp_foo.tsx foo.tsx
+```
+
+### 6.3 Two Files Differing Only in Case
+
+Forbidden. `Button.tsx` and `button.tsx` in the same directory will break on case-insensitive file systems.
+
+### 6.4 Barrel / Index Files
+
+A **barrel** is an `index.ts` (always lowercase) whose sole job is to re-export a directory's public surface. It is not a convenience: it **declares an encapsulation boundary** — the directory's other files are private, and every outside importer goes through the barrel. This section is the single authority for barrels across all four processes; the per-process docs ([Shared §3.1](./shared-layer.md), [Main §2.1](./main-process.md), [Renderer §3.1/§5](./renderer.md)) *apply* it, they do not restate it.
+
+**The `index` filename is reserved for barrels, and a barrel is always `index.ts`.** A directory's own implementation — including its main component — lives in a named file (`RichEditor.tsx`, never `RichEditor/index.tsx`); a pure re-export has no JSX, so a barrel is never `.tsx`. An `index.tsx` is therefore always a violation, with no exceptions: a barrel that should be `.ts`, an implementation that should be a named file, or a TanStack index route that should use the flat dot form (`<segment>.index.tsx`, §6.6) — there the `index` token is a path segment, never the filename.
+
+Rules 1–3 are lint-enforced; rule 4 is a review judgment.
+
+1. **Re-export only** — explicit named re-exports, nothing else: no `export *`, no `export default` implementation, no local declarations, no logic. (`export *` destroys the curated surface and tree-shaking; a barrel carrying logic is a module wearing a door's name.)
+2. **Enforced sole entry, or no barrel** — a barrel is real only if lint forbids outside code from deep-importing the directory's internals. **A directory whose internals cannot be closed off should not have a barrel**: an unenforced door is worse than none — two entry surfaces to maintain, and the leak returns.
+3. **No nesting** — a barrel must not re-export another barrel. A parent directory that merely aggregates independent sub-modules gets no barrel; each cohesive sub-unit owns its own. (Hence the bucket roots `types/`, `utils/`, `services/` have no root `index.ts` — §4.8.)
+4. **One cohesive unit, not an aggregator** — a barrel's exports are a connected API consumers take as a set. A directory holding several independently-consumed concerns should be split into separate boundaries or demoted to a no-barrel container. Not lint-checkable — a design call.
+
+> **Orthogonal to tree-shaking.** Barrel hygiene bounds leakage but does not replace root `sideEffects`: a rule-clean barrel that exports both a light and a heavy symbol still drags the heavy subgraph into a light consumer unless the bundler can prove side-effect freedom. The two are separate layers; both are needed.
+
+> **Dev builds don't tree-shake.** In dev, importing one symbol loads every module the barrel reaches, rule-clean or not. Rule 4 is what bounds this cost — a cohesive API is consumed as a set anyway; when one heavy member hurts a light consumer, split the boundary or code-split at the call site — never deep-import past the door.
+
+> **Dynamic `import()` is an import.** Rule 2 applies unchanged: cross-boundary lazy loading enters through the barrel, never through an internal file; only code inside the boundary may lazy-load its own internals. (Renderer §5 shows the `React.lazy` form.)
+
+### 6.5 Directory Name vs Package Name
+
+For packages with a `package.json`, the directory name and `package.json#name` (after stripping scope) must match exactly. Renaming one requires renaming the other. `packages/aiCore/` is the tracked legacy exception described in §4.1.
+
+### 6.6 TanStack Router File-Based Routes
+
+Files **and directory segments** under `src/renderer/routes/` are **kebab-case** — TanStack Router maps each path segment directly to a URL segment.
+
+Reserved tokens (TanStack-defined):
+
+| Token | Meaning |
+|---|---|
+| `__root.tsx` | Root layout |
+| `<segment>.index.tsx` | Index route — always the flat dot form (`settings.index.tsx`); a bare `index.tsx` is banned even here (§6.4) |
+| `$<param>.tsx` | Dynamic segment (e.g. `$appId.tsx`) |
+| `$.tsx` | Catch-all |
+
+### 6.7 Bucket Anti-Patterns
+
+A bucket directory drifts toward unhealth when **any** of these accumulate:
+
+1. **Singular name on a directory that holds many like items** — should be a §4.3 bucket but was misclassified as a §4.9 namespace.
+2. **Impure contents** — files inside the bucket that do not match the bucket's declared kind (e.g. a directory named after one React pattern that also holds wrapper components which do not use that pattern).
+3. **Thin bucket** — a top-level bucket holding 0–2 files for an extended period is usually an over-eager extraction; reconsider whether it should be a subdirectory inside an existing bucket (see §4.8).
+4. **Overlapping scope** — two top-level buckets whose names could each plausibly host the same file. One of them is redundant or the boundary is ill-defined.
+
+Any of these signals warrants a consolidation review.
+
+---
+
+## 7. Decision Tree
+
+```
+Naming a new FILE
+├─ TSX / JSX-bearing file?
+│  ├─ Under src/renderer/routes/?  → kebab-case.tsx  (api-server.tsx)
+│  ├─ Under packages/ui/?              → kebab-case.tsx  (button.tsx)
+│  ├─ One primary named component? → PascalCase.tsx  (Sidebar.tsx)
+│  └─ Helper/registry/variant module? → camelCase.tsx (sidebarVariants.tsx)
+├─ React hook?                    → useXxx.ts       (useShortcuts.ts)
+├─ Primary export is a class?     → PascalCase.ts   (KnowledgeService.ts)
+├─ Primary export is function(s)? → camelCase.ts    (markdownConverter.ts)
+├─ Type declaration?              → *.d.ts          (env.d.ts)
+├─ Test?                          → *.test.ts(x)
+├─ Config?                        → *.config.ts
+└─ Documentation?
+   ├─ Repo-root meta?             → UPPERCASE.md    (README.md)
+   └─ Other?                      → kebab-case.md   (database-testing.md)
+
+Naming a new DIRECTORY
+├─ npm package (packages/*)?      → kebab-case      (ai-sdk-provider)
+├─ Under packages/ui/?            → kebab-case      (primitives, button-group)
+├─ Is itself a React component?   → PascalCase      (CodeEditor)
+├─ Bucket / categorical container? → camelCase, plural noun  (services, utils)
+├─ Large/complex multi-file domain? → features/<camelCase>/  (apiGateway, §4.10)
+├─ Business domain module?        → camelCase       (apiServer, fileProcessing)
+└─ Unsure singular vs plural?     → see §4.9
+```
+
+---
+
+## 8. Lint Enforcement
+
+The `naming/path-case` rule (inline plugin in `eslint.config.mjs`, modeled on the barrel rules of §6.4) enforces the **casing** of directory segments and file stems, per zone, at `error` in `pnpm lint` / `test:lint` / `ci:basic-check`. It scopes to `src/**` and `packages/ui/**`.
+
+### 8.1 Enforced
+
+Casing is checked per zone; first matching zone wins. `packages/*` other than `packages/ui/` is not covered by this lint rule; its directory/package-name contract remains a review check (§6.5).
+
+| Zone | Directory segments | File stems |
+|---|---|---|
+| `packages/ui/**` | kebab-case | kebab-case |
+| `src/renderer/routes/**` | kebab-case (or a `$`/`_` TanStack token) | kebab-case (or a `$`/`_` token) |
+| `src/main/**`, `src/shared/**`, `src/preload/**` | camelCase | camelCase or PascalCase |
+| `src/renderer/**` (else) | camelCase or PascalCase | camelCase or PascalCase |
+
+**Exempt** (checked in neither axis): dot-directories (`.storybook`, `.github`), the convention-mandated `__tests__` / `__mocks__` / `__snapshots__` (§4.7), `*.d.ts` files (§3.5 governs them), `index.ts(x)` (owned by the barrel rules, §6.4), and the unmanaged `src/renderer/assets/**` (§4 out-of-scope note).
+
+### 8.2 Left to review
+
+The rule fires only where path → role is deterministic. It deliberately does **not** decide:
+
+| Not enforced | Why | Authority |
+|---|---|---|
+| Bucket **plural** vs namespace/module **singular** | plurality is semantic — a path can't reveal "holds many of X" | §4.9 |
+| A `src/main`/`shared`/`preload` file being **PascalCase** (class/enum) vs **camelCase** (function) | depends on the file's primary export, not its path | §3.2 |
+| Acronym-internal casing (`McpService`, not `MCPService`) | the rule accepts any all-letter run | §6.1 |
+| Hook `use` prefix, `Service` / `Manager` suffix | export-role semantics, not path casing | §3.2, §5.2 |
+
+A name that passes the lint can still violate these — they remain review judgments.
+
+---
+
+## Appendix: References
+
+This document distills consensus from:
+
+- [Airbnb JavaScript Style Guide](https://github.com/airbnb/javascript) — file name matches default export
+- [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)
+- [shadcn/ui conventions](https://github.com/shadcn-ui/ui) — kebab-case files, PascalCase exports
+- [Next.js file-naming guidance](https://nextjs.org/docs)
+- [typescript-eslint `naming-convention` rule](https://typescript-eslint.io/rules/naming-convention/)

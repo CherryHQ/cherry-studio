@@ -1,12 +1,46 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { parseMigrationRegistry } from '../migration-registry'
-import { CHERRY_PRODUCT_VARIABLE_TOKENS } from '../theme-contract'
 import {
   loadMigrationContractSources,
   type MigrationContractSources,
   validateMigrationContractSources
 } from '../validate-migration-contract'
+
+const EXACT_FORMER_PREFIXED_PRODUCT_API_TOKENS = [
+  'background-subtle',
+  'foreground-tertiary',
+  'foreground-disabled',
+  'border-subtle',
+  'border-strong',
+  'border-selected',
+  'success',
+  'success-subtle',
+  'success-subtle-foreground',
+  'success-border',
+  'warning',
+  'warning-subtle',
+  'warning-subtle-foreground',
+  'warning-border',
+  'info',
+  'info-subtle',
+  'info-subtle-foreground',
+  'info-border',
+  'error',
+  'error-subtle',
+  'error-subtle-foreground',
+  'error-border',
+  'code-block',
+  'inline-code',
+  'inline-code-foreground',
+  'reference',
+  'reference-foreground',
+  'reference-subtle',
+  'highlight',
+  'highlight-foreground',
+  'highlight-accent',
+  'chat-user'
+] as const
 
 interface MutableMigrationRule {
   source: unknown
@@ -156,7 +190,7 @@ describe('validateMigrationContractSources', () => {
       rules: Array<{ source: string; target: string | null; strategy: string }>
     }
 
-    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS.filter((token) => token !== 'link')) {
+    for (const token of EXACT_FORMER_PREFIXED_PRODUCT_API_TOKENS) {
       expect(registry.rules).toContainEqual({
         source: `--cs-${token}`,
         target: `--${token}`,

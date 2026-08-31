@@ -1,4 +1,6 @@
 import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigTarget } from '@shared/utils/cliConfig'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readOwnLoginCliConfigDraft } from '../index'
@@ -8,6 +10,12 @@ import {
   buildKimiOwnLoginConfig,
   buildQwenOwnLoginConfig
 } from '../ownLogin'
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.request }
+}))
 
 describe('ownLogin builders', () => {
   describe('buildCodexOwnLoginConfig', () => {
@@ -118,13 +126,14 @@ describe('ownLogin builders', () => {
 
 describe('readOwnLoginCliConfigDraft (adapter disk-read glue)', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
-        file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
-      }
-    })
+    // On-disk configs read as empty through code_cli.read_config (old readExternal → '').
+    mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => ({
+      files: input.targets.map((target) => ({
+        target,
+        path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+        content: ''
+      }))
+    }))
   })
 
   // The raw builder tests above don't exercise the adapter glue: which target file each own-login
@@ -150,5 +159,27 @@ describe('readOwnLoginCliConfigDraft (adapter disk-read glue)', () => {
     await expect(readOwnLoginCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, configBlob: {} })).rejects.toThrow(
       /not supported/i
     )
+  })
+
+  it('reads only the tool-param file: a failing credential sibling must not abort the draft', async () => {
+    // codex-auth is credential-only and never consumed by the own-login draft; an
+    // EACCES on it must not block rebuilding codex-config's tool params.
+    mocks.request.mockImplementation(async (_route: string, input: { targets: CliConfigTarget[] }) => {
+      if (input.targets.includes('codex-auth')) throw new Error('EACCES: permission denied')
+      return {
+        files: input.targets.map((target) => ({
+          target,
+          path: `/resolved${CLI_CONFIG_FILE_SPECS[target].path}`,
+          content: ''
+        }))
+      }
+    })
+
+    const files = await readOwnLoginCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, configBlob: {} })
+
+    expect(files).toHaveLength(1)
+    expect(files[0].target).toBe('codex-config')
+    const requested = mocks.request.mock.calls.flatMap(([, input]) => (input as { targets: CliConfigTarget[] }).targets)
+    expect(requested).not.toContain('codex-auth')
   })
 })

@@ -2,7 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { webviewErrorCodes } from '@shared/ipc/errors/webview'
 import type { WindowId } from '@shared/ipc/types'
 import {
   WEBVIEW_ANNOTATION_LIMITS,
@@ -17,14 +18,16 @@ import {
   type WebviewAnnotationTarget,
   type WebviewResolvedAnnotation,
   type WebviewResolvedAnnotationDocument
-} from '@shared/types/webview'
-import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '@shared/utils/webviewAnnotations'
+} from '@shared/types/webviewAnnotation'
 import { app, dialog, session, shell, webContents } from 'electron'
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
+import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../utils/webviewAnnotations'
 
 const logger = loggerService.withContext('WebviewService')
+/** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
+const WEBVIEW_PARTITION = 'persist:webview'
 const ANNOTATION_CACHE_KEY = 'webview.annotations'
 const ACCESSIBILITY_CAPTURE_TIMEOUT_MS = 5_000
 
@@ -152,7 +155,7 @@ const buildElementResolverExpression = (selector: string) => {
  * remove the CherryStudio and Electron from the useragent
  */
 export function initSessionUserAgent() {
-  const wvSession = session.fromPartition('persist:webview')
+  const wvSession = session.fromPartition(WEBVIEW_PARTITION)
   const originUA = wvSession.getUserAgent()
   const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
@@ -170,11 +173,18 @@ export function initSessionUserAgent() {
 
 /**
  * WebviewService handles the behavior of links opened from webview elements
- * It controls whether links should be opened within the application or in an external browser
+ * It controls whether links should be opened within the application or in an external browser.
+ *
+ * Site webviews only. A local mini app guest (`persist:miniapp:*`) carries its own deny-all
+ * popup policy, and `setWindowOpenHandler` replaces whatever was installed before it.
  */
 export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   const webview = webContents.fromId(webviewId)
   if (!webview) return
+  if (webview.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+    logger.warn('Refused to change the popup policy of a webview outside the site partition', { webviewId })
+    return
+  }
 
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
@@ -185,78 +195,12 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
       }
       return { action: 'deny' }
     } else {
-      return { action: 'allow' }
+      if (url.startsWith('http:') || url.startsWith('https:')) {
+        return { action: 'allow' }
+      }
+      logger.warn(`Blocked in-app popup for untrusted URL scheme: ${url}`)
+      return { action: 'deny' }
     }
-  })
-}
-
-const attachKeyboardHandler = (contents: Electron.WebContents) => {
-  if (contents.getType?.() !== 'webview') {
-    return
-  }
-
-  const handleBeforeInput = (event: Electron.Event, input: Electron.Input) => {
-    if (!input) {
-      return
-    }
-
-    const key = input.key?.toLowerCase()
-    if (!key) {
-      return
-    }
-
-    // Helper to check if this is a shortcut we handle
-    const isHandledShortcut = (k: string) => {
-      const isFindShortcut = (input.control || input.meta) && k === 'f'
-      const isPrintShortcut = (input.control || input.meta) && k === 'p'
-      const isSaveShortcut = (input.control || input.meta) && k === 's'
-      const isEscape = k === 'escape'
-      const isEnter = k === 'enter'
-      return isFindShortcut || isPrintShortcut || isSaveShortcut || isEscape || isEnter
-    }
-
-    if (!isHandledShortcut(key)) {
-      return
-    }
-
-    const host = contents.hostWebContents
-    if (!host || host.isDestroyed()) {
-      return
-    }
-
-    const isFindShortcut = (input.control || input.meta) && key === 'f'
-    const isPrintShortcut = (input.control || input.meta) && key === 'p'
-    const isSaveShortcut = (input.control || input.meta) && key === 's'
-
-    // Always prevent Cmd/Ctrl+F to override the guest page's native find dialog
-    if (isFindShortcut) {
-      event.preventDefault()
-    }
-
-    // Prevent default print/save dialogs and handle them with custom logic
-    if (isPrintShortcut || isSaveShortcut) {
-      event.preventDefault()
-    }
-
-    // Send the hotkey event to the renderer
-    // The renderer will decide whether to preventDefault for Escape and Enter
-    // based on whether the search bar is visible
-    const windowId = application.get('WindowManager').getWindowIdByWebContents(host)
-    if (windowId) {
-      application.get('IpcApiService').send(windowId, 'webview.search_hotkey_pressed', {
-        webviewId: contents.id,
-        key,
-        control: Boolean(input.control),
-        meta: Boolean(input.meta),
-        shift: Boolean(input.shift),
-        alt: Boolean(input.alt)
-      })
-    }
-  }
-
-  contents.on('before-input-event', handleBeforeInput)
-  contents.once('destroyed', () => {
-    contents.removeListener('before-input-event', handleBeforeInput)
   })
 }
 
@@ -282,7 +226,7 @@ export class WebviewService extends BaseService {
    * Removes CherryStudio and Electron from the useragent.
    */
   private initSessionUserAgent() {
-    const wvSession = session.fromPartition('persist:webview')
+    const wvSession = session.fromPartition(WEBVIEW_PARTITION)
     const originUA = wvSession.getUserAgent()
     const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
@@ -318,8 +262,22 @@ export class WebviewService extends BaseService {
     if (this.preloadAttachedContents.has(contents)) return
     this.preloadAttachedContents.add(contents)
 
-    const handler = (_event: Electron.Event, webPreferences: Electron.WebPreferences) => {
-      webPreferences.preload = application.getPath('feature.webview.preload_file')
+    const preloadPath = application.getPath('feature.webview.preload_file')
+    if (!existsSync(preloadPath)) {
+      logger.error(`Webview preload is missing, annotations and host shortcuts will not work: ${preloadPath}`)
+      this.preloadAttachedContents.delete(contents)
+      return
+    }
+
+    const handler = (
+      _event: Electron.Event,
+      webPreferences: Electron.WebPreferences,
+      params: { partition?: string }
+    ) => {
+      // Local mini apps own a separate capability bridge and sandbox policy. Electron has
+      // one preload slot, so writing here would silently replace that bridge.
+      if (params.partition !== WEBVIEW_PARTITION) return
+      webPreferences.preload = preloadPath
       webPreferences.nodeIntegration = false
       webPreferences.nodeIntegrationInSubFrames = false
       webPreferences.contextIsolation = true
@@ -327,20 +285,30 @@ export class WebviewService extends BaseService {
     }
 
     contents.on('will-attach-webview', handler)
-    const cleanup = () => contents.removeListener('will-attach-webview', handler)
+    const cleanup = () => {
+      contents.removeListener('will-attach-webview', handler)
+      contents.removeListener('destroyed', cleanup)
+      this.preloadAttachedContents.delete(contents)
+    }
     contents.once('destroyed', cleanup)
     this.registerDisposable(cleanup)
   }
 
   private initializeWebview(contents: Electron.WebContents) {
-    if (contents.getType?.() !== 'webview' || this.initializedWebviews.has(contents)) return
+    if (
+      contents.getType?.() !== 'webview' ||
+      contents.session !== session.fromPartition(WEBVIEW_PARTITION) ||
+      this.initializedWebviews.has(contents)
+    ) {
+      return
+    }
     this.initializedWebviews.add(contents)
-    attachKeyboardHandler(contents)
 
     const clearAnnotations = () => this.clearAnnotations(contents.id)
     const handleDestroyed = () => {
       clearAnnotations()
       this.accessibilityCaptureQueues.delete(contents.id)
+      this.initializedWebviews.delete(contents)
     }
     const handleNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
       if (details.isMainFrame) clearAnnotations()
@@ -350,10 +318,12 @@ export class WebviewService extends BaseService {
     contents.on('render-process-gone', clearAnnotations)
     contents.once('destroyed', handleDestroyed)
     this.registerDisposable(() => {
-      if (contents.isDestroyed()) return
-      contents.removeListener('did-start-navigation', handleNavigation)
-      contents.removeListener('render-process-gone', clearAnnotations)
-      contents.removeListener('destroyed', handleDestroyed)
+      if (!contents.isDestroyed()) {
+        contents.removeListener('did-start-navigation', handleNavigation)
+        contents.removeListener('render-process-gone', clearAnnotations)
+        contents.removeListener('destroyed', handleDestroyed)
+      }
+      this.initializedWebviews.delete(contents)
     })
   }
 
@@ -378,9 +348,10 @@ export class WebviewService extends BaseService {
       !guest ||
       guest.isDestroyed() ||
       guest.getType?.() !== 'webview' ||
+      guest.session !== session.fromPartition(WEBVIEW_PARTITION) ||
       guest.hostWebContents !== hostWindow.webContents
     ) {
-      throw new IpcError(IpcErrorCode.FORBIDDEN_SENDER, 'The caller does not own this webview')
+      throw new IpcError(webviewErrorCodes.NOT_OWNED, 'The caller does not own this webview')
     }
 
     return guest

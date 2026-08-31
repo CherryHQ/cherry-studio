@@ -84,6 +84,9 @@ export default defineConfig({
         test: {
           name: 'preload',
           environment: 'jsdom',
+          // Keep preload in main's forks bucket so CI sharding does not reject
+          // this small project, while annotation controller tests still get a DOM.
+          pool: 'forks',
           include: ['src/preload/**/*.{test,spec}.{ts,tsx}', 'src/preload/**/__tests__/**/*.{test,spec}.{ts,tsx}']
         }
       },

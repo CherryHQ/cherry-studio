@@ -12,6 +12,7 @@ import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   copy as fsCopy,
+  copyNew as fsCopyNew,
   createAtomicWriteStream,
   createPreparedAtomicWriteStream,
   download as fsDownload,
@@ -107,7 +108,8 @@ describe('probeReadable', () => {
     expect(await probeReadable(path.join(tmp, 'nope') as AbsoluteFilePath)).toBe('missing')
   })
 
-  it("returns 'unverifiable' for a non-ENOENT failure", async () => {
+  // Windows reports ENOENT for this, so there is no non-ENOENT failure to provoke.
+  it.skipIf(process.platform === 'win32')("returns 'unverifiable' for a non-ENOENT failure", async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'x')
     // Treating a regular file as a directory parent yields ENOTDIR, not ENOENT, so the probe must
@@ -704,6 +706,25 @@ describe('copy', () => {
     await fsCopy(src as AbsoluteFilePath, dest as AbsoluteFilePath)
     const out = await readFile(dest)
     expect(out.equals(bytes)).toBe(true)
+  })
+
+  it('copyNew copies content to a fresh destination', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    await fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)
+    expect(await readFile(dest, 'utf-8')).toBe('payload')
+  })
+
+  it('copyNew refuses an existing destination (EEXIST) and leaves it untouched', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'new')
+    await writeFile(dest, 'old')
+    await expect(fsCopyNew(src as AbsoluteFilePath, dest as AbsoluteFilePath)).rejects.toMatchObject({
+      code: 'EEXIST'
+    })
+    expect(await readFile(dest, 'utf-8')).toBe('old')
   })
 
   it('rejects with an AbortError when the signal is already aborted', async () => {

@@ -41,31 +41,42 @@ describe('canEditAssistantMessageParts', () => {
           }
         }
       })
-    }
-  ])('allows one unambiguous editable run', ({ messageParts }) => {
-    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
-  })
-
-  it.each([
-    {
-      messageParts: parts(
-        { type: 'text', text: 'before tool' },
-        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
-        { type: 'text', text: 'after tool' }
-      )
     },
     {
-      messageParts: parts(
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'text', text: 'answer' }
-      )
+      messageParts: parts({
+        type: 'text',
+        text: 'answer from the Responses API',
+        providerMetadata: {
+          openai: { itemId: 'msg_1', phase: 'content' }
+        }
+      })
     },
     {
-      messageParts: parts(
-        { type: 'text', text: 'before file' },
-        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
-        { type: 'text', text: 'after file' }
-      )
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with provider citations',
+        providerMetadata: {
+          anthropic: { citations: [{ title: 'Example', url: 'https://example.com' }] }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'provider-specific answer',
+        providerMetadata: {
+          futureProvider: { opaqueState: 'state-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer with an out-of-spec provider entry',
+        providerMetadata: {
+          openai: 'msg_1'
+        }
+      })
     },
     {
       messageParts: parts({
@@ -99,9 +110,19 @@ describe('canEditAssistantMessageParts', () => {
     {
       messageParts: parts({
         type: 'text',
-        text: 'provider-specific answer',
+        text: 'signed answer alongside roundtrippable Cherry metadata',
         providerMetadata: {
-          futureProvider: { opaqueState: 'state-1' }
+          cherry: { references: [] },
+          google: { thoughtSignature: 'signature-1' }
+        }
+      })
+    },
+    {
+      messageParts: parts({
+        type: 'text',
+        text: 'answer signed by a provider we do not know yet',
+        providerMetadata: {
+          futureProvider: { replaySignature: 'signature-1' }
         }
       })
     },
@@ -125,9 +146,41 @@ describe('canEditAssistantMessageParts', () => {
         },
         { type: 'text', text: 'second paragraph' }
       )
+    }
+  ])('is editable when the message has text', ({ messageParts }) => {
+    expect(canEditAssistantMessageParts(messageParts)).toBe(true)
+  })
+
+  it.each([
+    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) },
+    {
+      messageParts: parts({ type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' })
     },
-    { messageParts: parts({ type: 'reasoning', text: 'reasoning only' }) }
-  ])('rejects parts that Composer cannot safely write back', ({ messageParts }) => {
+    { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
+    { messageParts: parts({ type: 'text', text: '   ' }) },
+    { messageParts: parts() },
+    // Interleaved editable parts require reordering to save, so they stay blocked
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before tool' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'after tool' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'answer' }
+      )
+    },
+    {
+      messageParts: parts(
+        { type: 'text', text: 'before file' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
+        { type: 'text', text: 'after file' }
+      )
+    }
+  ])('is not editable when the message has no text or interleaved parts', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })

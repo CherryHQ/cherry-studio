@@ -39,36 +39,40 @@ vi.mock('@renderer/components/chat/HtmlArtifactView', () => ({
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
 describe('MessageHtmlArtifact', () => {
-  it('renders the completed HTML in the message artifact view', () => {
+  it('loads the artifact view only after an artifact is rendered', async () => {
     render(<MessageHtmlArtifact artifactId="artifact" html="<title>Demo</title><h1>Hello</h1>" />)
 
     expect(screen.getByTestId('message-html-artifact')).toHaveAttribute('data-html-artifact')
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-artifact-id', 'artifact')
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-title', 'Demo')
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-streaming', 'false')
-    expect(screen.getByTestId('html-artifact-view')).toHaveTextContent('<title>Demo</title><h1>Hello</h1>')
+    expect(screen.queryByTestId('html-artifact-view')).not.toBeInTheDocument()
+
+    const artifactView = await screen.findByTestId('html-artifact-view')
+    expect(artifactView).toHaveAttribute('data-artifact-id', 'artifact')
+    expect(artifactView).toHaveAttribute('data-title', 'Demo')
+    expect(artifactView).toHaveAttribute('data-streaming', 'false')
+    expect(artifactView).toHaveTextContent('<title>Demo</title><h1>Hello</h1>')
   })
 
-  it('forwards the Markdown streaming state and classification to the existing artifact view', () => {
+  it('forwards the Markdown streaming state and classification to the existing artifact view', async () => {
     render(<MessageHtmlArtifact artifactId="artifact" html="<main>Partial</main>" kind="fragment" isStreaming />)
 
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-streaming', 'true')
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-kind', 'fragment')
-    expect(screen.getByTestId('html-artifact-view')).toHaveTextContent('<main>Partial</main>')
+    const artifactView = await screen.findByTestId('html-artifact-view')
+    expect(artifactView).toHaveAttribute('data-streaming', 'true')
+    expect(artifactView).toHaveAttribute('data-kind', 'fragment')
+    expect(artifactView).toHaveTextContent('<main>Partial</main>')
   })
 
-  it('falls back to the gated document classification when none is supplied', () => {
+  it('falls back to the gated document classification when none is supplied', async () => {
     render(<MessageHtmlArtifact artifactId="artifact" html="<main>Partial</main>" />)
 
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-kind', 'document')
+    expect(await screen.findByTestId('html-artifact-view')).toHaveAttribute('data-kind', 'document')
   })
 
-  it('forwards editing and save support to the artifact view', () => {
+  it('forwards editing and save support to the artifact view', async () => {
     const onSave = vi.fn()
 
     render(<MessageHtmlArtifact artifactId="artifact" html="<main>Page</main>" onSave={onSave} editable />)
 
-    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-editable', 'true')
+    expect(await screen.findByTestId('html-artifact-view')).toHaveAttribute('data-editable', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(onSave).toHaveBeenCalledWith('updated html')
   })
