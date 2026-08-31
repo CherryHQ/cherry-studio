@@ -21,7 +21,7 @@ function resolveBackupErrorKey(error: unknown): string | null {
   }
   if (
     error.message.includes(BACKUP_OPERATION_BUSY_ERROR_CODE) ||
-    error.message.includes('BackupOperationBusyError')
+    (error as Error).name === 'BackupOperationBusyError'
   ) {
     return 'backup.error.operation_busy'
   }
