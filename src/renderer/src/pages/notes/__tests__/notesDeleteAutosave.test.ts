@@ -148,8 +148,8 @@ describe('notes delete / autosave guards', () => {
       const preDeleteContent = 'draft-a'
       const preDeletePath = '/notes/a.md'
       // simulate switch: refs now point to new note
-      let lastContent = 'draft-b'
-      let lastFilePath: string | undefined = '/notes/b.md'
+      const lastContent = 'draft-b'
+      const lastFilePath: string | undefined = '/notes/b.md'
       const debouncedSave = vi.fn()
 
       // production fix: use snapshot if snapshot was related
