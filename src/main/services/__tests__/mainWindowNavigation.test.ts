@@ -123,17 +123,32 @@ describe('mainWindowNavigation', () => {
       })
     })
 
-    it('keeps only the latest queued route while the renderer is unavailable', () => {
+    it('preserves distinct queued routes while the renderer is unavailable', () => {
       windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
 
       openRouteInMainWindow('/app/chat')
       openRouteInMainWindow('/app/agents')
       markMainRendererReadyForDelivery('main-1')
 
-      expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
-      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'navigation.open_route_requested', {
-        to: '/app/agents'
-      })
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/chat' }],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
+    })
+
+    it('coalesces an exact duplicate route without changing cross-kind order', () => {
+      const queuedTab = { id: 'queued-tab', type: 'route', url: '/app/chat', title: 'Chat' } as const
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openRouteInMainWindow('/app/agents')
+      openTabInMainWindow(queuedTab)
+      openRouteInMainWindow('/app/agents')
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }],
+        ['main-1', 'tab.attached', queuedTab]
+      ])
     })
 
     it('queues a route when the renderer starts reloading after it reported ready', () => {
@@ -280,6 +295,21 @@ describe('mainWindowNavigation', () => {
       markMainRendererReadyForDelivery('main-1')
 
       expect(ipcApiServiceMock.send).toHaveBeenCalledTimes(1)
+    })
+
+    it('refreshes a duplicate tab payload without moving it behind a later route', () => {
+      const renamedTab = { ...tab, title: 'Renamed chat' }
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+
+      openTabInMainWindow(tab)
+      openRouteInMainWindow('/app/agents')
+      openTabInMainWindow(renamedTab)
+      markMainRendererReadyForDelivery('main-1')
+
+      expect(ipcApiServiceMock.send.mock.calls).toEqual([
+        ['main-1', 'tab.attached', renamedTab],
+        ['main-1', 'navigation.open_route_requested', { to: '/app/agents' }]
+      ])
     })
 
     it('delivers queued tabs to the live window id at flush time', () => {

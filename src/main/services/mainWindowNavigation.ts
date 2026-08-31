@@ -51,18 +51,15 @@ type PendingMainWindowDelivery = { kind: 'route'; path: string } | { kind: 'tab-
  * Commands awaiting a main renderer that has not mounted its listeners yet
  * (cold boot, reload, or crash recovery). Electron does not buffer directed
  * sends, so preserve their real order and flush after
- * `navigation.protocol_dispatch_ready`. A newer route supersedes an older
- * queued route, while tab attaches remain ordered and lossless.
+ * `navigation.protocol_dispatch_ready`. Exact duplicates are coalesced in
+ * place, while distinct routes and tab attaches remain ordered and lossless.
  */
 const pendingMainWindowDeliveries: PendingMainWindowDelivery[] = []
 let isMainRendererReadyForDelivery = false
 
 function enqueueRouteNavigation(path: string): void {
-  for (let index = pendingMainWindowDeliveries.length - 1; index >= 0; index--) {
-    if (pendingMainWindowDeliveries[index].kind === 'route') {
-      pendingMainWindowDeliveries.splice(index, 1)
-    }
-  }
+  const existing = pendingMainWindowDeliveries.some((delivery) => delivery.kind === 'route' && delivery.path === path)
+  if (existing) return
   pendingMainWindowDeliveries.push({ kind: 'route', path })
 }
 
@@ -71,7 +68,9 @@ function enqueueTabAttach(tab: Tab): void {
     (delivery) => delivery.kind === 'tab-attach' && delivery.tab.id === tab.id
   )
   if (existingIndex >= 0) {
-    pendingMainWindowDeliveries.splice(existingIndex, 1)
+    // Refresh the payload without moving its original request position across other delivery kinds.
+    pendingMainWindowDeliveries[existingIndex] = { kind: 'tab-attach', tab }
+    return
   }
   pendingMainWindowDeliveries.push({ kind: 'tab-attach', tab })
 }
@@ -159,8 +158,8 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  * - Window alive → the navigation is a one-shot COMMAND: deliver it as the
  *   directed `navigation.open_route_requested` IpcApi event (ephemeral, no
  *   store write, no replay on reload), then raise the window. If the renderer
- *   is still booting or reloading, retain only the latest requested route and
- *   deliver it after `navigation.protocol_dispatch_ready`.
+ *   is still booting or reloading, queue each distinct requested route and
+ *   deliver them in request order after `navigation.protocol_dispatch_ready`.
  * - Window missing/destroyed → when this route starts a fresh rebuild, it is
  *   genuine init data and the renderer picks it up on cold start. If another
  *   delivery already started the rebuild, append this route to the unified
