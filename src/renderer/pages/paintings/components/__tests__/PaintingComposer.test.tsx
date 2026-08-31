@@ -397,6 +397,13 @@ describe('PaintingComposer', () => {
     expect(button).toHaveTextContent('paintings.background_options.auto')
   })
 
+  it('previews the typed slider fallback for a malformed stored value', () => {
+    renderComposer({ painting: makePainting({ params: { numImages: true } }) })
+    const summaryParts = paramsButton().textContent?.split(' · ') ?? []
+    expect(summaryParts).toContain('1')
+    expect(summaryParts).not.toContain('true')
+  })
+
   it('folds the summary into the params button accessible name', () => {
     renderComposer({ painting: makePainting({ params: { size: '1536x1024' } }) })
     // Summary (incl. registry defaults) is appended after the settings label.
