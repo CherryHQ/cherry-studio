@@ -2845,12 +2845,8 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('reserves the inserted separator when budgeting a Session reference pointer', async () => {
+  it('recomputes the remaining composer budget when a Session reference pointer settles', async () => {
     mocks.listDirectoryEntries.mockResolvedValue([])
-    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
-      text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 1001),
-      tokens: []
-    })
     vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
       if (path === '/agent-sessions') {
         return {
@@ -2886,10 +2882,20 @@ describe('AgentComposer', () => {
     )
 
     const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const { editor, transaction } = buildComposerEditorMock()
+    let editorSerializationCount = 0
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockImplementation((value) => {
+      if (value !== editor) return { text: '', tokens: [] }
+      editorSerializationCount += 1
+      return editorSerializationCount === 1
+        ? // Insertion sees enough space for a useful reference (including the separator).
+          { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 1001), tokens: [] }
+        : // The user adds more text while the transcript is loading.
+          { text: 'x'.repeat(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 100), tokens: [] }
+    })
     const items = await source?.items({ query: '', editor: {} as any })
     const item = items?.find((entry) => entry.id === 'reference:session:s1')
     if (!item) throw new Error('Expected a session reference item')
-    const { editor, transaction } = buildComposerEditorMock()
 
     await act(async () => {
       item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
@@ -2897,7 +2903,7 @@ describe('AgentComposer', () => {
 
     const promptText = transaction.setNodeMarkup.mock.calls[0]?.[2]?.promptText as string
     expect(promptText).toBeTruthy()
-    expect(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 1001 + promptText.length + 1).toBeLessThanOrEqual(
+    expect(ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH - 100 + promptText.length).toBeLessThanOrEqual(
       ComposerDraftModule.COMPOSER_INPUT_MAX_LENGTH
     )
   })

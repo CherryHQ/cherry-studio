@@ -161,8 +161,11 @@ enters the runtime's process-local follow-up queue.
 ### Tool contract
 
 Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
-and exposes six tools:
+and exposes nine autonomy tools:
 
+- `cron` — create, list, update, or remove scheduled Agent jobs;
+- `notify` — send messages or supported workspace files through connected channels;
+- `config` — inspect and manage the current Agent's own configuration and channels;
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
 - `session_read` — page through one visible Session's turns, newest page first, using an opaque
   cursor to continue into older history;

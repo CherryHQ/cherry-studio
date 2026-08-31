@@ -86,7 +86,16 @@ function settlePendingReferenceToken(editor: Editor, tokenId: string, promptText
   if (promptText === null) {
     transaction.delete(match.position, match.position + match.node.nodeSize)
   } else {
-    transaction.setNodeMarkup(match.position, undefined, { ...match.node.attrs, promptText })
+    // The user can keep editing while the reference loads. Recompute the live room here instead
+    // of trusting the insertion-time budget, otherwise those edits plus the settled transcript can
+    // exceed the composer's hard limit.
+    const remainingChars = Math.max(0, COMPOSER_INPUT_MAX_LENGTH - serializeComposerDocument(editor).text.length)
+    const boundedPromptText = promptText.slice(0, remainingChars)
+    if (!boundedPromptText) {
+      transaction.delete(match.position, match.position + match.node.nodeSize)
+    } else {
+      transaction.setNodeMarkup(match.position, undefined, { ...match.node.attrs, promptText: boundedPromptText })
+    }
   }
   editor.view.dispatch(transaction)
 }
