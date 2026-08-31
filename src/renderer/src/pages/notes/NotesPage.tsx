@@ -201,8 +201,7 @@ const NotesPage: FC = () => {
           // 若目标路径是刚被重建的同路径笔记，旧内容已覆盖新文件，需恢复正确内容
           if (lastRecreatedPathRef.current && normalizedAfter === lastRecreatedPathRef.current) {
             const curLastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
-            const correctContent =
-              curLastPath === normalizedAfter ? lastContentRef.current : currentContentRef.current
+            const correctContent = curLastPath === normalizedAfter ? lastContentRef.current : currentContentRef.current
             if (correctContent !== content) {
               try {
                 await window.api.file.write(targetPath, correctContent).catch(() => {})
