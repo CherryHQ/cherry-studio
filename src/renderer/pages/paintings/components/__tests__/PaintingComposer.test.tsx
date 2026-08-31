@@ -380,6 +380,13 @@ describe('PaintingComposer', () => {
     expect(paramsButton()).toHaveTextContent('800×600')
   })
 
+  it('does not preview invalid custom dimensions', () => {
+    renderComposer({
+      painting: makePainting({ params: { size: 'custom', customSize_width: 0, customSize_height: 600 } })
+    })
+    expect(paramsButton()).not.toHaveTextContent('0×600')
+  })
+
   it('previews count, quality and background alongside size', () => {
     renderComposer({ painting: makePainting({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
     const button = paramsButton()

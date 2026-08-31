@@ -29,7 +29,7 @@ import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
-import { controlValue } from '../form/fieldValue'
+import { controlValue, optionalFiniteNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
 import { resolveOptions } from '../form/resolveOptions'
@@ -78,11 +78,9 @@ function formatSummaryValue(
   // Size-bearing fields render as chip-style dimensions, matching the size chips.
   if ((SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key ?? '')) {
     if (value === 'custom') {
-      const w = params?.customSize_width
-      const h = params?.customSize_height
-      const width = controlValue(w)
-      const height = controlValue(h)
-      return width && height ? `${width}×${height}` : undefined
+      const width = optionalFiniteNumber(params?.customSize_width)
+      const height = optionalFiniteNumber(params?.customSize_height)
+      return width !== null && height !== null && width > 0 && height > 0 ? `${width}×${height}` : undefined
     }
     // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
     // and the artboard prompt bar do, instead of formatting the raw enum.
