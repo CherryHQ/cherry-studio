@@ -13,14 +13,22 @@ import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSe
  */
 export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
   const text = extractMessageText(message)
-  const attachments = extractAttachments(message)
-  const content =
-    attachments.length === 0
-      ? text
-      : `${text.trim() ? `${text}\n\n` : ''}Attached files (read them with your tools using these absolute paths):\n${attachments
-          .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
-          .join('\n')}`
+  const content = appendAgentAttachmentPaths(text, extractAttachments(message))
   return wrapAgentSessionDeliveryContent(message, content)
+}
+
+/** Append original filenames beside managed paths so agents can distinguish opaque storage names. */
+export function appendAgentAttachmentPaths(
+  text: string,
+  attachments: ReadonlyArray<{ filename?: string; path: string }>
+): string {
+  if (attachments.length === 0) return text
+
+  const list = attachments
+    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
+    .join('\n')
+  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 /** Preserve trusted routing metadata while isolating model-authored cross-Session content. */
