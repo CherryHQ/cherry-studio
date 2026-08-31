@@ -40,7 +40,7 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
 5. Open the resulting draft under **Releases** and download its installers.
 
-Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview.g<commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
+Every selected platform builds both the global and China editions from the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview.g<commit>`. After both editions succeed on every selected platform, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads all installers there.
 
 Preview source code runs without repository credentials, application service secrets, signing certificates, or notarization credentials, so these internal packages are unsigned and may omit secret-backed integrations. Their non-semantic-version tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
 

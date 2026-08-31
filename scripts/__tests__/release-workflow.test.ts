@@ -993,6 +993,24 @@ describe('release workflow gates', () => {
     }
   })
 
+  it('builds and stages both editions for every selected preview platform', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const buildJob = workflow.jobs.build
+    const buildSteps = buildJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Build '))
+    const validationStep = buildJob.steps.find(
+      (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
+    )
+    const uploadStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Upload preview artifacts')
+
+    expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
+    for (const step of buildSteps) {
+      expect(step.run).toContain("matrix.edition == 'cn'")
+    }
+    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(uploadStep.with.name).toContain('${{ matrix.edition }}')
+    expect(uploadStep.with.path).toContain('dist/preview*.yml')
+  })
+
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
     const metadataStep = workflow.jobs['sync-release-metadata'].steps.find(
