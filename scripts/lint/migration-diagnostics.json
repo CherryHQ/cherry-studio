@@ -327,28 +327,28 @@
           ],
           [
             "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
-            380,
-            13,
-            "react-hooks(exhaustive-deps)",
-            "React Hook useCallback has a missing dependency: 'props'"
-          ],
-          [
-            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
-            395,
-            5,
-            "react-hooks(exhaustive-deps)",
-            "React Hook useCallback has unnecessary dependency: props.onChange"
-          ],
-          [
-            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
-            552,
+            472,
             11,
             "react-hooks(exhaustive-deps)",
             "React Hook useCallback has a missing dependency: 'props'"
           ],
           [
             "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
-            557,
+            487,
+            5,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has unnecessary dependency: props.onChange"
+          ],
+          [
+            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
+            649,
+            9,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has a missing dependency: 'props'"
+          ],
+          [
+            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
+            654,
             5,
             "react-hooks(exhaustive-deps)",
             "React Hook useCallback has unnecessary dependency: props.onChange"
