@@ -14,6 +14,7 @@ type LanguageData = {
 }
 
 const LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/codeLanguages.ts')
+const TEMPORARY_LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/.codeLanguages.tmp.ts')
 
 /**
  * Extracts and filters necessary language data from the linguist-languages package.
@@ -114,17 +115,18 @@ async function updateLanguagesFile(): Promise<void> {
     const extractedLanguages = extractAllLanguageData()
     const fileContent = generateLanguagesFileContent(extractedLanguages)
 
-    await fs.writeFile(LANGUAGES_FILE_PATH, fileContent, 'utf-8')
-    console.log(`✅ Successfully wrote to ${LANGUAGES_FILE_PATH}`)
+    await fs.writeFile(TEMPORARY_LANGUAGES_FILE_PATH, fileContent, 'utf-8')
 
-    await format(LANGUAGES_FILE_PATH)
-    await checkTypeScript(LANGUAGES_FILE_PATH)
+    await format(TEMPORARY_LANGUAGES_FILE_PATH)
+    await checkTypeScript(TEMPORARY_LANGUAGES_FILE_PATH)
+    await fs.rename(TEMPORARY_LANGUAGES_FILE_PATH, LANGUAGES_FILE_PATH)
+    console.log(`✅ Successfully wrote to ${LANGUAGES_FILE_PATH}`)
 
     console.log('🎉 Successfully updated codeLanguages.ts file!')
     console.log(`📊 Contains ${Object.keys(extractedLanguages).length} languages.`)
   } catch (error) {
+    await fs.rm(TEMPORARY_LANGUAGES_FILE_PATH, { force: true })
     console.error('❌ An error occurred during the update process:', (error as Error).message)
-    // No need to restore backup as we write only at the end of successful generation.
     process.exit(1)
   }
 }
