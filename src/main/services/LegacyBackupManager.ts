@@ -34,6 +34,7 @@ import { assertZipEntriesWithin } from '@main/utils/zipSafety'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
+  BACKUP_DISK_FULL_ERROR_CODE,
   type LocalBackupConfig,
   type S3Config,
   type WebDavConfig
@@ -485,7 +486,8 @@ class BackupManager {
       if (output && !output.destroyed) {
         await output.abort()
       }
-      throw error
+      const reportedError = await this.withAvailableDiskSpace(error, output ? outputDirectory : workDir)
+      throw reportedError
     } finally {
       await fs.remove(workDir).catch(() => {})
     }
@@ -888,7 +890,8 @@ class BackupManager {
       await this.restoreDirect(extractionDir)
     } catch (error) {
       logger.error('Restore failed:', error as Error)
-      throw error
+      const reportedError = await this.withAvailableDiskSpace(error, extractionDir)
+      throw reportedError
     } finally {
       await fs.remove(extractionDir).catch(() => {})
     }
@@ -1384,7 +1387,8 @@ class BackupManager {
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
         logger.error('Failed to restore from WebDAV:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
+        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+        throw reportedError
       } finally {
         await fs.remove(downloadDir).catch(() => {})
       }
@@ -1415,7 +1419,8 @@ class BackupManager {
         await this.restoreUnlocked(backupedFilePath)
       } catch (error: any) {
         logger.error('[BackupManager] Failed to restore from S3:', error)
-        throw new Error(error.message || 'Failed to restore backup file')
+        const reportedError = await this.withAvailableDiskSpace(error, downloadDir)
+        throw reportedError
       } finally {
         await fs.remove(downloadDir).catch(() => {})
       }
@@ -1429,8 +1434,31 @@ class BackupManager {
 
   private async createOperationDir(prefix: string): Promise<string> {
     const operationDir = path.join(this.backupDir, `${prefix}-${randomUUID()}`)
-    await fs.ensureDir(operationDir)
+    try {
+      await fs.ensureDir(operationDir)
+    } catch (error) {
+      const reportedError = await this.withAvailableDiskSpace(error, this.backupDir)
+      throw reportedError
+    }
     return operationDir
+  }
+
+  private async withAvailableDiskSpace(error: unknown, fallbackDirectory: string): Promise<unknown> {
+    if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOSPC') {
+      return error
+    }
+
+    const fileError = error as NodeJS.ErrnoException & { dest?: string }
+    const failedPath = fileError.dest ?? fileError.path
+    const probePath = failedPath ? path.dirname(failedPath) : fallbackDirectory
+
+    try {
+      const stats = await fs.promises.statfs(probePath)
+      return new Error(`${BACKUP_DISK_FULL_ERROR_CODE}:${stats.bsize * stats.bavail}`)
+    } catch (statError) {
+      logger.warn('Failed to read available disk space after ENOSPC', { probePath, statError })
+      return error
+    }
   }
 
   private async assertJobsDrained(jobManager: {
