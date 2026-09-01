@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { ColorPicker, ColorPickerAlpha, ColorPickerHue, ColorPickerSelection } from '../color-picker'
+import {
+  ColorPicker,
+  ColorPickerAlpha,
+  ColorPickerEyeDropper,
+  ColorPickerFormat,
+  ColorPickerHue,
+  ColorPickerSelection
+} from '../color-picker'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -13,11 +20,19 @@ beforeAll(() => {
   } as unknown as typeof ResizeObserver
 })
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('ColorPicker', () => {
-  it('falls back instead of throwing on an undefined or invalid value (safeColor)', () => {
-    expect(() => render(<ColorPicker />)).not.toThrow()
-    expect(() => render(<ColorPicker value="not-a-color" />)).not.toThrow()
-    expect(() => render(<ColorPicker value="#zzz" />)).not.toThrow()
+  it('renders the fallback color when the supplied value is invalid', () => {
+    render(
+      <ColorPicker value="#zzz">
+        <ColorPickerFormat />
+      </ColorPicker>
+    )
+
+    expect(screen.getByLabelText<HTMLInputElement>('Hex color value').value).toBe('#000000')
   })
 
   it('does not fire onChange on mount when controlled', () => {
@@ -161,6 +176,16 @@ describe('ColorPicker', () => {
     expect(screen.getByRole('slider', { name: 'Localized hue' })).toBeTruthy()
   })
 
+  it('lets callers localize the selection value description', () => {
+    render(
+      <ColorPicker defaultValue="#3366ff">
+        <ColorPickerSelection aria-valuetext="Localized saturation and brightness" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('Localized saturation and brightness')
+  })
+
   it('labels the interactive alpha slider thumb', () => {
     render(
       <ColorPicker>
@@ -186,5 +211,26 @@ describe('ColorPicker', () => {
     expect(emittedAlpha).toBeGreaterThan(0)
     expect(emittedAlpha).toBeLessThanOrEqual(1)
     expect(emittedAlpha).toBe(0.99)
+  })
+
+  it('preserves the eyedropper action when a caller also handles the click', async () => {
+    const open = vi.fn().mockResolvedValue({ sRGBHex: '#22c55e' })
+    const onClick = vi.fn()
+    vi.stubGlobal(
+      'EyeDropper',
+      class {
+        open = open
+      }
+    )
+
+    render(
+      <ColorPicker>
+        <ColorPickerEyeDropper aria-label="Pick a color" onClick={onClick} />
+      </ColorPicker>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Pick a color' }))
+
+    expect(onClick).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1))
   })
 })

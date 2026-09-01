@@ -598,6 +598,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <Button
             variant="outline"
             size={size}
+            data-size={size ?? 'default'}
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}

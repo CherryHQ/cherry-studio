@@ -88,15 +88,14 @@ function PageSidePanel({
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
       ).filter((element) => {
-        if (
-          element.tabIndex < 0 ||
-          (element instanceof HTMLInputElement && element.type === 'hidden') ||
-          element.closest('[hidden], [aria-hidden="true"], [inert]')
-        ) {
+        if (element.tabIndex < 0 || (element instanceof HTMLInputElement && element.type === 'hidden')) {
           return false
         }
 
         for (let current: HTMLElement | null = element; current && current !== panelRef.current; ) {
+          if (current.hidden || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) {
+            return false
+          }
           const style = window.getComputedStyle(current)
           if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
             return false

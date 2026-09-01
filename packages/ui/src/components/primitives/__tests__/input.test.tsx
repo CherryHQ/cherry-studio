@@ -27,4 +27,11 @@ describe('Input', () => {
     rerender(<Input aria-label="Name" size="lg" />)
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('data-size', 'lg')
   })
+
+  it('preserves the native numeric size attribute without changing control density', () => {
+    render(<Input aria-label="Search width" size={12} />)
+
+    expect(screen.getByRole('textbox', { name: 'Search width' })).toHaveAttribute('size', '12')
+    expect(screen.getByRole('textbox', { name: 'Search width' })).toHaveAttribute('data-size', 'default')
+  })
 })
