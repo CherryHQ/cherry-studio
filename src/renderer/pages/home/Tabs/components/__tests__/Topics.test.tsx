@@ -1590,7 +1590,6 @@ describe('Topics', () => {
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        sidebarShortcut('core.app', 'assistants'),
         { ...sidebarShortcut('core.topic', 'topic-a'), fallbackLabel: 'Alpha topic' }
       ])
     )
@@ -3388,7 +3387,6 @@ describe('Topics', () => {
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.assistant', 'assistant-1')
       ])
     )
@@ -3409,9 +3407,7 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        sidebarShortcut('core.app', 'assistants')
-      ])
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([])
     )
   })
 

@@ -148,13 +148,6 @@ export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
  */
 export const SIDEBAR_FAVORITE_ORDER: SidebarAppId[] = SIDEBAR_APPS.map((app) => app.id)
 
-/**
- * 必须显示的侧边栏收藏项（不能被隐藏）
- * 这些收藏项必须始终在侧边栏中可见
- * 抽取为参数方便未来扩展
- */
-export const REQUIRED_SIDEBAR_FAVORITES: SidebarAppId[] = ['assistants']
-
 const sidebarFavoriteSet = new Set<SidebarAppId>(SIDEBAR_FAVORITE_ORDER)
 
 export function getSidebarMenuPath(favorite: SidebarAppId, defaultPaintingProvider: string): string {
@@ -198,10 +191,6 @@ export function createSidebarShortcutTarget(
   }
 }
 
-const REQUIRED_SIDEBAR_SHORTCUT_TARGETS = REQUIRED_SIDEBAR_FAVORITES.map((id) =>
-  createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, id)
-)
-const REQUIRED_SIDEBAR_SHORTCUT_IDS = new Set(REQUIRED_SIDEBAR_SHORTCUT_TARGETS.map(createSidebarShortcutId))
 const LEGACY_PROVIDER_BY_TYPE = {
   app: SIDEBAR_SHORTCUT_PROVIDER_IDS.APP,
   mini_app: SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP,
@@ -271,7 +260,7 @@ function isForwardCompatibleSidebarItem(value: StoredSidebarItem): boolean {
   )
 }
 
-/** Normalize storage, migrate legacy leaves, preserve future items, and enforce required shortcuts. */
+/** Normalize storage, migrate legacy leaves, and preserve future items. */
 export function normalizeSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
   const items: SidebarShortcutItem[] = []
   const seen = new Set<string>()
@@ -293,15 +282,36 @@ export function normalizeSidebarShortcutItems(values: readonly unknown[] | undef
     items.push(value as unknown as SidebarShortcutItem)
   }
 
-  const missingRequired = REQUIRED_SIDEBAR_SHORTCUT_TARGETS.flatMap((target) => {
-    const id = createSidebarShortcutId(target)
-    return seen.has(id) ? [] : [{ type: 'shortcut' as const, id, target }]
-  })
-  return [...missingRequired, ...items]
+  return items
 }
 
 export function getVisibleSidebarShortcutItems(values: readonly unknown[] | undefined): SidebarShortcutItem[] {
   return normalizeSidebarShortcutItems(values).filter(isSidebarShortcutItem)
+}
+
+function isBuiltInAppShortcutTarget(target: SidebarShortcutTarget): target is SidebarShortcutTarget & {
+  locator: { providerId: 'core.app'; resourceId: SidebarAppId }
+} {
+  return (
+    target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.APP &&
+    (target.activationId === undefined || target.activationId === 'reveal') &&
+    isSidebarAppId(target.locator.resourceId)
+  )
+}
+
+export function getVisibleSidebarAppIds(values: readonly unknown[] | undefined): SidebarAppId[] {
+  return getVisibleSidebarShortcutItems(values).flatMap((item) => {
+    const { target } = item
+    return isBuiltInAppShortcutTarget(target) ? [target.locator.resourceId] : []
+  })
+}
+
+export function getSidebarDefaultLandingUrl(
+  values: readonly unknown[] | undefined,
+  defaultPaintingProvider: string
+): string {
+  const firstApp = getVisibleSidebarAppIds(values)[0]
+  return firstApp ? getSidebarMenuPath(firstApp, defaultPaintingProvider) : ''
 }
 
 export function addSidebarShortcut(
@@ -323,13 +333,23 @@ export function addSidebarShortcut(
   ]
 }
 
+export function canRemoveSidebarShortcut(
+  values: readonly unknown[] | undefined,
+  target: SidebarShortcutTarget
+): boolean {
+  if (!isBuiltInAppShortcutTarget(target)) return true
+
+  const visibleAppIds = getVisibleSidebarAppIds(values)
+  return !visibleAppIds.includes(target.locator.resourceId) || visibleAppIds.length > 1
+}
+
 export function removeSidebarShortcut(
   values: readonly unknown[] | undefined,
   target: SidebarShortcutTarget
 ): SidebarShortcutItem[] {
   const id = createSidebarShortcutId(target)
   const items = normalizeSidebarShortcutItems(values)
-  if (REQUIRED_SIDEBAR_SHORTCUT_IDS.has(id)) return items
+  if (!canRemoveSidebarShortcut(items, target)) return items
   return items.filter((item) => !isSidebarShortcutItem(item) || item.id !== id)
 }
 
@@ -364,10 +384,6 @@ export function isSidebarShortcutPinned(
 ): boolean {
   const id = createSidebarShortcutId(target)
   return getVisibleSidebarShortcutItems(values).some((item) => item.id === id)
-}
-
-export function isRequiredSidebarShortcut(target: SidebarShortcutTarget): boolean {
-  return REQUIRED_SIDEBAR_SHORTCUT_IDS.has(createSidebarShortcutId(target))
 }
 
 // --- Launchpad app order --------------------------------------------------

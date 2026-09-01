@@ -11,6 +11,7 @@ import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { SidebarShortcutMigrationSeeder } from './seeders/sidebarShortcutMigrationSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
+import { WebSearchPreferenceUpgradeSeeder } from './seeders/webSearchPreferenceUpgradeSeeder'
 
 /**
  * All seeders in execution order.
@@ -27,6 +28,7 @@ export const seeders: ISeeder[] = [
   new CherrySupportSeeder(),
   new DefaultAssistantSeeder(),
   new LongTextPastePreferenceUpgradeSeeder(),
+  new WebSearchPreferenceUpgradeSeeder(),
   new PreferenceSeeder(),
   new SidebarShortcutMigrationSeeder(),
   new TranslateLanguageSeeder(),

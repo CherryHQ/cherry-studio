@@ -26,10 +26,23 @@ describe('SidebarShortcutService', () => {
     await Promise.all([service.setPinned(agent, true, 'Agent'), service.setPinned(assistant, true, 'Assistant')])
 
     expect(harness.current().map((item) => item.id)).toEqual([
-      createSidebarShortcutId(createSidebarShortcutTarget('core.app', 'assistants')),
       createSidebarShortcutId(agent),
       createSidebarShortcutId(assistant)
     ])
+  })
+
+  it('refuses to remove the final built-in app shortcut', async () => {
+    const app = createSidebarShortcutTarget('core.app', 'assistants')
+    const initial = [
+      { type: 'shortcut', id: createSidebarShortcutId(app), target: app }
+    ] satisfies SidebarShortcutItem[]
+    const harness = createClient(initial)
+    const service = new SidebarShortcutService(harness.client)
+
+    await service.remove(app)
+
+    expect(harness.current()).toEqual(initial)
+    expect(harness.set).not.toHaveBeenCalled()
   })
 
   it('rejects a failed mutation without blocking the next queued mutation', async () => {

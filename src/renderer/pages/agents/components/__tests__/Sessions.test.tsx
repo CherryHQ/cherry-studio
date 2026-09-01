@@ -2041,7 +2041,6 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([
-        sidebarShortcut('core.app', 'assistants'),
         { ...sidebarShortcut('core.agent-session', 'session-a'), fallbackLabel: 'Alpha session' }
       ])
     )
@@ -3581,10 +3580,7 @@ describe('Sessions', () => {
     fireEvent.click(pinMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
-      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([
-        sidebarShortcut('core.app', 'assistants'),
-        sidebarShortcut('core.agent', 'agent-a')
-      ])
+      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([sidebarShortcut('core.agent', 'agent-a')])
     )
   })
 
@@ -3612,9 +3608,7 @@ describe('Sessions', () => {
 
     fireEvent.click(unpinMenuItem as HTMLElement)
 
-    await vi.waitFor(() =>
-      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([sidebarShortcut('core.app', 'assistants')])
-    )
+    await vi.waitFor(() => expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([]))
   })
 
   it('deletes an agent from the agent group menu', async () => {

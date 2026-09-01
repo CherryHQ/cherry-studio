@@ -133,6 +133,13 @@
       "when": 1787913871613,
       "tag": "0018_dashing_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1788241355850,
+      "tag": "0019_colorful_gladiator",
+      "breakpoints": true
     }
   ],
   "version": "7"

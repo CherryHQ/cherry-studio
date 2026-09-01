@@ -107,6 +107,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 
 vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
   useSidebarShortcuts: () => ({
+    shortcuts: mocks.sidebarFavorites,
     isPinned: (target: SidebarShortcutTarget) =>
       mocks.sidebarFavorites.some((item) => item.id === createSidebarShortcutId(target)),
     setPinned: (target: SidebarShortcutTarget, pinned: boolean, fallbackLabel?: string) => {

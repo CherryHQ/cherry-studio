@@ -1053,7 +1053,6 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() =>
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.agent', 'agent-1', 'Agent 1')
       ])
     )
@@ -1077,11 +1076,7 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    await waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        sidebarShortcut('core.app', 'assistants')
-      ])
-    )
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
   })
 
   it('offers toggling an assistant into the sidebar from the classic rail context menu', async () => {
@@ -1096,7 +1091,6 @@ describe('classic layout entity resource list actions', () => {
 
     await waitFor(() =>
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        sidebarShortcut('core.app', 'assistants'),
         sidebarShortcut('core.assistant', 'assistant-1', 'Assistant 1')
       ])
     )
@@ -1114,10 +1108,6 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(within(menu).getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
 
-    await waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        sidebarShortcut('core.app', 'assistants')
-      ])
-    )
+    await waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
   })
 })

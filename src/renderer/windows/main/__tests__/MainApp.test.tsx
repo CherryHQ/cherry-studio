@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -16,8 +17,13 @@ vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
   PrivacyPolicyUpdateGate: () => <div data-testid="privacy-policy-gate">privacy-policy-gate</div>
 }))
 
+const tabsProviderMock = vi.hoisted(() => ({ lastInitialDefaultTab: null as unknown }))
+
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
-  TabsProvider: ({ children }: { children: ReactNode }) => <div data-testid="tabs-provider">{children}</div>
+  TabsProvider: ({ children, initialDefaultTab }: { children: ReactNode; initialDefaultTab?: unknown }) => {
+    tabsProviderMock.lastInitialDefaultTab = initialDefaultTab
+    return <div data-testid="tabs-provider">{children}</div>
+  }
 }))
 
 vi.mock('@renderer/components/layout/AppShell', () => ({
@@ -47,6 +53,11 @@ function appendBootSpinner() {
   const spinner = document.createElement('div')
   spinner.id = 'spinner'
   document.body.appendChild(spinner)
+}
+
+function appShortcut(resourceId: string) {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId: 'core.app', resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
 }
 
 describe('MainWindowContent', () => {
@@ -84,6 +95,26 @@ describe('MainWindowContent', () => {
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
     expect(document.getElementById('spinner')).toBeNull()
+  })
+
+  it('passes the first visible sidebar app as the startup landing tab', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [appShortcut('agents'), appShortcut('translate')])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/agents' })
+  })
+
+  it('falls back to launchpad when no sidebar app is visible', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/launchpad' })
   })
 })
 

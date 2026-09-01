@@ -22,9 +22,9 @@ import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
+  canRemoveSidebarShortcut,
   createSidebarShortcutTarget,
   getSidebarMenuPath,
-  isRequiredSidebarShortcut,
   SIDEBAR_SHORTCUT_PROVIDER_IDS
 } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
@@ -61,7 +61,7 @@ export default function LaunchpadPage() {
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { isPinned, setPinned } = useSidebarShortcuts()
+  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
@@ -130,7 +130,6 @@ export default function LaunchpadPage() {
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
       const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
-      if (isRequiredSidebarShortcut(target)) return
       setPinned(target, false)
     },
     [setPinned]
@@ -147,12 +146,12 @@ export default function LaunchpadPage() {
           id: `launchpad.${pinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
           icon: <SidebarShortcutIcon size={14} pinned={pinned} />,
-          enabled: !pinned || !isRequiredSidebarShortcut(target),
+          enabled: !pinned || canRemoveSidebarShortcut(shortcuts, target),
           onSelect: () => (pinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
-    [isPinned, pinToSidebar, t, unpinFromSidebar]
+    [isPinned, pinToSidebar, shortcuts, t, unpinFromSidebar]
   )
 
   // Sidebar-backed app tiles keep their existing launchpad order. The direct

@@ -5,7 +5,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { isRequiredSidebarShortcut } from '@renderer/utils/sidebar'
+import { canRemoveSidebarShortcut } from '@renderer/utils/sidebar'
 import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
 import type { Ref } from 'react'
 import {
@@ -187,13 +187,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
               type: 'item' as const,
               id: `sidebar.remove.${shortcut.id}`,
               label: t('launchpad.unpin_from_sidebar'),
-              enabled: !isRequiredSidebarShortcut(shortcut.target),
+              enabled: canRemoveSidebarShortcut(shortcuts, shortcut.target),
               onSelect: () => remove(shortcut.target)
             }
           ]
         }
       }),
-    [gateway, navigation, registry, remove, resolutions, t]
+    [gateway, navigation, registry, remove, resolutions, shortcuts, t]
   )
   const [entries, setOptimisticEntryOrder] = useOptimistic(resolvedEntries, applyEntryOrder)
 
