@@ -824,6 +824,40 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.getInteractionState('session-1').currentTurn).toBe('headless')
     })
 
+    it('keeps an omitted recipient set distinct from an explicit empty set', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
+
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      service.beginTurn({ ...baseTurnInput, trustedNotifyChannels: [] })
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual([])
+    })
+
+    it('uses queued task recipients only for that task turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      const recipients = [{ id: 'channel-task', type: 'telegram' as const }]
+      service.beginTurn(baseTurnInput)
+      service.enqueueUserMessage('session-1', userMessage('user-task'), {
+        headless: true,
+        trustedNotifyChannels: recipients
+      })
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toEqual(recipients)
+
+      service.enqueueUserMessage('session-1', userMessage('user-ordinary'))
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const entry = getEntry(service)
+      expect(entry.currentTurn.userMessage.id).toBe('user-ordinary')
+      expect(service.getTurnTrustedNotifyChannels('session-1')).toBeUndefined()
+      expect((service as any).connectionTarget(entry).trustedNotifyChannels).toBeUndefined()
+    })
+
     it('stamps a queued follow-up with its enqueue-time snapshot, not the prior turn snapshot', async () => {
       const service = new AgentSessionRuntimeService()
       const priorSnapshot = {

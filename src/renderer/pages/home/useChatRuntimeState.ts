@@ -6,10 +6,6 @@ import {
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
-  type TranslationOverlayEntry,
-  type TranslationOverlaySetter
-} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
-import {
   createOverlayRefreshHandoff,
   useMessageStreamingLayers
 } from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
@@ -145,7 +141,6 @@ export function useChatRuntimeState({
   // anchor resolution — that snapshot now happens synchronously at the call
   // site inside `chatWriteActions.regenerateWithCapabilities`.
 
-  const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const [branchLiveActiveNodeOverride, setBranchLiveActiveNodeOverride] = useState<{
@@ -172,27 +167,6 @@ export function useChatRuntimeState({
       current && current.previousActiveNodeId !== activeNodeId ? null : current
     )
   }, [activeNodeId])
-  const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
-    setTranslationOverlayMap((prev) => {
-      if (entry == null) {
-        if (!(messageId in prev)) return prev
-        const next = { ...prev }
-        delete next[messageId]
-        return next
-      }
-      const existing = prev[messageId]
-      if (
-        existing &&
-        existing.content === entry.content &&
-        existing.targetLanguage === entry.targetLanguage &&
-        existing.sourceLanguage === entry.sourceLanguage
-      ) {
-        return prev
-      }
-      return { ...prev, [messageId]: entry }
-    })
-  }, [])
-
   const branchActiveExecutions = useMemo(
     () => mergeActiveExecutions([...activeExecutions], branchLiveExecutions),
     [activeExecutions, branchLiveExecutions]
@@ -226,8 +200,7 @@ export function useChatRuntimeState({
     messages,
     overlay,
     executions: branchActiveExecutions,
-    liveAssistants,
-    translationOverlay
+    liveAssistants
   })
   const activeAwaitingInputMessageId = useMemo(
     () =>
@@ -503,8 +476,6 @@ export function useChatRuntimeState({
     locateMessage,
     sendMessage,
     composerChatTarget,
-    composerContext,
-    translationOverlay,
-    setTranslationOverlay
+    composerContext
   }
 }

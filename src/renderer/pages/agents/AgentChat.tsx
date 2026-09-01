@@ -24,6 +24,7 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
+import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -41,6 +42,7 @@ import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -69,6 +71,11 @@ interface ModelSwitchTarget {
 interface CitationPanelState {
   sessionId: string
   citations: Citation[]
+}
+
+interface DiagnosticReportDraft {
+  sessionId: string
+  description: string
 }
 
 function getNewSessionWorkspaceDefaults(
@@ -193,12 +200,14 @@ const AgentChat = ({
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
+  const [diagnosticReportDraft, setDiagnosticReportDraft] = useState<DiagnosticReportDraft | null>(null)
 
   const sessionSnapshot = conversationBootstrap.session
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
   const activeAgent = conversationBootstrap.resources.agent
+  const isSupportAgent = activeAgent?.configuration?.builtin_role === BUILTIN_AGENT_ROLE.SUPPORT
   const isActiveAgentLoading = conversationBootstrap.resources.agentLoading
   const activeModel = conversationBootstrap.resources.model
   const isActiveModelLoading = conversationBootstrap.resources.modelLoading
@@ -211,6 +220,8 @@ const AgentChat = ({
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
+  const activeDiagnosticReportDraft =
+    diagnosticReportDraft?.sessionId === currentSessionId ? diagnosticReportDraft : null
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -220,6 +231,9 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
+  }, [currentSessionId])
+  useEffect(() => {
+    setDiagnosticReportDraft((current) => (current?.sessionId === currentSessionId ? current : null))
   }, [currentSessionId])
 
   const handleOpenCitationsPanel = useCallback(
@@ -278,6 +292,13 @@ const AgentChat = ({
     sessionId: runtimeSessionId,
     uiMessages: runtimeUiMessages
   } = runtime
+  const openDiagnosticReport = useCallback(
+    (description = '') => {
+      if (!currentSessionId) return
+      setDiagnosticReportDraft({ sessionId: currentSessionId, description })
+    },
+    [currentSessionId]
+  )
   const isEmptyConversation = Boolean(
     sessionSnapshot &&
       sessionMessagesEnabled &&
@@ -498,6 +519,7 @@ const AgentChat = ({
         onOpenCitationsPanel={handleOpenCitationsPanel}
         onCreateEmptySession={sessionAgentId && onCreateEmptySession ? handleCreateEmptySession : undefined}
         composerLaunchOptions={composerLaunchOptions}
+        openDiagnosticReport={isSupportAgent ? openDiagnosticReport : undefined}
       />
     )
   }
@@ -535,6 +557,19 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
+      {isSupportAgent && activeDiagnosticReportDraft ? (
+        <DiagnosticUploadDialog
+          key={activeDiagnosticReportDraft.sessionId}
+          initialDescription={activeDiagnosticReportDraft.description}
+          open
+          onOpenChange={(nextOpen) => {
+            if (nextOpen) return
+            setDiagnosticReportDraft((current) =>
+              current?.sessionId === activeDiagnosticReportDraft.sessionId ? null : current
+            )
+          }}
+        />
+      ) : null}
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
@@ -594,6 +629,7 @@ interface AgentChatSessionCenterProps {
   onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
   onCreateEmptySession?: () => void | Promise<unknown>
   composerLaunchOptions?: AgentComposerLaunchOptions
+  openDiagnosticReport?: (description?: string) => void
 }
 
 const AgentChatSessionCenter = ({
@@ -610,7 +646,8 @@ const AgentChatSessionCenter = ({
   sessionMessagesEnabled,
   onOpenCitationsPanel,
   onCreateEmptySession,
-  composerLaunchOptions
+  composerLaunchOptions,
+  openDiagnosticReport
 }: AgentChatSessionCenterProps) => {
   const composer = (
     <div className="flex w-full flex-col">
@@ -633,6 +670,26 @@ const AgentChatSessionCenter = ({
       />
     </div>
   )
+  const messageList = (
+    <AgentChatMain
+      placement="docked"
+      sessionMessagesEnabled={sessionMessagesEnabled}
+      agentId={agentId}
+      sessionId={runtime.sessionId}
+      messages={runtime.uiMessages}
+      activeAgent={activeAgent}
+      partsByMessageId={runtime.partsByMessageId}
+      streamingLayers={runtime.streamingLayers}
+      optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
+      isLoading={runtime.isLoading}
+      hasOlder={runtime.hasOlder}
+      loadOlder={runtime.loadOlder}
+      onOpenCitationsPanel={onOpenCitationsPanel}
+      openDiagnosticReport={openDiagnosticReport}
+      deleteMessage={runtime.deleteMessage}
+      respondToolApproval={runtime.respondToolApproval}
+    />
+  )
   const main = (
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
@@ -643,23 +700,7 @@ const AgentChatSessionCenter = ({
           />
         </div>
       )}
-      <AgentChatMain
-        placement="docked"
-        sessionMessagesEnabled={sessionMessagesEnabled}
-        agentId={agentId}
-        sessionId={runtime.sessionId}
-        messages={runtime.uiMessages}
-        activeAgent={activeAgent}
-        partsByMessageId={runtime.partsByMessageId}
-        streamingLayers={runtime.streamingLayers}
-        optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-        isLoading={runtime.isLoading}
-        hasOlder={runtime.hasOlder}
-        loadOlder={runtime.loadOlder}
-        onOpenCitationsPanel={onOpenCitationsPanel}
-        deleteMessage={runtime.deleteMessage}
-        respondToolApproval={runtime.respondToolApproval}
-      />
+      {messageList}
       <ApiGatewayRequiredDialog sessionId={runtime.sessionId} />
     </div>
   )

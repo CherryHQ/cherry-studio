@@ -84,6 +84,7 @@ export interface ModelSelectorGroupItem {
 export interface ModelSelectorModelItem {
   key: string
   type: 'model'
+  groupKind: 'pinned' | 'provider'
   model: Model
   provider: Provider
   modelId: UniqueModelId
