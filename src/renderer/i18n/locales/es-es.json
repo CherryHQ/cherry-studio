@@ -2485,7 +2485,6 @@
   "miniApp.split.open": "Vista dividida",
   "miniApp.title": "Mini programa",
   "miniApp.unpin_failed": "Error al desanclar la miniaplicación",
-  "miniApp.update_partial_failure": "{{failed}} de {{total}} actualizaciones fallaron",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

@@ -2485,7 +2485,6 @@
   "miniApp.split.open": "分割表示",
   "miniApp.title": "ミニアプリ",
   "miniApp.unpin_failed": "ミニアプリのピン留め解除に失敗しました",
-  "miniApp.update_partial_failure": "{{total}}件中{{failed}}件の更新に失敗しました",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

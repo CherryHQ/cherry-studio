@@ -2485,7 +2485,6 @@
   "miniApp.split.open": "Vizualizare divizată",
   "miniApp.title": "MiniApp",
   "miniApp.unpin_failed": "Nu s-a reușit dezancorarea mini-aplicației",
-  "miniApp.update_partial_failure": "{{failed}} din {{total}} actualizări au eșuat",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",

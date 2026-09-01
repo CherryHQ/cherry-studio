@@ -2485,7 +2485,6 @@
   "miniApp.split.open": "Vue fractionnée",
   "miniApp.title": "Mini-programme",
   "miniApp.unpin_failed": "Échec du détachement de la mini-application",
-  "miniApp.update_partial_failure": "{{failed}} sur {{total}} mises à jour ont échoué",
   "miniApps.ant-ling": "Ant Ling",
   "miniApps.baichuan": "Baichuan",
   "miniApps.baidu-ai-search": "Baidu AI Search",
