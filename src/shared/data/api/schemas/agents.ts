@@ -254,6 +254,8 @@ export const AGENTS_MAX_LIMIT = 500
 export const ListAgentsQuerySchema = z.strictObject({
   /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
+  /** Exact Agent identities to return. */
+  ids: z.array(z.string().min(1)).min(1).max(AGENTS_MAX_LIMIT).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
   /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */

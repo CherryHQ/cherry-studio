@@ -79,7 +79,7 @@ function FeedbackOption({ description, icon, recommended = false, title, onSelec
 export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
   const { t } = useTranslation()
   const [diagnosticUploadOpen, setDiagnosticUploadOpen] = useState(false)
-  const { hiddenBuiltinAgentIds, showBuiltinAgent } = useBuiltinAgentListVisibility()
+  const { showBuiltinAgent } = useBuiltinAgentListVisibility()
 
   const selectOption = (action: () => void | Promise<void>) => {
     onOpenChange(false)
@@ -92,10 +92,8 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
 
   const openAgentFeedback = async () => {
     try {
-      if (hiddenBuiltinAgentIds.includes(CHERRY_SUPPORT_AGENT_ID)) {
-        const restored = await showBuiltinAgent(CHERRY_SUPPORT_AGENT_ID)
-        if (!restored) return
-      }
+      const restored = await showBuiltinAgent(CHERRY_SUPPORT_AGENT_ID)
+      if (!restored) return
       const { sessionId } = await ipcApi.request('ai.agent.support_session.create')
       openRoute(getFeedbackAgentRoute(sessionId))
     } catch (error) {

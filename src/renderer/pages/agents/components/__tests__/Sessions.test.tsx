@@ -3721,6 +3721,37 @@ describe('Sessions', () => {
     expect(screen.getByText('Beta session')).toBeInTheDocument()
   })
 
+  it('hides protected built-in tasks even when the main Agent page omits their identity', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    agentDataMocks.useAgents.mockImplementation((options?: { ids?: readonly string[] }) => ({
+      agents: options?.ids
+        ? [
+            {
+              id: 'cherry-support',
+              model: 'model-a',
+              name: 'Cherry Support',
+              configuration: { builtin_role: 'support' }
+            }
+          ]
+        : [{ id: 'agent-b', model: 'model-b', name: 'Beta agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'support-session', name: 'Support history', agentId: 'cherry-support', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.queryByText('Support history')).not.toBeInTheDocument()
+    expect(screen.getByText('Beta session')).toBeInTheDocument()
+  })
+
   it.each([
     { builtinRole: 'assistant' as const, name: 'Cherry Assistant' },
     { builtinRole: 'support' as const, name: 'Cherry Support' }

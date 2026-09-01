@@ -116,6 +116,18 @@ describe('FeedbackDialog', () => {
     await waitFor(() => expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session')))
   })
 
+  it('restores Cherry Support from the committed preference when the render snapshot is stale', async () => {
+    mocks.currentHiddenIds = []
+    render(<ControlledFeedbackDialog />)
+    mocks.currentHiddenIds = ['other-agent', 'cherry-support']
+
+    fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.agent.title/ }))
+
+    await waitFor(() => expect(mocks.setPreference).toHaveBeenCalledWith(['other-agent']))
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.support_session.create'))
+    expect(mocks.openRoute).toHaveBeenCalledWith(getFeedbackAgentRoute('feedback-session'))
+  })
+
   it('does not create an orphan feedback session when restoring Cherry Support fails', async () => {
     mocks.setPreference.mockRejectedValueOnce(new Error('restore failed'))
     render(<ControlledFeedbackDialog />)

@@ -11,7 +11,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceCardMenu } from '../ResourceCardMenu'
-import { ResourceCard } from '../ResourceCards'
+import { AgentResourceCard, ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
 const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
@@ -413,7 +413,9 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
   }
 }
 
-function createAgentResource(overrides: Partial<Extract<ResourceItem, { type: 'agent' }>> = {}): ResourceItem {
+function createAgentResource(
+  overrides: Partial<Extract<ResourceItem, { type: 'agent' }>> = {}
+): Extract<ResourceItem, { type: 'agent' }> {
   return {
     id: 'agent-1',
     type: 'agent',
@@ -478,7 +480,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
   )
 }
 
-function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceCard>> = {}) {
+function getResourceCardProps(overrides: Partial<Omit<ComponentProps<typeof ResourceCard>, 'resource'>> = {}) {
   return {
     allGroups: [],
     onDelete: vi.fn(),
@@ -844,7 +846,7 @@ describe('ResourceGrid card actions', () => {
     const resource = createAgentResource()
     const onDelete = vi.fn()
 
-    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
+    render(<AgentResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
 
     expect(screen.queryByRole('button', { name: /common.more/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '删除' }))
@@ -863,14 +865,14 @@ describe('ResourceGrid card actions', () => {
     const onEdit = vi.fn()
     MockUsePreferenceUtils.setPreferenceValue('agent.session.hidden_builtin_ids', ['other-agent', resource.id])
 
-    const view = render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
+    const view = render(<AgentResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
 
     await user.click(screen.getByRole('button', { name: '添加到列表' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual(['other-agent'])
     expect(onDelete).not.toHaveBeenCalled()
     expect(onEdit).not.toHaveBeenCalled()
 
-    view.rerender(<ResourceCard resource={{ ...resource }} {...getResourceCardProps({ onDelete, onEdit })} />)
+    view.rerender(<AgentResourceCard resource={{ ...resource }} {...getResourceCardProps({ onDelete, onEdit })} />)
     await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
     expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual([
       'other-agent',
@@ -893,7 +895,7 @@ describe('ResourceGrid card actions', () => {
     const onEdit = vi.fn()
     mockPreferenceService.update.mockRejectedValueOnce(new Error('preference unavailable'))
 
-    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
+    render(<AgentResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
 
     await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
 

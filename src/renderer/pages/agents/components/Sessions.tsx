@@ -418,6 +418,7 @@ const Sessions = ({
     togglePin
   } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
+  const { agents: hiddenBuiltinAgents } = useAgents({ ids: hiddenBuiltinAgentIds })
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
   const [optimisticAgentOrderIds, setOptimisticAgentOrderIds] = useState<string[] | null>(null)
@@ -571,14 +572,14 @@ const Sessions = ({
   const hiddenProtectedAgentIdSet = useMemo(
     () =>
       new Set(
-        agents
+        hiddenBuiltinAgents
           .filter(
             (agent) =>
               hiddenBuiltinAgentIdSet.has(agent.id) && isProtectedBuiltinAgentRole(agent.configuration?.builtin_role)
           )
           .map((agent) => agent.id)
       ),
-    [agents, hiddenBuiltinAgentIdSet]
+    [hiddenBuiltinAgentIdSet, hiddenBuiltinAgents]
   )
   const agentsForDisplay = useMemo(() => {
     const visibleAgents = agents.filter((agent) => !hiddenProtectedAgentIdSet.has(agent.id))
