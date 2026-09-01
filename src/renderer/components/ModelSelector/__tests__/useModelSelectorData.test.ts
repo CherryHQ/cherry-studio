@@ -1,3 +1,4 @@
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -274,20 +275,23 @@ describe('useModelSelectorData', () => {
     expect([...result.current.visibleSelectedModelIdSet]).toEqual(['openai::gpt-4'])
   })
 
-  it('leaves provider visibility entirely to the caller filter', () => {
+  it('hides agent-only providers generally and includes them for a marked agent filter', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
       models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
     })
 
-    const { result } = renderHook(() =>
-      useModelSelectorData({
-        searchText: '',
-        filter: (_model, provider) => provider?.authMethods?.includes('external-cli') ?? false
-      })
-    )
+    const general = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(general.result.current.modelItems.map((item) => item.modelId)).toEqual(['openai::gpt-4'])
+    general.unmount()
 
-    expect(result.current.modelItems.map((item) => item.modelId)).toEqual(['claude-code::claude-sonnet'])
+    const agentFilter = renderHook(() => useAgentModelFilter('claude-code'))
+    const agent = renderHook(() => useModelSelectorData({ searchText: '', filter: agentFilter.result.current }))
+
+    expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
+      'claude-code::claude-sonnet',
+      'openai::gpt-4'
+    ])
   })
 
   it('applies the caller filter before deriving available tags', () => {

@@ -17,8 +17,8 @@ import type { PaintingData } from '../model/types/paintingData'
 import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
-const paintingModelFilter: ModelSelectorFilter = (model, provider) =>
-  isModelVisibleOutsideAgent(model, provider) && supportsImageGenerationEndpoint(model)
+const paintingModelFilter: ModelSelectorFilter = (model) =>
+  isModelVisibleOutsideAgent(model) && supportsImageGenerationEndpoint(model)
 
 interface PaintingModelSelectorProps {
   className?: string

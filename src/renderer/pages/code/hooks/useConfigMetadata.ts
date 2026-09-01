@@ -2,13 +2,13 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
-import { isProviderVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
+import { isCherryAIProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
@@ -30,7 +30,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const gatewayProviderIds = useMemo(
     () =>
       new Set(
-        providers.filter((provider) => provider.isEnabled && isProviderVisibleOutsideAgent(provider)).map((p) => p.id)
+        providers
+          .filter(
+            (provider) =>
+              provider.isEnabled && !isManagedCherryCloudModel(provider.id) && !isExternalCliProvider(provider)
+          )
+          .map((provider) => provider.id)
       ),
     [providers]
   )

@@ -25,8 +25,7 @@ import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const chatModelFilter: ModelSelectorFilter = (model, provider) =>
-  isModelVisibleOutsideAgent(model, provider) && !isNonChatModel(model)
+const chatModelFilter: ModelSelectorFilter = (model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model)
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">

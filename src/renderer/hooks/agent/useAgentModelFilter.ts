@@ -27,18 +27,27 @@ const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
 const EMPTY_CHERRY_CLOUD_AVAILABILITY = { entitledModelIds: [], quotaExhaustedModelIds: [] }
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
+const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
+type AgentModelFilter = ModelPredicate & { [AGENT_ONLY_FILTER]?: true }
+
+/** True when `filter` came from an Agent picker that may include Agent-only providers. */
+export function modelFilterIncludesAgentOnlyProviders(filter?: ModelPredicate): boolean {
+  return Boolean((filter as AgentModelFilter | undefined)?.[AGENT_ONLY_FILTER])
+}
 
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): ModelPredicate {
-  return useMemo<ModelPredicate>(() => {
+export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
+  return useMemo<AgentModelFilter>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    return (model, provider) => {
+    const predicate: AgentModelFilter = (model, provider) => {
       if (!baseAgentFilter(model)) return false
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
+    predicate[AGENT_ONLY_FILTER] = true
+    return predicate
   }, [agentType])
 }
 

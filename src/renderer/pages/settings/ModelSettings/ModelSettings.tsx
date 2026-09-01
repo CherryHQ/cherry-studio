@@ -2,7 +2,7 @@ import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@che
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
-import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -49,7 +49,7 @@ interface ModelSettingsProps {
   showDescription?: boolean
   showDividers?: boolean
   showPaintingModel?: boolean
-  modelFilter?: ModelSelectorFilter
+  modelFilter?: (model: Model) => boolean
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
@@ -158,13 +158,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
-  const chatModelFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) =>
-      isModelVisibleOutsideAgent(model, provider) && !isNonChatModel(model) && (modelFilter?.(model, provider) ?? true),
+  const chatModelFilter = useCallback(
+    (model: Model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model) && (modelFilter?.(model) ?? true),
     [modelFilter]
   )
-  const paintingModelFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) => isModelVisibleOutsideAgent(model, provider) && isGenerateImageModel(model),
+  const paintingModelFilter = useCallback(
+    (model: Model) => isModelVisibleOutsideAgent(model) && isGenerateImageModel(model),
     []
   )
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined

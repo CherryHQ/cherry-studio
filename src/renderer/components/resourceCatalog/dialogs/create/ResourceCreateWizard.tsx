@@ -139,7 +139,7 @@ export function ResourceCreateWizard({
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const isAgentModelDisabled = useAgentModelDisabled()
   const assistantModelFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) => isModelVisibleOutsideAgent(model, provider) && (modelFilter?.(model, provider) ?? true),
+    (model, provider) => isModelVisibleOutsideAgent(model) && (modelFilter?.(model, provider) ?? true),
     [modelFilter]
   )
   const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter

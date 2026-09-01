@@ -20,8 +20,7 @@ type ResourceEditDialogHostProps = {
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
-const assistantModelFilter: ModelSelectorFilter = (model, provider) =>
-  isModelVisibleOutsideAgent(model, provider) && !isNonChatModel(model)
+const assistantModelFilter: ModelSelectorFilter = (model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model)
 
 export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)

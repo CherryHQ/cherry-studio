@@ -5,7 +5,11 @@ import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentModelDisabled, useAgentModelFilter } from '../useAgentModelFilter'
+import {
+  modelFilterIncludesAgentOnlyProviders,
+  useAgentModelDisabled,
+  useAgentModelFilter
+} from '../useAgentModelFilter'
 
 const mocks = vi.hoisted(() => ({
   cloudAvailability: {
@@ -83,6 +87,14 @@ describe('useAgentModelFilter', () => {
 
     expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(true)
     expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(true)
+  })
+
+  it('marks its predicate so selectors surface agent-only providers', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(modelFilterIncludesAgentOnlyProviders(result.current)).toBe(true)
+    expect(modelFilterIncludesAgentOnlyProviders(() => true)).toBe(false)
+    expect(modelFilterIncludesAgentOnlyProviders(undefined)).toBe(false)
   })
 
   it('continues to reject non-chat model classes for regular agents', () => {

@@ -49,7 +49,7 @@ export const KnowledgeModelSelect = ({
   const hasValue = Boolean(value)
   const triggerLabel = selectedModel?.name ?? (value || placeholder)
   const visibleFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) => isModelVisibleOutsideAgent(model, provider) && filter(model, provider),
+    (model, provider) => isModelVisibleOutsideAgent(model) && filter(model, provider),
     [filter]
   )
 

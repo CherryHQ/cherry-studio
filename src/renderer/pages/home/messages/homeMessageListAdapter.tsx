@@ -744,8 +744,8 @@ export function useHomeMessageListProviderValue({
           } as SharedModel)
         : undefined
 
-      const mentionModelFilter: ModelSelectorFilter = (model, provider) => {
-        if (!isModelVisibleOutsideAgent(model, provider)) return false
+      const mentionModelFilter: ModelSelectorFilter = (model) => {
+        if (!isModelVisibleOutsideAgent(model)) return false
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false

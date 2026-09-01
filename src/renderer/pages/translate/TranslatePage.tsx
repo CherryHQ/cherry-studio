@@ -689,8 +689,8 @@ const TranslatePage: FC = () => {
   }, [enableMarkdown, shikiMarkdownIt, pacedOutput])
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) =>
-      isModelVisibleOutsideAgent(model, provider) &&
+    (model) =>
+      isModelVisibleOutsideAgent(model) &&
       !isNonChatModel(model) &&
       (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
     [babelDoc.availability, isPdfMode]
