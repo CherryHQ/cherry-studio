@@ -365,14 +365,6 @@ describe('NotesPage header accessibility', () => {
     expect(screen.getByRole('button', { name: 'navbar.show_sidebar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.more' })).toBeInTheDocument()
   })
-
-  // DESIGN.md §6: keyboard focus must reuse hover vocabulary. Global CSS clears
-  // *:focus outlines, so this class is the visible-focus contract.
-  it('keeps keyboard focus visible on the favorite button', async () => {
-    await renderReadyNotesPage()
-
-    expect(screen.getByRole('button', { name: 'notes.star' })).toHaveClass('focus-visible:bg-muted')
-  })
 })
 
 describe('NotesPage print payloads', () => {

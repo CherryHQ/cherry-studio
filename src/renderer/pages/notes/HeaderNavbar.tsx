@@ -376,17 +376,13 @@ const HeaderNavbar = ({
           </Tooltip>
         )}
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <div>
-              <Tooltip title={t('common.more')} delay={800}>
-                <BaseNavbarIcon
-                  className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
-                  aria-label={t('common.more')}>
-                  <MoreHorizontal size={18} />
-                </BaseNavbarIcon>
-              </Tooltip>
-            </div>
-          </PopoverTrigger>
+          <Tooltip title={t('common.more')} delay={800}>
+            <PopoverTrigger asChild>
+              <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground" aria-label={t('common.more')}>
+                <MoreHorizontal size={18} />
+              </BaseNavbarIcon>
+            </PopoverTrigger>
+          </Tooltip>
           <PopoverContent align="end" className="w-64 p-1.5">
             <MenuList>{menuItems.map(renderMenuItem)}</MenuList>
           </PopoverContent>

@@ -10,20 +10,22 @@ import {
 } from '@cherrystudio/ui'
 import type { NotesSortType } from '@renderer/types/note'
 import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
+import type { ComponentPropsWithRef, FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const HeaderIconButton: FC<{ label: string; onClick?: () => void; children: ReactNode }> = ({
-  label,
-  onClick,
-  children
-}) => (
+interface HeaderIconButtonProps extends ComponentPropsWithRef<'button'> {
+  label: string
+  children: ReactNode
+}
+
+const HeaderIconButton = ({ ref, label, children, ...props }: HeaderIconButtonProps) => (
   <Tooltip content={label} delay={800}>
     <button
+      ref={ref}
       type="button"
       aria-label={label}
-      onClick={onClick}
+      {...props}
       className="flex size-6 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground">
       {children}
     </button>
@@ -87,11 +89,9 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
 
             <Popover open={sortOpen} onOpenChange={setSortOpen}>
               <PopoverTrigger asChild>
-                <div>
-                  <HeaderIconButton label={t('assistants.presets.sorting.title')}>
-                    <ArrowUpNarrowWide size={18} />
-                  </HeaderIconButton>
-                </div>
+                <HeaderIconButton label={t('assistants.presets.sorting.title')}>
+                  <ArrowUpNarrowWide size={18} />
+                </HeaderIconButton>
               </PopoverTrigger>
               <PopoverContent align="center" className="w-52 p-1.5">
                 <MenuList>
