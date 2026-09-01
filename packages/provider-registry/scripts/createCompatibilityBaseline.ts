@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +12,7 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const repositoryRoot = path.resolve(packageRoot, '../..')
 const targetName = `v${REGISTRY_SCHEMA_VERSION}-validator.mjs`
 const targetPath = path.join(packageRoot, 'compat', targetName)
+const temporaryPath = path.join(packageRoot, 'compat', `.${targetName.replace(/\.mjs$/, '.tmp.mjs')}`)
 
 async function createCompatibilityBaseline(): Promise<void> {
   if (existsSync(targetPath)) {
@@ -40,15 +41,17 @@ async function createCompatibilityBaseline(): Promise<void> {
 
     const bundle = readFileSync(path.join(outputDirectory, targetName), 'utf8').replace(/[ \t]+$/gm, '')
     writeFileSync(
-      targetPath,
+      temporaryPath,
       `/* eslint-disable */\n// AUTO-GENERATED compatibility contract. Never edit or replace this file.\n${bundle}`
     )
-    execFileSync('pnpm', ['oxfmt', '--write', targetPath], {
+    execFileSync('pnpm', ['oxfmt', '--write', temporaryPath], {
       cwd: repositoryRoot,
       stdio: 'inherit'
     })
+    renameSync(temporaryPath, targetPath)
     console.log(`Created frozen registry compatibility baseline ${path.relative(packageRoot, targetPath)}`)
   } finally {
+    rmSync(temporaryPath, { force: true })
     rmSync(outputDirectory, { recursive: true, force: true })
   }
 }
