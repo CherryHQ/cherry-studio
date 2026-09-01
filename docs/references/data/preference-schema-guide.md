@@ -34,7 +34,7 @@ segments use underscores:
 namespace.category.key_name
 ```
 
-The `data-schema-key/valid-key` lint rule enforces
+The `cherry/valid-schema-key` lint rule enforces
 `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/`.
 
 Prefer an existing domain namespace. A new namespace should represent a real

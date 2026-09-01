@@ -25,15 +25,46 @@ if (errors.length) {
   process.exit(1)
 }
 
+function normalizeDiagnostic(diagnostic) {
+  const span = diagnostic.labels[0]?.span
+  return [
+    path.relative(repoRoot, path.resolve(repoRoot, diagnostic.filename)).split(path.sep).join('/'),
+    span?.line ?? null,
+    span?.column ?? null,
+    diagnostic.code,
+    diagnostic.message
+  ]
+}
+
+function compareDiagnostics(left, right) {
+  return (
+    left[0].localeCompare(right[0]) ||
+    (left[1] ?? -1) - (right[1] ?? -1) ||
+    (left[2] ?? -1) - (right[2] ?? -1) ||
+    left[3].localeCompare(right[3]) ||
+    left[4].localeCompare(right[4])
+  )
+}
+
 let failed = false
 for (const group of snapshot.groups) {
-  const actual = diagnostics.filter(
-    (diagnostic) => group.after.rules.includes(diagnostic.code) && diagnostic.severity === group.after.severity
-  ).length
-  if (actual !== group.after.count) {
+  const actual = diagnostics
+    .filter((diagnostic) => group.after.rules.includes(diagnostic.code) && diagnostic.severity === group.after.severity)
+    .map(normalizeDiagnostic)
+    .sort(compareDiagnostics)
+  const expected = [...group.after.diagnostics].sort(compareDiagnostics)
+
+  if (actual.length !== group.after.count) {
     process.stderr.write(
-      `${group.name}: expected ${group.after.count} ${group.after.severity} diagnostics, got ${actual}\n`
+      `${group.name}: expected ${group.after.count} ${group.after.severity} diagnostics, got ${actual.length}\n`
     )
+    failed = true
+  }
+
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    process.stderr.write(`${group.name}: diagnostic snapshot changed\n`)
+    process.stderr.write(`  expected: ${JSON.stringify(expected)}\n`)
+    process.stderr.write(`  actual:   ${JSON.stringify(actual)}\n`)
     failed = true
   }
 }

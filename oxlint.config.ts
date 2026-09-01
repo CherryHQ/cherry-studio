@@ -38,6 +38,7 @@ module.exports = defineConfig({
   rules: {
     'no-array-constructor': 'off',
     'no-caller': 'error',
+    'no-debugger': 'error',
     'no-eval': 'error',
     'no-fallthrough': 'error',
     'no-unassigned-vars': 'error',
