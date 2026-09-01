@@ -15,9 +15,10 @@ export const ANTIGRAVITY_MODEL_PATH_SEPARATOR = '/models/'
 export const GEMINI_GATEWAY_MODEL_SUFFIX = '@cherry'
 
 const GATEWAY_MODEL_WIRE_PREFIX = 'cherry-gw-v1'
-const RESERVED_GATEWAY_MODEL_WIRE_PREFIX = 'cherry-gw-v'
 const GEMINI_GATEWAY_MODEL_PREFIX = `${GATEWAY_MODEL_WIRE_PREFIX}.`
 const ANTIGRAVITY_GATEWAY_MODEL_PREFIX = `${GATEWAY_MODEL_WIRE_PREFIX}${ANTIGRAVITY_MODEL_PATH_SEPARATOR}`
+const VERSIONED_GEMINI_GATEWAY_PREFIX = /^cherry-gw-v\d+\./
+const VERSIONED_ANTIGRAVITY_GATEWAY_PREFIX = /^cherry-gw-v\d+\/models\//
 
 function validateGatewayModelAddress(providerId: string, apiModelId: string): void {
   if (!providerId || !apiModelId) {
@@ -99,8 +100,10 @@ export function formatGeminiGatewayModelId(providerId: string, apiModelId: strin
 
 /** Parse the v1 gemini-cli form, or return `undefined` when the value uses another grammar. */
 export function parseGeminiGatewayModelId(value: string): GatewayModelAddress | undefined {
-  if (value.startsWith(ANTIGRAVITY_GATEWAY_MODEL_PREFIX)) return undefined
-  if (!value.startsWith(RESERVED_GATEWAY_MODEL_WIRE_PREFIX)) return undefined
+  const versionedPrefix = value.match(VERSIONED_GEMINI_GATEWAY_PREFIX)?.[0]
+  if (!versionedPrefix || !value.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)) return undefined
+  const candidatePayload = value.slice(versionedPrefix.length, -GEMINI_GATEWAY_MODEL_SUFFIX.length)
+  if (candidatePayload.includes(':')) return undefined
   if (!value.startsWith(GEMINI_GATEWAY_MODEL_PREFIX) || !value.endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)) {
     throw new Error('Invalid Gemini gateway model address')
   }
@@ -115,8 +118,9 @@ export function formatAntigravityGatewayModelPath(providerId: string, apiModelId
 
 /** Parse the v1 Antigravity path, or return `undefined` when the value uses another grammar. */
 export function parseAntigravityGatewayModelPath(value: string): GatewayModelAddress | undefined {
-  if (value.startsWith(GEMINI_GATEWAY_MODEL_PREFIX)) return undefined
-  if (!value.startsWith(RESERVED_GATEWAY_MODEL_WIRE_PREFIX)) return undefined
+  const versionedPrefix = value.match(VERSIONED_ANTIGRAVITY_GATEWAY_PREFIX)?.[0]
+  if (!versionedPrefix) return undefined
+  if (value.slice(versionedPrefix.length).includes(':')) return undefined
   if (!value.startsWith(ANTIGRAVITY_GATEWAY_MODEL_PREFIX)) {
     throw new Error('Invalid Antigravity gateway model address')
   }

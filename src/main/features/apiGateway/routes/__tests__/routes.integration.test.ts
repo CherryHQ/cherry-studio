@@ -512,6 +512,7 @@ describe('API gateway routes (integration)', () => {
       expect(typeof body.totalTokens).toBe('number')
       expect(body.totalTokens).toBeGreaterThan(0)
       expect(mockProcessMessage).not.toHaveBeenCalled()
+      expect(mockResolveGeminiModel).not.toHaveBeenCalled()
     })
 
     // Media is now counted (converted → shared walker, or the provider's remote count) rather

@@ -250,15 +250,16 @@ describe('api gateway model listing', () => {
       { id: 'corp:west', name: 'Corp West' },
       { id: 'anthropic', name: 'Anthropic' }
     ])
-    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
-      {
-        id: `${providerId}::model`,
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => {
+      const apiModelIds = providerId === 'corp:west' ? ['model-a', 'model-b'] : ['model']
+      return apiModelIds.map((apiModelId) => ({
+        id: `${providerId}::${apiModelId}`,
         providerId,
-        apiModelId: 'model',
+        apiModelId,
         ownedBy: providerId,
         capabilities: []
-      }
-    ])
+      }))
+    })
 
     const response = await getModels()
 

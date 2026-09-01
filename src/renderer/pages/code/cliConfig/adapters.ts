@@ -566,9 +566,13 @@ const openCodeAdapter: CliConfigAdapter = {
 }
 
 function parseGeminiConfigModel(model: string): { isGateway: boolean; model: string } {
-  const tagged = parseGeminiGatewayModelId(model)
-  if (tagged) {
-    return { isGateway: true, model: formatGatewayModelId(tagged.providerId, tagged.apiModelId) }
+  try {
+    const tagged = parseGeminiGatewayModelId(model)
+    if (tagged) {
+      return { isGateway: true, model: formatGatewayModelId(tagged.providerId, tagged.apiModelId) }
+    }
+  } catch {
+    return { isGateway: false, model }
   }
 
   const legacy = parseLegacyGeminiGatewayModelId(model)

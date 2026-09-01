@@ -102,6 +102,16 @@ describe('extractConnectionFromCliConfigDraft', () => {
     expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('model@cherry')
   })
 
+  it('preserves an unknown future Gemini gateway token for downgrade-safe editing', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro')
+    const settingsFile = files.find((file) => file.target === 'gemini-settings')!
+    const settings = JSON.parse(settingsFile.content)
+    settings.model.name = 'cherry-gw-v2.future@cherry'
+    settingsFile.content = JSON.stringify(settings)
+
+    expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('cherry-gw-v2.future@cherry')
+  })
+
   it('returns null for an unknown tool', () => {
     expect(extractConnectionFromCliConfigDraft('nope', [])).toBeNull()
   })

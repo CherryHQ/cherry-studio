@@ -1,4 +1,9 @@
 import { bearer } from '@elysia/bearer'
+import {
+  formatGatewayModelId,
+  parseAntigravityGatewayModelPath,
+  parseGeminiGatewayModelId
+} from '@shared/utils/apiGateway'
 import { Elysia } from 'elysia'
 
 import type { InputParamsMap } from '../adapters'
@@ -74,18 +79,29 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
         return status(400, invalidArgument(`Unsupported method: "${method}".`))
       }
 
+      if (method === 'countTokens') {
+        let countModel = parsed.model
+        try {
+          const taggedAddress =
+            parseGeminiGatewayModelId(parsed.model) ?? parseAntigravityGatewayModelPath(parsed.model)
+          if (taggedAddress) {
+            countModel = formatGatewayModelId(taggedAddress.providerId, taggedAddress.apiModelId)
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid gateway model address'
+          return status(400, invalidArgument(message))
+        }
+        return {
+          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], countModel, request.signal)
+        }
+      }
+
       let model: string
       try {
         model = resolveGeminiGatewayModelAddress(parsed.model)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid gateway model address'
         return status(400, invalidArgument(message))
-      }
-
-      if (method === 'countTokens') {
-        return {
-          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model, request.signal)
-        }
       }
 
       return processMessage({

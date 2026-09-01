@@ -59,6 +59,8 @@ describe('formatGatewayModelId', () => {
   it('does not treat ordinary generic ids as tagged CLI addresses', () => {
     expect(parseGeminiGatewayModelId('provider-a:model@cherry')).toBeUndefined()
     expect(parseAntigravityGatewayModelPath('provider-a/models/model')).toBeUndefined()
+    expect(parseGeminiGatewayModelId(formatGatewayModelId('cherry-gw-v1', 'model@cherry'))).toBeUndefined()
+    expect(parseAntigravityGatewayModelPath('cherry-gw-v1/models/provider:model')).toBeUndefined()
   })
 
   it('rejects a malformed reserved tag instead of falling back to legacy parsing', () => {
