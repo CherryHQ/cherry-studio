@@ -145,6 +145,35 @@ describe('PaintingFieldRenderer range contract', () => {
     expect(screen.getByTestId('slider')).toHaveProperty('value', '2.5')
   })
 
+  it('lets the user type 0.05 through the intermediate 0.0 on a 0.05 step', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const refStrengthRange: BaseConfigItem = {
+      type: 'slider',
+      key: 'refStrength',
+      min: 0,
+      max: 1,
+      step: 0.05,
+      initialValue: 0.5
+    }
+    render(<ControlledRange item={refStrengthRange} initial={0.5} onChange={onChange} />)
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+    await user.keyboard('0.0')
+
+    expect(input).toHaveProperty('value', '0.0')
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({ refStrength: 0 })
+
+    await user.keyboard('5')
+
+    expect(input).toHaveProperty('value', '0.05')
+    expect(onChange).toHaveBeenLastCalledWith({ refStrength: 0.05 })
+    expect(screen.getByTestId('slider')).toHaveProperty('value', '0.05')
+  })
+
   it('shows the committed grid value when typed input snaps', async () => {
     const user = userEvent.setup()
     render(

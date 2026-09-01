@@ -20,9 +20,9 @@ function isAllowedRangeDraft(raw: string): boolean {
   return /^-?\d*\.?\d*$/.test(raw)
 }
 
-/** Empty, sign, or trailing decimal so the next digit can still be typed. */
+/** Empty, sign, trailing decimal, or trailing-zero fraction so the next digit can still be typed. */
 function isTransientRangeDraft(raw: string): boolean {
-  return raw === '' || raw === '-' || /^-?\d*\.$/.test(raw)
+  return raw === '' || raw === '-' || /^-?\d*\.$/.test(raw) || /^-?\d+\.\d*0$/.test(raw)
 }
 
 function parseRangeDraft(raw: string): number | null {
