@@ -163,7 +163,7 @@ export function useMessageActivityState(
   partsMap?: Record<string, CherryMessagePart[]> | null
 ): MessageActivityCapability {
   void partsMap
-  const { status, activeExecutions = [], awaitingApprovalAnchors = [] } = useTopicStreamStatus(topicId)
+  const { status, activeExecutions, awaitingApprovalAnchors } = useTopicStreamStatus(topicId)
   const statusRef = useRef(status)
   const activeExecutionsRef = useRef(activeExecutions)
   const awaitingApprovalAnchorsRef = useRef(awaitingApprovalAnchors)
