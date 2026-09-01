@@ -441,6 +441,38 @@ describe('serializeMessagesWithImages', () => {
     expect(overrides.has(message.id)).toBe(false)
   })
 
+  it('skips an over-limit file-backed image from its metadata without reading it (embed)', async () => {
+    mockPhysicalPaths({ 'entry-huge': '/data/Files/huge.png' })
+    const message = view([imageFilePart('file:///data/Files/huge.png', 'entry-huge', 'huge.png')])
+    const { refs } = await collectExportableImages([message])
+    ipcApiRequest.mockClear()
+    ipcApiRequest.mockResolvedValueOnce({ ok: true, data: { kind: 'file', size: 10 * 1024 * 1024 + 1, modifiedAt: 1 } })
+
+    const { overrides, skippedCount } = await serializeMessagesWithImages([message], 'embed', refs)
+
+    expect(skippedCount).toBe(1)
+    expect(overrides.has(message.id)).toBe(false)
+    const routes = ipcApiRequest.mock.calls.map((call) => call[0])
+    expect(routes).toContain('file.get_metadata')
+    expect(routes).not.toContain('file.read')
+  })
+
+  it('falls back to the full read when file metadata is unavailable (embed)', async () => {
+    mockPhysicalPaths({ 'entry-a': '/data/Files/a.png' })
+    const message = view([imageFilePart('file:///data/Files/a.png', 'entry-a', 'pic.png')])
+    const { refs } = await collectExportableImages([message])
+    ipcApiRequest.mockClear()
+    ipcApiRequest
+      .mockResolvedValueOnce({ ok: true, data: null })
+      .mockResolvedValueOnce({ ok: true, data: { content: new Uint8Array([1, 2, 3]), mime: 'image/png' } })
+
+    const { overrides, skippedCount } = await serializeMessagesWithImages([message], 'embed', refs)
+
+    expect(skippedCount).toBe(0)
+    expect(overrides.get(message.id)).toContain('data:image/png;base64,AQID')
+    expect(ipcApiRequest.mock.calls.map((call) => call[0])).toEqual(['file.get_metadata', 'file.read'])
+  })
+
   it('skips an unreadable image without aborting the export (embed)', async () => {
     const message = view([imageFilePart('data:,broken', 'entry-bad'), imageFilePart(PNG_1PX, 'entry-ok')])
     const { refs } = await collectExportableImages([message])
@@ -610,8 +642,8 @@ describe('serializeMessagesWithImages', () => {
 // --- writeImageAssets ---
 
 describe('writeImageAssets', () => {
-  it('creates assets/ and writes each image beside the markdown', async () => {
-    ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1, 2, 3]), mime: 'image/png' } })
+  it('copies a file-backed image in main instead of round-tripping its bytes', async () => {
+    ipcApiRequest.mockResolvedValue({ ok: true, data: undefined })
     const pendingWrites = [
       {
         fileName: 'img-a.png',
@@ -619,31 +651,44 @@ describe('writeImageAssets', () => {
       }
     ]
 
-    const failedCount = await writeImageAssets('/tmp/exports', pendingWrites)
+    const failed = await writeImageAssets('/tmp/exports', pendingWrites)
 
-    expect(failedCount).toBe(0)
+    expect(failed).toEqual([])
     expect(fileApi.mkdir).toHaveBeenCalledWith('/tmp/exports/assets')
-    expect(fileApi.write).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png', expect.any(Uint8Array))
+    expect(ipcApiRequest).toHaveBeenCalledWith('file.copy', {
+      sourcePath: '/data/Files/a.png',
+      destPath: '/tmp/exports/assets/img-a.png'
+    })
+    expect(fileApi.write).not.toHaveBeenCalled()
   })
 
-  it('keeps going when one image fails to write and reports the count', async () => {
-    ipcApiRequest.mockResolvedValue({ ok: true, data: { content: new Uint8Array([1]), mime: 'image/png' } })
-    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+  it('writes a data-url image through the renderer path (no file to copy)', async () => {
+    const failed = await writeImageAssets('/tmp/exports', [
+      { fileName: 'img-a.png', ref: { key: 'k', url: PNG_1PX, mime: 'image/png' } as const }
+    ])
+
+    expect(failed).toEqual([])
+    expect(fileApi.write).toHaveBeenCalledWith('/tmp/exports/assets/img-a.png', expect.any(Uint8Array))
+    expect(ipcApiRequest).not.toHaveBeenCalled()
+  })
+
+  it('keeps going when one image fails to copy and reports its file name', async () => {
+    ipcApiRequest.mockRejectedValueOnce(new Error('disk full')).mockResolvedValueOnce({ ok: true, data: undefined })
     const ref = { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
 
-    const failedCount = await writeImageAssets('/tmp/exports', [
+    const failed = await writeImageAssets('/tmp/exports', [
       { fileName: 'img-a.png', ref },
       { fileName: 'img-b.png', ref }
     ])
 
-    expect(failedCount).toBe(1)
-    expect(fileApi.write).toHaveBeenCalledTimes(2)
+    expect(failed).toEqual(['img-a.png'])
+    expect(ipcApiRequest).toHaveBeenCalledTimes(2)
   })
 
   it('does nothing when there are no pending writes', async () => {
-    const failedCount = await writeImageAssets('/tmp/exports', [])
+    const failed = await writeImageAssets('/tmp/exports', [])
 
-    expect(failedCount).toBe(0)
+    expect(failed).toEqual([])
     expect(fileApi.mkdir).not.toHaveBeenCalled()
   })
 
@@ -651,14 +696,15 @@ describe('writeImageAssets', () => {
     fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
     const ref = { key: 'k', url: 'file:///data/Files/a.png', mime: 'image/png' } as const
 
-    const failedCount = await writeImageAssets('/tmp/exports', [
+    const failed = await writeImageAssets('/tmp/exports', [
       { fileName: 'img-a.png', ref },
       { fileName: 'img-b.png', ref }
     ])
 
-    // the .md is already saved by then: count-and-warn, never a thrown error
-    expect(failedCount).toBe(2)
+    // the .md is already saved by then: report-for-repair, never a thrown error
+    expect(failed).toEqual(['img-a.png', 'img-b.png'])
     expect(fileApi.write).not.toHaveBeenCalled()
+    expect(ipcApiRequest).not.toHaveBeenCalled()
   })
 })
 
@@ -892,6 +938,184 @@ describe('exportMessageAsMarkdown image pipeline', () => {
     expect(fileApi.save).toHaveBeenCalledTimes(1)
     expect(fileApi.write).not.toHaveBeenCalled()
     expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+  })
+
+  // Repair routes: the read-back echoes the saved markdown; the hash is returned only
+  // when requested, so dropping `withContentHash: true` in production fails the assert.
+  const mockRepairRoutes = () => {
+    ipcApiRequest.mockImplementation((route: unknown, input?: unknown) => {
+      if (route === 'file.read') {
+        const saved = (fileApi.save.mock.calls[0]?.[1] as string) ?? ''
+        const withHash =
+          (input as { options?: { withContentHash?: boolean } } | undefined)?.options?.withContentHash === true
+        return Promise.resolve({
+          ok: true,
+          data: {
+            content: new TextEncoder().encode(saved),
+            mime: 'text/markdown',
+            version: { mtime: 1000, size: 100 },
+            ...(withHash && { contentHash: 'xxh3-64:00000000deadbeef' })
+          }
+        })
+      }
+      if (route === 'file.write_if_unchanged') return Promise.resolve({ ok: true, data: { mtime: 2000, size: 90 } })
+      return Promise.resolve(undefined)
+    })
+  }
+
+  it('rewrites the .md without the failed link and keeps the successful one (folder)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.write.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('disk full'))
+    mockRepairRoutes()
+    const message = view([
+      imageFilePart(PNG_1PX, 'entry-a', 'ok.png'),
+      imageFilePart(GIF_1PX, 'entry-b', 'bad.gif', 'image/gif')
+    ])
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    const savedMarkdown = fileApi.save.mock.calls[0][1] as string
+    const links = [...savedMarkdown.matchAll(/\(assets\/(img-[a-z0-9-]+\.(?:png|gif))\)/g)].map((m) => m[1])
+    expect(links).toHaveLength(2)
+    const rewrite = ipcApiRequest.mock.calls.find((call) => call[0] === 'file.write_if_unchanged')
+    expect(rewrite).toBeDefined()
+    const input = rewrite![1] as {
+      handle: unknown
+      data: Uint8Array
+      expectedVersion: unknown
+      expectedContentHash: unknown
+    }
+    expect(input.handle).toEqual({ kind: 'path', path: '/tmp/x/a.md' })
+    expect(input.expectedVersion).toEqual({ mtime: 1000, size: 100 })
+    // the hash the read-back bound to our bytes rides along to close the
+    // second-precision mtime ambiguity on FAT32/SMB/NFS
+    expect(input.expectedContentHash).toBe('xxh3-64:00000000deadbeef')
+    const repaired = new TextDecoder().decode(input.data)
+    expect(repaired).toContain(`assets/${links[0]}`)
+    expect(repaired).not.toContain(`assets/${links[1]}`)
+    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+  })
+
+  it('strips every occurrence of a deduped failed image (folder)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    mockRepairRoutes()
+    const message = view([
+      imageFilePart(PNG_1PX, 'entry-a'),
+      { type: 'text', text: 'again below' },
+      imageFilePart(PNG_1PX, 'entry-a')
+    ])
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    const savedMarkdown = fileApi.save.mock.calls[0][1] as string
+    expect(savedMarkdown.match(/\(assets\//g)).toHaveLength(2)
+    const rewrite = ipcApiRequest.mock.calls.find((call) => call[0] === 'file.write_if_unchanged')!
+    const repaired = new TextDecoder().decode((rewrite[1] as { data: Uint8Array }).data)
+    expect(repaired).not.toContain('assets/')
+    expect(repaired).toContain('again below')
+  })
+
+  it('strips all links when the assets directory cannot be created (folder)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.mkdir.mockRejectedValueOnce(new Error('permission denied'))
+    mockRepairRoutes()
+    const message = view([
+      imageFilePart(PNG_1PX, 'entry-a'),
+      imageFilePart(GIF_1PX, 'entry-b', 'anim.gif', 'image/gif')
+    ])
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    const rewrite = ipcApiRequest.mock.calls.find((call) => call[0] === 'file.write_if_unchanged')!
+    const repaired = new TextDecoder().decode((rewrite[1] as { data: Uint8Array }).data)
+    expect(repaired).not.toContain('assets/')
+    expect(toast.warning).toHaveBeenCalledWith('2 张图片写入失败')
+  })
+
+  it('does not delete user text when an unpaired ![ precedes the failed link', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    mockRepairRoutes()
+    const message = view([
+      { type: 'text', text: '![\nan unpaired image marker paragraph' },
+      imageFilePart(PNG_1PX, 'entry-a')
+    ])
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    const rewrite = ipcApiRequest.mock.calls.find((call) => call[0] === 'file.write_if_unchanged')!
+    const repaired = new TextDecoder().decode((rewrite[1] as { data: Uint8Array }).data)
+    expect(repaired).toContain('an unpaired image marker paragraph')
+    expect(repaired).not.toContain('assets/')
+  })
+
+  it('strips a failed link whose filename contains a newline', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    mockRepairRoutes()
+    const message = view([imageFilePart(PNG_1PX, 'entry-a', 'holiday\nphoto.png')])
+
+    await exportMessageAsMarkdown(message, false, undefined, chooseImageMode)
+
+    const rewrite = ipcApiRequest.mock.calls.find((call) => call[0] === 'file.write_if_unchanged')!
+    const repaired = new TextDecoder().decode((rewrite[1] as { data: Uint8Array }).data)
+    expect(repaired).not.toContain('assets/')
+  })
+
+  it('skips the repair when the .md changed since the export wrote it', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    ipcApiRequest.mockImplementation((route: unknown) => {
+      if (route === 'file.read') {
+        return Promise.resolve({
+          ok: true,
+          data: {
+            content: new TextEncoder().encode('# rewritten by another tool'),
+            mime: 'text/markdown',
+            version: { mtime: 1000, size: 100 }
+          }
+        })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+
+    // an external rewrite in the save→read window voids the repair instead of being clobbered
+    expect(ipcApiRequest.mock.calls.some((call) => call[0] === 'file.write_if_unchanged')).toBe(false)
+    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+  })
+
+  it('keeps the export intact when the repair rewrite itself fails (folder)', async () => {
+    chooseImageMode.mockResolvedValue('folder')
+    fileApi.save.mockResolvedValue('/tmp/x/a.md')
+    fileApi.write.mockRejectedValueOnce(new Error('disk full'))
+    ipcApiRequest.mockImplementation((route: unknown) => {
+      if (route === 'file.read') {
+        const saved = (fileApi.save.mock.calls[0]?.[1] as string) ?? ''
+        return Promise.resolve({
+          ok: true,
+          data: { content: new TextEncoder().encode(saved), mime: 'text/markdown', version: { mtime: 1000, size: 100 } }
+        })
+      }
+      if (route === 'file.write_if_unchanged') return Promise.reject(new Error('stale version'))
+      return Promise.resolve(undefined)
+    })
+
+    await exportMessageAsMarkdown(imageMessage(), false, undefined, chooseImageMode)
+
+    // the failed rewrite only logs: the export still completes with the warning,
+    // and nothing writes the .md outside the refused atomic route
+    expect(toast.warning).toHaveBeenCalledWith('1 张图片写入失败')
+    expect(toast.success).toHaveBeenCalled()
+    expect(fileApi.write.mock.calls.every((call) => !String(call[0]).endsWith('.md'))).toBe(true)
   })
 
   it('toasts the skipped-image count and still completes the export (embed, oversize)', async () => {

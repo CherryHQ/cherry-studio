@@ -62,6 +62,7 @@ interface ModelSettingRowProps {
   title: ReactNode
   description?: ReactNode
   compact?: boolean
+  inlineWhenCompact?: boolean
   children: ReactNode
   rowRef?: Ref<HTMLDivElement>
   showFocusGuide?: boolean
@@ -72,12 +73,20 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
   title,
   description,
   compact,
+  inlineWhenCompact,
   children,
   rowRef,
   showFocusGuide
 }) => (
   <div ref={rowRef}>
-    <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
+    <SettingRow
+      className={cn(
+        compact
+          ? inlineWhenCompact
+            ? 'items-center gap-3 py-1'
+            : 'flex-col items-stretch gap-3 py-1'
+          : 'items-start gap-6 py-1.5'
+      )}>
       <div className="min-w-0 flex-1">
         <SettingRowTitle className="gap-2">
           {icon}
@@ -87,8 +96,8 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
       </div>
       <div
         className={cn(
-          compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2',
-          'relative'
+          'relative flex items-center gap-2',
+          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : 'w-[340px] shrink-0'
         )}>
         {showFocusGuide && (
           <span
@@ -372,6 +381,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <SettingDivider />
           <ModelSettingRow
             compact={compact}
+            inlineWhenCompact
             icon={<RefreshCcw size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={
               <>
@@ -389,12 +399,16 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {retryEnabled && (
             <>
               <SettingDivider />
-              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.max_attempts')}>
+              <ModelSettingRow
+                compact={compact}
+                inlineWhenCompact
+                icon={null}
+                title={t('settings.models.retry.max_attempts')}>
                 <Input
                   type="number"
                   min={1}
                   max={10}
-                  className="w-24"
+                  className={compact ? 'h-7 w-16 px-2' : 'w-24'}
                   aria-label={t('settings.models.retry.max_attempts')}
                   value={retryMaxAttempts}
                   // Clamp on change: an empty field gives Number('') === 0, which a
@@ -405,7 +419,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 />
               </ModelSettingRow>
               <SettingDivider />
-              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.backoff')}>
+              <ModelSettingRow
+                compact={compact}
+                inlineWhenCompact
+                icon={null}
+                title={t('settings.models.retry.backoff')}>
                 <Switch
                   checked={retryBackoffEnabled}
                   onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}

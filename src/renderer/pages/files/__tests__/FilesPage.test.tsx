@@ -644,10 +644,10 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByText('files.empty.no_match_title')).not.toBeInTheDocument()
   })
 
-  it('loads another active page when a client-filtered view does not fill the viewport', async () => {
+  it('queries the selected type without scanning unrelated active pages', async () => {
     const loadNext = vi.fn()
     mockUseInfiniteQuery.mockImplementation((_path, options) => {
-      const query = options?.query as { inTrash?: boolean } | undefined
+      const query = options?.query as { fileType?: string; inTrash?: boolean } | undefined
       return {
         pages: query?.inTrash ? [] : [{ items: [entry], total: 200, nextCursor: 'next-page' }],
         isLoading: false,
@@ -665,8 +665,12 @@ describe('FilesPage keyboard rename', () => {
     fireEvent.click(screen.getByText('files.text'))
 
     await waitFor(() => {
-      expect(loadNext).toHaveBeenCalledTimes(1)
+      const activeCall = mockUseInfiniteQuery.mock.calls
+        .filter((call) => !(call[1]?.query as { inTrash?: boolean } | undefined)?.inTrash)
+        .at(-1)
+      expect(activeCall?.[1]?.query).toMatchObject({ fileType: 'text' })
     })
+    expect(loadNext).not.toHaveBeenCalled()
   })
 })
 

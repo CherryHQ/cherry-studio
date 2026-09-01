@@ -4556,7 +4556,7 @@ describe('ChatComposer', () => {
     expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
-  it('does not save an assistant reply whose text has provider metadata Composer cannot round-trip', async () => {
+  it('saves an assistant reply whose text has provider metadata', async () => {
     const editMessage = vi.fn().mockResolvedValue(undefined)
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
@@ -4585,10 +4585,9 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
     await mocks.surfaceProps?.onSendDraft({ text: 'edited reply', tokens: [] })
 
-    expect(editMessage).not.toHaveBeenCalled()
+    expect(editMessage).toHaveBeenCalled()
     expect(forkAndResend).not.toHaveBeenCalled()
-    expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id)
-    expect(toast.error).toHaveBeenCalledWith('message.error.operation_unavailable')
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
   })
 
   it('does not fork and resend an edited file-only draft before the file token is reflected in the editor', async () => {

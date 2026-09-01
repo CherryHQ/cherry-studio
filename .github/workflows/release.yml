@@ -42,7 +42,7 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
     steps:
       - name: Check out release commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -111,85 +111,15 @@ jobs:
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
           BRANCH="$GITHUB_REF_NAME"
+          if [ "$OPERATION" = "publish" ]; then
+            exit 0
+          fi
+
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
           RELEASE="$(jq -c --arg tag "$TAG" '
             [.[][] | select(.tag_name == $tag)] |
-            if length > 1 then error("multiple releases use tag " + $tag)
-            elif length == 1 then .[0]
-            else empty
-            end
+            .[0] // empty
           ' <<< "$RELEASE_PAGES")"
-
-          if [ "$OPERATION" = "publish" ]; then
-            git fetch origin "refs/heads/main:refs/remotes/origin/main"
-
-            collect_pending_hotfixes() {
-              local fork_point hotfix_prs pending merge_sha pr_json
-              fork_point="$(git merge-base "$GITHUB_SHA" origin/main)"
-              hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
-              pending=""
-
-              while IFS= read -r pr_json; do
-                if ! jq -e '
-                  (.title | test("^hotfix(\\([a-z0-9]+(-[a-z0-9]+)*\\))?: \\S")) or
-                  any(.labels[]; .name == "hotfix")
-                ' <<< "$pr_json" >/dev/null; then
-                  continue
-                fi
-                merge_sha="$(jq -r '.mergeCommit.oid // ""' <<< "$pr_json")"
-                if [ -z "$merge_sha" ] || [ "$merge_sha" = "$fork_point" ]; then
-                  continue
-                fi
-                if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
-                   ! git merge-base --is-ancestor "$merge_sha" origin/main; then
-                  continue
-                fi
-                if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
-                  pending+="${pending:+$'\n'}$(jq -r '.url' <<< "$pr_json")"
-                fi
-              done < <(jq -c '.[]' <<< "$hotfix_prs")
-
-              printf '%s' "$pending"
-            }
-
-            TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
-            BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-            OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-            PENDING_HOTFIXES="$(collect_pending_hotfixes)"
-            EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
-            RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
-            BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
-              [.[] | .workflow_runs[] | select(.display_title == $title and .conclusion == "success")][0] // empty
-            ' <<< "$RELEASE_RUNS")"
-            BRANCH_SHA="$BRANCH_SHA" \
-            BUILD_RUN_JSON="$BUILD_RUN" \
-            EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
-            OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
-            PENDING_HOTFIXES="$PENDING_HOTFIXES" \
-            RELEASE_JSON="$RELEASE" \
-            TAG="$TAG" \
-            TAG_SHA="$TAG_SHA" \
-            WORKFLOW_SHA="$GITHUB_SHA" \
-              node scripts/release/validate-release-state.js publish
-
-            RELEASE="$(gh api "repos/$REPO/releases/$(jq -r '.id' <<< "$RELEASE")")"
-            TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
-            BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-            OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-            PENDING_HOTFIXES="$(collect_pending_hotfixes)"
-            BRANCH_SHA="$BRANCH_SHA" \
-            BUILD_RUN_JSON="$BUILD_RUN" \
-            EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
-            OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
-            PENDING_HOTFIXES="$PENDING_HOTFIXES" \
-            RELEASE_JSON="$RELEASE" \
-            TAG="$TAG" \
-            TAG_SHA="$TAG_SHA" \
-            WORKFLOW_SHA="$GITHUB_SHA" \
-              node scripts/release/validate-release-state.js publish
-
-            exit 0
-          fi
 
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
           REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
@@ -213,102 +143,17 @@ jobs:
       pull-requests: read
     steps:
       - name: Check out release commit without credentials
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
           ref: ${{ github.sha }}
 
-      - name: Revalidate current draft
-        id: publish-state
-        shell: bash
-        env:
-          BRANCH: ${{ github.ref_name }}
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          git fetch origin "refs/heads/main:refs/remotes/origin/main"
-
-          collect_pending_hotfixes() {
-            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
-            fork_point="$(git merge-base "$GITHUB_SHA" "$main_sha")"
-            hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
-            pending=""
-
-            while IFS= read -r pr_json; do
-              if ! jq -e '
-                (.title | test("^hotfix(\\([a-z0-9]+(-[a-z0-9]+)*\\))?: \\S")) or
-                any(.labels[]; .name == "hotfix")
-              ' <<< "$pr_json" >/dev/null; then
-                continue
-              fi
-              merge_sha="$(jq -r '.mergeCommit.oid // ""' <<< "$pr_json")"
-              if [ -z "$merge_sha" ] || [ "$merge_sha" = "$fork_point" ]; then
-                continue
-              fi
-              if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
-                ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
-                continue
-              fi
-              if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
-                pending+="${pending:+$'\n'}$(jq -r '.url' <<< "$pr_json")"
-              fi
-            done < <(jq -c '.[]' <<< "$hotfix_prs")
-
-            printf '%s' "$pending"
-          }
-
-          RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
-          TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
-          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-          EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
-          RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
-          BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
-            [.[] | .workflow_runs[] | select(
-              .display_title == $title and
-              .head_sha == env.GITHUB_SHA and
-              .event == "workflow_dispatch" and
-              .status == "completed" and
-              .conclusion == "success"
-            )][0] // empty
-          ' <<< "$RELEASE_RUNS")"
-
-          if [ "$(jq -r '.draft' <<< "$RELEASE")" != "true" ]; then
-            echo "Release $TAG must still be a draft" >&2
-            exit 1
-          fi
-          if [ "$TAG_SHA" != "$GITHUB_SHA" ] || [ "$BRANCH_SHA" != "$GITHUB_SHA" ]; then
-            echo "Tag, release branch, and selected workflow commit must still be identical" >&2
-            exit 1
-          fi
-          if [ -n "$OPEN_RELEASE_PRS" ]; then
-            echo "Release branch still has open pull requests: $OPEN_RELEASE_PRS" >&2
-            exit 1
-          fi
-          if [ -z "$BUILD_RUN" ]; then
-            echo "No successful all-platform Release build exists for $GITHUB_SHA" >&2
-            exit 1
-          fi
-          if [ "$(jq '.assets | length' <<< "$RELEASE")" -eq 0 ]; then
-            echo "Draft release $TAG has no artifacts" >&2
-            exit 1
-          fi
-          PENDING_HOTFIXES="$(collect_pending_hotfixes "$(git rev-parse origin/main)")"
-          if [ -n "$PENDING_HOTFIXES" ]; then
-            echo "Merged hotfix pull requests are still waiting for this release: $PENDING_HOTFIXES" >&2
-            exit 1
-          fi
-
-          echo "release-id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
-
-      - name: Publish current draft
+      - name: Validate and publish current draft
         shell: bash
         env:
           BRANCH: ${{ github.ref_name }}
           GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          RELEASE_ID: ${{ steps.publish-state.outputs.release-id }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
@@ -343,11 +188,13 @@ jobs:
             printf '%s' "$pending"
           }
 
-          RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
+          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
+          RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
+          RELEASE_ID="$(jq -r '.id' <<< "$RELEASE")"
           TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
           OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-          PENDING_HOTFIXES="$(collect_pending_hotfixes "$(git rev-parse origin/main)")"
+          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
           EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
           RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
           BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
@@ -369,14 +216,6 @@ jobs:
           TAG_SHA="$TAG_SHA" \
           WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js publish
-
-          git fetch origin "refs/heads/main:refs/remotes/origin/main"
-          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
-          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
-          if [ -n "$PENDING_HOTFIXES" ]; then
-            echo "A hotfix merged during final release validation and is still waiting for this release: $PENDING_HOTFIXES" >&2
-            exit 1
-          fi
 
           echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
           gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
@@ -405,7 +244,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -551,7 +390,7 @@ jobs:
       contents: write
     steps:
       - name: Check out release commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false

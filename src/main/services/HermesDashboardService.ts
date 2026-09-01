@@ -1,14 +1,17 @@
 import type { ChildProcess } from 'node:child_process'
+import { realpath } from 'node:fs/promises'
 import { createServer } from 'node:net'
+import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { getHermesHome } from '@main/services/codeCli'
 import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { redactSecretText } from '@shared/utils/redaction'
 import { Mutex } from 'async-mutex'
 
@@ -26,6 +29,7 @@ const DIAGNOSTIC_LIMIT = 2_000
 interface HermesDashboardRuntime {
   env: NodeJS.ProcessEnv
   executablePath: string
+  home: AbsoluteFilePath
 }
 
 class HermesDashboardStartError extends Error {
@@ -155,7 +159,14 @@ export class HermesDashboardService extends BaseService {
       throw new HermesDashboardStartError('not_installed', 'Hermes is not installed')
     }
     const env = snapshot.availability.source === 'system' ? await getRawShellEnv() : await refreshShellEnv()
-    return { env, executablePath: AbsoluteFilePathSchema.parse(snapshot.availability.path) }
+    const home = await getHermesHome()
+    // Pin the Dashboard to the same home config writes target, so it reads what
+    // Cherry wrote regardless of how Hermes would resolve its default.
+    for (const key of Object.keys(env)) {
+      if (key.toLowerCase() === 'hermes_home') delete env[key]
+    }
+    env.HERMES_HOME = home
+    return { env, executablePath: AbsoluteFilePathSchema.parse(snapshot.availability.path), home }
   }
 
   private async spawnAndWaitForReady(
@@ -184,7 +195,7 @@ export class HermesDashboardService extends BaseService {
       logger.warn('Managed Hermes Dashboard process error', { message: sanitizeDiagnostic(error.message) })
     })
 
-    await waitForReady(child, url, signal)
+    await waitForReady(child, url, runtime.home, signal)
   }
 
   private handleChildTermination(child: ChildProcess, code: number | null, signal: NodeJS.Signals | null): void {
@@ -249,21 +260,40 @@ async function findAvailablePort(): Promise<number> {
   return address.port
 }
 
-async function assertDashboardReady(url: string): Promise<void> {
+class HermesHomeMismatchError extends Error {}
+
+async function assertDashboardReady(url: string, expectedHome: AbsoluteFilePath): Promise<void> {
   const response = await fetch(`${url}/api/status`, { signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS) })
   if (!response.ok) {
     await response.body?.cancel()
     throw new Error(`Hermes Dashboard returned HTTP ${response.status}`)
   }
-  // A foreign process can hold our freshly-picked port before Hermes binds; confirm the
-  // /api/status body is Hermes's own so we never open the wrong server as the Dashboard.
+  // A foreign process can grab the freshly-freed port first; body shape + home check
+  // filter accidental squatters but cannot prove the responder is our child process.
   const body = await response.json().catch(() => null)
   if (!isHermesStatusBody(body)) {
     throw new Error('Hermes Dashboard health endpoint returned an unrecognized response')
   }
+  const reportedHome = normalizeHome(body.hermes_home)
+  if (reportedHome === normalizeHome(expectedHome)) return
+  // Symlink aliases only (macOS /tmp, /var): realpath the trusted pin — never the
+  // reported string, and only off the fast path (network homes can hang realpath).
+  const pinnedCanonicalHome = normalizeHome(await realpath(expectedHome).catch(() => expectedHome))
+  if (reportedHome !== pinnedCanonicalHome) {
+    throw new HermesHomeMismatchError(
+      `Hermes Dashboard is using a different configuration home (reported ${body.hermes_home}, expected ${expectedHome})`
+    )
+  }
 }
 
-function isHermesStatusBody(body: unknown): boolean {
+/** Lexical normalization only: resolve, plus Windows separator and casing folding. */
+function normalizeHome(value: string): string {
+  // path.win32 keeps the Windows normalization testable from POSIX hosts.
+  const resolved = (isWin ? path.win32 : path).resolve(value)
+  return isWin ? resolved.toLowerCase() : resolved
+}
+
+function isHermesStatusBody(body: unknown): body is { hermes_home: string; gateway_running: unknown } {
   return (
     typeof body === 'object' &&
     body !== null &&
@@ -290,7 +320,12 @@ function isMissingDashboardDependencyDiagnostic(value: string): boolean {
   return /web ui requires\b.*\bfastapi\b.*\buvicorn\b/i.test(value)
 }
 
-function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Promise<void> {
+function waitForReady(
+  child: ChildProcess,
+  url: string,
+  expectedHome: AbsoluteFilePath,
+  signal: AbortSignal
+): Promise<void> {
   return new Promise((resolve, reject) => {
     let stdout = ''
     let stderr = ''
@@ -335,9 +370,13 @@ function waitForReady(child: ChildProcess, url: string, signal: AbortSignal): Pr
     const checkHealth = () => {
       if (checkingHealth || settled) return
       checkingHealth = true
-      void assertDashboardReady(url)
+      void assertDashboardReady(url, expectedHome)
         .then(succeed)
-        .catch(() => undefined)
+        // The reported home is fixed at spawn: a mismatch can never heal, so fail
+        // fast instead of probing into the startup timeout.
+        .catch((error) => {
+          if (error instanceof HermesHomeMismatchError) fail(error)
+        })
         .finally(() => {
           checkingHealth = false
         })

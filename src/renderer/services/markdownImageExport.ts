@@ -23,8 +23,8 @@ import { generateImageOutputSchema } from '@shared/ai/generateImageTool'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { toFileUrl } from '@shared/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { createFilePathHandle, fileUrlToPath, toFileUrl } from '@shared/utils/file'
 import { getToolName, isToolUIPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -40,7 +40,11 @@ const AGENT_GENERATE_IMAGE_TOOL_NAME = `mcp__cherry-tools__${GENERATE_IMAGE_TOOL
 export type ExportableImageRef = {
   /** Dedup key: fileEntryId when known, else the part url. */
   key: string
-  /** Authoritative src (`file://` / `data:` / `https:`) handed to `getImageBlobFromSource`. */
+  /**
+   * Authoritative src (`file://` / `data:` / `https:`). `file://` sources are
+   * stat'd before embed reads and copied in main for folder writes; everything
+   * else resolves through `getImageBlobFromSource`.
+   */
   url: string
   filename?: string
   mime?: string
@@ -273,7 +277,24 @@ function imageExtension(ref: ExportableImageRef, mime: string | undefined): stri
   return 'png'
 }
 
-const altText = (ref: ExportableImageRef): string => (ref.filename ?? 'image').replace(/[[\]]/g, '')
+// Brackets would break the link syntax; newlines would defeat the export repair's
+// single-line link matcher in ExportService.
+const altText = (ref: ExportableImageRef): string => (ref.filename ?? 'image').replace(/[[\]\r\n]/g, '')
+
+const filePathOfUrl = (url: string): AbsoluteFilePath =>
+  AbsoluteFilePathSchema.parse(fileUrlToPath(url as FileUrlString))
+
+// Stat file:// sources so an over-limit image skips without the full read; unknown
+// size falls through to the read path, whose blob.size check stays authoritative.
+async function isOverEmbedLimit(url: string): Promise<boolean> {
+  if (!url.startsWith('file://')) return false
+  try {
+    const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePathOfUrl(url)))
+    return metadata?.kind === 'file' && metadata.size > MAX_EMBED_IMAGE_BYTES
+  } catch {
+    return false
+  }
+}
 
 /**
  * Serialize messages with images interleaved at their original parts position.
@@ -297,8 +318,13 @@ export async function serializeMessagesWithImages(
     if (dataUriByKey.has(ref.key)) return dataUriByKey.get(ref.key) ?? null
     let segment: string | null = null
     try {
+      if (await isOverEmbedLimit(ref.url)) {
+        skipped.count += 1
+        dataUriByKey.set(ref.key, null)
+        return null
+      }
       const blob = await getImageBlobFromSource(ref.url)
-      // blob.size avoids decoding an over-limit image just to discard it.
+      // Re-check after the read: covers non-file sources and stat→read growth.
       if (blob.size > MAX_EMBED_IMAGE_BYTES) {
         skipped.count += 1
         dataUriByKey.set(ref.key, null)
@@ -370,31 +396,41 @@ export async function serializeMessagesWithImages(
 
 /**
  * Write folder-mode images into `<dirPath>/assets/` (idempotent mkdir).
- * A failing image only warns — the already-written .md is never removed.
- * @returns number of images that failed to write.
+ * A failing image only warns — the already-written .md is never removed; the
+ * caller strips the failed links from it instead.
+ * @returns asset file names that failed to write.
  */
-export async function writeImageAssets(dirPath: string, pendingWrites: PendingImageWrite[]): Promise<number> {
-  if (pendingWrites.length === 0) return 0
+export async function writeImageAssets(dirPath: string, pendingWrites: PendingImageWrite[]): Promise<string[]> {
+  if (pendingWrites.length === 0) return []
   // Root directories ('/a.md' → '/', 'C:\a.md' → 'C:\') already end in the separator.
   const assetsDir = /[\\/]$/.test(dirPath) ? `${dirPath}assets` : `${dirPath}/assets`
   try {
     await window.api.file.mkdir(assetsDir)
   } catch (error) {
-    // The .md is already saved; count every image as failed so the caller
-    // warns instead of surfacing a whole-export error with dangling links.
+    // The .md is already saved; report every image as failed so the caller
+    // repairs the links instead of surfacing a whole-export error.
     logger.warn('Failed to create the assets directory, skipping image writes', { assetsDir, error })
-    return pendingWrites.length
+    return pendingWrites.map(({ fileName }) => fileName)
   }
-  let failedCount = 0
+  const failed: string[] = []
   for (const { fileName, ref } of pendingWrites) {
     try {
-      const blob = await getImageBlobFromSource(ref.url)
-      const bytes = new Uint8Array(await blob.arrayBuffer())
-      await window.api.file.write(`${assetsDir}/${fileName}`, bytes)
+      if (ref.url.startsWith('file://')) {
+        // The bytes already sit on disk — copy in main instead of round-tripping
+        // them renderer↔main through read + write.
+        await ipcApi.request('file.copy', {
+          sourcePath: filePathOfUrl(ref.url),
+          destPath: AbsoluteFilePathSchema.parse(`${assetsDir}/${fileName}`)
+        })
+      } else {
+        const blob = await getImageBlobFromSource(ref.url)
+        const bytes = new Uint8Array(await blob.arrayBuffer())
+        await window.api.file.write(`${assetsDir}/${fileName}`, bytes)
+      }
     } catch (error) {
-      failedCount += 1
+      failed.push(fileName)
       logger.warn('Failed to write an exported image asset', { fileName, error })
     }
   }
-  return failedCount
+  return failed
 }
