@@ -332,6 +332,24 @@ describe('WebSearchService', () => {
     expect(searchKeywords).not.toHaveBeenCalled()
   })
 
+  it('surfaces a configuration error when the selected keyword provider and fallback are both misconfigured', async () => {
+    const overrides = MockMainPreferenceServiceUtils.getPreferenceValue('chat.web_search.provider_overrides')
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      ...overrides,
+      tavily: { ...overrides.tavily, apiKeys: [] },
+      'exa-mcp': {
+        capabilities: {
+          searchKeywords: { apiHost: 'invalid-url' }
+        }
+      }
+    })
+
+    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first'] })).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'api_key_missing'
+    })
+  })
+
   it('retries only failed keywords through ExaMCP and preserves input order', async () => {
     const tavilySearch = vi.fn((input: string) =>
       input === 'first'

@@ -16,7 +16,7 @@ import { postProcessWebSearchResponse } from './postProcessing'
 import type { WebSearchProviderDriver } from './providers/factory'
 import { createWebSearchProvider } from './providers/factory'
 import { filterWebSearchResponseWithBlacklist } from './utils/blacklist'
-import { getProviderForCapability, getRuntimeConfig } from './utils/config'
+import { getProviderForCapability, getRuntimeConfig, isPermanentWebSearchConfigError } from './utils/config'
 import { normalizeWebSearchKeywords, normalizeWebSearchUrls } from './utils/input'
 import { ApiKeyRotationState, resolveProviderApiHost } from './utils/provider'
 import { WebSearchConfigError } from './WebSearchConfigError'
@@ -237,6 +237,10 @@ export class WebSearchService extends BaseService {
       const errors = mergedResults.flatMap((result) =>
         result.reason instanceof AggregateError ? result.reason.errors : [result.reason]
       )
+      const configurationError = errors.find(isPermanentWebSearchConfigError)
+      if (configurationError && errors.every(isPermanentWebSearchConfigError)) {
+        throw configurationError
+      }
       throw new AggregateError(errors, failureMessage, { cause: errors[0] })
     }
 
