@@ -40,11 +40,20 @@ interface MinimaxVoiceCloneResponse extends MinimaxResponse {
   voice_id?: string
 }
 
+function responseHeaders(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {}
+  response.headers.forEach((value, key) => {
+    headers[key] = value
+  })
+  return headers
+}
+
 async function parseResponse<T extends MinimaxResponse>(
   response: Response,
   url: string,
   requestBodyValues: Record<string, unknown>
 ): Promise<T> {
+  const headers = responseHeaders(response)
   const responseBody = await response.text()
 
   let parsed: T
@@ -57,6 +66,7 @@ async function parseResponse<T extends MinimaxResponse>(
       url,
       requestBodyValues,
       statusCode: response.status,
+      responseHeaders: headers,
       responseBody
     })
   }
@@ -68,6 +78,7 @@ async function parseResponse<T extends MinimaxResponse>(
       url,
       requestBodyValues,
       statusCode: response.status,
+      responseHeaders: headers,
       responseBody
     })
   }

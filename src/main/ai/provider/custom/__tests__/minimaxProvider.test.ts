@@ -186,7 +186,8 @@ describe('createMinimaxProvider', () => {
       )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ base_resp: { status_code: 1004, status_msg: 'invalid voice ID' } }), {
-          status: 200
+          status: 200,
+          headers: { 'x-request-id': 'request-123' }
         })
       )
     const provider = createMinimaxProvider({ apiKey: 'sk-test', fetch })
@@ -198,6 +199,9 @@ describe('createMinimaxProvider', () => {
         voiceId: 'CustomVoice001',
         model: 'speech-01-hd'
       })
-    ).rejects.toMatchObject({ message: 'invalid voice ID' })
+    ).rejects.toMatchObject({
+      message: 'invalid voice ID',
+      responseHeaders: { 'x-request-id': 'request-123' }
+    })
   })
 })
