@@ -673,7 +673,12 @@ function buildAgentOptions(
   // by the closed Responses providerOptions schema. Chat Completions would
   // otherwise透传 them via providerOptions, but Responses would not — unifying
   // here keeps `profile < custom < callOverrides` consistent across endpoints.
-  const callOverridesBodyParams = extractCallOverridesBodyParams(request.callOverrides)
+  // Only the effective provider namespace contributes to the HTTP body; other
+  // providers' overrides must not leak across endpoints.
+  const callOverridesBodyParams = extractCallOverridesBodyParams(
+    request.callOverrides,
+    sdkConfig.providerOptionsKey
+  )
   if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
 
   if (rawBodyLayers.length > 0) {
@@ -689,7 +694,11 @@ function buildAgentOptions(
   // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
   // Body-routed keys already injected via the unified fetch wrapper, so strip them from
   // the providerOptions path to avoid double-send on Chat and silent drop on Responses.
-  const callOverrides = stripRequestBodyFromCallOverrides(request.callOverrides, callOverridesBodyParams)
+  const callOverrides = stripRequestBodyFromCallOverrides(
+    request.callOverrides,
+    callOverridesBodyParams,
+    sdkConfig.providerOptionsKey
+  )
   const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
   standardParams = overridden.standardParams
   const effectiveProviderOptions = applyFastModeToProviderOptions(
@@ -755,10 +764,18 @@ function resolveEffectiveThinkingBudget(
     : undefined
 }
 
-function extractCallOverridesBodyParams(callOverrides: CallOverrides | undefined): Record<string, unknown> {
+function extractCallOverridesBodyParams(
+  callOverrides: CallOverrides | undefined,
+  providerOptionsKey?: string
+): Record<string, unknown> {
   if (!callOverrides?.providerOptions) return {}
   const body: Record<string, unknown> = {}
-  for (const opts of Object.values(callOverrides.providerOptions)) {
+  const entries = providerOptionsKey
+    ? ([[providerOptionsKey, callOverrides.providerOptions[providerOptionsKey]]] as const).filter(
+        ([, v]) => v !== undefined
+      )
+    : (Object.entries(callOverrides.providerOptions) as [string, unknown][])
+  for (const [, opts] of entries) {
     if (!opts || typeof opts !== 'object') continue
     for (const [key, value] of Object.entries(opts as Record<string, unknown>)) {
       if (value === undefined) continue
@@ -805,13 +822,19 @@ function extractCallOverridesBodyParams(callOverrides: CallOverrides | undefined
 
 function stripRequestBodyFromCallOverrides(
   callOverrides: CallOverrides | undefined,
-  bodyParams: Record<string, unknown>
+  bodyParams: Record<string, unknown>,
+  providerOptionsKey?: string
 ): CallOverrides | undefined {
   if (!callOverrides?.providerOptions || Object.keys(bodyParams).length === 0) return callOverrides
   const bodyKeys = new Set(Object.keys(bodyParams))
   let mutated = false
   const nextProviderOptions: ProviderOptions = {}
   for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
+    const isTargetNamespace = providerOptionsKey ? pid === providerOptionsKey : true
+    if (!isTargetNamespace) {
+      nextProviderOptions[pid] = opts as unknown as NonNullable<ProviderOptions[string]>
+      continue
+    }
     if (!opts || typeof opts !== 'object') {
       nextProviderOptions[pid] = opts as unknown as NonNullable<ProviderOptions[string]>
       continue

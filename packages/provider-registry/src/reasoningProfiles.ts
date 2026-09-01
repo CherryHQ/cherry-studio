@@ -19,19 +19,32 @@ type NonBudgetMode = {
   effortMap?: Partial<Record<ReasoningEffort, ReasoningEffort>>
 }
 
-const literal = (target: ReasoningWireTarget, value: string | number | boolean): NonBudgetOperation => ({
+const literal = (
+  target: ReasoningWireTarget,
+  value: string | number | boolean,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): NonBudgetOperation => ({
   target,
-  value: { source: 'literal', value }
+  value: { source: 'literal', value },
+  delivery
 })
 
-const effort = (target: ReasoningWireTarget): NonBudgetOperation => ({
+const effort = (
+  target: ReasoningWireTarget,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): NonBudgetOperation => ({
   target,
-  value: { source: 'effort' }
+  value: { source: 'effort' },
+  delivery
 })
 
-const summary = (target: ReasoningWireTarget): NonBudgetOperation => ({
+const summary = (
+  target: ReasoningWireTarget,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): NonBudgetOperation => ({
   target,
-  value: { source: 'assistant-summary' }
+  value: { source: 'assistant-summary' },
+  delivery
 })
 
 const mode = (operations: NonBudgetOperation[], rest: Omit<NonBudgetMode, 'operations'> = {}): NonBudgetMode => ({
@@ -40,9 +53,13 @@ const mode = (operations: NonBudgetOperation[], rest: Omit<NonBudgetMode, 'opera
 })
 
 /** Budget-dialect operation — writes the resolved thinking-token count. */
-const budgetTokens = (target: ReasoningWireTarget): ReasoningWireOperation => ({
+const budgetTokens = (
+  target: ReasoningWireTarget,
+  delivery: ReasoningWireOperation['delivery'] = 'provider-option'
+): ReasoningWireOperation => ({
   target,
-  value: { source: 'budget' }
+  value: { source: 'budget' },
+  delivery
 })
 
 /**
@@ -88,9 +105,9 @@ const anthropicBudgetWire: ReasoningWireProfile = {
  * toggle is generic — budget caps belong to a narrower format when needed.
  */
 const selfHostedWire: ReasoningWireProfile = {
-  off: mode([literal('chat_template_kwargs.enable_thinking', false)]),
-  auto: mode([literal('chat_template_kwargs.enable_thinking', true)]),
-  effort: mode([literal('chat_template_kwargs.enable_thinking', true)])
+  off: mode([literal('chat_template_kwargs.enable_thinking', false, 'request-body')]),
+  auto: mode([literal('chat_template_kwargs.enable_thinking', true, 'request-body')]),
+  effort: mode([literal('chat_template_kwargs.enable_thinking', true, 'request-body')])
 }
 
 const genericEffort = (summaryTarget?: ReasoningWireTarget): ReasoningWireProfile => {

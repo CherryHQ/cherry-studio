@@ -67,28 +67,41 @@ export function useProviderEndpointActions({
 }: UseProviderEndpointActionsParams) {
   const { t } = useTranslation()
   const lastPersistedApiHostRef = useRef(trim(providerApiHost))
+  const providerRef = useRef(provider)
+  const apiHostRef = useRef(apiHost)
+  const hostPatchInFlightRef = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
     lastPersistedApiHostRef.current = trim(providerApiHost)
   }, [providerApiHost])
 
+  useEffect(() => {
+    providerRef.current = provider
+  }, [provider])
+
+  useEffect(() => {
+    apiHostRef.current = apiHost
+  }, [apiHost])
+
   const buildNextApiEndpointConfigs = useCallback(
     (baseUrl: string) => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return undefined
       }
 
       return {
-        ...provider.endpointConfigs,
-        [primaryEndpoint]: { ...provider.endpointConfigs?.[primaryEndpoint], baseUrl }
+        ...currentProvider.endpointConfigs,
+        [primaryEndpoint]: { ...currentProvider.endpointConfigs?.[primaryEndpoint], baseUrl }
       }
     },
-    [primaryEndpoint, provider]
+    [primaryEndpoint]
   )
 
   const persistApiHostDraft = useCallback(
     async (nextApiHost: string) => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return false
       }
 
@@ -97,7 +110,7 @@ export function useProviderEndpointActions({
         return false
       }
 
-      if (!isVertexProvider(provider) && !trimmedApiHost) {
+      if (!isVertexProvider(currentProvider) && !trimmedApiHost) {
         return false
       }
 
@@ -106,11 +119,17 @@ export function useProviderEndpointActions({
         return false
       }
 
-      await patchProvider({ endpointConfigs: nextEndpointConfigs })
+      const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
+      hostPatchInFlightRef.current = patchPromise
+        .catch(() => undefined)
+        .finally(() => {
+          if (hostPatchInFlightRef.current === patchPromise) hostPatchInFlightRef.current = null
+        }) as Promise<void>
+      await patchPromise
       lastPersistedApiHostRef.current = trimmedApiHost
       return true
     },
-    [buildNextApiEndpointConfigs, patchProvider, provider]
+    [buildNextApiEndpointConfigs, patchProvider]
   )
 
   const debouncedPersistApiHost = useMemo(
@@ -284,21 +303,30 @@ export function useProviderEndpointActions({
 
   const commitReasoningFormat = useCallback(
     async (reasoningFormat: ProviderReasoningFormatSelector | undefined): Promise<boolean> => {
-      if (!provider) {
+      const currentProvider = providerRef.current
+      if (!currentProvider) {
         return false
       }
 
       // Cancel any pending debounced host save so the two whole-snapshot patches don't race.
-      // If a host draft is pending, coalesce it into the same patch so neither change is lost.
+      // If a host PATCH is already in flight, wait for it so we don't overwrite its
+      // snapshot with a stale whole-config write, then coalesce any pending draft.
       debouncedPersistApiHost.cancel()
-      const trimmedDraft = trim(apiHost)
+      if (hostPatchInFlightRef.current) {
+        try {
+          await hostPatchInFlightRef.current
+        } catch {
+          // Host save failed — proceed with reasoning save using the last known good host.
+        }
+      }
+      const trimmedDraft = trim(apiHostRef.current)
       const hasPendingHost =
         validateApiHost(trimmedDraft) &&
         trimmedDraft !== lastPersistedApiHostRef.current &&
-        trimmedDraft !== trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
+        trimmedDraft !== trim(currentProvider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
       const effectiveBaseUrl = hasPendingHost ? trimmedDraft : undefined
 
-      const baseEndpoint = provider.endpointConfigs?.[primaryEndpoint]
+      const baseEndpoint = currentProvider.endpointConfigs?.[primaryEndpoint]
       const nextEndpoint: Record<string, unknown> = {
         ...baseEndpoint,
         reasoningFormat
@@ -308,24 +336,24 @@ export function useProviderEndpointActions({
       }
 
       const nextEndpointConfigs = {
-        ...provider.endpointConfigs,
+        ...currentProvider.endpointConfigs,
         [primaryEndpoint]: nextEndpoint
       }
 
       try {
-        await patchProvider({ endpointConfigs: nextEndpointConfigs as typeof provider.endpointConfigs })
+        await patchProvider({ endpointConfigs: nextEndpointConfigs as typeof currentProvider.endpointConfigs })
         if (hasPendingHost) {
           lastPersistedApiHostRef.current = trimmedDraft
           setApiHost(trimmedDraft)
         }
         return true
       } catch (error) {
-        logger.error('Failed to commit provider reasoning format', { providerId: provider.id, error })
+        logger.error('Failed to commit provider reasoning format', { providerId: currentProvider.id, error })
         toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
-    [apiHost, debouncedPersistApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t]
+    [debouncedPersistApiHost, patchProvider, primaryEndpoint, setApiHost, t]
   )
 
   return {

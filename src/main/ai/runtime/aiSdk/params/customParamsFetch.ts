@@ -1,5 +1,3 @@
-import { merge } from 'es-toolkit/compat'
-
 import { isCustomProviderNamespace } from '../../../utils/options'
 
 const CUSTOM_PARAMS_FETCH_CACHE_SIZE = 10
@@ -7,6 +5,22 @@ const customParamsFetchCache = new WeakMap<typeof globalThis.fetch, Map<string, 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function deepMergeSdkWins(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base }
+  for (const [key, value] of Object.entries(override)) {
+    const existing = result[key]
+    if (isRecord(existing) && isRecord(value)) {
+      result[key] = deepMergeSdkWins(existing, value)
+    } else {
+      result[key] = value as unknown
+    }
+  }
+  return result
 }
 
 /**
@@ -60,7 +74,7 @@ export function createCustomParamsFetch(
       if (isRecord(body)) {
         return innerFetch(input, {
           ...init,
-          body: JSON.stringify(merge({}, customParamsSnapshot, body))
+          body: JSON.stringify(deepMergeSdkWins(customParamsSnapshot, body as Record<string, unknown>))
         })
       }
     }

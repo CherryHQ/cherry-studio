@@ -7,6 +7,7 @@
  */
 import type {
   ReasoningEffort,
+  ReasoningWireDelivery,
   ReasoningWireMode,
   ReasoningWireProfile,
   ReasoningWireTarget
@@ -23,6 +24,7 @@ export type ResolvedReasoningKind = 'omit' | 'off' | 'auto' | 'effort' | 'budget
 export interface ResolvedReasoningEmission {
   target: ReasoningWireTarget
   value: string | number | boolean
+  delivery: ReasoningWireDelivery
 }
 
 export interface ResolvedReasoningInvocation {
@@ -157,7 +159,8 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
         value = input.assistantSummary ?? undefined
         break
     }
-    if (value !== undefined) emissions.push({ target: operation.target, value })
+    if (value !== undefined)
+      emissions.push({ target: operation.target, value, delivery: operation.delivery ?? 'provider-option' })
   }
 
   if (emissions.length === 0) return { ...OMIT, selection }
@@ -196,16 +199,21 @@ export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocatio
   return encodeEmissions(invocation)
 }
 
-/** Whether a wire target is delivered via raw request body rather than providerOptions. */
-export function isRequestBodyTarget(target: ReasoningWireTarget): boolean {
+/** Whether a wire emission is delivered via raw request body rather than providerOptions. */
+export function isRequestBodyTarget(target: ReasoningWireTarget, delivery?: ReasoningWireDelivery): boolean {
+  if (delivery) return delivery === 'request-body'
   return target.startsWith('chat_template_kwargs.')
+}
+
+function isBodyEmission(emission: ResolvedReasoningEmission): boolean {
+  return emission.delivery === 'request-body'
 }
 
 /** Return a reasoning invocation with body-routed emissions removed (for providerOptions-only paths). */
 export function filterReasoningForProviderOptions(
   invocation: ResolvedReasoningInvocation
 ): ResolvedReasoningInvocation {
-  const kept = invocation.emissions.filter((emission) => !isRequestBodyTarget(emission.target))
+  const kept = invocation.emissions.filter((emission) => !isBodyEmission(emission))
   return { ...invocation, emissions: kept }
 }
 
@@ -213,7 +221,7 @@ export function filterReasoningForProviderOptions(
 export function extractReasoningBodyParams(invocation: ResolvedReasoningInvocation): Record<string, unknown> {
   const body: Record<string, unknown> = {}
   for (const emission of invocation.emissions) {
-    if (!isRequestBodyTarget(emission.target)) continue
+    if (!isBodyEmission(emission)) continue
     const path = emission.target.split('.')
     let cursor = body
     for (let index = 0; index < path.length - 1; index += 1) {
