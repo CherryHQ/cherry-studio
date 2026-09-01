@@ -1,11 +1,12 @@
-import { cacheService } from '@renderer/data/CacheService'
-import type * as UseCacheModule from '@renderer/data/hooks/useCache'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@renderer/data/CacheService'
+import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentEntity } from '@shared/data/types/agent'
 
 type VirtualListRenderRow = (item: unknown, index: number) => ReactNode
 

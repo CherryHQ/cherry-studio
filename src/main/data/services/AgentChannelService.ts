@@ -1,3 +1,5 @@
+import { and, eq, inArray } from 'drizzle-orm'
+
 import { application } from '@application'
 import {
   type AgentChannelRow as ChannelRow,
@@ -19,7 +21,6 @@ import {
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
-import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
 

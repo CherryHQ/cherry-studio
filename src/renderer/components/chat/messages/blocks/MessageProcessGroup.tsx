@@ -1,9 +1,10 @@
+import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { MessageRuntimeTiming } from '@shared/data/types/message'
-import React, { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
 import { formatPlaceholderElapsed, usePlaceholderElapsedMs } from './PlaceholderBlock'
@@ -117,7 +118,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
       <div className="group/live-tool-group mb-2 w-full max-w-full pb-2" data-testid="live-tool-group">
         <div
           data-testid="live-tool-group-header"
-          className="flex min-h-7 w-full select-none items-center py-0.5 text-left">
+          className="flex min-h-7 w-full items-center py-0.5 text-left select-none">
           <div className="min-w-0 flex-1 overflow-hidden">
             <ActiveProcessHeader
               createdAt={message.createdAt}
@@ -154,7 +155,7 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"
-            className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
+            className="group/tool-group-trigger h-auto min-h-7 w-fit max-w-full flex-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none select-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:-rotate-90 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
             <div className="min-w-0 overflow-hidden">{header}</div>
           </AccordionTrigger>
           <AccordionContent

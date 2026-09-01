@@ -1,3 +1,6 @@
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -13,8 +16,6 @@ import {
   toggleSidebarMiniApp
 } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Single entry point for the `ui.sidebar.favorites` preference.

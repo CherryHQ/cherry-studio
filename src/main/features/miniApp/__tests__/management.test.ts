@@ -2,15 +2,16 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppGrantTable, miniAppInstallationTable, miniAppTable } from '@data/db/schemas/miniApp'
 import { MiniAppManifestSchema } from '@shared/types/miniAppManifest'
-import { setupTestDatabase } from '@test-helpers/db'
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { writeStorage } from '../capabilities/storageFile'
 import { pendingDeclaredAdditions } from '../grants'
@@ -107,9 +108,8 @@ vi.mock('../install/webInstaller', async (importOriginal) => ({
   checkForUpdate
 }))
 
-const { checkUpdateOnOpen, clearMiniAppData, grantPendingAdditions, miniAppDetail, revokeMiniAppGrant } = await import(
-  '../management'
-)
+const { checkUpdateOnOpen, clearMiniAppData, grantPendingAdditions, miniAppDetail, revokeMiniAppGrant } =
+  await import('../management')
 const { listGrants } = await import('../grants')
 
 const APP_ID = 'com.example.mygame'

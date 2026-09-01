@@ -1,7 +1,9 @@
-import { BaseService } from '@main/core/lifecycle'
-import { app, session, shell, webContents } from 'electron'
 import type * as FsModule from 'fs'
+
+import { app, session, shell, webContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { BaseService } from '@main/core/lifecycle'
 
 import { setOpenLinkExternal, WebviewService } from '../WebviewService'
 

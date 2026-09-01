@@ -1,3 +1,6 @@
+import { NotebookPen } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
@@ -12,8 +15,6 @@ import type { NotesTreeNode } from '@renderer/types/note'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { NotebookPen } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 export const NOTE_REFERENCE_LAUNCHER_ID = 'note-reference'
 

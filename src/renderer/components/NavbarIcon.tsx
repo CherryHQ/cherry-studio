@@ -1,6 +1,7 @@
+import type { ComponentProps } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentProps } from 'react'
 
 type NavbarIconProps = Omit<ComponentProps<typeof Button>, 'variant' | 'size'> & {
   active?: boolean
@@ -18,7 +19,7 @@ const NavbarIcon = ({ active, className, tone = 'default', type = 'button', ...p
       data-active={active || undefined}
       className={cn(
         conversation
-          ? 'text-muted-foreground! duration-150 ease-in-out [-webkit-app-region:none] hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-secondary data-[state=open]:bg-secondary data-[active=true]:text-secondary-foreground! data-[state=open]:text-secondary-foreground! [&_.lucide:not(.lucide-custom)]:text-current!'
+          ? 'text-muted-foreground! duration-150 ease-in-out [-webkit-app-region:none] hover:bg-accent/60 hover:text-foreground! data-[active=true]:bg-secondary data-[active=true]:text-secondary-foreground! data-[state=open]:bg-secondary data-[state=open]:text-secondary-foreground! [&_.lucide:not(.lucide-custom)]:text-current!'
           : 'text-muted-foreground! duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-foreground',
         conversation && active && 'bg-secondary text-secondary-foreground!',
         className

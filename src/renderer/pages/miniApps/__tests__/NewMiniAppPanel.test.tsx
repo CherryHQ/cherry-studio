@@ -1,8 +1,9 @@
-import { toast } from '@renderer/services/toast'
-import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { toast } from '@renderer/services/toast'
+import type * as ImageUtils from '@renderer/utils/image'
 
 import NewMiniAppPanel from '../NewMiniAppPanel'
 

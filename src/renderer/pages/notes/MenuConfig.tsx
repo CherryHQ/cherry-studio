@@ -1,6 +1,7 @@
-import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
 import { AlignJustify, Copy, FileDown, FileText, MonitorSpeaker, Printer, Settings, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
 
 export interface MenuItem {
   key: string

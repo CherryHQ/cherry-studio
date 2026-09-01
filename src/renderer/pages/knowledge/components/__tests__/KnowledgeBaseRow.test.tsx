@@ -1,8 +1,9 @@
-import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
-import type { Group } from '@shared/data/types/group'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
+import type { Group } from '@shared/data/types/group'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 

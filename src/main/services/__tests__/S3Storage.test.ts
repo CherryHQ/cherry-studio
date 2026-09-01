@@ -1,6 +1,7 @@
 import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
-import type { S3Config } from '@shared/types/backup'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { S3Config } from '@shared/types/backup'
 
 import S3Storage from '../S3Storage'
 

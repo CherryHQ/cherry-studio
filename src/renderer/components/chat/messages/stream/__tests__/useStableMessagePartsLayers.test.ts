@@ -1,6 +1,7 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 import { useStableMessagePartsLayers, useStablePartsByMessageId } from '../useStableMessagePartsLayers'
 

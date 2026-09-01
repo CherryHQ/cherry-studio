@@ -1,38 +1,25 @@
 {
   "name": "@cherrystudio/provider-registry",
   "version": "0.0.1-alpha.1",
-  "description": "Provider and Model Registry",
   "private": true,
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.cts",
-  "packageManager": "pnpm@10.27.0",
-  "scripts": {
-    "build": "tsdown",
-    "dev": "pnpm --workspace-root exec tsc -w -p packages/provider-registry/tsconfig.json",
-    "clean": "rm -rf dist",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "compat:baseline": "tsx scripts/createCompatibilityBaseline.ts",
-    "compat:check": "tsx scripts/checkCatalogCompatibility.ts",
-    "compat:policy": "tsx scripts/compatibilityPolicy.ts",
-    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json src/patterns/reasoning-families.gen.ts src/patterns/server-tool-models.gen.ts src/patterns/server-tool-constraints.gen.ts",
-    "generate:check": "tsx scripts/generate-catalog.ts --report"
+  "description": "Provider and Model Registry",
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
   },
-  "author": "Cherry Studio",
   "license": "MIT",
-  "files": [
-    "dist/**/*",
-    "data/**/*"
-  ],
+  "author": "Cherry Studio",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CherryHQ/cherry-studio.git"
   },
-  "bugs": {
-    "url": "https://github.com/CherryHQ/cherry-studio/issues"
-  },
-  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "files": [
+    "dist/**/*",
+    "data/**/*"
+  ],
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.cts",
   "exports": {
     ".": {
       "import": {
@@ -58,6 +45,24 @@
       "default": "./dist/registry-loader.cjs"
     }
   },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist",
+    "compat:baseline": "tsx scripts/createCompatibilityBaseline.ts",
+    "compat:check": "tsx scripts/checkCatalogCompatibility.ts",
+    "compat:policy": "tsx scripts/compatibilityPolicy.ts",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/provider-registry/tsconfig.json",
+    "generate": "tsx scripts/generate-catalog.ts --write && pnpm --workspace-root exec oxfmt --write packages/provider-registry/data/models.json packages/provider-registry/data/provider-models.json packages/provider-registry/data/providers.json packages/provider-registry/src/patterns/reasoning-families.gen.ts packages/provider-registry/src/patterns/server-tool-models.gen.ts packages/provider-registry/src/patterns/server-tool-constraints.gen.ts",
+    "generate:check": "tsx scripts/generate-catalog.ts --report",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "json-schema": "^0.4.0",
+    "lucide-react": "^0.563.0",
+    "semver": "^7.7.1"
+  },
   "devDependencies": {
     "@ai-sdk/provider-utils": "^4.0.40",
     "@types/json-schema": "^7.0.15",
@@ -69,10 +74,5 @@
     "zod": "^4.1.12"
   },
   "peerDependencies": {},
-  "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "json-schema": "^0.4.0",
-    "lucide-react": "^0.563.0",
-    "semver": "^7.7.1"
-  }
+  "packageManager": "pnpm@10.27.0"
 }

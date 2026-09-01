@@ -1,13 +1,13 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
-
-import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
-import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
-import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PluginConfig } from 'streamdown'
 import type { Pluggable } from 'unified'
+
+import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
+import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
+import { removeSvgEmptyLines } from '@renderer/utils/formats'
 
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'

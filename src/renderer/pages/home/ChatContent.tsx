@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { RefreshProvider } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
@@ -16,9 +20,6 @@ import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { isUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { FC } from 'react'
-import { useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'

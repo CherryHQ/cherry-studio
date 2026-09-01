@@ -1,5 +1,6 @@
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ReactElement, ReactNode } from 'react'
+
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 
 import type {
   HistoryBulkMoveTarget,

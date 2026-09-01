@@ -12,6 +12,9 @@
  *    by `tsc`: each `@ts-expect-error` must suppress a real error.
  */
 
+import { act, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+
 import { cacheService } from '@data/CacheService'
 import { useCache, usePersistCache, useSharedCache } from '@data/hooks/useCache'
 import type {
@@ -24,8 +27,6 @@ import type {
   UseCacheCasualKey,
   UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { installCacheApiMock } from './testUtils'
 

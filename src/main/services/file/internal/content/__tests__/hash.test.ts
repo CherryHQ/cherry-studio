@@ -2,12 +2,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { fileEntryTable } from '@data/db/schemas/file'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { fileEntryTable } from '@data/db/schemas/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')

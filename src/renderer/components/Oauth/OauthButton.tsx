@@ -1,3 +1,6 @@
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button } from '@cherrystudio/ui'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import {
@@ -9,8 +12,6 @@ import {
 } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import type { API_KEY_OAUTH_PROVIDER_IDS } from '@shared/utils/provider'
-import type { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Per-provider "get API key" launchers, keyed by runtime id. Typed against

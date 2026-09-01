@@ -1,9 +1,10 @@
-import { CommandTooltip } from '@renderer/components/command'
-import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
-import NavbarIcon from '@renderer/components/NavbarIcon'
 import { Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { CommandTooltip } from '@renderer/components/command'
+import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPopup'
+import NavbarIcon from '@renderer/components/NavbarIcon'
 
 interface Props {
   children?: ReactNode

@@ -1,5 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 
+import { v4 as uuidv4 } from 'uuid'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { InProcessUsageContext } from '@main/ai/types'
@@ -7,7 +9,6 @@ import { createLatestReconciler, type LatestReconciler } from '@main/core/concur
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ApiGatewayConfig, ApiGatewayStopOutcome } from '@shared/types/apiGateway'
 import { REDACTED } from '@shared/utils/redaction'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { ApiGateway } from './server'
 

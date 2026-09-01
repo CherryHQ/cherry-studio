@@ -1,5 +1,6 @@
-import { MIN_INPUT_ROOM_RATIO } from '@main/ai/constants'
 import { describe, expect, it } from 'vitest'
+
+import { MIN_INPUT_ROOM_RATIO } from '@main/ai/constants'
 
 import { resolveInputRoom } from '../resolveInputRoom'
 

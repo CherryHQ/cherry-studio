@@ -1,5 +1,4 @@
 import './jobTypes'
-
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'

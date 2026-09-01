@@ -1,7 +1,8 @@
-import type { RefreshOption } from '@data/hooks/useDataApi'
 import { MockUseDataApiUtils, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
+
+import type { RefreshOption } from '@data/hooks/useDataApi'
 
 const invalidateCachedMessageUiStates = vi.hoisted(() => vi.fn())
 

@@ -1,3 +1,6 @@
+import { CircleArrowUp, Search, Settings } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
@@ -6,8 +9,6 @@ import GlobalSearchPopup from '@renderer/components/GlobalSearch/GlobalSearchPop
 import { getSidebarLayout, type SidebarVisibleLayout } from '@renderer/components/Sidebar'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdateState'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { CircleArrowUp, Search, Settings } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 
 import { WindowControls } from '../WindowControls'
 import { HelpMenu } from './HelpMenu'

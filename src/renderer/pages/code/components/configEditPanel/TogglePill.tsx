@@ -1,6 +1,7 @@
+import type { FC } from 'react'
+
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { FC } from 'react'
 
 /** Shared toggle pill — boolean affordance for env toggles. */
 export const TogglePill: FC<{ label: string; active: boolean; onClick: () => void }> = ({ label, active, onClick }) => (

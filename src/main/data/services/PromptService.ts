@@ -8,6 +8,8 @@
  *   target-specific order. Callers never touch `orderKey` directly.
  */
 
+import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable } from '@data/db/schemas/agent'
@@ -26,7 +28,6 @@ import type {
   PromptBindingTargetType
 } from '@shared/data/types/prompt'
 import { PromptContentSchema, PromptTitleSchema } from '@shared/data/types/prompt'
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'

@@ -1,7 +1,8 @@
-import type { Topic } from '@renderer/types/topic'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
+
+import type { Topic } from '@renderer/types/topic'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'

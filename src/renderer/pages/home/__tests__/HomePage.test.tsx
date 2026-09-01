@@ -1,8 +1,3 @@
-import { cacheService } from '@data/CacheService'
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
-import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { useCommandHandler } from '@renderer/hooks/command'
-import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -10,6 +5,12 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { cacheService } from '@data/CacheService'
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { useCommandHandler } from '@renderer/hooks/command'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 const initialTopic: Topic = {
   id: 'topic-initial',

@@ -1,10 +1,12 @@
-import { loggerService } from '@logger'
-import type { PluginMetadata } from '@main/utils/plugin'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import matter from 'gray-matter'
 import * as path from 'path'
+
+import matter from 'gray-matter'
 import { parse } from 'yaml'
+
+import { loggerService } from '@logger'
+import type { PluginMetadata } from '@main/utils/plugin'
 
 import { getDirectorySize } from './fileOperations'
 

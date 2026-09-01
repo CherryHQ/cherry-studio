@@ -1,9 +1,10 @@
-import { CodeCli } from '@shared/types/codeCli'
-import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
-import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { parse as parseToml } from 'smol-toml'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse as parseYaml } from 'yaml'
+
+import { CodeCli } from '@shared/types/codeCli'
+import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
+import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 import { clearCliConfig } from '../index'
 

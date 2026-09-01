@@ -1,9 +1,10 @@
+import type { FC } from 'react'
+import { useEffect } from 'react'
+
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 import { ipcApi } from '@renderer/ipc'
-import type { FC } from 'react'
-import { useEffect } from 'react'
 
 import CaptureOverlay from './CaptureOverlay'
 

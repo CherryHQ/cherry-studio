@@ -1,7 +1,8 @@
-import { application } from '@application'
-import { WindowType } from '@main/core/window/types'
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 
 import { buildPrintableHtml, PrintService } from '../PrintService'
 

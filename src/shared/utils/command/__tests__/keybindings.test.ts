@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { RegisteredKeybindingRule } from '@shared/types/command'
-import { describe, expect, it } from 'vitest'
 
 import { parseContextExpr } from '../contextExpr'
 import {

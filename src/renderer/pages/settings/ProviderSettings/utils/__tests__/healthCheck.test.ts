@@ -1,8 +1,9 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import i18n from '@renderer/i18n/resolver'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiKeyWithStatus, ModelWithStatus } from '../../types/healthCheck'
 import { HealthStatus } from '../../types/healthCheck'

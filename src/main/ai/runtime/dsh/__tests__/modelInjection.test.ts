@@ -1,7 +1,8 @@
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
+
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 const mocks = vi.hoisted(() => ({
   resolveApiKey: vi.fn(),

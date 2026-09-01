@@ -1,7 +1,8 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'

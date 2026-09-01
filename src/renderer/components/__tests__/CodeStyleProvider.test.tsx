@@ -1,11 +1,12 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type * as codeEditorUtils from '@cherrystudio/ui/components/composites/code-editor/utils'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { useCodeStyle, useCodeStyleThemeCatalog } from '@renderer/hooks/useCodeStyle'
 import { shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { getShiki } from '@renderer/utils/shiki'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Override the global lightweight '@cherrystudio/ui' stand-in with the real theme
 // utils — this test locks the provider + theme-resolution behavior end-to-end.

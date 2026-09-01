@@ -1,3 +1,6 @@
+import { renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * The usage cache survives reconnects, so an entry published by the previous model outlives a model
  * switch. The denominator now comes from the passed model rather than the payload, so an unfiltered
@@ -9,8 +12,6 @@ import {
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import type { Model } from '@shared/data/types/model'
-import { renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgentSessionContextUsage } from '../useAgentSessionContextUsage'
 

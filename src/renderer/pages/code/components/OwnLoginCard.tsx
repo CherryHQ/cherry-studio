@@ -1,8 +1,9 @@
-import { Button, NormalTooltip } from '@cherrystudio/ui'
-import type { CodeCli } from '@shared/types/codeCli'
 import { ArrowUpToLine, CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, NormalTooltip } from '@cherrystudio/ui'
+import type { CodeCli } from '@shared/types/codeCli'
 
 import { CliIcon } from './CliIcon'
 
@@ -55,7 +56,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 truncate text-foreground text-sm">{title}</span>
+            <span className="min-w-0 truncate text-sm text-foreground">{title}</span>
           </div>
         </div>
 

@@ -1,11 +1,12 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
-import { EmptyState } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
 import type { FilePreviewPluginProps } from '../../types'
@@ -306,7 +307,7 @@ export default function PowerPointFilePreview({ filePath, fileName, metadata, re
           {loading ? (
             <div
               role="status"
-              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-muted-foreground text-sm">
+              className="absolute inset-0 flex items-center justify-center gap-2 bg-background text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
               <span>{t('file_preview.loading')}</span>
             </div>

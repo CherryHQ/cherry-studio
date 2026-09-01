@@ -1,3 +1,7 @@
+import type { Node } from 'mdast'
+import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
+import { useIsCodeFenceIncomplete } from 'streamdown'
+
 import { MessageHtmlArtifact } from '@renderer/components/chat/messages/blocks/MessageHtmlArtifact'
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
@@ -8,9 +12,6 @@ import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/fileP
 import { getCodeBlockId } from '@renderer/utils/markdownLight'
 import { isWin } from '@renderer/utils/platform'
 import { getNodeText } from '@renderer/utils/reactNodeText'
-import type { Node } from 'mdast'
-import React, { memo, type ReactNode, useCallback, useMemo } from 'react'
-import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions } from '../MessageListProvider'
 import type { InlineHtmlPreviewMode } from './ChatMarkdown'

@@ -1,3 +1,7 @@
+import { FileText, Languages, Loader2 } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Markdown } from '@cherrystudio/ui'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { useTranslate } from '@renderer/hooks/translate'
@@ -6,9 +10,6 @@ import { toast } from '@renderer/services/toast'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { SkillFileNode } from '@shared/types/skill'
-import { FileText, Languages, Loader2 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const CodeViewer = lazy(() => import('@renderer/components/CodeViewer'))
 

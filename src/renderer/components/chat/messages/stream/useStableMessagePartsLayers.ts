@@ -40,8 +40,9 @@
  *   identity when no relevant message changed.
  */
 
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useMemo, useRef } from 'react'
+
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 export interface StableMessagePartsLayers {
   historyPartsByMessageId: Record<string, CherryMessagePart[]>

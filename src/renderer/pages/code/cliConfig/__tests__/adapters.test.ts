@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { CodeCli } from '@shared/types/codeCli'
 import { FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from '@shared/utils/cliConfig'
-import { describe, expect, it } from 'vitest'
 
 import { CLI_CONFIG_ADAPTERS, type CliConfigAdapter, getAdapter } from '../adapters'
 

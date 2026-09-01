@@ -1,5 +1,6 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mocks = vi.hoisted(() => {
   type Handler = (...args: unknown[]) => void

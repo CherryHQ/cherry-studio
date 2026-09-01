@@ -1,8 +1,9 @@
-import CodeCliPage from '@renderer/pages/code/CodeCliPage'
-import { CodeCli } from '@shared/types/codeCli'
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback } from 'react'
 import * as z from 'zod'
+
+import CodeCliPage from '@renderer/pages/code/CodeCliPage'
+import { CodeCli } from '@shared/types/codeCli'
 
 export const Route = createFileRoute('/app/code')({
   validateSearch: (search) => z.object({ tool: z.enum(CodeCli).optional() }).parse(search),

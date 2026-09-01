@@ -1,7 +1,8 @@
+import { useCallback } from 'react'
+
 import { useMutation } from '@data/hooks/useDataApi'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useCallback } from 'react'
 
 import { getTopicBranchCachePaths } from './useTopicMessagesCache'
 

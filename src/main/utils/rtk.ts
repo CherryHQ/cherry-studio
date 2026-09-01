@@ -1,11 +1,12 @@
 import path from 'node:path'
 
+import { gte as semverGte } from 'semver'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { executeCommand } from '@main/utils/processRunner'
 import { getRawShellEnv } from '@main/utils/shellEnv'
-import { gte as semverGte } from 'semver'
 const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_MIN_VERSION = '0.23.0'

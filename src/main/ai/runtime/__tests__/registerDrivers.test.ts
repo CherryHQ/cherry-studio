@@ -1,6 +1,7 @@
+import { afterEach, describe, expect, it } from 'vitest'
+
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
-import { afterEach, describe, expect, it } from 'vitest'
 
 import { registerRuntimeDrivers } from '../registerDrivers'
 import { runtimeDriverRegistry } from '../registry'

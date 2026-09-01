@@ -3,6 +3,9 @@
  * Full oversized values remain addressable through `ai.tool.get_result`.
  */
 
+import type { UIMessageChunk } from 'ai'
+import { isToolUIPart } from 'ai'
+
 import {
   CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
@@ -23,8 +26,6 @@ import {
   isPersistedToolOutput
 } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { UIMessageChunk } from 'ai'
-import { isToolUIPart } from 'ai'
 
 /** Serialized UTF-8 size at or below which a result travels inline. */
 export const DEFER_TOOL_OUTPUT_BYTES = 32 * 1024

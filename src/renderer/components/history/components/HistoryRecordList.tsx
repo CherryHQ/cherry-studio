@@ -1,8 +1,9 @@
-import { EmptyState } from '@cherrystudio/ui'
-import EditNameDialog from '@renderer/components/EditNameDialog'
 import { MessageSquareText } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EmptyState } from '@cherrystudio/ui'
+import EditNameDialog from '@renderer/components/EditNameDialog'
 
 import type { HistoryRecordDescriptor } from '../historyRecordsDescriptor'
 import type { SelectAllState } from '../useHistoryRecordsController'

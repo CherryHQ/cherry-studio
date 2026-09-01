@@ -2,13 +2,14 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { applyMigrations } from '@data/db/applyMigrations'
-import { SeedRunner } from '@data/db/seeding/SeedRunner'
-import type { DbType, ISeeder } from '@data/db/types'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
+
+import { applyMigrations } from '@data/db/applyMigrations'
+import { SeedRunner } from '@data/db/seeding/SeedRunner'
+import type { DbType, ISeeder } from '@data/db/types'
 
 import { resolveMigrationsPath } from './internal/migrationsPath'
 import { truncateAll } from './internal/truncate'

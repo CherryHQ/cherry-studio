@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-
-import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 
 import MessageItem from '../Message'
 

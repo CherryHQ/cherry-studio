@@ -1,3 +1,7 @@
+import type { TFunction } from 'i18next'
+import { Check, Loader2, Settings2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
@@ -16,9 +20,6 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import type { TFunction } from 'i18next'
-import { Check, Loader2, Settings2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
 

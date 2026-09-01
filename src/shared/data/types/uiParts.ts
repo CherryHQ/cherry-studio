@@ -23,9 +23,10 @@
  * - data-retry (transient model-retry/fallback status; shown live, never persisted)
  */
 
+import * as z from 'zod'
+
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
 import type { CherryMessagePart } from './message'

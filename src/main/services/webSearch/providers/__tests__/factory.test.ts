@@ -1,5 +1,6 @@
-import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { describe, expect, it, vi } from 'vitest'
+
+import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 
 vi.mock('@logger', () => ({
   loggerService: {

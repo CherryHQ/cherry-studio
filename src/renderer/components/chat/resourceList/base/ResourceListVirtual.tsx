@@ -1,3 +1,7 @@
+import type { Virtualizer } from '@tanstack/react-virtual'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import {
   buildGroupedVirtualRows,
   type DynamicVirtualListRef,
@@ -8,9 +12,6 @@ import {
   type GroupedVirtualListRow
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import type { Virtualizer } from '@tanstack/react-virtual'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
   getResourceListOptionDomId,

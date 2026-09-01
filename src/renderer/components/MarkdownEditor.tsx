@@ -1,10 +1,10 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 import '@renderer/assets/styles/vendor/katex.css'
-
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import React, { useEffect, useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 
 interface MarkdownEditorProps {
   value: string
@@ -38,7 +38,7 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-border" style={{ height }}>
       <textarea
-        className="flex-1 resize-none border-0 border-border border-r bg-background p-3 font-[var(--font-family)] text-foreground text-sm leading-[1.5] outline-none placeholder:text-muted-foreground focus:outline-none"
+        className="flex-1 resize-none border-0 border-r border-border bg-background p-3 text-sm leading-[1.5] font-[var(--font-family)] text-foreground outline-none placeholder:text-muted-foreground focus:outline-none"
         value={inputValue}
         onChange={handleChange}
         placeholder={placeholder}

@@ -1,11 +1,12 @@
+import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
+import { Activity } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
 import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
-import { Activity } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface TabRouterProps {
   tab: Tab

@@ -1,6 +1,7 @@
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import MessageContent from '../frame/MessageContent'
 import { MessageContentProvider } from '../MessageContentProvider'

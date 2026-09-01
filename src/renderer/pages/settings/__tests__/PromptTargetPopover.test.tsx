@@ -1,8 +1,9 @@
-import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { Prompt, PromptBindingRelation } from '@shared/data/types/prompt'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import type { Prompt, PromptBindingRelation } from '@shared/data/types/prompt'
 
 import { type PromptTargetOption, PromptTargetPopover } from '../PromptTargetPopover'
 

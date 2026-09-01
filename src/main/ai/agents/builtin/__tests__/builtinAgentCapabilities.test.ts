@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
 import { AGENT_TYPES, type AgentType } from '@shared/data/api/schemas/agents'
-import { describe, expect, it } from 'vitest'
 
 import { hostToolsEnabled, resolveAgentCapabilities, resolveHostTools } from '../builtinAgentCapabilities'
 

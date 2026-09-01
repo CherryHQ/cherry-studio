@@ -1,5 +1,6 @@
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 
 import { ChannelAdapter, type ChannelAdapterConfig } from '../ChannelAdapter'
 import { ChannelManager, registerAdapterFactory } from '../ChannelManager'

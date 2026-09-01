@@ -1,4 +1,3 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   Arrow as RadixArrow,
   Content as RadixContent,
@@ -8,6 +7,8 @@ import {
   Trigger as RadixTrigger
 } from '@radix-ui/react-tooltip'
 import * as React from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 import { usePortalContainer } from './portal-container'
 
@@ -142,7 +143,7 @@ export const Tooltip = ({
   const defaultPortalContainer = usePortalContainer()
   const triggerWrapperClassName = cn(
     'relative z-10',
-    fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',
+    fullWidthTrigger ? 'block w-full max-w-full min-w-0' : 'inline-block',
     classNames?.placeholder
   )
 

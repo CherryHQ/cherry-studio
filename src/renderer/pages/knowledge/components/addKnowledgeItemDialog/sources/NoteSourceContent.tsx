@@ -1,6 +1,7 @@
-import { SegmentedControl } from '@cherrystudio/ui'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { SegmentedControl } from '@cherrystudio/ui'
 
 import type { NoteDraft, NoteItem, NoteSourceMode } from '../types'
 import NoteCreateContent from './NoteCreateContent'

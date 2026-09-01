@@ -1,5 +1,3 @@
-import { classNames } from '@renderer/utils/style'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   type FC,
   memo,
@@ -13,6 +11,9 @@ import {
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { classNames } from '@renderer/utils/style'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { AnchorMessage } from '../types'
@@ -432,17 +433,17 @@ interface MessageAnchorPreviewCardProps extends AnchorPreviewProps {
 
 const MessageAnchorPreviewCard: FC<MessageAnchorPreviewCardProps> = ({ turn, top, ...preview }) => (
   <div
-    className="-translate-y-1/2 pointer-events-none absolute right-full z-30 flex w-max max-w-80 flex-col gap-1 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] empty:hidden"
+    className="pointer-events-none absolute right-full z-30 flex w-max max-w-80 -translate-y-1/2 flex-col gap-1 rounded-xl border-[0.5px] border-border bg-popover p-3 text-popover-foreground shadow-lg transition-[top] duration-150 ease-[cubic-bezier(0.25,1,0.5,1)] empty:hidden"
     style={{ top }}>
     <AnchorPreviewLine
       {...preview}
       messageId={turn.userMessageId}
-      className="line-clamp-1 break-all font-medium text-foreground text-sm"
+      className="line-clamp-1 text-sm font-medium break-all text-foreground"
     />
     <AnchorPreviewLine
       {...preview}
       messageId={turn.assistantMessageId}
-      className="line-clamp-2 break-all text-muted-foreground text-sm leading-5"
+      className="line-clamp-2 text-sm leading-5 break-all text-muted-foreground"
     />
   </div>
 )

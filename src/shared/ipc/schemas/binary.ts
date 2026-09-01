@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import { TOOL_NAME_RE } from '@shared/data/presets/binaryTools'
 import type {
@@ -9,7 +11,6 @@ import type {
   BinaryRemoveResult,
   BinaryToolSnapshot
 } from '@shared/types/binary'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

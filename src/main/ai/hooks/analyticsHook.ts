@@ -1,5 +1,6 @@
-import type { Model } from '@shared/data/types/model'
 import type { LanguageModelUsage } from 'ai'
+
+import type { Model } from '@shared/data/types/model'
 
 import type { AgentLoopHooks } from '../runtime/aiSdk'
 import { mergeUsage, ZERO_USAGE } from '../runtime/aiSdk'

@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import { describe, expect, it } from 'vitest'
 
 import { buildKnowledgeBaseGroupSections } from '../group'
 

@@ -624,13 +624,13 @@ describe('QuickPanelView', () => {
   const compactItems = measuredItems.slice(0, 2)
 
   it('keeps the fixed height in a docked composer (no placement, no fill)', async () => {
-    const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
-      this: HTMLElement
-    ) {
-      // 即便上方空间很小，docked 也应忽略它、保持固定高度。
-      if (this.dataset.testid === 'quick-panel') return createRect(180, 180)
-      return createRect(40, 900)
-    })
+    const getRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function rectFor(this: HTMLElement) {
+        // 即便上方空间很小，docked 也应忽略它、保持固定高度。
+        if (this.dataset.testid === 'quick-panel') return createRect(180, 180)
+        return createRect(40, 900)
+      })
 
     try {
       render(
@@ -668,13 +668,13 @@ describe('QuickPanelView', () => {
   it('lets the whole welcome (home) panel shrink naturally when content fits above the input', async () => {
     const panelBottom = 500
     const dockTop = 40
-    const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
-      this: HTMLElement
-    ) {
-      if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
-      if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
-      return createRect(0, 900)
-    })
+    const getRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function rectFor(this: HTMLElement) {
+        if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
+        if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
+        return createRect(0, 900)
+      })
 
     try {
       render(
@@ -718,13 +718,13 @@ describe('QuickPanelView', () => {
     const footerHeight = 30
     const bodyVerticalSpace = 11
     const chromeHeight = footerHeight + bodyVerticalSpace
-    const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
-      this: HTMLElement
-    ) {
-      if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
-      if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
-      return createRect(0, 900)
-    })
+    const getRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function rectFor(this: HTMLElement) {
+        if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
+        if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
+        return createRect(0, 900)
+      })
     const clientHeightSpy = vi
       .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
       .mockImplementation(function heightFor(this: HTMLElement) {
@@ -786,13 +786,13 @@ describe('QuickPanelView', () => {
     const bodyVerticalSpace = 11
     const chromeHeight = footerHeight + bodyVerticalSpace
     const captureDispatch = vi.fn()
-    const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
-      this: HTMLElement
-    ) {
-      if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
-      if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
-      return createRect(0, 900)
-    })
+    const getRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function rectFor(this: HTMLElement) {
+        if (this.dataset.testid === 'quick-panel') return createRect(panelBottom, panelBottom)
+        if (this.dataset.testid === 'quick-panel-dock') return createRect(dockTop, 900)
+        return createRect(0, 900)
+      })
     const clientHeightSpy = vi
       .spyOn(HTMLElement.prototype, 'clientHeight', 'get')
       .mockImplementation(function heightFor(this: HTMLElement) {
@@ -865,13 +865,13 @@ describe('QuickPanelView', () => {
   })
 
   it('keeps the standard shadow and fixed height for a read-only panel even with fill enabled', async () => {
-    const getRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rectFor(
-      this: HTMLElement
-    ) {
-      if (this.dataset.testid === 'quick-panel') return createRect(240, 240)
-      if (this.dataset.testid === 'quick-panel-dock') return createRect(40, 900)
-      return createRect(0, 900)
-    })
+    const getRectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function rectFor(this: HTMLElement) {
+        if (this.dataset.testid === 'quick-panel') return createRect(240, 240)
+        if (this.dataset.testid === 'quick-panel-dock') return createRect(40, 900)
+        return createRect(0, 900)
+      })
 
     try {
       render(

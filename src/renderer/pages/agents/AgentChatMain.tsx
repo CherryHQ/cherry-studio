@@ -1,3 +1,5 @@
+import type { ComponentProps } from 'react'
+
 import type {
   MessageListActions,
   MessageStreamingLayers,
@@ -7,7 +9,6 @@ import type { ConversationComposerPlacement } from '@renderer/components/compose
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { ComponentProps } from 'react'
 
 import { useAgentRightPaneActions } from './components/AgentRightPane'
 import AgentSessionMessages from './components/AgentSessionMessages'

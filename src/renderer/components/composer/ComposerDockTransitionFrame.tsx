@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+
 import {
   ChatBottomOverlayInsetProvider,
   type ChatBottomOverlayInsets
@@ -8,8 +11,6 @@ import {
 } from '@renderer/components/chat/motion/composerDockMotion'
 import { useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode } from 'react'
-import { useLayoutEffect, useRef, useState } from 'react'
 
 const COMPOSER_MESSAGE_GAP_PX = 16
 

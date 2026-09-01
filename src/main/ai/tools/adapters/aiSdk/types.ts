@@ -1,8 +1,9 @@
+import type { Tool } from 'ai'
+
 import type { EntityToolOutputCodec } from '@cherrystudio/ai-core'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ImageGenerationSupport, UniqueModelId } from '@shared/data/types/model'
 import type { WebToolRoutes } from '@shared/utils/provider'
-import type { Tool } from 'ai'
 
 /**
  * Main-side codec: the aiCore deflate/assemble pair plus the persist-lane

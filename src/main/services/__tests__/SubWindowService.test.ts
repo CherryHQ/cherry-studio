@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state mirrors the pattern in MainWindowService.test.ts: platform flags are
@@ -95,9 +96,10 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
+import { BrowserWindow, ipcMain } from 'electron'
+
 // Import after mocks
 import { WindowType } from '@main/core/window/types'
-import { BrowserWindow, ipcMain } from 'electron'
 
 import { SubWindowService } from '../SubWindowService'
 

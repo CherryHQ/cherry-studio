@@ -1,8 +1,8 @@
 import '@testing-library/jest-dom/vitest'
-
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 
 const prefs = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,

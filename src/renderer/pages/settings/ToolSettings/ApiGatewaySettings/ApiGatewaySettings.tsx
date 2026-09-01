@@ -1,3 +1,10 @@
+import { ExternalLink, Eye, EyeOff, Play, RotateCcw, Square } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { v4 as uuidv4 } from 'uuid'
+
 import {
   Button,
   IndicatorLight,
@@ -21,12 +28,6 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
-import { ExternalLink, Eye, EyeOff, Play, RotateCcw, Square } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { v4 as uuidv4 } from 'uuid'
 
 const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',

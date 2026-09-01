@@ -1,5 +1,6 @@
-import { Alert, Button } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
+
+import { Alert, Button } from '@cherrystudio/ui'
 
 /**
  * Reports a background refresh that failed while the last good list is still on

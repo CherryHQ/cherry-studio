@@ -1,3 +1,9 @@
+import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import type React from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   CodeEditor,
@@ -45,11 +51,6 @@ import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/prefer
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
-import type React from 'react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import ThemeColorPicker from './components/ThemeColorPicker'
 
@@ -618,7 +619,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
     return (
       <div className="flex aspect-video w-full overflow-hidden rounded-md border border-neutral-400">
         <div className="flex w-1/2 bg-white">
-          <div className="w-1/3 border-neutral-200 border-r bg-neutral-100 p-1">
+          <div className="w-1/3 border-r border-neutral-200 bg-neutral-100 p-1">
             <div className="size-1.5 rounded-full bg-neutral-400" />
           </div>
           <div className="flex-1 p-1.5">
@@ -628,7 +629,7 @@ const ThemePreview = ({ mode }: { mode: ThemeMode }) => {
           </div>
         </div>
         <div className="flex w-1/2 bg-neutral-950">
-          <div className="w-1/3 border-neutral-700 border-r bg-neutral-900 p-1">
+          <div className="w-1/3 border-r border-neutral-700 bg-neutral-900 p-1">
             <div className="size-1.5 rounded-full bg-neutral-500" />
           </div>
           <div className="flex-1 p-1.5">
@@ -709,15 +710,15 @@ const ThemePreviewSelector = ({
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-52.5 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-55 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-55 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-95 items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full max-w-95 min-w-0 items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

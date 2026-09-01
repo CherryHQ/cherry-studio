@@ -11,6 +11,7 @@
  */
 
 import type { GroundingSupport } from '@google/genai'
+
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'

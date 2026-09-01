@@ -1,6 +1,7 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import type { ComponentProps } from 'react'
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 
 const meta: Meta<typeof Accordion> = {
   title: 'Components/Primitives/Accordion',

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 
+import { app } from 'electron'
+
 import { application } from '@application'
 import {
   type CatalogManifest,
@@ -8,7 +10,6 @@ import {
   type RegistryPaths,
   REMOTE_REGISTRY_FILES
 } from '@cherrystudio/provider-registry/node'
-import { app } from 'electron'
 
 /**
  * Completion marker written last after both remote-safe model metadata files.

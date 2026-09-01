@@ -1,6 +1,7 @@
-import type * as AiCore from '@cherrystudio/ai-core'
 import type { ModelMessage } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
+
+import type * as AiCore from '@cherrystudio/ai-core'
 
 const compactModelMessages = vi.fn()
 vi.mock('@cherrystudio/ai-core', async (importOriginal) => ({

@@ -1,3 +1,6 @@
+import type { ConsoleMessageEvent, WebviewTag } from 'electron'
+import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react'
+
 import {
   clampForwardedWheelDelta,
   type ScrollRuntimeBoundary,
@@ -11,8 +14,6 @@ import HtmlPreviewFrame, {
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import { htmlArtifactRequiresUserConsent, stripMetaRefresh } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
-import type { ConsoleMessageEvent, WebviewTag } from 'electron'
-import { memo, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 export const SCROLL_ACTIVATION_DELAY_MS = 300
 const MAX_PREVIEW_VIEWPORT_HEIGHT_RATIO = 0.72

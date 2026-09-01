@@ -1,8 +1,9 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import { type FC, useId } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 
 import type { VersionStatus } from '../types'
 import { CliIcon } from './CliIcon'
@@ -121,7 +122,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
+            <span className="truncate text-sm font-medium text-foreground">{toolName}</span>
             {status.source === 'system' ? (
               <span
                 className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
@@ -138,7 +139,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             )}
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             {isInstalled
               ? status.current && <span className="font-mono">v{status.current}</span>
               : status.latest && (

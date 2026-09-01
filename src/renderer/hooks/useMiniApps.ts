@@ -1,3 +1,6 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
@@ -14,8 +17,6 @@ import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/dat
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { useTranslation } from 'react-i18next'
 
 /**
  * Data Flow Design:

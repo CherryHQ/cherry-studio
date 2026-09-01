@@ -2,8 +2,9 @@ import http from 'node:http'
 import net from 'node:net'
 import { Worker } from 'node:worker_threads'
 
-import { inferenceWorkerSource } from '@main/ai/inference/inferenceWorkerSource'
 import { afterEach, describe, expect, it } from 'vitest'
+
+import { inferenceWorkerSource } from '@main/ai/inference/inferenceWorkerSource'
 
 import { createProxyBypassMatcher } from '../bypassRules'
 import { createProxyRoutingSnapshot, normalizeProxyEndpoint, type ProxyRoutingSnapshot } from '../proxyRouting'

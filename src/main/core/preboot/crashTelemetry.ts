@@ -1,9 +1,10 @@
 import process from 'node:process'
 
+import { app, crashReporter } from 'electron'
+
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { isSelfHardenedSession } from '@main/core/security/selfHardenedSessions'
-import { app, crashReporter } from 'electron'
 
 const logger = loggerService.withContext('CrashTelemetry')
 

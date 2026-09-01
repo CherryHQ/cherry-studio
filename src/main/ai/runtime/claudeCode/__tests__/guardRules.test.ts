@@ -2,6 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   listBuiltinToolPolicies,
   toCherryBuiltinRuntimeName,
@@ -10,7 +12,6 @@ import {
 import { evaluateToolGuards, type ToolGuardContext, validateToolGuardRules } from '@main/ai/toolApproval/toolGuards'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   checkSkillRuntimeDependencies: vi.fn<() => Promise<{ deny?: string; warning?: string }>>()

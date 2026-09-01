@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import mime from 'mime'
+
 import { application } from '@application'
 import type { JobContext } from '@main/core/job/types'
 import { t } from '@main/i18n'
@@ -12,7 +14,6 @@ import type { FileHandle } from '@shared/data/types/file'
 import { type AbsoluteFilePath, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { GB, MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
-import mime from 'mime'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
 import { processorRegistry } from '../processors/registry'

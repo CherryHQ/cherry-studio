@@ -13,6 +13,8 @@
  * (RegistryLoader, buildPersistedEndpointConfigs).
  */
 
+import { isEqual } from 'es-toolkit/compat'
+
 import type {
   ProtoModelConfig,
   ProtoProviderConfig,
@@ -63,7 +65,6 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, CURRENCY, ReasoningSummarySchema } from '@shared/data/types/model'
 import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
-import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { resolveRegistryPaths } from './utils/registryDataPaths'

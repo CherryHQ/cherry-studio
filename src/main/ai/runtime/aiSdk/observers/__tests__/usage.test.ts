@@ -1,6 +1,7 @@
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { LanguageModelUsage } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 import { attachUsageObserver } from '../usage'
 

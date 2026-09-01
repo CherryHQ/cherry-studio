@@ -1,7 +1,8 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { Assistant } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
-import { describe, expect, it, vi } from 'vitest'
 
 const { mockGetAssistantById, mockGetProvider, mockResolveEndpoint } = vi.hoisted(() => ({
   mockGetAssistantById: vi.fn(),

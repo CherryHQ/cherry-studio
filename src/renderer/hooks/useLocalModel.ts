@@ -1,6 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { LocalModelErrorCode, LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
-import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Status and its error cause form one value: every transition replaces both, so a

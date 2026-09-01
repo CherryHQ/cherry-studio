@@ -1,3 +1,9 @@
+import { useNavigate } from '@tanstack/react-router'
+import { Globe } from 'lucide-react'
+import type { FC, MouseEventHandler } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Tooltip } from '@cherrystudio/ui'
 import { type IconRef, useIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
@@ -14,11 +20,6 @@ import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
-import { useNavigate } from '@tanstack/react-router'
-import { Globe } from 'lucide-react'
-import type { FC, MouseEventHandler } from 'react'
-import { memo, useCallback, useEffect, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   assistantId: string

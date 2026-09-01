@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, InfoTooltip, Input, Tooltip } from '@cherrystudio/ui'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import {
@@ -9,9 +13,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { CompressionSettings } from './CompressionSettings'

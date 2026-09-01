@@ -1,3 +1,6 @@
+import { XIcon } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+
 import {
   Alert,
   Button,
@@ -33,8 +36,6 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { XIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('ObsidianExportDialog')
 

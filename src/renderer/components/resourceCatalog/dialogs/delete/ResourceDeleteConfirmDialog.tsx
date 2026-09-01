@@ -1,3 +1,7 @@
+import type { FC } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { ConfirmDialog } from '@cherrystudio/ui'
 import {
   useAgentMutationsById,
@@ -7,9 +11,6 @@ import {
 } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
-import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   resource: ResourceItem | null

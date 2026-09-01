@@ -1,3 +1,8 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { debounce } from 'es-toolkit/compat'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import type { ThemedToken } from 'shiki/core'
+
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
@@ -6,10 +11,6 @@ import { codeViewerSelectionManager } from '@renderer/services/CodeViewerSelecti
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { debounce } from 'es-toolkit/compat'
-import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import type { ThemedToken } from 'shiki/core'
 
 const logger = loggerService.withContext('CodeViewer')
 

@@ -10,7 +10,7 @@ const ThrowErrorComponent = ({ shouldThrow = false, errorMessage = '这是一个
   if (shouldThrow) {
     throw new Error(errorMessage)
   }
-  return <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded">组件正常运行</div>
+  return <div className="rounded bg-green-50 p-4 dark:bg-green-900/20">组件正常运行</div>
 }
 
 // 异步错误组件
@@ -28,7 +28,7 @@ const AsyncErrorComponent = () => {
   }
 
   return (
-    <div className="p-4 space-y-2">
+    <div className="space-y-2 p-4">
       <p>这是一个可以触发异步错误的组件</p>
       <Button onClick={handleAsyncError}>1秒后触发错误</Button>
     </div>
@@ -146,7 +146,7 @@ export const InteractiveDemo: Story = {
             value={errorMessage}
             onChange={(e) => setErrorMessage(e.target.value)}
             placeholder="自定义错误消息"
-            className="px-3 py-1 border border-gray-300 rounded text-sm"
+            className="rounded border border-gray-300 px-3 py-1 text-sm"
           />
         </div>
 
@@ -167,12 +167,12 @@ export const InteractiveDemo: Story = {
 export const CustomFallback: Story = {
   render: () => {
     const CustomFallbackComponent = ({ error, onDebugClick, onReloadClick }: CustomFallbackProps) => (
-      <div className="flex justify-center items-center w-full p-8">
-        <div className="bg-gradient-to-r from-purple-400 to-pink-400 text-white rounded-lg p-6 text-center">
-          <h2 className="text-xl font-bold mb-2">😵 哎呀！</h2>
+      <div className="flex w-full items-center justify-center p-8">
+        <div className="rounded-lg bg-gradient-to-r from-purple-400 to-pink-400 p-6 text-center text-white">
+          <h2 className="mb-2 text-xl font-bold">😵 哎呀！</h2>
           <p className="mb-4">看起来出了点小问题...</p>
-          <p className="text-sm opacity-90 mb-4">{error?.message}</p>
-          <div className="flex gap-2 justify-center">
+          <p className="mb-4 text-sm opacity-90">{error?.message}</p>
+          <div className="flex justify-center gap-2">
             {onDebugClick && (
               <Button size="sm" variant="outline" onClick={onDebugClick}>
                 检查错误
@@ -205,13 +205,13 @@ export const NestedErrorBoundaries: Story = {
       <h3 className="text-lg font-medium">嵌套错误边界</h3>
 
       <ErrorBoundary errorMessage="外层错误边界">
-        <div className="p-4 border border-gray-200 dark:border-gray-700 rounded">
-          <h4 className="font-medium mb-2">外层容器</h4>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">这个容器有自己的错误边界</p>
+        <div className="rounded border border-gray-200 p-4 dark:border-gray-700">
+          <h4 className="mb-2 font-medium">外层容器</h4>
+          <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">这个容器有自己的错误边界</p>
 
           <ErrorBoundary errorMessage="内层错误边界">
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded">
-              <h5 className="font-medium mb-2">内层容器</h5>
+            <div className="rounded bg-gray-50 p-3 dark:bg-gray-800">
+              <h5 className="mb-2 font-medium">内层容器</h5>
               <ThrowErrorComponent shouldThrow={true} errorMessage="内层组件错误" />
             </div>
           </ErrorBoundary>

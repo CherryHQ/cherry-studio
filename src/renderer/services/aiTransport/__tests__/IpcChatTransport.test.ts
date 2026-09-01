@@ -1,8 +1,9 @@
+import type { UIMessageChunk } from 'ai'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcChatTransport } from '../IpcChatTransport'
 

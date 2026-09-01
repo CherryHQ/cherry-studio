@@ -1,7 +1,8 @@
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import type * as SharedFileUtils from '@shared/utils/file'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
+import type * as SharedFileUtils from '@shared/utils/file'
 
 const { getPhysicalPath } = vi.hoisted(() => ({ getPhysicalPath: vi.fn() }))
 

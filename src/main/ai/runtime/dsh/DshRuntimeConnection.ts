@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
+import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
+
 import { application } from '@application'
 import {
   BRIDGE_SOCKET_ENV,
@@ -9,9 +13,6 @@ import {
   type BridgePermissionMode,
   type BridgePolicy
 } from '@cherrystudio/dsh-bridge'
-import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import type { HarnessClient, NotificationSubscription } from '@deepseek-ai/dsh-sdk-client'
-import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { resolveAgentCapabilities, resolveMountedMcpServers } from '@main/ai/agents/builtin/builtinAgentCapabilities'

@@ -1,3 +1,10 @@
+import { useSearch } from '@tanstack/react-router'
+import { isEmpty } from 'es-toolkit/compat'
+import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   DropdownMenu,
@@ -47,12 +54,6 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { useSearch } from '@tanstack/react-router'
-import { isEmpty } from 'es-toolkit/compat'
-import { ChevronDown, ListFilter, MoreHorizontal, Undo2 } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ShortcutSettings')
 

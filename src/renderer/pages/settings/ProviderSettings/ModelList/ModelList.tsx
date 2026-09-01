@@ -1,5 +1,6 @@
-import { ButtonGroup } from '@cherrystudio/ui'
 import React, { memo } from 'react'
+
+import { ButtonGroup } from '@cherrystudio/ui'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { useModelListHealthRun } from './modelListHealthContext'

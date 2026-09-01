@@ -1,7 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
+
 import type { Provider } from '@shared/data/types/provider'
 import { isAnthropicProvider, isVertexProvider } from '@shared/utils/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { useEffect, useRef, useState } from 'react'
 
 type ProviderEndpointSnapshot = {
   providerId: string | undefined

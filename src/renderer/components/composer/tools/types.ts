@@ -1,11 +1,12 @@
+import type { TFunction } from 'i18next'
+import React from 'react'
+
 import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import type { TFunction } from 'i18next'
-import React from 'react'
 
 import type { ComposerSerializedToken } from '../tokens'
 import type { ComposerToolContextValue } from './ComposerToolProvider'

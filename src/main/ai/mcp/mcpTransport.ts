@@ -1,3 +1,8 @@
+import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
+import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
+import { net } from 'electron'
+
 import { application } from '@application'
 import type { LoggerService } from '@logger'
 import {
@@ -9,13 +14,9 @@ import {
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import type { McpServer, McpServerType } from '@shared/data/types/mcpServer'
 import type { McpServerLogEntry } from '@shared/types/mcp'
 import { redactDeep } from '@shared/utils/redaction'
-import { net } from 'electron'
 
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
 import { buildStdioEnvironment, resolveLaunchCommand } from './mcpLaunch'

@@ -1,8 +1,3 @@
-import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
-import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
-import type { Topic } from '@renderer/types/topic'
-import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import {
   BrushCleaning,
@@ -22,6 +17,12 @@ import {
   UploadIcon
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+
+import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { Topic } from '@renderer/types/topic'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
 export type TopicExportMenuOptions = Record<
   | 'docx'

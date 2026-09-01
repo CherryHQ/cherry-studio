@@ -1,7 +1,8 @@
+import * as z from 'zod'
+
 import { type LocalModelKind } from '@shared/data/presets/localModel'
 import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import { GB, MB } from '@shared/utils/constants'
-import * as z from 'zod'
 
 import {
   FILE_PROCESSOR_FEATURES,

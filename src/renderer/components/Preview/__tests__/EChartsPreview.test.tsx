@@ -1,6 +1,7 @@
-import { useImageTools } from '@renderer/components/ActionTools'
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useImageTools } from '@renderer/components/ActionTools'
 
 import EChartsPreview from '../EChartsPreview'
 

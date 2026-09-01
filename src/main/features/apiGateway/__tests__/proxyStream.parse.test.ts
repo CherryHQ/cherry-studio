@@ -1,6 +1,7 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Pins the gateway model-id contract: `model` is `providerId:apiModelId`, split on

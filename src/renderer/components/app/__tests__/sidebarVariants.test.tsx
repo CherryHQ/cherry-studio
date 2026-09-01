@@ -1,9 +1,10 @@
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+
 import type { Assistant } from '@renderer/types/assistant'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
 
 import { resolveSidebarEntry, type SidebarVariantContext } from '../sidebarVariants'
 

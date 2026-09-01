@@ -1,12 +1,13 @@
 'use client'
 
-import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { UploadIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { createContext, use } from 'react'
 import type { DropEvent, DropzoneOptions, FileRejection } from 'react-dropzone'
 import { useDropzone } from 'react-dropzone'
+
+import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 type DropzoneContextType = {
   src?: File[]
@@ -76,7 +77,7 @@ export const Dropzone = ({
       <Button
         className={cn(
           'relative h-auto w-full flex-col overflow-hidden p-8',
-          isDragActive && 'outline-none ring-1 ring-primary/40',
+          isDragActive && 'ring-1 ring-primary/40 outline-none',
           className
         )}
         disabled={disabled}
@@ -123,14 +124,14 @@ export const DropzoneContent = ({ children, className }: DropzoneContentProps) =
       <div className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate font-medium text-sm">
+      <p className="my-2 w-full truncate text-sm font-medium">
         {src.length > maxLabelItems
           ? `${new Intl.ListFormat('en').format(
               src.slice(0, maxLabelItems).map((file) => file.name)
             )} and ${src.length - maxLabelItems} more`
           : new Intl.ListFormat('en').format(src.map((file) => file.name))}
       </p>
-      <p className="w-full text-wrap text-muted-foreground text-xs">Drag and drop or click to replace</p>
+      <p className="w-full text-xs text-wrap text-muted-foreground">Drag and drop or click to replace</p>
     </div>
   )
 }
@@ -171,9 +172,9 @@ export const DropzoneEmptyState = ({ children, className }: DropzoneEmptyStatePr
       <div className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
         <UploadIcon size={16} />
       </div>
-      <p className="my-2 w-full truncate text-wrap font-medium text-sm">Upload {maxFiles === 1 ? 'a file' : 'files'}</p>
-      <p className="w-full truncate text-wrap text-muted-foreground text-xs">Drag and drop or click to upload</p>
-      {caption && <p className="text-wrap text-muted-foreground text-xs">{caption}.</p>}
+      <p className="my-2 w-full truncate text-sm font-medium text-wrap">Upload {maxFiles === 1 ? 'a file' : 'files'}</p>
+      <p className="w-full truncate text-xs text-wrap text-muted-foreground">Drag and drop or click to upload</p>
+      {caption && <p className="text-xs text-wrap text-muted-foreground">{caption}.</p>}
     </div>
   )
 }

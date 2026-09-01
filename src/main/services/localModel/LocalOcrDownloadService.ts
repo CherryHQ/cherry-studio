@@ -3,6 +3,9 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
+import { net } from 'electron'
+import { parse } from 'yaml'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
@@ -10,8 +13,6 @@ import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelS
 import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { regionService } from '@main/services/RegionService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
-import { net } from 'electron'
-import { parse } from 'yaml'
 
 import { LocalModelDownloadService, type LocalModelFilesState } from './LocalModelDownloadService'
 import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'

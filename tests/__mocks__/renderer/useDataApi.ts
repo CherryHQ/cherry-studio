@@ -1,3 +1,6 @@
+import type { KeyedMutator } from 'swr'
+import { vi } from 'vitest'
+
 import type {
   ApiPath,
   BodyForPath,
@@ -12,8 +15,6 @@ import type {
   GetMethodApiPaths,
   PaginationResponse
 } from '@shared/data/api/types'
-import type { KeyedMutator } from 'swr'
-import { vi } from 'vitest'
 
 import { mockDataApiService } from './DataApiService'
 

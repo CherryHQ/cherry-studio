@@ -1,5 +1,6 @@
-import { ErrorCode } from '@shared/data/api/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ErrorCode } from '@shared/data/api/errors'
 
 const {
   listAgentsMock,

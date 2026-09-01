@@ -1,10 +1,11 @@
+import { lazy, Suspense, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { EmptyState, Skeleton } from '@cherrystudio/ui'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { getLocaleFirstDayOfWeek } from '@renderer/utils/time'
 import type { AiUsageRecordGroupIdentity, AiUsageRecordTimelineBucket } from '@shared/data/api/schemas/aiUsageRecords'
 import type { Currency } from '@shared/data/types/model'
-import { lazy, Suspense, useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   type BoundedTimeRange,

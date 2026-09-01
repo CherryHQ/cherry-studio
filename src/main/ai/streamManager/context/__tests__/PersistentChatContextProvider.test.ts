@@ -1,3 +1,6 @@
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -8,8 +11,6 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { aiStreamAdmissionReasons, type AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
-import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { startAiChildTurnSpan } from '../../../observability'
 import { AiStreamAdmissionError } from '../../admission'

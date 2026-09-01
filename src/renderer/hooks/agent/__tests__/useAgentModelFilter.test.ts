@@ -1,7 +1,8 @@
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+
+import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 
 import { modelFilterIncludesAgentOnlyProviders, useAgentModelFilter } from '../useAgentModelFilter'
 

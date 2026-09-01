@@ -1,6 +1,7 @@
-import { Accordion, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Accordion, EmptyState, Scrollbar } from '@cherrystudio/ui'
 
 import BaseNavigatorGroupSection from './BaseNavigatorGroupSection'
 import KnowledgeBaseRow from './KnowledgeBaseRow'
@@ -54,7 +55,7 @@ const BaseNavigatorContent = ({
   return (
     <Scrollbar className="min-h-0 flex-1 overflow-x-hidden pt-1 pb-3">
       {isLoading ? (
-        <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           {t('common.loading')}
         </div>
       ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (

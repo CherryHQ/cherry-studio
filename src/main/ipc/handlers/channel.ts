@@ -1,7 +1,8 @@
+import fs from 'fs'
+
 import { application } from '@application'
 import type { channelRequestSchemas } from '@shared/ipc/schemas/channel'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import fs from 'fs'
 
 /**
  * Channel-domain request handlers. `wechat.has_credentials` is self-contained (reads the

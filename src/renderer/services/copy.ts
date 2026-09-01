@@ -1,7 +1,8 @@
+import i18next from 'i18next'
+
 import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import i18next from 'i18next'
 
 export const copyTopicAsMarkdown = async (topic: Topic) => {
   const { topicToMarkdown } = await import('./ExportService')

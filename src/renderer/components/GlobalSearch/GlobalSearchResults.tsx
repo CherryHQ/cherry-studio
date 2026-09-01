@@ -1,9 +1,3 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
-import HighlightText from '@renderer/components/HighlightText'
-import { cn } from '@renderer/utils/style'
-import { formatRelativeTime } from '@renderer/utils/time'
-import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 import {
   ArrowRight,
   Bot,
@@ -16,6 +10,13 @@ import {
 } from 'lucide-react'
 import { type MouseEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import HighlightText from '@renderer/components/HighlightText'
+import { cn } from '@renderer/utils/style'
+import { formatRelativeTime } from '@renderer/utils/time'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { AgentSessionMessageSearchRole } from '@shared/data/types/message'
 
 import type {
   GlobalMessageSearchPanelGroup,

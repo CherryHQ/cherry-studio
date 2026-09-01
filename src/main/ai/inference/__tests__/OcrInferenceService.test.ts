@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
 
 /**
  * Exercises the whole OCR chain — real worker source, real {@link InferenceServiceBase},

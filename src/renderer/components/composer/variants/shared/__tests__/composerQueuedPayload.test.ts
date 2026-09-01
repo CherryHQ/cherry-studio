@@ -1,6 +1,7 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it, vi } from 'vitest'
 
 import type * as ComposerDraftModule from '../../../composerDraft'
 import type { ComposerSerializedDraft } from '../../../tokens'

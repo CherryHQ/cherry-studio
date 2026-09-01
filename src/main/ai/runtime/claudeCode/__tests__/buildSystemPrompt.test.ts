@@ -6,8 +6,9 @@
 
 import type * as NodeFs from 'node:fs'
 
-import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AgentEntity } from '@shared/data/api/schemas/agents'
 
 const {
   mockFindBySessionId,

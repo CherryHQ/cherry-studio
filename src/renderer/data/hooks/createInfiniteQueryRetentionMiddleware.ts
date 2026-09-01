@@ -1,4 +1,3 @@
-import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { useLayoutEffect, useRef } from 'react'
 import { type Key, type Middleware, unstable_serialize, useSWRConfig } from 'swr'
 import {
@@ -6,6 +5,8 @@ import {
   type SWRInfiniteKeyLoader,
   unstable_serialize as serializeInfiniteKey
 } from 'swr/infinite'
+
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 
 import { InfiniteQueryCacheManager, type InfiniteQueryRetentionOptions } from '../InfiniteQueryCacheManager'
 

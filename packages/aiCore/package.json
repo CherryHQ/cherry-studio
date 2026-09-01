@@ -2,66 +2,33 @@
   "name": "@cherrystudio/ai-core",
   "version": "2.0.1",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.mts",
-  "react-native": "dist/index.mjs",
-  "scripts": {
-    "build": "tsdown",
-    "dev": "pnpm --workspace-root exec tsc -w -p packages/aiCore/tsconfig.json",
-    "typecheck": "pnpm --workspace-root exec tsc --noEmit -p packages/aiCore/tsconfig.json --composite false",
-    "lint": "oxlint --fix && eslint . --fix --cache",
-    "lint:check": "oxlint && eslint . --cache",
-    "format": "biome format --write && biome lint --write",
-    "format:check": "biome format && biome lint",
-    "clean": "rm -rf dist",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "prepublishOnly": "pnpm build"
+  "keywords": [
+    "ai",
+    "anthropic",
+    "cherry-studio",
+    "google",
+    "openai",
+    "sdk",
+    "vercel-ai-sdk"
+  ],
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
   },
-  "keywords": ["ai", "sdk", "openai", "anthropic", "google", "cherry-studio", "vercel-ai-sdk"],
-  "author": "Cherry Studio",
   "license": "MIT",
+  "author": "Cherry Studio",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CherryHQ/cherry-studio.git"
   },
-  "bugs": {
-    "url": "https://github.com/CherryHQ/cherry-studio/issues"
-  },
-  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
-  "peerDependencies": {
-    "@ai-sdk/google": "^3.0.113",
-    "@ai-sdk/openai": "^3.0.53",
-    "ai": "^6.0.116"
-  },
-  "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.103",
-    "@ai-sdk/azure": "^3.0.54",
-    "@ai-sdk/deepseek": "^2.0.57",
-    "@ai-sdk/openai-compatible": "^2.0.72",
-    "@ai-sdk/provider": "^3.0.15",
-    "@ai-sdk/provider-utils": "^4.0.48",
-    "@ai-sdk/xai": "^3.0.126",
-    "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "@openrouter/ai-sdk-provider": "^2.10.0",
-    "quick-lru": "^5.1.1",
-    "zod": "^4.1.5"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.2.4",
-    "@types/node": "^24.10.4",
-    "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "oxlint": "1.76.0",
-    "tsdown": "^0.22.14",
-    "typescript": "npm:@typescript/typescript6@6.0.2",
-    "vitest": "^3.2.7"
-  },
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "files": ["dist"],
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "react-native": "dist/index.mjs",
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
@@ -84,5 +51,47 @@
       "require": "./dist/provider/index.cjs",
       "default": "./dist/provider/index.mjs"
     }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "clean": "rm -rf dist",
+    "dev": "pnpm --workspace-root exec tsc -w -p packages/aiCore/tsconfig.json",
+    "format": "pnpm --workspace-root exec oxfmt --write packages/aiCore",
+    "format:check": "pnpm --workspace-root exec oxfmt --check packages/aiCore",
+    "lint": "oxlint --fix && eslint . --fix --cache",
+    "lint:check": "oxlint && eslint . --cache",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm --workspace-root exec tsc --noEmit -p packages/aiCore/tsconfig.json --composite false"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.103",
+    "@ai-sdk/azure": "^3.0.54",
+    "@ai-sdk/deepseek": "^2.0.57",
+    "@ai-sdk/openai-compatible": "^2.0.72",
+    "@ai-sdk/provider": "^3.0.15",
+    "@ai-sdk/provider-utils": "^4.0.48",
+    "@ai-sdk/xai": "^3.0.126",
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
+    "@openrouter/ai-sdk-provider": "^2.10.0",
+    "quick-lru": "^5.1.1",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
+    "@types/node": "^24.10.4",
+    "oxlint": "1.76.0",
+    "tsdown": "^0.22.14",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^3.2.7"
+  },
+  "peerDependencies": {
+    "@ai-sdk/google": "^3.0.113",
+    "@ai-sdk/openai": "^3.0.53",
+    "ai": "^6.0.116"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

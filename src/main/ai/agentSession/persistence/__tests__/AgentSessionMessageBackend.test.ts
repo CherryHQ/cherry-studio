@@ -12,9 +12,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-const { PersistenceListener, TerminalPersistenceError } = await import(
-  '../../../streamManager/listeners/PersistenceListener'
-)
+const { PersistenceListener, TerminalPersistenceError } =
+  await import('../../../streamManager/listeners/PersistenceListener')
 const { AgentSessionMessageBackend } = await import('../AgentSessionMessageBackend')
 
 describe('AgentSessionMessageBackend', () => {

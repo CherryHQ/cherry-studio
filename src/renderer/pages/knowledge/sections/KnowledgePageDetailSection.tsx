@@ -1,10 +1,11 @@
+import { ArrowLeft } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, PageSidePanel } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { ArrowLeft } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
 import { useKnowledgePage } from '../KnowledgePageProvider'

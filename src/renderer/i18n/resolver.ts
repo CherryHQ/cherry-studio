@@ -9,15 +9,15 @@ import 'dayjs/locale/ru'
 import 'dayjs/locale/vi'
 import 'dayjs/locale/zh-cn'
 import 'dayjs/locale/zh-tw'
+import dayjs from 'dayjs'
+import i18n from 'i18next'
+import resourcesToBackend from 'i18next-resources-to-backend'
+import { initReactI18next } from 'react-i18next'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import dayjs from 'dayjs'
-import i18n from 'i18next'
-import resourcesToBackend from 'i18next-resources-to-backend'
-import { initReactI18next } from 'react-i18next'
 
 const logger = loggerService.withContext('I18N')
 

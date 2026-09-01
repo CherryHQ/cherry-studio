@@ -1,3 +1,5 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * Unit tests for remotePollJobHandler.
  *
@@ -8,7 +10,6 @@
  * written to jobTable.metadata.
  */
 import type { JobContext } from '@main/core/job/types'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../shared'
 

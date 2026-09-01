@@ -1,3 +1,8 @@
+import { GripVertical, RotateCcw } from 'lucide-react'
+import type { ComponentProps, ReactNode } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { Button, Popover, PopoverAnchor, PopoverContent, ReorderableList, Switch, Tooltip } from '@cherrystudio/ui'
 import {
   useComposerToolLauncherController,
@@ -9,10 +14,6 @@ import type { ComposerToolScope } from '@renderer/components/composer/tools/type
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { GripVertical, RotateCcw } from 'lucide-react'
-import type { ComponentProps, ReactNode } from 'react'
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { COMPOSER_SEND_ACCESSORY_BUTTON_CLASS } from './ComposerControlScaffolding'
 
@@ -376,7 +377,7 @@ export const ComposerToolbarShortcuts = ({
         className="w-64 p-1.5"
         aria-labelledby={customizeTitleId}
         onFocusOutside={(event) => event.preventDefault()}>
-        <div id={customizeTitleId} className="px-2 py-1 font-medium text-foreground text-sm">
+        <div id={customizeTitleId} className="px-2 py-1 text-sm font-medium text-foreground">
           {customizeLabel}
         </div>
         <ReorderableList
@@ -406,7 +407,7 @@ export const ComposerToolbarShortcuts = ({
                   aria-label={t('chat.input.toolbar.drag_handle', { name: label ?? '' })}
                   // touch-none: let the PointerSensor own touch gestures so a scroll doesn't
                   // pointer-cancel the drag before the activation distance is met.
-                  className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground outline-none transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:text-foreground">
+                  className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:text-foreground">
                   <GripVertical className="size-3.5" />
                 </button>
                 <span className={CUSTOMIZE_ROW_ICON_CLASS}>{candidate.icon}</span>
@@ -422,12 +423,12 @@ export const ComposerToolbarShortcuts = ({
             )
           }}
         />
-        <div className="mx-1.5 mt-1 border-border border-t pt-1">
+        <div className="mx-1.5 mt-1 border-t border-border pt-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 w-full justify-start px-1.5 text-muted-foreground text-sm hover:text-foreground"
+            className="h-7 w-full justify-start px-1.5 text-sm text-muted-foreground hover:text-foreground"
             disabled={isDefault}
             onClick={resetPinnedIds}>
             <RotateCcw className="size-4" />

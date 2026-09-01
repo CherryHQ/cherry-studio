@@ -1,7 +1,8 @@
+import { describe, expect, it, vi } from 'vitest'
+
 import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import { describe, expect, it, vi } from 'vitest'
 
 import {
   formatErrorMessage,

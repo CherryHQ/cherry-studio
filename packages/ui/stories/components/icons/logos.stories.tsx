@@ -60,7 +60,7 @@ const IconGrid = ({ icons, fontSize, kind }: { icons: IconEntry[]; fontSize: num
         <div className="w-min overflow-hidden rounded-md border border-gray-200">
           <LogoMark Component={Component} fontSize={fontSize} kind={kind} name={name} />
         </div>
-        <p className="mt-2 w-full break-words text-center text-sm">{name}</p>
+        <p className="mt-2 w-full text-center text-sm break-words">{name}</p>
       </div>
     ))}
   </div>
@@ -70,11 +70,11 @@ const AllIconsShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8 p-4">
       <div>
-        <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
+        <h2 className="mb-4 text-lg font-semibold">Providers ({providerIcons.length})</h2>
         <IconGrid icons={providerIcons} fontSize={fontSize} kind="provider" />
       </div>
       <div>
-        <h2 className="text-lg font-semibold mb-4">Models ({modelIcons.length})</h2>
+        <h2 className="mb-4 text-lg font-semibold">Models ({modelIcons.length})</h2>
         <IconGrid icons={modelIcons} fontSize={fontSize} kind="model" />
       </div>
     </div>
@@ -92,7 +92,7 @@ const LightVsDarkGrid = ({ icons, fontSize, kind }: LightVsDarkGridProps) => (
     {icons.map(({ Component, name }) => (
       <div key={name} className="flex min-w-0 flex-col items-center gap-1">
         <div className="grid grid-cols-2 gap-2">
-          <div className="overflow-hidden rounded-md bg-white ring-1 ring-inset ring-gray-200">
+          <div className="overflow-hidden rounded-md bg-white ring-1 ring-gray-200 ring-inset">
             <LogoMark Component={Component} fontSize={fontSize} kind={kind} name={name} variant="light" />
           </div>
           <div className="overflow-hidden rounded-md bg-neutral-900">
@@ -101,7 +101,7 @@ const LightVsDarkGrid = ({ icons, fontSize, kind }: LightVsDarkGridProps) => (
           <span className="text-center text-xs text-gray-400">Light</span>
           <span className="text-center text-xs text-gray-400">Dark</span>
         </div>
-        <p className="w-full break-words text-center text-sm">{name}</p>
+        <p className="w-full text-center text-sm break-words">{name}</p>
       </div>
     ))}
   </div>
@@ -119,7 +119,7 @@ const AvatarGrid = ({ icons, size }: { icons: IconEntry[]; size: number }) => (
             <span className="text-center text-xs text-gray-400">Circle</span>
             <span className="text-center text-xs text-gray-400">Rounded</span>
           </div>
-          <p className="w-full break-words text-center text-sm">{name}</p>
+          <p className="w-full text-center text-sm break-words">{name}</p>
         </div>
       )
     })}
@@ -130,11 +130,11 @@ const AvatarShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8 p-4">
       <div>
-        <h2 className="text-lg font-semibold mb-4">Providers ({providerIcons.length})</h2>
+        <h2 className="mb-4 text-lg font-semibold">Providers ({providerIcons.length})</h2>
         <AvatarGrid icons={providerIcons} size={fontSize} />
       </div>
       <div>
-        <h2 className="text-lg font-semibold mb-4">Models ({modelIcons.length})</h2>
+        <h2 className="mb-4 text-lg font-semibold">Models ({modelIcons.length})</h2>
         <AvatarGrid icons={modelIcons} size={fontSize} />
       </div>
     </div>
@@ -145,11 +145,11 @@ const LightVsDarkShowcase = ({ fontSize = 32 }: ShowcaseProps) => {
   return (
     <div className="flex flex-col gap-8 p-4">
       <div>
-        <h2 className="text-lg font-semibold mb-4">Providers</h2>
+        <h2 className="mb-4 text-lg font-semibold">Providers</h2>
         <LightVsDarkGrid icons={providerIcons} fontSize={fontSize} kind="provider" />
       </div>
       <div>
-        <h2 className="text-lg font-semibold mb-4">Models</h2>
+        <h2 className="mb-4 text-lg font-semibold">Models</h2>
         <LightVsDarkGrid icons={modelIcons} fontSize={fontSize} kind="model" />
       </div>
     </div>

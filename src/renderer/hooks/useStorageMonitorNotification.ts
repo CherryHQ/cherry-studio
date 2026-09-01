@@ -1,8 +1,9 @@
+import { t } from 'i18next'
+import { useEffect } from 'react'
+
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { StorageHealth } from '@shared/types/storageMonitor'
-import { t } from 'i18next'
-import { useEffect } from 'react'
 
 const logger = loggerService.withContext('useStorageMonitorNotification')
 

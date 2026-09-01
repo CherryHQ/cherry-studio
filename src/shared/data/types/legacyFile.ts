@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 /**
  * Legacy v1 `FileMetadata` shape.
  *
@@ -18,7 +20,6 @@
  */
 import type OpenAI from '@cherrystudio/openai'
 import { FILE_TYPE, type FileType, FileTypeSchema } from '@shared/types/file'
-import * as z from 'zod'
 
 export interface FileMetadata {
   id: string

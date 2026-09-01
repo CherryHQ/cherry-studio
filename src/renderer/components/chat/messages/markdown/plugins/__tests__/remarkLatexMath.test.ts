@@ -1,4 +1,3 @@
-import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 import { render } from '@testing-library/react'
 import type { InlineMath, Math, Nodes, Root } from 'mdast'
 import { createElement } from 'react'
@@ -6,6 +5,8 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import { describe, expect, it, vi } from 'vitest'
+
+import { defaultMarkdownPlugins, Markdown, withMath } from '@cherrystudio/ui'
 
 import { remarkHtmlArtifact } from '../remarkHtmlArtifact'
 import { remarkLatexMath } from '../remarkLatexMath'

@@ -19,10 +19,11 @@
  */
 
 import type { JSONSchema7, JSONSchema7Definition, LanguageModelV3CallOptions } from '@ai-sdk/provider'
+import type { LanguageModelMiddleware } from 'ai'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { LanguageModelMiddleware } from 'ai'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'

@@ -1,5 +1,6 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { bench, describe } from 'vitest'
+
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import { reconcileSessionListItems } from './sessionListItemSharing'
 

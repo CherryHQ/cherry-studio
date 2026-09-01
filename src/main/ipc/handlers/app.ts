@@ -1,5 +1,7 @@
 import { arch } from 'node:os'
 
+import { app, BrowserWindow } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
@@ -10,7 +12,6 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import { app, BrowserWindow } from 'electron'
 
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({

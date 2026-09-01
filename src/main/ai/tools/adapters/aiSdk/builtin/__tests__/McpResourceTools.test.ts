@@ -3,12 +3,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
+
 import { mcpResourceReadInputSchema, type McpResourceReadOutput } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpResource } from '@shared/types/mcp'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import * as z from 'zod'
 
 const listResources = vi.fn<(serverId: string) => Promise<McpResource[]>>()
 const getResource = vi.fn()

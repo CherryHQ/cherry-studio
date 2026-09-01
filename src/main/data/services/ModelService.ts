@@ -7,6 +7,9 @@
  * - Registry import support
  */
 
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
+
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
@@ -45,8 +48,6 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
-import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500

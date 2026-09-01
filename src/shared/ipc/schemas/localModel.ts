@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import {
   LOCAL_MODEL_DOWNLOAD_RESULTS,
   LOCAL_MODEL_ERROR_CODES,
@@ -6,7 +8,6 @@ import {
   type LocalModelErrorCode,
   type LocalModelKind
 } from '@shared/data/presets/localModel'
-import * as z from 'zod'
 
 import { defineRoute } from '../define'
 

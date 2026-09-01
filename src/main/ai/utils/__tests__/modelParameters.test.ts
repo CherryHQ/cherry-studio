@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
-import { describe, expect, it } from 'vitest'
 
 import { makeAssistant as makeAssistantBase, makeModel } from '../../__tests__/fixtures'
 import { adjustMaxOutputTokensForReasoning, filterStandardParams, getTemperature, getTopP } from '../modelParameters'

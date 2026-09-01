@@ -1,7 +1,8 @@
+import { useTranslation } from 'react-i18next'
+
 import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { useTranslation } from 'react-i18next'
 
 interface TokenLimitPreset {
   label: string

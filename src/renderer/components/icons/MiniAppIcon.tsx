@@ -1,6 +1,7 @@
+import type { FC } from 'react'
+
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { FC } from 'react'
 
 import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
 
@@ -81,7 +82,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       )
     }
 
-    return <Icon.Avatar size={size} className="select-none border border-border" shape="rounded" />
+    return <Icon.Avatar size={size} className="border border-border select-none" shape="rounded" />
   }
 
   if (src) {
@@ -89,7 +90,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       return (
         <img
           src={src}
-          className="shrink-0 select-none object-contain"
+          className="shrink-0 object-contain select-none"
           style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
           draggable={false}
           alt={app.name || 'MiniApp Icon'}
@@ -126,7 +127,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
     return (
       <img
         src={src}
-        className={appearance === 'plain' ? 'select-none' : 'select-none rounded-2xl border border-border'}
+        className={appearance === 'plain' ? 'select-none' : 'rounded-2xl border border-border select-none'}
         style={{
           width: `${imageSize}px`,
           height: `${imageSize}px`,

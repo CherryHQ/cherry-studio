@@ -2,6 +2,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { Tool } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { app } from 'electron'
+
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
@@ -9,9 +14,6 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { createAgent as createAgentCommand } from '@main/ai/agents/createAgent'
 import { type AssistantToolName, DEFAULT_ASSISTANT_TOOL_NAMES } from '@main/ai/toolApproval/assistantToolNames'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { Tool } from '@modelcontextprotocol/sdk/types.js'
-import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -22,7 +24,6 @@ import {
 } from '@shared/utils/diagnostics'
 import { isAllowedNavigationPath } from '@shared/utils/navigationPath'
 import { redactUrlToOrigin } from '@shared/utils/redaction'
-import { app } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Assistant')
 

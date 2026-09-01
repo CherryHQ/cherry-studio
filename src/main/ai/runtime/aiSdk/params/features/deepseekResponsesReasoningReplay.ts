@@ -1,7 +1,8 @@
+import type { LanguageModelMiddleware } from 'ai'
+
 import { definePlugin } from '@cherrystudio/ai-core'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { isDeepSeekModel } from '@shared/utils/model'
-import type { LanguageModelMiddleware } from 'ai'
 
 import type { RequestFeature } from '../feature'
 

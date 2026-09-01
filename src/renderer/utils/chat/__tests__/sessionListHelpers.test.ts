@@ -1,6 +1,7 @@
+import { describe, expect, it } from 'vitest'
+
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { describe, expect, it } from 'vitest'
 
 import { withSoleGroupLabelHidden } from '../resourceListBase'
 import {

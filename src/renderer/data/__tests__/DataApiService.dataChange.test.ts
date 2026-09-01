@@ -1,3 +1,5 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 /**
  * DataApiService data change fan-out tests (real implementation).
  *
@@ -7,7 +9,6 @@
  * payloads, unsubscribe behavior, and per-listener error isolation.
  */
 import type { DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The global renderer setup replaces this module with a mock for consuming
 // components; these tests exercise the real implementation.

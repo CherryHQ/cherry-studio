@@ -1,10 +1,11 @@
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import { getNodeText } from '@renderer/utils/reactNodeText'
 import { Check, ChevronDown } from 'lucide-react'
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { getNodeText } from '@renderer/utils/reactNodeText'
 
 interface SelectorOption<V = string | number> {
   label: string | ReactNode

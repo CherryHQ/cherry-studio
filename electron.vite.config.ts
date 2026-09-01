@@ -1,14 +1,15 @@
+import { readdirSync, readFileSync } from 'fs'
+import { join, resolve } from 'path'
+
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
-import { readdirSync, readFileSync } from 'fs'
-import { join, resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 import type { Plugin } from 'vite'
 import { parse } from 'yaml'
 
-// assert not supported by biome
+// Import attributes are not supported by the current Electron config loader.
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'

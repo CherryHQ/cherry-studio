@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
-import { useTranslation } from 'react-i18next'
 
 // Category names are free-form English strings produced by the Claude Code CLI
 // (SDKControlGetContextUsageResponse); unknown names fall back to the raw value.

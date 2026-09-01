@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, readFile, rm, symlink, truncate, utimes, writeFile } fr
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
 const {
   formatFromExtensionMock,

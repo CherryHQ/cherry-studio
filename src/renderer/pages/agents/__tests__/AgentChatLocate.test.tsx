@@ -1,9 +1,10 @@
-import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { render, screen, waitFor } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 
 import AgentChat from '../AgentChat'
 

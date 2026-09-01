@@ -1,3 +1,7 @@
+import type { FC, ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   EditableNumber,
   Flex,
@@ -26,9 +30,6 @@ import {
 import { isMac } from '@renderer/utils/platform'
 import type { ComposerShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import {
   SettingDivider,

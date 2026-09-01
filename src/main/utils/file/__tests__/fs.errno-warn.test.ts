@@ -39,9 +39,10 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const mockRename = vi.hoisted(() => vi.fn())
 const mockUnlink = vi.hoisted(() => vi.fn())

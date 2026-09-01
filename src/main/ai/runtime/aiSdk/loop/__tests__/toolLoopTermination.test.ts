@@ -1,7 +1,8 @@
-import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
-import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
 import { jsonSchema, type StepResult, type Tool, type ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
+
+import { createToolInvokeTool, TOOL_INVOKE_TOOL_NAME } from '@main/ai/tools/adapters/aiSdk/meta/toolInvoke'
+import { ToolRegistry } from '@main/ai/tools/adapters/aiSdk/registry'
 
 import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
 import {

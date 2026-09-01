@@ -1,10 +1,11 @@
+import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
-import { useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { useOpenMineruConnectivity } from '../../hooks/useOpenMineruConnectivity'
 import { FileProcessorSelector, type FileProcessorSelectorOption } from './FileProcessorSelector'

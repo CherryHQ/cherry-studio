@@ -3,6 +3,11 @@
  * Coordinates migrators, manages progress, and handles failures
  */
 
+import fs from 'fs/promises'
+
+import { eq, sql } from 'drizzle-orm'
+import Store from 'electron-store'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
@@ -56,9 +61,6 @@ import type {
   MigratorStatus,
   ValidateResult
 } from '@shared/data/migration/v2/types'
-import { eq, sql } from 'drizzle-orm'
-import Store from 'electron-store'
-import fs from 'fs/promises'
 
 import type { BaseMigrator, ProgressMessage } from '../migrators/BaseMigrator'
 import { createMigrationContext } from './MigrationContext'
@@ -403,7 +405,10 @@ export class MigrationEngine {
 
     // Check if tables have data (safety check)
     for (const { table, name } of MIGRATION_TARGET_TABLES) {
-      const result = db.select({ count: sql<number>`count(*)` }).from(table).get()
+      const result = db
+        .select({ count: sql<number>`count(*)` })
+        .from(table)
+        .get()
       const count = result?.count ?? 0
       if (count > 0) {
         logger.warn(`Table '${name}' is not empty (${count} rows), clearing for fresh migration`)

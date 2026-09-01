@@ -1,7 +1,8 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── Per-topic controllable fake TopicStreamSubscription ─────────────────
 const mocks = vi.hoisted(() => {

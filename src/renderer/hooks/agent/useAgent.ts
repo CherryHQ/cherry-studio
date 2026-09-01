@@ -6,6 +6,9 @@
  * configuration) lives here, not on sessions.
  */
 
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { deleteAgentAndRefresh } from '@renderer/services/deleteAgent'
@@ -18,8 +21,6 @@ import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
-import { useCallback, useMemo } from 'react'
-import { useTranslation } from 'react-i18next'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 type UpdateAgentModelInput = {

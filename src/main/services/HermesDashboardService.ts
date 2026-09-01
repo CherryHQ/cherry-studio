@@ -3,6 +3,8 @@ import { realpath } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
 
+import { Mutex } from 'async-mutex'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -13,7 +15,6 @@ import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { redactSecretText } from '@shared/utils/redaction'
-import { Mutex } from 'async-mutex'
 
 const logger = loggerService.withContext('HermesDashboardService')
 

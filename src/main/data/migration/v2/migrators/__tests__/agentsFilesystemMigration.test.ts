@@ -17,9 +17,10 @@ import {
 import os from 'node:os'
 import path from 'node:path'
 
-import type * as Platform from '@main/core/platform'
 import PQueue from 'p-queue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import type * as Platform from '@main/core/platform'
 
 import {
   type AgentFileSessionPlan,

@@ -1,7 +1,8 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
 import AgentPage from '@renderer/pages/agents/AgentPage'
 import { parseAgentRouteSearch } from '@renderer/pages/agents/routeSearch'
 import { resolveAgentEntrySessionId, resolveAgentEntrySessionIdForAgent } from '@renderer/utils/conversationEntry'
-import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/app/agents')({
   validateSearch: (search) => parseAgentRouteSearch(search),

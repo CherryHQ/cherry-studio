@@ -1,3 +1,21 @@
+import { useVirtualizer } from '@tanstack/react-virtual'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FolderSearch,
+  Import,
+  Library,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2
+} from 'lucide-react'
+import type { FC, ReactNode, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import {
   Button,
   ConfirmDialog,
@@ -30,23 +48,6 @@ import type { GroupItem, ResourceItem, ResourceType } from '@renderer/types/reso
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  FolderSearch,
-  Import,
-  Library,
-  Pencil,
-  Plus,
-  Search,
-  Tag,
-  Trash2
-} from 'lucide-react'
-import type { FC, ReactNode, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { ResourceCatalogSearchInput } from '../ResourceCatalogSearchInput'
 import { ResourceCard } from './ResourceCards'
@@ -350,7 +351,7 @@ export const ResourceGrid: FC<Props> = ({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-border-subtle border-b')}>
+      <div className={cn('flex shrink-0 flex-col', !isSettings && 'border-b border-border-subtle')}>
         {isSettings ? (
           <div className="flex min-w-0 items-center justify-between gap-4">
             <div className="min-w-0">
@@ -408,7 +409,7 @@ export const ResourceGrid: FC<Props> = ({
                           : 'border-border-subtle text-muted-foreground hover:border-border-strong hover:bg-accent hover:text-foreground'
                       }`}>
                       <span>{group.name}</span>
-                      <span className="text-foreground-tertiary text-xs tabular-nums">{group.count}</span>
+                      <span className="text-xs text-foreground-tertiary tabular-nums">{group.count}</span>
                     </Button>
                   </ContextMenuTrigger>
                   <ContextMenuContent className="min-w-32">
@@ -439,7 +440,7 @@ export const ResourceGrid: FC<Props> = ({
               <Button
                 variant="ghost"
                 onClick={() => setCreateGroupDialogOpen(true)}
-                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-subtle border-dashed px-2 text-muted-foreground text-xs shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
+                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-dashed border-border-subtle px-2 text-xs text-muted-foreground shadow-none hover:border-border-strong hover:bg-accent hover:text-foreground">
                 <Plus size={11} /> {t('library.toolbar.group_button')}
               </Button>
             </div>

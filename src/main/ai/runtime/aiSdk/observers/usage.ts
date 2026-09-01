@@ -21,8 +21,9 @@
  * each step (see the invariant on `CherryUIMessageMetadata`).
  */
 
-import type { MessageStats } from '@shared/data/types/message'
 import type { LanguageModelUsage } from 'ai'
+
+import type { MessageStats } from '@shared/data/types/message'
 
 import type { Agent } from '../Agent'
 

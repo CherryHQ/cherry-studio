@@ -1,11 +1,12 @@
+import type * as HtmlToImage from 'html-to-image'
+import { Base64 } from 'js-base64'
+
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
-import type * as HtmlToImage from 'html-to-image'
-import { Base64 } from 'js-base64'
 
 const logger = loggerService.withContext('Utils:image')
 const TRANSPARENT_IMAGE_PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
@@ -862,7 +863,7 @@ function decodeDataUrlBytes(data: string): Uint8Array {
   const encoder = new TextEncoder()
   const bytes: number[] = []
 
-  for (let index = 0; index < data.length; ) {
+  for (let index = 0; index < data.length;) {
     const hexByte = data[index] === '%' ? data.slice(index + 1, index + 3) : ''
     if (/^[\da-fA-F]{2}$/.test(hexByte)) {
       bytes.push(Number.parseInt(hexByte, 16))

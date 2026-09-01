@@ -38,8 +38,9 @@ vi.mock('../defaultImageToTextProcessor', () => ({
   resolveDefaultImageToTextProcessor: resolveDefaultImageToTextProcessorMock
 }))
 
-import { MB } from '@shared/utils/constants'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+
+import { MB } from '@shared/utils/constants'
 
 import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from '../resolveProcessorConfig'
 

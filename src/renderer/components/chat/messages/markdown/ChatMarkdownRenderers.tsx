@@ -1,7 +1,8 @@
-import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
-import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 import type { ComponentProps, CSSProperties, JSX } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
+
+import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
+import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
 
 import { useChatMarkdownRenderContext } from './ChatMarkdownRenderContext'
 import CitationSup from './CitationSup'

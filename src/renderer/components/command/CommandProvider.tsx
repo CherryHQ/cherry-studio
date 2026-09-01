@@ -1,3 +1,5 @@
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -13,7 +15,6 @@ import type { PreferenceShortcutType } from '@shared/data/preference/preferenceT
 import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('CommandProvider')
 

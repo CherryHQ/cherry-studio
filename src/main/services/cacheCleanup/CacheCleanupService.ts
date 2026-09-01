@@ -1,3 +1,5 @@
+import { Mutex } from 'async-mutex'
+
 import { loggerService } from '@logger'
 import type { CacheCleanupGroup } from '@shared/types/cacheCleanup'
 import type {
@@ -6,7 +8,6 @@ import type {
   CacheCleanupInspection,
   CacheCleanupRunResult
 } from '@shared/types/cacheCleanupIpc'
-import { Mutex } from 'async-mutex'
 
 import { clearLegacyV1, inspectLegacyV1 } from './legacyV1'
 import { clearOrphanedData, inspectOrphanedData } from './orphanedData'

@@ -5,6 +5,8 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
+import * as z from 'zod'
+
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import {
   type KnowledgeBase,
@@ -13,7 +15,6 @@ import {
   type KnowledgeItem,
   KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
-import * as z from 'zod'
 
 const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   name: true,

@@ -1,5 +1,8 @@
 import { writeFileSync } from 'node:fs'
 
+import dayjs from 'dayjs'
+import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
@@ -20,8 +23,6 @@ import {
 import type { OcrRecognitionResult } from '@shared/ipc/schemas/screenshot'
 import type { WindowId } from '@shared/ipc/types'
 import type { DetectedWindow, ScreenshotInitData, ScreenshotResultData } from '@shared/types/screenshot'
-import dayjs from 'dayjs'
-import { app, BrowserWindow, clipboard, dialog, type Display, nativeImage, screen } from 'electron'
 
 import { captureAllMonitors, listMonitors } from './screenCapture'
 import { type CaptureResult, type MonitorInfo, type RawWindowInfo, ScreenCapturePermissionError } from './types'

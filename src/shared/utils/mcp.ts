@@ -1,5 +1,6 @@
 import type { ContentBlock } from '@modelcontextprotocol/sdk/types.js'
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js'
+
 import type { McpServer } from '@shared/data/types/mcpServer'
 
 export const BuiltinMcpServerNames = {

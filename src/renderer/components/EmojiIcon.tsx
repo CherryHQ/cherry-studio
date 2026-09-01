@@ -1,5 +1,6 @@
-import { cn } from '@cherrystudio/ui/lib/utils'
 import type { CSSProperties, FC } from 'react'
+
+import { cn } from '@cherrystudio/ui/lib/utils'
 
 interface EmojiIconProps {
   emoji: string

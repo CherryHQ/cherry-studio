@@ -2,6 +2,9 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
 
+import Database from 'better-sqlite3'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { stripOkfFrontmatter } from '@main/features/knowledge/pipeline/sources/okfFrontmatter'
 import { hashEmbeddingText } from '@main/features/knowledge/pipeline/vectorstore/indexStore/hashing'
@@ -12,8 +15,6 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
-import Database from 'better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'

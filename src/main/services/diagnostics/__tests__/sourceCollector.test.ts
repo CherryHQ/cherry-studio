@@ -2,9 +2,10 @@ import { appendFile, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writ
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import { application } from '@application'
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   collectCrashDumpInventory,

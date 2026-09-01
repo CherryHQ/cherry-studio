@@ -2,6 +2,8 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import {
   hasPendingRestore,
@@ -9,7 +11,6 @@ import {
   removeRestoreJournal,
   writeRestoreJournal
 } from '@data/db/restore/restoreJournal'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * The journal path is resolved through `application.getPath`; shadow the global

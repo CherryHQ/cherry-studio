@@ -1,5 +1,6 @@
-import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 import type { UIMessageChunk } from 'ai'
+
+import type { NotifyChannel } from '@main/ai/runtime/agentMcpServers'
 
 import type { AgentRuntimeConnection, AgentRuntimeUserInput } from '../runtime/types'
 

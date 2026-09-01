@@ -1,6 +1,7 @@
+import { useTranslation } from 'react-i18next'
+
 import { ResourceCatalogView } from '@renderer/components/resourceCatalog/catalog'
 import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
-import { useTranslation } from 'react-i18next'
 
 export function SkillsSettings() {
   const { t } = useTranslation()

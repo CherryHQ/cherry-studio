@@ -1,11 +1,12 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
-import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
-import type { Provider } from '@shared/data/types/provider'
-import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
+import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID, CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 
 import CodeCliPage from '../CodeCliPage'
 

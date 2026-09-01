@@ -1,8 +1,9 @@
 import { exec } from 'child_process'
 import * as fs from 'fs/promises'
-import * as linguistLanguages from 'linguist-languages'
 import * as path from 'path'
 import { promisify } from 'util'
+
+import * as linguistLanguages from 'linguist-languages'
 
 const execAsync = promisify(exec)
 
@@ -13,6 +14,7 @@ type LanguageData = {
 }
 
 const LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/codeLanguages.ts')
+const TEMPORARY_LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/utils/.codeLanguages.tmp.ts')
 
 /**
  * Extracts and filters necessary language data from the linguist-languages package.
@@ -75,17 +77,17 @@ export const codeLanguages: Record<string, LanguageData> = ${languagesObjectStri
 }
 
 /**
- * Formats a file using Biome.
+ * Formats a file using Oxfmt.
  * @param filePath The path to the file to format.
  */
 async function format(filePath: string): Promise<void> {
-  console.log('🎨 Formatting file with Biome...')
+  console.log('🎨 Formatting file with Oxfmt...')
   try {
-    await execAsync(`pnpm biome format --write ${filePath}`)
-    console.log('✅ Biome formatting complete.')
+    await execAsync(`pnpm oxfmt --write ${filePath}`)
+    console.log('✅ Oxfmt formatting complete.')
   } catch (e: any) {
-    console.error('❌ Biome formatting failed:', e.stdout || e.stderr)
-    throw new Error('Biome formatting failed.')
+    console.error('❌ Oxfmt formatting failed:', e.stdout || e.stderr)
+    throw new Error('Oxfmt formatting failed.')
   }
 }
 
@@ -113,17 +115,18 @@ async function updateLanguagesFile(): Promise<void> {
     const extractedLanguages = extractAllLanguageData()
     const fileContent = generateLanguagesFileContent(extractedLanguages)
 
-    await fs.writeFile(LANGUAGES_FILE_PATH, fileContent, 'utf-8')
-    console.log(`✅ Successfully wrote to ${LANGUAGES_FILE_PATH}`)
+    await fs.writeFile(TEMPORARY_LANGUAGES_FILE_PATH, fileContent, 'utf-8')
 
-    await format(LANGUAGES_FILE_PATH)
-    await checkTypeScript(LANGUAGES_FILE_PATH)
+    await format(TEMPORARY_LANGUAGES_FILE_PATH)
+    await checkTypeScript(TEMPORARY_LANGUAGES_FILE_PATH)
+    await fs.rename(TEMPORARY_LANGUAGES_FILE_PATH, LANGUAGES_FILE_PATH)
+    console.log(`✅ Successfully wrote to ${LANGUAGES_FILE_PATH}`)
 
     console.log('🎉 Successfully updated codeLanguages.ts file!')
     console.log(`📊 Contains ${Object.keys(extractedLanguages).length} languages.`)
   } catch (error) {
+    await fs.rm(TEMPORARY_LANGUAGES_FILE_PATH, { force: true })
     console.error('❌ An error occurred during the update process:', (error as Error).message)
-    // No need to restore backup as we write only at the end of successful generation.
     process.exit(1)
   }
 }

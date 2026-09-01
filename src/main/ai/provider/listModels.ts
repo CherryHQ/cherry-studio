@@ -12,6 +12,8 @@ import {
   postJsonToApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
+import * as z from 'zod'
+
 import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
@@ -34,7 +36,6 @@ import {
   matchesPreset
 } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import * as z from 'zod'
 
 import { defaultHeaders, getBaseUrl, getExtraHeaders } from '../utils/provider'
 import { COPILOT_DEFAULT_HEADERS } from './constants'

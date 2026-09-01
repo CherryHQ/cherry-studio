@@ -53,24 +53,24 @@ export const Vertical: Story = {
 
 export const InSettingsContext: Story = {
   render: () => (
-    <div className="space-y-4 max-w-md">
+    <div className="max-w-md space-y-4">
       <h3 className="text-lg font-medium">设置示例</h3>
 
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <span className="text-sm">语言设置</span>
         <span className="text-sm text-gray-500">中文</span>
       </div>
 
       <Divider />
 
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <span className="text-sm">主题设置</span>
         <span className="text-sm text-gray-500">深色</span>
       </div>
 
       <Divider />
 
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <span className="text-sm">通知设置</span>
         <span className="text-sm text-gray-500">开启</span>
       </div>
@@ -80,7 +80,7 @@ export const InSettingsContext: Story = {
 
 export const MultipleHorizontal: Story = {
   render: () => (
-    <div className="space-y-2 max-w-md">
+    <div className="max-w-md space-y-2">
       <p>第一段内容</p>
       <Divider />
       <p>第二段内容</p>
@@ -116,29 +116,29 @@ export const VerticalInNavigation: Story = {
 
 export const CustomStyle: Story = {
   render: () => (
-    <div className="space-y-6 max-w-md">
+    <div className="max-w-md space-y-6">
       <div>
-        <p className="text-sm text-gray-500 mb-2">默认分割线</p>
+        <p className="mb-2 text-sm text-gray-500">默认分割线</p>
         <Divider />
       </div>
 
       <div>
-        <p className="text-sm text-gray-500 mb-2">加粗分割线</p>
+        <p className="mb-2 text-sm text-gray-500">加粗分割线</p>
         <Divider className="border-t-2" />
       </div>
 
       <div>
-        <p className="text-sm text-gray-500 mb-2">彩色分割线</p>
+        <p className="mb-2 text-sm text-gray-500">彩色分割线</p>
         <Divider className="border-t-blue-500" />
       </div>
 
       <div>
-        <p className="text-sm text-gray-500 mb-2">虚线分割线</p>
+        <p className="mb-2 text-sm text-gray-500">虚线分割线</p>
         <Divider className="border-dashed" />
       </div>
 
       <div>
-        <p className="text-sm text-gray-500 mb-2">增加间距的分割线</p>
+        <p className="mb-2 text-sm text-gray-500">增加间距的分割线</p>
         <Divider className="my-6" />
       </div>
     </div>
@@ -149,8 +149,8 @@ export const BothOrientations: Story = {
   render: () => (
     <div className="space-y-8">
       <div>
-        <h4 className="text-sm font-medium mb-4">水平分割线 (Horizontal)</h4>
-        <div className="p-4 border rounded">
+        <h4 className="mb-4 text-sm font-medium">水平分割线 (Horizontal)</h4>
+        <div className="rounded border p-4">
           <p>上方内容区域</p>
           <Divider orientation="horizontal" />
           <p>下方内容区域</p>
@@ -158,8 +158,8 @@ export const BothOrientations: Story = {
       </div>
 
       <div>
-        <h4 className="text-sm font-medium mb-4">垂直分割线 (Vertical)</h4>
-        <div className="p-4 border rounded flex items-center h-12">
+        <h4 className="mb-4 text-sm font-medium">垂直分割线 (Vertical)</h4>
+        <div className="flex h-12 items-center rounded border p-4">
           <span>左侧内容</span>
           <Divider orientation="vertical" />
           <span>右侧内容</span>

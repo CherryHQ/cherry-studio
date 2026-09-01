@@ -1,6 +1,7 @@
+import type { ComponentPropsWithoutRef, FC } from 'react'
+
 import { Markdown } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { ComponentPropsWithoutRef, FC } from 'react'
 
 const RELEASE_NOTE_CATEGORY_PREFIX = 'release-note-category:'
 const RELEASE_NOTE_CATEGORY_PATTERN = /^(\s*[-*+]\s+)\[([^\]`\r\n]{1,32})\](?=\s)/gm

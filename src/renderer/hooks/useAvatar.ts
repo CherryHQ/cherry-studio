@@ -1,10 +1,11 @@
+import { useEffect, useState } from 'react'
+
 import { usePreference } from '@data/hooks/usePreference'
 import UserAvatar from '@renderer/assets/images/avatar.svg'
 import { ipcApi } from '@renderer/ipc'
 import type { FileEntryId } from '@shared/data/types/file'
 import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'
 import { toFileUrl } from '@shared/utils/file'
-import { useEffect, useState } from 'react'
 
 /** The `file_entry` id of an uploaded avatar (`file:<id>`), or undefined for emoji / default. */
 function avatarStoredId(avatar: string | undefined): FileEntryId | undefined {

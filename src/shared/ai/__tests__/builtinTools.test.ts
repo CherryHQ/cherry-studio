@@ -1,6 +1,7 @@
-import { isHttpUrl } from '@shared/utils/url'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
+
+import { isHttpUrl } from '@shared/utils/url'
 
 import {
   KB_LIST_TOOL_NAME,
