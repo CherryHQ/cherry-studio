@@ -38,6 +38,7 @@ import {
   buildMessageTree,
   estimateLegacyRequestCount,
   extractCitationReferences,
+  findActiveNodeId,
   mergeStats,
   normalizeStatus,
   type OldBlock,
@@ -97,18 +98,17 @@ describe('buildMessageTree', () => {
     expect(tree.get('a1')!.siblingsGroupId).toBe(tree.get('a2')!.siblingsGroupId)
   })
 
-  it('links user message after multi-model group to foldSelected response', async () => {
+  it('links user message after multi-model group to the useful response', async () => {
     const messages = [
       msg('u1', 'user'),
       msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
-      msg('a2', 'assistant', { askId: 'u1' }),
+      msg('a2', 'assistant', { askId: 'u1', useful: true }),
       msg('u2', 'user')
     ]
 
     const tree = buildMessageTree(messages)
 
-    // u2 should link to the foldSelected response (a1)
-    expect(tree.get('u2')!.parentId).toBe('a1')
+    expect(tree.get('u2')!.parentId).toBe('a2')
   })
 
   // --- The fix: askId pointing to a deleted user message ---
@@ -202,7 +202,7 @@ describe('buildMessageTree', () => {
     expect(tree.get('a1')!.siblingsGroupId).toBe(0)
   })
 
-  it('links user message after multi-model group with no foldSelected to last group member', async () => {
+  it('links user message after an unselected multi-model group to the first response', async () => {
     const messages = [
       msg('u1', 'user'),
       msg('a1', 'assistant', { askId: 'u1' }),
@@ -215,15 +215,14 @@ describe('buildMessageTree', () => {
     // Both responses are siblings under u1
     expect(tree.get('a1')!.parentId).toBe('u1')
     expect(tree.get('a2')!.parentId).toBe('u1')
-    // u2 should link to the last group member (a2), NOT to u1
-    expect(tree.get('u2')!.parentId).toBe('a2')
+    expect(tree.get('u2')!.parentId).toBe('a1')
   })
 
-  it('links user message after orphaned foldSelected group to the selected response', async () => {
+  it('links user message after an orphaned group to the useful response', async () => {
     const messages = [
       msg('prev', 'assistant'),
       msg('a1', 'assistant', { askId: 'deleted', foldSelected: true }),
-      msg('a2', 'assistant', { askId: 'deleted' }),
+      msg('a2', 'assistant', { askId: 'deleted', useful: true }),
       msg('u1', 'user')
     ]
 
@@ -232,8 +231,45 @@ describe('buildMessageTree', () => {
     // Orphaned siblings share 'prev' as parent
     expect(tree.get('a1')!.parentId).toBe('prev')
     expect(tree.get('a2')!.parentId).toBe('prev')
-    // u1 should link to foldSelected response a1
-    expect(tree.get('u1')!.parentId).toBe('a1')
+    expect(tree.get('u1')!.parentId).toBe('a2')
+  })
+})
+
+describe('findActiveNodeId', () => {
+  it('uses the useful response for a terminal multi-model group', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', { askId: 'u1', useful: true })
+    ]
+
+    expect(findActiveNodeId(messages)).toBe('a2')
+  })
+
+  it('uses the first useful response when legacy data has multiple useful responses', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1', useful: true }),
+      msg('a2', 'assistant', { askId: 'u1', useful: true })
+    ]
+
+    expect(findActiveNodeId(messages)).toBe('a1')
+  })
+
+  it('uses the first response when a terminal multi-model group has no useful response', () => {
+    const messages = [
+      msg('u1', 'user'),
+      msg('a1', 'assistant', { askId: 'u1' }),
+      msg('a2', 'assistant', { askId: 'u1', foldSelected: true })
+    ]
+
+    expect(findActiveNodeId(messages)).toBe('a1')
+  })
+
+  it('uses the last message outside a multi-model group', () => {
+    const messages = [msg('u1', 'user'), msg('a1'), msg('u2', 'user')]
+
+    expect(findActiveNodeId(messages)).toBe('u2')
   })
 })
 
