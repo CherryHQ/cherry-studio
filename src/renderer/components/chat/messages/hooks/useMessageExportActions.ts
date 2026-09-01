@@ -1,6 +1,7 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { ipcApi } from '@renderer/ipc'
+import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { useCallback, useMemo } from 'react'
 
@@ -45,7 +46,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
 
   const exportMessageAsMarkdown = useCallback(async (message: MessageExportView, includeReasoning?: boolean) => {
     const { exportMessageAsMarkdown: exportMessageAsMarkdownFile } = await import('@renderer/services/ExportService')
-    return exportMessageAsMarkdownFile(message, includeReasoning)
+    return exportMessageAsMarkdownFile(message, includeReasoning, undefined, chooseImageExportMode)
   }, [])
 
   const exportToNotes = useCallback(

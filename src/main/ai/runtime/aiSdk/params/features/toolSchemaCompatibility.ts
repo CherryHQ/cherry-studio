@@ -11,6 +11,8 @@
  *     the strict subset — Anthropic and OpenAI compile that schema into a
  *     sampling grammar and 400 the whole request otherwise (issue #18037).
  *     Zod emits them freely (`.int()` alone adds safe-integer bounds).
+ *   - a Gemini-only pass drops a function tool when an array has no typed
+ *     `items` schema; there is no safe element type to infer.
  *
  * Local input validation is unaffected: the AI SDK still checks tool calls
  * against the original zod schema.
@@ -18,9 +20,14 @@
 
 import type { JSONSchema7, JSONSchema7Definition, LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
+import { loggerService } from '@logger'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { LanguageModelMiddleware } from 'ai'
 
 import type { RequestFeature } from '../feature'
+import type { RequestScope } from '../scope'
+
+const logger = loggerService.withContext('toolSchemaCompatibility')
 
 /** Rejected by Gemini, unenforced everywhere else. */
 const ALWAYS_UNSUPPORTED = ['$schema', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'uniqueItems']
@@ -109,42 +116,99 @@ function stripMap(
   return changed ? next : map
 }
 
-function normalizeToolSchemas(params: LanguageModelV3CallOptions): LanguageModelV3CallOptions {
+function isGeminiArraySchema(schema: JSONSchema7): boolean {
+  return schema.type === 'array' || (Array.isArray(schema.type) && schema.type.includes('array'))
+}
+
+function hasGeminiArrayItems(items: JSONSchema7['items']): boolean {
+  // @ai-sdk/google serializes the `true` schema as a typed boolean schema.
+  if (items === true) return true
+  if (typeof items !== 'object' || items === null || Array.isArray(items)) return false
+  return typeof items.type === 'string' || (Array.isArray(items.type) && items.type.length > 0)
+}
+
+/** Gemini's Schema requires every array declaration to carry a typed items schema. */
+function hasIncompatibleGeminiArray(schema: JSONSchema7Definition): boolean {
+  if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return false
+
+  const objectSchema = schema
+  if (isGeminiArraySchema(objectSchema) && !hasGeminiArrayItems(objectSchema.items)) return true
+
+  return Object.entries(objectSchema).some(([key, value]) => {
+    if (SCHEMA_MAPS.has(key) && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return Object.values(value).some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
+    }
+    if (SCHEMA_LISTS.has(key) && Array.isArray(value)) {
+      return value.some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
+    }
+    if (SCHEMA_VALUES.has(key)) {
+      return Array.isArray(value)
+        ? value.some((entry) => hasIncompatibleGeminiArray(entry as JSONSchema7Definition))
+        : hasIncompatibleGeminiArray(value as JSONSchema7Definition)
+    }
+    return false
+  })
+}
+
+function normalizeToolSchemas(params: LanguageModelV3CallOptions, scope: RequestScope): LanguageModelV3CallOptions {
   const tools = params.tools
   if (!tools) return params
 
   let changed = false
-  const transformedTools = tools.map((tool) => {
-    if (tool.type !== 'function') return tool
+  const droppedTools: string[] = []
+  const transformedTools: NonNullable<LanguageModelV3CallOptions['tools']> = []
+  for (const tool of tools) {
+    if (tool.type !== 'function') {
+      transformedTools.push(tool)
+      continue
+    }
+    if (
+      scope.endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT &&
+      scope.sdkConfig.providerId !== 'google-vertex-maas' &&
+      hasIncompatibleGeminiArray(tool.inputSchema as JSONSchema7Definition)
+    ) {
+      changed = true
+      droppedTools.push(tool.name)
+      continue
+    }
     const keywords = tool.strict === true ? STRICT_UNSUPPORTED : new Set(ALWAYS_UNSUPPORTED)
     const inputSchema = stripKeywords(tool.inputSchema as JSONSchema7Definition, keywords)
-    if (inputSchema === tool.inputSchema) return tool
-    changed = true
-    return { ...tool, inputSchema: inputSchema as JSONSchema7 }
-  })
+    if (inputSchema === tool.inputSchema) transformedTools.push(tool)
+    else {
+      changed = true
+      transformedTools.push({ ...tool, inputSchema: inputSchema as JSONSchema7 })
+    }
+  }
+
+  if (droppedTools.length > 0) {
+    logger.warn('Dropped tools with Gemini-incompatible array schemas', {
+      providerId: scope.sdkConfig.providerId,
+      toolNames: droppedTools
+    })
+  }
 
   return changed ? { ...params, tools: transformedTools } : params
 }
 
-function createToolSchemaCompatibilityMiddleware(): LanguageModelMiddleware {
+function createToolSchemaCompatibilityMiddleware(scope: RequestScope): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
-    transformParams: async ({ params }) => normalizeToolSchemas(params)
+    transformParams: async ({ params }) => normalizeToolSchemas(params, scope)
   }
 }
 
-const createToolSchemaCompatibilityPlugin = () =>
+const createToolSchemaCompatibilityPlugin = (scope: RequestScope) =>
   definePlugin({
     name: 'tool-schema-compatibility',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(createToolSchemaCompatibilityMiddleware())
+      context.middlewares.push(createToolSchemaCompatibilityMiddleware(scope))
     }
   })
 
-/** Drop JSON Schema keywords providers reject in function-tool schemas. */
+/** Drop provider-rejected JSON Schema keywords and unsafe Gemini array tools. */
 export const toolSchemaCompatibilityFeature: RequestFeature = {
   name: 'tool-schema-compatibility',
-  contributeModelAdapters: () => [createToolSchemaCompatibilityPlugin()]
+  contributeModelAdapters: (scope) => [createToolSchemaCompatibilityPlugin(scope)]
 }

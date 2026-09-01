@@ -252,7 +252,8 @@ describe('useModelSelectorData', () => {
     expect(result.current.modelItems).toHaveLength(1)
     expect(result.current.modelItems[0]).toMatchObject({
       modelId: 'anthropic::claude-3',
-      isPinned: true
+      isPinned: true,
+      groupKind: 'provider'
     })
   })
 
@@ -334,7 +335,7 @@ describe('useModelSelectorData', () => {
     expect(byModelId.get('openai::unique')?.showIdentifier).toBe(false)
   })
 
-  it('marks matching model names from different providers for disambiguation', () => {
+  it('uses provider groups to disambiguate matching names from different providers', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('anthropic')],
       models: [
@@ -348,7 +349,7 @@ describe('useModelSelectorData', () => {
       result.current.modelItems.map((item) => [item.modelId, item])
     )
 
-    expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(true)
-    expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(true)
+    expect(byModelId.get('openai::gpt-4')?.showIdentifier).toBe(false)
+    expect(byModelId.get('anthropic::claude-alias')?.showIdentifier).toBe(false)
   })
 })

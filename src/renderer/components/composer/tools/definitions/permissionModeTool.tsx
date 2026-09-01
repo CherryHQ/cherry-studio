@@ -36,6 +36,8 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
 
   const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
+  const launcherLabel = t('agent.settings.permissionMode.title', 'Permission Mode')
+  const launcherTooltip = tooltipTitle ? `${launcherLabel} · ${tooltipTitle}` : launcherLabel
   const modeSubmenu = useMemo(
     () =>
       permissionModeCards.map((card, index) => ({
@@ -69,14 +71,15 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       {
         ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
-        label: t('agent.settings.permissionMode.title', 'Permission Mode'),
+        label: launcherLabel,
         description: tooltipTitle,
+        tooltip: launcherTooltip,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: <PermissionModeIcon mode={currentMode} />,
         submenu: modeSubmenu
       }
     ])
-  }, [currentMode, launcher, modeSubmenu, t, tooltipTitle])
+  }, [currentMode, launcher, launcherLabel, launcherTooltip, modeSubmenu, t, tooltipTitle])
 
   return { currentMode, tooltipTitle }
 }

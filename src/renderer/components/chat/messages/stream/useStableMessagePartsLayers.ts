@@ -43,8 +43,6 @@
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useMemo, useRef } from 'react'
 
-import type { TranslationOverlayEntry } from '../blocks/MessagePartsContext'
-
 export interface StableMessagePartsLayers {
   historyPartsByMessageId: Record<string, CherryMessagePart[]>
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -76,27 +74,9 @@ function partsContentEqual(a: CherryMessagePart[], b: CherryMessagePart[]): bool
   return true
 }
 
-function appendTranslation(
-  parts: CherryMessagePart[],
-  trEntry: TranslationOverlayEntry | undefined
-): CherryMessagePart[] {
-  if (!trEntry) return parts
-  const filtered = parts.filter((part) => part.type !== 'data-translation')
-  const translationPart = {
-    type: 'data-translation',
-    data: {
-      content: trEntry.content,
-      targetLanguage: trEntry.targetLanguage,
-      ...(trEntry.sourceLanguage && { sourceLanguage: trEntry.sourceLanguage })
-    }
-  } as CherryMessagePart
-  return [...filtered, translationPart]
-}
-
 export function useStableMessagePartsLayers(
   messages: CherryUIMessage[],
-  overlay: Record<string, CherryMessagePart[]>,
-  translationOverlay: Record<string, TranslationOverlayEntry>
+  overlay: Record<string, CherryMessagePart[]>
 ): StableMessagePartsLayers {
   const cacheRef = useRef<StableMessagePartsLayersCache>({
     messageCount: 0,
@@ -118,20 +98,16 @@ export function useStableMessagePartsLayers(
 
     for (const message of messages) {
       const baseParts = (message.parts ?? []) as CherryMessagePart[]
-      const translation = translationOverlay[message.id]
-      const historyCandidate = appendTranslation(baseParts, translation)
       const previousHistoryParts = previousHistory[message.id]
       const historyParts =
-        previousHistoryParts && partsContentEqual(previousHistoryParts, historyCandidate)
-          ? previousHistoryParts
-          : historyCandidate
+        previousHistoryParts && partsContentEqual(previousHistoryParts, baseParts) ? previousHistoryParts : baseParts
       nextHistory[message.id] = historyParts
       historyChanged ||= historyParts !== previousHistoryParts
 
       const executionParts = overlay[message.id]
       const usesExecutionOverlay = executionParts !== undefined && executionParts.length > 0
       hasExecutionOverlay ||= usesExecutionOverlay
-      const currentCandidate = usesExecutionOverlay ? appendTranslation(executionParts, translation) : historyParts
+      const currentCandidate = usesExecutionOverlay ? executionParts : historyParts
       const previousCurrentParts = previousCurrent[message.id]
       const currentParts =
         previousCurrentParts && partsContentEqual(previousCurrentParts, currentCandidate)
@@ -144,12 +120,11 @@ export function useStableMessagePartsLayers(
     for (const [messageId, executionParts] of Object.entries(overlay)) {
       if (messageId in nextCurrent || executionParts.length === 0) continue
       hasExecutionOverlay = true
-      const currentCandidate = appendTranslation(executionParts, translationOverlay[messageId])
       const previousCurrentParts = previousCurrent[messageId]
       const currentParts =
-        previousCurrentParts && partsContentEqual(previousCurrentParts, currentCandidate)
+        previousCurrentParts && partsContentEqual(previousCurrentParts, executionParts)
           ? previousCurrentParts
-          : currentCandidate
+          : executionParts
       nextCurrent[messageId] = currentParts
       currentChanged ||= currentParts !== previousCurrentParts
     }
@@ -182,13 +157,12 @@ export function useStableMessagePartsLayers(
     const value = { historyPartsByMessageId, partsByMessageId }
     cacheRef.current = { messageCount: messages.length, value }
     return value
-  }, [messages, overlay, translationOverlay])
+  }, [messages, overlay])
 }
 
 export function useStablePartsByMessageId(
   messages: CherryUIMessage[],
-  overlay: Record<string, CherryMessagePart[]>,
-  translationOverlay: Record<string, TranslationOverlayEntry>
+  overlay: Record<string, CherryMessagePart[]>
 ): Record<string, CherryMessagePart[]> {
-  return useStableMessagePartsLayers(messages, overlay, translationOverlay).partsByMessageId
+  return useStableMessagePartsLayers(messages, overlay).partsByMessageId
 }

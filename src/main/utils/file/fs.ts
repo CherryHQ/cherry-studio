@@ -30,6 +30,7 @@ import { createReadStream, createWriteStream as nodeCreateWriteStream } from 'no
 import {
   access,
   constants,
+  copyFile as fsCopyFile,
   type FileHandle,
   lstat as fsLstat,
   mkdir as fsMkdirPromise,
@@ -751,6 +752,17 @@ export async function realpath(target: AbsoluteFilePath): Promise<AbsoluteFilePa
 export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal?: AbortSignal): Promise<void> {
   const prepared = await prepareAtomicCopyStream(src, dest, signal)
   await prepared.commit()
+}
+
+/**
+ * Copy a file to a destination that must not exist yet — an existing name,
+ * including a (dangling) symlink, rejects with `EEXIST` instead of being
+ * overwritten. Unlike {@link copy} this is not atomic: a crash mid-copy can
+ * leave a partial `dest`, acceptable only for callers whose destination names
+ * are fresh and disposable.
+ */
+export async function copyNew(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
+  await fsCopyFile(src, dest, constants.COPYFILE_EXCL)
 }
 
 /**
