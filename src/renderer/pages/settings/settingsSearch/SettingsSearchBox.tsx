@@ -43,6 +43,8 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   // One leave per clear: Escape and the debounced empty-pass both want to
   // leave; a second navigation would overwrite the panel back() returns to
   const leaveInFlightRef = useRef(false)
+  // Debounce handle kept reachable so Enter can flush the navigation early
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Navigation that does not end on the search page (menu click, result jump)
   // drops pending keystrokes — else the debounce timer hijacks the trip later
@@ -126,7 +128,7 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     // Typing again abandons any leave still in flight
     leaveInFlightRef.current = false
 
-    const handle = setTimeout(() => {
+    debounceRef.current = setTimeout(() => {
       void navigate({
         to: '/settings/search',
         search: { q: trimmed },
@@ -134,7 +136,9 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
       })
       hasPushedRef.current = true
     }, SEARCH_DEBOUNCE_MS)
-    return () => clearTimeout(handle)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [value, navigate, isSearchPage, router, performLeave])
 
   // Expands horizontally over the header row at the standing box's width
@@ -160,7 +164,10 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
           // live query so Enter never jumps on stale (pre-keystroke) results
           setLiveQuery(e.target.value)
         }}
-        onClear={exitSearch}
+        onClear={() => {
+          exitSearch()
+          if (!isSearchPage) onCollapse()
+        }}
         clearLabel={t('common.clear')}
         onBlur={() => {
           if (!value && !isSearchPage) onCollapse()
@@ -174,11 +181,24 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
             moveActiveIndex(-1)
           } else if (e.key === 'Enter') {
             e.preventDefault()
-            requestJump()
+            if (isSearchPage) {
+              requestJump()
+            } else if (value.trim()) {
+              // Enter before the debounce lands must still respond: off the
+              // search page the results list is not mounted, so flush the
+              // navigation instead of jumping blind (second Enter jumps)
+              if (debounceRef.current) clearTimeout(debounceRef.current)
+              void navigate({
+                to: '/settings/search',
+                search: { q: value.trim() },
+                replace: hasPushedRef.current
+              })
+              hasPushedRef.current = true
+            }
           } else if (e.key === 'Escape') {
             e.preventDefault()
             exitSearch()
-            if (!value && !isSearchPage) onCollapse()
+            if (!isSearchPage) onCollapse()
           }
         }}
       />

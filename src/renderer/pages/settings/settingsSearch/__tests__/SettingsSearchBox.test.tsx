@@ -29,6 +29,7 @@ vi.mock('@cherrystudio/ui', () => ({
     onChange,
     onKeyDown,
     onBlur,
+    onClear,
     'aria-controls': ariaControls,
     'aria-activedescendant': ariaActivedescendant
   }: {
@@ -36,18 +37,22 @@ vi.mock('@cherrystudio/ui', () => ({
     onChange: (e: { target: { value: string } }) => void
     onKeyDown: (e: { key: string; preventDefault: () => void }) => void
     onBlur?: () => void
+    onClear?: () => void
     'aria-controls'?: string
     'aria-activedescendant'?: string
   }) => (
-    <input
-      data-testid="search-input"
-      value={value}
-      onChange={onChange}
-      onKeyDown={onKeyDown}
-      onBlur={onBlur}
-      aria-controls={ariaControls}
-      aria-activedescendant={ariaActivedescendant}
-    />
+    <div>
+      <input
+        data-testid="search-input"
+        value={value}
+        onChange={onChange}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+        aria-controls={ariaControls}
+        aria-activedescendant={ariaActivedescendant}
+      />
+      {value && onClear ? <button type="button" data-testid="clear-btn" onClick={onClear} /> : null}
+    </div>
   )
 }))
 
@@ -87,6 +92,35 @@ describe('SettingsSearchBox', () => {
     locationMock.pathname = '/settings/general'
     searchMock.q = undefined
     view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
+
+    expect(onCollapseMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('flushes navigation to the results on Enter off the search page', async () => {
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId('search-input')
+
+    // Type and press Enter within the debounce window: the results list is
+    // not mounted off the search page, so Enter must navigate now, not no-op
+    fireEvent.change(input, { target: { value: 'pro' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(navigateMock).toHaveBeenCalledTimes(1)
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/settings/search', search: { q: 'pro' }, replace: false })
+    )
+
+    // The flushed debounce timer must not fire a second navigation later
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(navigateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('collapses when the user clears a typed query off the search page', () => {
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId('search-input')
+
+    fireEvent.change(input, { target: { value: 'pro' } })
+    fireEvent.click(screen.getByTestId('clear-btn'))
 
     expect(onCollapseMock).toHaveBeenCalledTimes(1)
   })
