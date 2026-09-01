@@ -1,4 +1,4 @@
-import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { capabilityHooksFor } from '../capabilityHooks'
@@ -16,6 +16,11 @@ describe('OCR capability removal', () => {
 
     await capabilityHooksFor('ocr').afterRemove?.()
 
+    expect(MockMainPreferenceServiceExport.preferenceService.setMultiple).toHaveBeenCalledWith({
+      'feature.file_processing.default_image_to_text': null,
+      'feature.file_processing.default_document_to_markdown': null
+    })
+    expect(MockMainPreferenceServiceExport.preferenceService.set).not.toHaveBeenCalled()
     expect(
       MockMainPreferenceServiceUtils.getPreferenceValue('feature.file_processing.default_image_to_text')
     ).toBeNull()

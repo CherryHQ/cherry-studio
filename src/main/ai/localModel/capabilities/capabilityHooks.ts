@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
+import type { UnifiedPreferenceType } from '@shared/data/preference/preferenceTypes'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelCapability } from '@shared/data/presets/localModel'
 
@@ -26,14 +27,16 @@ export function capabilityHooksFor(capability: LocalModelCapability): Capability
 async function demoteOcrDefaults(): Promise<void> {
   try {
     const preference = application.get('PreferenceService')
-    const updates: Promise<void>[] = []
+    const updates: Partial<UnifiedPreferenceType> = {}
     if (preference.get('feature.file_processing.default_image_to_text') === 'local-paddleocr') {
-      updates.push(preference.set('feature.file_processing.default_image_to_text', null))
+      updates['feature.file_processing.default_image_to_text'] = null
     }
     if (preference.get('feature.file_processing.default_document_to_markdown') === 'local-document') {
-      updates.push(preference.set('feature.file_processing.default_document_to_markdown', null))
+      updates['feature.file_processing.default_document_to_markdown'] = null
     }
-    await Promise.all(updates)
+    if (Object.keys(updates).length > 0) {
+      await preference.setMultiple(updates)
+    }
   } catch (error) {
     logger.warn('failed to reset default processors on OCR model removal', { error: String(error) })
   }

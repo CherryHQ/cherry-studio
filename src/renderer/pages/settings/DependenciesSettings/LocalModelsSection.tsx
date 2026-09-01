@@ -73,11 +73,12 @@ function useLocalModelCard(id: LocalModelBundleId) {
   return {
     ...localModel,
     notice:
-      localModel.status === 'error'
+      notice ??
+      (localModel.status === 'error'
         ? localModel.errorCode === 'incomplete_cache'
           ? 'incompleteCache'
           : 'downloadFailed'
-        : notice,
+        : null),
     download,
     remove
   }
