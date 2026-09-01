@@ -35,8 +35,17 @@ function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): Bran
       return [{ ...item, ...(item.siblingsGroup ? { siblingsGroup } : {}) }]
     }
 
-    const [message, ...remainingSiblings] = siblingsGroup
-    return message ? [{ message, ...(remainingSiblings.length > 0 ? { siblingsGroup: remainingSiblings } : {}) }] : []
+    if (item.message.role !== 'assistant' || item.message.siblingsGroupId === 0 || siblingsGroup.length === 0) {
+      return []
+    }
+
+    const message = siblingsGroup.reduce((newest, sibling) =>
+      sibling.createdAt > newest.createdAt || (sibling.createdAt === newest.createdAt && sibling.id > newest.id)
+        ? sibling
+        : newest
+    )
+    const remainingSiblings = siblingsGroup.filter((sibling) => sibling.id !== message.id)
+    return [{ message, ...(remainingSiblings.length > 0 ? { siblingsGroup: remainingSiblings } : {}) }]
   })
 }
 

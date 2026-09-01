@@ -1935,7 +1935,8 @@ export class MessageService {
    *
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
-   * - 'parent' (default): Sets activeNodeId to the deleted message's parent
+   * - 'parent' (default): Promotes the newest surviving grouped assistant reply,
+   *   otherwise sets activeNodeId to the deleted message's parent
    * - 'clear': Sets activeNodeId to null
    *
    * All operations are performed within a transaction for consistency.

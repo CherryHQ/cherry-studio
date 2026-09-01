@@ -272,7 +272,8 @@ export type MessageSchemas = {
      * Delete a message
      * - cascade=true: deletes message and all descendants
      * - cascade=false: reparents children to grandparent
-     * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
+     * - activeNodeStrategy='parent' (default): promotes the newest surviving grouped assistant reply,
+     *   otherwise sets activeNodeId to parent if affected
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
      * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */
