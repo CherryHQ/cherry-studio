@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
+    appEdition: 'global',
     allApps: mocks.allApps,
     miniApps: mocks.apps,
     pinned: mocks.pinned,

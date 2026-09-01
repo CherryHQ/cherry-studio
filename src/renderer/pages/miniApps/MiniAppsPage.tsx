@@ -29,7 +29,7 @@ const MiniAppsPage: FC = () => {
   // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
-  const { allApps, miniApps, isLoading, error } = useMiniApps()
+  const { appEdition, allApps, miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
   // EVERY row, not `miniApps`: a disabled official app is still installed.
   const builtinApps = useBuiltinMiniApps(allApps, i18n.language)
@@ -160,7 +160,7 @@ const MiniAppsPage: FC = () => {
           {/* Generous gap so the two groups read as distinct, not as one list. */}
           <div className="flex flex-col gap-8">
             <MiniAppListPair {...visibility} />
-            <MiniAppDisplaySettings />
+            <MiniAppDisplaySettings appEdition={appEdition} />
           </div>
         </MiniAppSettingsPanel>
         <NewMiniAppPanel open={newAppOpen || editingApp != null} app={editingApp} onClose={closeCustomAppPanel} />

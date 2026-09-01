@@ -9,6 +9,7 @@ import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { appInfoService } from '@renderer/services/AppInfoService'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -152,6 +153,7 @@ async function settleAndInvalidate(
 
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
+  const appEdition = appInfoService.get().edition
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const { i18n: i18nInstance } = useTranslation()
   const language = i18nInstance.language
@@ -185,15 +187,17 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const [detectedRegion, setDetectedRegion] = useCache('mini_app.detected_region')
 
   const effectiveRegion: MiniAppRegion =
-    miniAppRegionSetting === 'auto'
-      ? (detectedRegion ?? 'CN')
-      : miniAppRegionSetting === 'CN' || miniAppRegionSetting === 'Global'
-        ? miniAppRegionSetting
-        : 'CN'
+    appEdition === 'cn'
+      ? 'CN'
+      : miniAppRegionSetting === 'auto'
+        ? (detectedRegion ?? 'CN')
+        : miniAppRegionSetting === 'CN' || miniAppRegionSetting === 'Global'
+          ? miniAppRegionSetting
+          : 'CN'
 
   // Auto-detect region once per session
   useEffect(() => {
-    if (!queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
+    if (appEdition === 'cn' || !queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
     let cancelled = false
     detectUserRegion()
       .then((region) => {
@@ -211,7 +215,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     return () => {
       cancelled = true
     }
-  }, [detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
+  }, [appEdition, detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
@@ -520,6 +524,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   )
 
   return {
+    appEdition,
     allApps,
     miniApps,
     disabled: disabledApps,

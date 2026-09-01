@@ -15,6 +15,10 @@ vi.mock('@renderer/utils/webviewStateManager', () => ({
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
+vi.mock('@renderer/services/AppInfoService', () => ({
+  appInfoService: { get: () => ({ edition: 'global' }) }
+}))
+
 // TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find
 // pinned miniapp route tabs that are exempt from keep-alive eviction. The test
 // surface here defaults to "no pinned tabs"; individual tests override this.
