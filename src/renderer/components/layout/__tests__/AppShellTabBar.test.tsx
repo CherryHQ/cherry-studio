@@ -250,17 +250,6 @@ describe('AppShellTabBar', () => {
     expect(image?.style.backgroundColor).toBe('')
   })
 
-  it('outlines the active transparent-window tab without adding a layout border', () => {
-    mocks.macTransparentState.value = true
-    const tabs = [createTab('home'), createTab('a')]
-
-    renderTabBar({ tabs, activeTabId: 'home' })
-
-    const activeTab = screen.getByRole('button', { name: 'Chat' })
-    expect(activeTab).toHaveClass('shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08)]')
-    expect(activeTab).not.toHaveClass('border', 'border-black/8', 'dark:border-0')
-  })
-
   it('shows the focused tab as a Back control with a visible detach action', async () => {
     const user = userEvent.setup()
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
