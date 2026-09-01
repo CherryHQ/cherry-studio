@@ -1,0 +1,2 @@
+{"level":"error","message":"TypeError: fetch failed","stack":"TypeError: fetch failed\n    at node:internal/deps/undici/undici:12500:11","timestamp":"2026-08-20 13:00:00"}
+{"level":"error","message":"Check model timeout: request aborted after 30000ms ETIMEDOUT","module":"HealthCheck","process":"main","timestamp":"2026-08-20 13:01:00"}

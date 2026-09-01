@@ -1,6 +1,20 @@
 import { openaiCompatible } from './_api'
 import { defineCreator } from './types'
 
+// The catalog can represent one static price only. Use DeepSeek's documented
+// peak ceiling so cost estimates never understate first-party billing.
+const v4FlashPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.014 },
+  input: { currency: 'USD' as const, perMillionTokens: 0.44 },
+  output: { currency: 'USD' as const, perMillionTokens: 1.32 }
+}
+
+const v4ProPeakPricing = {
+  cacheRead: { currency: 'USD' as const, perMillionTokens: 0.044 },
+  input: { currency: 'USD' as const, perMillionTokens: 1.32 },
+  output: { currency: 'USD' as const, perMillionTokens: 3.96 }
+}
+
 export default defineCreator({
   id: 'deepseek',
   name: 'DeepSeek',
@@ -17,6 +31,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text'],
       outputModalities: ['text'],
+      pricing: v4FlashPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },
     {
@@ -28,6 +44,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text', 'image'],
       outputModalities: ['text'],
+      pricing: v4FlashPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     },
     {
@@ -39,6 +57,8 @@ export default defineCreator({
       maxOutputTokens: 393216,
       inputModalities: ['text'],
       outputModalities: ['text'],
+      pricing: v4ProPeakPricing,
+      reasoning: { controls: [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }] },
       openWeights: true
     }
   ],
