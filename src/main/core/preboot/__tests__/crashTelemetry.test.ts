@@ -92,6 +92,50 @@ describe('initCrashTelemetry', () => {
     expect(typeof webContentsCall?.[1]).toBe('function')
   })
 
+  it('leaves a session alone when its owner installs its own header policy', async () => {
+    // The bug this guards: Electron keeps ONE `onHeadersReceived` per session, so this pass
+    // registering on every web contents does not ADD to a session's policy, it replaces it.
+    // A mini app's guest attaches after its session is configured, so the module that just
+    // installed the app's CSP re-delivery would silently lose the slot to this one.
+    stubConstants({ isDev: false })
+    stubElectron()
+    const { markSelfHardenedSession } = await import('@main/core/security/selfHardenedSessions')
+
+    const { initCrashTelemetry } = await loadModule()
+    initCrashTelemetry()
+
+    const webContentsCall = appOnMock.mock.calls.find(([event]) => event === 'web-contents-created')
+    const onHeadersReceived = vi.fn()
+    const ownedSession = { webRequest: { onHeadersReceived } }
+    markSelfHardenedSession(ownedSession as never)
+    webContentsCall?.[1]({}, { mainFrame: { collectJavaScriptCallStack: vi.fn() }, on: vi.fn(), session: ownedSession })
+
+    expect(onHeadersReceived).not.toHaveBeenCalled()
+  })
+
+  it('still claims the slot on a session nobody else owns', async () => {
+    // The negative control: without this the case above passes just as well if the pass
+    // stopped registering anywhere at all.
+    stubConstants({ isDev: false })
+    stubElectron()
+
+    const { initCrashTelemetry } = await loadModule()
+    initCrashTelemetry()
+
+    const webContentsCall = appOnMock.mock.calls.find(([event]) => event === 'web-contents-created')
+    const onHeadersReceived = vi.fn()
+    webContentsCall?.[1](
+      {},
+      {
+        mainFrame: { collectJavaScriptCallStack: vi.fn() },
+        on: vi.fn(),
+        session: { webRequest: { onHeadersReceived } }
+      }
+    )
+
+    expect(onHeadersReceived).toHaveBeenCalled()
+  })
+
   it('removes response headers that Electron net.fetch cannot convert to ByteString', async () => {
     stubConstants({ isDev: false })
     stubElectron()

@@ -24,7 +24,12 @@
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
-import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
+import {
+  CITATION_MARKER_PATTERN,
+  mapCitationMarksToTags,
+  mapMarkdownOutsideCode,
+  normalizeCitationMarks
+} from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
   CITATION_SNIPPET_MAX_CHARS,
@@ -466,20 +471,13 @@ export function resolveCitationMarkers(content: string, citations: MessageCitati
 }
 
 /**
- * A `[cite:id]` marker together with the space that separates it from the
- * preceding sentence, so a dropped marker takes that space with it instead of
- * leaving `Claim .` behind.
- */
-const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
-
-/**
  * Export / copy view: every resolved `[cite:id]` marker becomes a plain `[N]`,
  * and an id that resolves to nothing is dropped — an internal marker must never
  * escape into exported text or the clipboard. Also returns the cited sources in
  * display order so the caller can render a sources list.
  *
- * Rendering deliberately leaves an unresolved id visible (it is a model mistake
- * worth seeing on screen); an export is a finished document, so it is removed.
+ * Rendering drops unresolved ids too (`mapCitationMarksToTags`), so screen,
+ * export and clipboard agree that the internal id never reaches the user.
  */
 export function toExportableCitations(
   content: string,

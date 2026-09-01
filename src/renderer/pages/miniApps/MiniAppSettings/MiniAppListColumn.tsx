@@ -72,7 +72,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                      * custom rows carry a main-resolved image URL on `app.logoSrc` —
                      * MiniAppLogoAvatar branches between the brand icon and the image.
                      */}
-                    <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} />
+                    <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={16} alt="" />
                     <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-foreground-tertiary"

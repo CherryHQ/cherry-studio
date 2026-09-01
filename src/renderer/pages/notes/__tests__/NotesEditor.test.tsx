@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -143,5 +144,67 @@ describe('NotesEditor focus behavior', () => {
 
     await screen.findByTestId('rich-editor')
     expect(screen.getByRole('button', { name: 'notes.spell_check_tooltip' })).toBeInTheDocument()
+  })
+})
+
+describe('NotesEditor empty state', () => {
+  const emptyEditorProps = {
+    currentContent: '',
+    tokenCount: 0,
+    editorRef: { current: null },
+    codeEditorRef: { current: null },
+    onMarkdownChange: vi.fn()
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('exposes the canonical create-note action when no note is selected', async () => {
+    const user = userEvent.setup()
+    const onCreateNote = vi.fn()
+
+    render(<NotesEditor {...emptyEditorProps} onCreateNote={onCreateNote} />)
+
+    expect(screen.getByText('notes.empty')).toBeInTheDocument()
+    const createButton = screen.getByRole('button', { name: 'notes.new_note' })
+    await user.click(createButton)
+
+    expect(onCreateNote).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not expose a create-note action while a note is open', async () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/example.md"
+        currentContent="note"
+        tokenCount={4}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+        onCreateNote={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('rich-editor')
+    expect(screen.queryByRole('button', { name: 'notes.new_note' })).not.toBeInTheDocument()
+  })
+
+  it('does not expose a create-note action on a load error', () => {
+    render(
+      <NotesEditor
+        activeNodeId="/notes/example.md"
+        currentContent=""
+        contentLoadError={new Error('read failed')}
+        tokenCount={0}
+        editorRef={{ current: null }}
+        codeEditorRef={{ current: null }}
+        onMarkdownChange={vi.fn()}
+        onCreateNote={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('notes.load_failed')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'notes.new_note' })).not.toBeInTheDocument()
   })
 })
