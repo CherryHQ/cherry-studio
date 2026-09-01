@@ -380,6 +380,13 @@ describe('PaintingComposer', () => {
     expect(paramsButton()).toHaveTextContent('800×600')
   })
 
+  it('does not preview invalid custom dimensions', () => {
+    renderComposer({
+      painting: makePainting({ params: { size: 'custom', customSize_width: 0, customSize_height: 600 } })
+    })
+    expect(paramsButton()).not.toHaveTextContent('0×600')
+  })
+
   it('previews count, quality and background alongside size', () => {
     renderComposer({ painting: makePainting({ params: { numImages: 6, quality: 'low', background: 'auto' } }) })
     const button = paramsButton()
@@ -388,6 +395,23 @@ describe('PaintingComposer', () => {
     // i18next has no instance in tests, so option labels fall back to their keys.
     expect(button).toHaveTextContent('paintings.quality_options.low')
     expect(button).toHaveTextContent('paintings.background_options.auto')
+  })
+
+  it('previews the typed slider fallback for a malformed stored value', () => {
+    renderComposer({ painting: makePainting({ params: { numImages: true } }) })
+    const summaryParts = paramsButton().textContent?.split(' · ') ?? []
+    expect(summaryParts).toContain('1')
+    expect(summaryParts).not.toContain('true')
+  })
+
+  it('uses typed catalog fallbacks for wrong-typed option and integer values', () => {
+    renderComposer({ painting: makePainting({ params: { size: true, numImages: '2.5' } }) })
+    const summaryParts = paramsButton().textContent?.split(' · ') ?? []
+
+    expect(summaryParts).toContain('1024×1024')
+    expect(summaryParts).toContain('1')
+    expect(summaryParts).not.toContain('true')
+    expect(summaryParts).not.toContain('2.5')
   })
 
   it('folds the summary into the params button accessible name', () => {
