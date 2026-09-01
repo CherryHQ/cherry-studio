@@ -200,9 +200,8 @@ export function encodeReasoningInvocation(invocation: ResolvedReasoningInvocatio
 }
 
 /** Whether a wire emission is delivered via raw request body rather than providerOptions. */
-export function isRequestBodyTarget(target: ReasoningWireTarget, delivery?: ReasoningWireDelivery): boolean {
-  if (delivery) return delivery === 'request-body'
-  return target.startsWith('chat_template_kwargs.')
+export function isRequestBodyTarget(_target: ReasoningWireTarget, delivery?: ReasoningWireDelivery): boolean {
+  return delivery === 'request-body'
 }
 
 function isBodyEmission(emission: ResolvedReasoningEmission): boolean {
