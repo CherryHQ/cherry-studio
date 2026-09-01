@@ -29,6 +29,8 @@ vi.mock('@application', async () => {
 // Only the shared-artifact leaf is stubbed: the storage service above it — path resolution and
 // the on-disk scan that decides every status — stays real, against a temp directory.
 vi.mock('../../acquisition/tarballArtifact', () => ({
+  artifactRegistryOrder: (preference: 'china-first' | 'global-first') =>
+    preference === 'china-first' ? ['npmmirror', 'npmjs'] : ['npmjs', 'npmmirror'],
   isArtifactInstalled: artifactInstalled,
   installArtifact,
   artifactEntryPath: () => '/binding.node',
@@ -43,7 +45,6 @@ vi.mock('../../catalog/types', async (importOriginal) => {
   return { ...actual, currentPlatformKey: () => 'darwin-arm64' }
 })
 
-const { application } = await import('@application')
 const { BundleInstaller } = await import('../BundleInstaller')
 
 const FILES: CatalogTypesModule.BundleFile[] = [
@@ -77,19 +78,27 @@ const BUNDLE: CatalogTypesModule.ModelBundle = {
 }
 
 const INSTALL_SUBDIR = 'org/model'
+const GLOBAL_FIRST = async () => 'global-first' as const
 
 let terminateRuntimeThen: ReturnType<typeof vi.fn>
 let acquireRemovalGuard: ReturnType<typeof vi.fn>
 let releaseRemovalGuard: ReturnType<typeof vi.fn>
 let afterRemove: ReturnType<typeof vi.fn>
+let publishStatus: ReturnType<typeof vi.fn>
+let finalizeSharedArtifacts: ReturnType<typeof vi.fn>
 let manager: InstanceType<typeof BundleInstaller>
 
 function newManager() {
-  return new BundleInstaller(BUNDLE, {
-    acquireRemovalGuard,
-    terminateRuntimeThen,
-    afterRemove
-  })
+  return new BundleInstaller(
+    BUNDLE,
+    {
+      acquireRemovalGuard,
+      terminateRuntimeThen,
+      afterRemove
+    },
+    publishStatus,
+    finalizeSharedArtifacts
+  )
 }
 
 function writeFiles(...relPaths: string[]): void {
@@ -104,11 +113,8 @@ function installComplete(): void {
   writeFiles('config.json', 'onnx/model.onnx')
 }
 
-function broadcasts(): Array<{ status: string; percent: number; errorCode?: string }> {
-  return vi
-    .mocked(application.get('IpcApiService').broadcast)
-    .mock.calls.filter(([channel]) => channel === 'local_model.download_progress')
-    .map(([, payload]) => payload as { status: string; percent: number; errorCode?: string })
+function statusUpdates(): Array<{ status: string; percent: number; errorCode?: string }> {
+  return publishStatus.mock.calls.map(([snapshot]) => snapshot)
 }
 
 beforeEach(() => {
@@ -117,6 +123,8 @@ beforeEach(() => {
   releaseRemovalGuard = vi.fn()
   acquireRemovalGuard = vi.fn(() => releaseRemovalGuard)
   afterRemove = vi.fn(async () => {})
+  publishStatus = vi.fn()
+  finalizeSharedArtifacts = vi.fn(async () => {})
   terminateRuntimeThen = vi.fn(async (after: () => Promise<unknown>) => after())
   artifactInstalled.mockReturnValue(true)
   installArtifact.mockResolvedValue(undefined)
@@ -172,7 +180,7 @@ describe('download', () => {
     // ~614MB of weights that already landed.
     writeFiles('onnx/model.onnx')
 
-    await expect(manager.download()).resolves.toBe('ready')
+    await expect(manager.download(GLOBAL_FIRST)).resolves.toBe('ready')
 
     expect(downloadBundleFiles).toHaveBeenCalledWith(
       BUNDLE,
@@ -194,19 +202,36 @@ describe('download', () => {
       installComplete()
     })
 
-    await expect(manager.download()).resolves.toBe('ready')
+    await expect(manager.download(GLOBAL_FIRST)).resolves.toBe('ready')
 
     // Two phases on one scale — a phase restarting at 0 is what snapped the bar back.
-    const percents = broadcasts().map((payload) => payload.percent)
+    const percents = statusUpdates().map((payload) => payload.percent)
     expect(percents).toEqual([...percents].sort((a, b) => a - b))
     expect(percents.at(-1)).toBe(100)
-    expect(broadcasts().at(-1)?.status).toBe('ready')
+    expect(statusUpdates().at(-1)?.status).toBe('ready')
+  })
+
+  it('includes the current progress in a status snapshot while downloading', async () => {
+    downloadBundleFiles.mockImplementation(
+      (_bundle, _files, options: { signal: AbortSignal; onProgress?: (fraction: number) => void }) =>
+        new Promise<void>((_resolve, reject) => {
+          options.onProgress?.(0.4)
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        })
+    )
+
+    const download = manager.download(GLOBAL_FIRST)
+    await vi.waitFor(() => expect(manager.getStatusSnapshot()).toEqual({ status: 'downloading', percent: 40 }))
+
+    const cancellation = manager.cancel()
+    await expect(download).resolves.toBe('cancelled')
+    await expect(cancellation).resolves.toBeUndefined()
   })
 
   it('coalesces concurrent callers into a single download', async () => {
     // The settings card and the knowledge-base entry hit the same manager; two downloads
     // would write the same files twice and double the bytes fetched.
-    const [first, second] = await Promise.all([manager.download(), manager.download()])
+    const [first, second] = await Promise.all([manager.download(GLOBAL_FIRST), manager.download(GLOBAL_FIRST)])
 
     expect(first).toBe('ready')
     expect(second).toBe('ready')
@@ -215,15 +240,85 @@ describe('download', () => {
 
   it('reports a cancel as cancelled rather than as a failure', async () => {
     downloadBundleFiles.mockImplementation((_bundle, _files, options: { signal: AbortSignal }) => {
-      manager.cancel()
+      void manager.cancel()
       return Promise.reject(options.signal.reason ?? new Error('aborted'))
     })
 
-    await expect(manager.download()).resolves.toBe('cancelled')
+    await expect(manager.download(GLOBAL_FIRST)).resolves.toBe('cancelled')
 
-    expect(broadcasts().some((payload) => payload.status === 'error')).toBe(false)
-    expect(broadcasts().at(-1)).toMatchObject({ status: 'not_downloaded', percent: 0 })
+    expect(statusUpdates().some((payload) => payload.status === 'error')).toBe(false)
+    expect(statusUpdates().at(-1)).toMatchObject({ status: 'not_downloaded', percent: 0 })
     expect(manager.getStatus()).toBe('not_downloaded')
+  })
+
+  it('can cancel while the mirror region decision is pending', async () => {
+    let resolveRegion: ((value: 'china-first') => void) | undefined
+    const regionDecision = new Promise<'china-first'>((resolve) => {
+      resolveRegion = resolve
+    })
+
+    const download = manager.download(() => regionDecision)
+    expect(statusUpdates()).toEqual([{ status: 'downloading', percent: 0 }])
+    const cancellation = manager.cancel()
+    await expect(download).resolves.toBe('cancelled')
+    await expect(cancellation).resolves.toBeUndefined()
+    expect(downloadBundleFiles).not.toHaveBeenCalled()
+    resolveRegion?.('china-first')
+  })
+
+  it('keeps a failed attempt draining until cleanup finishes, then starts a fresh retry', async () => {
+    let finishCleanup: (() => void) | undefined
+    downloadBundleFiles.mockRejectedValueOnce(new Error('download failed'))
+    finalizeSharedArtifacts.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCleanup = resolve
+        })
+    )
+
+    const first = manager.download(GLOBAL_FIRST)
+    void first.catch(() => {})
+    await vi.waitFor(() => expect(finishCleanup).toBeDefined())
+    expect(manager.getStatus()).toBe('downloading')
+    expect(statusUpdates().some((payload) => payload.status === 'error')).toBe(false)
+
+    const retry = manager.download(GLOBAL_FIRST)
+    expect(downloadBundleFiles).toHaveBeenCalledOnce()
+    finishCleanup?.()
+
+    await expect(first).rejects.toThrow('download failed')
+    await expect(retry).resolves.toBe('ready')
+    expect(downloadBundleFiles).toHaveBeenCalledTimes(2)
+    expect(statusUpdates().at(-1)?.status).toBe('ready')
+  })
+
+  it('starts a fresh retry after a cancelled attempt finishes cleanup', async () => {
+    let finishCleanup: (() => void) | undefined
+    downloadBundleFiles.mockImplementationOnce(
+      (_bundle, _files, options: { signal: AbortSignal }) =>
+        new Promise<void>((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        })
+    )
+    finalizeSharedArtifacts.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCleanup = resolve
+        })
+    )
+
+    const first = manager.download(GLOBAL_FIRST)
+    await vi.waitFor(() => expect(downloadBundleFiles).toHaveBeenCalledOnce())
+    const cancellation = manager.cancel()
+    const retry = manager.download(GLOBAL_FIRST)
+    await vi.waitFor(() => expect(finishCleanup).toBeDefined())
+    expect(downloadBundleFiles).toHaveBeenCalledOnce()
+
+    finishCleanup?.()
+    await expect(first).resolves.toBe('cancelled')
+    await expect(cancellation).resolves.toBeUndefined()
+    await expect(retry).resolves.toBe('ready')
+    expect(downloadBundleFiles).toHaveBeenCalledTimes(2)
   })
 
   it('keeps a complete model on disk when the runtime-only repair fails', async () => {
@@ -233,7 +328,7 @@ describe('download', () => {
     artifactInstalled.mockReturnValue(false)
     installArtifact.mockRejectedValueOnce(new Error('every registry mirror failed'))
 
-    await expect(manager.download()).rejects.toThrow('every registry mirror failed')
+    await expect(manager.download(GLOBAL_FIRST)).rejects.toThrow('every registry mirror failed')
 
     expect(downloadBundleFiles).not.toHaveBeenCalled()
     expect(readdirSync(path.join(rootDir, INSTALL_SUBDIR))).toContain('config.json')
@@ -243,7 +338,7 @@ describe('download', () => {
     installComplete()
     artifactInstalled.mockReturnValue(false)
     installArtifact.mockRejectedValueOnce(new Error('every registry mirror failed'))
-    await expect(manager.download()).rejects.toThrow()
+    await expect(manager.download(GLOBAL_FIRST)).rejects.toThrow()
     expect(manager.getStatusInfo()).toEqual({ status: 'error', errorCode: 'download_failed' })
 
     // A fresh manager stands in for an app restart, which clears the in-memory
@@ -276,6 +371,24 @@ describe('remove', () => {
     // The whole root, so no empty `org/` parent chain survives the removal.
     expect(existsSync(rootDir)).toBe(false)
     expect(releaseRemovalGuard).toHaveBeenCalledOnce()
+    expect(statusUpdates().at(-1)).toMatchObject({ status: 'not_downloaded', percent: 0 })
+  })
+
+  it('cancels and settles an active download before deleting its files', async () => {
+    downloadBundleFiles.mockImplementation(
+      (_bundle, _files, options: { signal: AbortSignal }) =>
+        new Promise<void>((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })
+        })
+    )
+    const download = manager.download(GLOBAL_FIRST)
+    await vi.waitFor(() => expect(downloadBundleFiles).toHaveBeenCalledOnce())
+
+    const removal = manager.remove()
+
+    await expect(download).resolves.toBe('cancelled')
+    await expect(removal).resolves.toEqual({ removed: true })
+    expect(existsSync(rootDir)).toBe(false)
   })
 
   it('holds the removal guard until the deletion actually completes', async () => {
@@ -292,6 +405,7 @@ describe('remove', () => {
     const pending = manager.remove()
     await vi.waitFor(() => expect(finishDeletion).toBeDefined())
     expect(releaseRemovalGuard).not.toHaveBeenCalled()
+    await expect(manager.download(GLOBAL_FIRST)).rejects.toThrow(/being removed/)
 
     finishDeletion?.()
     await expect(pending).resolves.toEqual({ removed: true })
@@ -303,6 +417,29 @@ describe('remove', () => {
 
     await expect(manager.remove()).rejects.toThrow('disk busy')
 
+    expect(afterRemove).not.toHaveBeenCalled()
     expect(releaseRemovalGuard).toHaveBeenCalledOnce()
+  })
+
+  it('runs dependent preference cleanup only after the files are deleted', async () => {
+    installComplete()
+    const order: string[] = []
+    terminateRuntimeThen.mockImplementationOnce(async (after: () => Promise<unknown>) => {
+      await after()
+      order.push('deleted')
+    })
+    afterRemove.mockImplementationOnce(async () => {
+      order.push('preferences')
+    })
+    finalizeSharedArtifacts.mockImplementationOnce(async () => {
+      order.push('artifacts')
+    })
+    publishStatus.mockImplementationOnce(() => {
+      order.push('status')
+    })
+
+    await manager.remove()
+
+    expect(order).toEqual(['deleted', 'preferences', 'artifacts', 'status'])
   })
 })

@@ -15,9 +15,8 @@ const FAKE_TARBALL_CONTENT = Buffer.from('fake-onnxruntime-node-tarball-fixture'
 
 /** A fixture artifact pinned to the fake platform, so the suite is independent of the real
  * catalog's checksum and of the machine it runs on. */
-const { extractMock, isInChina, FIXTURE_ARTIFACT } = vi.hoisted(() => ({
+const { extractMock, FIXTURE_ARTIFACT } = vi.hoisted(() => ({
   extractMock: vi.fn(),
-  isInChina: vi.fn(),
   FIXTURE_ARTIFACT: {
     id: 'onnxruntime-node' as const,
     packageName: 'onnxruntime-node',
@@ -48,8 +47,6 @@ vi.mock('@application', async () => {
   return result
 })
 
-vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))
-
 // Not testing tar's own parsing (verified separately against the real package) — simulate
 // what a real extraction would produce: the platform's files under `cwd`.
 vi.mock('tar', () => ({ extract: extractMock }))
@@ -60,7 +57,7 @@ vi.mock('../../catalog/catalog', async (importOriginal) => {
 })
 
 const { localModelStorageService } = await import('../../installation/LocalModelStorageService')
-const { artifactEntryPath, isArtifactSupported } = await import('../tarballArtifact')
+const { artifactEntryPath, artifactRegistryOrder, isArtifactSupported } = await import('../tarballArtifact')
 
 /** A `net.fetch` Response shell streaming `content`. */
 function tarballResponse(content: Buffer) {
@@ -76,8 +73,10 @@ function tarballResponse(content: Buffer) {
   }
 }
 
-const ensure = (signal = new AbortController().signal) =>
-  localModelStorageService.ensureArtifact('onnxruntime-node', signal)
+const ensure = (
+  signal = new AbortController().signal,
+  registryOrder: ['npmjs' | 'npmmirror', ...Array<'npmjs' | 'npmmirror'>] = ['npmjs', 'npmmirror']
+) => localModelStorageService.ensureArtifact('onnxruntime-node', signal, undefined, registryOrder)
 const isReady = () => localModelStorageService.isArtifactReady('onnxruntime-node')
 
 describe('shared artifact acquisition', () => {
@@ -89,7 +88,6 @@ describe('shared artifact acquisition', () => {
     toolchainDir = mkdtempSync(path.join(tmpdir(), 'onnxruntime-binary-test-'))
     Object.defineProperty(process, 'platform', { value: FAKE_PLATFORM, writable: true })
     Object.defineProperty(process, 'arch', { value: FAKE_ARCH, writable: true })
-    isInChina.mockResolvedValue(false)
     vi.mocked(net.fetch).mockImplementation((async () =>
       tarballResponse(FAKE_TARBALL_CONTENT)) as unknown as typeof net.fetch)
     // Simulate a successful extraction: write the files a real `tar.extract` would.
@@ -153,20 +151,21 @@ describe('shared artifact acquisition', () => {
     expect(extractMock).toHaveBeenCalledTimes(1)
   })
 
-  it('tries the region-default mirror first: npmjs when not in China', async () => {
-    isInChina.mockResolvedValue(false)
-
+  it('tries npmjs first when requested', async () => {
     await ensure()
 
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toContain('registry.npmjs.org')
   })
 
-  it('tries npmmirror.com first when the region signal reports China', async () => {
-    isInChina.mockResolvedValue(true)
-
-    await ensure()
+  it('tries npmmirror.com first when requested', async () => {
+    await ensure(new AbortController().signal, ['npmmirror', 'npmjs'])
 
     expect(vi.mocked(net.fetch).mock.calls[0][0]).toContain('registry.npmmirror.com')
+  })
+
+  it('maps source preference to registry order once', () => {
+    expect(artifactRegistryOrder('china-first')).toEqual(['npmmirror', 'npmjs'])
+    expect(artifactRegistryOrder('global-first')).toEqual(['npmjs', 'npmmirror'])
   })
 
   it('falls back to the second mirror when the first fails', async () => {
@@ -209,17 +208,17 @@ describe('shared artifact acquisition', () => {
     expect(existsSync(path.join(toolchainDir, '.tmp'))).toBe(false)
   })
 
-  describe('removeArtifact', () => {
+  describe('removeArtifactIfUnused', () => {
     it('deletes the installed binary', async () => {
       await ensure()
 
-      await localModelStorageService.removeArtifact('onnxruntime-node')
+      await localModelStorageService.removeArtifactIfUnused('onnxruntime-node')
 
       expect(isReady()).toBe(false)
     })
 
     it('is a no-op when the binary was never downloaded', async () => {
-      await expect(localModelStorageService.removeArtifact('onnxruntime-node')).resolves.toBeUndefined()
+      await expect(localModelStorageService.removeArtifactIfUnused('onnxruntime-node')).resolves.toBe(true)
     })
   })
 })

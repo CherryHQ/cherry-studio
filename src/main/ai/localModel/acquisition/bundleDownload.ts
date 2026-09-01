@@ -1,11 +1,9 @@
 import path from 'node:path'
 
-import { regionService } from '@main/services/RegionService'
-
 import type { BundleFile, ModelBundle } from '../catalog/types'
 import { applyDerivation } from './derivations'
 import { fetchTextVerified, streamToFileVerified, withMirrorFallback, writeFileAtomic } from './downloadEngine'
-import { modelSourceOrder, resolveModelFileUrl } from './modelSource'
+import { type ModelSourceId, resolveModelFileUrl } from './modelSource'
 
 /**
  * Fetching a bundle: one mirror decision for the whole run, one weighted progress bar
@@ -13,6 +11,7 @@ import { modelSourceOrder, resolveModelFileUrl } from './modelSource'
  */
 
 export interface BundleDownloadOptions {
+  sourceOrder: readonly [ModelSourceId, ...ModelSourceId[]]
   signal: AbortSignal
   /** Absolute directory the files are written under. */
   installDir: string
@@ -24,18 +23,15 @@ export interface BundleDownloadOptions {
  * Download `files` (a subset of `bundle`'s, normally the ones missing from disk) into
  * `installDir`.
  *
- * The region signal is read once for the run rather than per file: it decides mirror
- * *order* only, and files disagreeing about which mirror to try first would be strictly
- * worse than files that do not.
+ * The source order is fixed for the run, so files cannot disagree about which mirror to
+ * try first.
  */
 export async function downloadBundleFiles(
   bundle: ModelBundle,
   files: readonly BundleFile[],
   options: BundleDownloadOptions
 ): Promise<void> {
-  const { signal, installDir, onProgress } = options
-  const inChina = await regionService.isInChina().catch(() => false)
-  const sourceOrder = modelSourceOrder(inChina)
+  const { sourceOrder, signal, installDir, onProgress } = options
   const totalWeight = files.reduce((sum, file) => sum + file.weight, 0)
   let doneWeight = 0
 
@@ -66,6 +62,8 @@ async function writeBundleFile(
   // Derived files are small configs whose bytes are rewritten before they land, so
   // streaming them to disk would only write something that is not the artifact.
   const fetched = await fetchTextVerified(url, { sha256, signal })
+  signal.throwIfAborted()
   await writeFileAtomic(dest, applyDerivation(derivation, fetched))
+  signal.throwIfAborted()
   onProgress(1)
 }

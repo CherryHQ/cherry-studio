@@ -112,7 +112,7 @@ function startWorker(
   profile: LocalInferenceRuntimeProfile = DIRECTML_PROFILE
 ): Worker {
   const moduleSource = capability === 'embedding' ? embeddingWorkerSource : ocrWorkerSource
-  const spawned = new Worker(buildInferenceWorkerSource(moduleSource), { eval: true })
+  const spawned = new Worker(buildInferenceWorkerSource('', moduleSource), { eval: true })
   messages = []
   spawned.on('message', (message: InferenceResponse) => messages.push(message))
   spawned.postMessage({

@@ -5,14 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BundleFile, ModelBundle } from '../../catalog/types'
 import type * as DownloadEngineModule from '../downloadEngine'
 
-const { isInChina, streamToFileVerified, fetchTextVerified, writeFileAtomic } = vi.hoisted(() => ({
-  isInChina: vi.fn(),
+const { streamToFileVerified, fetchTextVerified, writeFileAtomic } = vi.hoisted(() => ({
   streamToFileVerified: vi.fn(),
   fetchTextVerified: vi.fn(),
   writeFileAtomic: vi.fn()
 }))
-
-vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina } }))
 
 // The mirror-fallback loop and the verified writes have their own tests; keep the real
 // loop here so URL order is what this file actually asserts.
@@ -57,12 +54,16 @@ const BUNDLE: ModelBundle = {
 const INSTALL_DIR = '/install'
 
 function options(overrides: Partial<Parameters<typeof downloadBundleFiles>[2]> = {}) {
-  return { signal: new AbortController().signal, installDir: INSTALL_DIR, ...overrides }
+  return {
+    sourceOrder: ['huggingface', 'modelscope'] as const,
+    signal: new AbortController().signal,
+    installDir: INSTALL_DIR,
+    ...overrides
+  }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  isInChina.mockResolvedValue(false)
   streamToFileVerified.mockResolvedValue(undefined)
   fetchTextVerified.mockResolvedValue(
     ['PostProcess:', '  name: CTCLabelDecode', '  character_dict:', '  - a'].join('\n')
@@ -71,7 +72,7 @@ beforeEach(() => {
 })
 
 describe('downloadBundleFiles', () => {
-  it('streams a plain file to its install path from the region-default mirror', async () => {
+  it('streams a plain file to its install path from the first requested source', async () => {
     await downloadBundleFiles(BUNDLE, [WEIGHTS], options())
 
     expect(streamToFileVerified).toHaveBeenCalledWith(
@@ -81,38 +82,18 @@ describe('downloadBundleFiles', () => {
     )
   })
 
-  it('tries ModelScope first when the region signal reports China', async () => {
-    isInChina.mockResolvedValue(true)
-
-    await downloadBundleFiles(BUNDLE, [WEIGHTS], options())
+  it('honors an explicit ModelScope-first source order', async () => {
+    await downloadBundleFiles(BUNDLE, [WEIGHTS], options({ sourceOrder: ['modelscope', 'huggingface'] }))
 
     expect(streamToFileVerified.mock.calls[0][0]).toContain('modelscope.cn')
   })
 
-  it('falls back to the other mirror when the region default is unreachable', async () => {
-    // The egress-IP region signal is a guess — a proxied China user reads as overseas and
-    // gets HuggingFace, which they often cannot reach. ModelScope must still get its turn.
+  it('falls back to the next requested source when the first is unreachable', async () => {
     streamToFileVerified.mockRejectedValueOnce(new Error('fetch failed'))
 
     await downloadBundleFiles(BUNDLE, [WEIGHTS], options())
 
     expect(streamToFileVerified.mock.calls[1][0]).toContain('modelscope.cn')
-  })
-
-  it('reads the region signal once for the whole run, not once per file', async () => {
-    // Files disagreeing about which mirror to try first would be strictly worse than
-    // files that agree, and each extra read is a network round trip on a cold cache.
-    await downloadBundleFiles(BUNDLE, [WEIGHTS, DICT], options())
-
-    expect(isInChina).toHaveBeenCalledOnce()
-  })
-
-  it('treats an unavailable region signal as overseas rather than failing the download', async () => {
-    isInChina.mockRejectedValue(new Error('probe timed out'))
-
-    await downloadBundleFiles(BUNDLE, [WEIGHTS], options())
-
-    expect(streamToFileVerified.mock.calls[0][0]).toContain('huggingface.co')
   })
 
   it('writes a derived file from its transformed bytes, not the fetched ones', async () => {

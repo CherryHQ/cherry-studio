@@ -8,6 +8,7 @@
  * what keeps them off the network entirely.
  */
 export type ModelSourceId = 'huggingface' | 'modelscope'
+export type DownloadSourcePreference = 'china-first' | 'global-first'
 
 interface ModelSource {
   /** e.g. `https://huggingface.co`. */
@@ -32,18 +33,18 @@ const SOURCES: Record<ModelSourceId, ModelSource> = {
 }
 
 /**
- * China defaults to ModelScope (HuggingFace is hard to reach in China). `inChina` is the
- * egress-IP-based signal from `regionService.isInChina()` — the same one BinaryManager uses
- * to pick binary download mirrors — not the app's display locale, which reflects language
- * preference rather than network reachability.
+ * China-first defaults to ModelScope (HuggingFace is hard to reach in China). The preference
+ * is resolved once at the management boundary from the egress region, not from display locale.
  */
-export function defaultModelSourceId(inChina: boolean): ModelSourceId {
-  return inChina ? 'modelscope' : 'huggingface'
+export function defaultModelSourceId(preference: DownloadSourcePreference): ModelSourceId {
+  return preference === 'china-first' ? 'modelscope' : 'huggingface'
 }
 
 /** A permutation of {@link ALL_MODEL_SOURCE_IDS}: the region default first, the other as fallback. */
-export function modelSourceOrder(inChina: boolean): [ModelSourceId, ...ModelSourceId[]] {
-  return defaultModelSourceId(inChina) === 'modelscope' ? ['modelscope', 'huggingface'] : ['huggingface', 'modelscope']
+export function modelSourceOrder(preference: DownloadSourcePreference): [ModelSourceId, ...ModelSourceId[]] {
+  return defaultModelSourceId(preference) === 'modelscope'
+    ? ['modelscope', 'huggingface']
+    : ['huggingface', 'modelscope']
 }
 
 /**

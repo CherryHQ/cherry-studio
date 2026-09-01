@@ -3,11 +3,11 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { regionService } from '@main/services/RegionService'
 
 import type { ArtifactPlatformFiles, SharedArtifact } from '../catalog/types'
 import { currentPlatformKey } from '../catalog/types'
 import { streamToFileVerified, withMirrorFallback } from './downloadEngine'
+import type { DownloadSourcePreference } from './modelSource'
 
 const logger = loggerService.withContext('sharedArtifactAcquisition')
 
@@ -23,6 +23,14 @@ const NPM_REGISTRIES = {
   npmjs: 'https://registry.npmjs.org',
   npmmirror: 'https://registry.npmmirror.com'
 } as const
+
+export type ArtifactRegistryId = keyof typeof NPM_REGISTRIES
+
+export function artifactRegistryOrder(
+  preference: DownloadSourcePreference
+): [ArtifactRegistryId, ...ArtifactRegistryId[]] {
+  return preference === 'china-first' ? ['npmmirror', 'npmjs'] : ['npmjs', 'npmmirror']
+}
 
 /** The platform's files, or undefined where the artifact ships none (see
  * {@link SharedArtifact.platforms}). */
@@ -62,12 +70,9 @@ export function isArtifactInstalled(artifact: SharedArtifact): boolean {
   return [platform.entryFile, ...platform.supportFiles].every((file) => fs.existsSync(path.join(dir, file)))
 }
 
-function tarballUrls(artifact: SharedArtifact, inChina: boolean): string[] {
+function tarballUrls(artifact: SharedArtifact, registryOrder: readonly ArtifactRegistryId[]): string[] {
   const { packageName, version } = artifact
-  const registries = inChina
-    ? [NPM_REGISTRIES.npmmirror, NPM_REGISTRIES.npmjs]
-    : [NPM_REGISTRIES.npmjs, NPM_REGISTRIES.npmmirror]
-  return registries.map((base) => `${base}/${packageName}/-/${packageName}-${version}.tgz`)
+  return registryOrder.map((id) => `${NPM_REGISTRIES[id]}/${packageName}/-/${packageName}-${version}.tgz`)
 }
 
 /**
@@ -78,7 +83,8 @@ function tarballUrls(artifact: SharedArtifact, inChina: boolean): string[] {
 export async function installArtifact(
   artifact: SharedArtifact,
   signal: AbortSignal,
-  onProgress?: (fraction: number) => void
+  onProgress: ((fraction: number) => void) | undefined,
+  registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
 ): Promise<void> {
   const platform = artifactPlatformFiles(artifact)
   if (!platform) return // nothing ships for this platform
@@ -90,12 +96,14 @@ export async function installArtifact(
   const extractDir = path.join(tmpDir, `extract-${currentPlatformKey()}`)
 
   try {
-    const inChina = await regionService.isInChina().catch(() => false)
-    await withMirrorFallback(tarballUrls(artifact, inChina), signal, artifact.id, (url) =>
+    await withMirrorFallback(tarballUrls(artifact, registryOrder), signal, artifact.id, (url) =>
       streamToFileVerified(url, tarballPath, { sha256: artifact.tarballSha256, signal, onProgress })
     )
+    signal.throwIfAborted()
     await extractPlatformFiles(tarballPath, extractDir, platform)
+    signal.throwIfAborted()
     await installExtractedFiles(extractDir, artifactInstallDir(artifact, platform), platform)
+    signal.throwIfAborted()
     logger.info('shared artifact installed', { artifact: artifact.id, platform: currentPlatformKey() })
   } finally {
     // Drop the whole staging dir rather than its contents: a cancelled download would

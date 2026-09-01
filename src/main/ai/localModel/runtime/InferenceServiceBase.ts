@@ -29,6 +29,7 @@ interface InferenceServiceSpec<
 > {
   capability: TCapability
   sharedArtifacts: readonly SharedArtifactId[]
+  runtimeModuleSource: string
   workerModuleSource: string
   resultKeys: InferenceResultKeyMap<TRequests, TResults>
 }
@@ -43,7 +44,7 @@ interface Pending<TRequestType extends string> {
 /**
  * Hosts one capability worker. It owns lazy spawn, request serialization, hardware-profile
  * rebuilds, aborts, idle release, and lifecycle teardown; capability code supplies only its
- * protocol, result contract, artifact dependencies, and worker module.
+ * protocol, result contract, artifact dependencies, runtime initializer, and worker module.
  */
 export abstract class InferenceServiceBase<
   TCapability extends LocalModelCapability,
@@ -65,7 +66,7 @@ export abstract class InferenceServiceBase<
   protected constructor(private readonly spec: InferenceServiceSpec<TCapability, TRequests, TResults>) {
     super()
     this.logger = loggerService.withContext(`InferenceService:${spec.capability}`)
-    this.workerSource = buildInferenceWorkerSource(spec.workerModuleSource)
+    this.workerSource = buildInferenceWorkerSource(spec.runtimeModuleSource, spec.workerModuleSource)
   }
 
   private async ensureWorker(): Promise<Worker> {
@@ -101,7 +102,12 @@ export abstract class InferenceServiceBase<
     worker.on('message', (message: InferenceResponse) => this.handleMessage(message))
     worker.on('error', (error) => {
       if (this.worker !== worker) return
-      this.failAll(error instanceof Error ? error : new Error(String(error)))
+      this.worker = null
+      this.workerProxyVersion = null
+      this.workerProfileId = null
+      const workerError = error instanceof Error ? error : new Error(String(error))
+      if (this.pending.size === 0) this.logger.error('inference worker failed', workerError)
+      this.failAll(workerError)
     })
     worker.on('exit', (code) => {
       if (this.worker !== worker) return

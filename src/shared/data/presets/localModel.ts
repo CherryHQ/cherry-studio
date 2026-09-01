@@ -19,21 +19,28 @@ export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
 export const LOCAL_MODEL_ERROR_CODES = ['download_failed', 'incomplete_cache'] as const
 export type LocalModelErrorCode = (typeof LOCAL_MODEL_ERROR_CODES)[number]
 
+/** Main-owned status projected to every renderer window through Shared Cache. */
+export interface LocalModelStatusSnapshot {
+  status: LocalModelStatus
+  percent: number
+  errorCode?: LocalModelErrorCode
+}
+
 /** Terminal result returned to every caller awaiting the shared download. */
 export const LOCAL_MODEL_DOWNLOAD_RESULTS = ['ready', 'cancelled'] as const
 export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[number]
 
 /**
  * What a local model *does*. Features ask for a capability ("this OCR processor
- * needs the ocr model"), never for a specific bundle — one capability may later be
- * served by several bundles, or by a different one on a different platform.
+ * needs the ocr model"), never for a specific bundle. Each capability has exactly one
+ * bundle; the catalog test enforces that contract.
  */
 export const LOCAL_MODEL_CAPABILITIES = ['embedding', 'ocr'] as const
 export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 
 /**
  * What a user *installs*: the addressing key of the whole management plane — status,
- * download, cancel, remove and their progress events. Adding a model means adding an
+ * download, cancel, remove and shared status snapshots. Adding a model means adding an
  * id here and a catalog entry beside it, not another IPC route or another card.
  *
  * Kept in sync with `src/main/ai/localModel/catalog/catalog.ts` by construction: the
@@ -42,12 +49,15 @@ export type LocalModelCapability = (typeof LOCAL_MODEL_CAPABILITIES)[number]
 export const LOCAL_MODEL_BUNDLE_IDS = ['qwen3-embedding-0.6b', 'pp-ocrv6-medium'] as const
 export type LocalModelBundleId = (typeof LOCAL_MODEL_BUNDLE_IDS)[number]
 
+export type LocalModelStatusSnapshots = Partial<Record<LocalModelBundleId, LocalModelStatusSnapshot>>
+export const LOCAL_MODEL_STATUS_CACHE_KEY = 'local_model.statuses' as const
+
 /**
- * The bundle that serves each capability today — how a feature that needs a capability
+ * The bundle that serves each capability — how a feature that needs a capability
  * ("this OCR processor needs the ocr model") names the bundle it must install.
  *
- * Declared here rather than in the renderer so there is one answer, and checked against
- * the catalog by that module's own test so the two cannot drift.
+ * Shared by main and renderer as the single mapping, and checked against the catalog so
+ * the two cannot drift.
  */
 export const LOCAL_MODEL_BUNDLE_BY_CAPABILITY = {
   embedding: 'qwen3-embedding-0.6b',

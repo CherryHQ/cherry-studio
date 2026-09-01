@@ -159,6 +159,23 @@ describe('InferenceService worker exit / failAll', () => {
     expect(mockMainLoggerService.error).toHaveBeenCalledWith('inference worker exited abnormally', expect.any(Error))
   })
 
+  it('replaces a failed worker before dispatching the next queued request', async () => {
+    const first = embeddingInferenceService.embed(['a'])
+    const failedWorker = await latestWorker()
+    const second = embeddingInferenceService.embed(['b'])
+
+    failedWorker.emit('error', new Error('worker crashed'))
+
+    await expect(first).rejects.toThrow('worker crashed')
+    const replacement = await latestWorker(2)
+    replacement.emit('message', {
+      kind: 'result',
+      requestId: lastRequestId(replacement),
+      payload: { embeddings: [[0.2]] }
+    })
+    await expect(second).resolves.toEqual([[0.2]])
+  })
+
   it('does not double-report when terminate() is followed by the worker exit event', async () => {
     const pending = embeddingInferenceService.embed(['hi'])
     const worker = await latestWorker()

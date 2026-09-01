@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildInferenceWorkerSource } from '../../../runtime/worker/buildWorkerSource'
+import { onnxRuntimeWorkerSource } from '../../../runtime/worker/onnxRuntime'
 import { l2normalize } from '../pooling'
 import { embeddingWorkerSource } from '../worker'
 
@@ -21,7 +22,7 @@ describe('pooling', () => {
     // The worker runs as an eval'd string and cannot import project modules, so this
     // function is injected via `.toString()`. Pin that the executed copy IS this tested
     // one — if someone re-inlines a divergent copy, this fails.
-    const workerSource = buildInferenceWorkerSource(embeddingWorkerSource)
+    const workerSource = buildInferenceWorkerSource(onnxRuntimeWorkerSource, embeddingWorkerSource)
     expect(workerSource).toContain(l2normalize.toString())
     expect(workerSource).toContain('const l2normalize =')
   })

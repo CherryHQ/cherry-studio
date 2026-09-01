@@ -1,5 +1,7 @@
 import fs from 'node:fs'
 
+import { LOCAL_MODEL_STATUS_CACHE_KEY, type LocalModelStatusSnapshot } from '@shared/data/presets/localModel'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,11 +10,10 @@ import type { InstallState } from '../catalog/types'
 const EMBEDDING = 'qwen3-embedding-0.6b'
 const OCR = 'pp-ocrv6-medium'
 
-const { scanBundleFiles, isArtifactReady, ensureArtifact, removeArtifact } = vi.hoisted(() => ({
+const { scanBundleFiles, isArtifactReady, removeArtifactIfUnused } = vi.hoisted(() => ({
   scanBundleFiles: vi.fn(),
   isArtifactReady: vi.fn(),
-  ensureArtifact: vi.fn(),
-  removeArtifact: vi.fn()
+  removeArtifactIfUnused: vi.fn()
 }))
 
 const { terminateOcrRuntime } = vi.hoisted(() => ({
@@ -40,11 +41,11 @@ vi.mock('../installation/LocalModelStorageService', () => ({
     isArtifactReady,
     isArtifactSupported: () => true,
     isBundleSupported: () => true,
-    removeArtifact,
+    removeArtifactIfUnused,
     bundleInstallDir: () => '/install',
     bundleRootDir: () => '/install',
     pendingBundleFiles: () => [],
-    ensureArtifact
+    reserveArtifacts: vi.fn(async () => () => {})
   }
 }))
 
@@ -59,12 +60,34 @@ function onDisk(states: Partial<Record<string, InstallState>>): void {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockMainCacheServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   isArtifactReady.mockReturnValue(true)
-  ensureArtifact.mockResolvedValue(undefined)
-  removeArtifact.mockResolvedValue(undefined)
+  removeArtifactIfUnused.mockResolvedValue(true)
   onDisk({})
   vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
+})
+
+describe('status snapshots', () => {
+  it('refreshes the shared snapshot from the files on disk', () => {
+    onDisk({ [EMBEDDING]: INSTALLED })
+
+    expect(localModelService.refreshStatus(EMBEDDING)).toEqual({ status: 'ready' })
+    expect(MockMainCacheServiceUtils.getSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)).toEqual({
+      [EMBEDDING]: { status: 'ready', percent: 100 }
+    })
+  })
+
+  it('preserves other bundle snapshots when publishing one bundle', () => {
+    const ocrSnapshot = { status: 'downloading', percent: 42 } satisfies LocalModelStatusSnapshot
+    MockMainCacheServiceUtils.setSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY, { [OCR]: ocrSnapshot })
+
+    localModelService.refreshStatus(EMBEDDING)
+
+    const snapshots = MockMainCacheServiceUtils.getSharedCacheValue(LOCAL_MODEL_STATUS_CACHE_KEY)
+    expect(snapshots?.[OCR]).toBe(ocrSnapshot)
+    expect(snapshots?.[EMBEDDING]).toEqual({ status: 'not_downloaded', percent: 0 })
+  })
 })
 
 describe('LocalModelService readiness', () => {
@@ -87,7 +110,7 @@ describe('shared artifact cleanup', () => {
   it('drops a runtime once no model has files on disk', async () => {
     await localModelService.remove(OCR)
 
-    expect(removeArtifact).toHaveBeenCalledWith('onnxruntime-node')
+    expect(removeArtifactIfUnused).toHaveBeenCalledWith('onnxruntime-node')
   })
 
   it('keeps a runtime another installed model still requires', async () => {
@@ -95,29 +118,11 @@ describe('shared artifact cleanup', () => {
 
     await localModelService.remove(OCR)
 
-    expect(removeArtifact).not.toHaveBeenCalled()
-  })
-
-  it('keeps a runtime a download in flight may be waiting on', async () => {
-    isArtifactReady.mockReturnValue(false)
-    ensureArtifact.mockImplementation(
-      (_id: string, signal: AbortSignal) =>
-        new Promise<void>((_resolve, reject) => {
-          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-        })
-    )
-    const pending = localModelService.download(OCR)
-    expect(localModelService.getStatusInfo(OCR).status).toBe('downloading')
-
-    await localModelService.remove(EMBEDDING)
-
-    expect(removeArtifact).not.toHaveBeenCalled()
-    localModelService.cancel(OCR)
-    await pending
+    expect(removeArtifactIfUnused).not.toHaveBeenCalled()
   })
 
   it('does not let a locked runtime turn cleanup into a failure', async () => {
-    removeArtifact.mockRejectedValueOnce(new Error('EBUSY'))
+    removeArtifactIfUnused.mockRejectedValueOnce(new Error('EBUSY'))
 
     await expect(localModelService.remove(OCR)).resolves.toEqual({ removed: true })
   })

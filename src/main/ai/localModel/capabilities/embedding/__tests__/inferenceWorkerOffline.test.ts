@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CPU_LOCAL_INFERENCE_PROFILE } from '../../../runtime/inferenceAcceleration'
 import type { InferenceResponse } from '../../../runtime/protocol'
 import { buildInferenceWorkerSource } from '../../../runtime/worker/buildWorkerSource'
+import { onnxRuntimeWorkerSource } from '../../../runtime/worker/onnxRuntime'
 import { embeddingWorkerSource } from '../worker'
 
 /**
@@ -37,7 +38,7 @@ let cacheDir: string
 let worker: Worker
 let workerMessages: InferenceResponse[]
 
-const inferenceWorkerSource = buildInferenceWorkerSource(embeddingWorkerSource)
+const inferenceWorkerSource = buildInferenceWorkerSource(onnxRuntimeWorkerSource, embeddingWorkerSource)
 
 /** Minimal but structurally valid tokenizer — the real 11MB one cannot live in the repo. */
 const TOKENIZER_JSON = JSON.stringify({

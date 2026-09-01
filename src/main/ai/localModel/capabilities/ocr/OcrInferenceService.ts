@@ -2,6 +2,7 @@ import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { bundleForCapability } from '../../catalog/catalog'
 import { InferenceServiceBase } from '../../runtime/InferenceServiceBase'
+import { onnxRuntimeWorkerSource } from '../../runtime/worker/onnxRuntime'
 import { resolveOcrModelPaths } from './modelPaths'
 import {
   OCR_RESULT_KEYS,
@@ -22,6 +23,7 @@ export class OcrInferenceService extends InferenceServiceBase<'ocr', OcrRequestP
     super({
       capability: 'ocr',
       sharedArtifacts: bundle.requires,
+      runtimeModuleSource: onnxRuntimeWorkerSource,
       workerModuleSource: ocrWorkerSource,
       resultKeys: OCR_RESULT_KEYS
     })

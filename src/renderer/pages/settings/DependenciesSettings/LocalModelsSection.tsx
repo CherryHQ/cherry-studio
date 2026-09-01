@@ -21,8 +21,7 @@ const CARD_NOTICE_KEYS = {
 
 type CardNotice = keyof typeof CARD_NOTICE_KEYS
 
-/** How each capability presents itself. A bundle for a new capability adds an entry here
- * and nothing else; another bundle for an existing one adds nothing at all. */
+/** How each capability presents itself. A bundle for a new capability adds one entry here. */
 const CAPABILITY_CARDS = {
   embedding: {
     icon: <Boxes className="size-5" />,
@@ -213,8 +212,7 @@ const LocalModelsSection: FC = () => {
     }
   }, [])
 
-  // Every model shares the same inference runtime, so they are unsupported together
-  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding).
+  // The current models share onnxruntime, so they are unsupported together on Intel Mac.
   const unsupported = models.length > 0 && models.every((model) => statuses[model.id] === 'unsupported')
 
   return (

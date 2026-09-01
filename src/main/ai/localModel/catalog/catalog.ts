@@ -1,4 +1,4 @@
-import type { LocalModelBundleId } from '@shared/data/presets/localModel'
+import { LOCAL_MODEL_BUNDLE_BY_CAPABILITY, type LocalModelBundleId } from '@shared/data/presets/localModel'
 
 import type { ModelBundle, SharedArtifact, SharedArtifactId } from './types'
 
@@ -182,9 +182,7 @@ export function getSharedArtifact(id: SharedArtifactId): SharedArtifact {
 /** The one bundle serving a capability. Throws rather than returning undefined:
  * a capability with no bundle is a catalog bug, not a runtime condition. */
 export function bundleForCapability(capability: ModelBundle['capability']): ModelBundle {
-  const bundle = Object.values(LOCAL_MODEL_BUNDLES).find((entry) => entry.capability === capability)
-  if (!bundle) throw new Error(`no local model bundle is registered for capability "${capability}"`)
-  return bundle
+  return getModelBundle(LOCAL_MODEL_BUNDLE_BY_CAPABILITY[capability])
 }
 
 /** The transformers.js quantization selector for a bundle's weights. Throws when the

@@ -4,7 +4,13 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 
-import { artifactEntryPath, installArtifact, isArtifactInstalled, removeArtifact } from '../acquisition/tarballArtifact'
+import {
+  artifactEntryPath,
+  type ArtifactRegistryId,
+  installArtifact,
+  isArtifactInstalled,
+  removeArtifact
+} from '../acquisition/tarballArtifact'
 import { getSharedArtifact } from '../catalog/catalog'
 import {
   type BundleFile,
@@ -15,6 +21,14 @@ import {
 } from '../catalog/types'
 
 const logger = loggerService.withContext('LocalModelStorageService')
+
+interface ArtifactInstall {
+  controller: AbortController
+  listeners: Set<(fraction: number) => void>
+  progress: number
+  promise: Promise<void>
+  waiters: number
+}
 
 /**
  * What is installed right now, and the gatekeeper for installing or deleting shared
@@ -28,7 +42,9 @@ const logger = loggerService.withContext('LocalModelStorageService')
 export class LocalModelStorageService {
   /** One in-flight install per artifact, so an embedding and an OCR download racing for
    * the same runtime await a single fetch instead of both writing the same files. */
-  private readonly artifactInstalls = new Map<SharedArtifactId, Promise<void>>()
+  private readonly artifactInstalls = new Map<SharedArtifactId, ArtifactInstall>()
+  private readonly artifactReservations = new Map<SharedArtifactId, number>()
+  private readonly artifactRemovals = new Map<SharedArtifactId, Promise<void>>()
 
   /** The bundle's own root — what removal deletes. Wider than the model directory when
    * a loader dictates a nested layout, so no empty parent chain is left behind. */
@@ -56,6 +72,7 @@ export class LocalModelStorageService {
    * repairing a half-finished install — or one missing only its shared runtime — does not
    * re-fetch hundreds of MB that are already there. */
   pendingBundleFiles(bundle: ModelBundle): BundleFile[] {
+    if (this.resolveInstalledDir(bundle)) return []
     return this.missingFilesIn(bundle, this.bundleInstallDir(bundle))
   }
 
@@ -167,23 +184,182 @@ export class LocalModelStorageService {
   async ensureArtifact(
     id: SharedArtifactId,
     signal: AbortSignal,
-    onProgress?: (fraction: number) => void
+    onProgress: ((fraction: number) => void) | undefined,
+    registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
   ): Promise<void> {
+    await this.waitForArtifactRemoval(id, signal)
     if (this.isArtifactReady(id)) return
-    const pending = this.artifactInstalls.get(id)
-    if (pending) return pending
+    if (signal.aborted) throw this.abortError(signal)
 
-    const install = installArtifact(getSharedArtifact(id), signal, onProgress).finally(() => {
-      this.artifactInstalls.delete(id)
-    })
-    this.artifactInstalls.set(id, install)
-    return install
+    let install = this.artifactInstalls.get(id)
+    if (install?.controller.signal.aborted) {
+      try {
+        await this.awaitArtifactInstall(install, signal)
+      } catch (error) {
+        if (signal.aborted) throw error
+      }
+      return this.ensureArtifact(id, signal, onProgress, registryOrder)
+    }
+    if (!install) {
+      const controller = new AbortController()
+      install = {
+        controller,
+        listeners: new Set(),
+        progress: 0,
+        promise: Promise.resolve(),
+        waiters: 0
+      }
+      const activeInstall = install
+      install.promise = installArtifact(
+        getSharedArtifact(id),
+        controller.signal,
+        (fraction) => {
+          activeInstall.progress = fraction
+          for (const listener of activeInstall.listeners) listener(fraction)
+        },
+        registryOrder
+      ).finally(() => {
+        if (this.artifactInstalls.get(id) === activeInstall) this.artifactInstalls.delete(id)
+      })
+      this.artifactInstalls.set(id, install)
+    }
+
+    return this.awaitArtifactInstall(install, signal, onProgress)
   }
 
-  /** Deletes a shared artifact outright. Callers decide *whether* it is still needed —
-   * see the removal flow in `docs/references/ai/local-models.md`. */
-  async removeArtifact(id: SharedArtifactId): Promise<void> {
+  async reserveArtifacts(ids: readonly SharedArtifactId[], signal: AbortSignal): Promise<() => void> {
+    const acquired: SharedArtifactId[] = []
+    try {
+      for (const id of new Set(ids)) {
+        await this.waitForArtifactRemoval(id, signal)
+        if (signal.aborted) throw this.abortError(signal)
+        this.artifactReservations.set(id, (this.artifactReservations.get(id) ?? 0) + 1)
+        acquired.push(id)
+      }
+    } catch (error) {
+      this.releaseArtifactReservations(acquired)
+      throw error
+    }
+
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      this.releaseArtifactReservations(acquired)
+    }
+  }
+
+  /** Removes an artifact only after atomically excluding new users. */
+  async removeArtifactIfUnused(id: SharedArtifactId): Promise<boolean> {
+    if ((this.artifactReservations.get(id) ?? 0) > 0) return false
+
+    let removal = this.artifactRemovals.get(id)
+    if (!removal) {
+      removal = this.performArtifactRemoval(id).finally(() => {
+        if (this.artifactRemovals.get(id) === removal) this.artifactRemovals.delete(id)
+      })
+      this.artifactRemovals.set(id, removal)
+    }
+    await removal
+    return true
+  }
+
+  private awaitArtifactInstall(
+    install: ArtifactInstall,
+    signal: AbortSignal,
+    onProgress?: (fraction: number) => void
+  ): Promise<void> {
+    const listener = onProgress ? (fraction: number) => onProgress(fraction) : undefined
+    install.waiters += 1
+    if (listener) {
+      install.listeners.add(listener)
+      if (install.progress > 0) listener(install.progress)
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      let settled = false
+      const cleanup = () => {
+        if (settled) return
+        settled = true
+        install.waiters -= 1
+        if (listener) install.listeners.delete(listener)
+        signal.removeEventListener('abort', onAbort)
+      }
+      const onAbort = () => {
+        cleanup()
+        if (install.waiters === 0) install.controller.abort(this.abortError(signal))
+        reject(this.abortError(signal))
+      }
+
+      signal.addEventListener('abort', onAbort, { once: true })
+      install.promise.then(
+        () => {
+          cleanup()
+          resolve()
+        },
+        (error) => {
+          cleanup()
+          reject(error)
+        }
+      )
+    })
+  }
+
+  private abortError(signal: AbortSignal): Error {
+    return signal.reason instanceof Error ? signal.reason : new Error('aborted')
+  }
+
+  private releaseArtifactReservations(ids: readonly SharedArtifactId[]): void {
+    for (const id of ids) {
+      const remaining = (this.artifactReservations.get(id) ?? 1) - 1
+      if (remaining === 0) this.artifactReservations.delete(id)
+      else this.artifactReservations.set(id, remaining)
+    }
+  }
+
+  private async waitForArtifactRemoval(id: SharedArtifactId, signal: AbortSignal): Promise<void> {
+    let removal = this.artifactRemovals.get(id)
+    while (removal) {
+      try {
+        await this.awaitWithAbort(removal, signal)
+      } catch (error) {
+        if (signal.aborted) throw error
+      }
+      removal = this.artifactRemovals.get(id)
+    }
+  }
+
+  private async performArtifactRemoval(id: SharedArtifactId): Promise<void> {
+    const install = this.artifactInstalls.get(id)
+    if (install) {
+      install.controller.abort(new Error('shared artifact removed'))
+      await install.promise.catch(() => {})
+    }
     await removeArtifact(getSharedArtifact(id))
+  }
+
+  private awaitWithAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+    if (signal.aborted) return Promise.reject(this.abortError(signal))
+
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => {
+        cleanup()
+        reject(this.abortError(signal))
+      }
+      const cleanup = () => signal.removeEventListener('abort', onAbort)
+
+      signal.addEventListener('abort', onAbort, { once: true })
+      promise.then(
+        (value) => {
+          cleanup()
+          resolve(value)
+        },
+        (error) => {
+          cleanup()
+          reject(error)
+        }
+      )
+    })
   }
 }
 

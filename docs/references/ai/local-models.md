@@ -2,6 +2,8 @@
 description: Local model subsystem — the bundle catalog, on-disk installation state, verified acquisition, and the worker runtime that infers over installed models
 sources:
   - src/main/ai/localModel
+  - src/renderer/hooks/useLocalModel.ts
+  - src/shared/data/cache/cacheSchemas.ts
   - src/shared/data/presets/localModel.ts
   - src/shared/ipc/schemas/localModel.ts
 ---
@@ -37,7 +39,7 @@ src/main/ai/localModel/
 │   ├── InferenceServiceBase.ts    ← the worker host: spawn, queue, idle release, teardown
 │   ├── inferenceAcceleration.ts   ← platform → execution provider
 │   ├── protocol.ts                ← generic init/request/result/error envelopes
-│   └── worker/                    ← capability-neutral worker core and source builder
+│   └── worker/                    ← generic core, runtime initializers, source builder
 └── capabilities/
     ├── capabilityHooks.ts         ← removal behavior keyed by capability
     ├── embedding/                 ← facade, protocol, pooling, worker module, limits
@@ -82,12 +84,13 @@ so the renderer can speak them too:
 - A **capability** is what a feature needs (`ocr`). Features gate on
   `localModelService.isReady(capability)` and never name a bundle.
 - A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
-  the whole management plane — status, download, cancel, remove, progress events.
+  the whole management plane — status, download, cancel, remove and shared status snapshots.
 
 `LOCAL_MODEL_BUNDLE_BY_CAPABILITY` maps one to the other for the few UI entry points that
 must offer a download for a capability. The catalog's own test asserts that map, and the
 shared id list, still match the catalog — the renderer cannot import the catalog, so this
-is the seam where the two could drift.
+is the seam where the two could drift. A capability has exactly one bundle today; adding
+alternatives requires an explicit model-selection contract rather than relying on catalog order.
 
 ### Shared artifacts
 
@@ -115,7 +118,12 @@ the catalog today, and worth re-checking per file rather than assuming.
 
 ## Acquisition
 
-One path, used by model files and runtime tarballs alike:
+The IPC boundary supplies a lazy egress-region resolver. `BundleInstaller` first registers
+the cancellable attempt, then resolves it once into a China-first or global-first preference
+and converts that preference into explicit model-source and registry orders. Storage and
+acquisition never depend on `RegionService` or geography.
+
+One path is then used by model files and runtime tarballs alike:
 
 1. **Mirror fallback** (`withMirrorFallback`) — try each mirror in region order.
 2. **Stream and verify** (`streamToFileVerified`) — hash while the bytes stream by.
@@ -174,7 +182,10 @@ lost files.
 `BundleInstaller` owns one bundle's lifecycle — status, download with progress,
 cancellation, removal — and is generic over the catalog. `LocalModelService` creates one
 installer for every catalog entry and exposes the management API, so a new bundle does not
-need a second registration site.
+need a second registration site. The installer's attempt remains active through shared-
+artifact cleanup, and only then publishes its terminal state; retry cannot observe a failed
+attempt that is still draining. It publishes `downloading` as soon as the attempt is
+registered, so a pending region probe is visible and cancellable in every window.
 
 Downloads run shared runtimes first, then the bundle's own **missing** files, on one
 weighted progress scale. Two consequences worth keeping:
@@ -205,10 +216,10 @@ native sessions with the weight files open, so on Windows an open handle makes t
 fail outright.
 
 `gcSharedArtifacts()` answers the second question, and is the *only* answer: it runs after a
-removal and after an interrupted download alike. Those two paths used to disagree — removal
-counted only installed bundles — so deleting one model could pull the runtime out from under
-a download that was at that moment waiting for it. A bundle counts as needing its artifacts
-while it is installed **or** downloading.
+removal and after an interrupted download alike. Complete bundle files are the durable
+liveness signal; an active attempt holds transient reservations in
+`LocalModelStorageService`. Removal registers itself before touching disk, so a new attempt
+either makes GC skip the artifact or waits for an already-started removal before installing.
 
 ## Runtime
 
@@ -245,13 +256,14 @@ resolving a caller with `undefined` where it declared a value.
 
 ### Worker source
 
-Each worker script is a **string**, assembled at import time from `workerCore` plus exactly
-one capability module and run with `eval: true`. It is not a separate entry file because
-electron-vite bundles the main process with `inlineDynamicImports`, which cannot emit the
-extra chunk a `new Worker(path)` would need.
+Each worker script is a **string**, assembled at import time from `workerCore`, one runtime
+initializer and one capability module, then run with `eval: true`. It is not a separate entry
+file because electron-vite bundles the main process with `inlineDynamicImports`, which cannot
+emit the extra chunk a `new Worker(path)` would need.
 
-`workerCore` knows nothing about embedding or OCR. The selected capability module registers
-its request types in a `REQUEST_HANDLERS` table:
+`workerCore` knows nothing about a concrete runtime, embedding or OCR. The runtime initializer
+owns runtime-specific setup such as the onnxruntime binding path; the selected capability
+module registers its request types in a `REQUEST_HANDLERS` table:
 
 | Hook | When it runs |
 |---|---|
@@ -273,18 +285,27 @@ failures, since "CoreML crashed" and "the model is corrupt" need different fixes
 
 ## Management plane
 
-One generic IPC surface (`local_model.*`), addressed by bundle id:
+Commands use one generic IPC surface (`local_model.*`), addressed by bundle id:
 
 | Route | Purpose |
 |---|---|
 | `list` | Everything installable, with each bundle's capability |
 | `get_status` / `download` / `cancel` / `remove` | That bundle's lifecycle |
 | `get_acceleration_capability` | Whether this platform has a hardware provider |
-| `download_progress` (event) | Progress, tagged with the same bundle id |
 
-The settings cards render from `list`, one card per bundle, with name and subtitle read
-from the capability's i18n keys. Shipping another model therefore touches no route, no
-handler and no component — only the catalog and the shared id list.
+Live state is not a second command response or a custom event. `LocalModelService` is the
+only writer of the session-only Shared Cache map `local_model.statuses`; each entry contains
+`status`, `percent` and an optional `errorCode`. `BundleInstaller` publishes lifecycle
+changes through that facade, which merges one bundle without replacing the others.
+
+The renderer observes the map with the read-only `useSharedCacheValue` hook. On mount,
+`useLocalModel` calls `get_status` only to make Main scan the disk and publish a fresh
+snapshot; it ignores the response body. Disk remains the durable fact, Shared Cache is the
+cross-window projection, and an old RPC completion has no renderer state to overwrite.
+
+The settings cards render from `list`, one card per capability bundle, with name and subtitle
+read from the capability's i18n keys. Shipping a new capability therefore needs no new route
+or handler, but does require the catalog, shared vocabulary and presentation described below.
 
 ## Adding a model
 
@@ -296,13 +317,11 @@ handler and no component — only the catalog and the shared id list.
    every platform it ships binaries for — omissions are what make a platform unsupported.
 4. Add its id — and, for a new capability, that capability and its bundle mapping — to
    `src/shared/data/presets/localModel.ts`.
-5. For a new capability, add its removal hooks in `capabilities/capabilityHooks.ts`. A new
-   bundle for an existing capability needs no installer registration.
+5. Add its removal hooks in `capabilities/capabilityHooks.ts`.
 6. For a new capability, add its card icon in `LocalModelsSection` and its `name`/`subtitle`
-   i18n keys. An existing capability needs neither.
+   i18n keys.
 7. For a new capability, add a directory under `capabilities/` containing its request/result
-   maps, worker module, and facade service over `InferenceServiceBase`. A new bundle for an
-   existing capability needs none of this.
+   maps, worker module, and facade service over `InferenceServiceBase`.
 
 The catalog's own test suite enforces the mechanical parts (checksum present and
 well-formed, keys and paths unique, `requires` resolvable), so a missed field fails in CI
@@ -315,5 +334,6 @@ rather than on a user's machine.
 - No streaming download resume. A failed download restarts that file from zero.
 - No streaming inference. Every request is one round trip with a complete result; a
   transcription capability that wants partial output would add a response frame type.
-- onnxruntime is the only runtime. A second one (llama.cpp, sherpa-onnx) fits the shared
-  artifact and worker-module seams, but nothing exercises them yet.
+- onnxruntime is the only runtime. The worker host accepts a separate runtime initializer,
+  but a second runtime (llama.cpp, sherpa-onnx) still needs its own profile and capability
+  integration.

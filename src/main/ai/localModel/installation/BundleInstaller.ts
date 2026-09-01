@@ -1,21 +1,34 @@
 import fs from 'node:fs'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
-import type { LocalModelDownloadResult, LocalModelErrorCode, LocalModelStatus } from '@shared/data/presets/localModel'
+import type {
+  LocalModelDownloadResult,
+  LocalModelErrorCode,
+  LocalModelStatus,
+  LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
 
 import { downloadBundleFiles } from '../acquisition/bundleDownload'
+import { type DownloadSourcePreference, type ModelSourceId, modelSourceOrder } from '../acquisition/modelSource'
+import { type ArtifactRegistryId, artifactRegistryOrder } from '../acquisition/tarballArtifact'
 import type { ModelBundle } from '../catalog/types'
 import { localModelStorageService } from './LocalModelStorageService'
 
 const logger = loggerService.withContext('BundleInstaller')
 
-/** Progress / terminal-state payload broadcast to the renderer download cards. */
-interface LocalModelDownloadProgress {
-  status: string
+export type ResolveDownloadSourcePreference = () => Promise<DownloadSourcePreference>
+export type PublishLocalModelStatus = (snapshot: LocalModelStatusSnapshot) => void
+
+interface DownloadAttempt {
+  controller: AbortController
+  phase: 'active' | 'draining'
   percent: number
-  errorCode?: LocalModelErrorCode
+  promise: Promise<LocalModelDownloadResult>
 }
+
+type DownloadOutcome =
+  | { kind: 'result'; result: LocalModelDownloadResult; terminal: LocalModelStatusSnapshot }
+  | { kind: 'error'; error: unknown; terminal: LocalModelStatusSnapshot }
 
 /**
  * What a capability contributes to installing and removing its own bundle. Everything
@@ -48,26 +61,32 @@ export interface CapabilityHooks {
  * recover during this run. Afterwards the files on disk are the whole truth.
  */
 export class BundleInstaller {
-  private downloading = false
-  private abortController: AbortController | null = null
-  /** The single active download; concurrent callers await the same terminal result. */
-  private inFlight: Promise<LocalModelDownloadResult> | null = null
+  private attempt: DownloadAttempt | null = null
+  private removalInFlight: Promise<{ removed: boolean }> | null = null
   private lastDownloadFailed = false
   private incompleteLogged = false
 
   constructor(
     private readonly bundle: ModelBundle,
-    private readonly hooks: CapabilityHooks
+    private readonly hooks: CapabilityHooks,
+    private readonly publishStatus: PublishLocalModelStatus,
+    private readonly finalizeSharedArtifacts: () => Promise<void>
   ) {}
 
   getStatus(): LocalModelStatus {
     return this.getStatusInfo().status
   }
 
+  getStatusSnapshot(): LocalModelStatusSnapshot {
+    const info = this.getStatusInfo()
+    const percent = info.status === 'ready' ? 100 : (this.attempt?.percent ?? 0)
+    return { ...info, percent }
+  }
+
   /** {@link getStatus} plus why an `error` status arose, for the cards' notice text. */
   getStatusInfo(): { status: LocalModelStatus; errorCode?: LocalModelErrorCode } {
     if (!localModelStorageService.isBundleSupported(this.bundle)) return { status: 'unsupported' }
-    if (this.downloading) return { status: 'downloading' }
+    if (this.attempt) return { status: 'downloading' }
     if (this.lastDownloadFailed) return { status: 'error', errorCode: 'download_failed' }
 
     const state = localModelStorageService.scanBundleFiles(this.bundle)
@@ -94,42 +113,69 @@ export class BundleInstaller {
     return this.bundle.requires.every((id) => localModelStorageService.isArtifactReady(id))
   }
 
-  async download(): Promise<LocalModelDownloadResult> {
+  async download(resolvePreference: ResolveDownloadSourcePreference): Promise<LocalModelDownloadResult> {
+    if (this.removalInFlight) throw new Error(`Local model bundle ${this.bundle.id} is being removed.`)
     if (!localModelStorageService.isBundleSupported(this.bundle)) {
       throw new Error(`Local ${this.bundle.capability} model download is not supported on this platform.`)
     }
-    // Coalesce concurrent callers — the settings card and the KB download entry hit the
-    // same singleton. Both await the SAME download, so neither resolves (and runs its
-    // post-download work) until it genuinely completes.
-    if (this.inFlight) return this.inFlight
+    const active = this.attempt
+    if (active) {
+      if (active.phase === 'active') return active.promise
+      await active.promise.catch(() => {})
+      return this.download(resolvePreference)
+    }
 
     this.lastDownloadFailed = false
-    this.downloading = true
-    this.abortController = new AbortController()
-    const { signal } = this.abortController
-    this.inFlight = (async () => {
-      try {
-        await this.performDownload(signal)
-        this.broadcast({ status: 'ready', percent: 100 })
-        return 'ready'
-      } catch (error) {
-        if (signal.aborted) {
-          // User-initiated cancel — not a failure. Stay quiet: no error log and no
-          // `status: 'error'` broadcast, which the cards render as "download failed".
-          this.broadcast({ status: 'not_downloaded', percent: 0 })
-          return 'cancelled'
+    const controller = new AbortController()
+    const promise = Promise.resolve().then(() => this.runDownloadAttempt(controller, resolvePreference))
+    this.attempt = { controller, phase: 'active', percent: 0, promise }
+    this.publishStatus({ status: 'downloading', percent: 0 })
+    return promise
+  }
+
+  private async runDownloadAttempt(
+    controller: AbortController,
+    resolvePreference: ResolveDownloadSourcePreference
+  ): Promise<LocalModelDownloadResult> {
+    const { signal } = controller
+    let releaseReservations: (() => void) | undefined
+    let outcome: DownloadOutcome
+
+    try {
+      releaseReservations = await localModelStorageService.reserveArtifacts(this.bundle.requires, signal)
+      const preference = await this.waitForSourcePreference(resolvePreference, signal)
+      signal.throwIfAborted()
+      await this.performDownload(signal, modelSourceOrder(preference), artifactRegistryOrder(preference))
+      signal.throwIfAborted()
+      outcome = { kind: 'result', result: 'ready', terminal: { status: 'ready', percent: 100 } }
+    } catch (error) {
+      if (signal.aborted) {
+        outcome = {
+          kind: 'result',
+          result: 'cancelled',
+          terminal: { status: 'not_downloaded', percent: 0 }
         }
+      } else {
         logger.error(`local ${this.bundle.capability} model download failed`, error as Error)
-        this.lastDownloadFailed = true
-        this.broadcast({ status: 'error', percent: 0, errorCode: 'download_failed' })
-        throw error
-      } finally {
-        this.downloading = false
-        this.abortController = null
-        this.inFlight = null
+        outcome = {
+          kind: 'error',
+          error,
+          terminal: { status: 'error', percent: 0, errorCode: 'download_failed' }
+        }
       }
-    })()
-    return this.inFlight
+    }
+
+    if (this.attempt?.controller === controller) this.attempt.phase = 'draining'
+    releaseReservations?.()
+    this.lastDownloadFailed = outcome.kind === 'error'
+    if (outcome.kind === 'error' || outcome.result === 'cancelled') {
+      await this.runSharedArtifactFinalizer()
+    }
+
+    if (this.attempt?.controller === controller) this.attempt = null
+    this.publishStatus(outcome.terminal)
+    if (outcome.kind === 'error') throw outcome.error
+    return outcome.result
   }
 
   /**
@@ -142,7 +188,11 @@ export class BundleInstaller {
    * may predate this attempt entirely. Wiping them would turn a failed ~40MB runtime fetch
    * into the loss of a complete ~614MB model.
    */
-  private async performDownload(signal: AbortSignal): Promise<void> {
+  private async performDownload(
+    signal: AbortSignal,
+    sourceOrder: readonly [ModelSourceId, ...ModelSourceId[]],
+    registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
+  ): Promise<void> {
     const pending = localModelStorageService.pendingBundleFiles(this.bundle)
     const artifactWeight = this.bundle.requires.reduce(
       (sum, id) => sum + (localModelStorageService.isArtifactReady(id) ? 0 : SHARED_ARTIFACT_WEIGHT),
@@ -153,15 +203,21 @@ export class BundleInstaller {
     let doneWeight = 0
 
     const report = (fraction: number) => {
-      this.broadcast({ status: 'downloading', percent: Math.round((100 * fraction) / totalWeight) })
+      const percent = Math.round((100 * fraction) / totalWeight)
+      if (this.attempt?.controller.signal === signal) this.attempt.percent = percent
+      this.publishStatus({ status: 'downloading', percent })
     }
 
     for (const id of this.bundle.requires) {
       if (localModelStorageService.isArtifactReady(id)) continue
       const base = doneWeight
-      await localModelStorageService.ensureArtifact(id, signal, (fraction) =>
-        report(base + SHARED_ARTIFACT_WEIGHT * fraction)
+      await localModelStorageService.ensureArtifact(
+        id,
+        signal,
+        (fraction) => report(base + SHARED_ARTIFACT_WEIGHT * fraction),
+        registryOrder
       )
+      signal.throwIfAborted()
       doneWeight += SHARED_ARTIFACT_WEIGHT
       report(doneWeight)
     }
@@ -171,13 +227,62 @@ export class BundleInstaller {
       await downloadBundleFiles(this.bundle, pending, {
         signal,
         installDir: localModelStorageService.bundleInstallDir(this.bundle),
+        sourceOrder,
         onProgress: (fraction) => report(base + filesWeight * fraction)
       })
+      signal.throwIfAborted()
     }
   }
 
-  cancel(): void {
-    this.abortController?.abort(new Error('download cancelled'))
+  async cancel(): Promise<void> {
+    const attempt = this.attempt
+    if (!attempt) return
+    if (attempt.phase === 'active') {
+      attempt.phase = 'draining'
+      attempt.controller.abort(new Error('download cancelled'))
+    }
+    await attempt.promise.catch(() => {})
+  }
+
+  private waitForSourcePreference(
+    resolvePreference: ResolveDownloadSourcePreference,
+    signal: AbortSignal
+  ): Promise<DownloadSourcePreference> {
+    if (signal.aborted) return Promise.reject(this.abortError(signal))
+
+    return new Promise<DownloadSourcePreference>((resolve, reject) => {
+      let settled = false
+      const finish = (callback: () => void) => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        callback()
+      }
+      const onAbort = () => finish(() => reject(this.abortError(signal)))
+
+      signal.addEventListener('abort', onAbort, { once: true })
+      Promise.resolve()
+        .then(resolvePreference)
+        .then(
+          (preference) => finish(() => resolve(preference)),
+          (error) => finish(() => reject(error))
+        )
+    })
+  }
+
+  private abortError(signal: AbortSignal): Error {
+    return signal.reason instanceof Error ? signal.reason : new Error('aborted')
+  }
+
+  private async runSharedArtifactFinalizer(): Promise<void> {
+    try {
+      await this.finalizeSharedArtifacts()
+    } catch (error) {
+      logger.warn('failed to clean up shared artifacts for a local model bundle', {
+        bundle: this.bundle.id,
+        error: String(error)
+      })
+    }
   }
 
   /**
@@ -185,6 +290,14 @@ export class BundleInstaller {
    * may refuse while the model is still in use.
    */
   async remove(): Promise<{ removed: boolean }> {
+    if (this.removalInFlight) return this.removalInFlight
+    this.removalInFlight = this.performRemove().finally(() => {
+      this.removalInFlight = null
+    })
+    return this.removalInFlight
+  }
+
+  private async performRemove(): Promise<{ removed: boolean }> {
     const releaseGuard = this.hooks.acquireRemovalGuard?.()
     if (this.hooks.acquireRemovalGuard && !releaseGuard) {
       logger.info('skipped local model removal because it is in use or already being removed', {
@@ -194,19 +307,16 @@ export class BundleInstaller {
     }
 
     try {
-      // Reset dependent settings before the files go: a preference still pointing at this
-      // model would break every consumer of it, with no self-heal.
-      await this.hooks.afterRemove?.()
+      await this.cancel()
       const root = localModelStorageService.bundleRootDir(this.bundle)
       await this.hooks.terminateRuntimeThen(() => fs.promises.rm(root, { recursive: true, force: true }))
+      await this.hooks.afterRemove?.()
+      await this.runSharedArtifactFinalizer()
+      this.publishStatus({ status: 'not_downloaded', percent: 0 })
       return { removed: true }
     } finally {
       releaseGuard?.()
     }
-  }
-
-  private broadcast(payload: LocalModelDownloadProgress): void {
-    application.get('IpcApiService').broadcast('local_model.download_progress', { id: this.bundle.id, ...payload })
   }
 }
 

@@ -3,9 +3,7 @@ import {
   LOCAL_MODEL_CAPABILITIES,
   LOCAL_MODEL_DOWNLOAD_RESULTS,
   LOCAL_MODEL_ERROR_CODES,
-  LOCAL_MODEL_STATUSES,
-  type LocalModelBundleId,
-  type LocalModelErrorCode
+  LOCAL_MODEL_STATUSES
 } from '@shared/data/presets/localModel'
 import * as z from 'zod'
 
@@ -16,12 +14,8 @@ import { defineRoute } from '../define'
  * Dependencies settings. Every lifecycle route is parameterized by the bundle `id`
  * and dispatches through the local-model facade, so shipping another model adds a catalog
  * entry, not a route. `local_model.list` is what makes the cards catalog-driven;
- * the acceleration capability route reports platform support. Progress is pushed
- * back as a `download_progress` event tagged with the same `id`.
- *
- * Two blocks per the framework's two-axis model:
- *   - Request schemas are zod *values* (renderer→main, untrusted → always parsed).
- *   - Event schemas are pure *types* (main→renderer, main is the TCB → not parsed).
+ * the acceleration capability route reports platform support. Main publishes live
+ * status through Shared Cache; this schema only defines the command surface.
  */
 
 /** Input shared by routes that target one installable bundle. */
@@ -56,15 +50,4 @@ export const localModelRequestSchemas = {
   // `removed: false` means the model was kept because something still depends on it
   // (an embedding model still wired to a knowledge base); the weights are not deleted.
   'local_model.remove': defineRoute({ input: bundleInput, output: z.object({ removed: z.boolean() }) })
-}
-
-// ── Event: main→renderer pushes (pure types, never parsed) ──
-export type LocalModelEventSchemas = {
-  // Streamed while a model downloads; `percent` is 0–100, `status` is the backend stage.
-  'local_model.download_progress': {
-    id: LocalModelBundleId
-    status: string
-    percent: number
-    errorCode?: LocalModelErrorCode
-  }
 }

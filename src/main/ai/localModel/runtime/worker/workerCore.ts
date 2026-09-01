@@ -7,8 +7,8 @@ import { CPU_LOCAL_INFERENCE_PROFILE } from '../inferenceAcceleration'
  * The capability-agnostic half of the inference worker: init, logging,
  * hardware-fallback retry, and dispatch.
  *
- * It knows nothing about embedding or OCR. The one capability module loaded after this
- * core registers its request handlers without adding a branch here.
+ * It knows nothing about a concrete runtime, embedding or OCR. The runtime and capability
+ * modules loaded after this core register their initialization and request handlers.
  */
 export const workerCoreSource = `
 const { parentPort } = require('node:worker_threads')
@@ -26,6 +26,7 @@ let runtimeProfile = CPU_RUNTIME_PROFILE
  *   dispose()              release cached sessions when a hardware provider is abandoned
  */
 const REQUEST_HANDLERS = {}
+const RUNTIME_INITIALIZERS = []
 
 // Injected from services/proxy (a single, unit-tested source). Bound to consts so the call
 // sites work even if the bundler renames the functions' own symbols.
@@ -166,10 +167,7 @@ parentPort.on('message', (msg) => {
     } else {
       postLog('error', 'network proxy configuration failed: ' + proxy.error)
     }
-    // Must be set before a capability lazily loads a package that transitively requires
-    // onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
-    const onnxRuntimeBindingPath = msg.artifactPaths && msg.artifactPaths['onnxruntime-node']
-    if (onnxRuntimeBindingPath) process.env.CHERRY_ONNXRUNTIME_BINDING_PATH = onnxRuntimeBindingPath
+    for (const initialize of RUNTIME_INITIALIZERS) initialize(msg)
     return
   }
   if (msg.kind !== 'request') return

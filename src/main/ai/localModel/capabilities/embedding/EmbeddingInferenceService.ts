@@ -3,6 +3,7 @@ import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { bundleDtype, bundleForCapability } from '../../catalog/catalog'
 import { localModelStorageService } from '../../installation/LocalModelStorageService'
 import { InferenceServiceBase } from '../../runtime/InferenceServiceBase'
+import { onnxRuntimeWorkerSource } from '../../runtime/worker/onnxRuntime'
 import { EMBEDDING_RESULT_KEYS, type EmbeddingRequestPayloads, type EmbeddingResultPayloads } from './protocol'
 import { embeddingWorkerSource } from './worker'
 
@@ -20,6 +21,7 @@ export class EmbeddingInferenceService extends InferenceServiceBase<
     super({
       capability: 'embedding',
       sharedArtifacts: bundle.requires,
+      runtimeModuleSource: onnxRuntimeWorkerSource,
       workerModuleSource: embeddingWorkerSource,
       resultKeys: EMBEDDING_RESULT_KEYS
     })
