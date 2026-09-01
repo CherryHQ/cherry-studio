@@ -338,11 +338,14 @@ describe('runAgentTask', () => {
     await promise
 
     expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
-    expect(agentSessionService.create).toHaveBeenCalledWith({
-      agentId: 'a1',
-      name: 'heartbeat',
-      workspace: { type: 'user', workspaceId: 'ws-1' }
-    })
+    expect(agentSessionService.create).toHaveBeenCalledWith(
+      {
+        agentId: 'a1',
+        name: 'heartbeat',
+        workspace: { type: 'user', workspaceId: 'ws-1' }
+      },
+      { taskId: 's1' }
+    )
     // Scheduled runs have no interactive responder — the dispatch must be headless so AskUserQuestion
     // stays disallowed and the run can't stall on an approval prompt.
     expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ headless: true }))
@@ -363,11 +366,14 @@ describe('runAgentTask', () => {
     captured.listeners[0].onDone({ status: 'completed' })
     await promise
 
-    expect(agentSessionService.create).toHaveBeenCalledWith({
-      agentId: 'a1',
-      name: 'daily-summary',
-      workspace: { type: 'system' }
-    })
+    expect(agentSessionService.create).toHaveBeenCalledWith(
+      {
+        agentId: 'a1',
+        name: 'daily-summary',
+        workspace: { type: 'system' }
+      },
+      { taskId: 's1' }
+    )
   })
 
   describe('session reuse', () => {

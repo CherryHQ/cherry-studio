@@ -33,6 +33,8 @@ const {
   subscribeToTaskMock: vi.fn()
 }))
 
+const { notifySourceProjectionChangeMock } = vi.hoisted(() => ({ notifySourceProjectionChangeMock: vi.fn() }))
+
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     createChannel: createChannelMock,
@@ -42,6 +44,12 @@ vi.mock('@data/services/AgentChannelService', () => ({
     clearTaskSubscriptionsForChannel: clearTaskSubscriptionsForChannelMock,
     getSubscribedTasks: getSubscribedTasksMock,
     subscribeToTask: subscribeToTaskMock
+  }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    notifySourceProjectionChange: notifySourceProjectionChangeMock
   }
 }))
 
@@ -167,6 +175,7 @@ describe('AgentChannelWorkflowService', () => {
       const result = await agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })
 
       expect(result).toEqual(updated)
+      expect(notifySourceProjectionChangeMock).toHaveBeenCalledOnce()
     })
 
     it('clears task subscriptions when agentId is rebound', async () => {
@@ -204,6 +213,8 @@ describe('AgentChannelWorkflowService', () => {
       await expect(agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })).rejects.toThrow(
         'sync failed'
       )
+
+      expect(notifySourceProjectionChangeMock).not.toHaveBeenCalled()
 
       // Second updateChannel call is the rollback restore
       expect(updateChannelMock).toHaveBeenCalledTimes(2)
@@ -260,6 +271,22 @@ describe('AgentChannelWorkflowService', () => {
       expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledTimes(1)
       expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledWith('ch-1')
       expect(subscribeToTaskMock).not.toHaveBeenCalled()
+    })
+
+    it('refreshes session sources when a failed rename cannot be rolled back', async () => {
+      const existing = makeChannel()
+      const updated = makeChannel({ name: 'New Name' })
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValueOnce(updated).mockImplementationOnce(() => {
+        throw new Error('restore failed')
+      })
+      syncChannelMock.mockRejectedValue(new Error('sync failed'))
+
+      await expect(agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })).rejects.toThrow(
+        'sync failed'
+      )
+
+      expect(notifySourceProjectionChangeMock).toHaveBeenCalledOnce()
     })
 
     it('rejects discord-shaped config when existing channel is telegram (cross-type guard)', async () => {
@@ -351,6 +378,7 @@ describe('AgentChannelWorkflowService', () => {
 
       expect(result).toBe(true)
       expect(disconnectChannelMock).toHaveBeenCalledWith('ch-1', { suppressErrors: false })
+      expect(notifySourceProjectionChangeMock).toHaveBeenCalledOnce()
     })
 
     it('runs resync compensation when disconnect succeeded but DB delete failed', async () => {
