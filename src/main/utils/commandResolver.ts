@@ -6,7 +6,7 @@ import path from 'path'
 import which from 'which'
 
 import { getBundledGitPath } from './bundledGit'
-import { getShellEnv } from './shellEnv'
+import { getPathFromEnvironment, getShellEnv } from './shellEnv'
 
 /**
  * Resolution for arbitrary executables in the user's environment — locating
@@ -28,11 +28,6 @@ const MAX_OUTPUT_SIZE = 10240
 
 const WINDOWS_PATH_DELIMITER = ';'
 const DEFAULT_WINDOWS_COMMAND_EXTENSIONS = ['.exe', '.cmd']
-
-function getWindowsPathValue(env: Record<string, string | undefined>): string {
-  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path')
-  return pathKey ? (env[pathKey] ?? '') : ''
-}
 
 function toWindowsPathExt(extensions: string[]): string {
   return extensions
@@ -88,7 +83,7 @@ async function findWindowsCommandCandidates(
         all: true,
         delimiter: WINDOWS_PATH_DELIMITER,
         nothrow: true,
-        path: getWindowsPathValue(env),
+        path: getPathFromEnvironment(env) ?? '',
         pathExt: toWindowsPathExt(extensions)
       }),
       timeout
@@ -116,7 +111,7 @@ function findWindowsCommandCandidatesSync(
       all: true,
       delimiter: WINDOWS_PATH_DELIMITER,
       nothrow: true,
-      path: getWindowsPathValue(env),
+      path: getPathFromEnvironment(env) ?? '',
       pathExt: toWindowsPathExt(extensions)
     })
     return filterWindowsCommandCandidates(candidates ?? [], extensions)

@@ -160,6 +160,44 @@ describe('buildDshProviderInjection', () => {
 })
 
 describe('resolveDshProviderInjectionFromSnapshot', () => {
+  it.each([
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai-completions'],
+    [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai-responses']
+  ] as const)('uses the resolved endpoint dialect for %s developer-role compatibility', (endpointType, api) => {
+    const model = makeModel({
+      id: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-chat',
+      endpointTypes: [endpointType],
+      contextWindow: 128_000
+    })
+    const provider = {
+      ...nativeProvider,
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: {
+        [endpointType]: { adapterFamily: 'openai', baseUrl: 'https://api.deepseek.com' }
+      }
+    } as unknown as Provider
+    const withoutDeveloperRole = buildDshProviderInjection(provider, model, 'sk-native')
+    const withDeveloperRole = buildDshProviderInjection(
+      {
+        ...provider,
+        endpointConfigs: {
+          [endpointType]: {
+            ...provider.endpointConfigs?.[endpointType],
+            dialect: { developerRole: true }
+          }
+        }
+      },
+      model,
+      'sk-native'
+    )
+
+    expect(withoutDeveloperRole.api).toBe(api)
+    expect(withoutDeveloperRole.modelConfig.compat).toEqual({ supportsDeveloperRole: false })
+    expect(withDeveloperRole.modelConfig.compat).toEqual({ supportsDeveloperRole: true })
+  })
+
   it('keeps native providers on the native route with agent-sdk usage capture', async () => {
     const model = makeModel({
       id: 'deepseek::deepseek-chat',

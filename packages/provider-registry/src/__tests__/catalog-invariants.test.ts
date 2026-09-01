@@ -35,6 +35,11 @@ const models = modelsRaw.models as Array<{
   inputModalities?: string[]
   outputModalities?: string[]
   ownedBy?: string
+  pricing?: {
+    cacheRead?: { currency: string; perMillionTokens: number }
+    input?: { currency: string; perMillionTokens: number }
+    output?: { currency: string; perMillionTokens: number }
+  }
   imageGeneration?: {
     modes?: {
       generate?: {
@@ -45,12 +50,16 @@ const models = modelsRaw.models as Array<{
       }
     }
   }
+  reasoning?: {
+    controls?: Array<{ kind: string; values?: string[] }>
+  }
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
   modelId: string
   apiModelId?: string
   name?: string
+  pricing?: unknown
 }>
 const providers = ProviderListSchema.parse(providersRaw).providers
 const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).overrides
@@ -131,6 +140,15 @@ describe('catalog invariants (data/*.json)', () => {
     expect(leaking).toEqual([])
   })
 
+  it('Fireworks rows carry account-scoped wire ids', () => {
+    const invalid = overrides
+      .filter(({ providerId }) => providerId === 'fireworks')
+      .filter(({ apiModelId }) => !apiModelId?.match(/^accounts\/fireworks\/(models|routers)\//))
+      .map(({ modelId }) => modelId)
+
+    expect(invalid).toEqual([])
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
@@ -163,6 +181,21 @@ describe('catalog invariants (data/*.json)', () => {
       ...ids.filter(isBatch),
       ...overrides.filter((o) => isBatch(o.apiModelId ?? o.modelId)).map((o) => `${o.providerId}/${o.apiModelId}`)
     ]).toEqual([])
+  })
+
+  it('keeps the OpenRouter-only DeepSeek router alias out of the creator catalog', () => {
+    const aliases = overrides.filter(
+      (override) => override.providerId === 'openrouter' && override.apiModelId?.startsWith('~')
+    )
+
+    expect(aliases.length).toBeGreaterThan(0)
+    const deepseekLatest = aliases.find((override) => override.apiModelId === '~deepseek/deepseek-v4-flash-latest')
+    expect(deepseekLatest).toMatchObject({
+      modelId: 'deepseek-v4-flash-latest',
+      name: 'DeepSeek V4 Flash Latest'
+    })
+    expect(baseIds.has(deepseekLatest!.modelId)).toBe(false)
+    expect(deepseekLatest?.pricing).toBeUndefined()
   })
 
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {
@@ -315,6 +348,32 @@ describe('catalog invariants (data/*.json)', () => {
       contextWindow: 1048576,
       maxOutputTokens: 393216
     })
+  })
+
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
+    'advertises only the official DeepSeek V4 reasoning efforts for %s',
+    (id) => {
+      expect(models.find((model) => model.id === id)?.reasoning?.controls).toEqual([
+        { kind: 'effort', values: ['none', 'low', 'high', 'max'] }
+      ])
+    }
+  )
+
+  it('keeps DeepSeek V4 base pricing at the documented static peak ceiling', () => {
+    const pricing = (id: string) => models.find((model) => model.id === id)?.pricing
+
+    expect(pricing('deepseek-v4-flash')).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
+      input: { currency: 'USD', perMillionTokens: 0.44 },
+      output: { currency: 'USD', perMillionTokens: 1.32 }
+    })
+    expect(pricing('deepseek-v4-flash-vision-exp')).toEqual(pricing('deepseek-v4-flash'))
+    expect(pricing('deepseek-v4-pro')).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
+      input: { currency: 'USD', perMillionTokens: 1.32 },
+      output: { currency: 'USD', perMillionTokens: 3.96 }
+    })
+    expect(pricing('deepseek-v4-flash-latest')).toBeUndefined()
   })
 
   it('models.json conforms to ModelListSchema', () => {

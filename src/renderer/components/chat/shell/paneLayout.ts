@@ -21,3 +21,45 @@ export const ARTIFACT_RIGHT_PANE_CLOSE_DRAG_OVERSHOOT = 80
 export const ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH = 280
 export const ARTIFACT_RIGHT_PANE_MAX_WIDTH = 720
 export const ARTIFACT_RIGHT_PANE_CACHE_KEY = 'ui.chat.artifact_pane.width'
+
+/**
+ * The topic/session list borrows the right pane but is a list, not an artifact: it keeps the left
+ * list's width envelope and its own persisted width, so dragging one never resizes the other.
+ */
+export const RESOURCE_LIST_RIGHT_PANE_CACHE_KEY = 'ui.chat.resource_pane.width'
+
+/**
+ * Named width policies for the shared right pane. Panels pick a preset by name; the envelope
+ * and the persisted key behind each name are owned here, so width policy never becomes
+ * per-panel configuration.
+ *
+ * - `inspector` — artifacts, branches, traces: content sized for reading, its own wide envelope.
+ * - `navigation-list` — the topic/session list: a list, so it mirrors the left list's envelope
+ *   and keeps a separate persisted width; dragging one never resizes the other.
+ */
+export type RightPaneWidthPreset = 'inspector' | 'navigation-list'
+
+export type RightPaneWidthPolicy = {
+  cacheKey: typeof ARTIFACT_RIGHT_PANE_CACHE_KEY | typeof RESOURCE_LIST_RIGHT_PANE_CACHE_KEY
+  minWidth: number
+  maxWidth: number
+}
+
+const RIGHT_PANE_WIDTH_PRESETS = {
+  inspector: {
+    cacheKey: ARTIFACT_RIGHT_PANE_CACHE_KEY,
+    minWidth: ARTIFACT_RIGHT_PANE_MIN_WIDTH,
+    maxWidth: ARTIFACT_RIGHT_PANE_MAX_WIDTH
+  },
+  'navigation-list': {
+    cacheKey: RESOURCE_LIST_RIGHT_PANE_CACHE_KEY,
+    minWidth: RESOURCE_LIST_PANE_MIN_WIDTH,
+    maxWidth: RESOURCE_LIST_PANE_MAX_WIDTH
+  }
+} as const satisfies Record<RightPaneWidthPreset, RightPaneWidthPolicy>
+
+export const DEFAULT_RIGHT_PANE_WIDTH_PRESET: RightPaneWidthPreset = 'inspector'
+
+export function getRightPaneWidthPolicy(preset: RightPaneWidthPreset = DEFAULT_RIGHT_PANE_WIDTH_PRESET) {
+  return RIGHT_PANE_WIDTH_PRESETS[preset]
+}
