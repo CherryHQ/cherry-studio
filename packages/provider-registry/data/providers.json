@@ -684,6 +684,7 @@
       "name": "Ollama"
     },
     {
+      "authOptional": true,
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -2415,5 +2416,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "4a6f7225220e7a46"
+  "version": "f95a446170c3a29a"
 }
