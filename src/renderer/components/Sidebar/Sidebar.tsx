@@ -96,7 +96,7 @@ export function Sidebar({
           label={title}
           aria-label={title || undefined}
           onClick={onHeaderClick}
-          className="cursor-pointer rounded-xl [-webkit-app-region:no-drag]"
+          className="cursor-pointer rounded-xl text-sidebar-foreground [-webkit-app-region:no-drag]"
         />
       )
     }

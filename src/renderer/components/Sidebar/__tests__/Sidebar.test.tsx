@@ -345,6 +345,8 @@ describe('Sidebar resize handle', () => {
     const headerAction = screen.getByRole('button', { name: /User$/ })
     // Interactive controls must opt out of Electron's window drag region.
     expect(headerAction).toHaveClass('[-webkit-app-region:no-drag]')
+    // The sidebar foreground token must win over MenuItem's generic foreground.
+    expect(headerAction).toHaveClass('text-sidebar-foreground')
 
     await user.click(headerAction)
 
