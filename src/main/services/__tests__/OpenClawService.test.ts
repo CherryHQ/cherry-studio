@@ -760,12 +760,33 @@ describe('OpenClawService gateway status state machine', () => {
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['openclaw'])
     })
 
-    it('rejects concurrent startup calls', async () => {
-      ;(service as any).gatewayStatus = 'starting'
+    it('rejects a second start while the first is in asynchronous preflight', async () => {
+      let finishValidation!: () => void
+      validateConfigSpy.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishValidation = () =>
+              resolve({
+                valid: true,
+                path: '/mock/.openclaw/openclaw.json',
+                issues: [],
+                warnings: []
+              })
+          })
+      )
+      checkPortOpenSpy.mockResolvedValue(false)
+      startAndWaitSpy.mockResolvedValue(undefined)
 
-      const result = await service.startGateway()
+      const firstStart = service.startGateway()
+      await vi.waitFor(() => expect(validateConfigSpy).toHaveBeenCalledOnce())
+      const secondStart = await service.startGateway()
 
-      expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
+      expect(secondStart).toEqual({ success: false, message: 'Gateway is already starting' })
+      expect(validateConfigSpy).toHaveBeenCalledOnce()
+
+      finishValidation()
+      await expect(firstStart).resolves.toEqual({ success: true })
+      expect(startAndWaitSpy).toHaveBeenCalledOnce()
     })
 
     it('rejects an invalid formal config before checking or stopping the gateway port', async () => {

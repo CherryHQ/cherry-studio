@@ -391,6 +391,7 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  private gatewayStartPromise: Promise<OperationResult> | undefined
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
 
@@ -754,6 +755,20 @@ export class OpenClawService extends BaseService {
    * Start the OpenClaw Gateway
    */
   public async startGateway(port?: number): Promise<OperationResult> {
+    if (this.gatewayStartPromise) {
+      return { success: false, message: 'Gateway is already starting' }
+    }
+
+    const startPromise = this.startGatewayOnce(port)
+    this.gatewayStartPromise = startPromise
+    try {
+      return await startPromise
+    } finally {
+      if (this.gatewayStartPromise === startPromise) this.gatewayStartPromise = undefined
+    }
+  }
+
+  private async startGatewayOnce(port?: number): Promise<OperationResult> {
     // Guard before touching the port so a concurrent-start rejection cannot repoint
     // it, and an omitted port keeps the preference-synced value instead of the default.
     if (this.gatewayStatus === 'starting') {

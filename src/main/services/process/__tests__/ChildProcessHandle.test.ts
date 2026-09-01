@@ -22,6 +22,7 @@ vi.mock('@main/utils/shellEnv', () => ({
 
 import { crossPlatformSpawn, terminateProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 
 import { ChildProcessHandle } from '../ChildProcessHandle'
 
@@ -428,6 +429,20 @@ describe('ChildProcessHandle', () => {
       expect(onLog).toHaveBeenCalledWith(
         expect.objectContaining({ processId: 'log-proc', stream: 'stderr', data: 'error output\n' })
       )
+    })
+
+    it('does not write child output to the central logger', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'secret-output', command: 'node' })
+      const secret = 'sk-sensitive-value'
+
+      await handle.start()
+      mockCp.stdout.emit('data', Buffer.from(`Authorization: Bearer ${secret}\n`))
+      mockCp.stderr.emit('data', Buffer.from(`api_key=${secret}\n`))
+
+      expect(mockMainLoggerService.debug).not.toHaveBeenCalledWith(expect.stringContaining(secret))
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalledWith(expect.stringContaining(secret))
     })
 
     it('isolates errors thrown by onLog', async () => {

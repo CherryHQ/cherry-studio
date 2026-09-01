@@ -139,8 +139,6 @@ export class ChildProcessHandle {
 
   private handleLog(stream: ProcessLogLine['stream'], data: Buffer): void {
     const line: ProcessLogLine = { processId: this.id, stream, data: data.toString(), timestamp: Date.now() }
-    if (stream === 'stdout') this.logger.debug(line.data.trimEnd())
-    else this.logger.warn(line.data.trimEnd())
     const onLog = this.onLog
     this.invokeCallback('onLog', onLog ? () => onLog(line) : undefined)
   }
