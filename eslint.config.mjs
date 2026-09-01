@@ -10,7 +10,6 @@ import importX from 'eslint-plugin-import-x'
 import importZod from 'eslint-plugin-import-zod'
 import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
-import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
 import { defineConfig } from 'eslint/config'
 
@@ -479,7 +478,6 @@ export default defineConfig([
   reactHooks.configs['recommended-latest'],
   {
     plugins: {
-      'simple-import-sort': simpleImportSort,
       'unused-imports': unusedImports,
       'import-zod': importZod
     },
@@ -487,8 +485,6 @@ export default defineConfig([
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
-      'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error',
       'unused-imports/no-unused-imports': 'error',
       '@eslint-react/no-prop-types': 'error',
       'import-zod/prefer-zod-namespace': 'error'
