@@ -138,7 +138,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
           isAuthed: false,
           oauthUsername: '',
           oauthAvatar: '',
-          extraHeaders: {}
+          extraHeaders: null
         }
       })
 

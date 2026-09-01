@@ -135,7 +135,7 @@ describe('CommandService', () => {
   it('opens settings through the main-window settings helper', () => {
     service.execute('app.settings.open')
 
-    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/provider')
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith()
   })
 
   it('passes the target window to zoom commands', () => {

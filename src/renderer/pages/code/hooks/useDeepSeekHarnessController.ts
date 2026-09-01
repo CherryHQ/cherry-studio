@@ -5,14 +5,13 @@ import { toast } from '@renderer/services/toast'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { parseConfiguredModelId } from '../cliConfig'
+import { resolveLaunchModelId } from '../cliConfig'
+import { useManagedToolStatus } from './useManagedToolStatus'
 
 const logger = loggerService.withContext('useDeepSeekHarnessController')
-
-type DeepSeekHarnessStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 interface UseDeepSeekHarnessControllerOptions {
   selectedCliTool: CodeCli
@@ -44,11 +43,12 @@ export function useDeepSeekHarnessController({
 }: UseDeepSeekHarnessControllerOptions): DeepSeekHarnessController {
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
-  const [status, setStatus] = useState<DeepSeekHarnessStatus>('stopped')
-  const [url, setUrl] = useState<string>()
+  const isDeepSeekHarness = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
+  // Status comes from main-pushed events (single source of truth); only the local
+  // launching/stopping intents live here, covering the gap until events arrive.
+  const { status, url } = useManagedToolStatus('deepseek-harness', isDeepSeekHarness)
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const isDeepSeekHarness = selectedCliTool === CodeCli.DEEPSEEK_HARNESS
   const settings = useMemo(
     () => normalizeDeepSeekHarnessSettings(currentProviderConfig?.config),
     [currentProviderConfig?.config]
@@ -69,40 +69,29 @@ export function useDeepSeekHarnessController({
   )
 
   const handleLaunch = useCallback(async () => {
-    if (!enabledProvider || !currentProviderConfig?.modelId) {
-      toast.error(t('code.select_provider_model'))
-      return
-    }
-    const parsedModelId = parseConfiguredModelId(currentProviderConfig.modelId)
-    if (!parsedModelId) {
-      logger.error('Invalid DeepSeek Harness model id configured', {
-        modelId: currentProviderConfig.modelId,
-        providerId: enabledProvider.id
-      })
-      await upsertProviderConfig(enabledProvider.id, { modelId: null })
-      await setCurrentProvider(null)
-      toast.error(t('code.select_provider_model'))
-      return
-    }
+    const parsedModelId = await resolveLaunchModelId({
+      enabledProvider,
+      currentProviderConfig,
+      upsertProviderConfig,
+      setCurrentProvider,
+      errorToastKey: 'code.select_provider_model',
+      logLabel: 'Invalid DeepSeek Harness model id configured'
+    })
+    if (!parsedModelId || !enabledProvider) return
 
     try {
       setLaunching(true)
-      setStatus('starting')
       const result = await ipcApi.request('deepseek_harness.start', {
         mode: isApiGatewayProviderId(enabledProvider.id) ? 'gateway' : 'direct',
         uniqueModelId: parsedModelId.uniqueModelId,
         ...settings
       })
       if (!result.success) {
-        setStatus('error')
         toast.error(result.message)
         return
       }
-      setUrl(result.url)
-      setStatus('running')
       openWebUi(result.url)
     } catch (error) {
-      setStatus('error')
       logger.error('Failed to launch DeepSeek Harness', error as Error)
       toast.error(t('code.launch.error'))
     } finally {
@@ -118,8 +107,6 @@ export function useDeepSeekHarnessController({
         toast.error(result.message)
         return false
       }
-      setStatus('stopped')
-      setUrl(undefined)
       return true
     } catch (error) {
       logger.error('Failed to stop DeepSeek Harness', error as Error)
@@ -138,36 +125,12 @@ export function useDeepSeekHarnessController({
       }
       const current = await ipcApi.request('deepseek_harness.get_status')
       if (current.status !== 'running' || !current.url) throw new Error('DeepSeek Harness Web UI is not running')
-      setUrl(current.url)
       openWebUi(current.url)
     } catch (error) {
       logger.error('Failed to open DeepSeek Harness Web UI', error as Error)
       toast.error(t('code.launch.error'))
     }
   }, [openWebUi, t, url])
-
-  useEffect(() => {
-    if (!isDeepSeekHarness) return
-    let cancelled = false
-    const refreshStatus = async () => {
-      try {
-        const current = await ipcApi.request('deepseek_harness.get_status')
-        if (!cancelled) {
-          setStatus(current.status)
-          setUrl(current.url)
-        }
-      } catch (error) {
-        logger.error('Failed to read DeepSeek Harness status', error as Error)
-      }
-    }
-
-    void refreshStatus()
-    const interval = window.setInterval(refreshStatus, 5000)
-    return () => {
-      cancelled = true
-      window.clearInterval(interval)
-    }
-  }, [isDeepSeekHarness])
 
   return {
     launching: isDeepSeekHarness && launching,

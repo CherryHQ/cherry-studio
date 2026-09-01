@@ -32,7 +32,7 @@ Redux deliberately clears `messages[]` to reduce storage size. The migrator merg
    - New: Tree via `parentId` + `siblingsGroupId`
 
 2. **Multi-model Responses**
-   - Old: `askId` links responses to user message, `foldSelected` marks active
+   - Old: `askId` links responses to user message, `useful` selects context, and `foldSelected` selects the visible tab
    - New: Shared `parentId` + non-zero `siblingsGroupId` groups siblings
 
 3. **Block Inlining**
@@ -84,7 +84,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | Redux: (parent assistant.id) | `assistantId` | From `topicAssistantLookup` mapping |
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
-| (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
+| (computed) | `activeNodeId` | Last migrated message; a terminal response group uses its first `useful` response, or its first response when none is marked |
 | Redux: `assistants[].topics[]` then `defaultAssistant.topics[]` (first-write-wins) | `orderKey` | Global sequence; Dexie-only leftovers append after the flatten (`updatedAt` DESC, then id). Not recency. |
 | Redux: `pinned` | `pin` row | Polymorphic `pin` table (`entityType='topic'`) |
 | Same flatten restricted to `pinned === true` | `pin.orderKey` | Pin list order follows Redux array order among pinned ids, not `updatedAt` |
@@ -113,7 +113,9 @@ Topic data is merged from Dexie + Redux before transformation:
 | `createdAt` | `createdAt` | ISO string → timestamp |
 | `updatedAt` | `updatedAt` | ISO string → timestamp |
 
-**Dropped fields**: `type` after converting `clear` to `data-clear`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
+**Consumed but not stored**: `useful` selects the migrated context branch; `askId` becomes `parentId` + `siblingsGroupId`.
+
+**Dropped fields**: `type` after converting `clear` to `data-clear`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `foldSelected`
 
 ### Block Type Mapping
 

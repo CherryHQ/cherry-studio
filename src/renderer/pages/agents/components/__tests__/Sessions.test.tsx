@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as DndKitUtilities from '@dnd-kit/utilities'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -211,6 +212,7 @@ vi.mock('@dnd-kit/sortable', () => {
       return {
         attributes: { 'data-sortable-id': id },
         listeners: {},
+        setActivatorNodeRef: vi.fn(),
         setNodeRef: vi.fn(),
         transform: null,
         transition: undefined,
@@ -221,7 +223,8 @@ vi.mock('@dnd-kit/sortable', () => {
   }
 })
 
-vi.mock('@dnd-kit/utilities', () => ({
+vi.mock('@dnd-kit/utilities', async (importOriginal) => ({
+  ...(await importOriginal<typeof DndKitUtilities>()),
   CSS: {
     Transform: {
       toString: () => undefined
@@ -391,6 +394,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
     (value: unknown) => {
       preferenceMocks.values.set(key, value)
       preferenceMocks.setPreference(key, value)
+      return Promise.resolve()
     }
   ],
   useMultiplePreferences: (keys: Record<string, string>) => [
@@ -554,6 +558,8 @@ vi.mock('react-i18next', () => ({
         'agent.delete.content': 'Delete this agent and its tasks?',
         'agent.delete.error.failed': 'Failed to delete agent',
         'agent.delete.title': 'Delete Agent',
+        'launchpad.pin_to_sidebar': 'Add to sidebar',
+        'launchpad.unpin_from_sidebar': 'Remove from sidebar',
         'agent.session.agent.delete.content': 'Delete all tasks for this agent. The agent itself will not be deleted.',
         'agent.session.agent.delete.title': 'Delete agent tasks',
         'agent.session.agent.delete.trigger': 'Delete agent tasks',
@@ -1951,7 +1957,13 @@ describe('Sessions', () => {
     expect(revealedRow!).not.toHaveAttribute('data-reveal-focus')
   })
 
-  it('renames sessions through the shared update session hook', async () => {
+  it('renames sessions optimistically and rolls back when the update fails', async () => {
+    let resolveRename!: (session: AgentSessionEntity | undefined) => void
+    sessionDataMocks.updateSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRename = resolve
+      })
+    )
     render(<SessionsForTest />)
 
     fireEvent.doubleClick(screen.getByText('Alpha session'))
@@ -1966,7 +1978,14 @@ describe('Sessions', () => {
         { showSuccessToast: false }
       )
     )
+    expect(screen.getByText('Renamed session')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+
+    await act(async () => resolveRename(undefined))
+
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    expect(screen.queryByText('Renamed session')).not.toBeInTheDocument()
   })
 
   it('renames sessions from the context menu dialog', async () => {
@@ -3501,6 +3520,64 @@ describe('Sessions', () => {
     fireEvent.click(modelIconMenuItem as HTMLElement)
 
     await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'model'))
+  })
+
+  it('pins an agent to the sidebar from the agent group menu', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('ui.sidebar.favorites', [])
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<SessionsForTest />)
+
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
+    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    const pinMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Add to sidebar' })
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
+    expect(pinMenuItem).toBeDefined()
+
+    fireEvent.click(pinMenuItem as HTMLElement)
+
+    await vi.waitFor(() =>
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
+        { type: 'agent', id: 'agent-a' }
+      ])
+    )
+  })
+
+  it('unpins an already pinned agent from the agent group menu', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-a' }])
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      isLoading: false,
+      error: undefined,
+      refetch: dataApiMocks.refetchAgents
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<SessionsForTest />)
+
+    const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
+    fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
+    const unpinMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Remove from sidebar' })
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
+    expect(unpinMenuItem).toBeDefined()
+
+    fireEvent.click(unpinMenuItem as HTMLElement)
+
+    await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
   })
 
   it('deletes an agent from the agent group menu', async () => {

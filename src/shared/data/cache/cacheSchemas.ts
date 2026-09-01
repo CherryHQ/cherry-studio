@@ -140,6 +140,10 @@ export type UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
   'mini_app.current_id': string
+  /** Whether the mini app view is split into two panes. */
+  'mini_app.split_open': boolean
+  /** Mini app shown in the split pane. Empty while the pane awaits a pick. */
+  'mini_app.split_id': string
   'mini_app.show': boolean
   'mini_app.opened_oneoff': CacheValueTypes.CacheMiniAppType | null
   'mini_app.detected_region': MiniAppRegion | null
@@ -226,6 +230,8 @@ export const DefaultUseCache: UseCacheSchema = {
   // MiniApp management
   'mini_app.opened_keep_alive': [],
   'mini_app.current_id': '',
+  'mini_app.split_open': false,
+  'mini_app.split_id': '',
   'mini_app.show': false,
   'mini_app.opened_oneoff': null,
   'mini_app.detected_region': null,
@@ -318,6 +324,9 @@ export type SharedCacheSchema = {
   // Nothing evicts an entry — that is the point, and it costs a handful of rows per
   // session. Null is the cache miss (see the `jobs.state` precedent above).
   'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Apps that want the user's attention, and why (a host-added permission, or an update).
+  // Written by `useWindowRuntime` only; identical in every window, hence shared.
+  'mini_app.attention': CacheValueTypes.CacheMiniAppAttention[]
   // Directory copy progress for a knowledge item, main -> all windows. Like
   // embedding progress, the prepare job owns this runtime-only value.
   'knowledge.item.directory_copy_progress.${itemId}': number | null
@@ -348,6 +357,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'jobs.progress.${jobId}': { progress: 0 },
   'knowledge.item.embedding_progress.${itemId}': null,
   'mini_app.transient_descriptor.${appId}': null,
+  'mini_app.attention': [],
   'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
@@ -366,6 +376,9 @@ export type RendererPersistCacheSchema = {
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
+  // Right-pane width for the topic/session list tab. Separate from the artifact pane's key so a
+  // width dragged for an artifact never widens the list (and vice versa).
+  'ui.chat.resource_pane.width': number
   // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
   'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
@@ -407,7 +420,8 @@ export type RendererPersistCacheSchema = {
   'settings.usage.currency': Currency | null
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
-  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  // Last successful external-open target per directory or file-extension scope.
+  'external_app.target.preferences': CacheValueTypes.ExternalOpenTargetPreferences
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
   // Screenshot overlay tool preferences — persisted because muscle memory should survive restarts,
@@ -427,6 +441,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
+  'ui.chat.resource_pane.width': 275, // keep in sync with 'ui.chat.sidebar.width'
   'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
@@ -454,7 +469,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.usage.entry_sort_order': 'desc',
   'settings.usage.currency': null,
   'feature.mcp.provider_available_servers': {},
-  'agent.open_external_app.last_used_target': null,
+  'external_app.target.preferences': {},
   'ui.emoji.recently_used': [],
   'ui.screenshot.color_mode': 'hex',
   // Each must be a member of the matching preset list in renderer/windows/screenshot/constants.ts,

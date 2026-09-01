@@ -145,7 +145,9 @@ export function PromptEditorField({
   }
 
   return (
-    <Field data-invalid={hasError || undefined} className={fill ? 'min-h-0 flex-1 gap-1.5' : 'gap-1.5'}>
+    <Field
+      data-invalid={hasError || undefined}
+      className={fill ? 'min-h-0 min-w-0 max-w-full flex-1 gap-1.5' : 'min-w-0 max-w-full gap-1.5'}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {label}
@@ -158,26 +160,26 @@ export function PromptEditorField({
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={value.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border px-2 py-[3px] font-normal text-muted-foreground text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
+            className="flex h-6 min-h-0 items-center gap-1 rounded-md border border-border-subtle px-2 py-0 font-normal text-muted-foreground! text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground! focus-visible:bg-accent/50 focus-visible:text-foreground! focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            {effectiveShowPreview ? <Edit className="size-3" /> : <Eye className="size-3" />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
         </div>
       </div>
 
-      <FieldContent className={fill ? 'min-h-0' : undefined}>
+      <FieldContent className={fill ? 'min-h-0 min-w-0 max-w-full' : 'min-w-0 max-w-full'}>
         <div
           aria-invalid={hasError || undefined}
           onMouseDown={handleEditorAreaMouseDown}
           className={cn(
-            'overflow-hidden rounded-md border bg-background transition-all',
+            'min-w-0 max-w-full overflow-hidden rounded-md border bg-background transition-all',
             fill && 'flex min-h-0 flex-1 flex-col',
             hasError ? 'border-error-border focus-within:border-error' : 'border-border focus-within:border-ring'
           )}>
           {effectiveShowPreview ? (
             <div
               className={cn(
-                'prompt-preview markdown overflow-auto p-3 text-foreground text-xs',
+                'prompt-preview markdown min-w-0 max-w-full overflow-auto p-3 text-foreground text-xs',
                 fill && 'min-h-0 flex-1'
               )}
               style={fill ? undefined : { minHeight, maxHeight }}

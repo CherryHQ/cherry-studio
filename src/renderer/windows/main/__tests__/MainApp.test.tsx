@@ -16,8 +16,13 @@ vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
   PrivacyPolicyUpdateGate: () => <div data-testid="privacy-policy-gate">privacy-policy-gate</div>
 }))
 
+const tabsProviderMock = vi.hoisted(() => ({ lastInitialDefaultTab: null as unknown }))
+
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
-  TabsProvider: ({ children }: { children: ReactNode }) => <div data-testid="tabs-provider">{children}</div>
+  TabsProvider: ({ children, initialDefaultTab }: { children: ReactNode; initialDefaultTab?: unknown }) => {
+    tabsProviderMock.lastInitialDefaultTab = initialDefaultTab
+    return <div data-testid="tabs-provider">{children}</div>
+  }
 }))
 
 vi.mock('@renderer/components/layout/AppShell', () => ({
@@ -85,6 +90,29 @@ describe('MainWindowContent', () => {
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
     expect(document.getElementById('spinner')).toBeNull()
+  })
+
+  it('passes the first visible sidebar app as the startup landing tab', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'translate' }
+    ])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/agents' })
+  })
+
+  it('falls back to launchpad when no sidebar app is visible', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderMock.lastInitialDefaultTab).toMatchObject({ url: '/app/launchpad' })
   })
 })
 

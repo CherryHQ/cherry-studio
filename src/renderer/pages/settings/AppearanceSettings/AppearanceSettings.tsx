@@ -29,6 +29,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -40,7 +41,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import type { MenuPresentationMode, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -121,6 +122,8 @@ const AppearanceSettings: FC = () => {
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
+  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const isChatAssistantVisible = appFavorites.includes('assistants')
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
@@ -128,6 +131,8 @@ const AppearanceSettings: FC = () => {
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
+  const [topicListPosition, setTopicListPosition] = usePreference('topic.tab.position')
+  const [sessionListPosition, setSessionListPosition] = usePreference('agent.session.position')
   const [codeExecution, setCodeExecution] = useMultiplePreferences({
     enabled: 'chat.code.execution.enabled',
     timeoutMinutes: 'chat.code.execution.timeout_minutes'
@@ -202,6 +207,14 @@ const AppearanceSettings: FC = () => {
     () => [
       { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
       { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
+    ],
+    [t]
+  )
+
+  const listPositionOptions = useMemo(
+    () => [
+      { value: 'left' as const, label: t('settings.topic.position.left') },
+      { value: 'right' as const, label: t('settings.topic.position.right') }
     ],
     [t]
   )
@@ -415,6 +428,15 @@ const AppearanceSettings: FC = () => {
             </Tooltip>
           </ZoomButtonGroup>
         </SettingRow>
+        {isMac && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
+              <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
@@ -425,15 +447,42 @@ const AppearanceSettings: FC = () => {
             size="sm"
           />
         </SettingRow>
-        {isMac && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
-            </SettingRow>
-          </>
-        )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.list_position.chat')}</SettingRowTitle>
+          <SegmentedControl<TopicTabPosition>
+            value={topicListPosition}
+            onValueChange={setTopicListPosition}
+            options={listPositionOptions}
+            aria-label={t('settings.display.list_position.chat')}
+            size="sm"
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.list_position.work')}</SettingRowTitle>
+          <SegmentedControl<TopicTabPosition>
+            value={sessionListPosition}
+            onValueChange={setSessionListPosition}
+            options={listPositionOptions}
+            aria-label={t('settings.display.list_position.work')}
+            size="sm"
+          />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.sidebar.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.sidebar.chat.visible')}</SettingRowTitle>
+          <Switch
+            checked={isChatAssistantVisible}
+            disabled={isChatAssistantVisible && appFavorites.length <= 1}
+            onCheckedChange={(checked) => setAppPinned('assistants', checked)}
+            aria-label={t('settings.display.sidebar.chat.visible')}
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
