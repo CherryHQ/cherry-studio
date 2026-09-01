@@ -498,7 +498,7 @@ const latexMathFromMarkdown: FromMarkdownExtension = {
 }
 
 function getLatexMathKind(node: InlineMath): LatexMathKind | undefined {
-  return (node.data as LatexMathData | undefined)?.latexMathKind
+  return node.data?.latexMathKind
 }
 
 function toPlainText(node: InlineMath): Text {
@@ -587,7 +587,7 @@ function splitDisplayMath(paragraph: Paragraph): RootContent[] {
 
   for (const child of paragraph.children) {
     if (child.type !== 'inlineMath' || !isDisplayLatexMath(child)) {
-      if (child.type === 'inlineMath') delete (child.data as LatexMathData | undefined)?.latexMathKind
+      if (child.type === 'inlineMath') delete child.data?.latexMathKind
       phrasing.push(child)
       continue
     }
