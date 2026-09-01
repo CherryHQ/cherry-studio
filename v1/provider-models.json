@@ -25524,7 +25524,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-4-image-2",
+      "name": "OpenAI: GPT-5.4 Image 2",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26043,7 +26045,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image",
+      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26124,7 +26128,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image-mini",
+      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -38499,5 +38505,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40d817144bf46fc2"
+  "version": "268cd7910d250962"
 }
