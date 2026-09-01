@@ -44,7 +44,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { PI_NATIVE_BUILTIN_TOOLS, PI_TOOL_EXEC_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import { ApiGatewayNotRunningError } from '../agentApiGateway'
@@ -62,7 +61,8 @@ import { createPiApprovalExtension, createPiToolAuthorizer } from './approvalExt
 import {
   materializePiProviderStream,
   type PiProviderInjection,
-  resolvePiProviderInjectionForSession
+  resolvePiProviderInjectionForSession,
+  usesPiGateway
 } from './modelInjection'
 import { createPiCodeModeTools } from './piCodeMode'
 import {
@@ -210,7 +210,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     )
     // Gateway startup and first-key creation change its fingerprint, so settle them before the
     // authoritative snapshot. The actual injection is resolved again from that snapshot below.
-    if (isManagedCherryCloudModel(discoverySnapshot.model.providerId)) {
+    if (usesPiGateway(discoverySnapshot.provider)) {
       await resolveInjection(discoverySnapshot)
     }
     await warmMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])

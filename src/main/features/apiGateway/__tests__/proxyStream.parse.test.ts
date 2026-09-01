@@ -275,19 +275,20 @@ describe('processMessage model-id parsing', () => {
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 
-  it('keeps Cherry Cloud gateway access on the Anthropic Messages protocol', async () => {
+  it('lets authorized provider requests use the gateway dialect adapters', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
     mockIsInternalAgentRequest.mockReturnValue(true)
 
-    await expect(
-      processMessage({
-        params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-        inputFormat: 'openai',
-        outputFormat: 'openai',
-        requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })
-      })
-    ).rejects.toThrow('require the Anthropic Messages protocol')
-    expect(mockStreamPrompt).not.toHaveBeenCalled()
+    const responsePromise = processMessage({
+      params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })
+    })
+
+    await vi.waitFor(() => expect(captured.opts).toBeDefined())
+    void captured.opts!.listener!.onDone({} as any)
+    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 
   it('rejects an address that does not match an enabled gateway model', async () => {

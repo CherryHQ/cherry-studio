@@ -33,7 +33,6 @@ import {
 } from '@shared/ai/builtinTools'
 import { type DshBuiltinToolDescriptor, getDshRuntimeBuiltinTools } from '@shared/ai/dshBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -67,11 +66,7 @@ import {
 import { loadDshSdk } from './dshSdk'
 import { type DshInvocationMetrics, DshStreamAdapter } from './dshStreamAdapter'
 import { DshTraceRecorder } from './dshTrace'
-import {
-  type DshProviderInjection,
-  resolveDshInjectionApi,
-  resolveDshProviderInjectionFromSnapshot
-} from './modelInjection'
+import { type DshProviderInjection, resolveDshProviderInjectionFromSnapshot, usesDshGateway } from './modelInjection'
 
 const logger = loggerService.withContext('DshRuntimeConnection')
 
@@ -246,12 +241,9 @@ export class DshRuntimeConnection implements AgentRuntimeConnection {
       this.input.modelId,
       this.input.knowledgeBaseIds
     )
-    const discoveryUsesGateway =
-      isManagedCherryCloudModel(discoverySnapshot.model.providerId) ||
-      resolveDshInjectionApi(discoverySnapshot.provider, discoverySnapshot.model) === undefined
     // Settle Gateway startup before the authoritative snapshot; resolve again afterward so the
     // connection is built from the exact provider/model facts protected by the final check.
-    if (discoveryUsesGateway) await resolveInjection(discoverySnapshot)
+    if (usesDshGateway(discoverySnapshot.provider, discoverySnapshot.model)) await resolveInjection(discoverySnapshot)
     await warmDshMcpToolCatalogs(discoverySnapshot.agent.mcps ?? [])
     const snapshot = await captureDshConnectionSnapshot(
       this.input.sessionId,

@@ -19,11 +19,11 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { getProviderAgentGatewayPolicy } from '@main/ai/provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
-import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -157,15 +157,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
-  if (isManagedCherryCloudModel(providerId)) {
-    if (!isInternalAgentRequest) {
-      const error = asClientError(new Error('Cherry Cloud models are only available to internal Agent requests'))
-      error.status = 403
-      throw error
-    }
-    if (inputFormat !== 'anthropic' || outputFormat !== 'anthropic') {
-      throw asClientError(new Error('Cherry Cloud models require the Anthropic Messages protocol'))
-    }
+  const agentGatewayPolicy = getProviderAgentGatewayPolicy(providerId)
+  if (agentGatewayPolicy && !agentGatewayPolicy.authorizeRequest({ isInternalAgentRequest })) {
+    const error = asClientError(new Error('This provider is only available to internal Agent requests'))
+    error.status = 403
+    throw error
   }
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {

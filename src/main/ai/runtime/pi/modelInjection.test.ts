@@ -32,7 +32,7 @@ vi.mock('@main/ai/runtime/agentApiGateway', () => ({
 
 import {
   assertPiProviderUsable,
-  buildPiCloudGatewayInjection,
+  buildPiGatewayInjection,
   buildPiProviderInjection,
   PI_PLACEHOLDER_API_KEY,
   PiMissingApiKeyError,
@@ -516,19 +516,23 @@ describe('Cherry Cloud Pi injection', () => {
   const provider = makeProvider({
     id: CHERRY_CLOUD_PROVIDER_ID,
     name: 'CherryAI',
-    defaultChatEndpoint: 'openai-chat-completions'
+    defaultChatEndpoint: 'anthropic-messages',
+    endpointConfigs: {
+      'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://cloud.cherryai.com.cn' }
+    }
   })
   const model = makeModel({
     id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
     providerId: CHERRY_CLOUD_PROVIDER_ID,
     apiModelId: 'deepseek-free',
     group: CHERRY_CLOUD_MODEL_GROUP,
+    endpointTypes: ['anthropic-messages'],
     contextWindow: 128_000,
     maxOutputTokens: 8_192
   })
 
   it('routes Anthropic Messages through the local gateway without a provider key', () => {
-    const injection = buildPiCloudGatewayInjection(provider, model, GATEWAY)
+    const injection = buildPiGatewayInjection(provider, model, GATEWAY)
 
     expect(injection.api).toBe('anthropic-messages')
     expect(injection.providerConfig.baseUrl).toBe('http://127.0.0.1:23333')
@@ -599,13 +603,21 @@ describe('modelInjection service resolution', () => {
   })
 
   it('accepts a Cherry Cloud model without a provider API key when synchronized metadata is complete', async () => {
-    serviceMocks.getByProviderId.mockResolvedValueOnce({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI' })
+    serviceMocks.getByProviderId.mockResolvedValueOnce({
+      id: CHERRY_CLOUD_PROVIDER_ID,
+      name: 'CherryAI',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: {
+        'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://cloud.cherryai.com.cn' }
+      }
+    })
     serviceMocks.getByKey.mockResolvedValueOnce({
       id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
       providerId: CHERRY_CLOUD_PROVIDER_ID,
       apiModelId: 'deepseek-free',
       name: 'DeepSeek Free',
       group: CHERRY_CLOUD_MODEL_GROUP,
+      endpointTypes: ['anthropic-messages'],
       capabilities: [],
       contextWindow: 128_000,
       maxOutputTokens: 8_192
