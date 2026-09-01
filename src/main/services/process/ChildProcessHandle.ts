@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { crossPlatformSpawn, terminateProcessTree, waitForProcessClose } from '@main/utils/processRunner'
+import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { ChildProcess } from 'child_process'
 
@@ -133,7 +133,8 @@ export class ChildProcessHandle {
   private registerProcessListeners(child: ChildProcess): void {
     child.stdout?.on('data', (data: Buffer) => this.handleLog('stdout', data))
     child.stderr?.on('data', (data: Buffer) => this.handleLog('stderr', data))
-    child.on('close', (code, signal) => this.handleProcessClose(code, signal))
+    child.on('exit', (code, signal) => this.handleProcessExit(code, signal))
+    child.on('close', (code, signal) => this.handleProcessExit(code, signal))
     child.on('error', (err) => this.handleProcessError(err))
   }
 
@@ -143,7 +144,7 @@ export class ChildProcessHandle {
     this.invokeCallback('onLog', onLog ? () => onLog(line) : undefined)
   }
 
-  private handleProcessClose(code: number | null, signal: NodeJS.Signals | null): void {
+  private handleProcessExit(code: number | null, signal: NodeJS.Signals | null): void {
     if (this._exited) return
     this._exited = true
     this._pid = undefined
@@ -227,14 +228,14 @@ export class ChildProcessHandle {
     const deadline = Date.now() + killTimeoutMs
     const gracefulTimeoutMs = Math.floor(killTimeoutMs * 0.75)
 
-    const gracefulExit = waitForProcessClose(child, gracefulTimeoutMs)
+    const gracefulExit = waitForProcessExit(child, gracefulTimeoutMs)
     await this.signalProcess(child, false)
     if (await gracefulExit) {
       return
     }
 
     this.logger.warn(`Kill timeout reached, sending SIGKILL to pid=${this._pid ?? child.pid}`)
-    const forcedExit = waitForProcessClose(child, Math.max(0, deadline - Date.now()))
+    const forcedExit = waitForProcessExit(child, Math.max(0, deadline - Date.now()))
     await this.signalProcess(child, true)
     if (!(await forcedExit)) {
       throw new Error(`Process ${this.id} did not exit after forced termination`)

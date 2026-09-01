@@ -124,7 +124,7 @@ export function killProcessTree(child: ChildProcess): void {
  * Signal a spawned child's whole process tree, awaiting the signal's delivery.
  *
  * Unlike `killProcessTree` (fire-and-forget SIGTERM), this awaits `taskkill` so a
- * caller can pair it with `waitForProcessClose` for graceful-then-forced escalation.
+ * caller can pair it with `waitForProcessExit` for graceful-then-forced escalation.
  * `force=false` sends SIGTERM / `taskkill /T`; `force=true` sends SIGKILL /
  * `taskkill /T /F`. Best-effort: a graceful failure against a still-live tree is
  * logged (`label` names the owner in the warning) and a forced failure rethrows;
@@ -150,19 +150,24 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
   }
 }
 
-/** Resolve true once the child's stdio closes within `timeoutMs`; false on timeout. */
-export function waitForProcessClose(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+/** Resolve true once the child exits within `timeoutMs`; false on timeout. */
+export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
+
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
-      child.off('close', onClose)
+      child.off('exit', onExit)
+      child.off('close', onExit)
       resolve(false)
     }, timeoutMs)
-    const onClose = () => {
+    const onExit = () => {
       clearTimeout(timeout)
-      child.off('close', onClose)
+      child.off('exit', onExit)
+      child.off('close', onExit)
       resolve(true)
     }
-    child.once('close', onClose)
+    child.once('exit', onExit)
+    child.once('close', onExit)
   })
 }
 

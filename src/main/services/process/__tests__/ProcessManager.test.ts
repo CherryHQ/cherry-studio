@@ -5,14 +5,22 @@ vi.mock('child_process', () => ({ spawn: vi.fn() }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: vi.fn(),
   terminateProcessTree: vi.fn(),
-  waitForProcessClose: vi.fn(
+  waitForProcessExit: vi.fn(
     (child: EventEmitter, timeoutMs: number) =>
       new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => resolve(false), timeoutMs)
-        child.once('close', () => {
+        const onExit = () => {
           clearTimeout(timeout)
+          child.off('exit', onExit)
+          child.off('close', onExit)
           resolve(true)
-        })
+        }
+        const timeout = setTimeout(() => {
+          child.off('exit', onExit)
+          child.off('close', onExit)
+          resolve(false)
+        }, timeoutMs)
+        child.once('exit', onExit)
+        child.once('close', onExit)
       })
   )
 }))
@@ -93,8 +101,8 @@ describe('ProcessManager', () => {
 
       const stopPromise = manager._doStop()
 
-      mockCp1.emit('close', 0, null)
-      mockCp2.emit('close', 0, null)
+      mockCp1.emit('exit', 0, null)
+      mockCp2.emit('exit', 0, null)
 
       await stopPromise
 

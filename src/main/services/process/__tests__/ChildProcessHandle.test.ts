@@ -5,14 +5,22 @@ vi.mock('child_process', () => ({ spawn: vi.fn() }))
 vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: vi.fn(),
   terminateProcessTree: vi.fn(),
-  waitForProcessClose: vi.fn(
+  waitForProcessExit: vi.fn(
     (child: EventEmitter, timeoutMs: number) =>
       new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => resolve(false), timeoutMs)
-        child.once('close', () => {
+        const onExit = () => {
           clearTimeout(timeout)
+          child.off('exit', onExit)
+          child.off('close', onExit)
           resolve(true)
-        })
+        }
+        const timeout = setTimeout(() => {
+          child.off('exit', onExit)
+          child.off('close', onExit)
+          resolve(false)
+        }, timeoutMs)
+        child.once('exit', onExit)
+        child.once('close', onExit)
       })
   )
 }))
@@ -171,6 +179,29 @@ describe('ChildProcessHandle', () => {
   })
 
   describe('process exit', () => {
+    it('reaches a terminal state when the child exits before its stdio closes', async () => {
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({ id: 'exit-before-close', command: 'node' })
+      const onExited = vi.fn()
+      const onLog = vi.fn()
+      handle.onExited = onExited
+      handle.onLog = onLog
+
+      await handle.start()
+      mockCp.emit('exit', 0, null)
+
+      expect(handle.state).toBe('stopped')
+      expect(handle.pid).toBeUndefined()
+      expect(onExited).toHaveBeenCalledOnce()
+
+      mockCp.stdout.emit('data', Buffer.from('trailing output\n'))
+      expect(onLog).toHaveBeenCalledWith(expect.objectContaining({ data: 'trailing output\n' }))
+
+      mockCp.emit('close', 0, null)
+      expect(onExited).toHaveBeenCalledOnce()
+    })
+
     it('transitions to Stopped on clean exit (code 0)', async () => {
       const mockCp = createMockChildProcess()
       mockSpawn.mockReturnValue(mockCp)
@@ -386,7 +417,7 @@ describe('ChildProcessHandle', () => {
       expect(handle.state).toBe('stopped')
     })
 
-    it('does not resolve until close updates the handle to a terminal state', async () => {
+    it('resolves when the child exits even if its stdio remains open', async () => {
       const mockCp = createMockChildProcess()
       mockSpawn.mockReturnValue(mockCp)
       const handle = new ChildProcessHandle({ id: 'exit-before-close', command: 'sleep' })
@@ -395,14 +426,6 @@ describe('ChildProcessHandle', () => {
       const stopPromise = handle.stop()
       mockCp.emit('exit', 0, null)
 
-      const resolvedBeforeClose = await Promise.race([
-        stopPromise.then(() => true),
-        new Promise<false>((resolve) => setTimeout(() => resolve(false), 0))
-      ])
-      expect(resolvedBeforeClose).toBe(false)
-      expect(handle.state).toBe('stopping')
-
-      mockCp.emit('close', 0, null)
       await expect(stopPromise).resolves.toBeUndefined()
       expect(handle.state).toBe('stopped')
     })

@@ -89,7 +89,7 @@ Callbacks belong to the individual handle. `ProcessManager` does not publish a g
 ## State Model
 
 ```text
-Idle ── start ──> Starting ── spawn ──> Running ── stop ──> Stopping ── close ──> Stopped
+Idle ── start ──> Starting ── spawn ──> Running ── stop ──> Stopping ── exit ──> Stopped
                        │                    │                                      │
                        └── error ───────────┴──────────────────────────────────> Crashed
 
@@ -154,7 +154,7 @@ Do not leave a failed-readiness child registered. A later retry would correctly 
 4. Uses only the remaining time in the original total deadline to confirm exit.
 5. Rejects when the child still has not exited by the deadline.
 
-The stop promise settles only after the child's `close` event has updated the handle to `Stopped` or `Crashed`. This keeps immediate unregister and restart operations consistent with the observed state.
+The stop promise settles after the child emits `exit`, with `close` retained as a fallback. Lifecycle completion does not wait for inherited stdout or stderr held open by a descendant; buffered output can still arrive until those streams close. Terminal callbacks remain single-shot across `exit`, `close`, and `error`.
 
 On Windows, and for detached children on other platforms, termination targets the process tree. Non-detached Unix children receive `SIGTERM` followed by `SIGKILL`.
 
