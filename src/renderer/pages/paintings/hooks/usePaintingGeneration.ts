@@ -4,7 +4,6 @@ import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
 import type { FileEntry } from '@shared/data/types/file'
-import type { PaintingMode } from '@shared/data/types/painting'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'

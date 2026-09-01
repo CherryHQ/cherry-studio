@@ -12,7 +12,7 @@ import {
 } from '@renderer/hooks/command'
 import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
+import type { ContextReader, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 

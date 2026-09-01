@@ -7,10 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * reading would divide the old model's tokens by the new model's window.
  */
 import { cacheService } from '@data/CacheService'
-import {
-  AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
-  type AgentSessionContextUsage
-} from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
 import type { Model } from '@shared/data/types/model'
 
 import { useAgentSessionContextUsage } from '../useAgentSessionContextUsage'

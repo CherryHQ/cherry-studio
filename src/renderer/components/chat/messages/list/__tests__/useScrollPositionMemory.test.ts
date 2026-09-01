@@ -1,6 +1,5 @@
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook } from '@testing-library/react'
-import type { RefObject } from 'react'
 import type { VListHandle } from 'virtua'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

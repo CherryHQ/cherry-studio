@@ -21,7 +21,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 
 // `@logger` is mocked globally by tests/main.setup.ts with the unified

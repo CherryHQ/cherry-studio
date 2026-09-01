@@ -23,7 +23,6 @@ import { useMutation } from '@data/hooks/useDataApi'
 import type {
   BranchMessage,
   BranchMessagesResponse,
-  CherryMessagePart,
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'

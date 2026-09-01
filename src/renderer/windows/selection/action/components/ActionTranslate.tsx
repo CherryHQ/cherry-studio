@@ -14,7 +14,7 @@ import { cn } from '@renderer/utils/style'
 import { pickBidirectionalTarget, UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { SelectionActionItem, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 import { getSelectionActionErrorMessage } from '../errorMessage'
