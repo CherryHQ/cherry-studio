@@ -6985,15 +6985,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "low", "medium", "xhigh"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["none", "low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -7087,15 +7083,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "low", "medium", "xhigh"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["none", "low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -7178,15 +7170,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["low", "medium", "xhigh"]
+                "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -25536,7 +25524,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-4-image-2",
+      "name": "OpenAI: GPT-5.4 Image 2",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26055,7 +26045,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image",
+      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26136,7 +26128,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image-mini",
+      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -38553,5 +38547,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "c23aee243f42c4d1"
+  "version": "e480b304ca4cc435"
 }

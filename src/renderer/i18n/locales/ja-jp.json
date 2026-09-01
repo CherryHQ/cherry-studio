@@ -4577,6 +4577,7 @@
   "settings.provider.create_custom.request_preview": "リクエストパス: {{path}}",
   "settings.provider.create_custom.title": "カスタムプロバイダーを追加",
   "settings.provider.delete.content": "このプロバイダーを削除してもよろしいですか？",
+  "settings.provider.delete.header": "{{key}} を削除",
   "settings.provider.delete.title": "プロバイダーを削除",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com（エンタープライズ）",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com（インターナショナル）",
