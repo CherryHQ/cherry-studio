@@ -1182,10 +1182,12 @@ export class CacheService {
         const persistKey = message.key as RendererPersistCacheKey
         // Follow-up queues are a per-conversation map persisted under one key;
         // two windows queuing to different conversations can broadcast whole-map
-        // values that are each stale for the other's entry. Shallow-merge that
-        // key so concurrent different-scope writes do not clobber each other.
-        // Deletions resurrect until the owning window's next write cleans them;
-        // that is stale-but-harmless compared to silent data loss.
+        // values that are each stale for the other's entry. Merge per-conversation
+        // so concurrent writes do not clobber each other. Deletions use a null
+        // tombstone (see useFollowupQueue persistState) so the merge can
+        // propagate them without resurrecting stale entries. Same-scope
+        // concurrent enqueues union items by id to avoid losing one window's
+        // queued message.
         if (
           persistKey === 'ui.composer.followup_queue' &&
           this.persistCache.has(persistKey) &&
@@ -1195,7 +1197,38 @@ export class CacheService {
         ) {
           const existing = this.persistCache.get(persistKey) as Record<string, unknown>
           if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
-            const merged = { ...existing, ...(message.value as Record<string, unknown>) }
+            const incoming = message.value as Record<string, unknown>
+            const merged: Record<string, unknown> = { ...existing }
+            for (const [convKey, incomingVal] of Object.entries(incoming)) {
+              if (incomingVal === null) {
+                delete merged[convKey]
+                continue
+              }
+              const existingVal = merged[convKey]
+              if (
+                existingVal &&
+                typeof existingVal === 'object' &&
+                !Array.isArray(existingVal) &&
+                incomingVal &&
+                typeof incomingVal === 'object' &&
+                !Array.isArray(incomingVal)
+              ) {
+                const existingEntry = existingVal as { items?: unknown; paused?: unknown }
+                const incomingEntry = incomingVal as { items?: unknown; paused?: unknown }
+                if (Array.isArray(existingEntry.items) && Array.isArray(incomingEntry.items)) {
+                  const byId = new Map<string, unknown>()
+                  for (const it of existingEntry.items as Array<{ id?: string }>) {
+                    if (it && typeof it.id === 'string') byId.set(it.id, it)
+                  }
+                  for (const it of incomingEntry.items as Array<{ id?: string }>) {
+                    if (it && typeof it.id === 'string' && !byId.has(it.id)) byId.set(it.id, it)
+                  }
+                  merged[convKey] = { ...incomingEntry, items: Array.from(byId.values()) }
+                  continue
+                }
+              }
+              merged[convKey] = incomingVal
+            }
             this.persistCache.set(persistKey, merged as never)
             this.notifySubscribers(message.key)
             return

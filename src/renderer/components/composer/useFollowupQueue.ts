@@ -27,16 +27,27 @@ function loadState(scopeKey: string): FollowupQueueState {
     const queues = cacheService.getPersist(QUEUE_STORAGE_KEY) as unknown
     if (!queues || typeof queues !== 'object' || Array.isArray(queues)) return { items: [], paused: false }
     const entry = (queues as Record<string, unknown>)[scopeKey]
+    // Tombstone for cross-window deletion propagation (null sentinel stored via persistState)
+    if (entry === null) return { items: [], paused: false }
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return { items: [], paused: false }
     const raw = entry as { items?: unknown; paused?: unknown }
     const items = Array.isArray(raw.items)
-      ? (raw.items as unknown[]).filter(
-          (item) =>
-            item != null &&
-            typeof item === 'object' &&
-            typeof (item as { id?: unknown }).id === 'string' &&
-            (item as { payload?: unknown }).payload != null
-        )
+      ? (raw.items as unknown[]).filter((item) => {
+          if (item == null || typeof item !== 'object' || Array.isArray(item)) return false
+          const candidate = item as { id?: unknown; draft?: unknown; payload?: unknown }
+          if (typeof candidate.id !== 'string' || candidate.id.length === 0) return false
+          if (candidate.draft == null || typeof candidate.draft !== 'object' || Array.isArray(candidate.draft))
+            return false
+          const draft = candidate.draft as { text?: unknown; tokens?: unknown }
+          if (typeof draft.text !== 'string') return false
+          if (!Array.isArray(draft.tokens)) return false
+          if (candidate.payload == null || typeof candidate.payload !== 'object' || Array.isArray(candidate.payload))
+            return false
+          const payload = candidate.payload as { text?: unknown; userMessageParts?: unknown }
+          if (typeof payload.text !== 'string') return false
+          if (!Array.isArray(payload.userMessageParts)) return false
+          return true
+        })
       : []
     return {
       items: items as unknown as FollowupQueueItem[],
@@ -54,13 +65,15 @@ function loadState(scopeKey: string): FollowupQueueState {
  */
 function persistState(scopeKey: string, items: FollowupQueueItem[], paused: boolean): void {
   cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
-    const next = { ...prev }
+    const next = { ...prev } as Record<string, unknown>
     if (items.length === 0 && !paused) {
-      delete next[scopeKey]
+      // Use null tombstone so cross-window shallow-merge can propagate the deletion
+      // instead of resurrecting the entry from the other window's stale snapshot.
+      next[scopeKey] = null as unknown as FollowupQueueState
     } else {
       next[scopeKey] = { items, paused }
     }
-    return next
+    return next as typeof prev
   })
 }
 
@@ -165,12 +178,11 @@ export function useFollowupQueue({
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
       if (stateRef.current.items.length >= QUEUE_LIMIT) return false
       const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
-      setState((prev) => {
-        if (prev.items.length >= QUEUE_LIMIT) return prev
-        const next = { ...prev, items: [...prev.items, newItem] }
-        persist(next)
-        return next
-      })
+      const next = { ...stateRef.current, items: [...stateRef.current.items, newItem] }
+      if (next.items.length > QUEUE_LIMIT) return false
+      stateRef.current = next
+      persist(next)
+      setState(next)
       return true
     },
     [persist]
@@ -290,6 +302,27 @@ export function useFollowupQueue({
     markSeen()
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
+
+  // If completion arrived while unfocused, re-arm draining when the window regains focus.
+  useEffect(() => {
+    const onFocus = () => {
+      if (
+        !isFulfilledRef.current ||
+        stateRef.current.paused ||
+        failedItemIdRef.current ||
+        drainingIdRef.current !== null
+      )
+        return
+      if (stateRef.current.items.length === 0) return
+      if (!isWindowFocused()) return
+      const head = stateRef.current.items[0]
+      if (!head) return
+      markSeenRef.current()
+      drainHead(head)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [drainHead])
 
   // Keep local queue in sync with cross-window persist broadcasts. The hook writes via
   // imperative getPersist/setPersist so without a subscription an unfocused window would

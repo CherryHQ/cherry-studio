@@ -235,17 +235,7 @@ export type CacheMiniAppAttention = {
  * the renderer persist cache so pending follow-ups survive app restarts; the
  * renderer re-validates entries on load (the cache holds arbitrary JSON).
  */
-export type FollowupQueueToken = {
-  id: string
-  kind: ComposerMessageTokenKind | 'promptVariable'
-  label: string
-  icon?: string
-  description?: string
-  promptText?: string
-  payload?: unknown
-  index: number
-  textOffset: number
-}
+export type FollowupQueueToken = CacheComposerSerializedToken
 
 export type FollowupQueueDraft = {
   text: string
