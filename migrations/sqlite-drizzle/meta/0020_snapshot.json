@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a644ff4c-db21-420b-8b23-7fc6022f9e3b",
-  "prevId": "dfd148a9-f46d-4296-a914-d3af8b69e23d",
+  "id": "19061d8c-b945-40ce-a3bc-45c617d8a099",
+  "prevId": "a644ff4c-db21-420b-8b23-7fc6022f9e3b",
   "tables": {
     "agent": {
       "name": "agent",
@@ -5081,6 +5081,13 @@
         },
         "endpoint_types": {
           "name": "endpoint_types",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "preferred_endpoint_type": {
+          "name": "preferred_endpoint_type",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

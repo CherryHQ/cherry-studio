@@ -1031,7 +1031,7 @@ const AgentComposerInner = ({
     }
     const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text,
+      text: draft.text,
       tokens: draft.tokens,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
@@ -1057,9 +1057,12 @@ const AgentComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive) return
+    // Managed-sync token changes never reach `draftTokens` (isSyncingTokensRef suppresses
+    // onTokensChange), so the cache must come from one surface serialization, not the shadow state.
+    const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text,
-      tokens: draftTokensRef.current,
+      text: draft.text,
+      tokens: draft.tokens,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,

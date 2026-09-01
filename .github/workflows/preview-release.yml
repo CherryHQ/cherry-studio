@@ -76,7 +76,7 @@ jobs:
 
     steps:
       - name: Check out preview commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
