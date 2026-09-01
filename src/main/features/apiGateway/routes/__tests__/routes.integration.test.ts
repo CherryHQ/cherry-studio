@@ -1,3 +1,4 @@
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -512,7 +513,26 @@ describe('API gateway routes (integration)', () => {
       expect(typeof body.totalTokens).toBe('number')
       expect(body.totalTokens).toBeGreaterThan(0)
       expect(mockProcessMessage).not.toHaveBeenCalled()
+      expect(mockResolveGeminiModel).toHaveBeenCalledWith('deepseek:deepseek-chat')
+    })
+
+    it('countTokens decodes a tagged model without consulting the catalog resolver', async () => {
+      const taggedModel = formatGeminiGatewayModelId('deepseek', 'deepseek-chat')
+      const { status, body } = await read(await post(app, `/v1beta/models/${taggedModel}:countTokens`, geminiBody))
+
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
       expect(mockResolveGeminiModel).not.toHaveBeenCalled()
+    })
+
+    it('countTokens keeps its local fallback when catalog resolution fails', async () => {
+      mockResolveGeminiModel.mockImplementationOnce(() => {
+        throw new Error('Model is not available')
+      })
+      const { status, body } = await read(await post(app, '/v1beta/models/unknown-model:countTokens', geminiBody))
+
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
     })
 
     // Media is now counted (converted → shared walker, or the provider's remote count) rather

@@ -19,6 +19,7 @@ const GEMINI_GATEWAY_MODEL_PREFIX = `${GATEWAY_MODEL_WIRE_PREFIX}.`
 const ANTIGRAVITY_GATEWAY_MODEL_PREFIX = `${GATEWAY_MODEL_WIRE_PREFIX}${ANTIGRAVITY_MODEL_PATH_SEPARATOR}`
 const VERSIONED_GEMINI_GATEWAY_PREFIX = /^cherry-gw-v\d+\./
 const VERSIONED_ANTIGRAVITY_GATEWAY_PREFIX = /^cherry-gw-v\d+\/models\//
+const MAX_LEGACY_ANTIGRAVITY_CANDIDATES = 32
 
 function validateGatewayModelAddress(providerId: string, apiModelId: string): void {
   if (!providerId || !apiModelId) {
@@ -142,6 +143,9 @@ export function parseLegacyAntigravityGatewayModelPaths(value: string): GatewayM
   const candidates: GatewayModelAddress[] = []
   let separatorIndex = value.indexOf(ANTIGRAVITY_MODEL_PATH_SEPARATOR)
   while (separatorIndex > 0) {
+    if (candidates.length >= MAX_LEGACY_ANTIGRAVITY_CANDIDATES) {
+      throw new Error('Legacy Antigravity gateway model address has too many separators')
+    }
     const providerId = value.slice(0, separatorIndex)
     const apiModelId = value.slice(separatorIndex + ANTIGRAVITY_MODEL_PATH_SEPARATOR.length)
     if (apiModelId && !providerId.includes(':')) candidates.push({ providerId, apiModelId })

@@ -102,6 +102,11 @@ describe('extractConnectionFromCliConfigDraft', () => {
     expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('model@cherry')
   })
 
+  it('preserves a direct Gemini model id containing a colon and ending in @cherry', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'publisher:model@cherry')
+    expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('publisher:model@cherry')
+  })
+
   it('preserves an unknown future Gemini gateway token for downgrade-safe editing', async () => {
     const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro')
     const settingsFile = files.find((file) => file.target === 'gemini-settings')!

@@ -316,4 +316,15 @@ describe('updateCliConfigDraftConfig', () => {
     expect(settings.model.name).toBe('gemini-2.5-flash')
     expect(updated.find((f) => f.target === 'gemini-env')!.content).not.toContain('GOOGLE_GENAI_API_VERSION')
   })
+
+  it('preserves direct Gemini content shaped like the old gateway suffix through a config edit', async () => {
+    const model = 'publisher:model@cherry'
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, model)
+    const updated = updateCliConfigDraftConfig(CodeCli.GEMINI_CLI, files, {
+      general: { defaultApprovalMode: 'plan' }
+    })
+
+    const settings = JSON.parse(updated.find((file) => file.target === 'gemini-settings')!.content)
+    expect(settings.model.name).toBe(model)
+  })
 })

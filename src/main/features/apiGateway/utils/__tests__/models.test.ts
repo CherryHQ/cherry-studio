@@ -164,6 +164,14 @@ describe('api gateway model listing', () => {
     expect(() => resolveGeminiGatewayModelAddress('team/models/west:model')).toThrow(
       /Ambiguous legacy gateway model address/
     )
+
+    catalog.clear()
+    catalog.set('cherry-gw-v1', ['gemini-2.5-pro'])
+    expect(resolveGeminiGatewayModelAddress('cherry-gw-v1/models/gemini-2.5-pro')).toBe('cherry-gw-v1:gemini-2.5-pro')
+
+    catalog.clear()
+    catalog.set('cherry-gw-v2', ['future-model'])
+    expect(resolveGeminiGatewayModelAddress('cherry-gw-v2/models/future-model')).toBe('cherry-gw-v2:future-model')
   })
 
   // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never

@@ -142,7 +142,13 @@ function getLegacyGeminiModelCandidates(value: string): GatewayModelAddress[] {
 
 /** Resolve a tagged or legacy Gemini-route model string without guessing between valid catalog entries. */
 export function resolveGeminiGatewayModelAddress(modelAddress: string): string {
-  const taggedAddress = parseGeminiGatewayModelId(modelAddress) ?? parseAntigravityGatewayModelPath(modelAddress)
+  let taggedAddress: GatewayModelAddress | undefined
+  let taggedParseError: Error | undefined
+  try {
+    taggedAddress = parseGeminiGatewayModelId(modelAddress) ?? parseAntigravityGatewayModelPath(modelAddress)
+  } catch (error) {
+    taggedParseError = error instanceof Error ? error : new Error('Invalid gateway model address')
+  }
   if (taggedAddress) {
     const canonicalAddress = formatGatewayModelId(taggedAddress.providerId, taggedAddress.apiModelId)
     resolveGatewayModelAddress(canonicalAddress)
@@ -167,6 +173,7 @@ export function resolveGeminiGatewayModelAddress(modelAddress: string): string {
   if (resolved.size > 1) {
     throw new Error(`Ambiguous legacy gateway model address: "${modelAddress}"`)
   }
+  if (taggedParseError) throw taggedParseError
   throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
 }
 

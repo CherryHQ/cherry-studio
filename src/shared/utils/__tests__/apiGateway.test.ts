@@ -6,7 +6,8 @@ import {
   gatewayClientOrigin,
   parseAntigravityGatewayModelPath,
   parseGatewayModelId,
-  parseGeminiGatewayModelId
+  parseGeminiGatewayModelId,
+  parseLegacyAntigravityGatewayModelPaths
 } from '@shared/utils/apiGateway'
 import { describe, expect, it } from 'vitest'
 
@@ -68,6 +69,11 @@ describe('formatGatewayModelId', () => {
     expect(() => parseAntigravityGatewayModelPath('cherry-gw-v1/models/not-base64')).toThrow(
       /Invalid Antigravity gateway model/
     )
+  })
+
+  it('bounds legacy Antigravity candidate expansion', () => {
+    const address = `provider${'/models/segment'.repeat(33)}`
+    expect(() => parseLegacyAntigravityGatewayModelPaths(address)).toThrow(/too many separators/)
   })
 })
 

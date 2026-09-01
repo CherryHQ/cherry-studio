@@ -81,6 +81,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
 
       if (method === 'countTokens') {
         let countModel = parsed.model
+        let taggedParseError: Error | undefined
         try {
           const taggedAddress =
             parseGeminiGatewayModelId(parsed.model) ?? parseAntigravityGatewayModelPath(parsed.model)
@@ -88,8 +89,14 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
             countModel = formatGatewayModelId(taggedAddress.providerId, taggedAddress.apiModelId)
           }
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Invalid gateway model address'
-          return status(400, invalidArgument(message))
+          taggedParseError = error instanceof Error ? error : new Error('Invalid gateway model address')
+        }
+        if (countModel === parsed.model) {
+          try {
+            countModel = resolveGeminiGatewayModelAddress(parsed.model)
+          } catch {
+            if (taggedParseError) return status(400, invalidArgument(taggedParseError.message))
+          }
         }
         return {
           totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], countModel, request.signal)
