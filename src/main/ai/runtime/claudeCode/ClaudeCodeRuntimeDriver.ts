@@ -20,10 +20,6 @@ import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFile
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
-import { FILE_TYPE } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file'
 import {
   appendAgentAttachmentPaths,
   buildAgentUserContent,
@@ -36,9 +32,11 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
+import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
@@ -46,8 +44,10 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { FILE_TYPE } from '@shared/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { getFileTypeByExt } from '@shared/utils/file'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
@@ -1245,10 +1245,13 @@ async function materializeUserContent(
     }
   }
 
-  const text = [preparedParts
-    .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-    .map((part) => part.text)
-    .join('\n'), ...inlineDocumentTexts]
+  const text = [
+    preparedParts
+      .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n'),
+    ...inlineDocumentTexts
+  ]
     .filter(Boolean)
     .join('\n\n')
   const images: ImageBlockParam[] = []
