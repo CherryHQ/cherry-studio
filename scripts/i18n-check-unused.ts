@@ -9,10 +9,7 @@ import { COMMAND_DEFINITIONS } from '../src/shared/utils/command/definitions'
 import { sortedObjectByKeys } from './sort'
 
 const ROOT_DIR = path.resolve(__dirname, '..')
-const LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/locales')
 const BASE_LOCALE = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
-const BASE_LOCALE_PATH = path.join(LOCALES_DIR, `${BASE_LOCALE}.json`)
-const SCAN_DIRS = ['src/renderer', 'src/main', 'src/shared', 'packages'].map((dir) => path.join(ROOT_DIR, dir))
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 const IGNORED_DIRS = new Set(['.git', '.turbo', 'dist', 'node_modules', 'out', 'release', '.vite'])
 const KEY_PROPERTY_NAMES = new Set([
@@ -32,6 +29,25 @@ const DERIVED_KEY_SUFFIXES = ['_one', '_other']
 /** Catalogs are flat: every key is a dotted path mapping straight to its translated string. */
 export type I18N = { [key: string]: string }
 
+export interface I18nCatalogConfig {
+  name: 'renderer' | 'main'
+  localesDir: string
+  sourceDirs: string[]
+}
+
+const I18N_CATALOGS: I18nCatalogConfig[] = [
+  {
+    name: 'renderer',
+    localesDir: path.join(ROOT_DIR, 'src/renderer/i18n/locales'),
+    sourceDirs: ['src/renderer', 'src/main', 'src/shared', 'packages'].map((dir) => path.join(ROOT_DIR, dir))
+  },
+  {
+    name: 'main',
+    localesDir: path.join(ROOT_DIR, 'src/main/i18n/locales'),
+    sourceDirs: [path.join(ROOT_DIR, 'src/main')]
+  }
+]
+
 export interface UnusedI18nResult {
   allKeys: string[]
   usedKeys: string[]
@@ -39,9 +55,10 @@ export interface UnusedI18nResult {
   groupedUnusedKeys: Record<string, string[]>
 }
 
-interface CliOptions {
+export interface CliOptions {
   all?: boolean
   clean?: boolean
+  failOnUnused?: boolean
   groups?: string
   json?: boolean
 }
@@ -253,7 +270,35 @@ export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys
   return usedKeys
 }
 
-export function collectUsedI18nKeys(sourceFiles: string[], localeKeys: Set<string>): Set<string> {
+export function collectUsedMainI18nKeysFromSource(sourceFile: SourceFile, localeKeys: Set<string>): Set<string> {
+  const usedKeys = new Set<string>()
+  const tImport = sourceFile
+    .getImportDeclarations()
+    .filter((declaration) => declaration.getModuleSpecifierValue() === '@main/i18n')
+    .flatMap((declaration) => declaration.getNamedImports())
+    .find((specifier) => specifier.getName() === 't')
+  if (!tImport) return usedKeys
+
+  const tName = tImport.getAliasNode()?.getText() ?? 't'
+  sourceFile.forEachDescendant((node) => {
+    if (!Node.isCallExpression(node)) return
+
+    const expression = node.getExpression()
+    if (!Node.isIdentifier(expression) || expression.getText() !== tName) return
+
+    const key = getStringValue(node.getArguments()[0])
+    if (key && localeKeys.has(key)) usedKeys.add(key)
+  })
+
+  return usedKeys
+}
+
+function collectUsedKeys(
+  sourceFiles: string[],
+  localeKeys: Set<string>,
+  collectFromSource: (sourceFile: SourceFile, localeKeys: Set<string>) => Set<string>,
+  includeShortcutReferences: boolean
+): Set<string> {
   const project = new Project({
     skipAddingFilesFromTsConfig: true,
     skipFileDependencyResolution: true,
@@ -261,12 +306,12 @@ export function collectUsedI18nKeys(sourceFiles: string[], localeKeys: Set<strin
   })
   const usedKeys = new Set<string>()
 
-  collectShortcutReferences(localeKeys, usedKeys)
+  if (includeShortcutReferences) collectShortcutReferences(localeKeys, usedKeys)
 
   for (const filePath of sourceFiles) {
     try {
       const sourceFile = project.addSourceFileAtPath(filePath)
-      for (const key of collectUsedI18nKeysFromSource(sourceFile, localeKeys)) {
+      for (const key of collectFromSource(sourceFile, localeKeys)) {
         usedKeys.add(key)
       }
       project.removeSourceFile(sourceFile)
@@ -276,6 +321,19 @@ export function collectUsedI18nKeys(sourceFiles: string[], localeKeys: Set<strin
   }
 
   return usedKeys
+}
+
+export function collectUsedI18nKeys(sourceFiles: string[], localeKeys: Set<string>): Set<string> {
+  return collectUsedKeys(sourceFiles, localeKeys, collectUsedI18nKeysFromSource, true)
+}
+
+export function collectUsedMainI18nKeys(sourceFiles: string[], localeKeys: Set<string>): Set<string> {
+  const productionFiles = sourceFiles.filter((filePath) => {
+    const pathParts = path.normalize(filePath).split(path.sep)
+    return !pathParts.includes('__tests__') && !/\.(?:test|spec)\.tsx?$/.test(path.basename(filePath))
+  })
+
+  return collectUsedKeys(productionFiles, localeKeys, collectUsedMainI18nKeysFromSource, false)
 }
 
 function groupKeys(keys: string[]): Record<string, string[]> {
@@ -307,6 +365,22 @@ export function findUnusedI18nKeys(baseLocale: I18N, sourceFiles: string[]): Unu
   return createUnusedI18nResult(baseLocale, collectUsedI18nKeys(sourceFiles, localeKeys))
 }
 
+export function findUnusedMainI18nKeys(baseLocale: I18N, sourceFiles: string[]): UnusedI18nResult {
+  const allKeys = Object.keys(baseLocale).sort()
+  const localeKeys = new Set(allKeys)
+  return createUnusedI18nResult(baseLocale, collectUsedMainI18nKeys(sourceFiles, localeKeys))
+}
+
+export function assertNoUnusedI18nKeys(result: UnusedI18nResult, catalogName?: string): void {
+  const count = result.unusedKeys.length
+  if (count === 0) return
+
+  const noun = count === 1 ? 'key' : 'keys'
+  const pronoun = count === 1 ? 'it' : 'them'
+  const catalog = catalogName ? ` in the ${catalogName} catalog` : ''
+  throw new Error(`Found ${count} unused i18n ${noun}${catalog}. Run \`pnpm i18n:unused\` to review ${pronoun}.`)
+}
+
 export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
   const next = structuredClone(locale)
   for (const key of keys) {
@@ -315,11 +389,11 @@ export function removeI18nKeys(locale: I18N, keys: string[]): I18N {
   return sortedObjectByKeys(next) as I18N
 }
 
-function findTranslationFiles(): string[] {
+function findTranslationFiles(localesDir: string): string[] {
   return fs
-    .readdirSync(LOCALES_DIR)
+    .readdirSync(localesDir)
     .filter((file) => file.endsWith('.json'))
-    .map((file) => path.join(LOCALES_DIR, file))
+    .map((file) => path.join(localesDir, file))
 }
 
 function parseGroups(groups: string | undefined): string[] {
@@ -342,12 +416,12 @@ function formatGroupSummary(groupedUnusedKeys: Record<string, string[]>): string
     .join('\n')
 }
 
-async function promptGroups(groupedUnusedKeys: Record<string, string[]>): Promise<string[]> {
+async function promptGroups(catalogName: string, groupedUnusedKeys: Record<string, string[]>): Promise<string[]> {
   const groups = Object.entries(groupedUnusedKeys).sort(([a], [b]) => a.localeCompare(b))
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
   try {
-    console.log('\nSelect groups to clean:')
+    console.log(`\nSelect ${catalogName} groups to clean:`)
     groups.forEach(([group, keys], index) => {
       console.log(`${index + 1}. ${group} (${keys.length})`)
     })
@@ -385,54 +459,77 @@ function selectAllKeys(groupedUnusedKeys: Record<string, string[]>): string[] {
   return Object.values(groupedUnusedKeys).flat().sort()
 }
 
-function cleanTranslationFiles(keys: string[]): void {
-  for (const filePath of findTranslationFiles()) {
+function cleanTranslationFiles(catalog: I18nCatalogConfig, keys: string[]): void {
+  for (const filePath of findTranslationFiles(catalog.localesDir)) {
     const json = readJsonFile(filePath)
     writeJsonFile(filePath, removeI18nKeys(json, keys))
-    console.log(`Cleaned ${keys.length} keys from ${path.relative(ROOT_DIR, filePath)}`)
+    console.log(`[${catalog.name}] Cleaned ${keys.length} keys from ${path.relative(ROOT_DIR, filePath)}`)
   }
 }
 
-export async function runCli(options: CliOptions): Promise<void> {
-  const baseLocale = readJsonFile(BASE_LOCALE_PATH)
-  const sourceFiles = SCAN_DIRS.flatMap(findSourceFiles)
-  const result = findUnusedI18nKeys(baseLocale, sourceFiles)
+export async function runCli(options: CliOptions, catalogs = I18N_CATALOGS): Promise<void> {
+  const analyses = catalogs.map((catalog) => {
+    const baseLocale = readJsonFile(path.join(catalog.localesDir, `${BASE_LOCALE}.json`))
+    const sourceFiles = catalog.sourceDirs.flatMap(findSourceFiles)
+    const result =
+      catalog.name === 'main'
+        ? findUnusedMainI18nKeys(baseLocale, sourceFiles)
+        : findUnusedI18nKeys(baseLocale, sourceFiles)
+    return { catalog, result }
+  })
 
   if (options.json) {
-    console.log(JSON.stringify(result, null, 2))
+    console.log(
+      JSON.stringify(Object.fromEntries(analyses.map(({ catalog, result }) => [catalog.name, result])), null, 2)
+    )
   } else {
-    console.log(`Found ${result.unusedKeys.length} unused i18n keys out of ${result.allKeys.length} total keys.`)
-    if (result.unusedKeys.length > 0) {
-      console.log(formatGroupSummary(result.groupedUnusedKeys))
+    for (const { catalog, result } of analyses) {
+      console.log(
+        `[${catalog.name}] Found ${result.unusedKeys.length} unused i18n keys out of ${result.allKeys.length} total keys.`
+      )
+      if (result.unusedKeys.length > 0) {
+        console.log(formatGroupSummary(result.groupedUnusedKeys))
+      }
     }
   }
 
-  if (!options.clean || result.unusedKeys.length === 0) return
-
-  const groups = parseGroups(options.groups)
-  const selectedGroups = options.all
-    ? Object.keys(result.groupedUnusedKeys).sort()
-    : groups.length > 0
-      ? groups
-      : await promptGroups(result.groupedUnusedKeys)
-  const keysToRemove = options.all
-    ? selectAllKeys(result.groupedUnusedKeys)
-    : selectKeysByGroups(result.groupedUnusedKeys, selectedGroups)
-
-  if (keysToRemove.length === 0) {
-    console.log('No matching unused i18n keys selected.')
-    return
+  if (options.failOnUnused) {
+    for (const { catalog, result } of analyses) {
+      assertNoUnusedI18nKeys(result, catalog.name)
+    }
   }
 
-  cleanTranslationFiles(keysToRemove)
-  console.log(`Removed ${keysToRemove.length} unused i18n keys from ${selectedGroups.join(', ')}.`)
+  if (!options.clean) return
+
+  const groups = parseGroups(options.groups)
+  for (const { catalog, result } of analyses) {
+    if (result.unusedKeys.length === 0) continue
+
+    const selectedGroups = options.all
+      ? Object.keys(result.groupedUnusedKeys).sort()
+      : groups.length > 0
+        ? groups
+        : await promptGroups(catalog.name, result.groupedUnusedKeys)
+    const keysToRemove = options.all
+      ? selectAllKeys(result.groupedUnusedKeys)
+      : selectKeysByGroups(result.groupedUnusedKeys, selectedGroups)
+
+    if (keysToRemove.length === 0) {
+      console.log(`[${catalog.name}] No matching unused i18n keys selected.`)
+      continue
+    }
+
+    cleanTranslationFiles(catalog, keysToRemove)
+    console.log(`[${catalog.name}] Removed ${keysToRemove.length} unused i18n keys from ${selectedGroups.join(', ')}.`)
+  }
 }
 
 async function main() {
   const program = new Command()
-    .description('Find unused i18n keys and optionally clean them by top-level namespace')
+    .description('Find unused renderer and main i18n keys and optionally clean them by top-level namespace')
     .option('--all', 'with --clean, remove all unused keys without prompting')
     .option('--clean', 'remove selected unused keys from all translation files')
+    .option('--fail-on-unused', 'exit with an error when unused keys are found')
     .option('--groups <groups>', 'comma-separated top-level namespaces to clean')
     .option('--json', 'print machine-readable JSON')
 

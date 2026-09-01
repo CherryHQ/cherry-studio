@@ -4,9 +4,10 @@ import { RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
-import { resolveOptions } from './resolveOptions'
+import { booleanOr, controlValue, finiteParamNumberOr, stringOr } from './fieldValue'
+import { resolveOptions, resolveOptionValue } from './resolveOptions'
 
 /** Compact enough for the 300px params popover; wide enough for values like `16.5`. */
 const RANGE_VALUE_INPUT_CLASS =
@@ -142,33 +143,64 @@ export interface PaintingFieldRendererProps {
 export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRandomSeed }: PaintingFieldRendererProps) {
   const { t } = useTranslation()
   const fieldKey = item.key
-  if (!fieldKey) {
-    return null
-  }
 
   const disabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
-  const currentValue = painting[fieldKey] ?? item.initialValue
-  const RegisteredField = fieldRegistry[item.type]
-
-  if (RegisteredField) {
-    return (
-      <RegisteredField
-        item={item}
-        fieldKey={fieldKey}
-        painting={painting}
-        translate={t}
-        onChange={onChange}
-        onGenerateRandomSeed={onGenerateRandomSeed}
-        currentValue={currentValue}
-        disabled={disabled}
-      />
-    )
-  }
+  const currentValue = isOptionsConfigItem(item)
+    ? resolveOptionValue(item, painting[fieldKey], painting, t)
+    : (painting[fieldKey] ?? item.initialValue)
 
   switch (item.type) {
+    case 'select': {
+      const RegisteredField = fieldRegistry.select
+      return (
+        <RegisteredField
+          item={item}
+          fieldKey={fieldKey}
+          painting={painting}
+          translate={t}
+          onChange={onChange}
+          onGenerateRandomSeed={onGenerateRandomSeed}
+          currentValue={currentValue}
+          disabled={disabled}
+        />
+      )
+    }
+
+    case 'sizeChips': {
+      const RegisteredField = fieldRegistry.sizeChips
+      return (
+        <RegisteredField
+          item={item}
+          fieldKey={fieldKey}
+          painting={painting}
+          translate={t}
+          onChange={onChange}
+          onGenerateRandomSeed={onGenerateRandomSeed}
+          currentValue={currentValue}
+          disabled={disabled}
+        />
+      )
+    }
+
+    case 'customSize': {
+      const RegisteredField = fieldRegistry.customSize
+      return (
+        <RegisteredField
+          item={item}
+          fieldKey={fieldKey}
+          painting={painting}
+          translate={t}
+          onChange={onChange}
+          onGenerateRandomSeed={onGenerateRandomSeed}
+          currentValue={currentValue}
+          disabled={disabled}
+        />
+      )
+    }
+
     case 'radio': {
       const options = resolveOptions(item, painting, t)
-      const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
+      const value = controlValue(currentValue)
 
       return (
         <RadioGroup
@@ -190,9 +222,8 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'slider': {
-      const numericValue = Number(currentValue ?? item.min ?? 0)
-      const min = item.min ?? 0
-      const max = item.max ?? 100
+      const numericValue = finiteParamNumberOr(item.key, currentValue, item.initialValue)
+      const { min, max } = item
       const label = item.title ? t(item.title) : fieldKey
       // Degenerate single-value range (e.g. numImages 1..1): the slider has
       // nowhere to move and Radix renders its thumb flush to the rail edge,
@@ -226,12 +257,13 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     case 'input': {
       const showSeedReset = fieldKey.toLowerCase().includes('seed') && Boolean(onGenerateRandomSeed)
       const seedResetLabel = t('common.regenerate')
+      const value = stringOr(currentValue, item.initialValue)
       return (
         <div className={showSeedReset ? 'flex h-8 items-center gap-2' : 'flex items-center gap-2'}>
           <Input
             disabled={disabled}
             className={showSeedReset ? 'h-8 min-h-8 flex-1' : 'flex-1'}
-            value={currentValue === undefined || currentValue === null ? '' : String(currentValue)}
+            value={value}
             onChange={(event) => onChange({ [fieldKey]: event.target.value })}
           />
           {showSeedReset ? (
@@ -254,20 +286,18 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'textarea': {
+      const value = stringOr(currentValue, item.initialValue)
       return (
-        <Textarea.Input
-          value={currentValue === undefined || currentValue === null ? '' : String(currentValue)}
-          rows={4}
-          onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}
-        />
+        <Textarea.Input value={value} rows={4} onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })} />
       )
     }
 
     case 'switch': {
+      const checked = booleanOr(currentValue, item.initialValue)
       return (
         <Switch
           className="shrink-0"
-          checked={Boolean(currentValue)}
+          checked={checked}
           disabled={disabled}
           aria-label={item.title ? t(item.title) : fieldKey}
           onCheckedChange={(checked) => onChange({ [fieldKey]: checked })}
@@ -277,8 +307,8 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'iconRadio': {
       const options = resolveOptions(item, painting, t)
-      const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
-      const columns = item.columns || 3
+      const value = controlValue(currentValue)
+      const columns = item.columns ?? 3
 
       return (
         <RadioGroup
@@ -318,6 +348,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     case 'styleToggle': {
       const options = resolveOptions(item, painting, t)
       const { toggleMode = 'single' } = item
+      const value = stringOr(currentValue, item.initialValue)
 
       return (
         <div className="flex flex-wrap items-start gap-2">
@@ -326,12 +357,12 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
               type="button"
               key={String(option.value)}
               className={`rounded-[6px] border px-[6px] py-[2px] transition-all ${
-                currentValue === String(option.value)
+                value === String(option.value)
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-border bg-background hover:bg-accent'
               }`}
               onClick={() => {
-                if (toggleMode === 'single' && currentValue === String(option.value)) {
+                if (toggleMode === 'single' && value === String(option.value)) {
                   onChange({ [fieldKey]: '' })
                 } else {
                   onChange({ [fieldKey]: String(option.value) })

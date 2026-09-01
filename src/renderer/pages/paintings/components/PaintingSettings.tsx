@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
@@ -12,6 +12,7 @@ import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
+  if (!isOptionsConfigItem(item)) return []
   return typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
 }
 
@@ -60,7 +61,11 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
                 <PaintingSectionTitle className={isSwitch ? 'mb-0 min-w-0' : undefined}>
                   {t(item.title)}
                   {/* range fields (e.g. numImages) interpolate their actual {{min}}-{{max}} */}
-                  {item.tooltip && <InfoTooltip content={t(item.tooltip, { min: item.min, max: item.max })} />}
+                  {item.tooltip && (
+                    <InfoTooltip
+                      content={t(item.tooltip, item.type === 'slider' ? { min: item.min, max: item.max } : undefined)}
+                    />
+                  )}
                 </PaintingSectionTitle>
               )}
               <PaintingFieldRenderer

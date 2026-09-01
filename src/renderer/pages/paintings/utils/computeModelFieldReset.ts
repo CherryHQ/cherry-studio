@@ -3,7 +3,8 @@ import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
+import { controlValue, optionalFiniteNumber, optionalParamNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
@@ -75,10 +76,11 @@ export async function computeModelFieldReset(input: {
       // `customSize` widget aliases multiple persisted fields under one
       // BaseConfigItem (zhipu cogview). Collect each so the reset doesn't
       // half-clear the trio.
-      const widget = item as { widthKey?: string; heightKey?: string; sizeKey?: string }
-      if (widget.widthKey) keys.add(widget.widthKey)
-      if (widget.heightKey) keys.add(widget.heightKey)
-      if (widget.sizeKey) keys.add(widget.sizeKey)
+      if (item.type === 'customSize') {
+        keys.add(item.widthKey)
+        keys.add(item.heightKey)
+        keys.add(item.sizeKey)
+      }
     }
     return keys
   }
@@ -108,27 +110,28 @@ export async function computeModelFieldReset(input: {
     // Field carried a value over from the previous model. Validate it against
     // the new model's constraints; reset to the new default (or `undefined`
     // when there's none) whenever it no longer fits.
-    const options = typeof item.options === 'function' ? item.options(item, currentValues) : (item.options ?? [])
+    const options = isOptionsConfigItem(item)
+      ? typeof item.options === 'function'
+        ? item.options(item, currentValues)
+        : item.options
+      : []
     if (options.length > 0) {
-      const allowedValues = new Set(options.map((option) => String(option.value)))
-      if (!allowedValues.has(String(currentValue))) patch[item.key] = item.initialValue
+      const allowedValues = new Set(options.map((option) => controlValue(option.value)))
+      if (!allowedValues.has(controlValue(currentValue))) patch[item.key] = item.initialValue
       continue
     }
 
     if (item.type === 'slider') {
-      const numeric = typeof currentValue === 'number' ? currentValue : Number(currentValue)
-      const outOfRange =
-        Number.isNaN(numeric) ||
-        (typeof item.min === 'number' && numeric < item.min) ||
-        (typeof item.max === 'number' && numeric > item.max)
+      const step = typeof item.step === 'number' && item.step > 0 ? item.step : undefined
+      const numeric =
+        step === undefined ? optionalParamNumber(item.key, currentValue) : optionalFiniteNumber(currentValue)
+      const outOfRange = numeric === null || numeric < item.min || numeric > item.max
       if (outOfRange) {
         patch[item.key] = item.initialValue
         continue
       }
-      const min = item.min ?? numeric
-      const max = item.max ?? numeric
-      if (typeof item.step === 'number' && item.step > 0) {
-        const aligned = alignRangeValue(numeric, min, max, item.step)
+      if (step !== undefined) {
+        const aligned = alignRangeValue(numeric, item.min, item.max, step)
         if (aligned !== numeric) patch[item.key] = aligned
       }
     }

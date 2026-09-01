@@ -101,14 +101,15 @@ const Chat: FC<Props> = (props) => {
     useState<ChatConversationControlsSnapshot | null>(null)
   const activeConversationControlsSnapshot =
     conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
-  // Provider metadata is only used by the selected-model details popover. A normal single-model
-  // conversation already carries everything its trigger needs on the Model entity itself.
+  // Provider metadata supplies the user-facing name for both the single-model trigger and
+  // selected-model details. Model entities only carry the provider id.
   const shouldLoadProviders = Boolean(
     activeTopic &&
-      activeConversationControlsSnapshot &&
-      (activeConversationControlsSnapshot.mentionedModels.length > 1 ||
-        activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 1 ||
-        activeConversationControlsSnapshot.lockedMentionedModels.length > 1)
+      (assistantContext.model ||
+        (activeConversationControlsSnapshot &&
+          (activeConversationControlsSnapshot.mentionedModels.length > 0 ||
+            activeConversationControlsSnapshot.mentionedModelSelectorValue.length > 0 ||
+            activeConversationControlsSnapshot.lockedMentionedModels.length > 0)))
   )
   const { providers } = useProviders(undefined, { enabled: shouldLoadProviders })
   const locateMessageIdProp = props.locateMessageId

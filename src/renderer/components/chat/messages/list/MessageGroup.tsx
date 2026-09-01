@@ -312,6 +312,7 @@ const MessageGroup = ({
             trigger={gridPopoverTrigger}
             content={
               <MessageWrapper
+                tabIndex={0}
                 className={classNames([
                   'in-popover',
                   {

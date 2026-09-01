@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.9",
+    "version": "2.0.10",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -448,7 +448,7 @@
     }
   ],
   "providers": {
-    "version": "b3b73ceeb452801e",
+    "version": "4a6f7225220e7a46",
     "count": 61,
     "entries": [
       {
@@ -782,11 +782,69 @@
         "openclaw",
         "deepseek-harness",
         "gemini-cli",
+        "antigravity-cli",
         "qwen-code",
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes"
+      ]
+    }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
       ]
     }
   }

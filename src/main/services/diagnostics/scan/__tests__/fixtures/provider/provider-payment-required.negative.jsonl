@@ -1,0 +1,2 @@
+{"level":"warn","message":"Payment settings page opened from provider list","module":"Settings","process":"renderer","window":"mainWindow","timestamp":"2026-08-20 11:00:00"}
+{"level":"warn","message":"Slow render detected at TranslatePane.tsx:402:11","module":"Perf","process":"renderer","window":"mainWindow","timestamp":"2026-08-20 15:10:00"}

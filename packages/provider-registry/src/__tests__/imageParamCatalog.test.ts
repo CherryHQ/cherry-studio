@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
 
 import { CANONICAL_PARAM_KEY } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema } from '../schemas/imageParamCatalog'
+import { IMAGE_PARAM_CATALOG_KEYS, imageParamsSchema, parseImageParamValue } from '../schemas/imageParamCatalog'
 import { type ImageGenerationSupport, ImageGenerationSupportSchema } from '../schemas/model'
 import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 describe('IMAGE_PARAM_CATALOG', () => {
   it('is exhaustive over CANONICAL_PARAM_KEY (no missing / extra keys)', () => {
     expect([...IMAGE_PARAM_CATALOG_KEYS].sort()).toEqual(Object.values(CANONICAL_PARAM_KEY).sort())
+  })
+
+  it('parses dynamic values through the canonical per-key value type', () => {
+    expect(parseImageParamValue('numImages', '2')).toBe(2)
+    expect(parseImageParamValue('numImages', '2.5')).toBeUndefined()
+    expect(parseImageParamValue('strength', '2.5')).toBe(2.5)
+    expect(parseImageParamValue('size', true)).toBeUndefined()
+    expect(parseImageParamValue('unknown', 'value')).toBeUndefined()
   })
 })
 
@@ -18,6 +26,10 @@ describe('imageParamsSchema (catalog-only IPC boundary schema)', () => {
       numImages: 2,
       negativePrompt: 'blur'
     })
+  })
+
+  it.each([true, false, [], ['4.5']])('rejects non-string/number numeric input %#', (value) => {
+    expect(imageParamsSchema.safeParse({ cfg: value }).success).toBe(false)
   })
 
   it('keeps catalog keys and strips non-catalog keys (z.infer is exactly ParamValues)', () => {
@@ -64,6 +76,13 @@ describe('buildParamsSchema', () => {
       customSize_width: 1024,
       customSize_height: 768
     })
+  })
+
+  it.each([true, false, [], ['1024']])('drops non-string/number numeric input %#', (value) => {
+    const parsed = schema.parse({ seed: value, customSize_width: value, customSize_height: value })
+    expect(parsed.seed).toBeUndefined()
+    expect(parsed.customSize_width).toBeUndefined()
+    expect(parsed.customSize_height).toBeUndefined()
   })
 
   it('passes through unknown/legacy keys untouched (loose)', () => {
