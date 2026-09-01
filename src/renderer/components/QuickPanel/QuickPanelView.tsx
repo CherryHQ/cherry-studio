@@ -463,7 +463,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
         ? getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current)
         : text.slice(queryAnchor, cursorOffset)
-    if (nextSearchText === undefined) return
+    if (nextSearchText === undefined) {
+      closePanel('input_session_invalid')
+      return
+    }
 
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')

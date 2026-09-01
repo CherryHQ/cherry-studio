@@ -263,14 +263,6 @@ describe('QuickPhrasesToolRuntime', () => {
         triggerInfo: { type: 'button' }
       })
     )
-
-    cursorOffset = text.length
-    const opened = mocks.quickPanelOpen.mock.calls[0][0]
-    const consumeQueryAnchor = opened.queryAnchor as number | undefined
-    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
-      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
-    }
-    expect(text).toBe('hello world')
   })
 
   it('opens the current Assistant prompt tab from the management action without replacing the add action', async () => {

@@ -1025,6 +1025,38 @@ describe('QuickPanelView', () => {
     expect(input.getText()).toBe(`${leftover}!`)
   })
 
+  it('closes a button-tracked panel when its opening suffix changes', async () => {
+    const onClose = vi.fn()
+    const input = createMutableTrackedInput('original suffix', 0)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={input.inputAdapter}
+          items={[{ id: 'prompt', label: 'Prompt 1', icon: 'zap' }]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Prompt 1')
+
+    input.setText('edited suffix', 0)
+    act(() => {
+      input.emitInput()
+    })
+
+    await waitFor(() =>
+      expect(onClose).toHaveBeenCalledWith(expect.objectContaining({ action: 'input_session_invalid' }))
+    )
+    expect(input.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(input.getText()).toBe('edited suffix')
+  })
+
   it('consumes only a caret-typed live filter when leftover draft stays after it', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()
