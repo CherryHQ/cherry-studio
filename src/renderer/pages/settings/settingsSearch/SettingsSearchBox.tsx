@@ -132,8 +132,9 @@ const SettingsSearchBox = () => {
     return () => clearTimeout(handle)
   }, [value, navigate, isSearchPage, router, performLeave])
 
+  // pt-2.5 mirrors the provider column's search row — both boxes top-align
   return (
-    <div className="px-2.5 pb-1">
+    <div className="px-2.5 pt-2.5 pb-1">
       <SearchInput
         size="sm"
         // h-8 matches the settings row height (menu items, provider search

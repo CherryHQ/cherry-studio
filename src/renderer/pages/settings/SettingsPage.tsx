@@ -1,4 +1,4 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { settingsMenu } from '@renderer/pages/settings/settingsMenu'
@@ -43,7 +43,6 @@ const SettingsPage: FC = () => {
           <div
             data-ui="settings.navigation"
             className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
-            <PageHeader title={t('title.settings')} className="mb-1" />
             <SettingsSearchBox />
             <Scrollbar className="min-h-0 flex-1 select-none">
               <MenuList className={settingsSubmenuListClassName}>

@@ -19,9 +19,6 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PageHeader: ({ className, title }: { className?: string; title: string }) => (
-    <header className={className}>{title}</header>
-  ),
   SearchInput: (props: {
     value: string
     placeholder?: string
