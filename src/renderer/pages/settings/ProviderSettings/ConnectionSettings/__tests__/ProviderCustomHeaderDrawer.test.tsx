@@ -66,7 +66,10 @@ vi.mock('../../primitives/ProviderSettingsPrimitives', () => ({
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      params && 'key' in params ? `${key} ${String(params.key)}` : key
+  })
 }))
 
 import ProviderCustomHeaderDrawer from '../ProviderCustomHeaderDrawer'
@@ -119,6 +122,113 @@ describe('ProviderCustomHeaderDrawer', () => {
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
     )
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists clearing the last header as an explicit null merge-patch key', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Only': 'a' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.delete.header X-Only' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { 'X-Only': null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps surviving headers alongside the nulled key when deleting one of several', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Keep': 'a', 'X-Remove': 'b' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.delete.header X-Remove' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { 'X-Keep': 'a', 'X-Remove': null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('deletes a header named after an Object.prototype member', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { toString: 'a' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.delete.header toString' }))
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { toString: null } }
+      })
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists JSON-mode clearing of all headers as explicit null merge-patch keys', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    useProviderMock.mockReturnValue({
+      provider: {
+        ...provider,
+        settings: { extraHeaders: { 'X-Only': 'a' } }
+      },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderCustomHeaderDrawer providerId={provider.id} open onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.provider.copilot.toggle_headers_editor_json' }))
+    const textarea = screen.getByLabelText('settings.provider.copilot.custom_headers')
+    await user.clear(textarea)
+    await user.type(textarea, '{{}')
+    await user.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(updateProviderMock).toHaveBeenCalledWith({
+        endpointConfigs: provider.endpointConfigs,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        providerSettings: { extraHeaders: { 'X-Only': null } }
+      })
+    })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

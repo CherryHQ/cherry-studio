@@ -4582,6 +4582,7 @@
   "settings.provider.create_custom.request_preview": "請求路徑：{{path}}",
   "settings.provider.create_custom.title": "新增自訂供應商",
   "settings.provider.delete.content": "確定要刪除此供應商嗎？",
+  "settings.provider.delete.header": "刪除 {{key}}",
   "settings.provider.delete.title": "刪除供應商",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com（企業版）",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com（國際）",

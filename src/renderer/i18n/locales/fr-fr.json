@@ -4582,6 +4582,7 @@
   "settings.provider.create_custom.request_preview": "Chemin de la requête : {{path}}",
   "settings.provider.create_custom.title": "Ajouter un fournisseur personnalisé",
   "settings.provider.delete.content": "Êtes-vous sûr de vouloir supprimer ce fournisseur de modèles ?",
+  "settings.provider.delete.header": "Supprimer {{key}}",
   "settings.provider.delete.title": "Supprimer le fournisseur",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Entreprise)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (international)",
