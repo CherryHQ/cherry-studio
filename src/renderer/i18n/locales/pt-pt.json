@@ -543,6 +543,7 @@
   "backup.confirm.button": "Escolher local da cópia de segurança",
   "backup.content": "Crie uma cópia de segurança de todos os dados, incluindo o histórico de conversas, as definições e a base de conhecimento. O processo poderá demorar algum tempo. Agradecemos a sua paciência.",
   "backup.error.active_data_writers": "Uma conversa ou agente ainda está em execução. Aguarde até que termine e tente novamente.",
+  "backup.error.disk_full": "A cópia de segurança falhou porque não há espaço suficiente no disco. Liberte espaço e tente novamente.",
   "backup.progress.completed": "Backup concluído",
   "backup.progress.compressing": "A comprimir ficheiro...",
   "backup.progress.copying_database": "A copiar base de dados...",

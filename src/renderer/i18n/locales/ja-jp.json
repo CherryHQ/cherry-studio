@@ -543,6 +543,7 @@
   "backup.confirm.button": "バックアップ位置を選択",
   "backup.content": "チャット履歴、設定、ナレッジベースを含むすべてのデータをバックアップします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
   "backup.error.active_data_writers": "会話またはエージェントがまだ実行中です。終了するまで待ってから、もう一度お試しください。",
+  "backup.error.disk_full": "ディスクの空き容量が不足しているため、バックアップに失敗しました。空き容量を増やしてから、もう一度お試しください。",
   "backup.progress.completed": "バックアップ完了",
   "backup.progress.compressing": "圧縮中...",
   "backup.progress.copying_database": "データベースをコピー中...",

@@ -12,9 +12,15 @@ export function getLocalizedBackupErrorMessage(
   error: unknown,
   fallbackKey: BackupErrorFallbackKey = 'message.backup.failed'
 ): string {
-  const messageKey =
-    error instanceof Error && error.message.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
-      ? 'backup.error.active_data_writers'
+  const errorMessage = error instanceof Error ? error.message : ''
+  const errorCode =
+    typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : undefined
+  const messageKey = errorMessage.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
+    ? 'backup.error.active_data_writers'
+    : errorCode === 'ENOSPC' || errorMessage.includes('ENOSPC') || /no space left on device/i.test(errorMessage)
+      ? 'backup.error.disk_full'
       : fallbackKey
 
   return i18n.t(messageKey)
