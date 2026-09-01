@@ -1,7 +1,7 @@
 {
   "providers": [
     {
-      "availableInEditions": ["global", "cn"],
+      "availableInEditions": ["global"],
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "CherryIN - AI model provider",
       "endpointConfigs": {
