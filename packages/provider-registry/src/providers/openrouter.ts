@@ -69,9 +69,15 @@ export default defineProvider({
     }
   },
   modelsDevProvider: 'openrouter',
+  standaloneModelIds: ['gpt-5-4-image-2'],
   overrides: [
     // OpenRouter owns this moving router alias; DeepSeek does not publish it as
     // a model. Actual usage cost is authoritative, so omit a static alias price.
-    { modelId: 'deepseek-v4-flash-latest', name: 'DeepSeek V4 Flash Latest', pricing: undefined }
+    { modelId: 'deepseek-v4-flash-latest', name: 'DeepSeek V4 Flash Latest', pricing: undefined },
+    {
+      modelId: 'gpt-5-4-image-2',
+      name: 'OpenAI: GPT-5.4 Image 2',
+      ownedBy: 'openrouter'
+    }
   ]
 })

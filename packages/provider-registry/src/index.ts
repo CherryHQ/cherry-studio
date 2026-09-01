@@ -142,6 +142,3 @@ export {
 } from './patterns/reasoning-heuristics'
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
-
-// Image-generation heuristics for custom-model creation and catalog enrichment.
-export { isImageGenerationId } from './patterns/image-generation'

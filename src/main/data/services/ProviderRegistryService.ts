@@ -37,7 +37,6 @@ import {
   inferReasoningControls,
   inferReasoningMembership,
   inferReasoningOwnedBy,
-  isImageGenerationId,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
   REASONING_FORMAT_PROFILES,
@@ -330,13 +329,6 @@ export function inferCustomModelReasoning(
   return projectRuntimeReasoning(proto, profile)
 }
 
-/**
- * Infer image-generation capability for a custom model that has no catalog entry.
- */
-export function inferCustomModelImageGeneration(modelId: string): ModelCapability[] {
-  return isImageGenerationId(modelId) ? [MODEL_CAPABILITY.IMAGE_GENERATION] : []
-}
-
 /** Tokens that must stay upper-cased when a raw id is prettified (a lowercase word would mis-title-case). */
 const MODEL_NAME_ACRONYMS: Record<string, string> = {
   api: 'API',
@@ -420,20 +412,14 @@ export function createCustomModel(
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
   // are descriptor-driven like catalog rows (#16598).
-  // Also handle versioned GPT image SKUs such as gpt-5.4-image-2.
   const reasoning = inferCustomModelReasoning(modelId, profile)
-  const imageGenCaps = inferCustomModelImageGeneration(modelId)
-  const isImageGen = imageGenCaps.length > 0
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
     apiModelId: modelId,
     name: modelId,
     ownedBy: inferReasoningOwnedBy(modelId),
-    capabilities: imageGenCaps,
-    ...(isImageGen
-      ? { inputModalities: ['text', 'image'] as Modality[], outputModalities: ['text', 'image'] as Modality[] }
-      : {}),
+    capabilities: [],
     reasoning,
     ...(serviceTierControl ? { requestControls: { serviceTier: projectServiceTierControl(serviceTierControl) } } : {}),
     supportsStreaming: true,

@@ -201,12 +201,12 @@ describe('ProviderRegistryService', () => {
   })
 
   describe('createCustomModel', () => {
-    it('marks a versioned GPT image route as image-generating', () => {
-      const model = createCustomModel('openrouter', 'openai/gpt-5-4-image-2')
+    it('does not infer image capability from an unknown model id', () => {
+      const model = createCustomModel('openrouter', 'openai/gpt-99-image-foo')
 
-      expect(model.capabilities).toContain('image-generation')
-      expect(model.inputModalities).toEqual(['text', 'image'])
-      expect(model.outputModalities).toEqual(['text', 'image'])
+      expect(model.capabilities).toEqual([])
+      expect(model.inputModalities).toBeUndefined()
+      expect(model.outputModalities).toBeUndefined()
     })
   })
 

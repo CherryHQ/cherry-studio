@@ -19,9 +19,6 @@ import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
 
-export const isOpenRouterCompositeImageModelId = (modelId: string): boolean =>
-  /^openai\/gpt-\d+(?:[.-]\d+)*-image(?:-[\w-]+)?$/i.test(modelId)
-
 export const CAP_ORDER = [
   'function-call',
   'reasoning',

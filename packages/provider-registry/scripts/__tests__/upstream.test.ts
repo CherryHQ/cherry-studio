@@ -1,22 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isOpenRouterCompositeImageModelId, mergeMeta, parseOrEntry, parseOrImageGeneration } from '../upstream'
-
-describe('isOpenRouterCompositeImageModelId', () => {
-  it.each(['openai/gpt-5-image', 'openai/gpt-5.3-image', 'openai/gpt-5-4-image-2'])(
-    'recognizes OpenRouter composite image route %s',
-    (modelId) => {
-      expect(isOpenRouterCompositeImageModelId(modelId)).toBe(true)
-    }
-  )
-
-  it.each(['openai/gpt-image-2', 'openai/gpt-5.4', 'other/gpt-5.4-image-2'])(
-    'does not classify creator models or other providers as OpenRouter composites: %s',
-    (modelId) => {
-      expect(isOpenRouterCompositeImageModelId(modelId)).toBe(false)
-    }
-  )
-})
+import { mergeMeta, parseOrEntry, parseOrImageGeneration } from '../upstream'
 
 describe('mergeMeta', () => {
   it('does not widen an earlier reasoning vocabulary with later source values', () => {

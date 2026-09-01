@@ -1,23 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isImageGenerationId } from '../patterns/image-generation'
 import { ImageGenerationSupportSchema, ModelConfigSchema } from '../schemas/model'
-
-describe('isImageGenerationId', () => {
-  it.each(['gpt-5.4-image-2', 'gpt-5-4-image-2', 'openai/gpt-5.4-image-2', 'GPT-IMAGE-2', 'dall-e-3'])(
-    'recognizes image-generation model id %s',
-    (modelId) => {
-      expect(isImageGenerationId(modelId)).toBe(true)
-    }
-  )
-
-  it.each(['gpt-5.4', 'gpt-5-tools-image', 'other-image-model'])(
-    'does not classify non-image model id %s',
-    (modelId) => {
-      expect(isImageGenerationId(modelId)).toBe(false)
-    }
-  )
-})
 
 /**
  * Locks the unified `ImageGenerationSupportSchema` shape: `modes` is a
