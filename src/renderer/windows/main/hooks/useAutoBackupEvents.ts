@@ -73,6 +73,7 @@ export function useAutoBackupEvents(): void {
     }
   })
 
+  // oxlint-disable-next-line react/rules-of-hooks -- handleEvent (useEffectEvent) is invoked from useIpcOn's effect-scoped listener; Oxlint's rules-of-hooks over-flags this vs the previous ESLint plugin
   useIpcOn('backup.auto_sync_state_changed', (event) => handleEvent(event, true))
 
   useEffect(() => {
@@ -84,6 +85,6 @@ export function useAutoBackupEvents(): void {
       })
       .catch((error) => logger.error('Failed to load automatic backup state', error as Error))
     // `handleEvent` is an Effect Event and must not be a dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [])
 }

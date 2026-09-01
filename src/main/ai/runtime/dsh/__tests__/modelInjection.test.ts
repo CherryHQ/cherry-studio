@@ -236,8 +236,8 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
 
 describe('assertDshProviderUsable', () => {
   it('accepts a gateway-routable model when the gateway is enabled, without key side effects', async () => {
-    mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel())
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel())
     mocks.getCurrentConfig.mockReturnValue({ enabled: true })
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).resolves.toBeUndefined()
@@ -246,16 +246,16 @@ describe('assertDshProviderUsable', () => {
   })
 
   it('fails closed on the persisted intent when the gateway is disabled', async () => {
-    mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel())
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel())
     mocks.getCurrentConfig.mockReturnValue({ enabled: false })
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(mocks.ApiGatewayNotRunningError)
   })
 
   it('still reports unsupported when the model is not gateway-routable either', async () => {
-    mocks.getByProviderId.mockResolvedValue(vertexProvider)
-    mocks.getByKey.mockResolvedValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
+    mocks.getByProviderId.mockReturnValue(vertexProvider)
+    mocks.getByKey.mockReturnValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedProviderError)
   })

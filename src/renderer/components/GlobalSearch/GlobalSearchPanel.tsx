@@ -460,7 +460,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     }
     // Mount-only: sanitizedRecentItems is read once (closure-captured at mount)
     // and updates flow through the functional setRecentItems updater.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [])
 
   useEffect(() => {

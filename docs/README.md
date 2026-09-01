@@ -148,7 +148,7 @@
 | [IpcApi Reference](./references/ipc/README.md) | Entry point for IpcApi docs — subsystem boundary, naming quick reference, migration status, and doc navigation |
 | [IpcApi Migration Guide](./references/ipc/ipc-migration-guide.md) | Per-domain migration of legacy ipcMain and preload channels into IpcApi schemas, handlers, and renderer call sites |
 | [IpcApi Overview](./references/ipc/ipc-overview.md) | Why IpcApi is an independent RPC channel beside REST DataApi — layering, trust boundary, IpcContext, error model |
-| [IpcApi Schema Guide](./references/ipc/ipc-schema-guide.md) | Authoring IpcApi schemas — per-domain files, route and event naming rules, derived types, ESLint key enforcement |
+| [IpcApi Schema Guide](./references/ipc/ipc-schema-guide.md) | Authoring IpcApi schemas — per-domain files, route and event naming rules, derived types, Oxlint key enforcement |
 | [IpcApi Usage](./references/ipc/ipc-usage.md) | Adding an IpcApi request route or main-to-renderer event — schema, handler, broadcast and send, useIpcOn subscribe |
 
 ### Job And Scheduler

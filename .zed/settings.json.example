@@ -26,7 +26,6 @@
     },
     "TSX": {
       "code_actions_on_format": {
-        "source.fixAll.eslint": true,
         "source.fixAll.oxc": true
       },
       "format_on_save": "on",
@@ -38,7 +37,6 @@
     },
     "TypeScript": {
       "code_actions_on_format": {
-        "source.fixAll.eslint": true,
         "source.fixAll.oxc": true
       },
       "format_on_save": "on",

@@ -885,7 +885,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       pendingByKey.set(`${pending.sheetName}!${pending.row}:${pending.col}`, pending)
     }
 
-    // eslint-disable-next-line prefer-const -- evalContext and evaluator reference each other, so declare before assign.
+    // oxlint-disable-next-line prefer-const -- evalContext and evaluator reference each other, so declare before assign.
     let evaluator: ReturnType<typeof createFormulaEvaluator>
     const evalContext: EvalContext = {
       getCellValue(ref: FormulaCellRef) {

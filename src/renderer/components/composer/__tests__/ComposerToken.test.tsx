@@ -86,7 +86,7 @@ vi.mock('@cherrystudio/ui', async () => {
       showArrow?: boolean
     }) => {
       const trigger = React.isValidElement(children)
-        ? // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+        ? // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild slot behavior
           React.cloneElement(children, { 'data-tooltip-trigger': 'true' } as Record<string, unknown>)
         : children
 
@@ -199,7 +199,7 @@ vi.mock('@cherrystudio/ui', async () => {
         }
       }
 
-      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+      // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild slot behavior
       return React.cloneElement(children, {
         'data-popover-trigger': 'true',
         ref: setTriggerRef

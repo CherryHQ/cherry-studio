@@ -342,7 +342,7 @@ const AgentPage = () => {
     })
 
     return unsubscribe
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
+    // oxlint-disable-next-line react/exhaustive-deps -- `useEffectEvent` reads the latest session without resubscribing.
   }, [currentTabId])
   // Label this tab with its agent emoji + session name so multiple agent tabs
   // are distinguishable (every tab labels itself — not gated on active).
@@ -717,7 +717,7 @@ const AgentPage = () => {
       unsubscribeSession()
       unsubscribeMessage()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
+    // oxlint-disable-next-line react/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
   }, [currentTabId])
 
   const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
@@ -760,7 +760,7 @@ const AgentPage = () => {
     if (cacheService.hasCasual(intentGuardCacheKey)) return
     cacheService.setCasual(intentGuardCacheKey, true, FEEDBACK_INTENT_GUARD_TTL_MS)
     void runFeedbackIntent(intentGuardCacheKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
+    // oxlint-disable-next-line react/exhaustive-deps -- `useEffectEvent` reads the latest feedback orchestration without resubscribing.
   }, [currentTabId, isFeedbackIntent, routeSessionId])
 
   const visibleSessionId = visibleSession?.id

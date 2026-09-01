@@ -94,7 +94,7 @@ const NpxSearch: FC = () => {
 
   useEffect(() => {
     void handleNpmSearch()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [])
 
   return (

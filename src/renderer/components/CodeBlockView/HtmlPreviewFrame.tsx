@@ -1,4 +1,3 @@
-/* eslint-disable @eslint-react/dom/no-missing-iframe-sandbox -- sandbox is always supplied via the (defaulted) prop; the rule can't statically resolve the dynamic value. */
 import { Parser } from 'htmlparser2'
 import { memo, type Ref } from 'react'
 

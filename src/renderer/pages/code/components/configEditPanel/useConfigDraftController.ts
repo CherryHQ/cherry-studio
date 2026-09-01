@@ -59,7 +59,6 @@ interface ConfigDraftController {
   onSubmit: () => void
 }
 
-/* oxlint-disable react-doctor/no-event-handler -- ConfigEditPanel is keyed by tool/provider, so prop changes remount instead of driving event-like effects. */
 export function useConfigDraftController({
   onClose,
   cliTool,
@@ -96,7 +95,6 @@ export function useConfigDraftController({
     initialDraftSnapshotRef.current = createDraftSnapshot(initialDraftSeed)
   }
 
-  /* oxlint-disable react-doctor/no-pass-data-to-parent -- Reads external CLI config files after the keyed dialog mounts and commits the loaded local draft state. */
   useEffect(() => {
     apiKeysRef.current = apiKeys
   }, [apiKeys])
@@ -233,7 +231,6 @@ export function useConfigDraftController({
     })
     // Re-runs before the gates pass are free — `initialLoadHasRunRef` latches the one real load.
   }, [apiKeys, isModelsLoading, connectionMatchesProvider, models])
-  /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
   // A managed submit needs something to address the CLI file with — the primary model in common
   // mode, a resolvable role model in detailed mode. Without it the parent skips the write, so the
@@ -437,4 +434,3 @@ export function useConfigDraftController({
     onSubmit: handleSubmit
   }
 }
-/* oxlint-enable react-doctor/no-event-handler */

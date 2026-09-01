@@ -1,0 +1,375 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "name": "React.Children.map",
+      "before": {
+        "rules": ["@eslint-react/no-children-map"],
+        "severity": "warning",
+        "count": 4
+      },
+      "after": {
+        "rules": ["cherry(dynamic-react-children-map)"],
+        "severity": "warning",
+        "count": 4,
+        "diagnostics": [
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/ClaudeConfigFields.test.tsx",
+            68,
+            12,
+            "cherry(dynamic-react-children-map)",
+            "`React.Children.map` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/ClaudeConfigFields.test.tsx",
+            76,
+            10,
+            "cherry(dynamic-react-children-map)",
+            "`React.Children.map` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/CliConfigFields.test.tsx",
+            55,
+            12,
+            "cherry(dynamic-react-children-map)",
+            "`React.Children.map` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/CliConfigFields.test.tsx",
+            63,
+            10,
+            "cherry(dynamic-react-children-map)",
+            "`React.Children.map` should not be used."
+          ]
+        ]
+      }
+    },
+    {
+      "name": "React.cloneElement",
+      "before": {
+        "rules": ["@eslint-react/no-clone-element"],
+        "severity": "warning",
+        "count": 6
+      },
+      "after": {
+        "rules": ["react(no-clone-element)", "cherry(dynamic-react-clone-element)"],
+        "severity": "warning",
+        "count": 6,
+        "diagnostics": [
+          [
+            "src/renderer/components/command/CommandMenus.tsx",
+            842,
+            14,
+            "react(no-clone-element)",
+            "`React.cloneElement` should not be used."
+          ],
+          [
+            "src/renderer/components/layout/AppShellTabBar.tsx",
+            581,
+            11,
+            "react(no-clone-element)",
+            "`React.cloneElement` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/ClaudeConfigFields.test.tsx",
+            69,
+            43,
+            "cherry(dynamic-react-clone-element)",
+            "`React.cloneElement` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/ClaudeConfigFields.test.tsx",
+            77,
+            41,
+            "cherry(dynamic-react-clone-element)",
+            "`React.cloneElement` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/CliConfigFields.test.tsx",
+            56,
+            43,
+            "cherry(dynamic-react-clone-element)",
+            "`React.cloneElement` should not be used."
+          ],
+          [
+            "src/renderer/pages/code/components/configEditPanel/tools/__tests__/CliConfigFields.test.tsx",
+            64,
+            41,
+            "cherry(dynamic-react-clone-element)",
+            "`React.cloneElement` should not be used."
+          ]
+        ]
+      }
+    },
+    {
+      "name": "i18n template literals",
+      "before": {
+        "rules": ["i18n/no-template-in-t"],
+        "severity": "warning",
+        "count": 20
+      },
+      "after": {
+        "rules": ["cherry(no-template-in-t)"],
+        "severity": "warning",
+        "count": 20,
+        "diagnostics": [
+          [
+            "src/renderer/components/chat/messages/blocks/ToolBlockGroup.tsx",
+            289,
+            23,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/components/chat/messages/blocks/ToolBlockGroup.tsx",
+            294,
+            14,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/components/chat/messages/blocks/ToolBlockGroup.tsx",
+            295,
+            42,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/components/composer/variants/shared/useEntityReferenceMentionSource.tsx",
+            225,
+            20,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/components/composer/variants/shared/useEntityReferenceMentionSource.tsx",
+            226,
+            26,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/components/composer/variants/shared/useEntityReferenceMentionSource.tsx",
+            241,
+            18,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/DependenciesSettings/EnvironmentDependencies.tsx",
+            538,
+            25,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            66,
+            47,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            86,
+            23,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            124,
+            21,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            164,
+            21,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            208,
+            41,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            210,
+            57,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            222,
+            43,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            223,
+            48,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            229,
+            30,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx",
+            229,
+            54,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/utils/miniAppPermission.ts",
+            15,
+            5,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/utils/miniAppPermission.ts",
+            18,
+            5,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ],
+          [
+            "src/renderer/utils/miniAppPermission.ts",
+            21,
+            5,
+            "cherry(no-template-in-t)",
+            "⚠️ Avoid template literals in t() — they make rendering output unpredictable"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "renderer page boundaries",
+      "before": {
+        "rules": ["import-x/no-restricted-paths"],
+        "severity": "warning",
+        "count": 2
+      },
+      "after": {
+        "rules": ["cherry(page-boundaries)"],
+        "severity": "warning",
+        "count": 2,
+        "diagnostics": [
+          [
+            "src/renderer/pages/settings/ModelSettings/ModelSettings.tsx",
+            35,
+            1,
+            "cherry(page-boundaries)",
+            "A page must not import another page (cross-page coupling). docs/references/architecture/renderer.md §7."
+          ],
+          [
+            "src/renderer/pages/settings/QuickAssistantSettings.tsx",
+            42,
+            1,
+            "cherry(page-boundaries)",
+            "A page must not import a window (reverse edge). docs/references/architecture/renderer.md §2/§7."
+          ]
+        ]
+      }
+    },
+    {
+      "name": "React Hooks dependencies",
+      "before": {
+        "rules": ["react-hooks/exhaustive-deps"],
+        "severity": "warning",
+        "count": 10
+      },
+      "after": {
+        "rules": ["react-hooks(exhaustive-deps)"],
+        "severity": "warning",
+        "count": 10,
+        "diagnostics": [
+          [
+            "src/renderer/components/composer/tools/components/KnowledgeBaseButton.tsx",
+            146,
+            6,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has unnecessary dependency: language"
+          ],
+          [
+            "src/renderer/components/composer/variants/AgentComposer.tsx",
+            906,
+            7,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useEffect has a missing dependency: 'actionsRef.current'"
+          ],
+          [
+            "src/renderer/components/composer/variants/shared/composerQuote.ts",
+            39,
+            7,
+            "react-hooks(exhaustive-deps)",
+            "Functions returned from `useEffectEvent` must not be included in the dependency array."
+          ],
+          [
+            "src/renderer/components/layout/TabsProvider.tsx",
+            302,
+            6,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useMemo has unnecessary dependency: i18n.language"
+          ],
+          [
+            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
+            472,
+            11,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has a missing dependency: 'props'"
+          ],
+          [
+            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
+            487,
+            5,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has unnecessary dependency: props.onChange"
+          ],
+          [
+            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
+            649,
+            9,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has a missing dependency: 'props'"
+          ],
+          [
+            "src/renderer/components/resourceCatalog/selectors/ResourceSelectorShell.tsx",
+            654,
+            5,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useCallback has unnecessary dependency: props.onChange"
+          ],
+          [
+            "src/renderer/pages/paintings/hooks/usePaintingComposerInputFiles.ts",
+            160,
+            7,
+            "react-hooks(exhaustive-deps)",
+            "The ref's value `.current` is accessed directly in the effect cleanup function."
+          ],
+          [
+            "src/renderer/pages/settings/FileProcessingSettings/components/ProcessorPanel.tsx",
+            111,
+            38,
+            "react-hooks(exhaustive-deps)",
+            "React Hook useEffect has missing dependencies: 'processor.apiKeys', 'entry.capability.modelId', and 'entry.capability.apiHost'"
+          ]
+        ]
+      },
+      "note": "Existing dependency suppressions were migrated to Oxlint so the advisory diagnostic count remains unchanged."
+    }
+  ]
+}

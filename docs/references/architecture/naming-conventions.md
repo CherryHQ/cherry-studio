@@ -499,7 +499,7 @@ Naming a new DIRECTORY
 
 ## 8. Lint Enforcement
 
-The `naming/path-case` rule (inline plugin in `eslint.config.mjs`, modeled on the barrel rules of §6.4) enforces the **casing** of directory segments and file stems, per zone, at `error` in `pnpm lint` / `test:lint` / `ci:basic-check`. It scopes to `src/**` and `packages/ui/**`.
+The `cherry/path-case` rule (repository plugin loaded by `oxlint.config.ts`, modeled on the barrel rules of §6.4) enforces the **casing** of directory segments and file stems, per zone, at `error` in `pnpm lint` / `test:lint` / `ci:basic-check`. It scopes to `src/**` and `packages/ui/**`.
 
 ### 8.1 Enforced
 
@@ -537,4 +537,3 @@ This document distills consensus from:
 - [Google TypeScript Style Guide](https://google.github.io/styleguide/tsguide.html)
 - [shadcn/ui conventions](https://github.com/shadcn-ui/ui) — kebab-case files, PascalCase exports
 - [Next.js file-naming guidance](https://nextjs.org/docs)
-- [typescript-eslint `naming-convention` rule](https://typescript-eslint.io/rules/naming-convention/)

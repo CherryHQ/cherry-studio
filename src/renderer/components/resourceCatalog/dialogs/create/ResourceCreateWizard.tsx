@@ -189,7 +189,7 @@ export function ResourceCreateWizard({
   useEffect(() => {
     if (!open) return
     resetForOpen()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
+    // oxlint-disable-next-line react/exhaustive-deps -- `useEffectEvent` reads the latest initialName; this effect is keyed by the open transition.
   }, [kind, open])
 
   // Preference/model/provider hydration may finish after the dialog opens. Seed only an

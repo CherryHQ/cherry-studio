@@ -154,7 +154,7 @@ const MiniAppTabsPool: React.FC = () => {
     // The metadata hash captures membership and webview URL values without
     // order — when the LRU reorders the same set, useMemo returns the previous
     // reference, but URL edits to an opened app still reach WebviewContainer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [appMetadataSignature])
 
   // closeSplit's contract keeps split-opened apps pooled (the cap-LRU retires them), so remember

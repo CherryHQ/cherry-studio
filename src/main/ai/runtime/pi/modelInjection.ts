@@ -237,10 +237,8 @@ function formatPiBaseUrl(baseUrl: string, api: PiApi): string {
  */
 export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   return resolvePiProviderInjectionFromSnapshot(provider, model)
 }
@@ -272,10 +270,8 @@ export function resolvePiProviderInjectionFromSnapshot(
  */
 export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model] = await Promise.all([
-    providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId)
-  ])
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
 
   // Unsupported beats missing-credential (parity with buildPiProviderInjection):
   // a login-based provider with no adapter has no key by design, and reporting

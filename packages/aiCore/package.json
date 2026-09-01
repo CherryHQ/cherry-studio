@@ -58,8 +58,8 @@
     "dev": "pnpm --workspace-root exec tsc -w -p packages/aiCore/tsconfig.json",
     "format": "pnpm --workspace-root exec oxfmt --write packages/aiCore",
     "format:check": "pnpm --workspace-root exec oxfmt --check packages/aiCore",
-    "lint": "oxlint --fix && eslint . --fix --cache",
-    "lint:check": "oxlint && eslint . --cache",
+    "lint": "oxlint --fix",
+    "lint:check": "oxlint",
     "prepublishOnly": "pnpm build",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -83,7 +83,7 @@
     "@types/node": "^24.10.4",
     "oxlint": "1.76.0",
     "tsdown": "^0.22.14",
-    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript": "7.0.2",
     "vitest": "^3.2.7"
   },
   "peerDependencies": {

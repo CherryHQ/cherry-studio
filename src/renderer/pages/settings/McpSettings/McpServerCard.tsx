@@ -60,7 +60,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     } else {
       setVersion(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [server.isActive, server.id, fetchServerVersion])
 
   const handleToggleActive = useCallback(

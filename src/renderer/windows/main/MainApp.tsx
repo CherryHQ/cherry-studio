@@ -71,7 +71,7 @@ function MainWindowRuntime(): null {
     document.getElementById('spinner')?.remove()
     // Paired with `console.time('init')` in index.html's bootstrap script; a DevTools
     // timer for dev DX, not a production log — loggerService is not apt.
-    // eslint-disable-next-line no-restricted-syntax
+    // oxlint-disable-next-line no-console
     console.timeEnd('init')
   }, [])
 

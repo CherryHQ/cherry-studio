@@ -124,7 +124,7 @@ export class NodeProxyBackend {
     }
   }
 
-  // oxlint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  // oxlint-disable-next-line typescript/no-unsafe-function-type
   private bindHttpMethod(originalMethod: Function, agent: http.Agent) {
     return (...args: any[]) => {
       let url: string | URL | undefined

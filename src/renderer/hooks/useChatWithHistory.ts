@@ -48,7 +48,7 @@ export function useChatWithHistory(
           logger.error('AI stream error', { topicId, streamError })
         }
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- topic identity alone owns the Chat lifecycle.
+    // oxlint-disable-next-line react/exhaustive-deps -- topic identity alone owns the Chat lifecycle.
     [topicId]
   )
 

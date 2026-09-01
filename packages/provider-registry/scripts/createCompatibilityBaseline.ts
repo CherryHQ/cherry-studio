@@ -42,7 +42,7 @@ async function createCompatibilityBaseline(): Promise<void> {
     const bundle = readFileSync(path.join(outputDirectory, targetName), 'utf8').replace(/[ \t]+$/gm, '')
     writeFileSync(
       temporaryPath,
-      `/* eslint-disable */\n// AUTO-GENERATED compatibility contract. Never edit or replace this file.\n${bundle}`
+      `/* oxlint-disable */\n// AUTO-GENERATED compatibility contract. Never edit or replace this file.\n${bundle}`
     )
     execFileSync('pnpm', ['oxfmt', '--write', temporaryPath], {
       cwd: repositoryRoot,

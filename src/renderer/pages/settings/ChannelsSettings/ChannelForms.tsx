@@ -115,7 +115,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   useEffect(() => {
     setFieldValues(Object.fromEntries(fields.map((f) => [f.key, (cfg[f.key] as string) ?? ''])))
     setChatIds(((cfg[idsKey] as string[]) ?? []).join(', '))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [JSON.stringify(fields.map((f) => cfg[f.key])), cfg[idsKey]])
 
   const saveField = useCallback(

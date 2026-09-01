@@ -23,7 +23,7 @@ application.getPath('invalid.key')
 | File | Role |
 |------|------|
 | `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
-| `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
+| `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. Oxlint-enforced key format |
 
 **No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/architecture/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
 
@@ -44,7 +44,7 @@ explicit cleanup. `external.*` → Cherry MUST NOT delete.
 
 ## Key Naming Convention
 
-Format: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/` (enforced by ESLint `data-schema-key/valid-key`)
+Format: `/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/` (enforced by Oxlint `cherry/valid-schema-key`)
 
 - At least 2 segments separated by `.`, each starts with a letter
 - Multi-word segments: `snake_case` (e.g. `crash_dumps`, `lan_transfer`)
@@ -136,7 +136,7 @@ Reserved for features that genuinely need per-instance subdirectories.
 
 ## File-Level Constraint in `pathRegistry.ts`
 
-No object literals besides the registry itself — the ESLint rule validates every string-keyed property in the file. Helper constants must be primitives; put helper objects in a separate file.
+No object literals besides the registry itself — the Oxlint rule validates every string-keyed property in the file. Helper constants must be primitives; put helper objects in a separate file.
 
 ## Bootstrap Order
 

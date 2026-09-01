@@ -68,7 +68,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       if (asChild && React.isValidElement(children)) {
         const childProps = children.props || {}
 
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+        // oxlint-disable-next-line react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           ...triggerProps,
           ...childProps,

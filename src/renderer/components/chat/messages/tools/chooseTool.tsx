@@ -25,7 +25,7 @@ const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
 const agentTools = new Set<string>(Object.values(AgentToolsType))
 const AgentExecutionTimeline = React.lazy(async () => {
-  // eslint-disable-next-line barrel/closed -- this boundary is intentionally lazy-loaded.
+  // oxlint-disable-next-line cherry/barrel-closed -- this boundary is intentionally lazy-loaded.
   const module = await import('./agent/AgentExecutionTimeline')
   return { default: module.AgentExecutionTimeline }
 })

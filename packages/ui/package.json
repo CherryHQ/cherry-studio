@@ -84,8 +84,8 @@
     "clean": "rm -rf dist",
     "dev": "pnpm --workspace-root exec tsc -w -p packages/ui/tsconfig.json",
     "icons:generate": "tsx scripts/icons-generate.ts",
-    "lint": "eslint src --ext .ts,.tsx --fix",
-    "posticons:generate": "pnpm --workspace-root exec eslint packages/ui/src/components/icons --ext .ts,.tsx --fix && pnpm --workspace-root format",
+    "lint": "pnpm --workspace-root exec oxlint --fix packages/ui/src",
+    "posticons:generate": "pnpm --workspace-root exec oxlint --fix packages/ui/src/components/icons && pnpm --workspace-root format",
     "storybook": "storybook dev -p 6006",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -159,7 +159,6 @@
     "@uiw/codemirror-extensions-langs": "^4.25.1",
     "@uiw/codemirror-themes-all": "^4.25.1",
     "@uiw/react-codemirror": "^4.25.1",
-    "eslint-plugin-storybook": "10.0.5",
     "linguist-languages": "^9.0.0",
     "motion": "^12.42.0",
     "react": "^19.0.0",
@@ -169,7 +168,7 @@
     "ts-morph": "^27.0.2",
     "tsdown": "^0.22.14",
     "tsx": "^4.20.6",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "^3.2.7"
   },
   "peerDependencies": {

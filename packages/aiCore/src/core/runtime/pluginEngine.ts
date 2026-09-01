@@ -1,4 +1,3 @@
-/* eslint-disable @eslint-react/naming-convention/context-name */
 import type { ImageModelV3, LanguageModelV3 } from '@ai-sdk/provider'
 import type { generateImage, LanguageModel } from 'ai'
 import { wrapLanguageModel } from 'ai'

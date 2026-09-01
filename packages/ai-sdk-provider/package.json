@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "tsdown": "^0.22.14",
-    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "typescript": "7.0.2",
     "vitest": "^3.2.7"
   },
   "peerDependencies": {

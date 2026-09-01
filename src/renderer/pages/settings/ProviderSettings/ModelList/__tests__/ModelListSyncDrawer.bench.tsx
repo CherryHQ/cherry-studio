@@ -106,7 +106,7 @@ function createComponentBenchmark(mode: ReferenceMode, scenario: UpdateScenario)
   let commitCount = 0
 
   const renderDrawer = (isApplying: boolean, localModels: Model[]) => {
-    // eslint-disable-next-line @eslint-react/dom/no-flush-sync -- The benchmark must time a completed React commit.
+    // oxlint-disable-next-line react/no-flush-sync -- The benchmark must time a completed React commit.
     flushSync(() => {
       root?.render(
         <Profiler id="model-list-sync-drawer" onRender={() => commitCount++}>
