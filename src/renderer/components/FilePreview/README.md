@@ -9,7 +9,8 @@ The built-in plugins currently support HTML, images (`.jpg`, `.jpeg`, `.png`, `.
 - Accept local absolute `AbsoluteFilePath` values only. POSIX and Windows paths are supported.
 - Do not pass relative paths, `file://` URLs, HTTP URLs, Base64 values, or in-memory data.
 - `FilePreview` lexically normalizes the path before resolving a plugin. It does not resolve symlinks or call `realpath`.
-- `FilePreview` calls `getMetadata` before selecting a plugin. Directories and inaccessible paths never reach a file plugin.
+- `FilePreview` starts the extension plugin module load alongside `getMetadata`, but metadata still decides whether the
+  candidate can render. Directories and inaccessible paths never reach a file plugin component.
 - When a path comes from IPC or another untyped string source, validate it with `normalizeFilePreviewPath`. Do not bypass runtime validation with a type assertion.
 
 ```ts

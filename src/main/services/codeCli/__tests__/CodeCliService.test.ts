@@ -1,21 +1,45 @@
+import path from 'node:path'
+
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({
   installByName: vi.fn(() => Promise.resolve()),
-  removeTool: vi.fn(() => Promise.resolve()),
+  removeTool: vi.fn<(_request: BinaryRemoveRequest) => Promise<BinaryRemoveResult>>(),
   getToolSnapshots: vi.fn()
+}))
+const hermesDashboardMock = vi.hoisted(() => ({ writeConfigFiles: vi.fn() }))
+const antigravityLaunchMock = vi.hoisted(() => vi.fn())
+const skillServiceMock = vi.hoisted(() => ({
+  syncBuiltinSkill: vi.fn(() => Promise.resolve(false)),
+  uninstallBuiltinSkill: vi.fn(() => Promise.resolve(false))
+}))
+
+vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock }))
+
+vi.mock('electron', () => ({
+  app: {
+    getVersion: vi.fn(() => '2.0.9'),
+    getAppPath: vi.fn(() => '/mock/app'),
+    isPackaged: false
+  }
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: vi.fn().mockImplementation((name: string) => {
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'HermesDashboardService') return hermesDashboardMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
   }
+}))
+
+vi.mock('../antigravity', () => ({
+  prepareAntigravityLaunch: antigravityLaunchMock
 }))
 
 const loggerMock = vi.hoisted(() => ({
@@ -146,8 +170,20 @@ describe('CodeCliService', () => {
       )
     )
     binaryManagerMock.installByName.mockResolvedValue(undefined)
+    binaryManagerMock.removeTool.mockResolvedValue({ status: 'removed' })
+    skillServiceMock.syncBuiltinSkill.mockResolvedValue(false)
+    skillServiceMock.uninstallBuiltinSkill.mockResolvedValue(false)
+    hermesDashboardMock.writeConfigFiles.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
+    antigravityLaunchMock.mockResolvedValue({
+      env: {
+        GEMINI_API_KEY: 'antigravity-secret',
+        GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+      },
+      geminiDir: '/mock/antigravity data',
+      model: 'gemini-2.5-pro'
+    })
   })
 
   it('should extend BaseService', async () => {
@@ -159,6 +195,22 @@ describe('CodeCliService', () => {
     const { codeCliService } = await loadModules()
     await expect(codeCliService._doInit()).resolves.toBeUndefined()
     expect(codeCliService.isReady).toBe(true)
+  })
+
+  it('reconciles available CLI skills only after every service is ready', async () => {
+    const { codeCliService } = await loadModules()
+
+    await codeCliService._doInit()
+    expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+
+    await codeCliService._doAllReady()
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledTimes(13)
+    expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
+      'code-mate-codex',
+      path.join('/mock/binary-data', 'code-mate-codex'),
+      '2.0.9',
+      'code-cli:openai-codex'
+    )
   })
 
   it('should clean up timers on stop', async () => {
@@ -173,6 +225,83 @@ describe('CodeCliService', () => {
     // loadModules() already created one instance,
     // so creating another should throw
     expect(() => new CodeCliService()).toThrow(/already been instantiated/)
+  })
+
+  describe('CLI skill lifecycle', () => {
+    it('installs the bundled skill only after the CLI install succeeds', async () => {
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.installCli({ name: 'codex' })
+
+      expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'codex' })
+      expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalledWith(
+        'code-mate-codex',
+        path.join('/mock/binary-data', 'code-mate-codex'),
+        '2.0.9',
+        'code-cli:openai-codex'
+      )
+    })
+
+    it('does not install a skill when the CLI install fails', async () => {
+      binaryManagerMock.installByName.mockRejectedValue(new Error('install failed'))
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.installCli({ name: 'codex' })).rejects.toThrow('install failed')
+
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+    })
+
+    it('does not change the skill when binary removal is blocked', async () => {
+      binaryManagerMock.removeTool.mockResolvedValue({ status: 'cleanup_blocked', reason: 'conflict' })
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({
+        status: 'cleanup_blocked',
+        reason: 'conflict'
+      })
+
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+    })
+
+    it('removes the owned skill when no CLI remains after removal', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        codex: { name: 'codex', availability: { source: 'none' }, application: { status: 'absent' } }
+      })
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.removeCli({ name: 'codex' })).resolves.toEqual({ status: 'removed' })
+
+      expect(skillServiceMock.uninstallBuiltinSkill).toHaveBeenCalledWith('code-mate-codex', 'code-cli:openai-codex')
+    })
+
+    it('keeps the skill when a system CLI remains after managed removal', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        codex: { name: 'codex', availability: { source: 'system', path: '/usr/local/bin/codex' } }
+      })
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.removeCli({ name: 'codex' })
+
+      expect(skillServiceMock.syncBuiltinSkill).toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+    })
+
+    it('preserves the skill when CLI state is unknown', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        codex: {
+          name: 'codex',
+          availability: { source: 'none' },
+          application: { status: 'unknown', reason: 'backend_unavailable' }
+        }
+      })
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.reconcileCliSkills()
+
+      expect(skillServiceMock.syncBuiltinSkill).not.toHaveBeenCalled()
+      expect(skillServiceMock.uninstallBuiltinSkill).not.toHaveBeenCalled()
+    })
   })
 
   describe('getAvailableTerminalsForPlatform (macOS)', () => {
@@ -434,6 +563,117 @@ describe('CodeCliService', () => {
     })
   })
 
+  describe('run (Antigravity session configuration)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const launchScript = async (input: CodeCliRunInput) => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run(input)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        return { result, script: call ? (call[1] as string[]).join(' ') : '' }
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('quotes the isolated directory and model while injecting Cherry credentials for a normal launch', async () => {
+      const { result, script } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(antigravityLaunchMock).toHaveBeenCalledWith(
+        expect.objectContaining({ providerId: 'gemini', model: 'gemini-2.5-pro' })
+      )
+      expect(script).toContain("'--gemini_dir=/mock/antigravity data'")
+      expect(script).toContain("--model '\\''gemini-2.5-pro'\\''")
+      expect(script).toContain("GEMINI_API_KEY='\\''antigravity-secret'\\''")
+    })
+
+    it('leaves the user Google login and global Antigravity settings untouched in own-login mode', async () => {
+      const { result, script } = await launchScript({
+        mode: 'own-login',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(antigravityLaunchMock).not.toHaveBeenCalled()
+      expect(script).not.toContain('--gemini_dir')
+      expect(script).not.toContain('GEMINI_API_KEY')
+      expect(script).not.toContain('--model')
+    })
+
+    it('rejects an unsafe resolved model before opening a terminal', async () => {
+      antigravityLaunchMock.mockResolvedValueOnce({
+        env: { GEMINI_API_KEY: 'antigravity-secret' },
+        geminiDir: '/mock/antigravity',
+        model: 'gemini; open /Applications/Calculator.app'
+      })
+
+      const { result, script } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(false)
+      if (result.success) throw new Error('Expected Antigravity launch to fail')
+      expect(result.message).toContain('Unsupported model id')
+      expect(script).toBe('')
+    })
+
+    it('redacts injected values from main-process logs', async () => {
+      antigravityLaunchMock.mockResolvedValueOnce({
+        env: {
+          TEST_SHORT: '1',
+          GEMINI_API_KEY: 'cs-sk-101-secret',
+          GOOGLE_GEMINI_BASE_URL: 'https://gemini.example.test'
+        },
+        geminiDir: '/mock/antigravity data',
+        model: 'gemini-2.5-pro'
+      })
+      const { result } = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.ANTIGRAVITY_CLI,
+        providerId: 'gemini',
+        model: 'gemini-2.5-pro',
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      const logged = JSON.stringify([
+        ...loggerMock.info.mock.calls,
+        ...loggerMock.debug.mock.calls,
+        ...loggerMock.warn.mock.calls,
+        ...loggerMock.error.mock.calls
+      ])
+      expect(logged).not.toContain('cs-sk-')
+      expect(logged).not.toContain('101-secret')
+      expect(logged).not.toContain('https://gemini.example.test')
+      expect(logged).toContain('GEMINI_API_KEY')
+    })
+  })
+
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
   // AppleScript). It must be single-quoted so a path with spaces / $() / backticks can't inject.
   // Skipped on win32: `process.platform` is pinned to darwin below, but `node:path` still follows
@@ -676,6 +916,39 @@ describe('CodeCliService', () => {
       }
     })
 
+    it('%-doubles the Antigravity isolated dir and carries a gateway model into the .bat verbatim', async () => {
+      antigravityLaunchMock.mockResolvedValueOnce({
+        env: { GEMINI_API_KEY: 'antigravity-secret' },
+        geminiDir: 'C:\\Users\\me\\100% data\\Antigravity',
+        model: 'gemini-api://618d8838/models/gemini-2.5-pro'
+      })
+
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.ANTIGRAVITY_CLI,
+          providerId: 'cherry-api-gateway',
+          model: 'gemini-2.5-pro',
+          directory: 'C:\\Users\\me\\project'
+        })
+
+        expect(result.success).toBe(true)
+        const [, batContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1)! as unknown as [string, string]
+        // CMD expands %…% even inside double quotes, so the isolated dir must be %-doubled
+        // or the CLI lands on a truncated --gemini_dir and rewrites the wrong settings.json.
+        expect(batContent).toContain('"--gemini_dir=C:\\Users\\me\\100%% data\\Antigravity"')
+        // The gateway address carries `://` and `/models/`; the route parses it back into
+        // `providerId:apiModelId`, so quoting must not mangle or split it.
+        expect(batContent).toContain('--model "gemini-api://618d8838/models/gemini-2.5-pro"')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('includes cherry.bin and appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
       // Regression (PR #16402 review): the launch env must carry the bundled
       // git dir at the very tail so a terminal-launched CLI resolves a bare
@@ -904,6 +1177,17 @@ describe('CodeCliService', () => {
     })
   })
 
+  describe('writeConfigFiles', () => {
+    it('delegates Hermes config writes to the Dashboard lifecycle lock', async () => {
+      const { codeCliService } = await loadModules()
+
+      await codeCliService.writeConfigFiles(CodeCli.HERMES, [{ target: 'hermes-config', content: 'model: {}\n' }])
+
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledOnce()
+      expect(hermesDashboardMock.writeConfigFiles).toHaveBeenCalledWith(expect.any(Function))
+    })
+  })
+
   describe('run (provider/model validation is owned solely by the service)', () => {
     beforeEach(async () => {
       // Keep the directory guard failing so a launch that passes validation returns immediately
@@ -941,6 +1225,24 @@ describe('CodeCliService', () => {
         success: false,
         message: 'DeepSeek Harness is managed through deepseek_harness.* IPC, not code_cli.run'
       })
+    })
+
+    it('routes Hermes Agent launches through its managed IPC instead of a terminal', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.HERMES,
+        model: 'hermes-3',
+        providerId: 'deepseek',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({
+        success: false,
+        message: 'Hermes Agent is managed through hermes_dashboard.* IPC, not code_cli.run'
+      })
+      expect(binaryManagerMock.getToolSnapshots).not.toHaveBeenCalled()
     })
 
     it('rejects a normal CLI launch when the model is empty', async () => {

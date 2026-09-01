@@ -2,9 +2,9 @@ import net from 'node:net'
 
 import type { BridgeNotificationMap } from '@cherrystudio/dsh-bridge'
 import { JsonRpcLineTransport } from '@deepseek-ai/dsh-sdk-protocol'
+import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { toolApprovalRegistry } from '../../toolApproval/ToolApprovalRegistry'
 import type { AgentRuntimeEvent } from '../../types'
 import { DshBridgeServer } from '../DshBridgeServer'
 
@@ -231,6 +231,7 @@ describe('DshBridgeServer', () => {
         editTools: ['edit', 'write'],
         autoApprovedTools: [],
         approvalRequiredTools: [],
+        nonBypassableApprovalTools: [],
         planSafeTools: []
       },
       tools: []
@@ -354,6 +355,47 @@ describe('DshBridgeServer', () => {
       updatedInput: { command: 'echo edited' }
     })
     await expect(ask).resolves.toEqual({ outcome: 'rejected' })
+  })
+
+  it('returns a trimmed rejection reason for the plugin to deliver to the agent', async () => {
+    const harness = await makeHarness()
+    const ask = harness.transport.request('approval/ask', {
+      sessionId: SESSION_ID,
+      toolName: 'bash',
+      callId: 'call-with-feedback'
+    })
+    await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+    const event = harness.events[0]
+    if (event.type !== 'tool-approval-request') throw new Error('unreachable')
+
+    toolApprovalRegistry.dispatch(event.request.approvalId, {
+      approved: false,
+      reason: '  use a copy instead  '
+    })
+
+    await expect(ask).resolves.toEqual({
+      outcome: 'rejected',
+      rejectionReason: 'use a copy instead'
+    })
+  })
+
+  it('does not attach feedback to approvals, blank denials, or edited-input fallbacks', async () => {
+    const harness = await makeHarness()
+
+    for (const decision of [
+      { approved: true, reason: 'ignored' },
+      { approved: false, reason: '   ' },
+      { approved: true, reason: 'rewritten', updatedInput: { command: 'echo edited' } }
+    ]) {
+      const ask = harness.transport.request('approval/ask', { sessionId: SESSION_ID, toolName: 'bash' })
+      await vi.waitFor(() => expect(harness.events).toHaveLength(1))
+      const event = harness.events.shift()
+      if (event?.type !== 'tool-approval-request') throw new Error('unreachable')
+      toolApprovalRegistry.dispatch(event.request.approvalId, decision)
+      await expect(ask).resolves.toEqual({
+        outcome: decision.approved && !decision.updatedInput ? 'allowed-once' : 'rejected'
+      })
+    }
   })
 
   it('answers rejected immediately when no responder is available, without surfacing a card', async () => {

@@ -16,13 +16,16 @@ import {
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
 import { toast } from '@renderer/services/toast'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 import {
+  ArrowRight,
   ChevronDown,
   Languages,
   MessageSquareMore,
@@ -32,8 +35,8 @@ import {
   RotateCcw,
   Settings2
 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useState } from 'react'
+import type { FC, ReactNode, Ref } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopicNamingSettings } from './TopicNamingSettings'
@@ -49,6 +52,7 @@ interface ModelSettingsProps {
   autoFillEmptyModels?: boolean
   onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
+  focus?: 'default' | 'translate'
   className?: string
 }
 
@@ -57,22 +61,55 @@ interface ModelSettingRowProps {
   title: ReactNode
   description?: ReactNode
   compact?: boolean
+  inlineWhenCompact?: boolean
   children: ReactNode
+  rowRef?: Ref<HTMLDivElement>
+  showFocusGuide?: boolean
 }
 
-const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
-  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
-    <div className="min-w-0 flex-1">
-      <SettingRowTitle className="gap-2">
-        {icon}
-        {title}
-      </SettingRowTitle>
-      {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
-    </div>
-    <div className={compact ? 'flex w-full items-center gap-2' : 'flex w-[340px] shrink-0 items-center gap-2'}>
-      {children}
-    </div>
-  </SettingRow>
+const ModelSettingRow: FC<ModelSettingRowProps> = ({
+  icon,
+  title,
+  description,
+  compact,
+  inlineWhenCompact,
+  children,
+  rowRef,
+  showFocusGuide
+}) => (
+  <div ref={rowRef}>
+    <SettingRow
+      className={cn(
+        compact
+          ? inlineWhenCompact
+            ? 'items-center gap-3 py-1'
+            : 'flex-col items-stretch gap-3 py-1'
+          : 'items-start gap-6 py-1.5'
+      )}>
+      <div className="min-w-0 flex-1">
+        <SettingRowTitle className="gap-2">
+          {icon}
+          {title}
+        </SettingRowTitle>
+        {description && <SettingDescription className="mt-1.5 leading-5">{description}</SettingDescription>}
+      </div>
+      <div
+        className={cn(
+          'relative flex items-center gap-2',
+          compact ? (inlineWhenCompact ? 'shrink-0' : 'w-full') : 'w-[340px] shrink-0'
+        )}>
+        {showFocusGuide && (
+          <span
+            aria-hidden="true"
+            data-testid="model-settings-focus-guide"
+            className="animation-provider-model-pull-guide motion-reduce:-translate-y-1/2 motion-reduce:!animate-none pointer-events-none absolute top-1/2 right-full z-10 mr-1 flex h-4 w-5 items-center justify-end text-muted-foreground">
+            <ArrowRight className="size-4" strokeWidth={2.5} />
+          </span>
+        )}
+        {children}
+      </div>
+    </SettingRow>
+  </div>
 )
 
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
@@ -92,6 +129,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   autoFillEmptyModels = false,
   onDefaultModelSelected,
   compact = false,
+  focus,
   className
 }) => {
   const {
@@ -108,6 +146,10 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const defaultRowRef = useRef<HTMLDivElement | null>(null)
+  const translateRowRef = useRef<HTMLDivElement | null>(null)
+  const [showFocusGuide, setShowFocusGuide] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
   const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
@@ -174,6 +216,18 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     setActivePanel(null)
   }, [])
 
+  useEffect(() => {
+    if (compact || !focus) return
+
+    const target = focus === 'default' ? defaultRowRef.current : translateRowRef.current
+    if (!target) return
+
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    scrollIntoView(target, { behavior, block: 'center', inline: 'nearest' })
+    setShowFocusGuide(true)
+    setTimeoutTimer('model-settings-focus-guide', () => setShowFocusGuide(false), 1200)
+  }, [compact, focus, setTimeoutTimer])
+
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
 
   const ContainerComponent = compact ? SettingContainer : SettingsContentColumn
@@ -191,6 +245,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           )}
           <ModelSettingRow
             compact={compact}
+            rowRef={defaultRowRef}
+            showFocusGuide={focus === 'default' && showFocusGuide}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
@@ -236,6 +292,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
+            rowRef={translateRowRef}
+            showFocusGuide={focus === 'translate' && showFocusGuide}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
@@ -289,6 +347,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <SettingDivider />
           <ModelSettingRow
             compact={compact}
+            inlineWhenCompact
             icon={<RefreshCcw size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={
               <>
@@ -306,12 +365,16 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {retryEnabled && (
             <>
               <SettingDivider />
-              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.max_attempts')}>
+              <ModelSettingRow
+                compact={compact}
+                inlineWhenCompact
+                icon={null}
+                title={t('settings.models.retry.max_attempts')}>
                 <Input
                   type="number"
                   min={1}
                   max={10}
-                  className="w-24"
+                  className={compact ? 'h-7 w-16 px-2' : 'w-24'}
                   aria-label={t('settings.models.retry.max_attempts')}
                   value={retryMaxAttempts}
                   // Clamp on change: an empty field gives Number('') === 0, which a
@@ -322,7 +385,11 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 />
               </ModelSettingRow>
               <SettingDivider />
-              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.backoff')}>
+              <ModelSettingRow
+                compact={compact}
+                inlineWhenCompact
+                icon={null}
+                title={t('settings.models.retry.backoff')}>
                 <Switch
                   checked={retryBackoffEnabled}
                   onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}

@@ -127,6 +127,22 @@ describe('command definitions', () => {
       enabled: true
     })
   })
+
+  it('restores the configurable clear-topic shortcut on Ctrl+L', () => {
+    const command = 'topic.clear_messages' as CommandId
+
+    expect(findCommandDefinition(command)).toMatchObject({
+      id: command,
+      titleKey: 'chat.topics.clear.title',
+      categoryKey: 'settings.shortcuts.topic',
+      scope: 'renderer'
+    })
+    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === command)).toMatchObject({
+      command,
+      defaultBinding: ['CommandOrControl', 'L'],
+      preferenceKey: 'shortcut.topic.clear_messages'
+    })
+  })
 })
 
 describe('commandShortcutPreferenceKey', () => {

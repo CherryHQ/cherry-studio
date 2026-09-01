@@ -43,17 +43,18 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
   const defaultGatewayModelId =
     defaultModelId && gatewayModelsById.has(defaultModelId as Model['id']) ? (defaultModelId as Model['id']) : undefined
 
+  const filterProvidersForTool = useCallback((toolId: CodeCli, providers: Provider[]): Provider[] => {
+    const filterFn = CLI_TOOL_PROVIDER_MAP[toolId]
+    // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
+    // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
+    // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
+    return filterFn
+      ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
+      : []
+  }, [])
   const filterProviders = useCallback(
-    (providers: Provider[]): Provider[] => {
-      const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
-      // Exclude login-based providers (Claude Code / Codex OAuth, etc.): they carry no API
-      // key/baseUrl to inject into the CLI config, and their "own login" is already surfaced by
-      // the synthetic own-login card. `isLoginBasedProvider` keeps api-key-capable mixed providers.
-      return filterFn
-        ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p) && !isLoginBasedProvider(p))
-        : []
-    },
-    [selectedCliTool]
+    (providers: Provider[]): Provider[] => filterProvidersForTool(selectedCliTool, providers),
+    [filterProvidersForTool, selectedCliTool]
   )
 
   /** Build a model filter scoped to one provider (for the edit panel's picker). */
@@ -108,10 +109,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
 
   return {
     filterProviders,
+    filterProvidersForTool,
     makeModelFilter,
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   }

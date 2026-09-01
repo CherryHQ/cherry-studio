@@ -129,8 +129,24 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    this.sourceSchemaInfo = reader.inspectSchema()
-    this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    try {
+      this.sourceSchemaInfo = reader.inspectSchema()
+      this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
+      if (code !== 'SQLITE_NOTADB') throw error
+
+      logger.warn('Legacy agents database is not a valid SQLite database; skipping database import', {
+        dbPath,
+        code
+      })
+      this.sourceDbPath = null
+      return {
+        success: true,
+        itemCount: 0,
+        warningMessages: [{ key: 'migration.completed.agent_database_unreadable' }]
+      }
+    }
 
     // Debug: Log schema detection results
     logger.info('AgentsMigrator prepare:', {

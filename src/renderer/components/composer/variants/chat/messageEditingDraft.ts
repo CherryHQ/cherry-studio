@@ -90,7 +90,12 @@ function createEditableAttachment(
 export function createEditableMessageDraft(parts: CherryMessagePart[]): EditableMessageDraft {
   const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
   const text = textParts.map((part) => part.text).join('\n\n')
-  const composer = textParts.length === 1 ? readCherryMeta(textParts[0])?.composer : undefined
+  // Recover the composer snapshot even when the reply was split across multiple text parts
+  // (e.g. text → tool → text), so file/knowledge tokens remain restorable.
+  const composer =
+    textParts.length === 1
+      ? readCherryMeta(textParts[0])?.composer
+      : textParts.map((part) => readCherryMeta(part)?.composer).find((snapshot) => snapshot !== undefined)
   const draftTokens =
     composer?.tokens.flatMap((token) =>
       isComposerDraftTokenKind(token.kind)

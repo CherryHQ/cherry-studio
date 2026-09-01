@@ -31,7 +31,7 @@ describe('preset descriptions', () => {
   // The dependency card interpolates `tool.name` into the key, so a renamed preset
   // renders the raw `settings.dependencies.tools.<name>` string instead of a description.
   it.each(PRESETS_BINARY_TOOLS.map(({ name }) => name))('%s resolves to a description in en-us.json', (name) => {
-    expect(typeof (enUs.settings.dependencies.tools as Record<string, string>)[name]).toBe('string')
+    expect(typeof (enUs as Record<string, string>)[`settings.dependencies.tools.${name}`]).toBe('string')
   })
 })
 
@@ -50,6 +50,7 @@ describe('BabelDOC Stream preset', () => {
     [{ status: 'absent' } as const, 'missing'],
     [{ status: 'applied' } as const, 'outdated'],
     [{ status: 'applied', version: '0.6.4.post1' } as const, 'outdated'],
+    [{ status: 'applied', version: '0.6.4.post2' } as const, 'outdated'],
     [{ status: 'applied', version: BABELDOC_MINIMUM_VERSION } as const, 'available'],
     [{ status: 'applied', version: '0.6.5' } as const, 'available']
   ])('classifies application %j as %s', (application, expected) => {

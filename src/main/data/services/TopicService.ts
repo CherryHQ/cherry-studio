@@ -25,7 +25,7 @@ import type {
   ReuseOrCreateTopicDto,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
-import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
@@ -119,13 +119,24 @@ function assertActiveAssistantTx(tx: Pick<DbOrTx, 'select'>, assistantId: string
 }
 
 export class TopicService {
-  notifyReadModelChange(topicIds: readonly string[], kind: 'membership' | 'projection'): void {
+  notifyReadModelChange(
+    topicIds: readonly string[],
+    kind: 'membership' | 'projection',
+    options: { deleted?: boolean } = {}
+  ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
+    // A terminal single delete scopes its by-id effect to that exact id; batches keep
+    // one broadcast-wide entry per the shared data-change contract (batch = one entry,
+    // and one entry can carry only one routeParams).
+    const byIdEffects: DataApiDataChangeEffect[] =
+      options.deleted && entityIds.length === 1
+        ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
+        : [{ endpoint: '/topics/:id', entityIds }]
     notifyDataApiDataChange([
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
-      { endpoint: '/topics/:id', entityIds },
+      ...byIdEffects,
       { endpoint: '/topics/latest' }
     ])
   }
@@ -156,6 +167,9 @@ export class TopicService {
    * unpinned-by-`orderKey` (manual/creation order), so the globally latest-active
    * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
    * latest independent of how the rail happens to page.
+   *
+   * An optional `assistantId` narrows the scan to one assistant's topics — used by
+   * per-assistant sidebar entries to resume that assistant's last conversation.
    */
   getLatestActive(query: LatestTopicQuery = {}): Topic | null {
     const db = application.get('DbService').getDb()
@@ -445,7 +459,7 @@ export class TopicService {
   delete(id: string): void {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
-    this.notifyReadModelChange(deletedIds, 'membership')
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     pinService.notifyPurged()
 
     logger.info('Deleted topic', { id })
@@ -454,7 +468,7 @@ export class TopicService {
   deleteByIds(ids: string[]): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
-    this.notifyReadModelChange(deletedIds, 'membership')
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted topics', { count: deletedIds.length })
@@ -715,7 +729,7 @@ export class TopicService {
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
-    this.notifyReadModelChange(deletedIds, 'membership')
+    this.notifyReadModelChange(deletedIds, 'membership', { deleted: true })
     if (deletedIds.length > 0) pinService.notifyPurged()
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })

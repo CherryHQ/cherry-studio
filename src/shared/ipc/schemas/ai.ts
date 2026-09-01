@@ -24,7 +24,12 @@ import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agen
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
+import {
+  ImageGenerationModeSchema,
+  ModelSchema,
+  ServiceTierSelectionSchema,
+  UniqueModelIdSchema
+} from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
@@ -146,6 +151,7 @@ const aiStreamRegenerateShape = {
   userMessageParts: z.never().optional(),
   targetMode: z.never().optional(),
   reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  serviceTier: ServiceTierSelectionSchema.optional(),
   fastMode: z.boolean().optional()
 }
 
@@ -162,6 +168,7 @@ export const aiRequestSchemas = {
     input: z.strictObject({
       ...aiBaseRequestShape,
       reasoningEffort: ReasoningEffortOptionSchema.optional(),
+      serviceTier: ServiceTierSelectionSchema.optional(),
       system: z.string().optional(),
       prompt: z.string().optional(),
       messages: z.array(z.custom<ModelMessage>()).optional()
@@ -222,6 +229,7 @@ export const aiRequestSchemas = {
           retryMessageId: z.never().optional(),
           appendToLiveGroupMessageId: z.never().optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          serviceTier: ServiceTierSelectionSchema.optional(),
           fastMode: z.boolean().optional()
         }),
         z.object({

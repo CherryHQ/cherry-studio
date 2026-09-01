@@ -58,6 +58,8 @@ This is a **conscious design boundary**, not a deficiency. The rationale: Schedu
 
 ## Trigger lifetime semantics
 
+`SchedulerService.getNextRun(id)` returns the next automatic fire for every trigger kind. Cron delegates to Croner, once returns its configured epoch until the timer self-cleans, and interval returns the due time of the chained timeout. While an interval callback is still running, its next timeout cannot be installed yet; the query predicts the due time as `now + interval`, which becomes concrete when the callback settles.
+
 The three triggers (`cron` / `interval` / `once`) differ in how their entry survives across a callback. Both subtleties are observable from inside the callback.
 
 ### `once`: self-clean *before* invoke
@@ -87,7 +89,7 @@ scheduler.registerSchedule('healthcheck.foo', { kind: 'interval', ms: 30_000 }, 
 })
 ```
 
-The check is on `map.has(id)`, not a flag — if you re-register the same id during the callback you re-arm the loop with the new trigger.
+The check compares the exact interval entry, not only `map.has(id)`. Unregistering stops the old loop; re-registering the same id transfers ownership to the new entry, so the old callback cannot re-arm or overwrite it when it settles.
 
 ## SchedulerService internal ID conventions
 

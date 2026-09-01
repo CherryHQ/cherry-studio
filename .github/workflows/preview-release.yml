@@ -1,0 +1,199 @@
+name: Preview Release
+run-name: Preview Release ${{ inputs.platform }} from ${{ inputs.branch }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Repository branch to build"
+        required: true
+        default: "main"
+      platform:
+        description: "Build platform"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - windows
+          - mac
+          - linux
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve preview branch
+    if: github.repository == 'CherryHQ/cherry-studio'
+    runs-on: ubuntu-latest
+    outputs:
+      branch_slug: ${{ steps.source.outputs.branch_slug }}
+      preview_tag: ${{ steps.source.outputs.preview_tag }}
+      short_sha: ${{ steps.source.outputs.short_sha }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
+    steps:
+      - name: Resolve source branch
+        id: source
+        shell: bash
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          git check-ref-format --branch "$BRANCH"
+
+          REMOTE_REF="$(git ls-remote --refs "https://github.com/$GITHUB_REPOSITORY.git" "refs/heads/$BRANCH")"
+          if [ -z "$REMOTE_REF" ]; then
+            echo "Branch $BRANCH does not exist in $GITHUB_REPOSITORY" >&2
+            exit 1
+          fi
+
+          SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
+          BRANCH_SLUG="$(printf '%s' "$BRANCH" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)"
+          if [ -z "$BRANCH_SLUG" ]; then
+            BRANCH_SLUG="sha-${SOURCE_SHA:0:12}"
+          fi
+
+          echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
+          echo "preview_tag=preview-$BRANCH_SLUG-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved $BRANCH to $SOURCE_SHA"
+
+  build:
+    name: Build preview (${{ matrix.os }})
+    needs: resolve
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(
+          inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
+          inputs.platform == 'linux' && '["ubuntu-latest"]' ||
+          inputs.platform == 'windows' && '["windows-latest"]' ||
+          inputs.platform == 'mac' && '["macos-latest"]' ||
+          '["macos-latest", "windows-latest", "ubuntu-latest"]'
+          ) }}
+
+    steps:
+      - name: Check out preview commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.source_sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: brew install python-setuptools
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Set preview version
+        shell: bash
+        run: |
+          BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
+          PREVIEW_VERSION="$BASE_VERSION-preview.g${{ needs.resolve.outputs.short_sha }}"
+          npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
+          echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+          pnpm build:linux
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Build Mac
+        if: matrix.os == 'macos-latest'
+        run: |
+          sudo -H pip install setuptools
+          pnpm build:mac
+        env:
+          CSC_FOR_PULL_REQUEST: true
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: pnpm build:win
+        env:
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Upload preview artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-${{ matrix.os }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.dmg
+            dist/*.AppImage
+            dist/*.snap
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/latest*.yml
+            dist/rc*.yml
+            dist/beta*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  draft-release:
+    name: Create draft preview release
+    needs: [resolve, build]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download preview artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: cherry-studio-preview-${{ needs.resolve.outputs.branch_slug }}-${{ needs.resolve.outputs.short_sha }}-*
+          path: preview-artifacts
+          merge-multiple: true
+
+      - name: Create or update draft release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          artifacts: "preview-artifacts/*"
+          body: |
+            Internal preview build for `${{ inputs.branch }}` at `${{ needs.resolve.outputs.source_sha }}`.
+
+            This draft is for internal testing only. It is isolated from the formal release, hotfix backport, and post-release workflows.
+          commit: ${{ needs.resolve.outputs.source_sha }}
+          draft: true
+          makeLatest: false
+          name: Preview ${{ inputs.branch }} @ ${{ needs.resolve.outputs.short_sha }}
+          prerelease: true
+          replacesArtifacts: true
+          tag: ${{ needs.resolve.outputs.preview_tag }}
+          updateOnlyUnreleased: true
+          token: ${{ secrets.GITHUB_TOKEN }}
