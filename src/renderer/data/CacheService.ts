@@ -1200,11 +1200,20 @@ export class CacheService {
             const incoming = message.value as Record<string, unknown>
             const merged: Record<string, unknown> = { ...existing }
             for (const [convKey, incomingVal] of Object.entries(incoming)) {
+              // Incoming null is a tombstone: ensure it deletes the entry.
               if (incomingVal === null) {
                 delete merged[convKey]
                 continue
               }
+
               const existingVal = merged[convKey]
+
+              // If local side already holds a tombstone (null), keep it and do not
+              // resurrect the entry from a potentially stale incoming snapshot.
+              if (existingVal === null) {
+                continue
+              }
+
               if (
                 existingVal &&
                 typeof existingVal === 'object' &&
@@ -1227,6 +1236,7 @@ export class CacheService {
                   continue
                 }
               }
+
               merged[convKey] = incomingVal
             }
             this.persistCache.set(persistKey, merged as never)

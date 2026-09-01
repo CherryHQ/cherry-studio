@@ -5,6 +5,7 @@ import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { ComposerSerializedDraft } from './tokens'
+import { isComposerDraftTokenKind } from './tokens'
 
 export const QUEUE_LIMIT = 20
 
@@ -36,16 +37,40 @@ function loadState(scopeKey: string): FollowupQueueState {
           if (item == null || typeof item !== 'object' || Array.isArray(item)) return false
           const candidate = item as { id?: unknown; draft?: unknown; payload?: unknown }
           if (typeof candidate.id !== 'string' || candidate.id.length === 0) return false
+
           if (candidate.draft == null || typeof candidate.draft !== 'object' || Array.isArray(candidate.draft))
             return false
           const draft = candidate.draft as { text?: unknown; tokens?: unknown }
           if (typeof draft.text !== 'string') return false
           if (!Array.isArray(draft.tokens)) return false
+
+          // Validate token shape to avoid crashes when re-editing/restoring drafts.
+          for (const t of draft.tokens as unknown[]) {
+            if (t == null || typeof t !== 'object' || Array.isArray(t)) return false
+            const tok = t as Record<string, unknown>
+            if (typeof tok.id !== 'string' || tok.id.length === 0) return false
+            if (typeof tok.label !== 'string') return false
+            if (typeof tok.index !== 'number' || !Number.isFinite(tok.index)) return false
+            if (typeof tok.textOffset !== 'number' || !Number.isFinite(tok.textOffset)) return false
+            if (!isComposerDraftTokenKind(tok.kind)) return false
+          }
+
           if (candidate.payload == null || typeof candidate.payload !== 'object' || Array.isArray(candidate.payload))
             return false
-          const payload = candidate.payload as { text?: unknown; userMessageParts?: unknown }
+          const payload = candidate.payload as { text?: unknown; userMessageParts?: unknown; attachments?: unknown }
           if (typeof payload.text !== 'string') return false
           if (!Array.isArray(payload.userMessageParts)) return false
+          // Ensure message parts are objects (CherryMessagePart shape validated elsewhere).
+          for (const part of payload.userMessageParts as unknown[]) {
+            if (part == null || typeof part !== 'object' || Array.isArray(part)) return false
+          }
+          if (payload.attachments !== undefined) {
+            if (!Array.isArray(payload.attachments)) return false
+            for (const a of payload.attachments as unknown[]) {
+              if (a == null || typeof a !== 'object' || Array.isArray(a)) return false
+            }
+          }
+
           return true
         })
       : []
@@ -176,13 +201,38 @@ export function useFollowupQueue({
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
+      // Fast local reject when clearly over limit.
       if (stateRef.current.items.length >= QUEUE_LIMIT) return false
       const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
-      const next = { ...stateRef.current, items: [...stateRef.current.items, newItem] }
-      if (next.items.length > QUEUE_LIMIT) return false
-      stateRef.current = next
-      persist(next)
-      setState(next)
+
+      // Atomically try to add to the persisted store so cross-window concurrency cannot
+      // later reject the item while we returned `true`. Use a flag captured by the
+      // updater to observe whether the item was actually written.
+      let added = false
+      try {
+        cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
+          const next = { ...(prev as Record<string, unknown> || {}) } as Record<string, unknown>
+          const raw = next[scopeKeyRef.current]
+          // Treat a tombstone/null as an empty queue
+          const entry = raw === null ? { items: [], paused: false } : typeof raw === 'object' && !Array.isArray(raw) ? (raw as any) : { items: [] }
+          const items = Array.isArray(entry.items) ? [...entry.items] : []
+          if (items.length >= QUEUE_LIMIT) return prev
+          items.push(newItem)
+          if (items.length > QUEUE_LIMIT) return prev
+          next[scopeKeyRef.current] = { items, paused: entry.paused === true }
+          added = true
+          return next as typeof prev
+        })
+      } catch {
+        // Fall through to local failure return.
+      }
+
+      if (!added) return false
+
+      // Synchronize local state with the authoritative persisted value we just wrote.
+      const synced = loadState(scopeKeyRef.current)
+      stateRef.current = synced
+      setState(synced)
       return true
     },
     [persist]
@@ -303,7 +353,8 @@ export function useFollowupQueue({
     drainHead(head)
   }, [isFulfilled, markSeen, drainHead])
 
-  // If completion arrived while unfocused, re-arm draining when the window regains focus.
+  // If completion arrived while unfocused, re-arm draining when the window regains focus
+  // or becomes visible (some platforms fire visibilitychange instead of focus).
   useEffect(() => {
     const onFocus = () => {
       if (
@@ -321,7 +372,15 @@ export function useFollowupQueue({
       drainHead(head)
     }
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', onFocus)
+    }
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', onFocus)
+      }
+    }
   }, [drainHead])
 
   // Keep local queue in sync with cross-window persist broadcasts. The hook writes via
