@@ -94,8 +94,6 @@ export class PluginManager<TParams = unknown, TResult = unknown> {
 
     for (const plugin of this.plugins) {
       if (plugin.transformResult) {
-        // SAFETY: transformResult 的契约保证返回 TResult
-        // 由于插件接口定义，这个类型断言是安全的
         const transformed = await plugin.transformResult(result, context)
         result = transformed
       }
