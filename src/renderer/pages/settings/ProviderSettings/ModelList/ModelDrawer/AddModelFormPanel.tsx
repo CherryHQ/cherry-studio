@@ -2,10 +2,11 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderPreset } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { createUniqueModelId, ENDPOINT_TYPE, type EndpointType, type UniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type EndpointType, type Model, type UniqueModelId } from '@shared/data/types/model'
+import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
@@ -23,9 +24,8 @@ import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
-  getModelDrawerMode,
-  getProviderChatEndpointTypes,
   resolveEndpointTypeOptions,
+  resolveInheritedOperationCapability,
   resolvePreferredEndpointOptions
 } from './modelEndpointRouting'
 import type {
@@ -33,11 +33,27 @@ import type {
   EditableModelOperationCapability,
   ModelBasicFormState,
   ModelCapabilityToggle,
-  ModelDrawerMode,
   ModelInputModality
 } from './types'
 
 const PROVIDER_PRESET_MODEL_FIELDS = ['models'] as const
+
+function getCommonPresetEndpointTypes(
+  modelIds: readonly string[],
+  presetModels: readonly Model[] | undefined
+): EndpointType[] | undefined {
+  if (modelIds.length === 0) return undefined
+
+  let commonEndpointTypes: EndpointType[] | undefined
+  for (const modelId of modelIds) {
+    const endpointTypes = presetModels?.find((model) => getModelApiId(model) === modelId)?.endpointTypes
+    if (!endpointTypes?.length) return undefined
+    commonEndpointTypes = commonEndpointTypes
+      ? commonEndpointTypes.filter((endpointType) => endpointTypes.includes(endpointType))
+      : [...endpointTypes]
+  }
+  return commonEndpointTypes
+}
 
 export interface AddModelDrawerFooterBinding {
   isSubmitting: boolean
@@ -69,12 +85,10 @@ export default function AddModelFormPanel({
   const { provider } = useProvider(providerId)
   const { models } = useModels({ providerId })
   const { createModel } = useModelMutations()
-  const [formState, setFormState] = useState<ModelBasicFormState>(() =>
-    getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-  )
+  const [formState, setFormState] = useState<ModelBasicFormState>(() => getInitialAddModelFormState(null))
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
-  const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  const [endpointTypesTouched, setEndpointTypesTouched] = useState(false)
   // Undefined until the user picks: an untouched picker must not pin the model to today's default.
   const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
   const [classificationTouched, setClassificationTouched] = useState(false)
@@ -85,46 +99,62 @@ export default function AddModelFormPanel({
   const submitInFlightRef = useRef(false)
   const modelIdInputRef = useRef<HTMLInputElement>(null)
 
-  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
-  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
-  const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   const endpointTypeOptions = resolveEndpointTypeOptions(provider, classification.operationCapabilities)
-  const { data: providerPreset } = useProviderPreset(
-    provider && mode === 'legacy' ? providerId : null,
-    PROVIDER_PRESET_MODEL_FIELDS
+  const { data: providerPreset } = useProviderPreset(provider ? providerId : null, PROVIDER_PRESET_MODEL_FIELDS)
+  const enteredModelIds = useMemo(
+    () => splitModelIds(formState.modelId.trim().replaceAll('，', ',')),
+    [formState.modelId]
   )
-  const enteredPresetEndpointTypes = splitModelIds(formState.modelId.trim().replaceAll('，', ',')).reduce<
-    EndpointType[] | undefined
-  >((commonEndpointTypes, modelId) => {
-    const endpointTypes = providerPreset?.models?.find((model) => getModelApiId(model) === modelId)?.endpointTypes
-    if (!endpointTypes?.length) return commonEndpointTypes
-    if (commonEndpointTypes === undefined) return [...endpointTypes]
-    return commonEndpointTypes.filter((endpointType) => endpointTypes.includes(endpointType))
-  }, undefined)
-  // An aggregator's multi-select IS the declaration; elsewhere the form seeds `endpointTypes` with the
-  // provider default, which says nothing about the model, so it is not passed as one.
-  const preferredEndpointOptions =
-    mode === 'legacy' && enteredPresetEndpointTypes?.length === 0
-      ? []
-      : resolvePreferredEndpointOptions(
-          provider,
-          mode,
-          mode === 'endpoint-types' ? formState.endpointTypes : enteredPresetEndpointTypes,
-          classification.operationCapabilities
-        )
+  const enteredPresetEndpointTypes = useMemo(
+    () => getCommonPresetEndpointTypes(enteredModelIds, providerPreset?.models),
+    [enteredModelIds, providerPreset?.models]
+  )
+  const hasInitialEndpointDeclaration =
+    prefill?.endpointType !== undefined ||
+    prefill?.endpointTypes !== undefined ||
+    prefill?.model?.endpointTypes !== undefined
+  const effectiveEndpointTypes = useMemo(
+    () =>
+      endpointTypesTouched || hasInitialEndpointDeclaration
+        ? (formState.endpointTypes ?? [])
+        : (enteredPresetEndpointTypes ?? formState.endpointTypes ?? []),
+    [endpointTypesTouched, enteredPresetEndpointTypes, formState.endpointTypes, hasInitialEndpointDeclaration]
+  )
+  const preferredEndpointOptions = resolvePreferredEndpointOptions(
+    provider,
+    effectiveEndpointTypes,
+    classification.operationCapabilities
+  )
   const pinnedPreferredEndpoint = preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType)
+  const inheritedOperation = resolveInheritedOperationCapability(
+    effectiveEndpointTypes,
+    classification.operationCapabilities
+  )
+  const inheritedEndpoint =
+    provider && inheritedOperation && enteredModelIds.length === 1
+      ? getModelPreferredEndpoint(
+          {
+            id: createUniqueModelId(providerId, enteredModelIds[0]),
+            apiModelId: enteredModelIds[0],
+            endpointTypes: effectiveEndpointTypes.length ? effectiveEndpointTypes : undefined,
+            preferredEndpointType: undefined
+          },
+          provider,
+          inheritedOperation
+        )
+      : undefined
 
   useEffect(() => {
-    setFormState(getInitialAddModelFormState(prefill, defaultChatEndpoint))
+    setFormState(getInitialAddModelFormState(prefill))
     setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
-    setEndpointTypeTouched(false)
+    setEndpointTypesTouched(false)
     setPreferredEndpointType(undefined)
     setClassificationTouched(false)
     setInputModalitiesTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
-  }, [defaultChatEndpoint, prefill])
+  }, [prefill, providerId])
 
   const handleModelIdChange = useCallback(
     (value: string) => {
@@ -163,8 +193,8 @@ export default function AddModelFormPanel({
       const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
       const submittedInputModalities = classifiedInputModalities
       const isRegistryModel = providerPreset?.models?.some((model) => getModelApiId(model) === modelId) ?? false
-      const shouldSubmitCapabilities =
-        mode === 'endpoint-types' || prefill?.model != null || classificationTouched || !isRegistryModel
+      const shouldSubmitCapabilities = prefill?.model != null || classificationTouched || !isRegistryModel
+      const shouldSubmitEndpointTypes = endpointTypesTouched || hasInitialEndpointDeclaration
       const shouldSubmitInputModalities =
         inputModalitiesTouched ||
         prefill?.model?.inputModalities !== undefined ||
@@ -175,8 +205,7 @@ export default function AddModelFormPanel({
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes:
-          mode === 'endpoint-types' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
+        endpointTypes: shouldSubmitEndpointTypes ? [...(values.endpointTypes ?? [])] : undefined,
         ...(pinnedPreferredEndpoint ? { preferredEndpointType: pinnedPreferredEndpoint } : {}),
         ...(shouldSubmitCapabilities ? { capabilities: classifiedCapabilities } : {}),
         ...(shouldSubmitInputModalities ? { inputModalities: submittedInputModalities } : {}),
@@ -192,7 +221,8 @@ export default function AddModelFormPanel({
       classification,
       classificationTouched,
       createModel,
-      mode,
+      endpointTypesTouched,
+      hasInitialEndpointDeclaration,
       models,
       pinnedPreferredEndpoint,
       inputModalitiesTouched,
@@ -216,11 +246,6 @@ export default function AddModelFormPanel({
       return
     }
 
-    if (mode === 'endpoint-types' && !(formState.endpointTypes?.length ?? 0)) {
-      setEndpointTypeTouched(true)
-      return
-    }
-
     submitInFlightRef.current = true
     setIsSubmitting(true)
     setSubmitError(null)
@@ -236,7 +261,7 @@ export default function AddModelFormPanel({
             contextWindow: '',
             maxInputTokens: '',
             maxOutputTokens: '',
-            endpointTypes: formState.endpointTypes
+            endpointTypes: effectiveEndpointTypes
           })
 
           if (addedModelId) {
@@ -252,7 +277,8 @@ export default function AddModelFormPanel({
 
       const addedModelId = await addSingleModel({
         ...formState,
-        modelId: normalizedId
+        modelId: normalizedId,
+        endpointTypes: effectiveEndpointTypes
       })
       if (addedModelId) {
         onSuccess([addedModelId])
@@ -263,7 +289,7 @@ export default function AddModelFormPanel({
       submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [addSingleModel, formState, mode, onSuccess, t])
+  }, [addSingleModel, effectiveEndpointTypes, formState, onSuccess, t])
 
   const handleOperationCapabilityToggle = useCallback(
     (operationCapability: EditableModelOperationCapability) => {
@@ -275,17 +301,27 @@ export default function AddModelFormPanel({
         operationCapabilities.add(operationCapability)
       }
       const allowedEndpoints = new Set(resolveEndpointTypeOptions(provider, operationCapabilities))
+      const nextEndpointTypes = effectiveEndpointTypes.filter((endpointType) => allowedEndpoints.has(endpointType))
       setClassificationTouched(true)
       setClassification({ ...classification, operationCapabilities })
-      setFormState((form) => ({
-        ...form,
-        endpointTypes: form.endpointTypes?.filter((endpointType) => allowedEndpoints.has(endpointType))
-      }))
+      setEndpointTypesTouched(true)
+      setFormState((form) => ({ ...form, endpointTypes: nextEndpointTypes }))
       setPreferredEndpointType((endpointType) =>
         endpointType && allowedEndpoints.has(endpointType) ? endpointType : undefined
       )
     },
-    [classification, provider]
+    [classification, effectiveEndpointTypes, provider]
+  )
+
+  const handlePreferredEndpointTypeChange = useCallback(
+    (next: EndpointType | undefined) => {
+      if (next && effectiveEndpointTypes.length === 0) {
+        setEndpointTypesTouched(true)
+        setFormState((current) => ({ ...current, endpointTypes: [...preferredEndpointOptions] }))
+      }
+      setPreferredEndpointType(next)
+    },
+    [effectiveEndpointTypes.length, preferredEndpointOptions]
   )
 
   const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
@@ -370,13 +406,13 @@ export default function AddModelFormPanel({
       <ProviderSection className={drawerClasses.section}>
         <div className={drawerClasses.fieldList}>
           <ModelBasicFields
-            values={formState}
-            showEndpointType={mode === 'endpoint-types'}
+            values={{ ...formState, endpointTypes: effectiveEndpointTypes }}
+            showEndpointType={endpointTypeOptions.length > 0}
             endpointTypeOptions={endpointTypeOptions}
             preferredEndpointOptions={preferredEndpointOptions}
             preferredEndpointType={pinnedPreferredEndpoint}
-            inheritedEndpointType={preferredEndpointOptions[0]}
-            onPreferredEndpointTypeChange={setPreferredEndpointType}
+            inheritedEndpointType={inheritedEndpoint}
+            onPreferredEndpointTypeChange={handlePreferredEndpointTypeChange}
             showRequiredIndicator
             layout="horizontal"
             modelIdAutoFocus
@@ -384,12 +420,11 @@ export default function AddModelFormPanel({
             modelIdError={
               modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
             }
-            endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
             onModelIdChange={handleModelIdChange}
             onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
             onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
             onEndpointTypesChange={(next) => {
-              setEndpointTypeTouched(false)
+              setEndpointTypesTouched(true)
               setPreferredEndpointType((current) => (current && next.includes(current) ? current : undefined))
               setFormState((current) => ({ ...current, endpointTypes: [...next] }))
             }}

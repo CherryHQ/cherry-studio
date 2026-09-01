@@ -2,8 +2,8 @@ import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import {
-  getModelDrawerMode,
   resolveEndpointTypeOptions,
+  resolveInheritedOperationCapability,
   resolvePreferredEndpointOptions
 } from '../modelEndpointRouting'
 
@@ -18,8 +18,19 @@ const provider = {
 } as const
 
 describe('model endpoint routing controls', () => {
-  it('uses explicit endpoint selection for custom providers', () => {
-    expect(getModelDrawerMode(provider)).toBe('endpoint-types')
+  it('derives the same options regardless of provider identity or preset provenance', () => {
+    const operationCapabilities = new Set([MODEL_CAPABILITY.TEXT_GENERATION])
+    const providers = [
+      provider,
+      { ...provider, id: 'openai', presetProviderId: 'openai' },
+      { ...provider, id: 'custom-openai', presetProviderId: 'openai' }
+    ]
+
+    expect(providers.map((candidate) => resolveEndpointTypeOptions(candidate, operationCapabilities))).toEqual([
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ])
   })
 
   it('offers only provider endpoints compatible with the selected operations', () => {
@@ -35,10 +46,18 @@ describe('model endpoint routing controls', () => {
     expect(
       resolvePreferredEndpointOptions(
         provider,
-        'endpoint-types',
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
         new Set([MODEL_CAPABILITY.EMBEDDING])
       )
     ).toEqual([ENDPOINT_TYPE.OPENAI_EMBEDDINGS])
+  })
+
+  it('selects an operation compatible with the first declared endpoint', () => {
+    expect(
+      resolveInheritedOperationCapability(
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+        new Set([MODEL_CAPABILITY.VIDEO_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION])
+      )
+    ).toBe(MODEL_CAPABILITY.IMAGE_GENERATION)
   })
 })

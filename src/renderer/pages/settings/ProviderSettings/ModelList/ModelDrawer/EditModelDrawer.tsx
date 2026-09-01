@@ -4,13 +4,7 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import {
-  endpointDefaultOperationCapability,
-  type EndpointType,
-  type Model,
-  MODEL_CAPABILITY,
-  parseUniqueModelId
-} from '@shared/data/types/model'
+import { type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -30,13 +24,16 @@ import {
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import { getModelDrawerMode, resolveEndpointTypeOptions, resolvePreferredEndpointOptions } from './modelEndpointRouting'
+import {
+  resolveEndpointTypeOptions,
+  resolveInheritedOperationCapability,
+  resolvePreferredEndpointOptions
+} from './modelEndpointRouting'
 import { ModelPricingFields } from './ModelPricingFields'
 import type {
   EditableModelOperationCapability,
   ModelCapabilityToggle,
   ModelClassificationState,
-  ModelDrawerMode,
   ModelInputModality
 } from './types'
 
@@ -96,11 +93,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
-  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const endpointTypeOptions = resolveEndpointTypeOptions(provider, classification.operationCapabilities)
   const preferredEndpointOptions = resolvePreferredEndpointOptions(
     provider,
-    mode,
     endpointTypes,
     classification.operationCapabilities
   )
@@ -112,15 +107,19 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     storedPreferredEndpoint != null && preferredEndpointOptions.includes(storedPreferredEndpoint)
       ? storedPreferredEndpoint
       : undefined
-  const inheritedOperation = endpointTypes[0]
-    ? endpointDefaultOperationCapability(endpointTypes[0])
-    : classification.operationCapabilities.has(MODEL_CAPABILITY.TEXT_GENERATION)
-      ? MODEL_CAPABILITY.TEXT_GENERATION
-      : [...classification.operationCapabilities][0]
+  const inheritedOperation = resolveInheritedOperationCapability(endpointTypes, classification.operationCapabilities)
   // What clearing the pin resolves to, so the inherit chip can name it rather than being a blind choice.
   const inheritedEndpoint =
     model && provider && inheritedOperation
-      ? getModelPreferredEndpoint({ ...model, preferredEndpointType: undefined }, provider, inheritedOperation)
+      ? getModelPreferredEndpoint(
+          {
+            ...model,
+            endpointTypes: endpointTypes.length ? endpointTypes : undefined,
+            preferredEndpointType: undefined
+          },
+          provider,
+          inheritedOperation
+        )
       : undefined
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
   const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
@@ -186,9 +185,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        ...(hasEndpointTypesOverride
-          ? { endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined }
-          : {}),
+        ...(hasEndpointTypesOverride ? { endpointTypes: [...(overrides.endpointTypes ?? [])] } : {}),
         // `null` is a real value here (clear the pin), so test for presence, not truthiness.
         ...(overrides != null && Object.hasOwn(overrides, 'preferredEndpointType')
           ? { preferredEndpointType: overrides.preferredEndpointType }
@@ -203,7 +200,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
       }
     },
-    [group, contextWindow, maxInputTokens, maxOutputTokens, mode, model, name, classification, supportsStreaming]
+    [group, contextWindow, maxInputTokens, maxOutputTokens, model, name, classification, supportsStreaming]
   )
 
   const processAutoSaveQueue = useCallback(async () => {
@@ -329,6 +326,22 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     autoSave({ classification: nextClassification })
   }, [autoSave, savedClassification])
 
+  const handlePreferredEndpointTypeChange = useCallback(
+    (next: EndpointType | undefined) => {
+      if (next && endpointTypes.length === 0) {
+        const materializedEndpointTypes = [...preferredEndpointOptions]
+        setEndpointTypes(materializedEndpointTypes)
+        setPreferredEndpointType(next)
+        autoSave({ endpointTypes: materializedEndpointTypes, preferredEndpointType: next })
+        return
+      }
+
+      setPreferredEndpointType(next ?? null)
+      autoSave({ preferredEndpointType: next ?? null })
+    },
+    [autoSave, endpointTypes.length, preferredEndpointOptions]
+  )
+
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
@@ -356,15 +369,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'endpoint-types'}
+              showEndpointType={endpointTypeOptions.length > 0}
               endpointTypeOptions={endpointTypeOptions}
               preferredEndpointOptions={preferredEndpointOptions}
               preferredEndpointType={pinnedPreferredEndpoint}
               inheritedEndpointType={inheritedEndpoint}
-              onPreferredEndpointTypeChange={(next) => {
-                setPreferredEndpointType(next ?? null)
-                autoSave({ preferredEndpointType: next ?? null })
-              }}
+              onPreferredEndpointTypeChange={handlePreferredEndpointTypeChange}
               modelIdDisabled
               modelIdAction={
                 <button

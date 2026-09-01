@@ -8,8 +8,6 @@ import {
   type ModelOperationCapability
 } from '@shared/data/types/model'
 
-export type ModelDrawerMode = 'legacy' | 'endpoint-types'
-
 export type ModelDrawerEndpointType = EndpointType
 
 export interface AddModelDrawerPrefill {

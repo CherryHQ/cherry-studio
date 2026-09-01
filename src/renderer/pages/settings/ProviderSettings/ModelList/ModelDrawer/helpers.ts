@@ -43,10 +43,7 @@ export function getModelApiId(model: Model): string {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }
 
-function resolveInitialEndpointTypes(
-  prefill: AddModelDrawerPrefill | null | undefined,
-  defaultEndpointType: ModelDrawerEndpointType
-): ModelDrawerEndpointType[] {
+function resolveInitialEndpointTypes(prefill: AddModelDrawerPrefill | null | undefined): ModelDrawerEndpointType[] {
   if (prefill?.endpointTypes?.length) {
     return [...prefill.endpointTypes]
   }
@@ -56,13 +53,10 @@ function resolveInitialEndpointTypes(
   if (prefill?.endpointType) {
     return [prefill.endpointType]
   }
-  return [defaultEndpointType]
+  return []
 }
 
-export function getInitialAddModelFormState(
-  prefill: AddModelDrawerPrefill | null | undefined,
-  defaultEndpointType: ModelDrawerEndpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-): ModelBasicFormState {
+export function getInitialAddModelFormState(prefill: AddModelDrawerPrefill | null | undefined): ModelBasicFormState {
   return {
     modelId: prefill?.model ? getModelApiId(prefill.model) : '',
     name: prefill?.model?.name ?? '',
@@ -70,7 +64,7 @@ export function getInitialAddModelFormState(
     contextWindow: prefill?.model?.contextWindow != null ? String(prefill.model.contextWindow) : '',
     maxInputTokens: prefill?.model?.maxInputTokens != null ? String(prefill.model.maxInputTokens) : '',
     maxOutputTokens: prefill?.model?.maxOutputTokens != null ? String(prefill.model.maxOutputTokens) : '',
-    endpointTypes: resolveInitialEndpointTypes(prefill, defaultEndpointType)
+    endpointTypes: resolveInitialEndpointTypes(prefill)
   }
 }
 

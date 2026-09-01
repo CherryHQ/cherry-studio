@@ -8,6 +8,5 @@ export {
   MODEL_CAPABILITY_TOGGLE_VALUES,
   type ModelBasicFormState,
   type ModelCapabilityToggle,
-  type ModelDrawerEndpointType,
-  type ModelDrawerMode
+  type ModelDrawerEndpointType
 } from './types'

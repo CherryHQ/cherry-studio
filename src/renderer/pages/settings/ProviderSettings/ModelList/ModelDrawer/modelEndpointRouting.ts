@@ -1,32 +1,15 @@
 import {
   ENDPOINT_TYPE,
+  endpointDefaultOperationCapability,
   type EndpointType,
   isEndpointCompatibleWithOperation,
+  MODEL_CAPABILITY,
   type ModelOperationCapability,
   objectValues
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { matchesPreset } from '@shared/utils/provider'
-import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
-import type { ModelDrawerMode } from './types'
-
-export const MODEL_CHAT_ENDPOINT_TYPES = [
-  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-  ENDPOINT_TYPE.OPENAI_RESPONSES,
-  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-] as const
-
-export type ModelChatEndpointType = (typeof MODEL_CHAT_ENDPOINT_TYPES)[number]
-
-type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
-type ProviderEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'> &
-  Partial<Pick<Provider, 'id' | 'presetProviderId'>>
-
-function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
-  return MODEL_CHAT_ENDPOINT_TYPES.some((candidate) => candidate === endpointType)
-}
+type ProviderEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
 
 function isCompatibleWithAnyOperation(
   endpointType: EndpointType,
@@ -38,20 +21,6 @@ function isCompatibleWithAnyOperation(
 function getConfiguredEndpointTypes(provider: ProviderEndpoints): EndpointType[] {
   const configured = new Set(Object.keys(provider.endpointConfigs ?? {}))
   return objectValues(ENDPOINT_TYPE).filter((endpointType) => configured.has(endpointType))
-}
-
-export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMode {
-  if (provider.presetProviderId == null && !isSystemProviderId(provider.id)) {
-    return 'endpoint-types'
-  }
-  if (matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')) {
-    return 'endpoint-types'
-  }
-  return 'legacy'
-}
-
-export function getProviderChatEndpointTypes(provider: ProviderEndpoints): ModelChatEndpointType[] {
-  return getConfiguredEndpointTypes(provider).filter(isModelChatEndpointType)
 }
 
 export function resolveEndpointTypeOptions(
@@ -66,7 +35,6 @@ export function resolveEndpointTypeOptions(
 
 export function resolvePreferredEndpointOptions(
   provider: ProviderEndpoints | null | undefined,
-  mode: ModelDrawerMode,
   modelEndpointTypes: readonly EndpointType[] | undefined,
   operationCapabilities: ReadonlySet<ModelOperationCapability>
 ): readonly EndpointType[] {
@@ -75,5 +43,22 @@ export function resolvePreferredEndpointOptions(
   const candidates = modelEndpointTypes?.length
     ? modelEndpointTypes.filter((endpointType) => configured.has(endpointType))
     : [...configured]
-  return mode === 'endpoint-types' || candidates.length > 1 ? candidates : []
+  return candidates
+}
+
+export function resolveInheritedOperationCapability(
+  endpointTypes: readonly EndpointType[],
+  operationCapabilities: ReadonlySet<ModelOperationCapability>
+): ModelOperationCapability | undefined {
+  for (const endpointType of endpointTypes) {
+    const endpointOperation = endpointDefaultOperationCapability(endpointType)
+    if (endpointOperation && operationCapabilities.has(endpointOperation)) return endpointOperation
+
+    const compatibleOperation = [...operationCapabilities].find((operation) =>
+      isEndpointCompatibleWithOperation(endpointType, operation)
+    )
+    if (compatibleOperation) return compatibleOperation
+  }
+  if (operationCapabilities.has(MODEL_CAPABILITY.TEXT_GENERATION)) return MODEL_CAPABILITY.TEXT_GENERATION
+  return [...operationCapabilities][0]
 }
