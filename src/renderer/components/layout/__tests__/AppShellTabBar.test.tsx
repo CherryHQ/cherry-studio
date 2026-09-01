@@ -218,8 +218,7 @@ describe('AppShellTabBar', () => {
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
   })
 
-  it('shows the focused tab as a Back control with a visible detach action', async () => {
-    const user = userEvent.setup()
+  it('shows Settings as a focused Back control without detach actions', () => {
     const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings', isPinned: true })
     const detachTab = vi.fn()
 
@@ -237,16 +236,15 @@ describe('AppShellTabBar', () => {
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('menu-tab.open-in-new-window')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-others')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.close-to-right')).not.toBeInTheDocument()
 
-    const detachButton = screen.getByLabelText('tab.open_in_new_window', { selector: 'button' })
-    expect(detachButton).toHaveTextContent('')
-    await user.click(detachButton)
-    expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
+    expect(screen.queryByLabelText('tab.open_in_new_window', { selector: 'button' })).not.toBeInTheDocument()
+    expect(detachTab).not.toHaveBeenCalled()
   })
 
-  it('detaches the focused tab when dragged outside the tab bar', () => {
+  it('prevents Settings drag detach', () => {
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
       const isTabBar = (this as HTMLElement).dataset.ui === 'app.tab-bar'
@@ -297,11 +295,8 @@ describe('AppShellTabBar', () => {
       Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
       fireEvent(document, pointerMove)
 
-      expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'tab.detach',
-        expect.objectContaining({ id: settingsTab.id, url: settingsTab.url })
-      )
-      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+      expect(mocks.ipcRequest).not.toHaveBeenCalledWith('tab.detach', expect.anything())
+      expect(closeTab).not.toHaveBeenCalled()
     } finally {
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
@@ -339,14 +334,13 @@ describe('AppShellTabBar', () => {
     })
 
     try {
-      const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+      const regularTab = createTab('regular')
       const closeTab = renderTabBar({
-        tabs: [settingsTab],
-        activeTabId: settingsTab.id,
-        isFocusedTab: true,
+        tabs: [regularTab],
+        activeTabId: regularTab.id,
         detachTab: vi.fn()
       })
-      const tab = screen.getByRole('button', { name: 'common.back' })
+      const tab = screen.getByRole('button', { name: regularTab.title })
 
       // One detaching pointermove, then the pointer comes up before any further move
       // can issue Tab_MoveWindow — the window must still be positioned and shown.
@@ -388,10 +382,10 @@ describe('AppShellTabBar', () => {
         document.dispatchEvent(pointerUp)
       })
 
-      expect(closeTab).toHaveBeenCalledWith(settingsTab.id)
+      expect(closeTab).toHaveBeenCalledWith(regularTab.id)
       expect(moveWindowSend).toHaveBeenCalledWith(
         'tab:move-window',
-        expect.objectContaining({ tabId: settingsTab.id, x: -300, y: 80 })
+        expect.objectContaining({ tabId: regularTab.id, x: -300, y: 80 })
       )
     } finally {
       Reflect.deleteProperty(window, 'electron')

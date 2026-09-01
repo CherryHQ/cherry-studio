@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,6 +73,7 @@ let normalTabsValue: Tab[] = []
 const setNormalTabsMock = vi.fn()
 let activeTabIdValue = ''
 const setActiveTabIdMock = vi.fn()
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -115,7 +116,7 @@ vi.mock('@renderer/utils/routeTitle', async () => {
 })
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
+  ipcApi: { request: ipcRequestMock },
   useIpcOn: vi.fn()
 }))
 
@@ -413,6 +414,18 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('rejects direct detach requests for Settings tabs', () => {
+    const settingsTab = { ...HOME_TAB, id: 'settings', url: '/settings/provider', title: 'Settings' }
+
+    const { result } = renderHook(() => useTabsContext(), {
+      wrapper: ({ children }) => <TabsProvider initialDefaultTab={settingsTab}>{children}</TabsProvider>
+    })
+
+    act(() => result.current.detachTab(settingsTab.id))
+
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('tab.detach', expect.anything())
+  })
+
   it('keeps conversation tab actions isolated while reading the latest tab state', async () => {
     render(
       <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>

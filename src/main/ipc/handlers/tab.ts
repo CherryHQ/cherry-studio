@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import type { tabRequestSchemas } from '@shared/ipc/schemas/tab'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -10,6 +11,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 export const tabHandlers: IpcHandlersFor<typeof tabRequestSchemas> = {
   'tab.attach': async (payload, { senderId }) => application.get('SubWindowService').attachTab(payload, senderId),
   'tab.detach': async (payload) => {
+    if (isSettingsPath(payload.url)) return
     application.get('SubWindowService').createWindow(payload)
   },
   'tab.drag_end': async (_input, { senderId }) => {

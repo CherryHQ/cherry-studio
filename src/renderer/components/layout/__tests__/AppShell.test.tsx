@@ -244,7 +244,7 @@ describe('AppShell', () => {
     expect(tabBarTabs?.map((tab) => tab.id)).toEqual(['home', 'settings', 'files'])
   })
 
-  it('restores the tab that was active before Settings when the focused tab closes or detaches', () => {
+  it('restores the tab that was active before Settings when the focused tab closes', () => {
     const workspaceTabs = [
       { id: 'first', isDormant: false, title: 'First', type: 'route' as const, url: '/app/chat' },
       { id: 'second', isDormant: false, title: 'Second', type: 'route' as const, url: '/app/files' },
@@ -270,12 +270,6 @@ describe('AppShell', () => {
 
     expect(mocks.closeTabs).toHaveBeenCalledWith([settingsTab.id], 'first')
     expect(mocks.closeTab).not.toHaveBeenCalled()
-
-    const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachFocusedTab?.(settingsTab.id)
-
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('first')
   })
 
   it('restores the most recently accessed workspace tab when Settings is restored active', () => {
@@ -307,11 +301,6 @@ describe('AppShell', () => {
     const closeFocusedTab = mocks.tabBarProps?.closeTab as ((id: string) => void) | undefined
     closeFocusedTab?.(settingsTab.id)
     expect(mocks.closeTabs).toHaveBeenCalledWith([settingsTab.id], 'home')
-
-    const detachFocusedTab = mocks.tabBarProps?.detachTab as ((id: string) => void) | undefined
-    detachFocusedTab?.(settingsTab.id)
-    expect(mocks.detachTab).toHaveBeenCalledWith(settingsTab.id)
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('home')
   })
 
   it('blocks and dismisses global search while the Settings tab is focused', () => {

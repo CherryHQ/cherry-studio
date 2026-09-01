@@ -92,11 +92,8 @@ export const AppShell = () => {
       const tab = tabs.find((candidate) => candidate.id === id)
       clearSplitWithLastMiniAppTab(id, tab?.url)
       detachTab(id)
-      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
-        setActiveTab(previousWorkspaceTabIdRef.current)
-      }
     },
-    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
+    [clearSplitWithLastMiniAppTab, detachTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {

@@ -13,6 +13,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -601,7 +602,7 @@ export function TabsProvider({
   const detachTab = useCallback(
     (tabId: string) => {
       const tab = tabs.find((t) => t.id === tabId)
-      if (!tab) return
+      if (!tab || isSettingsPath(tab.url)) return
 
       // Send IPC message to create new window
       void ipcApi.request('tab.detach', tab)
