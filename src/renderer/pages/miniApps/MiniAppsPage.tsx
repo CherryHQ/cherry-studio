@@ -87,6 +87,8 @@ const MiniAppsPage: FC = () => {
 
   const { getRootProps, isDragActive } = useDropzone({
     disabled: pageDropDisabled,
+    getFilesFromEvent: async (event) =>
+      'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : [],
     maxFiles: 1,
     multiple: false,
     noClick: true,
@@ -116,7 +118,7 @@ const MiniAppsPage: FC = () => {
           role="status"
           aria-live="polite"
           data-ui="mini-apps.drop-overlay"
-          className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-background/95 backdrop-blur-sm">
+          className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-background/95">
           <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-accent">
               <PackagePlus className="size-6 text-foreground-secondary" strokeWidth={1.5} />

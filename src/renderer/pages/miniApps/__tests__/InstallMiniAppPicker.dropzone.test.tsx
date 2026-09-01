@@ -26,12 +26,15 @@ beforeEach(() => {
 describe('InstallMiniAppPicker dropzone', () => {
   it('previews a dropped .miniapp package through its absolute file path', async () => {
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
-    fileApi.getPathForFile = vi.fn(() => '/tmp/mygame.miniapp')
+    const nativeFile = new File(['package'], 'mygame.miniapp')
+    const convertedFile = new File(['package'], 'mygame.miniapp')
+    fileApi.getPathForFile = vi.fn((file) => (file === nativeFile ? '/tmp/mygame.miniapp' : ''))
     render(<InstallMiniAppPicker onClose={vi.fn()} />)
 
     fireEvent.drop(screen.getByRole('button', { name: /choose file/i }), {
       dataTransfer: {
-        files: [new File(['package'], 'mygame.miniapp')],
+        files: [nativeFile],
+        items: [{ kind: 'file', type: '', getAsFile: () => convertedFile }],
         types: ['Files'],
         dropEffect: 'none'
       }
@@ -42,6 +45,7 @@ describe('InstallMiniAppPicker dropzone', () => {
         filePath: '/tmp/mygame.miniapp'
       })
     )
+    expect(fileApi.getPathForFile).toHaveBeenCalledWith(nativeFile)
   })
 
   it('keeps the native picker route when the dropzone is clicked', async () => {

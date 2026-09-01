@@ -308,22 +308,26 @@ describe('MiniAppsPage', () => {
 
   it('requests an install preview for a dropped .miniapp package', async () => {
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
-    fileApi.getPathForFile = vi.fn(() => '/tmp/example.miniapp')
+    const nativeFile = new File(['package'], 'example.miniapp')
+    const convertedFile = new File(['package'], 'example.miniapp')
+    fileApi.getPathForFile = vi.fn((file) => (file === nativeFile ? '/tmp/example.miniapp' : ''))
     const { container } = render(<MiniAppsPage />)
     const page = container.querySelector('[data-ui="mini-apps.view"]')
-    const file = new File(['package'], 'example.miniapp')
-    const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
+    const item = { kind: 'file', type: '', getAsFile: () => convertedFile }
 
-    fireEvent.dragEnter(page!, { dataTransfer })
+    fireEvent.dragEnter(page!, { dataTransfer: { files: [], items: [item], types: ['Files'], dropEffect: 'none' } })
     expect(await screen.findByRole('status')).toHaveTextContent('miniApp.install.drop_here')
 
-    fireEvent.drop(page!, { dataTransfer })
+    fireEvent.drop(page!, {
+      dataTransfer: { files: [nativeFile], items: [item], types: ['Files'], dropEffect: 'none' }
+    })
 
     await waitFor(() => {
       expect(mocks.request).toHaveBeenCalledWith('mini_app.install.preview_file', {
         filePath: '/tmp/example.miniapp'
       })
     })
+    expect(fileApi.getPathForFile).toHaveBeenCalledWith(nativeFile)
     expect(screen.queryByRole('status')).toBeNull()
   })
 

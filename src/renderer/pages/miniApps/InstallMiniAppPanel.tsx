@@ -77,6 +77,9 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
           data-ui="mini-apps.install-dropzone"
           className="gap-3 border-dashed px-4 py-5"
           disabled={busy}
+          getFilesFromEvent={async (event) =>
+            'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : []
+          }
           maxFiles={1}
           multiple={false}
           noClick
