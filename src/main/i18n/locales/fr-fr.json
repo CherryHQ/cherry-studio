@@ -63,7 +63,7 @@
   "chat.conversation.new": "Nouvelle conversation",
   "common.channel_available_commands": "Commandes disponibles :",
   "common.channel_command_processing_error": "⚠️ Une erreur s’est produite lors du traitement de la commande. Veuillez réessayer plus tard.",
-  "common.channel_delivery_failed": "[to be translated]: ⚠️ Failed to deliver reply to channel: {{error}}",
+  "common.channel_delivery_failed": "⚠️ Failed to deliver reply to channel: {{error}}",
   "common.channel_message_dropped": "⚠️ Ce message n’a pas été délivré. Veuillez réessayer ou vérifier la configuration du canal.",
   "common.channel_message_processing_error": "⚠️ Une erreur s’est produite lors du traitement de votre message. Veuillez réessayer plus tard.",
   "common.channel_new_session_created": "Nouvelle session créée.",

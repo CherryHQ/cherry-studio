@@ -63,7 +63,7 @@
   "chat.conversation.new": "Новый чат",
   "common.channel_available_commands": "Доступные команды:",
   "common.channel_command_processing_error": "⚠️ При обработке команды произошла ошибка. Повторите попытку позже.",
-  "common.channel_delivery_failed": "[to be translated]: ⚠️ Failed to deliver reply to channel: {{error}}",
+  "common.channel_delivery_failed": "⚠️ Failed to deliver reply to channel: {{error}}",
   "common.channel_message_dropped": "⚠️ Это сообщение не было доставлено. Попробуйте снова или проверьте конфигурацию канала.",
   "common.channel_message_processing_error": "⚠️ При обработке вашего сообщения произошла ошибка. Повторите попытку позже.",
   "common.channel_new_session_created": "Создан новый сеанс.",

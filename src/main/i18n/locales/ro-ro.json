@@ -63,7 +63,7 @@
   "chat.conversation.new": "Conversație nouă",
   "common.channel_available_commands": "Comenzi disponibile:",
   "common.channel_command_processing_error": "⚠️ A apărut o eroare la procesarea comenzii. Încercați din nou mai târziu.",
-  "common.channel_delivery_failed": "[to be translated]: ⚠️ Failed to deliver reply to channel: {{error}}",
+  "common.channel_delivery_failed": "⚠️ Failed to deliver reply to channel: {{error}}",
   "common.channel_message_dropped": "⚠️ Acest mesaj nu a fost livrat. Încercați din nou sau verificați configurația canalului.",
   "common.channel_message_processing_error": "⚠️ A apărut o eroare la procesarea mesajului dvs. Încercați din nou mai târziu.",
   "common.channel_new_session_created": "Sesiune nouă creată.",
