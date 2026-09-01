@@ -126,6 +126,16 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
+    update: async (key: string, updater: (currentValue: string[]) => string[]) => {
+      const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
+      preferenceMocks.values.set(key, value)
+      await preferenceMocks.setPreference(key, value)
+    }
+  }
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => loggerMocks

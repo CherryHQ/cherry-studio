@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { toast } from '@renderer/services/toast'
@@ -8,17 +9,16 @@ const logger = loggerService.withContext('useBuiltinAgentListVisibility')
 
 export function useBuiltinAgentListVisibility() {
   const { t } = useTranslation()
-  const [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
+  const [hiddenBuiltinAgentIds] = usePreference('agent.session.hidden_builtin_ids')
 
   const setBuiltinAgentVisible = useCallback(
     async (agentId: string, visible: boolean) => {
-      const nextIds = visible
-        ? hiddenBuiltinAgentIds.filter((hiddenAgentId) => hiddenAgentId !== agentId)
-        : [...new Set([...hiddenBuiltinAgentIds, agentId])]
-      if (nextIds.length === hiddenBuiltinAgentIds.length) return true
-
       try {
-        await setHiddenBuiltinAgentIds(nextIds)
+        await preferenceService.update('agent.session.hidden_builtin_ids', (currentIds) =>
+          visible
+            ? currentIds.filter((hiddenAgentId) => hiddenAgentId !== agentId)
+            : [...new Set([...currentIds, agentId])]
+        )
         return true
       } catch (error) {
         logger.error('Failed to update built-in Agent list visibility', { agentId, error, visible })
@@ -26,7 +26,7 @@ export function useBuiltinAgentListVisibility() {
         return false
       }
     },
-    [hiddenBuiltinAgentIds, setHiddenBuiltinAgentIds, t]
+    [t]
   )
 
   const hideBuiltinAgent = useCallback(

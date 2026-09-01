@@ -49,7 +49,8 @@ export class PreferenceService {
     UnifiedPreferenceKeyType,
     Array<{
       requestId: string
-      value: any
+      resolveValue: (currentValue: any) => any
+      skipIfEqual: boolean
       resolve: (value: void | PromiseLike<void>) => void
       reject: (reason?: any) => void
     }>
@@ -155,6 +156,17 @@ export class PreferenceService {
   }
 
   /**
+   * Queue an optimistic read-modify-write against the latest value for a key.
+   */
+  public async update<K extends UnifiedPreferenceKeyType>(
+    key: K,
+    updater: (currentValue: UnifiedPreferenceType[K]) => UnifiedPreferenceType[K]
+  ): Promise<void> {
+    const requestId = this.generateRequestId()
+    return this.enqueueRequest(key, requestId, updater, true)
+  }
+
+  /**
    * Optimistic update: Queue request to prevent race conditions
    * Updates UI immediately, then syncs to database with rollback on failure
    * @param key The preference key to update
@@ -166,7 +178,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
-    return this.enqueueRequest(key, requestId, value)
+    return this.enqueueRequest(key, requestId, () => value)
   }
 
   /**
@@ -615,17 +627,23 @@ export class PreferenceService {
    * Add request to queue for a specific key to prevent race conditions
    * @param key The preference key to update
    * @param requestId Unique identifier for this request
-   * @param value The value to set
+   * @param resolveValue Resolves the queued value from the latest cached value
+   * @param skipIfEqual Whether to skip persistence when the resolved value is unchanged
    * @returns Promise that resolves when the request is processed
    */
-  private enqueueRequest(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
+  private enqueueRequest(
+    key: UnifiedPreferenceKeyType,
+    requestId: string,
+    resolveValue: (currentValue: any) => any,
+    skipIfEqual = false
+  ): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (!this.requestQueues.has(key)) {
         this.requestQueues.set(key, [])
       }
 
       const queue = this.requestQueues.get(key)!
-      queue.push({ requestId, value, resolve, reject })
+      queue.push({ requestId, resolveValue, skipIfEqual, resolve, reject })
 
       // If this is the first request in queue, process it immediately
       if (queue.length === 1) {
@@ -646,10 +664,23 @@ export class PreferenceService {
     }
 
     const currentRequest = queue[0]
+    let updateStarted = false
     try {
-      await this.executeOptimisticUpdate(key, currentRequest.value, currentRequest.requestId)
+      const currentValue = this.cache[key] !== undefined ? this.cache[key] : getDefaultValue(key)
+      const value = currentRequest.resolveValue(currentValue)
+      if (currentRequest.skipIfEqual && isEqual(currentValue, value)) {
+        this.completeQueuedRequest(key)
+        currentRequest.resolve()
+        return
+      }
+
+      updateStarted = true
+      await this.executeOptimisticUpdate(key, value, currentRequest.requestId)
       currentRequest.resolve()
     } catch (error) {
+      if (!updateStarted) {
+        this.completeQueuedRequest(key)
+      }
       currentRequest.reject(error)
     }
   }

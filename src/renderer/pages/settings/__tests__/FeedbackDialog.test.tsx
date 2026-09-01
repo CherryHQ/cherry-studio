@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  currentHiddenIds: ['other-agent', 'cherry-support'] as string[],
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
@@ -13,7 +14,17 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: () => [['other-agent', 'cherry-support'], mocks.setPreference]
+  usePreference: () => [mocks.currentHiddenIds, mocks.setPreference]
+}))
+
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
+    update: async (_key: string, updater: (currentValue: string[]) => string[]) => {
+      const value = updater(mocks.currentHiddenIds)
+      await mocks.setPreference(value)
+      mocks.currentHiddenIds = value
+    }
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -54,6 +65,7 @@ function ControlledFeedbackDialog() {
 describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.currentHiddenIds = ['other-agent', 'cherry-support']
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
     mocks.setPreference.mockResolvedValue(undefined)
   })

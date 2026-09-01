@@ -201,4 +201,47 @@ describe('renderer PreferenceService write consistency', () => {
     expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
     expect(service.getPendingOptimisticUpdates()).toEqual([])
   })
+
+  it('composes queued updates from the latest persisted value', async () => {
+    get.mockResolvedValueOnce(['agent-a'])
+    let resolveFirst: () => void = () => undefined
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const service = await createService()
+    await service.get('agent.session.hidden_builtin_ids')
+
+    const showFirst = service.update('agent.session.hidden_builtin_ids', (ids) => ids.filter((id) => id !== 'agent-a'))
+    const hideSecond = service.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-b'])
+
+    resolveFirst()
+    await Promise.all([showFirst, hideSecond])
+
+    expect(set).toHaveBeenNthCalledWith(1, 'agent.session.hidden_builtin_ids', [])
+    expect(set).toHaveBeenNthCalledWith(2, 'agent.session.hidden_builtin_ids', ['agent-b'])
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toEqual(['agent-b'])
+  })
+
+  it('composes the next update after a failed update rolls back', async () => {
+    get.mockResolvedValueOnce(['agent-a'])
+    const error = new Error('write failed')
+    set.mockRejectedValueOnce(error).mockResolvedValueOnce(undefined)
+    const service = await createService()
+    await service.get('agent.session.hidden_builtin_ids')
+
+    const showFirst = service.update('agent.session.hidden_builtin_ids', (ids) => ids.filter((id) => id !== 'agent-a'))
+    const showFirstResult = expect(showFirst).rejects.toBe(error)
+    const hideSecond = service.update('agent.session.hidden_builtin_ids', (ids) => [...ids, 'agent-b'])
+
+    await showFirstResult
+    await hideSecond
+
+    expect(set).toHaveBeenNthCalledWith(2, 'agent.session.hidden_builtin_ids', ['agent-a', 'agent-b'])
+    expect(service.getCachedValue('agent.session.hidden_builtin_ids')).toEqual(['agent-a', 'agent-b'])
+  })
 })
