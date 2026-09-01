@@ -4579,6 +4579,7 @@
   "settings.provider.create_custom.request_preview": "请求路径：{{path}}",
   "settings.provider.create_custom.title": "添加自定义提供商",
   "settings.provider.delete.content": "确定要删除此模型提供商吗？",
+  "settings.provider.delete.header": "删除 {{key}}",
   "settings.provider.delete.title": "删除提供商",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com 生产级商用站",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com 国际站",
