@@ -99,7 +99,7 @@ function jsxName(name: JSXElementName): string {
 function directHandlerIdentifier(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined
   if (value.type === 'Identifier' && typeof value.name === 'string') return value.name
-  if (value.type === 'MemberExpression' && isRecord(value.property)) {
+  if ((value.type === 'MemberExpression' || value.type === 'OptionalMemberExpression') && isRecord(value.property)) {
     return directHandlerIdentifier(value.property)
   }
   if (value.type === 'ChainExpression' && isRecord(value.expression)) {
