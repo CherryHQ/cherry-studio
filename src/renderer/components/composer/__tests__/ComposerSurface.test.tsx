@@ -2040,6 +2040,49 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
   })
 
+  it('cleans up the visible panel before opening a different launcher panel', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '#'
+    mocks.quickPanelTriggerInfo = { type: 'button', position: 0 }
+    const onToolLauncherSelect = vi.fn()
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'thinking',
+            kind: 'panel',
+            label: 'Thinking',
+            icon: 'brain',
+            sources: ['popover'],
+            panelSymbol: 'thinking'
+          }
+        ]}
+        onToolLauncherSelect={onToolLauncherSelect}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button
+            type="button"
+            aria-label="open thinking panel"
+            onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking' })}>
+            thinking
+          </button>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
+
+    expect(mocks.quickPanelClose).toHaveBeenCalledWith('panel_replaced')
+    expect(onToolLauncherSelect).toHaveBeenCalledOnce()
+    expect(mocks.quickPanelClose.mock.invocationCallOrder[0]).toBeLessThan(
+      onToolLauncherSelect.mock.invocationCallOrder[0]
+    )
+  })
+
   it('closes a button-opened unified panel when the same control is clicked again', async () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelSymbol = 'thinking'

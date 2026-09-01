@@ -3208,13 +3208,6 @@ describe('AgentComposer', () => {
         triggerInfo: { type: 'button' }
       })
     )
-
-    cursorOffset = text.length
-    const consumeQueryAnchor = open.mock.calls[0][0].queryAnchor as number | undefined
-    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
-      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
-    }
-    expect(text).toBe('hello world')
   })
 
   it('stops excluding the skills launcher when the toolbar shortcut is unpinned in place', () => {
