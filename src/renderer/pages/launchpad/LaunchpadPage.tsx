@@ -14,6 +14,7 @@ import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useCurrentTabId, useTabs } from '@renderer/hooks/tab'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
@@ -57,6 +58,8 @@ export default function LaunchpadPage() {
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
   const { appFavorites, setAppPinned } = useSidebarFavorites()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
+  const { updateTab } = useTabs()
+  const currentTabId = useCurrentTabId()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
@@ -105,10 +108,17 @@ export default function LaunchpadPage() {
     void navigateToUrl(path)
   }
 
-  const openMiniApp = (app: MiniAppType) => {
+  const openMiniApp = (app: MiniAppType, displayName: string) => {
     if (shouldSuppressLaunchClick(app.appId)) return
 
-    void navigateToUrl(`/app/mini-app/${app.appId}`)
+    const url = `/app/mini-app/${app.appId}`
+    // Retarget by url like the sidebar does: `MiniAppPage` pools the app on mount and the
+    // pool permanently evicts apps no tab url references — navigating writes the url too late.
+    if (currentTabId) {
+      updateTab(currentTabId, { url, title: displayName, icon: app.logoSrc ?? app.logo, metadata: undefined })
+      return
+    }
+    void navigateToUrl(url)
   }
 
   const openDeepSeekHarness = () => {

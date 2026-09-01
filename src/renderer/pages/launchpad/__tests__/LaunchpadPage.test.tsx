@@ -11,6 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
+  updateTab: vi.fn(),
+  currentTabId: 'tab-1' as string | null,
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
@@ -76,8 +78,14 @@ vi.mock('@renderer/components/command', () => ({
 }))
 
 vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
-  default: ({ app, onOpen }: { app: { appId: string; name: string }; onOpen?: (app: any) => void }) => (
-    <button type="button" onClick={() => onOpen?.(app)}>
+  default: ({
+    app,
+    onOpen
+  }: {
+    app: { appId: string; name: string }
+    onOpen?: (app: any, displayName: string) => void
+  }) => (
+    <button type="button" onClick={() => onOpen?.(app, app.name)}>
       {app.name}
     </button>
   )
@@ -126,6 +134,11 @@ vi.mock('@renderer/i18n/label', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({ updateTab: mocks.updateTab }),
+  useCurrentTabId: () => mocks.currentTabId
 }))
 
 vi.mock('react-i18next', () => ({
@@ -186,6 +199,7 @@ describe('LaunchpadPage', () => {
   beforeEach(() => {
     mocks.pinnedMiniApps = []
     mocks.openedMiniApps = []
+    mocks.currentTabId = 'tab-1'
     mocks.sidebarFavorites = [appFavorite('assistants')]
     mocks.appOrder = []
     mocks.sortableCalls.length = 0
@@ -321,7 +335,9 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents' })
   })
 
-  it('navigates concrete mini apps inside the current launchpad tab', async () => {
+  // Regression: navigating left tab.url on /app/launchpad until the route resolved, so the
+  // pool evicted the app MiniAppPage had just pooled and the mini app hung on its mask.
+  it('points the tab url at the mini app instead of navigating to it', async () => {
     const user = userEvent.setup()
     mocks.pinnedMiniApps = [createMiniApp('calculator')]
 
@@ -329,7 +345,13 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Calculator' }))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app/calculator' })
+    expect(mocks.updateTab).toHaveBeenCalledWith('tab-1', {
+      url: '/app/mini-app/calculator',
+      title: 'Calculator',
+      icon: 'calculator-logo',
+      metadata: undefined
+    })
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('sorts every pinned mini app by order key and persists to order keys, not favorites', () => {
