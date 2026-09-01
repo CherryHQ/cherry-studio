@@ -16,14 +16,14 @@ import {
 } from '@renderer/utils/sidebar'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { FileEntryIdSchema } from '@shared/data/types/file'
-import { BotMessageSquare, Database, FileText, MessagesSquare } from 'lucide-react'
+import { CodeCli } from '@shared/types/codeCli'
+import { BotMessageSquare, Database, FileText, MessagesSquare, Package } from 'lucide-react'
 
 import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
 
 const REVEAL_ACTIVATIONS = new Set<string | undefined>([undefined, 'reveal'])
 const CODE_CLI_TOOL_BY_ID = new Map<string, (typeof CLI_TOOLS)[number]>(CLI_TOOLS.map((tool) => [tool.value, tool]))
-const MiniAppFallbackIcon = SIDEBAR_ICON_COMPONENTS.mini_app
 
 function validates(providerId: string, target: SidebarShortcutTarget): boolean {
   return (
@@ -163,7 +163,7 @@ const miniAppProvider: SidebarShortcutProvider = {
           app.logo || app.logoSrc ? (
             <MiniAppIcon app={app} appearance="bare" size={slotSize} />
           ) : (
-            <MiniAppFallbackIcon size={glyphSize} strokeWidth={1.6} />
+            <Package size={glyphSize} strokeWidth={1.6} />
           ),
         tabIcon: app.logoSrc ?? app.logo,
         supportsNewTab: true
@@ -370,7 +370,9 @@ const codeCliProvider: SidebarShortcutProvider = {
       (tool) => tool.value,
       (tool) => ({
         label: i18n.t(tool.label),
-        renderIcon: ({ slotSize }) => <CliIcon id={tool.value} size={slotSize} />,
+        renderIcon: ({ slotSize, glyphSize }) => (
+          <CliIcon id={tool.value} size={tool.value === CodeCli.PI ? glyphSize : slotSize} />
+        ),
         supportsNewTab: true
       })
     )

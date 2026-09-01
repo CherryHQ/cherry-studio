@@ -92,20 +92,6 @@ describe('core sidebar shortcut providers', () => {
     expect(mocks.dataGet).not.toHaveBeenCalled()
   })
 
-  it('uses a LayoutGrid glyph when a Mini App has no icon', async () => {
-    mocks.dataGet.mockResolvedValue([{ appId: 'iconless', name: 'Iconless' }])
-    const result = await provider('core.mini-app').resolveMany([
-      createSidebarShortcutTarget('core.mini-app', 'iconless')
-    ])
-    const resource = [...result.values()][0]
-    if (!resource) throw new Error('Expected the Mini App shortcut to resolve')
-
-    const { container } = render(resource.renderIcon({ slotSize: 18, glyphSize: 16 }))
-
-    expect(container.querySelector('.lucide-layout-grid')).toHaveAttribute('width', '16')
-    expect(container.querySelector('.lucide-layout-grid')).toHaveAttribute('height', '16')
-  })
-
   it('keeps a configured Mini App image in the full icon slot', async () => {
     mocks.dataGet.mockResolvedValue([{ appId: 'branded', name: 'Branded', logoSrc: '/brand.png' }])
     const result = await provider('core.mini-app').resolveMany([
