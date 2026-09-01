@@ -453,6 +453,22 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('routes a real apiModelId ending in @cherry without stripping content', async () => {
+      await read(await post(app, '/v1beta/models/provider-a:model@cherry:generateContent', geminiBody))
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:model@cherry',
+        streaming: false
+      })
+    })
+
+    it('does not infer Antigravity from /models/ inside a generic provider id', async () => {
+      await read(await post(app, '/v1beta/models/team/models/west:gemini-2.5-pro:generateContent', geminiBody))
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'team/models/west:gemini-2.5-pro',
+        streaming: false
+      })
+    })
+
     it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
       // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
       // deciding the address protocol by looking for "/models/" misreads them as Antigravity
