@@ -18,14 +18,14 @@ const scrollIntoViewMock = vi.fn()
 const { providerEditorDrawerSpy } = vi.hoisted(() => ({
   providerEditorDrawerSpy: vi.fn()
 }))
-const { appInfoMocks } = vi.hoisted(() => ({
-  appInfoMocks: { edition: 'global' as 'global' | 'cn' }
+const { appEditionMocks } = vi.hoisted(() => ({
+  appEditionMocks: { edition: 'global' as 'global' | 'cn' }
 }))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
 
-vi.mock('@renderer/services/AppInfoService', () => ({
-  appInfoService: { get: () => ({ edition: appInfoMocks.edition }) }
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => appEditionMocks.edition
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -203,7 +203,7 @@ describe('ProviderList', () => {
     ipcRequest.mockImplementation((route: string) =>
       route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
     )
-    appInfoMocks.edition = 'global'
+    appEditionMocks.edition = 'global'
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -247,7 +247,7 @@ describe('ProviderList', () => {
   })
 
   it('shows only providers available in the current application edition', () => {
-    appInfoMocks.edition = 'cn'
+    appEditionMocks.edition = 'cn'
     const cnPreset = {
       ...providers[0],
       id: 'zhipu',

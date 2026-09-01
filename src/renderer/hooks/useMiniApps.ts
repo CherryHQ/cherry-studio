@@ -6,10 +6,10 @@ import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
-import { appInfoService } from '@renderer/services/AppInfoService'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -153,7 +153,7 @@ async function settleAndInvalidate(
 
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
-  const appEdition = appInfoService.get().edition
+  const appEdition = useAppEdition()
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const { i18n: i18nInstance } = useTranslation()
   const language = i18nInstance.language

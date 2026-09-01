@@ -19,9 +19,9 @@ const mockTabs = vi.hoisted(() => ({
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
-const appInfoMocks = vi.hoisted(() => ({ edition: 'global' as 'global' | 'cn' }))
-vi.mock('@renderer/services/AppInfoService', () => ({
-  appInfoService: { get: () => ({ edition: appInfoMocks.edition }) }
+const appEditionMocks = vi.hoisted(() => ({ edition: 'global' as 'global' | 'cn' }))
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => appEditionMocks.edition
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
@@ -67,7 +67,7 @@ describe('useMiniApps', () => {
 
     mocks.request.mockReset()
     mockIpCountry('CN')
-    appInfoMocks.edition = 'global'
+    appEditionMocks.edition = 'global'
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
@@ -163,7 +163,7 @@ describe('useMiniApps', () => {
 
   describe('region filtering', () => {
     it('forces the CN catalog in the CN edition without overwriting the shared preference', () => {
-      appInfoMocks.edition = 'cn'
+      appEditionMocks.edition = 'cn'
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
@@ -176,7 +176,7 @@ describe('useMiniApps', () => {
     })
 
     it('does not detect the IP region in the CN edition', () => {
-      appInfoMocks.edition = 'cn'
+      appEditionMocks.edition = 'cn'
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
 

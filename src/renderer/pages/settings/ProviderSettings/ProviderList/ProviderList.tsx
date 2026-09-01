@@ -1,6 +1,7 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
+import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
@@ -8,7 +9,6 @@ import {
   isProviderPresetInstanceSource,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import { appInfoService } from '@renderer/services/AppInfoService'
 import { toast } from '@renderer/services/toast'
 import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
@@ -43,7 +43,7 @@ export default function ProviderList({
 }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const appEdition = appInfoService.get().edition
+  const appEdition = useAppEdition()
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 

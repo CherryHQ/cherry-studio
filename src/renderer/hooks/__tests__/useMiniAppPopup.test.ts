@@ -15,8 +15,8 @@ vi.mock('@renderer/utils/webviewStateManager', () => ({
 const mocks = vi.hoisted(() => ({ request: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
-vi.mock('@renderer/services/AppInfoService', () => ({
-  appInfoService: { get: () => ({ edition: 'global' }) }
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => 'global'
 }))
 
 // TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find

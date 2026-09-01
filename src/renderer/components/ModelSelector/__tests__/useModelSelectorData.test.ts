@@ -11,10 +11,10 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
-const appInfoMocks = vi.hoisted(() => ({ edition: 'global' as 'global' | 'cn' }))
+const appEditionMocks = vi.hoisted(() => ({ edition: 'global' as 'global' | 'cn' }))
 
-vi.mock('@renderer/services/AppInfoService', () => ({
-  appInfoService: { get: () => ({ edition: appInfoMocks.edition }) }
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => appEditionMocks.edition
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
@@ -104,7 +104,7 @@ beforeEach(() => {
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
-  appInfoMocks.edition = 'global'
+  appEditionMocks.edition = 'global'
 })
 
 describe('useModelSelectorData', () => {
@@ -150,7 +150,7 @@ describe('useModelSelectorData', () => {
     ['cn', ['zhipu::glm-4', 'custom::local-model']],
     ['global', ['zhipu::glm-4', 'openai::gpt-4', 'custom::local-model']]
   ] as const)('shows the providers available in the %s edition', (edition, expectedModelIds) => {
-    appInfoMocks.edition = edition
+    appEditionMocks.edition = edition
     wireDeps({
       providers: [
         makeProvider('zhipu', { supportedEditions: ['global', 'cn'] }),

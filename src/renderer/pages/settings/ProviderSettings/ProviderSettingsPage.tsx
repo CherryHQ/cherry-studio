@@ -1,7 +1,7 @@
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
+import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { appInfoService } from '@renderer/services/AppInfoService'
 import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
@@ -30,7 +30,7 @@ interface ProviderSettingsContentProps {
 }
 
 function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
-  const appEdition = appInfoService.get().edition
+  const appEdition = useAppEdition()
   const search = useSearch({ strict: false }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(

@@ -9,13 +9,13 @@ import ProviderSettingsPage from '../ProviderSettingsPage'
 
 const navigateMock = vi.fn()
 const useProvidersMock = vi.fn()
-const { appInfoMocks } = vi.hoisted(() => ({
-  appInfoMocks: { edition: 'global' as 'global' | 'cn' }
+const { appEditionMocks } = vi.hoisted(() => ({
+  appEditionMocks: { edition: 'global' as 'global' | 'cn' }
 }))
 let searchMock: Record<string, string | undefined> = {}
 
-vi.mock('@renderer/services/AppInfoService', () => ({
-  appInfoService: { get: () => ({ edition: appInfoMocks.edition }) }
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => appEditionMocks.edition
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -90,7 +90,7 @@ describe('ProviderSettingsPage', () => {
       error: undefined,
       refetch: vi.fn().mockResolvedValue(undefined)
     })
-    appInfoMocks.edition = 'global'
+    appEditionMocks.edition = 'global'
   })
 
   it('shows loading state without mounting the provider list', () => {
@@ -214,7 +214,7 @@ describe('ProviderSettingsPage', () => {
   })
 
   it('falls back from a provider hidden in the current application edition', async () => {
-    appInfoMocks.edition = 'cn'
+    appEditionMocks.edition = 'cn'
     MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
     useProvidersMock.mockReturnValue({
       providers: [
