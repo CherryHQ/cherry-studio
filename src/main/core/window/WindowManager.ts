@@ -1383,6 +1383,16 @@ export class WindowManager extends BaseService {
       }
     })
 
+    // A script-less sandboxed subframe still follows <a href>: deny (fail-closed) unless the
+    // app's own main frame initiated it (by frameTreeNodeId — wrapper identity isn't stable).
+    window.webContents.on('will-frame-navigate', (event) => {
+      if (event.isMainFrame) return
+      const initiatorId = event.initiator?.frameTreeNodeId
+      if (initiatorId !== undefined && initiatorId === window.webContents.mainFrame.frameTreeNodeId) return
+      event.preventDefault()
+      logger.warn(`Blocked subframe navigation to: ${event.url}`)
+    })
+
     // 2. Setup event listeners
     this.setupWindowListeners(windowId, window)
 

@@ -545,7 +545,11 @@ export class AiService extends BaseService {
       model,
       sdkModelId: sdkConfig.modelId,
       credentialReceipt,
-      source: request.usageContext ? request.usageContext.source : sourceSnapshotForAssistant(assistant),
+      // Agent turns win FIRST, `null` included — `usageContext` means "already decided", so a
+      // `??` here would attribute a deliberately-anonymous agent turn to some assistant.
+      source: request.usageContext
+        ? request.usageContext.source
+        : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
         ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
         : request.messageId

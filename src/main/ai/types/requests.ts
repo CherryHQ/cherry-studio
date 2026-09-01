@@ -114,4 +114,10 @@ export interface AiStreamRequest extends AiBaseRequest {
    */
   retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
+  /**
+   * Attribution for callers with no assistant to derive it from. Neutral on purpose:
+   * the agent-only `usageContext` also rewrites `chatId` to an agent session id, so
+   * reusing it would record a mini app's call as an agent turn.
+   */
+  source?: SourceSnapshot | null
 }

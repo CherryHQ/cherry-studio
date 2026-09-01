@@ -227,8 +227,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model,
     endpointType
   )
+  const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
+  const reasoningSelection =
+    requestedReasoningSelection === 'auto' && !invocationModel.reasoning?.selectableEfforts.includes('auto')
+      ? 'default'
+      : requestedReasoningSelection
   const reasoning = resolveReasoningInvocation({
-    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    selection: reasoningSelection,
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
@@ -304,6 +309,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
   )
+  applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
   return {
     sdkConfig,
@@ -316,6 +322,29 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
+}
+
+/**
+ * OpenAI Responses API expects the system prompt in the top-level `instructions`
+ * field. The AI SDK only turns `system` into an input message and leaves
+ * `instructions` empty, which lets relay servers inject their own default system
+ * prompt and override the user's. Mirror the assembled system prompt there for
+ * Responses-endpoint models, unless the user already set it explicitly. (#16008)
+ */
+export function applyResponsesInstructions(
+  options: AgentOptions,
+  system: string | undefined,
+  endpointType: EndpointType | undefined,
+  providerOptionsKey: string
+): void {
+  if (!system || endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return
+  const providerOptions = (options.providerOptions ??= {})
+  const namespace = (providerOptions[providerOptionsKey] ??= {})
+  if (namespace.instructions != null) return
+  namespace.instructions = system
+  // `instructions` does not displace the system input message; without this the
+  // whole prompt ships twice.
+  namespace.systemMessageMode = 'remove'
 }
 
 async function resolveSdkConfig(

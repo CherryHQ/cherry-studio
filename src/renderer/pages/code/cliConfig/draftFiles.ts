@@ -1,7 +1,14 @@
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 
 import { parseDotenv } from './dotenv'
-import { type CliConfigReadFiles, parseJsonOrThrow, parseTomlOrThrow, readConfigFiles, requireReadFile } from './file'
+import {
+  type CliConfigReadFiles,
+  parseJsonOrThrow,
+  parseTomlOrThrow,
+  parseYamlOrThrow,
+  readConfigFiles,
+  requireReadFile
+} from './file'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
 export function getDraftFile(
@@ -64,6 +71,23 @@ export function readAndParseDraftFile<T>(
   }
 }
 
+/** Parse a draft file already in hand, wrapping a parse failure with the file's label and path. */
+export function parseDraftFileOrThrow<T>(
+  target: CliConfigTarget,
+  files: CliConfigFileDraft[] | undefined,
+  parseFn: (content: string) => T
+): T {
+  const draft = getDraftFile(files, target)
+  const spec = CLI_CONFIG_FILE_SPECS[target]
+  try {
+    return parseFn(draft?.content ?? '')
+  } catch (err) {
+    // parseFn already redacts its own message at the source, as in readAndParseDraftFile.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(`Failed to parse ${spec.label} at ${draft?.path ?? spec.path}: ${rawMessage}`)
+  }
+}
+
 function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<string, string> {
   switch (file.language) {
     case 'json':
@@ -72,6 +96,8 @@ function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<str
       return parseTomlOrThrow(file.content)
     case 'dotenv':
       return parseDotenv(file.content)
+    case 'yaml':
+      return parseYamlOrThrow(file.content)
   }
 }
 

@@ -17,6 +17,7 @@ import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
+import type { AgentOptions } from '../../loop/types'
 
 const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
@@ -61,9 +62,14 @@ vi.mock('@main/data/services/McpServerService', () => ({
   mcpServerService: { list: () => ({ items: [] }) }
 }))
 
-const { applyCallOverrides, buildAgentParams, composeStopWhen, resolveToolCallLimit, resolveTools } = await import(
-  '../buildAgentParams'
-)
+const {
+  applyCallOverrides,
+  applyResponsesInstructions,
+  buildAgentParams,
+  composeStopWhen,
+  resolveToolCallLimit,
+  resolveTools
+} = await import('../buildAgentParams')
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
@@ -1209,6 +1215,42 @@ describe('buildAgentParams assistant-less reasoning', () => {
     expect(result.options.providerOptions).toBeUndefined()
   })
 
+  it.each([
+    { providerId: 'opencode', runtimeProviderId: 'openai-compatible', adapterFamily: 'openai-compatible' },
+    { providerId: 'openrouter', runtimeProviderId: 'openrouter', adapterFamily: 'openrouter' }
+  ])('treats stale Auto as Default for mandatory-thinking GLM on $providerId', async (providerConfig) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: providerConfig.runtimeProviderId, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const endpointType = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const provider = makeProvider({
+      id: providerConfig.providerId,
+      defaultChatEndpoint: endpointType,
+      endpointConfigs: { [endpointType]: { adapterFamily: providerConfig.adapterFamily } }
+    })
+    const model = makeModel({
+      id: `${providerConfig.providerId}::glm-5.3-flash`,
+      providerId: providerConfig.providerId,
+      apiModelId: 'glm-5.3-flash',
+      presetModelId: 'glm-5-3-flash',
+      endpointTypes: [endpointType],
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+
+    const result = await buildAgentParams({
+      request: { reasoningEffort: 'auto' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const providerOptions = result.options.providerOptions?.[result.sdkConfig.providerOptionsKey] ?? {}
+    expect(providerOptions).not.toHaveProperty('reasoning')
+    expect(providerOptions).not.toHaveProperty('reasoningEffort')
+    expect(providerOptions).not.toHaveProperty('reasoning_effort')
+  })
+
   it('carries the AiHubMix Gemini provider-options namespace from endpoint resolution into translation', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -1448,6 +1490,38 @@ describe('buildAgentParams retained context', () => {
   })
 })
 
+describe('buildAgentParams — Responses instructions delivery', () => {
+  it('lands the system prompt on the namespace the resolved responses model reads', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'relay',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai', baseUrl: 'https://relay.example/v1' }
+      }
+    })
+    const model = makeModel({ id: 'relay::gpt-5', providerId: 'relay', apiModelId: 'gpt-5' })
+    const assistant = makeAssistant({ prompt: 'YOU-ARE-REPRO-BOT' })
+
+    const { options, sdkConfig, system } = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(system).toContain('YOU-ARE-REPRO-BOT')
+    expect(options.providerOptions?.[sdkConfig.providerOptionsKey]).toMatchObject({
+      instructions: system,
+      systemMessageMode: 'remove'
+    })
+  })
+})
+
 describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
   it("forwards the assistant's contextSettings override to the resolver", async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
@@ -1532,6 +1606,60 @@ describe('applyCallOverrides', () => {
       makeModel()
     )
     expect(result.providerOptions.anthropic).toEqual({ existing: 1, shared: 'override', added: 2 })
+  })
+})
+
+describe('applyResponsesInstructions', () => {
+  const optionsWith = (providerOptions?: ProviderOptions): AgentOptions =>
+    ({ maxRetries: 0, ...(providerOptions && { providerOptions }) }) as AgentOptions
+
+  it('mirrors the system prompt into instructions and drops the duplicate system input message', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'YOU-ARE-REPRO-BOT', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    // Without `systemMessageMode: 'remove'` @ai-sdk/openai keeps the system input
+    // message alongside `instructions` and the prompt ships twice.
+    expect(options.providerOptions?.openai).toEqual({
+      instructions: 'YOU-ARE-REPRO-BOT',
+      systemMessageMode: 'remove'
+    })
+  })
+
+  it('writes to the namespace the model reads, not a hardcoded openai one', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES, 'my-relay')
+    expect(options.providerOptions?.['my-relay']?.instructions).toBe('SYS')
+    expect(options.providerOptions?.openai).toBeUndefined()
+  })
+
+  it('merges into an existing providerOptions block without clobbering siblings', () => {
+    const options = optionsWith({ openai: { reasoningEffort: 'low' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    expect(options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'low', instructions: 'SYS' })
+  })
+
+  it('leaves an instructions value the user already set completely alone', () => {
+    const options = optionsWith({ openai: { instructions: 'USER-SET' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    // Their prompt is authoritative — including which messages reach the model.
+    expect(options.providerOptions?.openai).toEqual({ instructions: 'USER-SET' })
+  })
+
+  it('does nothing for non-Responses endpoints (Chat Completions)', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai')
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when the endpoint is undefined', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', undefined, 'openai')
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when there is no system prompt', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, undefined, ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    expect(options.providerOptions).toBeUndefined()
   })
 })
 

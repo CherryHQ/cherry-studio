@@ -9,6 +9,7 @@ import {
 } from '@cherrystudio/ui'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
+import { controlValue } from '../fieldValue'
 import { resolveOptions } from '../resolveOptions'
 
 export default function SelectField({
@@ -19,10 +20,10 @@ export default function SelectField({
   onChange,
   currentValue,
   disabled
-}: PaintingFieldComponentProps) {
+}: PaintingFieldComponentProps<'select'>) {
   const options = resolveOptions(item, painting, translate)
   const grouped = options.some((option) => Array.isArray(option.options) && option.options.length > 0)
-  const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
+  const value = controlValue(currentValue)
 
   return (
     <Select disabled={disabled} value={value} onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}>

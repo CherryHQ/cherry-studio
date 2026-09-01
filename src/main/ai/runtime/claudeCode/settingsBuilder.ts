@@ -14,7 +14,6 @@ import path from 'node:path'
 
 import type { CanUseTool, Options, PermissionResult, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
-import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
@@ -24,7 +23,13 @@ import {
   getBuiltinAgentPluginDirectory,
   loadBuiltinAgentDefinition
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
-import type { LinkedChannelSnapshot, McpServerSnapshotMap } from '@main/ai/runtime/agentMcpServers'
+import {
+  type AgentNotificationContext,
+  type LinkedChannelSnapshot,
+  type McpServerSnapshotMap,
+  resolveAgentNotificationContext,
+  resolveLinkedNotifyChannel
+} from '@main/ai/runtime/agentMcpServers'
 import { buildAgentRuntimePrompt } from '@main/ai/runtime/agentPrompt'
 import {
   AgentSessionWorkspaceError,
@@ -117,6 +122,8 @@ export interface ClaudeCodeSessionOptions {
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
+  /** Turn-local notification authority captured by the request builder. */
+  notificationContext?: AgentNotificationContext
   /** Per-turn composer selection captured by the connection builder. */
   knowledgeBaseIds?: readonly string[]
   thinkingOptions?: {
@@ -156,8 +163,10 @@ export async function buildClaudeCodeSessionSettings(
   const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
   const linkedChannelSnapshot =
     options?.linkedChannelSnapshot === undefined
-      ? channelService.findBySessionId(session.id)
+      ? resolveLinkedNotifyChannel(session.id, agent.id)
       : options.linkedChannelSnapshot
+  const notificationContext =
+    options?.notificationContext ?? resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
   const capabilities = resolveAgentCapabilities(agent)
   const mountedServers = resolveMountedMcpServers(agent, { channelLinked: linkedChannelSnapshot !== null })
 
@@ -228,7 +237,8 @@ export async function buildClaudeCodeSessionSettings(
     options?.mcpServerSnapshots,
     linkedChannelSnapshot,
     agentDataPath,
-    options?.knowledgeBaseIds
+    options?.knowledgeBaseIds,
+    notificationContext
   )
   let mcpToolMetadata = await buildMcpToolMetadata(agent)
   if (agent.mcps?.length) mcpToolMetadata ??= {}
