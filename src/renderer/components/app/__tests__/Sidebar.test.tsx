@@ -239,6 +239,7 @@ vi.mock('../../Sidebar', async () => {
       entries,
       title,
       logo,
+      onHeaderClick,
       user,
       actions,
       width,
@@ -250,6 +251,7 @@ vi.mock('../../Sidebar', async () => {
       entries?: MockSidebarEntry[]
       title?: string
       logo?: ReactNode
+      onHeaderClick?: () => void
       user?: unknown
       actions?: ReactNode | ((layout: 'icon' | 'full', onOverlayOpenChange?: (open: boolean) => void) => ReactNode)
       width?: number
@@ -277,8 +279,10 @@ vi.mock('../../Sidebar', async () => {
         </div>
       ) : (
         <>
-          <div data-testid="sidebar-title">{title}</div>
-          <div data-testid="sidebar-logo">{logo}</div>
+          <button type="button" aria-label={title} onClick={onHeaderClick}>
+            <div data-testid="sidebar-logo">{logo}</div>
+            <div data-testid="sidebar-title">{title}</div>
+          </button>
           <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
           <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
           <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
@@ -469,7 +473,8 @@ describe('app Sidebar', () => {
     expect(mocks.useMiniApps).toHaveBeenLastCalledWith({ enabled: true })
   })
 
-  it('uses the user avatar as the header logo and moves footer actions out of the tab bar', () => {
+  it('uses the avatar and name as one header action while keeping footer actions separate', async () => {
+    const user = userEvent.setup()
     const { container } = render(<Sidebar />)
 
     expect(container.querySelector('#app-sidebar')).toHaveAttribute('data-ui', 'app.sidebar')
@@ -478,7 +483,7 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('sidebar-footer-user')).toHaveTextContent('none')
     expect(screen.getByTestId('sidebar-shell-actions-icon')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'JD' }))
+    await user.click(screen.getByTestId('sidebar-title'))
 
     expect(mocks.showUserPopup).toHaveBeenCalledTimes(1)
   })

@@ -326,6 +326,31 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
+  it('runs the header action when the visible title is clicked', async () => {
+    const user = userEvent.setup()
+    const onHeaderClick = vi.fn()
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        title="User"
+        logo={<span>avatar</span>}
+        onHeaderClick={onHeaderClick}
+      />
+    )
+
+    const headerAction = screen.getByRole('button', { name: /User$/ })
+    // Interactive controls must opt out of Electron's window drag region.
+    expect(headerAction).toHaveClass('[-webkit-app-region:no-drag]')
+
+    await user.click(headerAction)
+
+    expect(onHeaderClick).toHaveBeenCalledTimes(1)
+  })
+
   it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {
     const user = userEvent.setup()
     const onRemove = vi.fn()
