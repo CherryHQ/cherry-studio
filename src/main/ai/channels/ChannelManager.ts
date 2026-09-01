@@ -117,13 +117,18 @@ export class ChannelManager extends BaseService {
   async stop(): Promise<void> {
     logger.info('Stopping channel manager')
     const disconnects = Array.from(this.adapters.values()).map((adapter) =>
-      adapter.disconnect().catch((err) => {
-        logger.warn('Error disconnecting adapter', {
-          agentId: adapter.agentId,
-          channelId: adapter.channelId,
-          error: err instanceof Error ? err.message : String(err)
+      adapter
+        .disconnect()
+        .catch((err) => {
+          logger.warn('Error disconnecting adapter', {
+            agentId: adapter.agentId,
+            channelId: adapter.channelId,
+            error: err instanceof Error ? err.message : String(err)
+          })
         })
-      })
+        .finally(() => {
+          this.publishStatus({ channelId: adapter.channelId, connected: false })
+        })
     )
     await Promise.all(disconnects)
     this.adapters.clear()
@@ -206,6 +211,8 @@ export class ChannelManager extends BaseService {
           continue
         }
         throw err
+      } finally {
+        this.publishStatus({ channelId: adapter.channelId, connected: false })
       }
     }
   }
@@ -247,6 +254,7 @@ export class ChannelManager extends BaseService {
           })
           .finally(() => {
             this.adapters.delete(key)
+            this.publishStatus({ channelId: adapter.channelId, connected: false })
           })
       )
     )

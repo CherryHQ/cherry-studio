@@ -229,6 +229,27 @@ describe('CacheService subscription', () => {
       expect(webContents.send).not.toHaveBeenCalled()
     })
 
+    it('isolates a failing renderer send so other windows still receive shared updates', async () => {
+      const { BrowserWindow } = (await import('electron')) as any
+      const failingSend = vi.fn(() => {
+        throw new Error('renderer gone')
+      })
+      const healthySend = vi.fn()
+      BrowserWindow.getAllWindows.mockReturnValue([
+        { isDestroyed: () => false, id: 1, webContents: { send: failingSend } },
+        { isDestroyed: () => false, id: 2, webContents: { send: healthySend } }
+      ])
+
+      expect(() => service.setShared(SHARED_EXACT, 'api-key-1')).not.toThrow()
+      expect(service.getShared(SHARED_EXACT)).toBe('api-key-1')
+      expect(healthySend).toHaveBeenCalledWith(IpcChannel.Cache_Sync, {
+        type: 'shared',
+        key: SHARED_EXACT,
+        value: 'api-key-1',
+        expireAt: undefined
+      })
+    })
+
     it('fires when IPC Cache_Sync arrives from renderer', () => {
       const cb = vi.fn()
       service.subscribeSharedChange(SHARED_EXACT, cb)

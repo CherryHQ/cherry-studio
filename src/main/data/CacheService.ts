@@ -802,7 +802,11 @@ export class CacheService extends BaseService {
     const windows = BrowserWindow.getAllWindows()
     for (const window of windows) {
       if (!window.isDestroyed() && window.id !== senderWindowId) {
-        window.webContents.send(IpcChannel.Cache_Sync, message)
+        try {
+          window.webContents.send(IpcChannel.Cache_Sync, message)
+        } catch (error) {
+          logger.warn(`Failed to broadcast cache sync to window ${window.id}`, error as Error)
+        }
       }
     }
   }
