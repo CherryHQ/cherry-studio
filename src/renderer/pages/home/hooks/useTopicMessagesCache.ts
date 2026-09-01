@@ -28,14 +28,23 @@ import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
 /** Drop messages matching `removedIds` from items and sibling groups. */
-function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): BranchMessage[] {
+function branchWithoutIds(
+  items: BranchMessage[],
+  removedIds: Set<string>,
+  activeNodeId: string | null
+): BranchMessage[] {
   return items.flatMap((item) => {
     const siblingsGroup = item.siblingsGroup?.filter((sibling) => !removedIds.has(sibling.id)) ?? []
     if (!removedIds.has(item.message.id)) {
       return [{ ...item, ...(item.siblingsGroup ? { siblingsGroup } : {}) }]
     }
 
-    if (item.message.role !== 'assistant' || item.message.siblingsGroupId === 0 || siblingsGroup.length === 0) {
+    if (
+      item.message.id !== activeNodeId ||
+      item.message.role !== 'assistant' ||
+      item.message.siblingsGroupId === 0 ||
+      siblingsGroup.length === 0
+    ) {
       return []
     }
 
@@ -96,11 +105,11 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
    * item list for that page.
    */
   const seedOptimisticBranch = useCallback(
-    async (transform: (items: BranchMessage[]) => BranchMessage[]) => {
+    async (transform: (items: BranchMessage[], activeNodeId: string | null) => BranchMessage[]) => {
       await mutate(
         (pages) => {
           if (!pages) return pages
-          return pages.map((page) => ({ ...page, items: transform(page.items) }))
+          return pages.map((page) => ({ ...page, items: transform(page.items, page.activeNodeId) }))
         },
         { revalidate: false }
       )

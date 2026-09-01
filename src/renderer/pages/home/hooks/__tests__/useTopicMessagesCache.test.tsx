@@ -32,9 +32,22 @@ describe('useTopicMessagesCache', () => {
       useTopicMessagesCache({ topicId: 'topic-1', mutate: vi.fn().mockResolvedValue(undefined) })
     )
 
-    const nextBranch = result.current.branchWithoutIds(branch, new Set(['answer-b']))
+    const nextBranch = result.current.branchWithoutIds(branch, new Set(['answer-b']), 'answer-b')
 
     expect(nextBranch).toEqual([{ message: newestReply, siblingsGroup: [olderReply] }])
+  })
+
+  it('does not promote a grouped reply when a historical representative is removed', () => {
+    const historicalReply = message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b')
+    const offPathReply = message('answer-a', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a')
+    const branch: BranchMessage[] = [{ message: historicalReply, siblingsGroup: [offPathReply] }]
+    const { result } = renderHook(() =>
+      useTopicMessagesCache({ topicId: 'topic-1', mutate: vi.fn().mockResolvedValue(undefined) })
+    )
+
+    const nextBranch = result.current.branchWithoutIds(branch, new Set(['answer-b']), 'active-descendant')
+
+    expect(nextBranch).toEqual([])
   })
 
   it('does not promote an off-path user sibling when the selected user branch is removed', () => {
@@ -45,7 +58,7 @@ describe('useTopicMessagesCache', () => {
       useTopicMessagesCache({ topicId: 'topic-1', mutate: vi.fn().mockResolvedValue(undefined) })
     )
 
-    const nextBranch = result.current.branchWithoutIds(branch, new Set(['question-b']))
+    const nextBranch = result.current.branchWithoutIds(branch, new Set(['question-b']), 'question-b')
 
     expect(nextBranch).toEqual([])
   })
