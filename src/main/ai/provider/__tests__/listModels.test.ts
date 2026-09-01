@@ -1038,6 +1038,47 @@ describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
   })
 })
 
+describe('listModels — huaweiMaasFetcher (root /v2/models endpoint)', () => {
+  function makeHuaweiMaasProvider() {
+    return makeProvider({
+      id: 'huawei-maas',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.modelarts-maas.com/openai/v1' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.modelarts-maas.com/anthropic/v1' }
+      }
+    })
+  }
+
+  // Huawei documents model discovery at `GET /v2/models` (Bearer auth) — the chat
+  // namespace `/openai/v1` has no model list, so the generic fetcher would 404.
+  it('lists models from the documented /v2/models endpoint instead of the chat base URL', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ id: 'deepseek-v4-pro', owned_by: 'deepseek' }] }
+    })
+
+    const models = await listModels(makeHuaweiMaasProvider())
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    expect(call.url).toBe('https://api.modelarts-maas.com/v2/models')
+    expect(call.headers.Authorization).toContain('Bearer')
+    expect(models.map((m) => m.apiModelId)).toEqual(['deepseek-v4-pro'])
+  })
+
+  it('derives the model-list URL from a user-edited regional host', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [{ id: 'glm-5.2' }] } })
+    const provider = makeHuaweiMaasProvider()
+    provider.endpointConfigs![ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]!.baseUrl =
+      'https://api-ap-southeast-1.modelarts-maas.com/openai/v1'
+
+    await listModels(provider)
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api-ap-southeast-1.modelarts-maas.com/v2/models')
+  })
+})
+
 describe('listModels — ovmsFetcher config endpoint', () => {
   function makeOvmsProvider(baseUrl: string) {
     return makeProvider({

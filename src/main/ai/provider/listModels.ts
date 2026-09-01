@@ -742,6 +742,23 @@ const openAIFetcher: ModelFetcher = {
   }
 }
 
+// Huawei MaaS lists models at the platform root (`/v2/models`), outside the
+// `/openai/v1` chat namespace; derive the host so regional domains keep working.
+const huaweiMaasFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds['huawei-maas']),
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `${new URL(getBaseUrl(provider)).origin}/v2/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, { name: m.name || m.id, ownedBy: m.owned_by })
+    )
+  }
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: async (provider, signal) => {
@@ -807,6 +824,7 @@ const fetchers: ModelFetcher[] = [
   anthropicFetcher,
   jinaFetcher,
   openAIFetcher,
+  huaweiMaasFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 

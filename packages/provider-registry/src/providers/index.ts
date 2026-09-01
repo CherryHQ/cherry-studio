@@ -23,6 +23,7 @@ import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_grok_cli from './grok-cli'
 import p_groq from './groq'
+import p_huawei_maas from './huawei-maas'
 import p_huggingface from './huggingface'
 import p_jina from './jina'
 import p_lanyun from './lanyun'
@@ -119,6 +120,7 @@ export const PROVIDERS: Provider[] = [
   p_poe,
   p_longcat,
   p_huggingface,
+  p_huawei_maas,
   p_gateway,
   p_cerebras,
   p_mimo,
