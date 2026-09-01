@@ -1,5 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
+import { MINI_APP_ROUTE_PREFIX } from '@renderer/utils/miniAppKeepAlive'
 import { cn } from '@renderer/utils/style'
 import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
 import type { FC } from 'react'
@@ -33,6 +34,23 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
         <Logo.Avatar size={size} shape="rounded" className={cn('select-none', className)} />
       ) : (
         <span className={cn('inline-block shrink-0', className)} style={{ width: size, height: size }} />
+      )
+    }
+    if (tab.url.startsWith(MINI_APP_ROUTE_PREFIX)) {
+      const imageSize = size * 0.8
+
+      return (
+        <span
+          className={cn('inline-flex shrink-0 items-center justify-center', className)}
+          style={{ width: size, height: size }}>
+          <img
+            src={tab.icon}
+            alt=""
+            draggable={false}
+            className="select-none rounded-[3px] object-cover"
+            style={{ width: imageSize, height: imageSize }}
+          />
+        </span>
       )
     }
     return (

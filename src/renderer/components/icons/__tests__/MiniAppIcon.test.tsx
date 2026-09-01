@@ -69,15 +69,18 @@ describe('MiniAppIcon', () => {
     })
   })
 
-  it.each([24, 18])('fills a %dpx sidebar icon with the uploaded logo', (size) => {
+  it.each([
+    [24, 19.2],
+    [18, 14.4]
+  ])('insets an uploaded logo within a %dpx sidebar slot', (size, imageSize) => {
     const { container } = render(
       <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} appearance="sidebar" size={size} />
     )
 
     expect(container.firstElementChild).toHaveStyle({ width: `${size}px`, height: `${size}px` })
     const image = container.querySelector('img')
-    expect(image).toHaveStyle({ width: `${size}px`, height: `${size}px` })
-    expect(image).toHaveClass('max-w-none')
+    expect(Number.parseFloat(image?.style.width ?? '')).toBeCloseTo(imageSize)
+    expect(Number.parseFloat(image?.style.height ?? '')).toBeCloseTo(imageSize)
   })
 
   it('renders image logos as contained icons without a duplicate border in plain mode', () => {
