@@ -364,7 +364,13 @@ export function createClearContextPart(): ClearContextPart {
 
 /** Whether a message's persisted parts contain a model-context boundary. */
 export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefined): boolean {
-  return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
+  return (
+    parts?.some(
+      (part) =>
+        part.type === CLEAR_CONTEXT_PART_TYPE &&
+        (part as unknown as { data?: { dismissedNoResponse?: boolean } }).data?.dismissedNoResponse !== true
+    ) ?? false
+  )
 }
 
 /** Whether persisted message values describe a blank user turn, without making any tree-level claim. */
