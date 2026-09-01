@@ -12,6 +12,8 @@ import { languageEnglishNameMap } from '@shared/utils/languages'
 const logger = loggerService.withContext('AgentPrompt')
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
+const SUPPORT_LANGUAGE_PROMPT =
+  "IMPORTANT: Respond in the language of the user's latest non-runtime request. Ignore internal continuation messages when choosing the response language."
 
 const AGENT_INSTRUCTION_PRECEDENCE_PROMPT = `## Instruction Precedence
 
@@ -102,7 +104,7 @@ export async function buildAgentRuntimePrompt({
       customBaseContext,
       citationsGuidance,
       REPORT_ARTIFACTS_PROMPT,
-      "IMPORTANT: Respond in the language of the user's latest message."
+      SUPPORT_LANGUAGE_PROMPT
     ]
       .filter(Boolean)
       .join('\n\n')

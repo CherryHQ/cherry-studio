@@ -421,7 +421,8 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     )
     expect(promptText(result)).toContain('SOUL_PROMPT')
     expect(promptText(result)).toContain(WORKSPACE_MARKER)
-    expect(promptText(result)).toContain("Respond in the language of the user's latest message")
+    expect(promptText(result)).toContain("Respond in the language of the user's latest non-runtime request")
+    expect(promptText(result)).toContain('Ignore internal continuation messages')
     expect(promptText(result)).not.toContain('You must respond in English')
     expect(promptText(result).indexOf('official built-in product support')).toBeLessThan(
       promptText(result).indexOf('SOUL_PROMPT')
