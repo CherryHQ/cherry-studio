@@ -191,6 +191,7 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
 
     // Deduplicate by the gateway-addressable id ("providerId:apiModelId").
     const uniqueModels = new Map<string, ApiModel>()
+    const warnedUnaddressableProviders = new Set<string>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
       // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
@@ -202,8 +203,9 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
       // Same routable-model predicate as the renderer's gateway picker — the
       // listing must never advertise a model the proxy cannot route.
       if (!isGatewayRoutableModel(model)) {
-        if (model.providerId.includes(':')) {
+        if (model.providerId.includes(':') && !warnedUnaddressableProviders.has(model.providerId)) {
           logger.warn(`Skipping API gateway model from unaddressable provider "${model.providerId}"`)
+          warnedUnaddressableProviders.add(model.providerId)
         }
         continue
       }
