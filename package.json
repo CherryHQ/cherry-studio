@@ -77,7 +77,7 @@
     "test:aicore": "vitest run --project aiCore",
     "test:coverage": "vitest run --coverage --silent",
     "test:e2e": "pnpm playwright test",
-    "test:lint": "oxlint",
+    "test:lint": "oxlint && pnpm test:lint:migration",
     "test:lint:migration": "node scripts/lint/verifyMigrationDiagnostics.mjs",
     "test:main": "vitest run --project main",
     "test:pkg:ui": "vitest run --project ui",

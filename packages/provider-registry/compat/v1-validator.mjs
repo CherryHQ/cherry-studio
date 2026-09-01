@@ -1,4 +1,4 @@
-/* oxlint-disable */
+/* eslint-disable */
 // AUTO-GENERATED compatibility contract. Never edit or replace this file.
 import { readFileSync as e } from 'node:fs'
 import t from 'node:path'
