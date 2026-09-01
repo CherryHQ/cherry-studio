@@ -60,6 +60,30 @@ function Renderer({ name, ...props }: { name: 'a' | 'code' | 'img'; [key: string
 }
 
 describe('MarkdownRenderers', () => {
+  it('keeps in-page anchors clickable', () => {
+    const scrollIntoView = vi.fn()
+    render(
+      <div className="markdown">
+        <Renderer name="a" href="#section-1">
+          Go to section
+        </Renderer>
+        <h2
+          id="heading-preview--section-1"
+          ref={(element) => {
+            if (element) element.scrollIntoView = scrollIntoView
+          }}>
+          Section 1
+        </h2>
+      </div>
+    )
+
+    const anchor = screen.getByRole('link', { name: 'Go to section' })
+    expect(anchor).toHaveAttribute('href', '#section-1')
+    expect(anchor).not.toHaveAttribute('target')
+    fireEvent.click(anchor)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
+  })
+
   it('does not put a favicon on its own line before a linked image', () => {
     render(
       <Renderer name="a" href="https://example.com" node={imageLinkNode}>

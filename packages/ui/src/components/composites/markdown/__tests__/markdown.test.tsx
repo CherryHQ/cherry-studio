@@ -10,7 +10,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { Markdown } from '../markdown'
-import { withChatPlugins } from '../presets'
+import { withChatPlugins, withFullMarkdown } from '../presets'
 
 describe('Markdown (static)', () => {
   it('renders a heading with the prefixed id', () => {
@@ -49,6 +49,26 @@ describe('Markdown (static)', () => {
       expect(alerts[index].querySelector('svg.octicon')?.getAttribute('aria-hidden')).toBe('true')
       expect(alerts[index].textContent).toContain(`${type} content`)
     })
+  })
+
+  it('renders highlight syntax and definition lists used by Markdown previews', () => {
+    const { container } = render(<Markdown id="extended-markdown">{'==Important==\n\nTerm\n: Definition'}</Markdown>)
+
+    expect(container.querySelector('mark')?.textContent).toBe('Important')
+    expect(container.querySelector('dl')).not.toBeNull()
+    expect(container.querySelector('dt')?.textContent).toBe('Term')
+    expect(container.querySelector('dd')?.textContent?.trim()).toBe('Definition')
+  })
+
+  it('renders single-dollar inline math when the full preview preset enables it', () => {
+    const { container } = render(
+      <Markdown id="inline-math" plugins={withFullMarkdown({ singleDollarMath: true })}>
+        {'Inline: $a^2 + b^2 = c^2$'}
+      </Markdown>
+    )
+
+    expect(container.querySelector('.katex')).not.toBeNull()
+    expect(container.textContent).not.toContain('$a^2 + b^2 = c^2$')
   })
 
   it('keeps generated SVG max-width through the full sanitize pipeline', () => {

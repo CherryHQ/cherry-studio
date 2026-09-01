@@ -9,7 +9,7 @@ import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
 import { ImageOff } from 'lucide-react'
-import { type CSSProperties, type JSX, useMemo, useState } from 'react'
+import { type CSSProperties, type JSX, type MouseEvent as ReactMouseEvent, useMemo, useState } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
@@ -34,6 +34,31 @@ export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean
   )
 }
 
+export function scrollToMarkdownAnchor(event: ReactMouseEvent<HTMLAnchorElement>): void {
+  event.stopPropagation()
+
+  const href = event.currentTarget.getAttribute('href')
+  if (!href?.startsWith('#')) return
+
+  let fragment: string
+  try {
+    fragment = decodeURIComponent(href.slice(1))
+  } catch {
+    return
+  }
+  if (!fragment) return
+
+  const markdown = event.currentTarget.closest('.markdown')
+  const target = Array.from(markdown?.querySelectorAll<HTMLElement>('[id]') ?? []).find(
+    (element) =>
+      element.id === fragment || element.id === `user-content-${fragment}` || element.id.endsWith(`--${fragment}`)
+  )
+  if (!target) return
+
+  event.preventDefault()
+  target.scrollIntoView({ block: 'start' })
+}
+
 function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
   const { openFilePath } = useMarkdownHost()
   const hostname = useMemo(() => {
@@ -48,7 +73,17 @@ function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
   const [previewOpen, setPreviewOpen] = useState(false)
 
   if (props.href?.startsWith('#')) {
-    return <span className="link">{props.children}</span>
+    return (
+      <a
+        {...omit(props, ['node'])}
+        className={cn('text-link', !props.className && 'hover:underline', props.className)}
+        onClick={(event) => {
+          props.onClick?.(event)
+          if (!event.defaultPrevented) scrollToMarkdownAnchor(event)
+        }}>
+        {props.children}
+      </a>
+    )
   }
 
   const fileLinkPath = openFilePath ? parseFileLinkHref(props.href) : null
@@ -149,7 +184,17 @@ function MarkdownTableRenderer({ children }: MarkdownRendererProps<'table'>) {
   return (
     <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full">
       <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
-        <table>{children}</table>
+        <table
+          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-subtle [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-subtle [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
+          style={{
+            border: '0.5px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            borderSpacing: 0,
+            margin: 0,
+            overflow: 'hidden'
+          }}>
+          {children}
+        </table>
       </div>
     </div>
   )

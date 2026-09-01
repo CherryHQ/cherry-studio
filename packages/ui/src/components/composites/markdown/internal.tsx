@@ -9,7 +9,9 @@
  */
 
 import { type ReactElement, useCallback, useMemo } from 'react'
+import remarkDefinitionList, { defListHastHandlers } from 'remark-definition-list'
 import remarkAlert from 'remark-github-blockquote-alert'
+import { remarkMark } from 'remark-mark-highlight'
 import {
   type AnimateOptions,
   Block,
@@ -122,7 +124,12 @@ export function MarkdownCore({
   const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
 
   const remarkPlugins = useMemo(() => {
-    const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]
+    const list: Pluggable[] = [
+      ...STREAMDOWN_DEFAULT_REMARK_PLUGINS,
+      remarkDefinitionList as Pluggable,
+      remarkMark as Pluggable,
+      remarkAlert as Pluggable
+    ]
     if (extraRemarkPlugins?.length) list.push(...extraRemarkPlugins)
     return list
   }, [extraRemarkPlugins])
@@ -167,7 +174,8 @@ export function MarkdownCore({
     () => ({
       footnoteLabel,
       footnoteLabelTagName: 'h4' as const,
-      footnoteBackContent: ' '
+      footnoteBackContent: ' ',
+      handlers: defListHastHandlers
     }),
     [footnoteLabel]
   )

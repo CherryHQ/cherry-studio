@@ -69,11 +69,26 @@ const bareUrlNode = {
 describe('Link', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('should render internal anchor as span.link and no <a>', () => {
-    const { container } = render(<Link href="#section-1">Go to section</Link>)
-    expect(container.querySelector('span.link')).not.toBeNull()
-    expect(container.querySelector('a')).toBeNull()
-    expect(screen.getByText('Go to section')).toBeInTheDocument()
+  it('keeps internal anchors clickable without opening a new window', () => {
+    const scrollIntoView = vi.fn()
+    render(
+      <div className="markdown">
+        <Link href="#section-1">Go to section</Link>
+        <h2
+          id="heading-message--section-1"
+          ref={(element) => {
+            if (element) element.scrollIntoView = scrollIntoView
+          }}>
+          Section 1
+        </h2>
+      </div>
+    )
+
+    const anchor = screen.getByRole('link', { name: 'Go to section' })
+    expect(anchor).toHaveAttribute('href', '#section-1')
+    expect(anchor).not.toHaveAttribute('target')
+    fireEvent.click(anchor)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' })
   })
 
   it('renders a Cherry Studio route link as an in-app navigation entry', async () => {

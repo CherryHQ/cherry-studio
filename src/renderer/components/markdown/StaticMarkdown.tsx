@@ -34,7 +34,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className, components 
   const blockId = id ?? generatedId
   const { openFilePath } = useMarkdownHost()
 
-  const plugins = useMemo(() => withFullMarkdown(), [])
+  const plugins = useMemo(() => withFullMarkdown({ singleDollarMath: true }), [])
   const content = useMemo(() => removeSvgEmptyLines(processLatexBrackets(children)), [children])
   const hasStyleElement = /<style\b[^>]*>/i.test(content)
   const markdownComponents = useMarkdownComponents({ components, hasStyleElement })

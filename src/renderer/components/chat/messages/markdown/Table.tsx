@@ -83,7 +83,18 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
     <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full hover:[&_.table-toolbar]:opacity-100">
       <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
         {/* Fill the available reading width without forcing compact chat panes to scroll. Wide content can still overflow this viewport naturally. */}
-        <table ref={tableRef}>{children}</table>
+        <table
+          ref={tableRef}
+          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-subtle [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-subtle [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
+          style={{
+            border: '0.5px solid var(--border)',
+            borderRadius: 'var(--radius-md)',
+            borderSpacing: 0,
+            margin: 0,
+            overflow: 'hidden'
+          }}>
+          {children}
+        </table>
       </div>
       {(canCopyTable || canExportExcel) && (
         <div className="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]">

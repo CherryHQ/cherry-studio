@@ -1,6 +1,6 @@
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
-import { shouldShowMarkdownLinkFavicon } from '@renderer/components/markdown'
+import { scrollToMarkdownAnchor, shouldShowMarkdownLinkFavicon } from '@renderer/components/markdown'
 import type { Citation } from '@renderer/types/message'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
@@ -54,7 +54,17 @@ const Link: React.FC<LinkProps> = (props) => {
 
   // 处理内部链接
   if (props.href?.startsWith('#')) {
-    return <span className="link">{props.children}</span>
+    return (
+      <a
+        {...omit(props, ['node', 'citationRegistry', 'openFilePath'])}
+        className={cn('text-link', !props.className && 'hover:underline', props.className)}
+        onClick={(event) => {
+          props.onClick?.(event)
+          if (!event.defaultPrevented) scrollToMarkdownAnchor(event)
+        }}>
+        {props.children}
+      </a>
+    )
   }
 
   if (props.href && isKnownNavigationPath(props.href)) {
