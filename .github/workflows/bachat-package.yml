@@ -21,15 +21,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Linux
+          - name: Linux-x64-AppImage
             os: ubuntu-latest
-            command: pnpm build:linux
-          - name: Windows
+            command: pnpm build:linux:x64
+            artifact_path: dist/*-x64.AppImage
+          - name: Windows-x64-Installer
             os: windows-2022
-            command: pnpm build:win
-          - name: macOS
+            command: pnpm build:win:x64
+            artifact_path: dist/*-x64-setup.exe
+          - name: macOS-arm64-DMG
             os: macos-latest
-            command: pnpm build:mac
+            command: pnpm build:mac:arm64
+            artifact_path: dist/*-arm64.dmg
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       ELECTRON_BUILDER_7Z_FILTER: BCJ
@@ -72,14 +75,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: bachat-${{ matrix.name }}-${{ github.sha }}
-          path: |
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.dmg
-            dist/*.exe
-            dist/*.rpm
-            dist/*.snap
-            dist/*.tar.gz
-            dist/*.zip
+          path: ${{ matrix.artifact_path }}
           if-no-files-found: error
           retention-days: 14
