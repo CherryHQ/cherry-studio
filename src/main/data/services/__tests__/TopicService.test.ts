@@ -531,7 +531,9 @@ describe('TopicService', () => {
         { endpoint: '/topics/latest' }
       ])
 
-      await dbh.db.insert(topicTable).values({ id: 'topic-3', name: 'Topic 3', orderKey: 'a2', createdAt: 1, updatedAt: 1 })
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-3', name: 'Topic 3', orderKey: 'a2', createdAt: 1, updatedAt: 1 })
       notifyDataApiDataChangeMock.mockClear()
       topicService.deleteByIds(['topic-3'])
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [

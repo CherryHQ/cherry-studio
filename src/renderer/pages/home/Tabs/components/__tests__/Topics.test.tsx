@@ -2310,9 +2310,7 @@ describe('Topics', () => {
       resolveDelete({ deletedIds: ['topic-a1-first', 'topic-a1-second'], deletedCount: 2 })
     })
 
-    await vi.waitFor(() =>
-      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-live' }))
-    )
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-live' })))
   })
 
   it('switches to another assistant latest topic after deleting the active assistant last topic in the right panel', async () => {
