@@ -4582,6 +4582,7 @@
   "settings.provider.create_custom.request_preview": "Calea cererii: {{path}}",
   "settings.provider.create_custom.title": "Adaugă furnizor personalizat",
   "settings.provider.delete.content": "Ești sigur că vrei să ștergi acest furnizor?",
+  "settings.provider.delete.header": "Ștergeți {{key}}",
   "settings.provider.delete.title": "Șterge furnizor",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Întreprindere)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (Internațional)",

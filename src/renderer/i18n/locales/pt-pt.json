@@ -4582,6 +4582,7 @@
   "settings.provider.create_custom.request_preview": "Caminho do pedido: {{path}}",
   "settings.provider.create_custom.title": "Adicionar Fornecedor Personalizado",
   "settings.provider.delete.content": "Tem a certeza de que pretende eliminar este fornecedor de modelo?",
+  "settings.provider.delete.header": "Eliminar {{key}}",
   "settings.provider.delete.title": "Eliminar Fornecedor",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Empresa)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (Internacional)",

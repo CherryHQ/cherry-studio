@@ -4582,6 +4582,7 @@
   "settings.provider.create_custom.request_preview": "Đường dẫn yêu cầu: {{path}}",
   "settings.provider.create_custom.title": "Thêm Nhà Cung Cấp Tùy Chỉnh",
   "settings.provider.delete.content": "Bạn có chắc chắn muốn xóa nhà cung cấp này không?",
+  "settings.provider.delete.header": "Xóa {{key}}",
   "settings.provider.delete.title": "Xóa Nhà Cung Cấp",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Doanh nghiệp)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (Quốc tế)",
