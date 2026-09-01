@@ -59,8 +59,7 @@ const listedModels = [
 ]
 
 /**
- * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table; DeepSeek/GLM
- * join through the Responses `web_search` tool instead (see the responses overrides below), and omni
+ * Chat `enable_search` eligibility per the QwenCloud web-search supported-models table; omni
  * lines ride the multimodal API. Prefixes hit canonical ids, so dated snapshots and `-preview` fold in.
  */
 const webSearchModelPrefixes = [
@@ -73,11 +72,16 @@ const webSearchModelPrefixes = [
   'qwen3-6-flash',
   'qwen3-5-plus',
   'qwen3-5-flash',
-  'qwen3-max',
-  // Responses `web_search` tool lines (docs.qwencloud.com web-search supported-models table).
-  'deepseek-v4',
-  'glm-5-2'
+  'qwen3-max'
 ]
+
+/**
+ * Responses `web_search` tool lines from the same table — a CLOSED id list, not a family prefix:
+ * `deepseek-v4` would also claim flash-vision-exp and `glm-5-2` the -fast variant, neither of
+ * which the docs serve search on. Dated snapshots pro-0813/flash-0731 are listed upstream but
+ * absent from the catalog; append them here once models.dev carries them.
+ */
+const responsesSearchModelIds = ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2']
 
 export default defineProvider({
   id: 'qwencloud',
@@ -106,7 +110,8 @@ export default defineProvider({
     {
       id: 'web-search',
       modelScope: 'model-dependent',
-      modelIdPrefixes: webSearchModelPrefixes
+      modelIdPrefixes: webSearchModelPrefixes,
+      modelIds: responsesSearchModelIds
     }
   ],
   metadata: {
