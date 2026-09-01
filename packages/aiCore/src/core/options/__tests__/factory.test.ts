@@ -1,4 +1,3 @@
-import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 import { describe, expect, it } from 'vitest'
 
 import { mergeProviderOptions } from '../factory'
