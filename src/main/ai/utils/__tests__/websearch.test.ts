@@ -153,17 +153,29 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
   })
 })
 
-// QwenCloud (DashScope international): chat enable_search eligibility and the agent strategy both
-// follow the web-search supported-models table (qwen3.8/3.7/3.6/3.5 Max-Plus-Flash lines, qwen3-max).
+// QwenCloud (DashScope international): the web-search supported-models table is a closed list —
+// qwen3.8/3.7/3.6/3.5 Max-Plus-Flash lines and qwen3-max on Chat, the DeepSeek-V4/GLM-5.2 ids on
+// Responses. Chat delivery gates on the registry's generated eligibility set, so off-table
+// siblings (legacy aliases, flash-vision-exp, -fast variants) inject nothing.
 describe('qwencloud built-in web search: enable_search + agent strategy subset', () => {
   const qwencloud = (apiModelId: string) =>
-    model({ id: `qwencloud::${apiModelId}`, providerId: 'qwencloud', apiModelId })
+    model({ id: `qwencloud::${apiModelId}`, providerId: 'qwencloud', apiModelId, capabilities: [] })
 
+  // Provider-level declaration only: per-model eligibility this exercises comes from the registry's
+  // generated web-search set, so this suite also pins declaration ↔ delivery agreement.
+  const qwencloudPreset = {
+    id: 'qwencloud',
+    presetProviderId: 'qwencloud',
+    defaultChatEndpoint: 'openai-chat-completions',
+    serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }]
+  } as unknown as Provider
+
+  // qwen3.7-max-preview is on the docs table but absent from the catalog (the 38-model list only
+  // carries qwen3.8-max-preview), so no preset row serves it and it stays ineligible.
   it.each([
     'qwen3.8-max',
     'qwen3.8-2.4t-a95b',
     'qwen3.7-max',
-    'qwen3.7-max-preview',
     'qwen3.7-plus',
     'qwen3.7-flash',
     'qwen3.6-plus',
@@ -172,30 +184,43 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
     'qwen3.5-flash',
     'qwen3-max'
   ])('pins search_strategy=agent for %s', (apiModelId) => {
-    expect(getWebSearchParams(qwencloud(apiModelId), preset('qwencloud'))).toEqual({
+    expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({
       enable_search: true,
       search_options: { forced_search: true, search_strategy: 'agent' }
     })
   })
 
-  it('sends plain enable_search outside the agent subset (legacy alias)', () => {
-    expect(getWebSearchParams(qwencloud('qwen-plus'), preset('qwencloud'))).toEqual({
-      enable_search: true,
-      search_options: { forced_search: true }
-    })
+  // The international table has no qwen-plus/flash/turbo rows (unlike mainland Bailian), so the
+  // legacy aliases stay off the chat path too.
+  it('injects nothing on chat for legacy aliases outside the table', () => {
+    expect(getWebSearchParams(qwencloud('qwen-plus'), qwencloudPreset)).toEqual({})
   })
 
   // The supported-models table marks DeepSeek-V4 / GLM-5.2 "Responses API only" — Chat's
   // enable_search is not served for them, so the chat path must inject nothing.
-  it.each(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'glm-5-2'])(
-    'injects no enable_search for the Responses-only line %s on the chat path',
+  it.each([
+    'deepseek-v4-pro',
+    'deepseek-v4-pro-0813',
+    'deepseek-v4-flash',
+    'deepseek-v4-flash-0731',
+    'glm-5.2',
+    'glm-5-2'
+  ])('injects no enable_search for the Responses-only id %s on the chat path', (apiModelId) => {
+    expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({})
+  })
+
+  // Siblings a broad family prefix would have claimed; the closed declaration keeps their search
+  // off entirely — the exact bug the anchored pattern + eligibility gate exist to prevent.
+  it.each(['deepseek-v4-flash-vision-exp', 'glm-5-2-fast', 'glm-5.2-fast-preview'])(
+    'injects nothing on chat for off-table sibling %s',
     (apiModelId) => {
-      expect(getWebSearchParams(qwencloud(apiModelId), preset('qwencloud'))).toEqual({})
+      expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({})
     }
   )
 
   it('serves a copied QwenCloud provider identically (preset link, not runtime id)', () => {
-    expect(getWebSearchParams(qwencloud('qwen3.7-max'), copyOf('qwencloud'))).toMatchObject({
+    const copy = { ...qwencloudPreset, id: 'user-copy-1' } as unknown as Provider
+    expect(getWebSearchParams(qwencloud('qwen3.7-max'), copy)).toMatchObject({
       enable_search: true
     })
   })
@@ -203,7 +228,14 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   // DeepSeek-V4 / GLM-5.2 search through the Responses web_search tool (bare shape, no OpenAI-only
   // knobs); Qwen lines stay off the Responses tool — their search is Chat's enable_search.
   describe('qwencloud Responses web_search tool', () => {
-    it.each(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'glm-5-2'])('attaches the bare tool for %s', (id) => {
+    it.each([
+      'deepseek-v4-pro',
+      'deepseek-v4-pro-0813',
+      'deepseek-v4-flash',
+      'deepseek-v4-flash-0731',
+      'glm-5.2',
+      'glm-5-2'
+    ])('attaches the bare tool for %s', (id) => {
       expect(
         buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud(id), preset('qwencloud'))
       ).toEqual({ openai: {} })
@@ -214,6 +246,15 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
         buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud('qwen3.7-max'), preset('qwencloud'))
       ).toBeUndefined()
     })
+
+    it.each(['deepseek-v4-flash-vision-exp', 'glm-5-2-fast', 'glm-5.2-fast-preview'])(
+      'suppresses the Responses tool for off-table sibling %s',
+      (id) => {
+        expect(
+          buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud(id), preset('qwencloud'))
+        ).toBeUndefined()
+      }
+    )
   })
 })
 
