@@ -68,7 +68,8 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
-    "tsdown": "^0.22.14"
+    "tsdown": "^0.22.14",
+    "typescript": "5.9.3"
   },
   "peerDependencies": {
     "@tiptap/core": "^3.0.9",
