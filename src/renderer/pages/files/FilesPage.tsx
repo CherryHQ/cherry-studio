@@ -418,9 +418,10 @@ function FilesPage() {
 
     let cancelled = false
     const ids = displayEntries.map((entry) => entry.id)
+    const physicalPathIds = displayEntries.filter((entry) => entry.origin === 'internal').map((entry) => entry.id)
     void Promise.all([
       requestBatchedFileRecords('file.batch_get_metadata', ids),
-      requestBatchedFileRecords('file.batch_get_physical_paths', ids),
+      requestBatchedFileRecords('file.batch_get_physical_paths', physicalPathIds),
       requestBatchedFileRecords('file.batch_get_dangling_states', ids)
     ])
       .then(([metadata, physicalPaths, danglingStates]) => {

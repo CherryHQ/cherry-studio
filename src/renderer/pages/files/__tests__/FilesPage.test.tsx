@@ -471,19 +471,19 @@ describe('FilesPage file operations', () => {
 
   it('exposes distinct source paths for same-name files from different directories', async () => {
     const first = {
-      ...imageEntry,
+      ...entry,
       id: 'file-migrated-a',
       origin: 'internal',
-      name: 'migrated-image',
-      ext: 'png'
+      name: 'migrated-note',
+      ext: 'md'
     } as unknown as FileEntry
     const second = {
       id: 'file-migrated-b',
       origin: 'external',
-      name: 'migrated-image',
-      ext: 'png',
+      name: 'migrated-note',
+      ext: 'md',
       size: null,
-      externalPath: '/Users/b/Downloads/migrated-image.png',
+      externalPath: '/Users/b/Downloads/migrated-note.md',
       createdAt: 1_719_216_000_000,
       updatedAt: 1_719_216_000_000
     } as unknown as FileEntry
@@ -491,8 +491,7 @@ describe('FilesPage file operations', () => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') {
         return Promise.resolve({
-          'file-migrated-a': '/Users/a/Pictures/migrated-image.png',
-          'file-migrated-b': '/Users/b/Downloads/migrated-image.png'
+          'file-migrated-a': '/Users/a/Documents/migrated-note.md'
         })
       }
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
@@ -501,12 +500,12 @@ describe('FilesPage file operations', () => {
     renderFilesPage([first, second])
 
     await waitFor(() => {
-      const names = screen.getAllByText('migrated-image.png')
+      const names = screen.getAllByText('migrated-note.md')
       expect(names).toHaveLength(2)
-      expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
-      expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
+      expect(names[0]).toHaveAttribute('title', '/Users/a/Documents/migrated-note.md')
+      expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-note.md')
     })
-    expect(screen.queryByTitle('safe-file:///Users/a/Pictures/migrated-image.png')).not.toBeInTheDocument()
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: ['file-migrated-a'] })
   })
 
   it('embeds the file preview across the Files page after resolving the physical path', async () => {

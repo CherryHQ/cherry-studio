@@ -34,7 +34,10 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string>) =>
+      key === 'files.select_file_with_path' ? `Select ${values?.name} (${values?.path})` : key
+  })
 }))
 
 const file: FileItem = {
@@ -282,7 +285,16 @@ describe('FileList', () => {
     expect(names).toHaveLength(2)
     expect(names[0]).toHaveAttribute('title', '/Users/a/Pictures/migrated-image.png')
     expect(names[1]).toHaveAttribute('title', '/Users/b/Downloads/migrated-image.png')
-    expect(screen.getAllByRole('checkbox', { name: 'files.select_file_with_path' })).toHaveLength(2)
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Select migrated-image.png (/Users/a/Pictures/migrated-image.png)'
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', {
+        name: 'Select migrated-image.png (/Users/b/Downloads/migrated-image.png)'
+      })
+    ).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: 'files.select_file' })).not.toBeInTheDocument()
   })
 })
