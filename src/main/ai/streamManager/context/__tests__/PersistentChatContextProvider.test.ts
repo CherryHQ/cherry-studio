@@ -8,7 +8,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { aiStreamAdmissionReasons, type AiStreamOpenRequest } from '@shared/ai/transport'
+import { aiStreamAdmissionReasons } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 

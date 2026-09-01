@@ -11,12 +11,7 @@ import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSessio
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type {
-  AiStreamOpenRequest,
-  AiToolResultResponse,
-  PersistedToolOutput,
-  PersistedToolOutputBlobRef
-} from '@shared/ai/transport'
+import type { AiToolResultResponse, PersistedToolOutput, PersistedToolOutputBlobRef } from '@shared/ai/transport'
 import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
