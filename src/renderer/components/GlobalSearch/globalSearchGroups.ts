@@ -1,6 +1,5 @@
 import { cacheService } from '@data/CacheService'
 import type { Topic } from '@renderer/types/topic'
-import { getSettingsRecentTitle } from '@renderer/utils/routeTitle'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type {
   EntitySearchItem,
@@ -197,19 +196,12 @@ export function recordGlobalSearchRecentEntry(entry: GlobalSearchRecentEntry): v
   cacheService.setPersist('ui.global_search.recent_items', (prev) => upsertGlobalSearchRecentEntry(prev, entry))
 }
 
-function withSettingsRecentTitle(entry: GlobalSearchRecentEntry): GlobalSearchRecentEntry {
-  if (entry.kind !== 'route') return entry
-  const title = getSettingsRecentTitle(entry.url)
-  return title && title !== entry.title ? { ...entry, title } : entry
-}
-
 export function getDisplayGlobalSearchRecentEntries(
   entries: readonly GlobalSearchRecentEntry[]
 ): GlobalSearchRecentEntry[] {
   return [...sanitizeGlobalSearchRecentEntries(entries)]
     .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
     .slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
-    .map(withSettingsRecentTitle)
 }
 
 export function createRecentRouteEntryFromTab(
@@ -230,7 +222,7 @@ export function createRecentRouteEntryFromTab(
   return {
     kind: 'route',
     url: tab.url,
-    title: getSettingsRecentTitle(tab.url) ?? tab.title,
+    title: tab.title,
     icon: tab.icon,
     lastAccessTime
   }

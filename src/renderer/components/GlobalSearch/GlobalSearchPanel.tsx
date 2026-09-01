@@ -30,6 +30,7 @@ import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { emitResourceListReveal } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
+import { getSettingsRecentTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
@@ -324,6 +325,15 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const sanitizedRecentItems = useMemo(() => sanitizeGlobalSearchRecentEntries(recentItems ?? []), [recentItems])
+  const localizedRecentItems = useMemo(
+    () =>
+      sanitizedRecentItems.map((entry) => {
+        if (entry.kind !== 'route') return entry
+        const title = getSettingsRecentTitle(entry.url, t)
+        return title && title !== entry.title ? { ...entry, title } : entry
+      }),
+    [sanitizedRecentItems, t]
+  )
   const [userName] = usePreference('app.user.name')
   const {
     error,
@@ -348,7 +358,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     filter,
     messageSourceFilter,
     panelMode,
-    recentItems: sanitizedRecentItems,
+    recentItems: localizedRecentItems,
     timeFilter
   })
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =

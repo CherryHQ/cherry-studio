@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   messageQueryResult: undefined as { items: TopicMessageContentSearchItem[]; nextCursor?: string } | undefined,
   sessionMessageQueryResult: undefined as { items: SessionMessageContentSearchItem[]; nextCursor?: string } | undefined,
   keepStaleContentSearchData: false,
+  language: 'en-US',
   recentItems: [] as GlobalSearchRecentEntry[],
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
@@ -370,9 +371,14 @@ vi.mock('@renderer/utils/routeTitle', () => ({
     })[path] ?? path,
   getSettingsRecentTitle: (url: string) => {
     const pathname = new URL(url, 'https://www.cherry-ai.com').pathname
-    if (pathname === '/settings/api-gateway') return 'Settings / API Gateway'
-    if (pathname === '/settings/model') return 'Settings / Default Model'
-    if (pathname === '/settings' || pathname.startsWith('/settings/')) return 'Settings'
+    const settings = mocks.language === 'zh-CN' ? '设置' : 'Settings'
+    if (pathname === '/settings/api-gateway') {
+      return `${settings} / ${mocks.language === 'zh-CN' ? 'API 网关' : 'API Gateway'}`
+    }
+    if (pathname === '/settings/model') {
+      return `${settings} / ${mocks.language === 'zh-CN' ? '默认模型' : 'Default Model'}`
+    }
+    if (pathname === '/settings' || pathname.startsWith('/settings/')) return settings
     return undefined
   }
 }))
@@ -547,7 +553,7 @@ vi.mock('react-i18next', () => ({
 
       return label.replace('{{name}}', options?.name ?? 'Agent').replace('{{count}}', options?.count ?? '0')
     },
-    i18n: { language: 'en-US' }
+    i18n: { language: mocks.language }
   })
 }))
 
@@ -606,6 +612,7 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
+    mocks.language = 'en-US'
     mocks.useQuery.mockImplementation(
       (
         path: string,
@@ -757,6 +764,26 @@ describe('GlobalSearchPanel', () => {
       icon: 'settings'
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates Settings recent labels when the active language changes while mounted', () => {
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/settings/model',
+        title: 'Settings',
+        icon: 'settings',
+        lastAccessTime: 10
+      }
+    ]
+
+    const { rerender } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
+    expect(screen.getByRole('option', { name: /Settings \/ Default Model/ })).toBeInTheDocument()
+
+    mocks.language = 'zh-CN'
+    rerender(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    expect(screen.getByRole('option', { name: /设置 \/ 默认模型/ })).toBeInTheDocument()
   })
 
   it('renders recent results before search and search results after typing', async () => {

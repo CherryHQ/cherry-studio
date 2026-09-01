@@ -1,4 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
+import { getSettingsNavigationLabelKey } from '@renderer/utils/settingsNavigation'
+import type { TFunction } from 'i18next'
 
 /** Base URL for parsing relative route paths */
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -28,36 +30,6 @@ const routeTitleKeys: Record<string, string> = {
 // only meaningful label. Contrast /app/mini-app, which is deliberately left
 // out so caller-supplied per-entity titles survive.
 const autoLocalizableBasePaths = new Set(['/app/paintings'])
-
-// Keep in sync with SettingsPage navigation items. Tab titles stay coarse
-// (`title.settings`); Global Search recents join this map for subpages.
-const SETTINGS_NAV_LABEL_KEYS: Record<string, string> = {
-  '/settings/provider': 'settings.provider.title',
-  '/settings/model': 'settings.model',
-  '/settings/local-models': 'settings.dependencies.localModels.title',
-  '/settings/api-gateway': 'apiGateway.title',
-  '/settings/mcp': 'agent.settings.toolsMcp.mcp.tab',
-  '/settings/skills': 'settings.skills.title',
-  '/settings/prompts': 'settings.prompts.title',
-  '/settings/websearch': 'settings.tool.websearch.title',
-  '/settings/file-processing': 'settings.tool.file_processing.features.document_to_markdown.title',
-  '/settings/ocr': 'settings.tool.file_processing.features.image_to_text.title',
-  '/settings/general': 'settings.general.common.title',
-  '/settings/appearance': 'settings.appearance.title',
-  '/settings/notifications': 'settings.notification.title',
-  '/settings/data': 'settings.data.title',
-  '/settings/usage': 'settings.usage.title',
-  '/settings/channels': 'settings.channels.title',
-  '/settings/scheduled-tasks': 'settings.scheduledTasks.title',
-  '/settings/shortcut': 'settings.shortcuts.title',
-  '/settings/quick-assistant': 'settings.quickAssistant.title',
-  '/settings/selection-assistant': 'selection.name',
-  '/settings/screenshot': 'settings.screenshot.title',
-  '/settings/dependencies': 'settings.dependencies.title',
-  '/settings/about': 'settings.about.label'
-}
-
-const SETTINGS_NAV_PATHS = Object.keys(SETTINGS_NAV_LABEL_KEYS).sort((left, right) => right.length - left.length)
 
 /**
  * Get the base path for route matching
@@ -103,24 +75,14 @@ export function getDefaultRouteTitle(url: string): string {
   return segments.pop() || sanitizedUrl
 }
 
-function normalizePathname(pathname: string): string {
-  return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
-}
-
-function getSettingsNavLabelKey(pathname: string): string | undefined {
-  const normalized = normalizePathname(pathname)
-  const match = SETTINGS_NAV_PATHS.find((path) => normalized === path || normalized.startsWith(`${path}/`))
-  return match ? SETTINGS_NAV_LABEL_KEYS[match] : undefined
-}
-
 /** Settings recents title: `Settings / {nav label}`, or the coarse root label. */
-export function getSettingsRecentTitle(url: string): string | undefined {
+export function getSettingsRecentTitle(url: string, translate: TFunction = i18n.t): string | undefined {
   const pathname = new URL(url, BASE_URL).pathname
   if (getBasePath(pathname) !== '/settings') return undefined
 
-  const rootTitle = i18n.t('title.settings')
-  const navKey = getSettingsNavLabelKey(pathname)
-  return navKey ? `${rootTitle} / ${i18n.t(navKey)}` : rootTitle
+  const rootTitle = translate('title.settings')
+  const navKey = getSettingsNavigationLabelKey(pathname)
+  return navKey ? `${rootTitle} / ${translate(navKey)}` : rootTitle
 }
 
 /**

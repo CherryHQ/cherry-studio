@@ -1,18 +1,5 @@
 import type { EntitySearchResponse } from '@shared/data/api/schemas/search'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@renderer/i18n/resolver', () => ({
-  default: {
-    t: (key: string) =>
-      ({
-        'agent.settings.toolsMcp.mcp.tab': 'MCP',
-        'apiGateway.title': 'API Gateway',
-        'settings.model': 'Default Model',
-        'settings.provider.title': 'Model Provider',
-        'title.settings': 'Settings'
-      })[key] ?? key
-  }
-}))
+import { describe, expect, it } from 'vitest'
 
 import {
   buildGlobalMessageSearchGroups,
@@ -239,95 +226,6 @@ describe('globalSearchGroups', () => {
         items: [expect.objectContaining({ id: 'knowledge-base:knowledge-1' })]
       })
     ])
-  })
-
-  it('distinguishes settings subpage recents using localized navigation labels', () => {
-    // Regression: visiting /settings/api-gateway and /settings/model both stored
-    // as recents, but the visible title collapsed to the coarse tab label "Settings".
-    const apiGatewayTab = {
-      id: 'settings',
-      type: 'route' as const,
-      url: '/settings/api-gateway',
-      title: 'Settings',
-      lastAccessTime: 20
-    }
-    const defaultModelTab = {
-      id: 'settings',
-      type: 'route' as const,
-      url: '/settings/model',
-      title: 'Settings',
-      lastAccessTime: 10
-    }
-
-    expect(createRecentRouteEntryFromTab(apiGatewayTab)).toEqual({
-      kind: 'route',
-      url: '/settings/api-gateway',
-      title: 'Settings / API Gateway',
-      icon: undefined,
-      lastAccessTime: 20
-    })
-    expect(createRecentRouteEntryFromTab(defaultModelTab)).toEqual({
-      kind: 'route',
-      url: '/settings/model',
-      title: 'Settings / Default Model',
-      icon: undefined,
-      lastAccessTime: 10
-    })
-    expect(
-      createRecentRouteEntryFromTab({
-        ...apiGatewayTab,
-        url: '/settings'
-      })?.title
-    ).toBe('Settings')
-    expect(
-      createRecentRouteEntryFromTab({
-        ...apiGatewayTab,
-        url: '/settings/provider?id=openai'
-      })?.title
-    ).toBe('Settings / Model Provider')
-    expect(
-      createRecentRouteEntryFromTab({
-        ...apiGatewayTab,
-        url: '/settings/mcp/servers'
-      })?.title
-    ).toBe('Settings / MCP')
-
-    const persistedCoarseTitles = [
-      {
-        kind: 'route' as const,
-        url: '/settings/api-gateway',
-        title: 'Settings',
-        lastAccessTime: 20
-      },
-      {
-        kind: 'route' as const,
-        url: '/settings/model',
-        title: 'Settings',
-        lastAccessTime: 10
-      }
-    ]
-
-    expect(upsertGlobalSearchRecentEntry(persistedCoarseTitles.slice(1), persistedCoarseTitles[0])).toEqual(
-      persistedCoarseTitles
-    )
-    expect(
-      getDisplayGlobalSearchRecentEntries(persistedCoarseTitles).map((entry) => ({
-        url: entry.kind === 'route' ? entry.url : '',
-        title: entry.title
-      }))
-    ).toEqual([
-      { url: '/settings/api-gateway', title: 'Settings / API Gateway' },
-      { url: '/settings/model', title: 'Settings / Default Model' }
-    ])
-    expect(
-      buildGlobalSearchGroups({
-        query: '',
-        filter: 'all',
-        recentItems: persistedCoarseTitles
-      })
-        .flatMap((group) => group.items)
-        .map((item) => (item.kind === 'recent' ? item.recent.title : ''))
-    ).toEqual(['Settings / API Gateway', 'Settings / Default Model'])
   })
 
   it('creates entity-level recent entries and skips coarse chat routes', () => {

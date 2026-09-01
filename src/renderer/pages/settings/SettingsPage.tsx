@@ -10,6 +10,7 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { SETTINGS_NAVIGATION_LABEL_KEYS } from '@renderer/utils/settingsNavigation'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
@@ -67,7 +68,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Cloud />}
-                label={t('settings.provider.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/provider'])}
                 active={isActive('/settings/provider')}
                 onClick={() => go('/settings/provider')}
               />
@@ -75,7 +76,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Package />}
-                label={t('settings.model')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/model'])}
                 active={isActive('/settings/model')}
                 onClick={() => go('/settings/model')}
               />
@@ -83,7 +84,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<FileBox />}
-                label={t('settings.dependencies.localModels.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/local-models'])}
                 active={isActive('/settings/local-models')}
                 onClick={() => go('/settings/local-models')}
               />
@@ -91,7 +92,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<GatewayIcon />}
-                label={t('apiGateway.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/api-gateway'])}
                 active={isActive('/settings/api-gateway')}
                 onClick={() => go('/settings/api-gateway')}
               />
@@ -101,7 +102,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<McpLogo width={16} height={16} className="text-foreground" />}
-                label={t('agent.settings.toolsMcp.mcp.tab')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/mcp'])}
                 active={isActive('/settings/mcp')}
                 onClick={() => go('/settings/mcp')}
               />
@@ -109,7 +110,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<ToolCase />}
-                label={t('settings.skills.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/skills'])}
                 active={isActive('/settings/skills')}
                 onClick={() => go('/settings/skills')}
               />
@@ -117,7 +118,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Zap />}
-                label={t('settings.prompts.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/prompts'])}
                 active={isActive('/settings/prompts')}
                 onClick={() => go('/settings/prompts')}
               />
@@ -125,7 +126,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Search />}
-                label={t('settings.tool.websearch.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/websearch'])}
                 active={isActive('/settings/websearch')}
                 onClick={() => go('/settings/websearch')}
               />
@@ -133,7 +134,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<FileCode />}
-                label={t('settings.tool.file_processing.features.document_to_markdown.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/file-processing'])}
                 active={isActive('/settings/file-processing')}
                 onClick={() => go('/settings/file-processing')}
               />
@@ -141,7 +142,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<ScanText />}
-                label={t('settings.tool.file_processing.features.image_to_text.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/ocr'])}
                 active={isActive('/settings/ocr')}
                 onClick={() => go('/settings/ocr')}
               />
@@ -151,7 +152,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Settings2 />}
-                label={t('settings.general.common.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/general'])}
                 active={isActive('/settings/general')}
                 onClick={() => go('/settings/general')}
               />
@@ -159,7 +160,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Palette />}
-                label={t('settings.appearance.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/appearance'])}
                 active={isActive('/settings/appearance')}
                 onClick={() => go('/settings/appearance')}
               />
@@ -167,7 +168,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Bell />}
-                label={t('settings.notification.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/notifications'])}
                 active={isActive('/settings/notifications')}
                 onClick={() => go('/settings/notifications')}
               />
@@ -175,7 +176,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<HardDrive />}
-                label={t('settings.data.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/data'])}
                 active={isActive('/settings/data')}
                 onClick={() => go('/settings/data')}
               />
@@ -183,7 +184,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Activity />}
-                label={t('settings.usage.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/usage'])}
                 active={isActive('/settings/usage')}
                 onClick={() => go('/settings/usage')}
               />
@@ -193,7 +194,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Radio />}
-                label={t('settings.channels.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/channels'])}
                 active={isActive('/settings/channels')}
                 onClick={() => go('/settings/channels')}
               />
@@ -201,7 +202,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<CalendarClock />}
-                label={t('settings.scheduledTasks.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/scheduled-tasks'])}
                 active={isActive('/settings/scheduled-tasks')}
                 onClick={() => go('/settings/scheduled-tasks')}
               />
@@ -209,7 +210,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Command />}
-                label={t('settings.shortcuts.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/shortcut'])}
                 active={isActive('/settings/shortcut')}
                 onClick={() => go('/settings/shortcut')}
               />
@@ -217,7 +218,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<PictureInPicture2 />}
-                label={t('settings.quickAssistant.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/quick-assistant'])}
                 active={isActive('/settings/quick-assistant')}
                 onClick={() => go('/settings/quick-assistant')}
               />
@@ -225,7 +226,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<TextCursorInput />}
-                label={t('selection.name')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/selection-assistant'])}
                 active={isActive('/settings/selection-assistant')}
                 onClick={() => go('/settings/selection-assistant')}
               />
@@ -233,7 +234,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Crop />}
-                label={t('settings.screenshot.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/screenshot'])}
                 active={isActive('/settings/screenshot')}
                 onClick={() => go('/settings/screenshot')}
               />
@@ -243,7 +244,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Terminal />}
-                label={t('settings.dependencies.title')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/dependencies'])}
                 active={isActive('/settings/dependencies')}
                 onClick={() => go('/settings/dependencies')}
               />
@@ -251,7 +252,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Info />}
-                label={t('settings.about.label')}
+                label={t(SETTINGS_NAVIGATION_LABEL_KEYS['/settings/about'])}
                 active={isActive('/settings/about')}
                 onClick={() => go('/settings/about')}
               />
