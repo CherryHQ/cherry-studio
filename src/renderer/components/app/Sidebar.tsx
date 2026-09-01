@@ -162,6 +162,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return
       }
 
+      // Keep a Mini App's owning tab intact when leaving it so the global
+      // WebView pool can preserve the guest instead of treating it as closed.
+      if (miniAppIdFromTabUrl(activeTab?.url)) {
+        openTab(path, { title, icon: options?.icon })
+        return
+      }
+
       if (activeTab) {
         updateTab(activeTab.id, {
           url: path,

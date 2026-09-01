@@ -751,6 +751,26 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
+  it('keeps the active mini app tab alive when opening another mini app', () => {
+    configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
+    mocks.activeTab = {
+      id: 'calculator-tab',
+      type: 'route',
+      url: '/app/mini-app/calculator',
+      title: 'Calculator'
+    }
+    mocks.tabs = [mocks.activeTab]
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-mini-app-weather'))
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/weather', {
+      title: 'Weather',
+      icon: 'weather-logo'
+    })
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+  })
+
   it('does nothing when the active tab is already on the target mini app route', () => {
     configureMiniApps(['calculator'])
     mocks.activeTab = {
