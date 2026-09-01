@@ -1,5 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
+import { SPECIAL_VIEWS } from '@renderer/components/CodeBlockView/constants'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
@@ -7,6 +8,7 @@ import { OgCard } from '@renderer/components/OgCard'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
+import { ImageOff } from 'lucide-react'
 import { type CSSProperties, type JSX, useMemo, useState } from 'react'
 import type { Components, ExtraProps } from 'streamdown'
 import { useIsCodeFenceIncomplete } from 'streamdown'
@@ -19,6 +21,14 @@ type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intrin
 const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
 const INLINE_CODE_CLASS = 'whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
+
+function shouldShowLinkFavicon(node: ExtraProps['node']): boolean {
+  if (!node) return true
+  if (node.children.some((child) => child.type === 'element')) return false
+
+  const onlyChild = node.children.length === 1 ? node.children[0] : null
+  return !(onlyChild?.type === 'text' && /^https?:\/\/\S+$/i.test(onlyChild.value.trim()))
+}
 
 function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
   const { openFilePath } = useMarkdownHost()
@@ -61,18 +71,19 @@ function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
       return props.href ?? ''
     }
   })()
-  const linkContent = hostname ? (
-    <>
-      <span
-        className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
-        aria-hidden="true">
-        <Favicon hostname={hostname} alt="" />
-      </span>
-      {props.children}
-    </>
-  ) : (
-    props.children
-  )
+  const linkContent =
+    hostname && shouldShowLinkFavicon(props.node) ? (
+      <>
+        <span
+          className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
+          aria-hidden="true">
+          <Favicon hostname={hostname} alt="" />
+        </span>
+        {props.children}
+      </>
+    ) : (
+      props.children
+    )
   const anchor = (
     <a
       {...omit(props, ['node'])}
@@ -120,7 +131,11 @@ function MarkdownCodeRenderer({ children: rawChildren, className, node: _node }:
   }
 
   return (
-    <CodeBlockView language={language} editable={false} isStreaming={isIncomplete} showToolbar={false}>
+    <CodeBlockView
+      language={language}
+      editable={false}
+      isStreaming={isIncomplete}
+      showToolbar={SPECIAL_VIEWS.includes(language)}>
       {children}
     </CodeBlockView>
   )
@@ -147,7 +162,39 @@ function MarkdownTableRenderer({ children }: MarkdownRendererProps<'table'>) {
 }
 
 function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
-  return <ImageViewer style={IMAGE_STYLE} {...(props as ImageViewerProps)} />
+  const { alt, node: _node, onError, src, style, ...imageProps } = props
+  const [failedSource, setFailedSource] = useState<string | null>(null)
+  void _node
+
+  if (!src) return null
+
+  if (failedSource === src) {
+    if (!alt) return null
+
+    return (
+      <span
+        role="img"
+        aria-label={alt}
+        className="inline-flex min-h-8 max-w-full items-center justify-center gap-1.5 rounded-md border-[0.5px] border-border-subtle bg-background-subtle px-2 py-1 text-muted-foreground text-sm"
+        style={{ width: imageProps.width, height: imageProps.height, ...(style ?? IMAGE_STYLE) }}>
+        <ImageOff className="size-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">{alt}</span>
+      </span>
+    )
+  }
+
+  return (
+    <ImageViewer
+      {...(imageProps as ImageViewerProps)}
+      alt={alt}
+      src={src}
+      style={style ?? IMAGE_STYLE}
+      onError={(event) => {
+        setFailedSource(src)
+        onError?.(event)
+      }}
+    />
+  )
 }
 
 function MarkdownPreRenderer({ node: _node, ...props }: MarkdownRendererProps<'pre'>) {
