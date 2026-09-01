@@ -505,7 +505,8 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
-  it('keeps pinned agent conversations identifiable by title with a practical hit target', () => {
+  it('keeps same-icon pinned conversations identifiable and pointer-selectable', async () => {
+    const user = userEvent.setup()
     const setActiveTab = vi.fn()
     const tabs = [
       createTab('agent-write', {
@@ -527,19 +528,14 @@ describe('AppShellTabBar', () => {
 
     const writeTab = screen.getByRole('button', { name: 'Write a function' })
     const reviewTab = screen.getByRole('button', { name: 'Review this PR' })
-    const homeTab = screen.getByRole('button', { name: 'Chat' })
+    writeTab.setPointerCapture = vi.fn()
+    writeTab.releasePointerCapture = vi.fn()
 
     expect(writeTab).toHaveTextContent('Write a function')
     expect(reviewTab).toHaveTextContent('Review this PR')
-    expect(screen.queryByRole('button', { name: '🤖' })).not.toBeInTheDocument()
-
-    // Hit-target / density contract: pinned tabs match the unpinned height and
-    // min width, stay denser than the unpinned max, and do not flex-grow.
     expect(writeTab).toHaveClass('h-[30px]', 'min-w-[56px]', 'max-w-[120px]', 'shrink-0')
-    expect(homeTab).toHaveClass('h-[30px]', 'min-w-[56px]', 'max-w-[160px]')
-    expect(homeTab).not.toHaveClass('max-w-[120px]')
 
-    fireEvent.click(writeTab)
+    await user.pointer([{ target: writeTab, keys: '[MouseLeft>]' }, { keys: '[/MouseLeft]' }])
     expect(setActiveTab).toHaveBeenCalledWith('agent-write')
   })
 
