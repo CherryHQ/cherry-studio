@@ -5,6 +5,7 @@ import { defineProvider } from './types'
 import { EFFORT, modeWire } from './wires'
 
 const webSearchModelPrefixes = [
+  'qwen3-8-flash',
   'qwen3-8-max',
   'qwen3-8-max-preview',
   'qwen3-7-max',
@@ -37,6 +38,7 @@ const webSearchModelPrefixes = [
 // lines only — a subset of the web-search models (no DeepSeek/Kimi/GLM/QwQ/turbo). Extraction rides web
 // search, so eligibility here also gates the chat `agent_max` strategy in getWebSearchParams.
 const webExtractorModelPrefixes = [
+  'qwen3-8-flash',
   'qwen3-8-max',
   'qwen3-8-max-preview',
   'qwen3-7-max',
@@ -228,6 +230,7 @@ const responsesModels = new Set([
   'qwen3.7-plus',
   'qwen3.7-max',
   'qwen3-max',
+  'qwen3.8-flash',
   'qwen3.8-max',
   'qwen3.8-max-preview'
 ])
@@ -269,6 +272,16 @@ const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.
 
 const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   ...qwenReasoningOverrides,
+  {
+    apiModelId: 'qwen3.8-flash',
+    modelId: 'qwen3-8-flash',
+    name: 'Qwen3.8 Flash',
+    ...endpointPin('qwen3.8-flash'),
+    reasoningContracts: {
+      'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
+      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+    }
+  },
   {
     apiModelId: 'qwen3.8-max',
     modelId: 'qwen3-8-max',

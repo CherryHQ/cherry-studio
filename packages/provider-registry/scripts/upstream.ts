@@ -14,9 +14,14 @@ import * as z from 'zod'
 
 import type { ImageGenerationSupport, ModelConfig, ReasoningSupport, SupportSpec } from '../src/schemas/model'
 import type { ProviderModelOverride } from '../src/schemas/provider-models'
+import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
+
+export const isOpenRouterCompositeImageModelId = (modelId: string): boolean =>
+  /^openai\/gpt-\d+(?:[.-]\d+)*-image(?:-[\w-]+)?$/i.test(modelId)
+
 export const CAP_ORDER = [
   'function-call',
   'reasoning',
@@ -201,15 +206,15 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
       values: selectableEfforts,
       ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { default: defaultEffort } : {})
     })
-  } else if (!descriptor.supports_max_tokens && !descriptor.mandatory && descriptor.default_enabled !== undefined) {
-    controls.push({ kind: 'toggle', default: descriptor.default_enabled })
+  }
+  if (!descriptor.mandatory) {
+    controls.push({
+      kind: 'toggle',
+      ...(descriptor.default_enabled !== undefined ? { default: descriptor.default_enabled } : {})
+    })
   }
 
-  return {
-    controls,
-    ...(selectableEfforts.length > 0 ? { supportedEfforts: selectableEfforts } : {}),
-    ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { defaultEffort } : {})
-  }
+  return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) }) as ReasoningSupport
 }
 
 /** Merge generated OpenRouter support with a hand-written exact override. Hand-written fields win. */
@@ -353,11 +358,11 @@ export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
   // `a` (the earlier/curated source) wins per-field conflicts; `b` only fills fields `a` is missing.
   if (b.pricing) out.pricing = { ...b.pricing, ...a.pricing }
   if (b.reasoning) {
-    out.reasoning = { ...a.reasoning, ...b.reasoning }
+    out.reasoning = { ...b.reasoning, ...a.reasoning }
     const controls = mergeReasoningControls(a.reasoning?.controls, b.reasoning.controls)
     if (controls.length) out.reasoning.controls = controls
-    const ef = [...new Set([...(a.reasoning?.supportedEfforts ?? []), ...(b.reasoning.supportedEfforts ?? [])])]
-    if (ef.length) out.reasoning.supportedEfforts = ef
+    const efforts = a.reasoning?.supportedEfforts ?? b.reasoning.supportedEfforts
+    if (efforts?.length) out.reasoning.supportedEfforts = efforts
   }
   if (b.openWeights) out.openWeights = true
   if (b.family && !a.family) out.family = b.family
@@ -368,31 +373,17 @@ export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
 type Controls = NonNullable<NonNullable<CherryMeta['reasoning']>['controls']>
 
 /**
- * Union reasoning controls per kind across sources (same spirit as the
- * capability union): effort values union (a's order first), budget range
- * widens, toggle survives if either side declares it.
+ * Preserve the earlier source's declaration for each reasoning-control kind.
+ * A later source fills only kinds the earlier source does not declare.
  */
 function mergeReasoningControls(a: Controls | undefined, b: Controls | undefined): Controls {
   const pick = <K extends Controls[number]['kind']>(list: Controls | undefined, kind: K) =>
     list?.find((c): c is Extract<Controls[number], { kind: K }> => c.kind === kind)
   const out: Controls = []
   const [ea, eb] = [pick(a, 'effort'), pick(b, 'effort')]
-  if (ea || eb) {
-    out.push({
-      kind: 'effort',
-      values: [...new Set([...(ea?.values ?? []), ...(eb?.values ?? [])])],
-      ...((ea?.default ?? eb?.default) != null ? { default: ea?.default ?? eb?.default } : {})
-    })
-  }
+  if (ea || eb) out.push(ea ?? eb!)
   const [ba, bb] = [pick(a, 'budget'), pick(b, 'budget')]
-  if (ba || bb) {
-    out.push({
-      kind: 'budget',
-      min: Math.min(ba?.min ?? Infinity, bb?.min ?? Infinity),
-      max: Math.max(ba?.max ?? 0, bb?.max ?? 0),
-      ...((ba?.default ?? bb?.default) != null ? { default: ba?.default ?? bb?.default } : {})
-    })
-  }
+  if (ba || bb) out.push(ba ?? bb!)
   const toggle = pick(a, 'toggle') ?? pick(b, 'toggle')
   if (toggle) out.push(toggle)
   return out

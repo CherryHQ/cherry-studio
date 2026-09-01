@@ -331,10 +331,7 @@ export function inferCustomModelReasoning(
 }
 
 /**
- * Image-generation ingest heuristic — mirrors legacy DEDICATED_IMAGE_MODELS regex
- * `gpt-[\d.]+-image(?:-[\w-]+)?` from PR #15684. Used for custom models
- * that have no catalog entry (e.g. user-added `gpt-5.4-image-2`). Returns the
- * capability array to add, or empty.
+ * Infer image-generation capability for a custom model that has no catalog entry.
  */
 export function inferCustomModelImageGeneration(modelId: string): ModelCapability[] {
   return isImageGenerationId(modelId) ? [MODEL_CAPABILITY.IMAGE_GENERATION] : []
@@ -423,8 +420,7 @@ export function createCustomModel(
   // Ingest-time heuristics: an unmatched model still gets its reasoning
   // descriptor when the id is recognizably a reasoning SKU, so custom rows
   // are descriptor-driven like catalog rows (#16598).
-  // Also handle versioned GPT image SKUs (gpt-5.4-image-2 etc.) via
-  // isImageGenerationId — mirrors legacy regex gpt-[\d.]+-image from PR #15684.
+  // Also handle versioned GPT image SKUs such as gpt-5.4-image-2.
   const reasoning = inferCustomModelReasoning(modelId, profile)
   const imageGenCaps = inferCustomModelImageGeneration(modelId)
   const isImageGen = imageGenCaps.length > 0

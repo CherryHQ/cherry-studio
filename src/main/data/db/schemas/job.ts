@@ -78,6 +78,9 @@ export const jobTable = sqliteTable(
     error: text({ mode: 'json' }).$type<JobError>(),
     parentId: text(),
     cancelRequested: integer({ mode: 'boolean' }).notNull().default(false),
+    // Set once at the first cancel request while the job is active, never moved.
+    // Read models use it as the cancel time; finishedAt keeps transition time.
+    cancelRequestedAt: integer(),
     metadata: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
     timeoutMs: integer(),
     ...createUpdateTimestamps

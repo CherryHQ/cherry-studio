@@ -2331,15 +2331,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.625
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.3
+          "perMillionTokens": 3
         }
       },
       "reasoning": {
@@ -2362,18 +2366,12 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "structured-output"],
       "contextWindow": 1000000,
       "family": "qwen",
       "id": "qwen3-8-flash",
       "inputModalities": ["text", "image", "video"],
+      "maxInputTokens": 991808,
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Qwen3.8 Flash",
@@ -2408,14 +2406,14 @@
           },
           {
             "kind": "budget",
-            "max": 38912,
-            "min": 1024
+            "max": 262144,
+            "min": 0
           }
         ],
         "supportedEfforts": ["low", "medium", "xhigh", "none"],
         "thinkingTokenLimits": {
-          "max": 38912,
-          "min": 1024
+          "max": 262144,
+          "min": 0
         }
       }
     },
@@ -3529,26 +3527,6 @@
       "name": "wan2.7-image-pro",
       "outputModalities": ["image"],
       "ownedBy": "alibaba"
-    },
-    {
-      "capabilities": ["reasoning", "structured-output"],
-      "contextWindow": 65536,
-      "id": "olmo-3-32b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "AllenAI: Olmo 3 32B Think",
-      "outputModalities": ["text"],
-      "ownedBy": "allenai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        }
-      }
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "video-recognition", "file-input"],
@@ -12084,6 +12062,16 @@
       "ownedBy": "minimax"
     },
     {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "family": "minimax",
+      "id": "minimax-h3-max",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "MiniMax H3 Max",
+      "outputModalities": ["video"],
+      "ownedBy": "minimax"
+    },
+    {
       "capabilities": ["function-call", "reasoning"],
       "contextWindow": 1000000,
       "id": "minimax-m1",
@@ -14631,10 +14619,10 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+            "values": ["none", "minimal", "low", "medium", "high", "max"]
           }
         ],
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "minimal", "low", "medium", "high", "max"]
       }
     },
     {
@@ -16172,76 +16160,6 @@
       }
     },
     {
-      "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "family": "gpt-image",
-      "id": "gpt-5-3-image",
-      "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
-          },
-          "generate": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
-          }
-        }
-      },
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "GPT-5.3 Image",
-      "outputModalities": ["text", "image"],
-      "ownedBy": "openai"
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1050000,
       "family": "gpt",
@@ -16274,125 +16192,6 @@
           }
         ],
         "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
-      "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "family": "gpt-image",
-      "id": "gpt-5-4-image",
-      "imageGeneration": {
-        "modes": {
-          "edit": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
-          },
-          "generate": {
-            "supports": {
-              "background": {
-                "options": ["auto", "transparent", "opaque"],
-                "type": "enum"
-              },
-              "moderation": {
-                "options": ["auto", "low"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
-          }
-        }
-      },
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "GPT-5.4 Image",
-      "outputModalities": ["text", "image"],
-      "ownedBy": "openai"
-    },
-    {
-      "capabilities": ["image-recognition", "image-generation", "file-input"],
-      "contextWindow": 272000,
-      "family": "gpt-image",
-      "id": "gpt-5-4-image-2",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "background": {
-                "options": ["auto", "opaque"],
-                "type": "enum"
-              },
-              "numImages": {
-                "default": 1,
-                "max": 10,
-                "min": 1,
-                "type": "range"
-              },
-              "quality": {
-                "options": ["auto", "low", "medium", "high"],
-                "type": "enum"
-              },
-              "size": {
-                "default": "1024x1024",
-                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
-                "render": "chips",
-                "type": "enum"
-              }
-            }
-          }
-        }
-      },
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "GPT-5.4 Image 2",
-      "outputModalities": ["image"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        }
       }
     },
     {
@@ -16846,64 +16645,6 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "id": "gpt-5-image",
-      "inputModalities": ["image", "text"],
-      "metadata": {},
-      "name": "OpenAI: GPT-5 Image",
-      "outputModalities": ["image", "text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "id": "gpt-5-image-mini",
-      "inputModalities": ["image", "text"],
-      "metadata": {},
-      "name": "OpenAI: GPT-5 Image Mini",
-      "outputModalities": ["image", "text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -18982,14 +18723,15 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["reasoning", "function-call", "structured-output"],
       "contextWindow": 1048576,
       "family": "Hy",
       "id": "hy4-preview",
       "inputModalities": ["text"],
-      "maxOutputTokens": 64000,
+      "maxInputTokens": 983040,
+      "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Tencent Hy4 Preview",
+      "name": "Hunyuan 4 Preview",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
@@ -21586,13 +21328,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+            "values": ["high", "max"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["high", "max", "none", "minimal", "low", "medium", "xhigh"]
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -21643,6 +21385,7 @@
       "maxOutputTokens": 1000000,
       "metadata": {},
       "name": "GLM-5.3",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -21876,11 +21619,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.25
+          "perMillionTokens": 1.1875
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 4.18
         }
       }
     },
@@ -21917,5 +21660,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "d6d68a623f8af1c4"
+  "version": "2f0039fd6893970f"
 }

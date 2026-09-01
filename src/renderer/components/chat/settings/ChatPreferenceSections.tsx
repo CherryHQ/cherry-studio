@@ -1,4 +1,14 @@
-import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from '@cherrystudio/ui'
+import {
+  EditableNumber,
+  Flex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Switch
+} from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
@@ -72,6 +82,8 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
   const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
   const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
     'chat.message.render_as_markdown'
   )
@@ -283,6 +295,32 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.markdown_rendering_input_message')}
             />
           </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingSwitch
+              checked={pasteLongTextAsFile}
+              onCheckedChange={setPasteLongTextAsFile}
+              label={t('settings.messages.input.paste_long_text_as_file')}
+            />
+          </SettingRow>
+          {pasteLongTextAsFile && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
+                <EditableNumber
+                  size="small"
+                  className="w-20 text-sm"
+                  aria-label={t('settings.messages.input.paste_long_text_threshold')}
+                  min={500}
+                  max={10000}
+                  step={100}
+                  value={pasteLongTextThreshold}
+                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
+                />
+              </SettingRow>
+            </>
+          )}
           <SettingDivider />
           <SettingRow>
             <SettingSwitch

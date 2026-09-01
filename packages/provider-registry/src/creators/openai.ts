@@ -179,49 +179,6 @@ export default defineCreator({
       outputModalities: ['image'],
       imageGeneration: gptImageFullImageGeneration
     },
-    {
-      id: 'gpt-5-4-image',
-      name: 'GPT-5.4 Image',
-      family: 'gpt-image',
-      capabilities: ['image-recognition', 'image-generation', 'file-input'],
-      inputModalities: ['text', 'image'],
-      outputModalities: ['text', 'image'],
-      imageGeneration: gptImageFullImageGeneration
-    },
-    {
-      id: 'gpt-5-4-image-2',
-      name: 'GPT-5.4 Image 2',
-      family: 'gpt-image',
-      capabilities: ['image-recognition', 'image-generation', 'file-input'],
-      inputModalities: ['text', 'image'],
-      outputModalities: ['image'],
-      imageGeneration: {
-        modes: {
-          generate: {
-            supports: {
-              background: { options: ['auto', 'opaque'], type: 'enum' },
-              numImages: { default: 1, max: 10, min: 1, type: 'range' },
-              quality: { options: ['auto', 'low', 'medium', 'high'], type: 'enum' },
-              size: {
-                default: '1024x1024',
-                options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      id: 'gpt-5-3-image',
-      name: 'GPT-5.3 Image',
-      family: 'gpt-image',
-      capabilities: ['image-recognition', 'image-generation', 'file-input'],
-      inputModalities: ['text', 'image'],
-      outputModalities: ['text', 'image'],
-      imageGeneration: gptImageFullImageGeneration
-    },
     // GPT-5 chat / reasoning SKUs. models.dev over-tags these with `image-generation`
     // + an `image` output modality — GPT-5 emits images only via the Responses
     // `image_generation` TOOL, never the `/images` endpoint. That stray capability floats

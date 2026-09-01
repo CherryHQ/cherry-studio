@@ -37,6 +37,7 @@ import { canonOf, isModelsDevRoutingAlias, prefixHit, splitOverrideWireId } from
 import {
   type CherryMeta,
   finalizeMeta,
+  isOpenRouterCompositeImageModelId,
   mergeMeta,
   mergeOpenRouterReasoningContracts,
   type ModelsDevApi,
@@ -312,8 +313,9 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
     )
   )
   for (const m of or.data ?? []) {
-    // A named `~vendor/*` override is an OpenRouter-owned moving alias, not a creator model.
-    if (m.id.startsWith('~') && openRouterStandalones.has(canonOf(m.id))) continue
+    // Router-owned aliases and composite image routes are not creator models.
+    if ((m.id.startsWith('~') && openRouterStandalones.has(canonOf(m.id))) || isOpenRouterCompositeImageModelId(m.id))
+      continue
     consider(m.id, parseOrEntry(m), 'openrouter')
   }
 
@@ -606,11 +608,12 @@ function buildProviderModels(
     const modelId = canonOf(model.id)
     if (!imageGeneration || !modelId) continue
     const meta = parseOrEntry(model)
+    const ownedBy = isOpenRouterCompositeImageModelId(model.id) ? 'openrouter' : model.id.split('/')[0]
     const imageRow = {
       providerId: 'openrouter',
       modelId,
       apiModelId: model.id,
-      ...(!baseIds.has(modelId) ? { name: model.name ?? model.id, ownedBy: model.id.split('/')[0] } : {}),
+      ...(!baseIds.has(modelId) ? { name: model.name ?? model.id, ownedBy } : {}),
       capabilities: { add: ['image-generation'] },
       endpointTypes: ['openai-image-generation'],
       ...(meta?.inputModalities ? { inputModalities: meta.inputModalities } : {}),

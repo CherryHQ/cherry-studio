@@ -140,6 +140,15 @@ describe('catalog invariants (data/*.json)', () => {
     expect(leaking).toEqual([])
   })
 
+  it('Fireworks rows carry account-scoped wire ids', () => {
+    const invalid = overrides
+      .filter(({ providerId }) => providerId === 'fireworks')
+      .filter(({ apiModelId }) => !apiModelId?.match(/^accounts\/fireworks\/(models|routers)\//))
+      .map(({ modelId }) => modelId)
+
+    expect(invalid).toEqual([])
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })
@@ -187,6 +196,25 @@ describe('catalog invariants (data/*.json)', () => {
     })
     expect(baseIds.has(deepseekLatest!.modelId)).toBe(false)
     expect(deepseekLatest?.pricing).toBeUndefined()
+  })
+
+  it('keeps OpenRouter composite GPT image routes out of the OpenAI creator catalog', () => {
+    const compositeApiId = /^openai\/gpt-\d+(?:[.-]\d+)*-image(?:-[\w-]+)?$/i
+    const compositeModelId = /^gpt-\d+(?:-\d+)*-image(?:-[\w-]+)?$/i
+    const openRouterComposites = providerModelOverrides.filter(
+      (override) => override.providerId === 'openrouter' && compositeApiId.test(override.apiModelId ?? '')
+    )
+
+    expect(ids.filter((id) => compositeModelId.test(id))).toEqual([])
+    expect(openRouterComposites.length).toBeGreaterThan(0)
+    for (const override of openRouterComposites) {
+      expect(override).toMatchObject({
+        capabilities: { add: expect.arrayContaining(['image-generation']) },
+        endpointTypes: expect.arrayContaining(['openai-image-generation']),
+        name: expect.any(String),
+        ownedBy: 'openrouter'
+      })
+    }
   })
 
   it('drops Vercel OpenAI fast routing aliases without dropping real fast models', () => {

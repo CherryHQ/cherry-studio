@@ -143,7 +143,5 @@ export {
 export { isWebSearchEffortUnsupported, supportsServerToolFunctionMixing } from './patterns/serverToolConstraints'
 export { isServerToolModelEligible } from './patterns/serverToolModelEligibility'
 
-// Image-generation heuristics — ingest-time only (custom-model creation,
-// catalog enrichment). Mirrors legacy DEDICATED_IMAGE_MODELS regex
-// gpt-[\d.]+-image(?:-[\w-]+)? from PR #15684.
+// Image-generation heuristics for custom-model creation and catalog enrichment.
 export { isImageGenerationId } from './patterns/image-generation'

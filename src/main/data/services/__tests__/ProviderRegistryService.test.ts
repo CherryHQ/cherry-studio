@@ -131,8 +131,13 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, projectRuntimeReasoning, providerRegistryService, resolveReasoningProfileFromRegistry } =
-  await import('../ProviderRegistryService')
+const {
+  createCustomModel,
+  mergePresetModel,
+  projectRuntimeReasoning,
+  providerRegistryService,
+  resolveReasoningProfileFromRegistry
+} = await import('../ProviderRegistryService')
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -193,6 +198,16 @@ describe('ProviderRegistryService', () => {
     vi.clearAllMocks()
     clearServiceCache()
     MockMainDbServiceUtils.setDb(dbh.db)
+  })
+
+  describe('createCustomModel', () => {
+    it('marks a versioned GPT image route as image-generating', () => {
+      const model = createCustomModel('openrouter', 'openai/gpt-5-4-image-2')
+
+      expect(model.capabilities).toContain('image-generation')
+      expect(model.inputModalities).toEqual(['text', 'image'])
+      expect(model.outputModalities).toEqual(['text', 'image'])
+    })
   })
 
   describe('getProviderPreset', () => {
