@@ -140,6 +140,15 @@ describe('catalog invariants (data/*.json)', () => {
     expect(leaking).toEqual([])
   })
 
+  it('Fireworks rows carry account-scoped wire ids', () => {
+    const invalid = overrides
+      .filter(({ providerId }) => providerId === 'fireworks')
+      .filter(({ apiModelId }) => !apiModelId?.match(/^accounts\/fireworks\/(models|routers)\//))
+      .map(({ modelId }) => modelId)
+
+    expect(invalid).toEqual([])
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
   })

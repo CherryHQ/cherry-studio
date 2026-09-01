@@ -98,6 +98,27 @@ describe('PreferencesMigrator', () => {
       expect(rows[0].value).toBe('zh-CN')
     })
 
+    it('preserves v1 long-text paste preferences', async () => {
+      const ctx = createTestContext(
+        {
+          redux: {
+            settings: {
+              pasteLongTextAsFile: false,
+              pasteLongTextThreshold: 3200
+            }
+          }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const pasteAsFile = await selectByKey(dbh.db, 'chat.input.paste_long_text_as_file')
+      const threshold = await selectByKey(dbh.db, 'chat.input.paste_long_text_threshold')
+      expect(pasteAsFile[0]?.value).toBe(false)
+      expect(threshold[0]?.value).toBe(3200)
+    })
+
     it('migrates v1 custom CSS to the current preference behind the v1 marker', async () => {
       const legacyCustomCss = 'body { color: tomato; }'
       const ctx = createTestContext({ redux: { settings: { customCss: legacyCustomCss } } }, dbh.db)
