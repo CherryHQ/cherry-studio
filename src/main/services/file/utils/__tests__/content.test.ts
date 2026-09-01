@@ -6,6 +6,7 @@ import { hashContent, PathStaleVersionError } from '@main/utils/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { runPathMutationExclusive } from '../..'
 import { readByPath, readChunkByPath, writeIfUnchangedByPath } from '../content'
 
 describe('file/utils/content', () => {
@@ -89,5 +90,29 @@ describe('file/utils/content', () => {
       writeIfUnchangedByPath(target, new TextEncoder().encode('editor change'), result.version)
     ).rejects.toBeInstanceOf(PathStaleVersionError)
     expect(await readFile(target, 'utf-8')).toBe('external change')
+  })
+
+  it('waits for an exclusive path mutation before checking and writing', async () => {
+    const target = path.join(tmp, 'locked.txt') as AbsoluteFilePath
+    await writeFile(target, 'original', 'utf-8')
+    const original = await readByPath(target, { encoding: 'binary' })
+
+    let releaseMutation!: () => void
+    const mutation = runPathMutationExclusive(() => new Promise<void>((resolve) => (releaseMutation = resolve)))
+    while (!releaseMutation) await Promise.resolve()
+
+    let writeSettled = false
+    const write = writeIfUnchangedByPath(target, new TextEncoder().encode('editor change'), original.version).finally(
+      () => (writeSettled = true)
+    )
+    await Promise.resolve()
+
+    expect(writeSettled).toBe(false)
+    expect(await readFile(target, 'utf-8')).toBe('original')
+
+    releaseMutation()
+    await mutation
+    await write
+    expect(await readFile(target, 'utf-8')).toBe('editor change')
   })
 })

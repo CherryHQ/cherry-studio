@@ -7,7 +7,10 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { readByPath, writeIfUnchangedByPath } from '@main/services/file'
+import { PathStaleVersionError } from '@main/utils/file'
 import { skillErrorCodes } from '@shared/ipc/errors/skill'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { hasSkillRemoteUpdateProvenance } from '@shared/utils/skillMarketplace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -331,7 +334,9 @@ describe('SkillService authoring and remote updates', () => {
     const service = new SkillService()
     const check = await service.checkRemoteUpdate(SKILL_ID)
     if (check.state !== 'available') throw new Error('Expected an available update')
-    const installSpy = vi.spyOn(SkillInstaller.prototype, 'install').mockRejectedValueOnce(new Error('publish failed'))
+    const installSpy = vi
+      .spyOn(SkillInstaller.prototype, 'prepareInstall')
+      .mockRejectedValueOnce(new Error('publish failed'))
 
     try {
       await expect(
@@ -347,6 +352,82 @@ describe('SkillService authoring and remote updates', () => {
     const row = dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID)).get()
     expect(row).toMatchObject({ version: '1.0.0', sourceUrl: SOURCE_URL, contentHash })
     await expect(fs.promises.access(fetchedTempDir)).rejects.toThrow()
+  })
+
+  it('restores files and metadata when mirror publication fails after replacement', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir, { supportingContent: 'echo baseline\n' })
+    const contentHash = await installer.computeContentHash(skillDir)
+    await seedSkill(SKILL_ID, 'writer')
+    fetchRemoteSkillMock.mockImplementation(() => createFetchedSkill('2.0.0', 'echo remote\n'))
+    const service = new SkillService()
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    if (check.state !== 'available') throw new Error('Expected an available update')
+    const mirrorSpy = vi
+      .spyOn(service, 'linkMirror')
+      .mockRejectedValueOnce(new Error('mirror failed'))
+      .mockResolvedValueOnce(undefined)
+
+    await expect(
+      service.applyRemoteUpdate({ skillId: SKILL_ID, revision: check.revision, overwriteLocalChanges: false })
+    ).rejects.toThrow('mirror failed')
+
+    await expect(fs.promises.readFile(path.join(skillDir, 'scripts', 'run.sh'), 'utf-8')).resolves.toBe(
+      'echo baseline\n'
+    )
+    expect(agentGlobalSkillService.getById(SKILL_ID)).toMatchObject({
+      version: '1.0.0',
+      sourceUrl: SOURCE_URL,
+      contentHash
+    })
+    expect(mirrorSpy).toHaveBeenCalledTimes(2)
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+  })
+
+  it('serializes editor writes with remote replacement so the write fails stale instead of being lost', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir, { supportingContent: 'echo baseline\n' })
+    await seedSkill(SKILL_ID, 'writer')
+    fetchRemoteSkillMock.mockImplementation(() => createFetchedSkill('2.0.0', 'echo remote\n'))
+    const service = new SkillService()
+    const check = await service.checkRemoteUpdate(SKILL_ID)
+    if (check.state !== 'available') throw new Error('Expected an available update')
+
+    const target = path.join(skillDir, 'scripts', 'run.sh') as AbsoluteFilePath
+    const snapshot = await readByPath(target, { encoding: 'binary' })
+    const originalPrepare = service['installer'].prepareInstall.bind(service['installer'])
+    let releasePrepare!: () => void
+    let signalPrepareStarted!: () => void
+    const prepareStarted = new Promise<void>((resolve) => (signalPrepareStarted = resolve))
+    const prepareGate = new Promise<void>((resolve) => (releasePrepare = resolve))
+    vi.spyOn(service['installer'], 'prepareInstall').mockImplementation(async (...args) => {
+      signalPrepareStarted()
+      await prepareGate
+      return originalPrepare(...args)
+    })
+
+    const update = service.applyRemoteUpdate({
+      skillId: SKILL_ID,
+      revision: check.revision,
+      overwriteLocalChanges: false
+    })
+    await prepareStarted
+
+    let writeSettled = false
+    const write = writeIfUnchangedByPath(
+      target,
+      new TextEncoder().encode('echo editor\n'),
+      snapshot.version,
+      snapshot.contentHash
+    ).finally(() => (writeSettled = true))
+    void write.catch(() => undefined)
+    await Promise.resolve()
+    expect(writeSettled).toBe(false)
+
+    releasePrepare()
+    await update
+    await expect(write).rejects.toBeInstanceOf(PathStaleVersionError)
+    await expect(fs.promises.readFile(target, 'utf-8')).resolves.toBe('echo remote\n')
   })
 
   it('rejects a stale checked revision before replacing the local folder', async () => {
@@ -383,5 +464,21 @@ describe('SkillService authoring and remote updates', () => {
     fetchRemoteSkillMock.mockRejectedValue(new Error('offline'))
     await expect(service.checkRemoteUpdate(SKILL_ID)).rejects.toThrow('offline')
     await expect(fs.promises.readFile(path.join(oldSkillDir, 'SKILL.md'), 'utf-8')).resolves.toContain('version: 1.0.0')
+  })
+
+  it('does not offer remote updates for Clawhub provenance without a China-capable transport', async () => {
+    const skillDir = path.join(skillsRoot, 'writer')
+    await writeSkill(skillDir)
+    await seedSkill(SKILL_ID, 'writer', { sourceUrl: 'https://clawhub.ai/owner/skills/writer' })
+    const service = new SkillService()
+
+    await expect(service.checkRemoteUpdate(SKILL_ID)).resolves.toEqual({
+      state: 'unsupported',
+      reason: 'missing_provenance'
+    })
+    await expect(
+      service.applyRemoteUpdate({ skillId: SKILL_ID, revision: 'unused', overwriteLocalChanges: false })
+    ).rejects.toMatchObject({ code: skillErrorCodes.REMOTE_UNSUPPORTED })
+    expect(fetchRemoteSkillMock).not.toHaveBeenCalled()
   })
 })

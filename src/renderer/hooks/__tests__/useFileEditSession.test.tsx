@@ -241,6 +241,51 @@ describe('useFileEditSession', () => {
     }
   })
 
+  it('keeps edits made while a conflicted draft is reloading', async () => {
+    vi.useFakeTimers()
+    try {
+      ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+      const { result } = renderSession()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('keep me'))
+      ipcMocks.request
+        .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+        .mockResolvedValueOnce(readResult(utf8('external\n'), 9))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800)
+      })
+
+      let resolveReload!: (value: ReturnType<typeof readResult>) => void
+      ipcMocks.request
+        .mockImplementationOnce(() => new Promise((resolve) => (resolveReload = resolve)))
+        .mockResolvedValueOnce(writeResult(11, 19))
+      let keepPromise!: Promise<void>
+      act(() => {
+        keepPromise = result.current.keepDraft()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+
+      act(() => result.current.setDraft('typed during reload'))
+      await act(async () => {
+        resolveReload(readResult(utf8('external\n'), 10))
+        await keepPromise
+      })
+
+      expect(result.current.savedContent).toBe('typed during reload')
+      expect(writeCalls().at(-1)?.[1]).toMatchObject({
+        data: utf8('typed during reload'),
+        expectedVersion: { mtime: 10, size: 9 }
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('adopts a stale write whose content already matches the disk (no conflict)', async () => {
     vi.useFakeTimers()
     try {

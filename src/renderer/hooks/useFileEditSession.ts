@@ -379,11 +379,9 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     if (!model) return
     debouncedWrite.cancel()
     await model.chain
-    const draftToKeep = model.draft
     const disk = await readFile(model.handle)
     if (modelRef.current !== model) return
     model.snapshot = disk
-    model.draft = draftToKeep
     model.conflict = false
     model.lastWriteError = null
     syncFromModel(model)

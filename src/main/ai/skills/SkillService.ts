@@ -7,6 +7,7 @@ import { application } from '@application'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { runPathMutationExclusive } from '@main/services/file'
 import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -799,7 +800,7 @@ export class SkillService {
     const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) throw new Error(`Skill not found: ${skillId}`)
     if (skill.source !== 'marketplace') return { state: 'unsupported', reason: 'not_remote' }
-    if (!hasSkillRemoteUpdateProvenance(skill)) {
+    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
       return { state: 'unsupported', reason: 'missing_provenance' }
     }
 
@@ -838,7 +839,7 @@ export class SkillService {
   }): Promise<InstalledSkill> {
     const skill = agentGlobalSkillService.getById(options.skillId)
     if (!skill) throw new Error(`Skill not found: ${options.skillId}`)
-    if (!hasSkillRemoteUpdateProvenance(skill)) {
+    if (!this.hasSupportedRemoteUpdateProvenance(skill)) {
       throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_UNSUPPORTED, 'Skill has no supported remote source')
     }
 
@@ -849,60 +850,99 @@ export class SkillService {
         parseSkillMetadata(fetched.skillDir, skill.folderName, 'skills')
       ])
 
-      return await this.mutationLock.runExclusive(async () => {
-        const currentSkill = agentGlobalSkillService.getById(options.skillId)
-        if (
-          !currentSkill ||
-          !hasSkillRemoteUpdateProvenance(currentSkill) ||
-          currentSkill.sourceUrl !== skill.sourceUrl ||
-          currentSkill.contentHash !== skill.contentHash
-        ) {
-          throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update provenance changed')
-        }
+      return await this.mutationLock.runExclusive(() =>
+        runPathMutationExclusive(async () => {
+          const currentSkill = agentGlobalSkillService.getById(options.skillId)
+          if (
+            !currentSkill ||
+            !this.hasSupportedRemoteUpdateProvenance(currentSkill) ||
+            currentSkill.sourceUrl !== skill.sourceUrl ||
+            currentSkill.contentHash !== skill.contentHash
+          ) {
+            throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update provenance changed')
+          }
 
-        const destination = this.getSkillStoragePath(currentSkill.folderName)
-        const currentHash = await this.installer.computeContentHash(destination)
-        const revision = this.createRemoteRevision({
-          skillId: options.skillId,
-          sourceUrl: currentSkill.sourceUrl!,
-          baselineHash: currentSkill.contentHash,
-          currentHash,
-          remoteHash
+          const destination = this.getSkillStoragePath(currentSkill.folderName)
+          const currentHash = await this.installer.computeContentHash(destination)
+          const revision = this.createRemoteRevision({
+            skillId: options.skillId,
+            sourceUrl: currentSkill.sourceUrl!,
+            baselineHash: currentSkill.contentHash,
+            currentHash,
+            remoteHash
+          })
+          if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
+            throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
+          }
+
+          const hasLocalChanges = currentHash !== currentSkill.contentHash
+          if (hasLocalChanges && !options.overwriteLocalChanges) {
+            throw new SkillRemoteUpdateError(
+              skillErrorCodes.REMOTE_LOCAL_CHANGES,
+              'Skill has local changes that require explicit overwrite'
+            )
+          }
+
+          const prepared = await this.installer.prepareInstall(fetched.skillDir, destination)
+          let databaseUpdated = false
+          try {
+            await this.linkMirror(currentSkill.folderName, { throwOnError: true })
+            application.get('DbService').withWriteTx((tx) => {
+              agentGlobalSkillService.updateTx(tx, options.skillId, {
+                name: metadata.name,
+                description: metadata.description ?? null,
+                author: metadata.author ?? null,
+                version: metadata.version ?? null,
+                tags: metadata.tags ?? [],
+                sourceUrl: fetched.sourceUrl,
+                contentHash: remoteHash
+              })
+            })
+            databaseUpdated = true
+            const updated = agentGlobalSkillService.getById(options.skillId)
+            if (!updated) throw new Error(`Skill disappeared after remote update: ${options.skillId}`)
+            await prepared.commit()
+
+            agentGlobalSkillService.notifySkillProjectionChange(options.skillId)
+            logger.info('Remote Skill update applied', {
+              skillId: options.skillId,
+              folderName: currentSkill.folderName,
+              overwriteLocalChanges: options.overwriteLocalChanges
+            })
+            return updated
+          } catch (error) {
+            const recoveryErrors: unknown[] = []
+            await prepared.rollback().catch((recoveryError) => recoveryErrors.push(recoveryError))
+            if (databaseUpdated) {
+              try {
+                application.get('DbService').withWriteTx((tx) => {
+                  agentGlobalSkillService.updateTx(tx, options.skillId, {
+                    name: currentSkill.name,
+                    description: currentSkill.description,
+                    author: currentSkill.author,
+                    version: currentSkill.version,
+                    tags: currentSkill.sourceTags,
+                    sourceUrl: currentSkill.sourceUrl,
+                    contentHash: currentSkill.contentHash
+                  })
+                })
+              } catch (recoveryError) {
+                recoveryErrors.push(recoveryError)
+              }
+            }
+            await this.linkMirror(currentSkill.folderName, { throwOnError: true }).catch((recoveryError) =>
+              recoveryErrors.push(recoveryError)
+            )
+            if (recoveryErrors.length > 0) {
+              throw new AggregateError(
+                [error, ...recoveryErrors],
+                `Failed to apply and restore remote Skill update: ${options.skillId}`
+              )
+            }
+            throw error
+          }
         })
-        if (revision !== options.revision || remoteHash === currentSkill.contentHash) {
-          throw new SkillRemoteUpdateError(skillErrorCodes.REMOTE_STALE, 'Skill update check is stale')
-        }
-
-        const hasLocalChanges = currentHash !== currentSkill.contentHash
-        if (hasLocalChanges && !options.overwriteLocalChanges) {
-          throw new SkillRemoteUpdateError(
-            skillErrorCodes.REMOTE_LOCAL_CHANGES,
-            'Skill has local changes that require explicit overwrite'
-          )
-        }
-
-        await this.installer.install(fetched.skillDir, destination)
-        agentGlobalSkillService.update(options.skillId, {
-          name: metadata.name,
-          description: metadata.description ?? null,
-          author: metadata.author ?? null,
-          version: metadata.version ?? null,
-          tags: metadata.tags ?? [],
-          sourceUrl: fetched.sourceUrl,
-          contentHash: remoteHash
-        })
-        await this.linkMirror(currentSkill.folderName, { throwOnError: true })
-
-        const updated = agentGlobalSkillService.getById(options.skillId)
-        if (!updated) throw new Error(`Skill disappeared after remote update: ${options.skillId}`)
-        agentGlobalSkillService.notifySkillProjectionChange(options.skillId)
-        logger.info('Remote Skill update applied', {
-          skillId: options.skillId,
-          folderName: currentSkill.folderName,
-          overwriteLocalChanges: options.overwriteLocalChanges
-        })
-        return updated
-      })
+      )
     } finally {
       await safeRemoveDirectory(fetched.tempDir)
     }
@@ -916,6 +956,11 @@ export class SkillService {
     const installSource = parsed.installSource
     const [source, ...identifier] = installSource.split(':')
     return fetchRemoteSkill(source, identifier.join(':'))
+  }
+
+  private hasSupportedRemoteUpdateProvenance(skill: InstalledSkill): boolean {
+    if (!hasSkillRemoteUpdateProvenance(skill)) return false
+    return parseSkillSourceUrl(skill.sourceUrl!)?.sourceRegistry !== 'clawhub.ai'
   }
 
   private createRemoteRevision(input: {

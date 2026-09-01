@@ -1,12 +1,14 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { BINARY_INSTALL_PREFERENCE_KEY } from '@shared/data/presets/binaryTools'
 import { ClawhubSkillDetailSchema } from '@shared/types/skill'
 import { encodeGithubPath, parseGithubSkillUrl } from '@shared/utils/skillMarketplace'
 import { net } from 'electron'
@@ -142,7 +144,7 @@ async function fetchFromClaudePlugins(
 
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  await cloneRepository(repoUrl, tempDir)
+  await cloneRepository(getGithubTransportUrl(repoUrl), tempDir)
 
   return {
     skillDir: await resolveSkillDirectory(tempDir, skillName, directoryPath),
@@ -175,7 +177,8 @@ async function fetchFromGithub(
 
   const { owner, repo, refNamespace, refAndPath, descriptorFileName } = location
   const repoUrl = `https://github.com/${owner}/${repo}`
-  const { ref, namespace, oid, target } = await resolveGithubCommit(repoUrl, refAndPath, refNamespace)
+  const transportRepoUrl = getGithubTransportUrl(repoUrl)
+  const { ref, namespace, oid, target } = await resolveGithubCommit(transportRepoUrl, refAndPath, refNamespace)
   logger.info('Installing from GitHub', { owner, repo, ref, namespace, oid, target })
 
   const sourcePath = target.kind === 'root' ? ref : `${ref}/${target.path}`
@@ -184,7 +187,13 @@ async function fetchFromGithub(
     : `${repoUrl}/blob/${encodeGithubPath(`${sourcePath}/${descriptorFileName}`)}`
 
   const tempDir = await openTempDir()
-  const { contentDir, skillDir } = await materializeGithubTarget(repoUrl, oid, target, descriptorFileName, tempDir)
+  const { contentDir, skillDir } = await materializeGithubTarget(
+    transportRepoUrl,
+    oid,
+    target,
+    descriptorFileName,
+    tempDir
+  )
   await validateRepositorySkillDirectory(contentDir, skillDir, path.join(skillDir, descriptorFileName))
   await assertSkillDirectoryWithinLimits(skillDir)
 
@@ -208,12 +217,33 @@ async function fetchFromSkillsSh(
   const [owner, repo, skillName] = parts
   const repoUrl = `https://github.com/${owner}/${repo}`
   const tempDir = await openTempDir()
-  await cloneRepository(repoUrl, tempDir)
+  await cloneRepository(getGithubTransportUrl(repoUrl), tempDir)
+  const skillDir = await resolveSkillDirectory(tempDir, skillName, null)
+  if (skillDir === (await fs.promises.realpath(tempDir))) {
+    await fs.promises.rm(path.join(tempDir, '.git'), { recursive: true, force: true })
+  }
 
   return {
-    skillDir: await resolveSkillDirectory(tempDir, skillName, null),
+    skillDir,
     sourceUrl: `https://skills.sh/${identifier}`
   }
+}
+
+function getGithubTransportUrl(repoUrl: string): string {
+  const value = application.get('PreferenceService').get(BINARY_INSTALL_PREFERENCE_KEY).githubMirror.trim()
+  if (!value) return repoUrl
+
+  let mirror: URL
+  try {
+    mirror = new URL(value)
+    if (mirror.protocol !== 'http:' && mirror.protocol !== 'https:') throw new Error()
+  } catch {
+    throw new Error('GitHub mirror must be a valid HTTP(S) URL')
+  }
+  if (mirror.username || mirror.password) {
+    throw new Error('GitHub mirror must not contain embedded credentials')
+  }
+  return `${mirror.toString().replace(/\/+$/, '')}/${repoUrl}`
 }
 
 async function fetchFromClawhub(
