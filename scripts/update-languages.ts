@@ -96,7 +96,7 @@ async function format(filePath: string): Promise<void> {
 async function checkTypeScript(filePath: string): Promise<void> {
   console.log('🧐 Checking file with TypeScript compiler...')
   try {
-    await execAsync(`pnpm tsc --noEmit --skipLibCheck ${filePath}`)
+    await execAsync(`pnpm tsc --noEmit --skipLibCheck --ignoreConfig ${filePath}`)
     console.log('✅ TypeScript check passed.')
   } catch (e: any) {
     console.error('❌ TypeScript check failed:', e.stdout || e.stderr)
