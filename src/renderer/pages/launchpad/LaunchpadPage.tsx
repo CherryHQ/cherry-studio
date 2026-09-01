@@ -17,29 +17,24 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
-import { useTheme } from '@renderer/hooks/useTheme'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { getSidebarMenuPath } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { APP_ICON_BACKGROUNDS_DARK, APP_ICON_BACKGROUNDS_LIGHT, LAUNCHPAD_ICON_GRAIN } from './appIconBackgrounds'
-
 const BASE_URL = 'https://www.cherry-ai.com/'
 const DEEPSEEK_HARNESS_URL = '/app/code?tool=deepseek-harness'
 
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_TILE_CLASS =
   'flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-transparent'
 const APP_ICON_MESH_TILE_CLASS =
-  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl shadow-sm'
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-card bg-linear-[140deg] shadow-sm'
 const APP_ICON_FRAME_CLASS =
   'relative flex size-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
 const APP_ICON_CLASS = 'size-[50px] object-contain'
@@ -57,9 +52,23 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
   notes: notesIcon
 }
 
+const APP_ICON_BACKGROUND_CLASSES: Record<SidebarAppId, string> = {
+  assistants: 'from-chart-1/20 via-chart-2/10 to-chart-3/20',
+  agents: 'from-chart-2/20 via-chart-3/10 to-chart-4/20',
+  paintings: 'from-chart-3/20 via-chart-4/10 to-chart-5/20',
+  translate: 'from-chart-4/20 via-chart-5/10 to-chart-1/20',
+  mini_app: 'from-chart-5/20 via-chart-1/10 to-chart-2/20',
+  knowledge: 'from-chart-1/20 via-chart-3/10 to-chart-5/20',
+  files: 'from-chart-2/20 via-chart-4/10 to-chart-1/20',
+  code_tools: 'from-chart-3/20 via-chart-5/10 to-chart-2/20',
+  notes: 'from-chart-4/20 via-chart-1/10 to-chart-3/20'
+}
+
+const LAUNCHPAD_ICON_GRAIN =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
+
 export default function LaunchpadPage() {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
@@ -133,7 +142,8 @@ export default function LaunchpadPage() {
 
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
+      if (!visibleSidebarFavoriteSet.has(favorite)) return
+      if (visibleSidebarFavoriteSet.size <= 1) return
       setAppPinned(favorite, false)
     },
     [setAppPinned, visibleSidebarFavoriteSet]
@@ -142,21 +152,20 @@ export default function LaunchpadPage() {
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
       const isPinned = visibleSidebarFavoriteSet.has(favorite)
+      const isLastPinned = isPinned && visibleSidebarFavoriteSet.size <= 1
 
       return [
         {
           type: 'item',
           id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite),
+          enabled: !isLastPinned,
           onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
     [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
   )
-
-  const appIconBackgrounds = theme === ThemeMode.dark ? APP_ICON_BACKGROUNDS_DARK : APP_ICON_BACKGROUNDS_LIGHT
 
   // Sidebar-backed app tiles keep their existing launchpad order. The direct
   // Harness shortcut is fixed because it is not a sidebar destination.
@@ -170,12 +179,12 @@ export default function LaunchpadPage() {
             id: favorite,
             iconSrc: APP_ICON_SOURCES[favorite],
             text: t(getSidebarIconLabelKey(favorite)),
-            bgColor: appIconBackgrounds[favorite],
+            backgroundClassName: APP_ICON_BACKGROUND_CLASSES[favorite],
             menuItems: getAppContextMenuItems(favorite)
           }
         ]
       }),
-    [appIconBackgrounds, defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
+    [defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
   )
 
   // Mini app tiles are ordered by their global `orderKey` (shared with the mini
@@ -226,10 +235,10 @@ export default function LaunchpadPage() {
         onClick={() => openLaunchpadItem(item.id)}
         className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">
-          <span className={APP_ICON_MESH_TILE_CLASS} style={{ background: item.bgColor }}>
+          <span className={`${APP_ICON_MESH_TILE_CLASS} ${item.backgroundClassName}`}>
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-[0.18] mix-blend-overlay"
+              className="pointer-events-none absolute inset-0 opacity-10 mix-blend-overlay"
               style={{ backgroundImage: LAUNCHPAD_ICON_GRAIN }}
             />
             <span className={`${APP_ICON_FRAME_CLASS} z-10`}>

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { DetectedWindow, ScreenshotInitData } from '@shared/types/screenshot'
-import type { Dispatch, FC, RefObject } from 'react'
+import type { Dispatch, FC, MouseEvent as ReactMouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 
@@ -25,6 +25,7 @@ import { initialState, overlayReducer } from './reducer'
 import type { OverlayAction, OverlayState, SelectionRect } from './types'
 import { findWindowAtPoint } from './utils/findWindowAtPoint'
 import { generateSelectionPng } from './utils/generateBlob'
+import { isPointInSelection } from './utils/isPointInSelection'
 
 const logger = loggerService.withContext('CaptureOverlay')
 
@@ -232,6 +233,26 @@ const CaptureOverlay: FC = () => {
     void ipcApi.request('screenshot.cancel')
   }, [])
 
+  /**
+   * Double-click inside a settled selection confirms it, the convention every other
+   * screenshot tool follows.
+   *
+   * On the root rather than the capture canvas, so a double-click landing on a layer
+   * above it — the OCR text, a rendered annotation — confirms too instead of being
+   * swallowed. Controls that overlap the selection stop the event themselves, the way
+   * they already do for pointerdown. Suppressed while a tool is active: a double-click
+   * there is part of drawing, not an intent to confirm.
+   */
+  const handleDoubleClick = useCallback(
+    (e: ReactMouseEvent) => {
+      if (state.phase !== 'selected' || annotation.state.activeTool !== null) return
+      // The overlay covers the whole display, so viewport coordinates are already logical ones.
+      if (!isPointInSelection(e.clientX, e.clientY, state.selection)) return
+      void handleExport('commit')
+    },
+    [state.phase, state.selection, annotation.state.activeTool, handleExport]
+  )
+
   if (!initData) return null
 
   const { display } = initData
@@ -241,6 +262,7 @@ const CaptureOverlay: FC = () => {
   return (
     <div
       onPointerDownCapture={handlePointerDownCapture}
+      onDoubleClick={handleDoubleClick}
       style={{
         // The window is already on screen before the capture decodes; the gate keeps the
         // user from seeing (and clicking through) a half-built overlay.

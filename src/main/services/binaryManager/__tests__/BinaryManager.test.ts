@@ -2046,6 +2046,41 @@ describe('BinaryManager', () => {
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
+    it('passes a fixed npm lifecycle allowlist as typed mise tool options', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { env: {}, usesDefaultChinaPipIndex: false }
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') {
+          return {
+            stdout: JSON.stringify({ 'npm:@vendor/native-cli': [{ version: '1.2.3', active: true }] }),
+            stderr: ''
+          }
+        }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/native-cli\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect(
+        (service as any).applyDefinition(
+          {
+            name: 'native-cli',
+            tool: 'npm:@vendor/native-cli',
+            npmAllowBuilds: ['@vendor/native-cli', 'better-sqlite3']
+          },
+          undefined,
+          []
+        )
+      ).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'node@22',
+        'npm:@vendor/native-cli[allow_builds=["\\u0040vendor/native-cli","better-sqlite3"]]@latest'
+      ])
+    })
+
     it('accepts a recipe whose bins are not named after it (core:rust ships rustc/cargo)', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'

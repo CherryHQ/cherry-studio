@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { type SidebarFavoriteItem, ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -19,8 +19,7 @@ const mocks = vi.hoisted(() => ({
   setAppOrder: vi.fn(() => Promise.resolve()),
   appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[],
-  toastError: vi.fn(),
-  theme: 'light'
+  toastError: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -102,15 +101,6 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({
-    theme: mocks.theme,
-    settedTheme: mocks.theme,
-    toggleTheme: vi.fn(),
-    setTheme: vi.fn()
-  })
-}))
-
 vi.mock('@renderer/services/toast', () => ({
   toast: {
     error: mocks.toastError
@@ -170,31 +160,10 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { APP_ICON_BACKGROUNDS_DARK, APP_ICON_BACKGROUNDS_LIGHT } from '../appIconBackgrounds'
 import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
 const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
-
-function getAppTileFace(name: string): HTMLElement {
-  const face = [...screen.getByRole('button', { name }).querySelectorAll('span')].find(
-    (el): el is HTMLElement => el instanceof HTMLElement && el.style.background !== ''
-  )
-  expect(face).toBeInstanceOf(HTMLElement)
-  return face as HTMLElement
-}
-
-function getGrainOverlay(root: ParentNode): HTMLElement | null {
-  return root.querySelector('[aria-hidden="true"]')
-}
-
-function expectGrainUnderArtwork(tile: HTMLElement) {
-  const overlay = getGrainOverlay(tile)
-  const artwork = tile.querySelector('img')
-  expect(overlay).toBeInstanceOf(HTMLElement)
-  expect(artwork).toBeInTheDocument()
-  expect(overlay && artwork && overlay.compareDocumentPosition(artwork) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-}
 const createMiniApp = (appId: string, overrides: Partial<MiniApp> = {}): MiniApp =>
   ({
     appId,
@@ -223,7 +192,6 @@ describe('LaunchpadPage', () => {
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
-    mocks.theme = ThemeMode.light
   })
 
   it('renders the launchpad page chrome and app grid', () => {
@@ -247,54 +215,6 @@ describe('LaunchpadPage', () => {
     expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
-  })
-
-  it('paints sidebar app tiles with distinct light-mode mesh gradients and grain', () => {
-    render(<LaunchpadPage />)
-
-    const chat = getAppTileFace('Chat')
-    const knowledge = getAppTileFace('Knowledge')
-    expect(chat).toHaveStyle({
-      background: APP_ICON_BACKGROUNDS_LIGHT.assistants
-    })
-    expect(knowledge).toHaveStyle({
-      background: APP_ICON_BACKGROUNDS_LIGHT.knowledge
-    })
-    expect(chat.style.background).not.toEqual(knowledge.style.background)
-    expectGrainUnderArtwork(chat)
-    expectGrainUnderArtwork(knowledge)
-  })
-
-  it('switches sidebar app tile palettes when the resolved theme is dark', () => {
-    const { rerender } = render(<LaunchpadPage />)
-    const lightChatBackground = getAppTileFace('Chat').style.background
-
-    mocks.theme = ThemeMode.dark
-    rerender(<LaunchpadPage />)
-
-    const darkChat = getAppTileFace('Chat')
-    expect(darkChat).toHaveStyle({
-      background: APP_ICON_BACKGROUNDS_DARK.assistants
-    })
-    expect(darkChat.style.background).not.toEqual(lightChatBackground)
-    expectGrainUnderArtwork(darkChat)
-  })
-
-  it('keeps the DeepSeek Harness shortcut on its own outlined tile, not the app mesh palette', () => {
-    render(<LaunchpadPage />)
-
-    const shortcut = screen.getByRole('button', { name: 'DSH' })
-    // Outlined shortcut contract: semantic `bg-transparent` + `border-border-subtle`, not a mesh fill.
-    const face = [...shortcut.querySelectorAll('span')].find(
-      (el) => el.classList.contains('bg-transparent') && el.classList.contains('border-border-subtle')
-    )
-
-    expect(face).toBeInstanceOf(HTMLElement)
-    expect(face).not.toHaveStyle({
-      background: APP_ICON_BACKGROUNDS_LIGHT.assistants
-    })
-    expect(getGrainOverlay(shortcut)).not.toBeInTheDocument()
-    expect(shortcut.querySelector('img')).toBeInTheDocument()
   })
 
   it('orders app tiles by the launchpad app order, appending the rest canonically', () => {
