@@ -774,7 +774,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
-    openArtifactFile: actions.openArtifactFile,
+    openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.

@@ -44,7 +44,8 @@ const {
   useDirectoryTreeMock,
   ipcRequestMock,
   toastErrorMock,
-  uiMockState
+  uiMockState,
+  useAgentMessageListProviderValueMock
 } = vi.hoisted(() => ({
   backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
@@ -77,7 +78,8 @@ const {
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
-  uiMockState: { useRealHoverCard: false }
+  uiMockState: { useRealHoverCard: false },
+  useAgentMessageListProviderValueMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -414,11 +416,14 @@ vi.mock('@renderer/hooks/useIsTextFile', () => ({
 }))
 
 vi.mock('@renderer/pages/agents/messages/agentMessageListAdapter', () => ({
-  useAgentMessageListProviderValue: () => ({
-    state: {
-      renderConfig: {}
+  useAgentMessageListProviderValue: (params: unknown) => {
+    useAgentMessageListProviderValueMock(params)
+    return {
+      state: {
+        renderConfig: {}
+      }
     }
-  })
+  }
 }))
 
 vi.mock('motion/react', () => ({
@@ -1039,6 +1044,36 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-collapse-completed-tool-history', 'true')
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
+  })
+
+  it('omits artifact opening from tool-flow messages when the files capability is unavailable', () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ openArtifactFile: undefined })
+    )
   })
 
   it('marks direct artifact opening as user initiated', async () => {
