@@ -72,8 +72,6 @@ export class AutoBackupService extends BaseService {
   private activeRunType: AutoBackupType | null = null
   private activeAbortController: AbortController | null = null
   private nextEventId = 0
-  private readonly latestTerminalEvents = new Map<AutoBackupType, AutoBackupEvent>()
-  private readonly latestTransientEvents = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingNotifications = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingRuns = new Map<AutoBackupType, number>()
   private readonly schedules: Record<AutoBackupType, ScheduleState> = {
@@ -112,7 +110,6 @@ export class AutoBackupService extends BaseService {
     this.active = false
     this.unregisterAllSchedules()
     this.pendingRuns.clear()
-    this.latestTransientEvents.clear()
     this.activeAbortController?.abort(new DOMException('Automatic backup service stopped.', 'AbortError'))
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].generation++
@@ -124,9 +121,6 @@ export class AutoBackupService extends BaseService {
 
   getStateSnapshot(): AutoBackupSnapshot {
     return {
-      events: [...this.latestTerminalEvents.values(), ...this.latestTransientEvents.values()].sort(
-        (first, second) => first.id - second.id
-      ),
       pendingNotifications: [...this.pendingNotifications.values()]
     }
   }
@@ -424,12 +418,7 @@ export class AutoBackupService extends BaseService {
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
     const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
-    if (event.status === 'running' || event.status === 'stopped') {
-      this.latestTransientEvents.set(event.type, emittedEvent)
-    } else {
-      this.latestTerminalEvents.set(event.type, emittedEvent)
-      this.latestTransientEvents.delete(event.type)
-    }
+    application.get('CacheService').setShared(`backup.auto_sync.state.${event.type}`, emittedEvent)
     if (event.status === 'warning' || event.status === 'failed') {
       this.pendingNotifications.set(event.type, emittedEvent)
     }

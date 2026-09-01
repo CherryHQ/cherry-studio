@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
@@ -6,8 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   gatewayPort: undefined as number | undefined,
   requestMock: vi.fn(),
-  useIpcOn: vi.fn(),
-  events: new Map<string, (payload: Record<string, unknown>) => void>(),
   openSmartMiniApp: vi.fn(),
   toastError: vi.fn()
 }))
@@ -15,14 +14,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [mocks.gatewayPort, vi.fn()]
 }))
+vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
 
 vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
   useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: mocks.requestMock },
-  useIpcOn: mocks.useIpcOn
+  ipcApi: { request: mocks.requestMock }
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -41,23 +40,14 @@ vi.mock('react-i18next', () => ({
 
 const { useOpenClawGatewayController } = await import('../useOpenClawGatewayController')
 
-const emit = (event: string, payload: Record<string, unknown>) => {
-  const handler = mocks.events.get(event)
-  if (!handler) throw new Error(`${event} handler not registered`)
-  handler(payload)
-}
-
 const enabledProvider = { id: 'anthropic', name: 'Anthropic' } as Provider
 
 describe('useOpenClawGatewayController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheService.deleteShared('feature.openclaw.gateway_status')
     vi.spyOn(Date, 'now').mockReturnValue(1_774_560_000_000)
     mocks.gatewayPort = undefined
-    mocks.events.clear()
-    mocks.useIpcOn.mockImplementation((event: string, handler: (payload: Record<string, unknown>) => void) => {
-      mocks.events.set(event, handler)
-    })
     mocks.requestMock.mockImplementation((route: string) => {
       if (route === 'openclaw.get_status') return Promise.resolve({ status: 'stopped' })
       if (route === 'openclaw.sync_config') return Promise.resolve({ success: true })
@@ -121,10 +111,7 @@ describe('useOpenClawGatewayController', () => {
 
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', { port: 18888 })
 
-    // Running state arrives as a main-pushed event, not a local write.
-    await act(async () => {
-      emit('openclaw.status_changed', { status: 'running' })
-    })
+    act(() => cacheService.setShared('feature.openclaw.gateway_status', 'running'))
     expect(result.current.running).toBe(true)
   })
 

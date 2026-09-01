@@ -123,9 +123,7 @@ export function useDeepSeekHarnessController({
         openWebUi(url)
         return
       }
-      const current = await ipcApi.request('deepseek_harness.get_status')
-      if (current.status !== 'running' || !current.url) throw new Error('DeepSeek Harness Web UI is not running')
-      openWebUi(current.url)
+      throw new Error('DeepSeek Harness Web UI is not running')
     } catch (error) {
       logger.error('Failed to open DeepSeek Harness Web UI', error as Error)
       toast.error(t('code.launch.error'))

@@ -1,4 +1,3 @@
-import type { CacheMiniAppAttention } from '@shared/data/cache/cacheValueTypes'
 import { LocalMiniAppSchema } from '@shared/data/types/miniApp'
 import { MiniAppActivityListingSchema } from '@shared/types/miniAppActivity'
 import { LocalizedNameSchema, MiniAppIdSchema, MiniAppManifestSchema } from '@shared/types/miniAppManifest'
@@ -77,14 +76,6 @@ const InstallPreviewSummarySchema = z.discriminatedUnion('kind', [
     update: UpdateOfferSchema
   })
 ])
-
-/** Mirrors `CacheMiniAppAttention` — the dot's reasons, as main derives them. */
-const MiniAppAttentionSchema = z.object({
-  appId: MiniAppIdSchema,
-  updateVersion: z.string().nullable(),
-  pendingPermissions: z.array(z.string()),
-  updating: z.object({ version: z.string(), fraction: z.number().nullable() }).nullable()
-})
 
 const AppIdInputSchema = z.object({ appId: MiniAppIdSchema })
 const PermissionInputSchema = z.strictObject({ appId: MiniAppIdSchema, permission: z.string().min(1) })
@@ -219,8 +210,6 @@ export const miniAppRequestSchemas = {
     input: z.object({ appId: MiniAppIdSchema }),
     output: z.void()
   }),
-  /** Pull half of the attention badge — a window opened after the broadcast never saw it. */
-  'mini_app.runtime.attention_state': defineRoute({ input: z.void(), output: z.array(MiniAppAttentionSchema) }),
   /** The pool's pane state for one app in the calling window — the source of the guest's `app.visibilityChange`. */
   'mini_app.runtime.set_visible': defineRoute({
     input: z.object({ appId: MiniAppIdSchema, visible: z.boolean() }),
@@ -242,8 +231,6 @@ export const miniAppRequestSchemas = {
 }
 
 export type MiniAppEventSchemas = {
-  /** Apps that want the user's attention, and why (a host-added permission, or an update). */
-  'mini_app.runtime.attention': { apps: CacheMiniAppAttention[] }
   /** Host is about to change this app underneath it; drop it from every pool. */
   'mini_app.runtime.evicted': { appId: string }
 }

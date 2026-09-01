@@ -62,7 +62,6 @@ export const miniAppHandlers: IpcHandlersFor<typeof miniAppRequestSchemas> = {
   },
   // Detail-panel routes: every rule lives in `management.ts` / `webInstaller.ts`.
   'mini_app.detail': async ({ appId }) => miniAppDetail(appId),
-  'mini_app.runtime.attention_state': async () => application.get('MiniAppRuntimeService').attentionState(),
   'mini_app.activity.list': ({ appId, limit, deniedOnly }) => miniAppActivityLog.list(appId, { limit, deniedOnly }),
   'mini_app.activity.clear': ({ appId }) => miniAppActivityLog.clear(appId),
   'mini_app.activity.open_folder': ({ appId }) => miniAppActivityLog.openFolder(appId),

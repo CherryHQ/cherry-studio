@@ -25,7 +25,8 @@ const mocks = vi.hoisted(() => ({
   gatewayStart: vi.fn(),
   gatewayEnsureKey: vi.fn(),
   gatewayGetConfig: vi.fn(),
-  broadcast: vi.fn()
+  broadcast: vi.fn(),
+  setShared: vi.fn()
 }))
 
 vi.mock('node:child_process', async (importOriginal) => ({
@@ -157,9 +158,8 @@ describe('DeepSeekHarnessService', () => {
           getCurrentConfig: mocks.gatewayGetConfig
         }
       }
-      if (name === 'IpcApiService') {
-        return { broadcast: mocks.broadcast }
-      }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'CacheService') return { setShared: mocks.setShared }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.providerGet.mockReturnValue(provider)
@@ -437,13 +437,11 @@ describe('DeepSeekHarnessService', () => {
     expect(service.getStatus()).toEqual({ status: 'stopped' })
   })
 
-  describe('status change broadcasts', () => {
+  describe('shared status snapshots', () => {
     const statusPayloads = () =>
-      mocks.broadcast.mock.calls
-        .filter(([name]) => name === 'deepseek_harness.status_changed')
-        .map(([, payload]) => payload)
+      mocks.setShared.mock.calls.filter(([key]) => key === 'feature.deepseek_harness.status').map(([, value]) => value)
 
-    it('broadcasts starting then running with the get_status payload shape on a successful start', async () => {
+    it('publishes starting then running on a successful start', async () => {
       spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
       const service = new DeepSeekHarnessService()
 
@@ -453,7 +451,7 @@ describe('DeepSeekHarnessService', () => {
       await service.stop()
     })
 
-    it('broadcasts error when the launch fails', async () => {
+    it('publishes error when the launch fails', async () => {
       spawnChild((child) => {
         child.stderr.write('boom\n')
         child.close(1, null)
@@ -465,7 +463,7 @@ describe('DeepSeekHarnessService', () => {
       expect(statusPayloads().at(-1)).toEqual({ status: 'error' })
     })
 
-    it('does not broadcast stopped while cleaning up a failed launch', async () => {
+    it('does not publish stopped while cleaning up a failed launch', async () => {
       // Timeout failure with the child still alive: cleanup kills it after the
       // terminal 'error' state is set, and the termination handler must stay quiet.
       vi.useFakeTimers()
@@ -481,11 +479,11 @@ describe('DeepSeekHarnessService', () => {
       expect(service.getStatus()).toEqual({ status: 'error' })
     })
 
-    it('broadcasts error immediately when the running child is killed, without waiting for a poll', async () => {
+    it('publishes error immediately when the running child is killed, without waiting for a poll', async () => {
       const child = spawnChild((process) => process.stdout.write('dsh web: http://127.0.0.1:43123\n'))
       const service = new DeepSeekHarnessService()
       await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
-      mocks.broadcast.mockClear()
+      mocks.setShared.mockClear()
 
       child.close(137, null)
 
@@ -501,7 +499,7 @@ describe('DeepSeekHarnessService', () => {
       await service.stop()
 
       // The termination handler and stop() both reach setStatus, but same-value calls
-      // are not transitions — the terminal 'stopped' must broadcast exactly once.
+      // are not transitions — the terminal 'stopped' must publish exactly once.
       expect(statusPayloads()).toEqual([
         { status: 'starting' },
         { status: 'running', url: 'http://127.0.0.1:43123' },
@@ -510,11 +508,11 @@ describe('DeepSeekHarnessService', () => {
       expect(service.getStatus()).toEqual({ status: 'stopped' })
     })
 
-    it('rebroadcasts running when a start hits the already-running fast path', async () => {
+    it('republishes running when a start hits the already-running fast path', async () => {
       spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
       const service = new DeepSeekHarnessService()
       await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
-      mocks.broadcast.mockClear()
+      mocks.setShared.mockClear()
 
       await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
 
@@ -529,17 +527,6 @@ describe('DeepSeekHarnessService', () => {
       await service.stop()
 
       expect(statusPayloads()).toEqual([{ status: 'stopped' }])
-    })
-
-    it('completes the transition even when broadcasting fails', async () => {
-      mocks.broadcast.mockImplementation(() => {
-        throw new Error('broadcast transport unavailable')
-      })
-      spawnChild((child) => child.stdout.write('dsh web: http://127.0.0.1:43123\n'))
-      const service = new DeepSeekHarnessService()
-
-      await expect(service.start(startInput)).resolves.toMatchObject({ success: true })
-      expect(service.getStatus()).toEqual({ status: 'running', url: 'http://127.0.0.1:43123' })
     })
   })
 })
