@@ -838,8 +838,7 @@ const Sessions = ({
         ? filteredGroupedSessions.filter((session) => sessionGroupBy(session)?.id === deletedGroupId)
         : filteredGroupedSessions
       const sameGroupNext = pickNeighbourAfterRemoval(sameGroupSessions, id)
-      const replacement =
-        sameGroupNext ?? findLatestActive(sessionItemsRef.current.filter((candidate) => candidate.id !== id))
+      const replacement = sameGroupNext ?? findLatestActive(groupedSessions.filter((candidate) => candidate.id !== id))
       const wasActive = activeSessionIdRef.current === id
 
       const performDelete = async () => {
@@ -880,6 +879,7 @@ const Sessions = ({
     [
       deleteSession,
       filteredGroupedSessions,
+      groupedSessions,
       requestFileNavigation,
       sessionGroupBy,
       setActiveSessionId,
@@ -1275,9 +1275,7 @@ const Sessions = ({
             if (onActiveAgentDeleted) {
               await onActiveAgentDeleted(agentId)
             } else {
-              const remaining = findLatestActive(
-                sessionItemsRef.current.filter((session) => session.agentId !== agentId)
-              )
+              const remaining = findLatestActive(groupedSessions.filter((session) => session.agentId !== agentId))
               setActiveSessionId(remaining?.id ?? null)
             }
           } catch (err) {
@@ -1301,6 +1299,7 @@ const Sessions = ({
     [
       closeConversationTabs,
       deletingAgentId,
+      groupedSessions,
       invalidate,
       onActiveAgentDeleted,
       refetchAgents,
@@ -1340,7 +1339,7 @@ const Sessions = ({
         const affectedSessionIds = new Set(result.deletedIds)
 
         if (activeSessionId && affectedSessionIds.has(activeSessionId)) {
-          const remaining = findLatestActive(sessionItems.filter((session) => !affectedSessionIds.has(session.id)))
+          const remaining = findLatestActive(groupedSessions.filter((session) => !affectedSessionIds.has(session.id)))
           setActiveSessionId(remaining?.id ?? null)
         }
 
@@ -1365,6 +1364,7 @@ const Sessions = ({
       activeSessionId,
       closeConversationTabs,
       deletingWorkspaceGroupId,
+      groupedSessions,
       invalidate,
       refetchWorkspaces,
       reload,

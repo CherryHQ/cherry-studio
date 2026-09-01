@@ -2341,6 +2341,42 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
   })
 
+  it('does not select a hidden built-in Agent task after deleting the active visible task', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['cherry-support'])
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
+        {
+          id: 'cherry-support',
+          model: 'model-b',
+          name: 'Cherry Support',
+          configuration: { builtin_role: 'support' }
+        }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Visible task', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'support-session', name: 'Hidden support task', agentId: 'cherry-support', orderKey: 'b' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+    const deleteButton = within(
+      screen.getByText('Visible task').closest('[role="option"]') as HTMLElement
+    ).getByLabelText('Delete')
+    fireEvent.click(deleteButton)
+    fireEvent.click(deleteButton)
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
+    expect(setActiveSessionId).toHaveBeenCalledWith(null, null)
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('support-session', expect.anything())
+  })
+
   it('selects the display-order neighbour (not the raw API head) after deleting the active sidebar session', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({

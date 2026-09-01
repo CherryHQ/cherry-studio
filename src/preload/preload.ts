@@ -254,6 +254,11 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
     set: <K extends UnifiedPreferenceKeyType>(key: K, value: UnifiedPreferenceType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
+    compareAndSet: <K extends UnifiedPreferenceKeyType>(
+      key: K,
+      expected: UnifiedPreferenceType[K],
+      value: UnifiedPreferenceType[K]
+    ): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Preference_CompareAndSet, key, expected, value),
     getMultipleRaw: <K extends UnifiedPreferenceKeyType>(keys: K[]): Promise<UnifiedPreferenceMultipleResultType<K>> =>
       ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
     setMultiple: (updates: Partial<UnifiedPreferenceType>) =>

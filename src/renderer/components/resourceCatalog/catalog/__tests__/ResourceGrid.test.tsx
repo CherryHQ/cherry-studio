@@ -2,6 +2,8 @@ import type * as CherryUiModule from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { mockPreferenceService } from '@test-mocks/renderer/PreferenceService'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
@@ -17,31 +19,6 @@ const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobal
   updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   updateSkillGlobalEnabledMock: vi.fn()
-}))
-
-const preferenceMocks = vi.hoisted(() => ({
-  setPreference: vi.fn(),
-  values: new Map<string, unknown>()
-}))
-
-vi.mock('@renderer/data/hooks/usePreference', () => ({
-  usePreference: (key: string) => [
-    preferenceMocks.values.get(key) ?? [],
-    (value: unknown) => {
-      preferenceMocks.values.set(key, value)
-      return Promise.resolve(preferenceMocks.setPreference(key, value))
-    }
-  ]
-}))
-
-vi.mock('@data/PreferenceService', () => ({
-  preferenceService: {
-    update: async (key: string, updater: (currentValue: string[]) => string[]) => {
-      const value = updater((preferenceMocks.values.get(key) as string[] | undefined) ?? [])
-      preferenceMocks.values.set(key, value)
-      await preferenceMocks.setPreference(key, value)
-    }
-  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -819,8 +796,9 @@ describe('ResourceGrid group toolbar management', () => {
 
 describe('ResourceGrid card actions', () => {
   beforeEach(() => {
-    preferenceMocks.values.clear()
-    preferenceMocks.setPreference.mockClear()
+    MockUsePreferenceUtils.resetMocks()
+    mockPreferenceService._resetMockState()
+    mockPreferenceService.update.mockClear()
   })
 
   it('toggles a Skill globally from its settings card without opening the card', async () => {
@@ -883,18 +861,18 @@ describe('ResourceGrid card actions', () => {
     })
     const onDelete = vi.fn()
     const onEdit = vi.fn()
-    preferenceMocks.values.set('agent.session.hidden_builtin_ids', ['other-agent', resource.id])
+    MockUsePreferenceUtils.setPreferenceValue('agent.session.hidden_builtin_ids', ['other-agent', resource.id])
 
     const view = render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
 
     await user.click(screen.getByRole('button', { name: '添加到列表' }))
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.hidden_builtin_ids', ['other-agent'])
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual(['other-agent'])
     expect(onDelete).not.toHaveBeenCalled()
     expect(onEdit).not.toHaveBeenCalled()
 
     view.rerender(<ResourceCard resource={{ ...resource }} {...getResourceCardProps({ onDelete, onEdit })} />)
     await user.click(screen.getByRole('button', { name: '从列表隐藏' }))
-    expect(preferenceMocks.setPreference).toHaveBeenLastCalledWith('agent.session.hidden_builtin_ids', [
+    expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.hidden_builtin_ids')).toEqual([
       'other-agent',
       resource.id
     ])
@@ -913,7 +891,7 @@ describe('ResourceGrid card actions', () => {
     })
     const onDelete = vi.fn()
     const onEdit = vi.fn()
-    preferenceMocks.setPreference.mockRejectedValueOnce(new Error('preference unavailable'))
+    mockPreferenceService.update.mockRejectedValueOnce(new Error('preference unavailable'))
 
     render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete, onEdit })} />)
 
