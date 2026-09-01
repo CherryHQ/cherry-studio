@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "Journal en pause pour le reste de la journée (5 Mo atteints)",
   "miniApp.add.app_description": "Une fois installée et autorisée, elle peut utiliser les capacités locales",
   "miniApp.add.developer_docs": "Documentation développeur",
+  "miniApp.add.developer_docs_open_failed": "Impossible d’ouvrir la documentation destinée aux développeurs",
   "miniApp.add.tab_app": "Mini-app locale",
   "miniApp.add.tab_site": "Site web",
   "miniApp.add.title": "Ajouter une mini-app",

@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "Registo em pausa pelo resto do dia (5 MB atingidos)",
   "miniApp.add.app_description": "Depois de instalada e autorizada, pode usar capacidades locais",
   "miniApp.add.developer_docs": "Documentação para programadores",
+  "miniApp.add.developer_docs_open_failed": "Não foi possível abrir a documentação para programadores",
   "miniApp.add.tab_app": "Mini app local",
   "miniApp.add.tab_site": "Site",
   "miniApp.add.title": "Adicionar mini app",

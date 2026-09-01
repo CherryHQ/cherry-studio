@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "Protokoll für den Rest des Tages pausiert (5 MB erreicht)",
   "miniApp.add.app_description": "Nach Installation und Freigabe kann sie lokale Funktionen nutzen",
   "miniApp.add.developer_docs": "Entwicklerdokumentation",
+  "miniApp.add.developer_docs_open_failed": "Die Entwicklerdokumentation konnte nicht geöffnet werden",
   "miniApp.add.tab_app": "Lokale Mini-App",
   "miniApp.add.tab_site": "Website",
   "miniApp.add.title": "Mini-App hinzufügen",

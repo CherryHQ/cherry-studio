@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "本日のログは一時停止中（5 MB に到達）",
   "miniApp.add.app_description": "インストールして許可すると、ローカル機能を利用できます",
   "miniApp.add.developer_docs": "開発ドキュメント",
+  "miniApp.add.developer_docs_open_failed": "開発者向けドキュメントを開けませんでした",
   "miniApp.add.tab_app": "ローカルミニアプリ",
   "miniApp.add.tab_site": "ウェブサイト",
   "miniApp.add.title": "ミニアプリを追加",

@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "Nhật ký tạm dừng đến hết ngày (đã đạt 5 MB)",
   "miniApp.add.app_description": "Sau khi cài đặt và cấp quyền, ứng dụng có thể dùng các khả năng cục bộ",
   "miniApp.add.developer_docs": "Tài liệu dành cho nhà phát triển",
+  "miniApp.add.developer_docs_open_failed": "Không thể mở tài liệu dành cho nhà phát triển",
   "miniApp.add.tab_app": "Ứng dụng mini cục bộ",
   "miniApp.add.tab_site": "Trang web",
   "miniApp.add.title": "Thêm ứng dụng mini",

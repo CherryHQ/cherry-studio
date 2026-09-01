@@ -126,6 +126,15 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     setStagedFile(file)
   }
 
+  const handleOpenDeveloperDocs = async () => {
+    try {
+      await ipcApi.request('system.shell.open_website', MINI_APP_DEVELOPER_DOCS_URL)
+    } catch (error) {
+      logger.error('Failed to open mini app developer documentation', error as Error)
+      toast.error(t('miniApp.add.developer_docs_open_failed'))
+    }
+  }
+
   const handleSubmit = async () => {
     const trimmedUrl = url.trim()
     if (!MiniAppUrlSchema.safeParse(trimmedUrl).success) {
@@ -274,7 +283,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
                     variant="link"
                     size="sm"
                     className="shrink-0 px-0 text-link shadow-none hover:text-link focus-visible:text-link"
-                    onClick={() => void ipcApi.request('system.shell.open_website', MINI_APP_DEVELOPER_DOCS_URL)}>
+                    onClick={handleOpenDeveloperDocs}>
                     {t('miniApp.add.developer_docs')}
                     <ExternalLink className="size-3.5" />
                   </Button>

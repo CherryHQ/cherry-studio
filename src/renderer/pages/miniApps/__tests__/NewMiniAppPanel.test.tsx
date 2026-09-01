@@ -1,6 +1,7 @@
 import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,6 +41,10 @@ vi.mock('@data/hooks/useCache', () => ({
 
 vi.mock('@renderer/components/icons/MiniAppLogoAvatar', () => ({
   default: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
+}))
+
+vi.mock('../InstallMiniAppPanel', () => ({
+  InstallMiniAppPicker: () => <button type="button">miniApp.install.choose_file</button>
 }))
 
 vi.mock('@renderer/utils/uuid', () => ({
@@ -255,6 +260,19 @@ describe('NewMiniAppPanel', () => {
     )
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByRole('button', { name: /common\.save/ })).toBeInTheDocument()
+  })
+
+  it('shows an error when the developer documentation cannot be opened', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockRejectedValueOnce(new Error('open failed'))
+    render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+
+    await user.click(screen.getByRole('tab', { name: 'miniApp.add.tab_app' }))
+    await user.click(screen.getByRole('button', { name: 'miniApp.add.developer_docs' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('miniApp.add.developer_docs_open_failed')
+    })
   })
 
   it('submits with the trimmed form values', async () => {

@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "Jurnal oprit pentru restul zilei (5 MB atinși)",
   "miniApp.add.app_description": "Odată instalată și autorizată, poate folosi capabilități locale",
   "miniApp.add.developer_docs": "Documentație pentru dezvoltatori",
+  "miniApp.add.developer_docs_open_failed": "Documentația pentru dezvoltatori nu a putut fi deschisă",
   "miniApp.add.tab_app": "Mini-aplicație locală",
   "miniApp.add.tab_site": "Site web",
   "miniApp.add.title": "Adaugă mini-aplicație",

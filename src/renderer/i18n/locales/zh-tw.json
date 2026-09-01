@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "今日日誌已暫停（已達 5 MB）",
   "miniApp.add.app_description": "安裝授權後可以呼叫本機能力",
   "miniApp.add.developer_docs": "開發文件",
+  "miniApp.add.developer_docs_open_failed": "無法開啟開發文件",
   "miniApp.add.tab_app": "本機小程式",
   "miniApp.add.tab_site": "網站",
   "miniApp.add.title": "新增小程式",

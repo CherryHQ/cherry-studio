@@ -2342,6 +2342,7 @@
   "miniApp.activity.truncated": "Журнал приостановлен до конца дня (достигнуто 5 МБ)",
   "miniApp.add.app_description": "После установки и выдачи разрешений оно может использовать локальные возможности",
   "miniApp.add.developer_docs": "Документация для разработчиков",
+  "miniApp.add.developer_docs_open_failed": "Не удалось открыть документацию для разработчиков",
   "miniApp.add.tab_app": "Локальное мини-приложение",
   "miniApp.add.tab_site": "Сайт",
   "miniApp.add.title": "Добавить мини-приложение",
