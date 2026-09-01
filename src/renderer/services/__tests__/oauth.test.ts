@@ -130,6 +130,18 @@ describe('popup message OAuth flows', () => {
     expect(setSiliconKey).not.toHaveBeenCalled()
   })
 
+  it('keeps the previous flow active when its replacement popup is blocked', async () => {
+    const setSiliconKey = vi.fn()
+    await oauthWithSiliconFlow(setSiliconKey)
+    const siliconPopup = openedPopups[0]
+
+    vi.mocked(window.open).mockReturnValueOnce(null)
+    await oauthWith302AI(vi.fn())
+
+    dispatchPopupMessage(siliconPopup, 'https://account.siliconflow.cn', [{ secretKey: 'silicon-key' }])
+    await vi.waitFor(() => expect(setSiliconKey).toHaveBeenCalledWith('silicon-key'))
+  })
+
   it.each([
     ['charge', providerCharge],
     ['bills', providerBills]
@@ -187,6 +199,30 @@ describe('popup message OAuth flows', () => {
       data: { iv: 'iv', encryptedData: 'ciphertext' }
     })
     expect(mocks.decrypt).not.toHaveBeenCalled()
+  })
+
+  it('finishes processing a valid callback after its popup closes', async () => {
+    let resolveDecryption: (value: string) => void = () => undefined
+    mocks.decrypt.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveDecryption = resolve
+      })
+    )
+    const setKey = vi.fn()
+    await oauthWithAihubmix(setKey)
+    const popup = openedPopups[0]
+
+    dispatchPopupMessage(popup, 'https://console.inferera.com', {
+      key: 'cherry_studio_oauth_callback',
+      data: { iv: 'iv', encryptedData: 'ciphertext' }
+    })
+    await vi.waitFor(() => expect(mocks.decrypt).toHaveBeenCalledOnce())
+
+    popup.closed = true
+    vi.advanceTimersByTime(500)
+    resolveDecryption(JSON.stringify({ api_keys: [{ value: 'callback-key' }] }))
+
+    await vi.waitFor(() => expect(setKey).toHaveBeenCalledWith('callback-key'))
   })
 
   it('preserves successful Aihubmix decryption and AiOnly key handling', async () => {

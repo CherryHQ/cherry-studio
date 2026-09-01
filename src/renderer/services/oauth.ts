@@ -55,9 +55,10 @@ class PopupFlowRegistry {
 const popupFlowRegistry = new PopupFlowRegistry()
 
 function openNamedPopup(authUrl: string, popupName: string, features: string): Window | null {
-  // Reusing a named window is terminal for any message flow that owned it.
-  popupFlowRegistry.retire(popupName)
-  return window.open(authUrl, popupName, features)
+  const popup = window.open(authUrl, popupName, features)
+  // Only retire the current flow once its replacement actually opens.
+  if (popup) popupFlowRegistry.retire(popupName)
+  return popup
 }
 
 function isSecretKeyOAuthPayload(data: unknown): data is SecretKeyOAuthPayload {
@@ -99,6 +100,7 @@ function startPopupMessageOAuth<T>({
   const expectedOrigin = new URL(authUrl.trim()).origin
   let active = true
   let listening = true
+  let processingCallback = false
 
   const stopListening = () => {
     if (!listening) return
@@ -120,7 +122,8 @@ function startPopupMessageOAuth<T>({
     if (!active || event.source !== openedPopup || event.origin !== expectedOrigin || !matches(data)) return
 
     // A recognized callback is terminal. Stop accepting duplicate messages,
-    // but keep the close/timeout guards alive while async payload work runs.
+    // but let its async payload work finish even when the callback page closes.
+    processingCallback = true
     stopListening()
 
     void Promise.resolve()
@@ -141,7 +144,7 @@ function startPopupMessageOAuth<T>({
   }
 
   const closePollId = window.setInterval(() => {
-    if (openedPopup.closed) finish()
+    if (openedPopup.closed && !processingCallback) finish()
   }, OAUTH_POPUP_CLOSE_POLL_MS)
   const timeoutId = window.setTimeout(finish, OAUTH_POPUP_TIMEOUT_MS)
 
