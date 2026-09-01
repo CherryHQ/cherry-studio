@@ -104,18 +104,18 @@ import { WindowType } from '@main/core/window/types'
 import { SubWindowService } from '../SubWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
-  isDestroyed: ReturnType<typeof vi.fn>
-  isVisible: ReturnType<typeof vi.fn>
-  show: ReturnType<typeof vi.fn>
-  setContentBounds: ReturnType<typeof vi.fn>
-  setPosition: ReturnType<typeof vi.fn>
-  setOpacity: ReturnType<typeof vi.fn>
-  getOpacity: ReturnType<typeof vi.fn>
-  getBounds: ReturnType<typeof vi.fn>
-  getContentBounds: ReturnType<typeof vi.fn>
-  setAlwaysOnTop: ReturnType<typeof vi.fn>
+  isDestroyed: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  isVisible: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  show: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setPosition: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setOpacity: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getOpacity: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  getContentBounds: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+  setAlwaysOnTop: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   webContents: {
-    isLoadingMainFrame: ReturnType<typeof vi.fn>
+    isLoadingMainFrame: ReturnType<typeof vi.fn<(...args: any[]) => any>>
   }
 }
 

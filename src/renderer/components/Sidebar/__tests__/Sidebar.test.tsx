@@ -161,6 +161,7 @@ const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
+  vi.useRealTimers()
   uiMocks.sortableCalls.length = 0
   uiMocks.contextMenuOpenChange = undefined
 })
@@ -511,7 +512,8 @@ describe('Sidebar resize handle', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
-  it('suppresses only the dragged sidebar entry click after sorting settles', () => {
+  it('suppresses only the dragged sidebar entry immediate post-drag click', () => {
+    vi.useFakeTimers()
     const onChatOpen = vi.fn()
     const onAgentOpen = vi.fn()
     const sortableEntries: ResolvedSidebarEntry[] = [

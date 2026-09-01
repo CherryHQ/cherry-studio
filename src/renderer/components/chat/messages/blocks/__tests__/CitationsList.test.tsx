@@ -8,7 +8,9 @@ import CitationsList from '../CitationsList'
 
 const mocks = vi.hoisted(() => ({
   openCitationsPanel: vi.fn(),
-  messageListActions: undefined as { openCitationsPanel?: ReturnType<typeof vi.fn> } | undefined
+  messageListActions: undefined as
+    | { openCitationsPanel?: ReturnType<typeof vi.fn<(...args: any[]) => any>> }
+    | undefined
 }))
 
 vi.mock('../../MessageListProvider', () => ({

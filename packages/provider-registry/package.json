@@ -70,7 +70,7 @@
     "dotenv": "^17.2.3",
     "tsdown": "^0.22.14",
     "typescript": "7.0.2",
-    "vitest": "^4.0.13",
+    "vitest": "^4.1.10",
     "zod": "^4.1.12"
   },
   "peerDependencies": {},

@@ -56,8 +56,16 @@ vi.mock('@main/core/lifecycle', () => ({
 }))
 vi.mock('electron', () => ({ shell: { openExternal: vi.fn() }, net: { fetch: vi.fn() } }))
 vi.mock('@application', () => ({ application: { get: vi.fn() } }))
-vi.mock('../LoopbackCallbackTransport', () => ({ LoopbackCallbackTransport: vi.fn(() => h.transportMock) }))
-vi.mock('../DeepLinkCallbackTransport', () => ({ DeepLinkCallbackTransport: vi.fn(() => h.deepLinkTransportMock) }))
+vi.mock('../LoopbackCallbackTransport', () => ({
+  LoopbackCallbackTransport: vi.fn(function LoopbackCallbackTransportMock() {
+    return h.transportMock
+  })
+}))
+vi.mock('../DeepLinkCallbackTransport', () => ({
+  DeepLinkCallbackTransport: vi.fn(function DeepLinkCallbackTransportMock() {
+    return h.deepLinkTransportMock
+  })
+}))
 
 // codex = OAuth-only loopback (clear disables); cherryin = deep-link with a
 // manual API-key fallback (clear must NOT disable). Both share the fake client.

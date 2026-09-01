@@ -76,7 +76,7 @@ describe('EChartsPreview', () => {
     vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({ width: 640, height: 256 } as DOMRect)
     vi.stubGlobal(
       'ResizeObserver',
-      vi.fn().mockImplementation((callback: ResizeObserverCallback) => {
+      vi.fn().mockImplementation(function ResizeObserverMock(callback: ResizeObserverCallback) {
         resizeCallback = callback
         return mocks.resizeObserver
       })

@@ -26,7 +26,9 @@ const { mockStart, mockStop, mockSetShared, mockGetActiveUsageContext, mockPrefe
 )
 
 vi.mock('../server', () => ({
-  ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
+  ApiGateway: vi.fn(function ApiGatewayMock() {
+    return { start: mockStart, stop: mockStop, isRunning: () => true }
+  })
 }))
 
 vi.mock('@application', async () => {

@@ -666,7 +666,10 @@ describe('useInfiniteQuery integration', () => {
   const emptyPage = { items: [], nextCursor: undefined, activeNodeId: null }
 
   function spyGet() {
-    return vi.spyOn(dataApiService, 'get').mockResolvedValue(emptyPage as never)
+    return vi
+      .spyOn(dataApiService, 'get')
+      .mockClear()
+      .mockResolvedValue(emptyPage as never)
   }
 
   afterEach(() => {

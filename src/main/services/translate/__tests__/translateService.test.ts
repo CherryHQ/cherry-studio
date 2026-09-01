@@ -28,12 +28,14 @@ vi.mock('@main/data/services/TranslateLanguageService', () => ({
 // `WebContentsListener` writes to `event.sender.send(...)` — stub it so the
 // test doesn't need a real WebContents.
 vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
-  WebContentsListener: vi.fn().mockImplementation((sender: unknown, streamId: string) => ({
-    id: `wc:test:${streamId}`,
-    sender,
-    streamId,
-    onError: vi.fn()
-  }))
+  WebContentsListener: vi.fn().mockImplementation(function WebContentsListenerMock(sender: unknown, streamId: string) {
+    return {
+      id: `wc:test:${streamId}`,
+      sender,
+      streamId,
+      onError: vi.fn()
+    }
+  })
 }))
 
 const { translateService } = await import('../translateService')

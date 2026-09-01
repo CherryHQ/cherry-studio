@@ -95,7 +95,7 @@ describe('MermaidPreview', () => {
 
     vi.stubGlobal(
       'MutationObserver',
-      vi.fn().mockImplementation((callback: MutationCallback) => {
+      vi.fn().mockImplementation(function MutationObserverMock(callback: MutationCallback) {
         mocks.observerCallback = callback
         return mocks.observer
       })

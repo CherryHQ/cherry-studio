@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PortalContainerProvider } from '@cherrystudio/ui'
 
 const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
-  openAutoFocusEvents: [] as Array<{ preventDefault: ReturnType<typeof vi.fn>; defaultPrevented: boolean }>,
+  openAutoFocusEvents: [] as Array<{
+    preventDefault: ReturnType<typeof vi.fn<(...args: any[]) => any>>
+    defaultPrevented: boolean
+  }>,
   popoverContentProps: [] as Array<{
     align?: string
     side?: string
@@ -555,13 +558,12 @@ describe('SelectorShell', () => {
   it('does not rebind measurement listeners when config object identities change', async () => {
     const observe = vi.fn()
     const disconnect = vi.fn()
-    globalThis.ResizeObserver = vi.fn(
-      () =>
-        ({
-          observe,
-          disconnect
-        }) as unknown as ResizeObserver
-    ) as unknown as typeof ResizeObserver
+    globalThis.ResizeObserver = vi.fn(function ResizeObserverMock() {
+      return {
+        observe,
+        disconnect
+      } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
 
     const { rerender } = render(
