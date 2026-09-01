@@ -246,6 +246,18 @@ describe('PaintingFieldRenderer range contract', () => {
     expect(onChange).toHaveBeenCalledWith({ numImages: 2 })
   })
 
+  it.each([0, -1])('does not pass non-positive step %s to the slider', (step) => {
+    render(
+      <PaintingFieldRenderer
+        item={{ type: 'slider', key: 'strength', min: 0, max: 10, step, initialValue: 4 }}
+        painting={{ strength: 4 }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('slider')).toHaveAttribute('step', '1')
+  })
+
   it('nudges a focused range by its declared step with arrow keys', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

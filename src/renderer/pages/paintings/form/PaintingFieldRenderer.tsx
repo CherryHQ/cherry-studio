@@ -81,7 +81,7 @@ function PaintingRangeField({
         className="min-w-0 flex-1"
         min={min}
         max={max}
-        step={step ?? 1}
+        step={snapStep ?? 1}
         value={[numericValue]}
         onValueChange={(values) => {
           const next = values[0]
