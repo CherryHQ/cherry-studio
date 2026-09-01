@@ -318,7 +318,7 @@ export function resolveWebToolRoutes(
     webSearchEnabled: boolean
     clientSearchAvailable: boolean
     clientFetchAvailable: boolean
-    clientToolsPreferred: boolean
+    modelToolsPreferred: boolean
     /** Non-web function tools expected on the request (MCP/KB/attachments/…); predictive in the renderer. */
     hasFunctionToolSignals?: boolean
     /** Effective reasoning effort selection for the request. */
@@ -353,16 +353,16 @@ export function resolveWebToolRoutes(
   const clientAvailable = clientSearchAvailable || clientFetchAvailable
   const serverAvailable = serverSearchAvailable || serverFetchAvailable
 
-  const selectedSide: Exclude<WebToolRoute, 'none'> | undefined = options.clientToolsPreferred
-    ? clientAvailable
-      ? 'client'
-      : serverAvailable
-        ? 'server'
-        : undefined
-    : serverAvailable
+  const selectedSide: Exclude<WebToolRoute, 'none'> | undefined = options.modelToolsPreferred
+    ? serverAvailable
       ? 'server'
       : clientAvailable
         ? 'client'
+        : undefined
+    : clientAvailable
+      ? 'client'
+      : serverAvailable
+        ? 'server'
         : undefined
 
   const webSearch: WebToolRoute =

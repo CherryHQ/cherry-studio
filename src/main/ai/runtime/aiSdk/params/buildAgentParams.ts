@@ -527,13 +527,13 @@ async function resolveRequestWebToolRoutes(
         resolveClientWebCapabilityAvailability('fetchUrls')
       ])
     : [false, false]
-  const clientToolsPreferred = preferenceService.get('chat.web_search.client_tools_preferred')
+  const modelToolsPreferred = preferenceService.get('chat.web_search.model_tools_preferred')
 
   return resolveWebToolRoutes(model, provider, {
     webSearchEnabled: clientWebToolsEnabled,
     clientSearchAvailable,
     clientFetchAvailable,
-    clientToolsPreferred,
+    modelToolsPreferred,
     endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort

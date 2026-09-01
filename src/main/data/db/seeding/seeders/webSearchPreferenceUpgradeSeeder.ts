@@ -6,26 +6,48 @@ import { hashObject } from '../hashObject'
 
 const WEB_SEARCH_PREFERENCE_UPGRADE = {
   scope: 'default',
-  key: 'chat.web_search.client_tools_preferred',
-  previousValue: true,
-  nextValue: false
+  legacyKey: 'chat.web_search.client_tools_preferred',
+  nextKey: 'chat.web_search.model_tools_preferred'
 } as const
 
 export class WebSearchPreferenceUpgradeSeeder implements ISeeder {
   readonly name = 'webSearchPreferenceUpgrade'
-  readonly description = 'Default web tools to model-native capabilities for existing installations'
+  readonly description = 'Align the web-tool preference value with model-native priority'
   readonly version = hashObject(WEB_SEARCH_PREFERENCE_UPGRADE)
 
   run(db: DbType): void {
-    db.update(preferenceTable)
-      .set({ value: WEB_SEARCH_PREFERENCE_UPGRADE.nextValue })
+    const legacyPreference = db
+      .select({ value: preferenceTable.value })
+      .from(preferenceTable)
       .where(
         and(
           eq(preferenceTable.scope, WEB_SEARCH_PREFERENCE_UPGRADE.scope),
-          eq(preferenceTable.key, WEB_SEARCH_PREFERENCE_UPGRADE.key),
-          eq(preferenceTable.value, WEB_SEARCH_PREFERENCE_UPGRADE.previousValue)
+          eq(preferenceTable.key, WEB_SEARCH_PREFERENCE_UPGRADE.legacyKey)
         )
       )
-      .run()
+      .get()
+    if (!legacyPreference) return
+
+    db.transaction((tx) => {
+      tx.insert(preferenceTable)
+        .values({
+          scope: WEB_SEARCH_PREFERENCE_UPGRADE.scope,
+          key: WEB_SEARCH_PREFERENCE_UPGRADE.nextKey,
+          value: !legacyPreference.value
+        })
+        .onConflictDoUpdate({
+          target: [preferenceTable.scope, preferenceTable.key],
+          set: { value: !legacyPreference.value }
+        })
+        .run()
+      tx.delete(preferenceTable)
+        .where(
+          and(
+            eq(preferenceTable.scope, WEB_SEARCH_PREFERENCE_UPGRADE.scope),
+            eq(preferenceTable.key, WEB_SEARCH_PREFERENCE_UPGRADE.legacyKey)
+          )
+        )
+        .run()
+    })
   }
 }

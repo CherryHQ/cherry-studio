@@ -49,7 +49,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     isLoading: isLoadingWebSearchProviders,
     providers
   } = useWebSearchProviders()
-  const [clientToolsPreferred] = usePreference('chat.web_search.client_tools_preferred')
+  const [modelToolsPreferred] = usePreference('chat.web_search.model_tools_preferred')
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
   const effectiveSearchProvider = resolveReadyWebSearchProvider(
@@ -68,7 +68,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
           webSearchEnabled: true,
           clientSearchAvailable,
           clientFetchAvailable,
-          clientToolsPreferred,
+          modelToolsPreferred,
           endpointType: model.endpointTypes?.[0] ?? modelProvider?.defaultChatEndpoint ?? undefined,
           hasFunctionToolSignals: getEffectiveMcpMode(assistant) !== 'disabled',
           reasoningEffort: assistant.settings.reasoning_effort
