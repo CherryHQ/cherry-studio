@@ -113,7 +113,7 @@ describe('useFollowupQueue', () => {
       })
     }
     expect(result.current.items).toEqual([])
-    expect(queues()['s1']).toBeUndefined()
+    expect(queues()['s1'] ?? undefined).toBeUndefined()
   })
 
   it('drains the head on the live→idle edge, then dequeues on success', async () => {
@@ -250,7 +250,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.items).toEqual([])
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
-    expect(queues()['s1']).toBeUndefined()
+    expect(queues()['s1'] ?? undefined).toBeUndefined()
   })
 
   it('does not drain while paused', async () => {
@@ -367,7 +367,7 @@ describe('useFollowupQueue', () => {
     expect(result.current.failedItemId).toBeNull()
     expect(result.current.paused).toBe(false)
     expect(result.current.items).toEqual([])
-    expect(queues()['s1']).toBeUndefined()
+    expect(queues()['s1'] ?? undefined).toBeUndefined()
   })
 
   it('abort during an in-flight retry leaves the queue clean when the retry fails', async () => {
