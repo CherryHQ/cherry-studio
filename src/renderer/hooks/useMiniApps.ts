@@ -10,7 +10,7 @@ import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
+import { toDataApiError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
@@ -119,42 +119,6 @@ function miniAppIdFromTabUrl(url: string): string | null {
   return id ? id : null
 }
 
-/**
- * Process Promise.allSettled results: throw on partial failures so callers
- * can distinguish "all succeeded" from "partially failed", and invalidate
- * the cache to resync UI with DB after partial failures.
- */
-async function settleAndInvalidate(
-  results: PromiseSettledResult<MiniApp>[],
-  invalidate: (path: string) => Promise<void>,
-  label: string
-): Promise<MiniApp[]> {
-  const fulfilled = results.filter((r): r is PromiseFulfilledResult<MiniApp> => r.status === 'fulfilled')
-  const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-
-  try {
-    await invalidate('/mini-apps')
-  } catch (error) {
-    logger.warn(`${label}: cache refresh failed after status updates`, { error: toDataApiError(error) })
-  }
-
-  if (rejected.length > 0) {
-    const failures = rejected.map((f) => {
-      const err = toDataApiError(f.reason)
-      return isDataApiError(err)
-        ? { code: err.code, message: err.message }
-        : { code: 'UNKNOWN', message: String(f.reason) }
-    })
-    logger.error(`${label}: ${rejected.length} of ${results.length} updates failed`, { failures })
-    throw DataApiErrorFactory.invalidOperation(
-      `${label}: ${rejected.length} of ${results.length} updates failed`,
-      i18n.t('miniApp.update_partial_failure', { failed: rejected.length, total: results.length })
-    )
-  }
-
-  return fulfilled.map((r) => r.value)
-}
-
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
@@ -248,17 +212,6 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const invalidate = useInvalidateCache()
   const readCache = useReadCache()
 
-  // Batch PATCH/DELETE via dataApiService (for Promise.allSettled batch ops where
-  // a single template useMutation would share isMutating/error state incorrectly)
-  const patchApp = useCallback(async (appId: string, body: UpdateMiniAppDto) => {
-    try {
-      return await dataApiService.patch(`/mini-apps/${encodeURIComponent(appId)}`, { body })
-    } catch (error) {
-      logger.error('Failed to patch mini app', { appId, error: toDataApiError(error) })
-      throw toDataApiError(error)
-    }
-  }, [])
-
   // Fixed-path mutations (useMutation with auto-refresh)
   const { trigger: postMiniApp } = useMutation('POST', '/mini-apps', {
     refresh: ['/mini-apps']
@@ -276,6 +229,9 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     refresh: ['/mini-apps']
   })
   const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
+    refresh: ['/mini-apps']
+  })
+  const { trigger: patchMiniAppStatusBatchTrigger } = useMutation('PATCH', '/mini-apps/status:batch', {
     refresh: ['/mini-apps']
   })
   const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
@@ -310,30 +266,20 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * Use for swap (move two columns) and reset (move all hidden back to
    * enabled). Single-row actions belong on `updateAppStatus`.
    *
-   * Throws an aggregated {@link DataApiErrorFactory.invalidOperation} when one
-   * or more PATCHes fail. One cache refresh is attempted after all requests
-   * settle so the UI never renders an intermediate tail position.
+   * The service commits the complete batch in one transaction, including any
+   * requested destination order, so reset cannot leave a partial result.
    */
   const setAppStatusBulk = useCallback(
     async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status']; order?: OrderRequest }>) => {
-      if (updates.length === 0) return Promise.resolve([] as MiniApp[])
-      let results: PromiseSettledResult<MiniApp>[]
-      if (updates.some((update) => update.order !== undefined)) {
-        results = []
-        for (const update of updates) {
-          try {
-            const value = await patchApp(update.appId, { status: update.status, order: update.order })
-            results.push({ status: 'fulfilled', value })
-          } catch (reason) {
-            results.push({ status: 'rejected', reason })
-          }
-        }
-      } else {
-        results = await Promise.allSettled(updates.map((update) => patchApp(update.appId, { status: update.status })))
+      if (updates.length === 0) return
+      try {
+        await patchMiniAppStatusBatchTrigger({ body: { updates: [...updates] } })
+      } catch (error) {
+        logger.error('Failed to update mini app statuses', { error: toDataApiError(error) })
+        throw toDataApiError(error)
       }
-      return settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
     },
-    [patchApp, invalidate]
+    [patchMiniAppStatusBatchTrigger]
   )
 
   const createCustomMiniApp = useCallback(

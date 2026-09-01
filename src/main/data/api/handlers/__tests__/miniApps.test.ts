@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, createMock, getByAppIdMock, updateMock, deleteMock, reorderMock } = vi.hoisted(() => ({
-  listMock: vi.fn(),
-  createMock: vi.fn(),
-  getByAppIdMock: vi.fn(),
-  updateMock: vi.fn(),
-  deleteMock: vi.fn(),
-  reorderMock: vi.fn()
-}))
+const { listMock, createMock, getByAppIdMock, updateMock, updateStatusBatchMock, deleteMock, reorderMock } = vi.hoisted(
+  () => ({
+    listMock: vi.fn(),
+    createMock: vi.fn(),
+    getByAppIdMock: vi.fn(),
+    updateMock: vi.fn(),
+    updateStatusBatchMock: vi.fn(),
+    deleteMock: vi.fn(),
+    reorderMock: vi.fn()
+  })
+)
 
 vi.mock('@data/services/MiniAppService', () => ({
   miniAppService: {
@@ -15,6 +18,7 @@ vi.mock('@data/services/MiniAppService', () => ({
     create: createMock,
     getByAppId: getByAppIdMock,
     update: updateMock,
+    updateStatusBatch: updateStatusBatchMock,
     delete: deleteMock,
     reorder: reorderMock
   }
@@ -371,6 +375,28 @@ describe('miniAppHandlers', () => {
 
       // Empty body is valid Zod — UpdateMiniAppSchema allows all optional fields
       expect(updateMock).toHaveBeenCalledWith('openai', {})
+    })
+  })
+
+  describe('PATCH /mini-apps/status:batch', () => {
+    it('validates and delegates the complete status batch', async () => {
+      const updates = [
+        { appId: 'first', status: 'enabled' as const, order: { before: 'anchor' } },
+        { appId: 'second', status: 'disabled' as const }
+      ]
+
+      await miniAppHandlers['/mini-apps/status:batch'].PATCH({ body: { updates } })
+
+      expect(updateStatusBatchMock).toHaveBeenCalledWith(updates)
+    })
+
+    it('rejects an empty batch before calling the service', async () => {
+      await expect(miniAppHandlers['/mini-apps/status:batch'].PATCH({ body: { updates: [] } })).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+
+      expect(updateStatusBatchMock).not.toHaveBeenCalled()
     })
   })
 

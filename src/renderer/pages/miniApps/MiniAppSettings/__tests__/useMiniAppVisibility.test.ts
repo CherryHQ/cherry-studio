@@ -222,6 +222,37 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.visible.map((app) => app.appId)).toEqual(['cn-only', 'a', 'b'])
   })
 
+  it('restores an original tail row before a newly created row', () => {
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+    const originalTail = mocks.miniApps[1]
+
+    act(() => result.current.hide(originalTail))
+    mocks.miniApps = [mocks.miniApps[0], stubApp('new-app')]
+    mocks.disabled = [originalTail]
+    rerender()
+
+    act(() => result.current.show(originalTail))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'new-app'])
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('b', 'enabled', { before: 'new-app' })
+  })
+
+  it('does not remember an order that failed to persist', async () => {
+    mocks.reorderMiniAppsByStatus.mockRejectedValueOnce(new Error('reorder failed'))
+    const original = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(1, 0))
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+
+    mocks.miniApps = [...original]
+    rerender()
+    act(() => result.current.hide(original[0]))
+    act(() => result.current.show(original[0]))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b'])
+  })
+
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 0))

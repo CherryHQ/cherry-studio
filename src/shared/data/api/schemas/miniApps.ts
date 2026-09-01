@@ -78,6 +78,19 @@ export const UpdateMiniAppSchema = z
   })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
+export const MiniAppStatusBatchSchema = z.strictObject({
+  updates: z
+    .array(
+      z.strictObject({
+        appId: z.string().min(1),
+        status: MiniAppStatusSchema,
+        order: OrderRequestSchema.optional()
+      })
+    )
+    .min(1)
+})
+export type MiniAppStatusBatch = z.infer<typeof MiniAppStatusBatchSchema>
+
 /**
  * Query parameters for listing miniApps
  */
@@ -134,6 +147,13 @@ type MiniAppBaseSchemas = {
     /** Delete a miniapp */
     DELETE: {
       params: { appId: string }
+      response: void
+    }
+  }
+
+  '/mini-apps/status:batch': {
+    PATCH: {
+      body: MiniAppStatusBatch
       response: void
     }
   }

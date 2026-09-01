@@ -34,7 +34,7 @@ function withEnabledStatus(app: MiniApp): MiniApp {
   return app.status === 'enabled' ? app : { ...app, status: 'enabled' }
 }
 
-/** Insert `app` before the first visible row that originally followed it. Unknown rows append. */
+/** Insert `app` before its first original successor or a row introduced after the snapshot. */
 function insertMiniAppInOriginalOrder(
   visible: MiniApp[],
   app: MiniApp,
@@ -42,7 +42,10 @@ function insertMiniAppInOriginalOrder(
 ): MiniApp[] {
   const origIndex = originalVisibleIds.indexOf(app.appId)
   if (origIndex < 0) return [...visible, app]
-  const insertAt = visible.findIndex((item) => originalVisibleIds.indexOf(item.appId) > origIndex)
+  const insertAt = visible.findIndex((item) => {
+    const itemIndex = originalVisibleIds.indexOf(item.appId)
+    return itemIndex < 0 || itemIndex > origIndex
+  })
   if (insertAt < 0) return [...visible, app]
   const next = visible.slice()
   next.splice(insertAt, 0, app)
@@ -203,12 +206,19 @@ export function useMiniAppVisibility() {
       const next = [...visible]
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
-      originalVisibleIdsRef.current = withUpdatedVisibleOrder(
+      const previousOriginalOrder = originalVisibleIdsRef.current
+      const nextOriginalOrder = withUpdatedVisibleOrder(
         originalVisibleIdsRef.current,
         next.map((app) => app.appId)
       )
+      originalVisibleIdsRef.current = nextOriginalOrder
       setVisible(next)
-      reorderMiniAppsByStatus('visible', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
+      reorderMiniAppsByStatus('visible', next).catch((error) => {
+        if (originalVisibleIdsRef.current === nextOriginalOrder) {
+          originalVisibleIdsRef.current = previousOriginalOrder
+        }
+        reportFailure(t, 'miniApp.reorder_failed')(error)
+      })
     },
     [visible, reorderMiniAppsByStatus, t]
   )

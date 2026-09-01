@@ -406,6 +406,24 @@ describe('MiniAppService', () => {
     })
   })
 
+  describe('updateStatusBatch', () => {
+    it('rolls back every status and order change when one anchor is invalid', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'first', status: 'disabled', orderKey: 'b0' })
+      await seedCustom({ appId: 'second', status: 'disabled', orderKey: 'b1' })
+
+      expect(() =>
+        miniAppService.updateStatusBatch([
+          { appId: 'first', status: 'enabled', order: { before: 'anchor' } },
+          { appId: 'second', status: 'enabled', order: { before: 'missing-anchor' } }
+        ])
+      ).toThrow(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+
+      expect(miniAppService.getByAppId('first')).toMatchObject({ status: 'disabled', orderKey: 'b0' })
+      expect(miniAppService.getByAppId('second')).toMatchObject({ status: 'disabled', orderKey: 'b1' })
+    })
+  })
+
   describe('delete', () => {
     it('should delete a custom miniapp', async () => {
       await seedCustom()

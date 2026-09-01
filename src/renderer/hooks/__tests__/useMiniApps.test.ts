@@ -1,8 +1,6 @@
-import { dataApiService } from '@data/DataApiService'
 import i18n from '@renderer/i18n/resolver'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -452,47 +450,22 @@ describe('useMiniApps', () => {
   // === setAppStatusBulk ===
 
   describe('setAppStatusBulk', () => {
-    it('issues exactly one PATCH per requested update', async () => {
+    it('submits every requested status change as one atomic batch', async () => {
       const apps = [createMiniApp('a', { status: 'enabled' }), createMiniApp('b', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
       const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
+      const updates = [
+        { appId: 'a', status: 'disabled' as const },
+        { appId: 'b', status: 'enabled' as const }
+      ]
 
       await act(async () => {
-        await result.current.setAppStatusBulk([
-          { appId: 'a', status: 'disabled' },
-          { appId: 'b', status: 'enabled' }
-        ])
+        await result.current.setAppStatusBulk(updates)
       })
 
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/a', { body: { status: 'disabled' } }])
-      expect(patchCalls).toContainEqual(['/mini-apps/b', { body: { status: 'enabled' } }])
-      expect(patchCalls).toHaveLength(2)
-    })
-
-    it('applies ordered status updates in sequence and refreshes once after the batch', async () => {
-      const invalidate = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApi.useInvalidateCache.mockReturnValue(invalidate)
-      const patch = vi.mocked(dataApiService.patch)
-      patch.mockResolvedValue(createMiniApp('updated'))
-
-      const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
-
-      await act(async () => {
-        await result.current.setAppStatusBulk([
-          { appId: 'a', status: 'enabled', order: { before: 'anchor' } },
-          { appId: 'b', status: 'enabled', order: { position: 'last' } }
-        ])
-      })
-
-      expect(MockDataApiUtils.getCalls('patch')).toEqual([
-        ['/mini-apps/a', { body: { status: 'enabled', order: { before: 'anchor' } } }],
-        ['/mini-apps/b', { body: { status: 'enabled', order: { position: 'last' } } }]
-      ])
-      expect(invalidate).toHaveBeenCalledTimes(1)
-      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
+      expect(trigger).toHaveBeenCalledExactlyOnceWith({ body: { updates } })
     })
 
     it('does not touch rows the caller never names — region-hidden apps stay put', async () => {
@@ -502,9 +475,10 @@ describe('useMiniApps', () => {
       const globalApp = createGlobalApp('globalA', { status: 'enabled' })
       const cnOnly = createCnOnlyApp('cnOnly', { status: 'enabled' })
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([globalApp, cnOnly]))
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
 
       const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
 
       // Hide the only visible Global app — should produce one PATCH for it,
       // never sweep the region-hidden CN app into disabled.
@@ -512,21 +486,22 @@ describe('useMiniApps', () => {
         await result.current.setAppStatusBulk([{ appId: 'globalA', status: 'disabled' }])
       })
 
-      const patchCalls = MockDataApiUtils.getCalls('patch')
-      expect(patchCalls).toContainEqual(['/mini-apps/globalA', { body: { status: 'disabled' } }])
-      expect(patchCalls.find(([path]) => path === '/mini-apps/cnOnly')).toBeUndefined()
+      expect(trigger).toHaveBeenCalledExactlyOnceWith({
+        body: { updates: [{ appId: 'globalA', status: 'disabled' }] }
+      })
     })
 
     it('returns immediately for an empty update list (no PATCH calls)', async () => {
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
       const { result } = renderHook(() => useMiniApps())
-      MockDataApiUtils.resetMocks()
 
       await act(async () => {
         await result.current.setAppStatusBulk([])
       })
 
-      expect(MockDataApiUtils.getCalls('patch')).toHaveLength(0)
+      expect(trigger).not.toHaveBeenCalled()
     })
   })
 
@@ -752,20 +727,12 @@ describe('useMiniApps', () => {
     })
   })
 
-  // === setAppStatusBulk partial-failure ===
-
-  describe('setAppStatusBulk partial-failure', () => {
-    it('throws when one of the PATCHes fails and invalidates the cache', async () => {
+  describe('setAppStatusBulk failure', () => {
+    it('surfaces a rejected atomic batch', async () => {
       const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
-      const invalidate = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApi.useInvalidateCache.mockReturnValue(invalidate)
-
-      vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
-        if (path === '/mini-apps/app1') return { success: true } as never
-        if (path === '/mini-apps/app2') throw new Error('Server error')
-        return undefined as never
-      })
+      const trigger = vi.fn().mockRejectedValue(new Error('Server error'))
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
 
       const { result } = renderHook(() => useMiniApps())
 
@@ -777,9 +744,6 @@ describe('useMiniApps', () => {
           ])
         ).rejects.toThrow()
       })
-
-      expect(invalidate).toHaveBeenCalledTimes(1)
-      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
     })
   })
 })
