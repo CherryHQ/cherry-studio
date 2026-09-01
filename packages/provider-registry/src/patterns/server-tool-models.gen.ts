@@ -815,10 +815,8 @@ export const PROVIDER_SERVER_TOOL_MODEL_IDS: Readonly<Record<string, Partial<Rec
     qwencloud: {
       'web-search': [
         'deepseek-v4-flash',
-        'deepseek-v4-flash-vision-exp',
         'deepseek-v4-pro',
         'glm-5-2',
-        'glm-5-2-fast',
         'qwen3-5-flash',
         'qwen3-5-flash-02-23',
         'qwen3-5-plus',
