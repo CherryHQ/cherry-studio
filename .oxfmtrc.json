@@ -21,6 +21,7 @@
     "**/vendor/**",
     "migrations/**",
     "patches/**",
+    "packages/provider-registry/compat/v*-validator.mjs",
     "packages/ui/src/components/icons/**",
     "packages/ui/src/styles/theme.css",
     "src/main/integration/**",
