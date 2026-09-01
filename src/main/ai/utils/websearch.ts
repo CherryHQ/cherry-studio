@@ -6,8 +6,9 @@ import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompleti
 import {
   DASHSCOPE_RESPONSES_ONLY_WEB_SEARCH_MODELS,
   isBuiltinWebFetchAvailable,
+  isBuiltinWebSearchAvailable,
   matchesPreset
-} from '@shared/utils/provider'
+} from '@shared/utils/provider' 
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
@@ -32,9 +33,10 @@ export interface CherryWebSearchConfig {
  * `model.providerId` there routed those copies to the server side and then injected nothing.
  */
 // DeepSeek-V4 / GLM-5.2 on QwenCloud serve web search through the Responses `web_search` tool only;
-// the supported-models table marks both lines "Responses API only". Dots and hyphens both appear
-// depending on id origin (wire apiModelId vs catalog modelId).
-const qwencloudResponsesOnlySearch = /deepseek-v4|glm-5[.-]2/
+// the supported-models table marks both lines "Responses API only" as a CLOSED id list, so the
+// pattern anchors exactly — flash-vision-exp and glm-5.2-fast/-fast-preview stay out. Dots and
+// hyphens both appear depending on id origin (wire apiModelId vs catalog modelId).
+const qwencloudResponsesOnlySearch = /^deepseek-v4-(?:pro(?:-0813)?|flash(?:-0731)?)$|^glm-5[.-]2$/
 
 export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
   if (provider && matchesPreset(provider, 'zhipu')) {
@@ -71,6 +73,11 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only ("Responses API only"
     // in the table) — Chat's enable_search is not served for them, so inject nothing on this path.
     if (qwencloudResponsesOnlySearch.test(apiModelId)) {
+      return {}
+    }
+    // Unlike mainland Bailian, the international table is a closed list with no qwen-plus/flash/turbo
+    // rows, so chat injects enable_search only for lines the registry declared eligible.
+    if (!isBuiltinWebSearchAvailable(model, provider)) {
       return {}
     }
     const searchStrategy =
