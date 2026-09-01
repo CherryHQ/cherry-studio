@@ -425,7 +425,7 @@ export class KnowledgeItemService {
     baseId: string,
     rootIds: string[],
     status: 'deleting' | 'failed',
-    update?: FailedKnowledgeItemStatusUpdate | undefined
+    update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
