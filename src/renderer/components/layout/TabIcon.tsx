@@ -1,4 +1,4 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
+import { EmojiIcon } from '@cherrystudio/ui'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import { cn } from '@renderer/utils/style'
 import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
@@ -19,14 +19,7 @@ export const TabIcon: FC<{ tab: Tab; size: number; className?: string }> = ({ ta
   if (tab.icon) {
     // Per-entity emoji (chat assistant / agent avatar), stored as `emoji:<glyph>`.
     if (tab.icon.startsWith(TAB_ICON_EMOJI_PREFIX)) {
-      return (
-        <EmojiIcon
-          emoji={tab.icon.slice(TAB_ICON_EMOJI_PREFIX.length)}
-          size={size}
-          fontSize={Math.round(size * 0.62)}
-          className={cn('mr-0', className)}
-        />
-      )
+      return <EmojiIcon emoji={tab.icon.slice(TAB_ICON_EMOJI_PREFIX.length)} size={size} className={className} />
     }
     if (getMiniAppsLogoRef(tab.icon)) {
       return Logo ? (

@@ -19,10 +19,6 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
 }))
 
-vi.mock('@renderer/components/EmojiIcon', () => ({
-  default: () => <span data-testid="assistant-avatar" />
-}))
-
 vi.mock('@renderer/components/ModelSelector', () => ({
   getProviderDisplayName: (provider: Provider) => provider.name,
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger

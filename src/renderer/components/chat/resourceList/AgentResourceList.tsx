@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -12,11 +13,12 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -114,8 +116,22 @@ export function AgentResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
-  const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
+  const {
+    shortcuts: sidebarShortcuts,
+    toggle: toggleSidebarShortcut,
+    remove: removeSidebarShortcut
+  } = useSidebarShortcuts()
+  const sidebarAgentFavoriteIdSet = useMemo(
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
+  )
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
@@ -323,7 +339,7 @@ export function AgentResourceList({
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
           label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-          icon: sidebarPinned ? <PinOff size={14} /> : <Pin size={14} />,
+          icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
         }),
         buildResolvedIconTypeMenuAction(
@@ -367,8 +383,9 @@ export function AgentResourceList({
         return
       }
       if (action.id === AGENT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
-        if (sidebarAgentFavoriteIdSet.has(item.id)) removeAgent(item.id)
-        else toggleAgent(item.id)
+        const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.AGENT, item.id)
+        if (sidebarAgentFavoriteIdSet.has(item.id)) removeSidebarShortcut(target)
+        else toggleSidebarShortcut(target, item.name)
         return
       }
       if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
@@ -383,10 +400,10 @@ export function AgentResourceList({
       handleDeleteAgent,
       handleToggleAgentPin,
       openAgentEditor,
-      removeAgent,
+      removeSidebarShortcut,
       setAssistantIconType,
       sidebarAgentFavoriteIdSet,
-      toggleAgent
+      toggleSidebarShortcut
     ]
   )
 

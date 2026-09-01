@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { PreferenceSchemas } from '../preferenceSchemas'
 import { DefaultPreferences } from '../preferenceSchemas'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '../preferenceTypes'
 
 describe('DefaultPreferences', () => {
   it('leaves the client ID empty until runtime generates a UUID', () => {
@@ -42,12 +43,18 @@ describe('DefaultPreferences', () => {
 
   it('defaults sidebar favorites to Chat before Agent for new users', () => {
     const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
-      { id: 'assistants', type: 'app' },
-      { id: 'agents', type: 'app' },
-      { id: 'translate', type: 'app' },
-      { id: 'paintings', type: 'app' },
-      { id: 'knowledge', type: 'app' }
-    ]
+      'assistants',
+      'agents',
+      'translate',
+      'paintings',
+      'knowledge'
+    ].map((resourceId) => {
+      const target: SidebarShortcutTarget = {
+        kind: 'resource',
+        locator: { providerId: 'core.app', resourceId }
+      }
+      return { type: 'shortcut', id: createSidebarShortcutId(target), target }
+    })
 
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
   })

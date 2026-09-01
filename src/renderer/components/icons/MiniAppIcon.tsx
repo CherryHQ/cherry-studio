@@ -1,3 +1,4 @@
+import { getProviderIconAssetMetrics } from '@cherrystudio/ui/icons'
 import { getMiniAppsLogoRef, useMiniAppLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
@@ -6,13 +7,15 @@ import { getIconDisplayConfig, miniAppContainedIcon } from './iconDisplayConfig'
 
 interface Props {
   app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
-  /** `avatar` keeps bordered Avatar chrome; `plain` uses launchpad sizing; `bare` is raw; `sidebar` is circular. */
+  /** `avatar` keeps bordered Avatar chrome; `plain` uses launchpad sizing; `bare` removes chrome; `sidebar` is circular. */
   appearance?: 'avatar' | 'plain' | 'bare' | 'sidebar'
+  /** Visible artwork target for inset registry icons rendered without chrome. */
+  artworkSize?: number
   size?: number
   style?: React.CSSProperties
 }
 
-const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
+const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', artworkSize, size = 48, style }) => {
   // Branching is decided synchronously from the ref; the CompoundIcon itself
   // loads async — a size-stable placeholder covers the brief loading window.
   const logoRef = getMiniAppsLogoRef(app.logo || undefined)
@@ -55,7 +58,11 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
     }
     if (appearance === 'plain' || appearance === 'bare') {
       const displayConfig = appearance === 'plain' ? getIconDisplayConfig('mini-app', app.logo) : undefined
-      const iconSize = size * (displayConfig?.scale ?? 1)
+      const metrics =
+        appearance === 'bare' && artworkSize !== undefined
+          ? getProviderIconAssetMetrics({ kind: logoRef.kind, iconId: logoRef.meta.id })
+          : undefined
+      const iconSize = metrics ? artworkSize * metrics.canvasScale : size * (displayConfig?.scale ?? 1)
 
       return (
         <span

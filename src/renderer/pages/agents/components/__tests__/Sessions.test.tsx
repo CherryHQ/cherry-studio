@@ -6,6 +6,7 @@ import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { Activity, type ComponentProps, type ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -258,6 +259,11 @@ const preferenceMocks = vi.hoisted(() => ({
   setPreference: vi.fn()
 }))
 
+const sidebarShortcut = (providerId: string, resourceId: string) => {
+  const target: SidebarShortcutTarget = { kind: 'resource', locator: { providerId, resourceId } }
+  return { type: 'shortcut' as const, id: createSidebarShortcutId(target), target }
+}
+
 const cacheMocks = vi.hoisted(() => ({
   state: { activeSessionId: 'session-a' as string | null },
   values: new Map<string, unknown>(),
@@ -401,6 +407,16 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
     Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
     vi.fn()
   ]
+}))
+
+vi.mock('@renderer/data/PreferenceService', () => ({
+  preferenceService: {
+    get: vi.fn(async (key: string) => preferenceMocks.values.get(key)),
+    set: vi.fn(async (key: string, value: unknown) => {
+      preferenceMocks.values.set(key, value)
+      preferenceMocks.setPreference(key, value)
+    })
+  }
 }))
 
 vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
@@ -2014,6 +2030,23 @@ describe('Sessions', () => {
     )
   })
 
+  it('adds a session shortcut without changing its task pin', async () => {
+    preferenceMocks.values.set('ui.sidebar.favorites', [])
+    render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Add to sidebar' }))
+
+    await vi.waitFor(() =>
+      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([
+        { ...sidebarShortcut('core.agent-session', 'session-a'), fallbackLabel: 'Alpha session' }
+      ])
+    )
+    expect(sessionDataMocks.togglePin).not.toHaveBeenCalled()
+  })
+
   it('closes the rename dialog without updating when its session is deleted', async () => {
     const { rerender } = render(<SessionsForTest />)
 
@@ -3547,15 +3580,13 @@ describe('Sessions', () => {
     fireEvent.click(pinMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', [
-        { type: 'agent', id: 'agent-a' }
-      ])
+      expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([sidebarShortcut('core.agent', 'agent-a')])
     )
   })
 
   it('unpins an already pinned agent from the agent group menu', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('ui.sidebar.favorites', [{ type: 'agent', id: 'agent-a' }])
+    preferenceMocks.values.set('ui.sidebar.favorites', [sidebarShortcut('core.agent', 'agent-a')])
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
       isLoading: false,
@@ -3577,7 +3608,7 @@ describe('Sessions', () => {
 
     fireEvent.click(unpinMenuItem as HTMLElement)
 
-    await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('ui.sidebar.favorites', []))
+    await vi.waitFor(() => expect(preferenceMocks.values.get('ui.sidebar.favorites')).toEqual([]))
   })
 
   it('deletes an agent from the agent group menu', async () => {

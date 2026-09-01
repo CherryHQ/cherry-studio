@@ -97,7 +97,10 @@ describe('PreferenceSeeder', () => {
     ]
     const generatedDefault = DefaultPreferences.default[sidebarKey]
 
-    expect(generatedDefault[0]).toEqual({ id: 'assistants', type: 'app' })
+    expect(generatedDefault[0]).toMatchObject({
+      type: 'shortcut',
+      target: { locator: { providerId: 'core.app', resourceId: 'assistants' } }
+    })
     expect(persisted).not.toEqual(generatedDefault)
 
     await dbh.db.insert(preferenceTable).values({

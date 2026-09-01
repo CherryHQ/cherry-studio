@@ -3,6 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
@@ -11,9 +12,10 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
@@ -60,7 +62,7 @@ const MiniApp: FC<Props> = ({
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
-  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
+  const { isPinned: isSidebarShortcutPinned, toggle: toggleSidebarShortcut } = useSidebarShortcuts()
   // The dot WITH its reasons: hover says why, the menu offers the action.
   const attention = useMiniAppAttentionFor(app.appId)
   const updating = attention?.updating ?? null
@@ -94,7 +96,8 @@ const MiniApp: FC<Props> = ({
   const [detailOpen, setDetailOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
-  const isSidebarFavorite = miniAppFavoriteIds.includes(app.appId)
+  const sidebarTarget = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.MINI_APP, app.appId)
+  const isSidebarFavorite = isSidebarShortcutPinned(sidebarTarget)
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
@@ -157,7 +160,7 @@ const MiniApp: FC<Props> = ({
   }
 
   const handleToggleSidebarFavorite = () => {
-    toggleMiniApp(app.appId)
+    toggleSidebarShortcut(sidebarTarget, displayName)
   }
 
   const handleHide = () => {
@@ -225,6 +228,7 @@ const MiniApp: FC<Props> = ({
       type: 'item',
       id: 'mini-app.toggle-sidebar-favorite',
       label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+      icon: <SidebarShortcutIcon size={14} pinned={isSidebarFavorite} />,
       onSelect: handleToggleSidebarFavorite
     },
     ...(!isPinned

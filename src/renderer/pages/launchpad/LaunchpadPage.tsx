@@ -12,15 +12,21 @@ import notesIcon from '@renderer/assets/images/apps/launchpad-notes.svg'
 import paintingsIcon from '@renderer/assets/images/apps/launchpad-paintings.svg'
 import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath } from '@renderer/utils/sidebar'
+import {
+  canRemoveSidebarShortcut,
+  createSidebarShortcutTarget,
+  getSidebarMenuPath,
+  SIDEBAR_SHORTCUT_PROVIDER_IDS
+} from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -55,12 +61,10 @@ export default function LaunchpadPage() {
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const { shortcuts, isPinned, setPinned } = useSidebarShortcuts()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
-
-  const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -117,37 +121,37 @@ export default function LaunchpadPage() {
 
   const pinToSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (visibleSidebarFavoriteSet.has(favorite)) return
-      setAppPinned(favorite, true)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      setPinned(target, true, t(getSidebarIconLabelKey(favorite)))
     },
-    [setAppPinned, visibleSidebarFavoriteSet]
+    [setPinned, t]
   )
 
   const unpinFromSidebar = useCallback(
     (favorite: SidebarAppId) => {
-      if (!visibleSidebarFavoriteSet.has(favorite)) return
-      if (visibleSidebarFavoriteSet.size <= 1) return
-      setAppPinned(favorite, false)
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      setPinned(target, false)
     },
-    [setAppPinned, visibleSidebarFavoriteSet]
+    [setPinned]
   )
 
   const getAppContextMenuItems = useCallback(
     (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
-      const isPinned = visibleSidebarFavoriteSet.has(favorite)
-      const isLastPinned = isPinned && visibleSidebarFavoriteSet.size <= 1
+      const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.APP, favorite)
+      const pinned = isPinned(target)
 
       return [
         {
           type: 'item',
-          id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
-          label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isLastPinned,
-          onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
+          id: `launchpad.${pinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
+          label: t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
+          icon: <SidebarShortcutIcon size={14} pinned={pinned} />,
+          enabled: !pinned || canRemoveSidebarShortcut(shortcuts, target),
+          onSelect: () => (pinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
-    [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
+    [isPinned, pinToSidebar, shortcuts, t, unpinFromSidebar]
   )
 
   // Sidebar-backed app tiles keep their existing launchpad order. The direct

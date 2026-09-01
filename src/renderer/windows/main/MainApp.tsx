@@ -1,6 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AppLogo from '@renderer/assets/images/logo.png'
+import {
+  CORE_SIDEBAR_SHORTCUT_PROVIDERS,
+  SidebarShortcutRegistry,
+  SidebarShortcutRegistryProvider
+} from '@renderer/components/app/sidebarShortcuts'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ConversationNotificationRuntime } from '@renderer/components/ConversationNotificationRuntime'
@@ -86,6 +91,7 @@ export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  const sidebarShortcutRegistry = useMemo(() => new SidebarShortcutRegistry(CORE_SIDEBAR_SHORTCUT_PROVIDERS), [])
 
   const initialDefaultTab = useMemo<Tab>(
     () => ({
@@ -101,18 +107,20 @@ export function MainWindowContent(): React.ReactElement {
 
   return (
     <TabsProvider initialDefaultTab={initialDefaultTab}>
-      {providerSetupStatus === 'pending' ? (
-        <Suspense fallback={<BootFallback />}>
-          <OnboardingPage />
-        </Suspense>
-      ) : (
-        <AppShell />
-      )}
-      <MainWindowRuntime />
-      <ConversationNotificationRuntime />
-      <PopupHost />
-      <ToastHost />
-      {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+      <SidebarShortcutRegistryProvider registry={sidebarShortcutRegistry}>
+        {providerSetupStatus === 'pending' ? (
+          <Suspense fallback={<BootFallback />}>
+            <OnboardingPage />
+          </Suspense>
+        ) : (
+          <AppShell />
+        )}
+        <MainWindowRuntime />
+        <ConversationNotificationRuntime />
+        <PopupHost />
+        <ToastHost />
+        {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+      </SidebarShortcutRegistryProvider>
     </TabsProvider>
   )
 }

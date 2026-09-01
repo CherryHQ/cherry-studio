@@ -128,6 +128,7 @@ export interface FindEntriesQuery {
 export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size' | 'ext'
 
 export interface ListCursorQuery {
+  readonly ids?: readonly FileEntryId[]
   readonly origin?: FileEntryOrigin
   readonly inTrash?: boolean
   readonly fileType?: FileType
@@ -646,6 +647,9 @@ class FileEntryServiceImpl implements FileEntryService {
 
   listCursor(query: ListCursorQuery = {}): FileEntryListResponse {
     const filterConditions: SQL[] = []
+    if (query.ids) {
+      filterConditions.push(inArray(fileEntryTable.id, query.ids))
+    }
     if (query.origin) {
       filterConditions.push(eq(fileEntryTable.origin, query.origin))
     }

@@ -4,6 +4,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -14,12 +15,13 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -129,10 +131,21 @@ export function AssistantResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
-  const { assistantFavoriteIds: sidebarAssistantFavoriteIds, toggleAssistant, removeAssistant } = useSidebarFavorites()
+  const {
+    shortcuts: sidebarShortcuts,
+    toggle: toggleSidebarShortcut,
+    remove: removeSidebarShortcut
+  } = useSidebarShortcuts()
   const sidebarAssistantFavoriteIdSet = useMemo(
-    () => new Set(sidebarAssistantFavoriteIds),
-    [sidebarAssistantFavoriteIds]
+    () =>
+      new Set(
+        sidebarShortcuts.flatMap((shortcut) =>
+          shortcut.target.locator.providerId === SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT
+            ? [shortcut.target.locator.resourceId]
+            : []
+        )
+      ),
+    [sidebarShortcuts]
   )
   const assistantGroupById = useMemo(
     () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
@@ -453,7 +466,7 @@ export function AssistantResourceList({
         buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID,
           label: sidebarPinned ? t('launchpad.unpin_from_sidebar') : t('launchpad.pin_to_sidebar'),
-          icon: sidebarPinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+          icon: <SidebarShortcutIcon size={14} pinned={sidebarPinned} />,
           order: 22
         }),
         buildResolvedResourceEntityMenuAction({
@@ -511,8 +524,9 @@ export function AssistantResourceList({
         return
       }
       if (action.id === ASSISTANT_ENTITY_TOGGLE_SIDEBAR_ACTION_ID) {
-        if (sidebarAssistantFavoriteIdSet.has(item.id)) removeAssistant(item.id)
-        else toggleAssistant(item.id)
+        const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.ASSISTANT, item.id)
+        if (sidebarAssistantFavoriteIdSet.has(item.id)) removeSidebarShortcut(target)
+        else toggleSidebarShortcut(target, item.name)
         return
       }
       if (action.id === ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID) {
@@ -537,11 +551,11 @@ export function AssistantResourceList({
       handleToggleAssistantPin,
       isGroupGrouping,
       openAssistantEditor,
-      removeAssistant,
+      removeSidebarShortcut,
       setAssistantIconType,
       setAssistantSortType,
       sidebarAssistantFavoriteIdSet,
-      toggleAssistant
+      toggleSidebarShortcut
     ]
   )
 

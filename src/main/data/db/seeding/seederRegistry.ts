@@ -9,6 +9,7 @@ import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePre
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
+import { SidebarShortcutMigrationSeeder } from './seeders/sidebarShortcutMigrationSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 import { WebSearchPreferenceUpgradeSeeder } from './seeders/webSearchPreferenceUpgradeSeeder'
 
@@ -29,6 +30,7 @@ export const seeders: ISeeder[] = [
   new LongTextPastePreferenceUpgradeSeeder(),
   new WebSearchPreferenceUpgradeSeeder(),
   new PreferenceSeeder(),
+  new SidebarShortcutMigrationSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
   new LocalModelSeeder(),

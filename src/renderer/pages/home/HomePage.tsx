@@ -475,7 +475,20 @@ const HomePage: FC = () => {
     [resolveEmptyTopic]
   )
 
-  // A bare entry with no resolvable topic stays empty until the user explicitly starts a conversation.
+  useEffect(() => {
+    if (isMessageOnlyView || routeTopicId || activeTopicId || !routeAssistantId || !isAssistantListResolved) return
+    if (!assistantIdSet.has(routeAssistantId)) return
+
+    void createAndActivateEmptyTopic({ assistantId: routeAssistantId })
+  }, [
+    activeTopicId,
+    assistantIdSet,
+    createAndActivateEmptyTopic,
+    isAssistantListResolved,
+    isMessageOnlyView,
+    routeAssistantId,
+    routeTopicId
+  ])
 
   // After deleting the active assistant, settle on the latest remaining topic or the empty route.
   const handleActiveAssistantDeleted = useCallback(
