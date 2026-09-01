@@ -341,6 +341,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     align = 'start',
     sideOffset = 4,
     contentClassName,
+    contentWidth = MODEL_SELECTOR_WIDTH,
     portalContainer,
     mountStrategy = 'destroy',
     multiSelectMode: multiSelectModeProp,
@@ -935,7 +936,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
-        width={MODEL_SELECTOR_WIDTH}
+        width={contentWidth}
         side={side}
         align={align}
         sideOffset={sideOffset}

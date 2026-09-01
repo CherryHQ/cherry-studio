@@ -2,7 +2,6 @@ import { MenuItem } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 
-import { ActiveIndicator } from './primitives'
 import type { SidebarClickGuard } from './SidebarSortableList'
 import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
@@ -86,10 +85,9 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
-                    ? 'bg-[var(--sidebar-active-bg)] text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
                 {entry.renderIcon(18, 'lg')}
               </button>
             </EntryContextMenu>
@@ -121,10 +119,9 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 onClick={guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
+                className="!text-sidebar-foreground hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground focus-visible:!bg-sidebar-accent focus-visible:!text-sidebar-accent-foreground data-[active=true]:!bg-sidebar-accent data-[active=true]:!text-sidebar-accent-foreground rounded-xl"
               />
             </EntryContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
           </div>
         )
       }}

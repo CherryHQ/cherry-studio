@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
   openSettingsTab: vi.fn(),
   shellEvents: [] as string[],
+  shellWidth: undefined as SelectorShellProps['width'],
   scrollToIndex: vi.fn(),
   useModelSelectorData: vi.fn()
 }))
@@ -100,6 +101,7 @@ vi.mock('@renderer/components/SelectorShell', () => ({
     search,
     filterContent,
     multiSelect,
+    width,
     bottomAction,
     children,
     'data-testid': dataTestId
@@ -113,6 +115,7 @@ vi.mock('@renderer/components/SelectorShell', () => ({
 
     const actions = Array.isArray(bottomAction) ? bottomAction : bottomAction ? [bottomAction] : []
     mocks.bottomActions = actions
+    mocks.shellWidth = width
     const content = typeof children === 'function' ? children({ availableListHeight: undefined }) : children
 
     return (
@@ -241,6 +244,7 @@ describe('ModelSelector', () => {
     vi.clearAllMocks()
     mocks.bottomActions = []
     mocks.shellEvents = []
+    mocks.shellWidth = undefined
     mocks.useModelSelectorData.mockReturnValue(makeData())
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -651,6 +655,30 @@ describe('ModelSelector', () => {
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
     expect(screen.getByText('models.no_matches')).toBeInTheDocument()
+  })
+
+  it('keeps a usable default panel width for compact triggers', () => {
+    mocks.useModelSelectorData.mockReturnValue(makeData())
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(mocks.shellWidth).toBe(400)
+  })
+
+  it('accepts a call-site panel width so settings can match the trigger', () => {
+    mocks.useModelSelectorData.mockReturnValue(makeData())
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        contentWidth="var(--radix-popover-trigger-width)"
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(mocks.shellWidth).toBe('var(--radix-popover-trigger-width)')
   })
 
   it('keeps model filters on one horizontally scrollable row', () => {

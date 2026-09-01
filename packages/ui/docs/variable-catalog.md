@@ -61,10 +61,6 @@ Component, page, and Electron-shell custom properties are a separate ownership c
 The migration registry's historical `--app-*` entries are retired semantic bridges, not a namespace-wide ban on
 genuine host-local variables.
 
-The Renderer Sidebar's active-row and glow custom properties are scoped by
-`src/renderer/components/Sidebar/Sidebar.css`. They remain private implementation details even though the Sidebar
-appears throughout the main App Shell; visual reach through one owner does not make them cross-package semantics.
-
 ## 4. Official Shadcn variables
 
 Official variables are unprefixed so Shadcn tooling and compatible themes such as TweakCN can provide them.

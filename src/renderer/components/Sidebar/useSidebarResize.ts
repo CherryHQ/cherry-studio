@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 
 import {
-  getSidebarDisplayWidth,
   isIntermediateSidebarWidth,
   SIDEBAR_FULL_THRESHOLD,
   SIDEBAR_HIDDEN_THRESHOLD,
@@ -10,9 +9,9 @@ import {
 } from './constants'
 
 export function useSidebarResize(
-  width: number,
   setWidth: (width: number) => void,
-  onResizePreview?: (width: number | null) => void
+  onResizePreview?: (width: number | null) => void,
+  onResizingChange?: (resizing: boolean) => void
 ) {
   const isResizing = useRef(false)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
@@ -26,11 +25,12 @@ export function useSidebarResize(
     (event: React.MouseEvent) => {
       event.preventDefault()
       isResizing.current = true
+      onResizingChange?.(true)
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
 
       const containerLeft = sidebarRef.current?.parentElement?.getBoundingClientRect().left ?? 0
-      const startWidth = getSidebarDisplayWidth(width)
+      const startWidth = event.clientX - containerLeft
       let lastWidth: number | null = null
 
       const commitDragWidth = (nextWidth: number) => {
@@ -66,6 +66,7 @@ export function useSidebarResize(
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
         resizeCleanupRef.current = null
+        onResizingChange?.(false)
       }
 
       const onMouseUp = () => {
@@ -79,7 +80,7 @@ export function useSidebarResize(
       document.addEventListener('mouseup', onMouseUp)
       resizeCleanupRef.current = cleanup
     },
-    [onResizePreview, setWidth, width]
+    [onResizePreview, onResizingChange, setWidth]
   )
 
   return { sidebarRef, startResizing }
