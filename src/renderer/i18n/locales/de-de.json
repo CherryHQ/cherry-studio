@@ -1566,6 +1566,8 @@
   "knowledge.data_source.add_dialog.note.loading": "Notizen werden geladen…",
   "knowledge.data_source.add_dialog.note.mode.create": "Neue Notiz",
   "knowledge.data_source.add_dialog.note.mode.import": "Notizen importieren",
+  "knowledge.data_source.add_dialog.picker.all_text_files": "Alle Textdateien",
+  "knowledge.data_source.add_dialog.picker.documents": "Dokumente",
   "knowledge.data_source.add_dialog.sources.directory": "Ordner",
   "knowledge.data_source.add_dialog.sources.file": "Datei",
   "knowledge.data_source.add_dialog.sources.note": "Hinweis",

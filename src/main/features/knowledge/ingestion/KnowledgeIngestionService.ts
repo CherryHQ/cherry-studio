@@ -20,7 +20,7 @@ import {
   type KnowledgeItem,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { knowledgeIndexableFileExtSet } from '@shared/utils/file'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import { classifyKnowledgeItemSource } from '../items'
@@ -57,7 +57,6 @@ import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 const logger = loggerService.withContext('Knowledge:IngestionService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
-const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
@@ -653,7 +652,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
 }
 
 function assertSupportedKnowledgeFilePath(filePath: string): void {
-  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(getFileExt(filePath).toLowerCase())) {
+  if (!knowledgeIndexableFileExtSet.has(getFileExt(filePath).toLowerCase())) {
     throw new Error(`Unsupported knowledge file type: ${filePath}`)
   }
 }
