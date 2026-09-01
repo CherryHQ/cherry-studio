@@ -1,5 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
+import { formatFileSize } from '@renderer/utils/file'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
 
 type BackupErrorFallbackKey =
   | 'error.backup.file_format'
@@ -17,11 +18,20 @@ export function getLocalizedBackupErrorMessage(
     typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
       ? error.code
       : undefined
-  const messageKey = errorMessage.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
-    ? 'backup.error.active_data_writers'
-    : errorCode === 'ENOSPC' || errorMessage.includes('ENOSPC') || /no space left on device/i.test(errorMessage)
-      ? 'backup.error.disk_full'
-      : fallbackKey
+  if (errorMessage.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)) {
+    return i18n.t('backup.error.active_data_writers')
+  }
 
-  return i18n.t(messageKey)
+  const diskFullDetails = errorMessage.match(new RegExp(`${BACKUP_DISK_FULL_ERROR_CODE}:(\\d+)`))
+  if (diskFullDetails) {
+    return i18n.t('backup.error.disk_full_with_available', {
+      available: formatFileSize(Number(diskFullDetails[1]))
+    })
+  }
+
+  if (errorCode === 'ENOSPC' || errorMessage.includes('ENOSPC') || /no space left on device/i.test(errorMessage)) {
+    return i18n.t('backup.error.disk_full')
+  }
+
+  return i18n.t(fallbackKey)
 }

@@ -544,6 +544,7 @@
   "backup.content": "Se face backup la toate datele, inclusiv istoricul chat-ului, setările și baza de cunoștințe. Te rugăm să reții că procesul de backup poate dura ceva timp, îți mulțumim pentru răbdare.",
   "backup.error.active_data_writers": "O conversație sau un agent este încă în execuție. Așteaptă să se termine, apoi încearcă din nou.",
   "backup.error.disk_full": "Nu există suficient spațiu pe disc. Eliberați spațiu și încercați din nou.",
+  "backup.error.disk_full_with_available": "Nu există suficient spațiu pe disc (disponibil: {{available}}). Eliberați spațiu și încercați din nou.",
   "backup.progress.completed": "Backup finalizat",
   "backup.progress.compressing": "Se comprimă fișierele...",
   "backup.progress.copying_database": "Copiere bază de date...",
