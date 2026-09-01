@@ -2473,6 +2473,58 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "text-generation"
+      ],
+      "contextWindow": 1048576,
+      "family": "qwen",
+      "id": "qwen3-8-flash-next",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 1048576,
+      "metadata": {},
+      "name": "Qwen 3.8 Flash Next",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "alibaba",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.12
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "xhigh"]
+          },
+          {
+            "kind": "budget",
+            "max": 38912,
+            "min": 1024
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "xhigh"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1024
+        }
+      }
+    },
+    {
       "capabilities": ["reasoning", "function-call", "text-generation"],
       "contextWindow": 1000000,
       "family": "qwen",
@@ -4380,55 +4432,6 @@
         "text-generation"
       ],
       "contextWindow": 1000000,
-      "id": "claude-opus-4-7-fast",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Anthropic: Claude Opus 4.7 (Fast)",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 150
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "medium", "high", "max"]
-          },
-          {
-            "kind": "budget",
-            "max": 128000,
-            "min": 1024
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"],
-        "thinkingTokenLimits": {
-          "max": 128000,
-          "min": 1024
-        },
-        "wireDialect": "effort"
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "text-generation"
-      ],
-      "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8",
       "inputModalities": ["text", "image"],
@@ -4470,14 +4473,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "text-generation"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-4-8-fast",
@@ -4567,14 +4563,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "text-generation"
-      ],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "text-generation"],
       "contextWindow": 1000000,
       "family": "claude-opus",
       "id": "claude-opus-5-fast",
@@ -4906,7 +4895,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output", "text-generation"],
+      "capabilities": ["function-call", "reasoning", "text-generation"],
       "contextWindow": 262144,
       "family": "trinity",
       "id": "trinity-large",
@@ -16661,35 +16650,6 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 272000,
-      "id": "gpt-5-4-image-2",
-      "inputModalities": ["image", "text"],
-      "metadata": {},
-      "name": "OpenAI: GPT-5.4 Image 2",
-      "outputModalities": ["image", "text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -18989,7 +18949,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "text-generation"],
+      "capabilities": ["function-call", "reasoning", "image-recognition", "text-generation"],
       "contextWindow": 256000,
       "family": "kat-coder",
       "id": "kat-coder-air-v2-5",
@@ -22426,11 +22386,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.1875
+          "perMillionTokens": 1.17
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.18
+          "perMillionTokens": 3.9600000000000004
         }
       }
     },
@@ -22467,5 +22427,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "338c6e050298800a"
+  "version": "aa39cc8926453902"
 }

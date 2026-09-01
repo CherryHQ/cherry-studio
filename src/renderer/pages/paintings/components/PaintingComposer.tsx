@@ -28,10 +28,11 @@ import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem } from '../form/baseConfigItem'
+import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
+import { controlValue, finiteParamNumberOr, optionalFiniteNumber } from '../form/fieldValue'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
-import { resolveOptions } from '../form/resolveOptions'
+import { resolveOptions, resolveOptionValue } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { MaterializeInputs } from '../hooks/usePaintingGenerationSubmit'
@@ -59,8 +60,17 @@ const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
   'styleToggle'
 ])
 
+type SummaryConfigItem = Extract<
+  BaseConfigItem,
+  { type: 'select' | 'sizeChips' | 'slider' | 'radio' | 'iconRadio' | 'styleToggle' }
+>
+
+function isSummaryConfigItem(item: BaseConfigItem): item is SummaryConfigItem {
+  return SUMMARY_TYPES.has(item.type)
+}
+
 function formatSummaryValue(
-  item: BaseConfigItem,
+  item: SummaryConfigItem,
   value: unknown,
   params: PaintingData['params'],
   translate: (key: string) => string
@@ -68,18 +78,19 @@ function formatSummaryValue(
   // Size-bearing fields render as chip-style dimensions, matching the size chips.
   if ((SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key ?? '')) {
     if (value === 'custom') {
-      const w = params?.customSize_width
-      const h = params?.customSize_height
-      return w && h ? `${String(w)}×${String(h)}` : undefined
+      const width = optionalFiniteNumber(params?.customSize_width)
+      const height = optionalFiniteNumber(params?.customSize_height)
+      return width !== null && height !== null && width > 0 && height > 0 ? `${width}×${height}` : undefined
     }
     // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
     // and the artboard prompt bar do, instead of formatting the raw enum.
-    return sizeOptionLabel(item, String(value), params, translate)
+    return isOptionsConfigItem(item) ? sizeOptionLabel(item, controlValue(value), params, translate) : undefined
   }
-  if (item.type === 'slider') return String(value)
+  if (item.type === 'slider') return `${finiteParamNumberOr(item.key, value, item.initialValue)}`
   // Option-based: show the selected option's localized label.
-  const match = resolveOptions(item, params ?? {}, translate).find((opt) => String(opt.value) === String(value))
-  return match?.label ?? String(value)
+  const formattedValue = controlValue(value)
+  const match = resolveOptions(item, params ?? {}, translate).find((opt) => controlValue(opt.value) === formattedValue)
+  return match?.label ?? formattedValue
 }
 
 /**
@@ -95,9 +106,18 @@ function paramsSummary(
 ): string {
   const parts: string[] = []
   for (const item of items) {
-    if (!item.key || !SUMMARY_TYPES.has(item.type)) continue
+    if (!isSummaryConfigItem(item)) continue
     if (item.condition && !item.condition(params ?? {})) continue
-    const value = params?.[item.key] ?? item.initialValue
+    const storedValue = params?.[item.key]
+    // Preserve the custom-size sentinel even for older registry snapshots that
+    // did not yet append it to the option list. Its dimensions are validated in
+    // formatSummaryValue; every other option still goes through the typed
+    // catalog + declared-option boundary below.
+    const value = isOptionsConfigItem(item)
+      ? storedValue === 'custom' && (SIZE_PREVIEW_KEYS as readonly string[]).includes(item.key)
+        ? storedValue
+        : resolveOptionValue(item, storedValue, params ?? {}, translate)
+      : (params?.[item.key] ?? item.initialValue)
     if (value === undefined || value === null || value === '') continue
     const formatted = formatSummaryValue(item, value, params, translate)
     if (formatted) parts.push(formatted)

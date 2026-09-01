@@ -1,13 +1,14 @@
 import { Input, RowFlex } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
+import { optionalFiniteNumber } from '../../form/fieldValue'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
-export default function SizeField({ item, painting, onChange }: PaintingFieldComponentProps) {
+export default function SizeField({ item, painting, onChange }: PaintingFieldComponentProps<'customSize'>) {
   const { t } = useTranslation()
-  const { widthKey = 'width', heightKey = 'height', validation = {} } = item
-  const widthValue = painting[widthKey] ?? ''
-  const heightValue = painting[heightKey] ?? ''
+  const { widthKey, heightKey, validation } = item
+  const widthValue = optionalFiniteNumber(painting[widthKey])
+  const heightValue = optionalFiniteNumber(painting[heightKey])
 
   // SizeField only renders when the parent chip widget has `sizeKey === 'custom'`
   // (see `condition` on the customSize item in imageGenerationToFields). The
@@ -23,9 +24,10 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           aria-label={t('paintings.generate.width')}
           placeholder={t('paintings.generate.width')}
           type="number"
-          value={widthValue === undefined || widthValue === null ? '' : String(widthValue)}
+          value={widthValue ?? ''}
           onChange={(event) => {
-            const value = event.target.value === '' ? '' : Number(event.target.value)
+            const value = event.target.value === '' ? '' : event.target.valueAsNumber
+            if (typeof value === 'number' && !Number.isFinite(value)) return
             onChange({ [widthKey]: value })
           }}
           min={validation.minWidth}
@@ -37,9 +39,10 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           aria-label={t('paintings.generate.height')}
           placeholder={t('paintings.generate.height')}
           type="number"
-          value={heightValue === undefined || heightValue === null ? '' : String(heightValue)}
+          value={heightValue ?? ''}
           onChange={(event) => {
-            const value = event.target.value === '' ? '' : Number(event.target.value)
+            const value = event.target.value === '' ? '' : event.target.valueAsNumber
+            if (typeof value === 'number' && !Number.isFinite(value)) return
             onChange({ [heightKey]: value })
           }}
           min={validation.minHeight}
