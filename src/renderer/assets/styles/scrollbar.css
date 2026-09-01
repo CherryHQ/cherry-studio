@@ -55,15 +55,3 @@ pre:not(.shiki)::-webkit-scrollbar-thumb:hover {
   --scrollbar-thumb: var(--scrollbar-thumb-light);
   --scrollbar-thumb-hover: var(--scrollbar-thumb-light-hover);
 }
-
-/**
- * Override the inherited `scrollbar-color: transparent transparent` from the
- * app's auto-hiding Scrollbar wrapper (see packages/ui/src/components/composites/scrollbar/index.tsx).
- * Without this, a CodeViewer inside an idle Scrollbar ancestor shows an invisible
- * horizontal thumb even though its content overflows.
- * `auto` lets the browser/platform default apply, which the existing
- * ::-webkit-scrollbar rules already theme.
- */
-.scrollbar-color-auto {
-  scrollbar-color: auto;
-}

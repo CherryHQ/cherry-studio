@@ -509,7 +509,7 @@ const CodeViewer = ({
     <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <div
         ref={scrollerRef}
-        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em] scrollbar-color-auto"
+        className="shiki-scroller relative block overflow-x-auto rounded-[inherit] py-[0.5em] pr-0 pl-[1em] [scrollbar-color:auto]"
         onScroll={handleScroll}
         style={
           {
