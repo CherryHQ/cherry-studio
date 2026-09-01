@@ -86,8 +86,18 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+    ({
+      children,
+      closeOnOverlayClick,
+      closeLabel,
+      ...props
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      closeLabel?: string
+    }) => {
       void closeOnOverlayClick
+      void closeLabel
       return React.createElement(tag, props, children)
     }
 

@@ -457,7 +457,6 @@ import {
   applyOptimisticTopicDisplayMove,
   TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '@renderer/utils/chat/topicsHelpers'
 import type { Pin } from '@shared/data/types/pin'
@@ -1367,6 +1366,7 @@ describe('Topics', () => {
   })
 
   it('moves a topic into the pinned group immediately after pinning without refreshing topics', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
 
     const { getByText, rerenderTopicList } = renderTopicList()
@@ -2621,7 +2621,7 @@ describe('Topics', () => {
     ])
   })
 
-  it('re-selects the active topic from an assistant group while history records are active', () => {
+  it('selects the pinned topic first from an assistant group while history records are active', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     setTopicGroupExpansionCache({
       ...createExpandedTopicGroupExpansionFixture(),
@@ -2634,7 +2634,7 @@ describe('Topics', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a' }))
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b' }))
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -3084,7 +3084,7 @@ describe('Topics', () => {
 
     const { onNewTopic, rerenderTopicList } = renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
@@ -3106,11 +3106,6 @@ describe('Topics', () => {
       'true'
     )
     expect(screen.getByText('No conversations')).toBeInTheDocument()
-    const assistantSectionButton = screen
-      .getAllByRole('button', { name: 'Assistant' })
-      .find((button) => button.hasAttribute('aria-expanded'))
-    expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
-    expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
     expect(groupChevron(screen.getByRole('button', { name: 'Alpha Assistant' }))).toHaveAttribute(
       'aria-expanded',
       'false'
@@ -3123,7 +3118,7 @@ describe('Topics', () => {
       'aria-expanded',
       'false'
     )
-    expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
+    expect(screen.queryByText('Pinned unknown')).not.toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
@@ -3133,7 +3128,6 @@ describe('Topics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
     // Sections stay expanded; expanding Alpha removes it from the collapsed list.
-    expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_PINNED_SECTION_ID)
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
     expect(getTopicGroupExpansionCache().assistant).not.toContain('topic:assistant:assistant-1')
     expect(getTopicGroupExpansionCache().assistant).toContain('topic:assistant:assistant-2')
@@ -3142,7 +3136,7 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
-    for (const groupName of ['Pinned', 'Unlinked Assistant'] as const) {
+    for (const groupName of ['Unlinked Assistant'] as const) {
       const header = screen.getByRole('button', { name: groupName }).closest('div')
       expect(header).toBeInTheDocument()
       expect(
@@ -3367,7 +3361,6 @@ describe('Topics', () => {
 
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        { type: 'app', id: 'assistants' },
         { type: 'assistant', id: 'assistant-1' }
       ])
     )
@@ -3388,9 +3381,7 @@ describe('Topics', () => {
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Remove from sidebar' }))
 
     await vi.waitFor(() =>
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([
-        { type: 'app', id: 'assistants' }
-      ])
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites' as never)).toEqual([])
     )
   })
 
@@ -3829,7 +3820,7 @@ describe('Topics', () => {
     expect(patchSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('does not allow pinned or unknown groups to participate in assistant group reorder', () => {
+  it('does not allow the unknown group to participate in assistant group reorder', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
@@ -3859,23 +3850,8 @@ describe('Topics', () => {
 
     renderTopicList()
 
-    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
-    expect(
-      screen
-        .getAllByRole('button', { name: 'Assistant' })
-        .some((button) => button.getAttribute('aria-expanded') === 'true')
-    ).toBe(true)
-    expect(dndMocks.sortableData.has('group:topic:pinned')).toBe(false)
-    expect(dndMocks.sortableData.has('group:topic:section:pinned')).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Pinned' })).not.toBeInTheDocument()
     expect(dndMocks.sortableData.has('group:topic:assistant:unknown')).toBe(false)
-
-    dndMocks.onDragEnd?.({
-      active: {
-        data: sortableData('group:topic:assistant:assistant-1'),
-        id: 'group:topic:assistant:assistant-1'
-      },
-      over: { data: droppableData('group:topic:section:pinned'), id: 'group:topic:section:pinned' }
-    })
     dndMocks.onDragEnd?.({
       active: {
         data: sortableData('group:topic:assistant:assistant-1'),

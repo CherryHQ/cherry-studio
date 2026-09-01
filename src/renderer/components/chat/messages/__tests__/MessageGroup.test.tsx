@@ -207,6 +207,12 @@ vi.mock('../MessageListProvider', () => ({
   }),
   useMessageListUi: () => ({}),
   useMessageListUiSelectors: () => mocks.messageListUiSelectors(),
+  useMessageListItemActivityState: (message: MessageListItem) =>
+    mocks.messageListUiSelectors().getMessageActivityState?.(message) ?? {
+      isProcessing: false,
+      isStreamTarget: false,
+      isApprovalAnchor: false
+    },
   useMessageListUiStatic: () => ({})
 }))
 
@@ -496,6 +502,25 @@ describe('MessageGroup', () => {
     expect(grid.style.gridTemplateColumns).toBe('repeat(2, minmax(0, 1fr))')
   })
 
+  it('makes every grid popover scroll owner keyboard-focusable', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'grid',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [createMessage('msg-1', 0, 'grid'), createMessage('msg-2', 1, 'grid')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const popoverScrollOwners = container.querySelectorAll('.in-popover')
+    expect(popoverScrollOwners).toHaveLength(2)
+    popoverScrollOwners.forEach((scrollOwner) => expect(scrollOwner).toHaveAttribute('tabindex', '0'))
+  })
+
   it('keeps model identity in the existing selector for fold layout', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',
@@ -534,6 +559,32 @@ describe('MessageGroup', () => {
     expect(contentContainer.closest('.message-body-column')).toBe(bodyColumn)
     expect(contentContainer.style.marginLeft).toBe('')
     expect(contentContainer.style.width).toBe('')
+  })
+
+  it('keeps ordinary message content out of the keyboard tab order', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
+    expect(contentContainer).not.toHaveAttribute('tabindex')
+  })
+
+  it('keeps bubble-style user message content out of the keyboard tab order', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    const { container } = render(<MessageGroup messages={messages} />)
+
+    expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {
@@ -609,6 +660,7 @@ describe('MessageGroup', () => {
     const contentContainer = container.querySelector('#message-msg-1 .message-content-container')
     expect(contentContainer).not.toBeNull()
     expect(getComputedStyle(contentContainer as HTMLElement).overflowY).toBe('auto')
+    expect(contentContainer).toHaveAttribute('tabindex', '0')
 
     const horizontalGroup = outerWrapper!.parentElement as HTMLElement
     expect(getComputedStyle(horizontalGroup).overflowX).toBe('auto')

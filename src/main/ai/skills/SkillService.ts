@@ -177,12 +177,22 @@ export class SkillService {
       if (!skill) {
         throw new Error(`Skill not found: ${skillId}`)
       }
+      await this.uninstallLocked(skill)
+    })
+  }
 
-      const skillPath = this.getSkillStoragePath(skill.folderName)
-      await this.installer.uninstall(skillPath)
-      await this.unlinkMirror(skill.folderName)
-      agentGlobalSkillService.deleteById(skillId)
-      logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
+  /** Remove an app-owned conditional builtin without touching a colliding user skill. */
+  async uninstallBuiltinSkill(folderName: string, namespace: string): Promise<boolean> {
+    return this.mutationLock.runExclusive(async () => {
+      const skill = this.findCatalogSkillCaseInsensitive(sanitizeFolderName(folderName))
+      if (!skill) return false
+      if (skill.source !== 'builtin' || skill.namespace !== namespace) {
+        throw new Error(
+          `Skill folder "${folderName}" is not owned by builtin namespace "${namespace}"; refusing to remove it.`
+        )
+      }
+      await this.uninstallLocked(skill)
+      return true
     })
   }
 
@@ -1075,12 +1085,23 @@ export class SkillService {
    * toggles it off, so a fresh `agent_global_skill` row is enabled everywhere —
    * for existing and future agents alike — without any `agent_skill` rows.
    */
-  async syncBuiltinSkill(folderName: string, sourcePath: string, appVersion: string): Promise<boolean> {
+  async syncBuiltinSkill(
+    folderName: string,
+    sourcePath: string,
+    appVersion: string,
+    namespace: string | null = null
+  ): Promise<boolean> {
     return this.mutationLock.runExclusive(async () => {
       const existing = this.findCatalogSkillCaseInsensitive(folderName)
       if (existing && existing.source !== 'builtin') {
         throw new Error(
           `Folder name "${folderName}" is already used by a ${existing.source} skill; refusing to overwrite it with a builtin.`
+        )
+      }
+      if (existing && existing.namespace !== namespace) {
+        throw new Error(
+          `Folder name "${folderName}" belongs to builtin namespace "${existing.namespace ?? 'default'}"; ` +
+            `refusing to overwrite it with "${namespace ?? 'default'}".`
         )
       }
 
@@ -1130,7 +1151,8 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash: sourceHash
+          contentHash: sourceHash,
+          namespace
         })
       } else {
         agentGlobalSkillService.insert({
@@ -1139,7 +1161,7 @@ export class SkillService {
           folderName: destFolderName,
           source: 'builtin',
           sourceUrl: null,
-          namespace: null,
+          namespace,
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
@@ -1151,6 +1173,14 @@ export class SkillService {
       logger.info('Built-in skill synced to DB', { folderName: destFolderName, firstInstall: !existing, filesUpdated })
       return filesUpdated
     })
+  }
+
+  private async uninstallLocked(skill: InstalledSkill): Promise<void> {
+    const skillPath = this.getSkillStoragePath(skill.folderName)
+    await this.installer.uninstall(skillPath)
+    await this.unlinkMirror(skill.folderName)
+    agentGlobalSkillService.deleteById(skill.id)
+    logger.info('Skill uninstalled', { skillId: skill.id, folderName: skill.folderName })
   }
 }
 

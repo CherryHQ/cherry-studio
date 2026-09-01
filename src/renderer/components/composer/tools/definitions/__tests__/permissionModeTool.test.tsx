@@ -6,11 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   registerLaunchers: vi.fn<(launchers: ComposerToolLauncher[]) => () => void>(() => () => undefined),
-  updateAgent: vi.fn()
+  updateAgent: vi.fn(),
+  permissionMode: 'default'
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({ agent: { id: 'agent-1', configuration: { permission_mode: 'default' } } }),
+  useAgent: () => ({ agent: { id: 'agent-1', configuration: { permission_mode: mocks.permissionMode } } }),
   useUpdateAgent: () => ({ updateAgent: mocks.updateAgent })
 }))
 
@@ -37,6 +38,7 @@ const renderRuntime = () => renderLauncher()?.submenu ?? []
 describe('permissionModeTool submenu', () => {
   beforeEach(() => {
     mocks.registerLaunchers.mockClear()
+    mocks.permissionMode = 'default'
   })
 
   it('keeps the current mode in the description so the submenu indicator remains visible', () => {
@@ -58,6 +60,23 @@ describe('permissionModeTool submenu', () => {
       />
     )
     expect(container.querySelector('.lucide-chevron-right')).toBeInTheDocument()
+  })
+
+  it('keeps the live permission mode in the pinned toolbar tooltip', () => {
+    const Runtime = permissionModeTool.composer!.runtime!
+    const context = {
+      t,
+      launcher: { registerLaunchers: mocks.registerLaunchers },
+      session: { agentId: 'agent-1' }
+    }
+    const { rerender } = render(<Runtime context={context as any} />)
+
+    expect(mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]?.tooltip).toBe('Permission Mode · Ask Before Acting')
+
+    mocks.permissionMode = 'bypassPermissions'
+    rerender(<Runtime context={context as any} />)
+
+    expect(mocks.registerLaunchers.mock.calls.at(-1)?.[0][0]?.tooltip).toBe('Permission Mode · Full Access')
   })
 
   // The quick panel row is a fixed-height single line: a stacked warning under the title
