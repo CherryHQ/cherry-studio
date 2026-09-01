@@ -22,7 +22,7 @@ import {
 } from '@ai-sdk/openai-compatible'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { loadOptionalSetting, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { applyReasoningModelMaxTokensConversion, OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
@@ -56,26 +56,27 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   const { baseURL = '', fetch: customFetch, endpointType } = options
 
   const resolveApiKey = () =>
-    loadApiKey({ apiKey: options.apiKey, environmentVariableName: 'NEWAPI_API_KEY', description: 'NewAPI' })
+    loadOptionalSetting({ settingValue: options.apiKey, environmentVariableName: 'NEWAPI_API_KEY' })
 
   // Note: Do not hard-code `Content-Type: application/json` here. `postJsonToApi`
   // already defaults it for JSON endpoints, while `postFormDataToApi` (used by
   // `OpenAICompatibleImageModel` for `/images/edits`) relies on fetch to set
   // `multipart/form-data; boundary=...` automatically — forcing JSON here breaks
   // image edits with "invalid character '-' in numeric literal" on the server.
-  const authHeaders = (): Record<string, string> => ({
-    Authorization: `Bearer ${resolveApiKey()}`,
-    ...options.headers
-  })
+  const authHeaders = (): Record<string, string> => {
+    const apiKey = resolveApiKey()
+    return { ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}), ...options.headers }
+  }
 
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
+    const apiKey = resolveApiKey()
     return new AnthropicMessagesLanguageModel(modelId, {
       provider: `${NEWAPI_PROVIDER_NAME}.anthropic`,
       baseURL,
-      headers: () => ({ ...headers, 'x-api-key': resolveApiKey() }),
+      headers: () => ({ ...headers, ...(apiKey ? { 'x-api-key': apiKey } : {}) }),
       fetch: customFetch,
       supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
       // NewAPI may route Claude models to Vertex/Bedrock backends, which reject the
@@ -89,10 +90,11 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
 
   const createGeminiModel = (modelId: string) => {
     const headers = authHeaders()
+    const apiKey = resolveApiKey()
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${NEWAPI_PROVIDER_NAME}.google`,
       baseURL,
-      headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
+      headers: () => ({ ...headers, ...(apiKey ? { 'x-goog-api-key': apiKey } : {}) }),
       fetch: customFetch,
       generateId: () => `${NEWAPI_PROVIDER_NAME}-${Date.now()}`,
       supportedUrls: () => ({})
