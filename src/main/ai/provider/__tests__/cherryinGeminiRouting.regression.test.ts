@@ -1,8 +1,9 @@
+import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
+
 import { makeModel, makeProvider } from '../../__tests__/fixtures'
 import { resolveEffectiveEndpoint } from '../endpoint'
-import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 
 describe('REGRESSION: cherryin gemini routing for built-in tools + function calling', () => {
   const cherryin = makeProvider({
@@ -27,14 +28,14 @@ describe('REGRESSION: cherryin gemini routing for built-in tools + function call
   })
 
   it('effective endpoint for cherryin gemini without endpointTypes is google, not openai-chat', () => {
-    const model = makeModel({
+    const model: any = makeModel({
       id: 'cherryin::gemini-3.5-flash',
       providerId: 'cherryin',
       apiModelId: 'gemini-3.5-flash'
-    }) as any
+    })
     // intentionally no endpointTypes to mimic cherryin.listModels missing supported_endpoint_types
-    delete (model as any).endpointTypes
-    const { endpointType, providerOptionsKey } = resolveEffectiveEndpoint(cherryin as any, model as any)
+    delete model.endpointTypes
+    const { endpointType, providerOptionsKey } = resolveEffectiveEndpoint(cherryin, model)
     expect(endpointType).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
     expect(providerOptionsKey).toBe('google')
   })
