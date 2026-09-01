@@ -5,13 +5,16 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
+import type { CacheAutoBackupTerminalOutcome } from '@shared/data/cache/cacheValueTypes'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import {
   AUTO_BACKUP_TYPES,
   type AutoBackupEvent,
   type AutoBackupEventInput,
+  type AutoBackupLastSuccessTimes,
   type AutoBackupSnapshot,
   type AutoBackupType,
+  BACKUP_ACTIVE_WRITERS_ERROR_CODE,
   type S3Config,
   type WebDavConfig
 } from '@shared/types/backup'
@@ -24,6 +27,8 @@ const logger = loggerService.withContext('AutoBackupService')
 
 const SCHEDULE_ID_PREFIX = 'auto-backup:'
 const LAST_ATTEMPT_TIMES_KEY = 'backup.auto_sync.last_attempt_times'
+const LAST_SUCCESS_TIMES_KEY = 'backup.auto_sync.last_success_times'
+const LATEST_TERMINAL_OUTCOMES_KEY = 'backup.auto_sync.latest_terminal_outcomes'
 const MAX_ATTEMPTS = 4
 const INITIAL_DELAY_MS = 1_000
 const STARTUP_GRACE_PERIOD_MS = 60_000
@@ -56,6 +61,13 @@ const createScheduleState = (): ScheduleState => ({
   running: false
 })
 
+const createLastSuccessTimes = (): AutoBackupLastSuccessTimes => ({
+  webdav: null,
+  s3: null,
+  local: null,
+  nutstore: null
+})
+
 @Injectable('AutoBackupService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn([
@@ -76,6 +88,7 @@ export class AutoBackupService extends BaseService {
   private readonly latestTransientEvents = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingNotifications = new Map<AutoBackupType, AutoBackupEvent>()
   private readonly pendingRuns = new Map<AutoBackupType, number>()
+  private lastSuccessTimes = createLastSuccessTimes()
   private readonly schedules: Record<AutoBackupType, ScheduleState> = {
     webdav: createScheduleState(),
     s3: createScheduleState(),
@@ -84,9 +97,21 @@ export class AutoBackupService extends BaseService {
   }
 
   protected override onInit(): void {
-    const lastAttemptTimes = application.get('CacheService').getPersist(LAST_ATTEMPT_TIMES_KEY)
+    const cacheService = application.get('CacheService')
+    const lastAttemptTimes = cacheService.getPersist(LAST_ATTEMPT_TIMES_KEY)
+    this.lastSuccessTimes = { ...cacheService.getPersist(LAST_SUCCESS_TIMES_KEY) }
+    this.nextEventId = 0
+    this.latestTerminalEvents.clear()
+    this.latestTransientEvents.clear()
+    this.pendingNotifications.clear()
+
+    const terminalOutcomes = cacheService.getPersist(LATEST_TERMINAL_OUTCOMES_KEY)
     for (const type of AUTO_BACKUP_TYPES) {
       this.schedules[type].lastSyncTime = lastAttemptTimes[type]
+      const outcome = terminalOutcomes[type]
+      if (outcome) {
+        this.latestTerminalEvents.set(type, this.createEvent(this.restoreTerminalOutcome(type, outcome)))
+      }
     }
 
     const preferenceService = application.get('PreferenceService')
@@ -94,7 +119,7 @@ export class AutoBackupService extends BaseService {
       preferenceService.subscribeMultipleChanges(Object.values(WATCHED_PREFERENCES).flat(), (key) => {
         const type = AUTO_BACKUP_TYPES.find((candidate) => WATCHED_PREFERENCES[candidate].includes(key))
         if (type) {
-          this.restartSchedule(type, key === 'data.backup.local.dir' ? 'immediate' : 'fromLastSyncTime')
+          this.applyConfigurationChange(type, key)
         }
       })
     )
@@ -124,6 +149,7 @@ export class AutoBackupService extends BaseService {
 
   getStateSnapshot(): AutoBackupSnapshot {
     return {
+      lastSuccessTimes: { ...this.lastSuccessTimes },
       events: [...this.latestTerminalEvents.values(), ...this.latestTransientEvents.values()].sort(
         (first, second) => first.id - second.id
       ),
@@ -138,8 +164,30 @@ export class AutoBackupService extends BaseService {
   }
 
   recordManualBackupCompletion(type: AutoBackupType): void {
-    this.recordLastAttemptTime(type, Date.now())
+    const timestamp = Date.now()
+    this.recordLastAttemptTime(type, timestamp)
+    this.recordLastSuccessTime(type, timestamp)
+    this.clearTerminalOutcome(type)
     if (this.active) this.restartSchedule(type, 'fromLastSyncTime')
+  }
+
+  // Not folded into `restartSchedule`: startup reaches that too and must keep the
+  // outcome it just restored. Without this, a disabled backend keeps its failure icon.
+  private applyConfigurationChange(type: AutoBackupType, key: UnifiedPreferenceKeyType): void {
+    // Rescheduling alone does not refute what the last attempt found; only switching the
+    // backend off or repointing it does.
+    if (!key.endsWith('.sync_interval')) this.clearTerminalOutcome(type)
+    this.restartSchedule(type, key === 'data.backup.local.dir' ? 'immediate' : 'fromLastSyncTime')
+  }
+
+  private clearTerminalOutcome(type: AutoBackupType): void {
+    this.latestTerminalEvents.delete(type)
+    this.pendingNotifications.delete(type)
+    const cacheService = application.get('CacheService')
+    cacheService.setPersist(LATEST_TERMINAL_OUTCOMES_KEY, {
+      ...cacheService.getPersist(LATEST_TERMINAL_OUTCOMES_KEY),
+      [type]: null
+    })
   }
 
   private recordLastAttemptTime(type: AutoBackupType, timestamp: number): void {
@@ -149,6 +197,50 @@ export class AutoBackupService extends BaseService {
       ...cacheService.getPersist(LAST_ATTEMPT_TIMES_KEY),
       [type]: timestamp
     })
+  }
+
+  private recordLastSuccessTime(type: AutoBackupType, timestamp: number): void {
+    this.lastSuccessTimes = { ...this.lastSuccessTimes, [type]: timestamp }
+    application.get('CacheService').setPersist(LAST_SUCCESS_TIMES_KEY, this.lastSuccessTimes)
+  }
+
+  private recordTerminalOutcome(event: AutoBackupEvent): void {
+    if (event.status === 'running' || event.status === 'stopped') return
+
+    const outcome: CacheAutoBackupTerminalOutcome =
+      event.status === 'failed'
+        ? {
+            status: 'failed',
+            timestamp: event.timestamp,
+            failureKind: event.errorMessage.includes(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
+              ? 'active_data_writers'
+              : 'unknown'
+          }
+        : event.status === 'warning'
+          ? { status: 'warning', timestamp: event.timestamp, reason: event.reason }
+          : { status: 'succeeded', timestamp: event.timestamp }
+
+    const cacheService = application.get('CacheService')
+    cacheService.setPersist(LATEST_TERMINAL_OUTCOMES_KEY, {
+      ...cacheService.getPersist(LATEST_TERMINAL_OUTCOMES_KEY),
+      [event.type]: outcome
+    })
+  }
+
+  private restoreTerminalOutcome(type: AutoBackupType, outcome: CacheAutoBackupTerminalOutcome): AutoBackupEventInput {
+    if (outcome.status === 'failed') {
+      return {
+        type,
+        status: 'failed',
+        timestamp: outcome.timestamp,
+        errorMessage: outcome.failureKind === 'active_data_writers' ? BACKUP_ACTIVE_WRITERS_ERROR_CODE : ''
+      }
+    }
+    return { type, ...outcome }
+  }
+
+  private createEvent(event: AutoBackupEventInput): AutoBackupEvent {
+    return { ...event, id: ++this.nextEventId } as AutoBackupEvent
   }
 
   private restartSchedule(type: AutoBackupType, mode: ScheduleMode): void {
@@ -245,6 +337,7 @@ export class AutoBackupService extends BaseService {
 
       const timestamp = Date.now()
       this.recordLastAttemptTime(type, timestamp)
+      this.recordLastSuccessTime(type, timestamp)
       state.retryCount = 0
       state.running = false
       if (cleanupError) {
@@ -423,17 +516,20 @@ export class AutoBackupService extends BaseService {
 
   private emit(event: AutoBackupEventInput): void {
     if (!this.active) return
-    const emittedEvent = { ...event, id: ++this.nextEventId } as AutoBackupEvent
+    const emittedEvent = this.createEvent(event)
     if (event.status === 'running' || event.status === 'stopped') {
       this.latestTransientEvents.set(event.type, emittedEvent)
     } else {
       this.latestTerminalEvents.set(event.type, emittedEvent)
       this.latestTransientEvents.delete(event.type)
+      this.recordTerminalOutcome(emittedEvent)
     }
     if (event.status === 'warning' || event.status === 'failed') {
       this.pendingNotifications.set(event.type, emittedEvent)
     }
-    application.get('IpcApiService').broadcastToType(WindowType.Main, 'backup.auto_sync_state_changed', emittedEvent)
+    const ipcApiService = application.get('IpcApiService')
+    ipcApiService.broadcastToType(WindowType.Main, 'backup.auto_sync_state_changed', emittedEvent)
+    ipcApiService.broadcastToType(WindowType.SubWindow, 'backup.auto_sync_state_changed', emittedEvent)
   }
 
   private unregisterAllSchedules(): void {

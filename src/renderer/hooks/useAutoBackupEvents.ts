@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { setBackupSyncState } from '@renderer/services/BackupService'
+import { getBackupSyncState, setBackupSyncState } from '@renderer/services/BackupService'
 import { notificationService } from '@renderer/services/notification'
 import { toast } from '@renderer/services/toast'
 import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { uuid } from '@renderer/utils/uuid'
-import type { AutoBackupEvent, AutoBackupType } from '@shared/types/backup'
+import { AUTO_BACKUP_TYPES, type AutoBackupEvent, type AutoBackupType } from '@shared/types/backup'
 import { useEffect, useEffectEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,7 +13,11 @@ const logger = loggerService.withContext('useAutoBackupEvents')
 const latestEventIds = new Map<AutoBackupType, number>()
 const notifiedEventIds = new Map<AutoBackupType, number>()
 
-export function useAutoBackupEvents(): void {
+type AutoBackupEventOptions = {
+  notificationsEnabled: boolean
+}
+
+export function useAutoBackupEvents({ notificationsEnabled }: AutoBackupEventOptions): void {
   const { t } = useTranslation()
 
   const handleEvent = useEffectEvent((event: AutoBackupEvent, notify: boolean) => {
@@ -33,7 +37,6 @@ export function useAutoBackupEvents(): void {
       } else if (event.status === 'failed') {
         setBackupSyncState(event.type, {
           syncing: false,
-          lastSyncTime: event.timestamp,
           lastSyncError: getLocalizedBackupErrorMessage(new Error(event.errorMessage))
         })
       } else {
@@ -66,14 +69,21 @@ export function useAutoBackupEvents(): void {
     }
   })
 
-  useIpcOn('backup.auto_sync_state_changed', (event) => handleEvent(event, true))
+  useIpcOn('backup.auto_sync_state_changed', (event) => handleEvent(event, notificationsEnabled))
 
   useEffect(() => {
     void ipcApi
       .request('backup.get_auto_sync_state')
-      .then(({ events, pendingNotifications }) => {
+      .then(({ lastSuccessTimes, events, pendingNotifications }) => {
+        for (const type of AUTO_BACKUP_TYPES) {
+          const timestamp = lastSuccessTimes[type]
+          const currentTimestamp = getBackupSyncState()[type].lastSyncTime
+          if (timestamp !== null && (currentTimestamp === null || timestamp > currentTimestamp)) {
+            setBackupSyncState(type, { lastSyncTime: timestamp })
+          }
+        }
         events.forEach((event) => handleEvent(event, false))
-        pendingNotifications.forEach((event) => handleEvent(event, true))
+        pendingNotifications.forEach((event) => handleEvent(event, notificationsEnabled))
       })
       .catch((error) => logger.error('Failed to load automatic backup state', error as Error))
     // `handleEvent` is an Effect Event and must not be a dependency.

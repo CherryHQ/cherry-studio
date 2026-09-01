@@ -490,6 +490,11 @@ export type MainPersistCacheSchema = {
   // Last completed automatic-backup attempt (or manual backup) per backend.
   // AutoBackupService owns this restart-safe scheduling baseline.
   'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
+  'backup.auto_sync.last_success_times': Record<AutoBackupType, number | null>
+  'backup.auto_sync.latest_terminal_outcomes': Record<
+    AutoBackupType,
+    CacheValueTypes.CacheAutoBackupTerminalOutcome | null
+  >
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -502,9 +507,22 @@ export type MainPersistCacheSchema = {
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
   'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
+  'backup.auto_sync.last_success_times': { webdav: null, s3: null, local: null, nutstore: null },
+  'backup.auto_sync.latest_terminal_outcomes': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
 }
+
+/**
+ * Main persist keys that describe **this machine's** state and are meaningless
+ * on another one. The backup archive drops them, so restoring machine A's
+ * backup on machine B never makes B replay A's sync times or failure banners.
+ */
+export const DEVICE_LOCAL_MAIN_PERSIST_KEYS: readonly (keyof MainPersistCacheSchema)[] = [
+  'backup.auto_sync.last_attempt_times',
+  'backup.auto_sync.last_success_times',
+  'backup.auto_sync.latest_terminal_outcomes'
+]
 
 // ============================================================================
 // Cache Key Types

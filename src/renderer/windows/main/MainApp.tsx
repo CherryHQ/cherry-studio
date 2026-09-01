@@ -12,6 +12,7 @@ import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
+import { useAutoBackupEvents } from '@renderer/hooks/useAutoBackupEvents'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
@@ -20,7 +21,6 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { lazy, Suspense, useEffect, useMemo } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
-import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
@@ -41,7 +41,7 @@ function BootFallback(): React.ReactElement {
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
 // torn down when a background tab hides.
 //
-// useAppUpdateHandler / useAutoBackupEvents / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
 // intentionally main-only (update events only reach the main window; the storage warning and
 // topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
 // they depend on React-visible
@@ -75,7 +75,7 @@ function MainWindowRuntime(): null {
   }, [])
 
   useAppUpdateHandler()
-  useAutoBackupEvents()
+  useAutoBackupEvents({ notificationsEnabled: true })
   useStorageMonitorNotification()
   useTopicNamingErrorNotification()
 

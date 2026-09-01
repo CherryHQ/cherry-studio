@@ -30,12 +30,12 @@ vi.mock('@renderer/components/layout/AppShell', () => ({
 }))
 
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
+vi.mock('@renderer/hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('@renderer/hooks/tab', () => ({ useMainWindowNavigation: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
 vi.mock('@renderer/components/ConversationNotificationRuntime', () => ({
   ConversationNotificationRuntime: () => null
 }))
-vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))

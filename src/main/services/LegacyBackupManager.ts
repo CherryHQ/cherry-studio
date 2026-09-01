@@ -31,6 +31,7 @@ import { IdleTimeoutController } from '@main/utils/IdleTimeoutController'
 import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { getDeviceType, getHostname } from '@main/utils/system'
 import { assertZipEntriesWithin } from '@main/utils/zipSafety'
+import { DEVICE_LOCAL_MAIN_PERSIST_KEYS } from '@shared/data/cache/cacheSchemas'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   BACKUP_ACTIVE_WRITERS_ERROR_CODE,
@@ -212,6 +213,16 @@ class BackupManager {
     }
   }
 
+  // Restore writes cache.json straight back to the live path, so device-local keys
+  // would make machine B replay machine A's sync times and backup failure banners.
+  private async writeArchiveCache(source: string, destination: string): Promise<void> {
+    const archived: Record<string, unknown> = { ...(await fs.readJson(source)) }
+    for (const key of DEVICE_LOCAL_MAIN_PERSIST_KEYS) {
+      delete archived[key]
+    }
+    await fs.writeJson(destination, archived, { spaces: 2 })
+  }
+
   /**
    * Direct backup method - copies Data (excluding transient SQLite sidecars
    * and the internal restore journal) plus cache.json, IndexedDB, and Local Storage.
@@ -353,7 +364,7 @@ class BackupManager {
           if (!(await fs.pathExists(cacheSource))) {
             throw new Error('Failed to persist cache.json for backup')
           }
-          await fs.copy(cacheSource, path.join(workDir, 'cache.json'))
+          await this.writeArchiveCache(cacheSource, path.join(workDir, 'cache.json'))
 
           if (!slimBackup) {
             await this.copyDirectoryOrCreate(

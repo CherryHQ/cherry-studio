@@ -23,8 +23,8 @@ import {
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { formatBackupSyncTime } from '@renderer/utils/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
-import dayjs from 'dayjs'
 import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -188,7 +188,7 @@ const NutstoreSettings: FC = () => {
         )}
         {nutstoreSyncState.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('HH:mm:ss')}
+            {t('settings.data.webdav.lastSync')}: {formatBackupSyncTime(nutstoreSyncState.lastSyncTime)}
           </span>
         )}
       </RowFlex>

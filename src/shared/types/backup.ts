@@ -52,7 +52,10 @@ export type AutoBackupEventInput =
 
 export type AutoBackupEvent = AutoBackupEventInput & { id: number }
 
+export type AutoBackupLastSuccessTimes = Record<AutoBackupType, number | null>
+
 export type AutoBackupSnapshot = {
+  lastSuccessTimes: AutoBackupLastSuccessTimes
   events: AutoBackupEvent[]
   pendingNotifications: AutoBackupEvent[]
 }

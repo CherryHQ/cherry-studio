@@ -190,6 +190,11 @@ export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
 export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
 export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 
+export type CacheAutoBackupTerminalOutcome =
+  | { status: 'succeeded'; timestamp: number }
+  | { status: 'warning'; timestamp: number; reason: 'cleanup_failed' }
+  | { status: 'failed'; timestamp: number; failureKind: 'active_data_writers' | 'unknown' }
+
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.
  *

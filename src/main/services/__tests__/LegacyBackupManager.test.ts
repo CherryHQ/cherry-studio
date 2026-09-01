@@ -494,10 +494,9 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)
     expect(mockDbService.createSnapshot).not.toHaveBeenCalled()
     expect(mockCacheService.flushPersistForBackup).toHaveBeenCalledOnce()
-    expect(fs.copy).toHaveBeenCalledWith(
-      '/mock/userData/cache.json',
-      '/mock/temp/backup/create-operation-id/cache.json'
-    )
+    expect(fs.writeJson).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/cache.json', expect.any(Object), {
+      spaces: 2
+    })
     expect(copyDirectories).toHaveBeenCalledTimes(2)
     expect(fs.writeJson).toHaveBeenCalledWith(
       '/mock/temp/backup/create-operation-id/metadata.json',
@@ -524,6 +523,39 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamHold.dispose).toHaveBeenCalledOnce()
     expect(mockAgentSessionHold.dispose).toHaveBeenCalledOnce()
     expect(mockJobHold.dispose).toHaveBeenCalledOnce()
+  })
+
+  it('keeps device-local backup state out of the archived cache.json', async () => {
+    const windowBounds = { main: { x: 0, y: 0, width: 800, height: 600, isMaximized: false } }
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    vi.mocked(fs.readJson).mockResolvedValue({
+      'backup.auto_sync.last_attempt_times': { webdav: 1000, s3: null, local: null, nutstore: null },
+      'backup.auto_sync.last_success_times': { webdav: 2000, s3: null, local: null, nutstore: null },
+      'backup.auto_sync.latest_terminal_outcomes': {
+        webdav: { status: 'failed', timestamp: 3000, failureKind: 'unknown' },
+        s3: null,
+        local: null,
+        nutstore: null
+      },
+      'internal.persist_probe': 7,
+      'window.bounds': windowBounds
+    } as never)
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    mockArchiveClose()
+
+    await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
+
+    expect(fs.readJson).toHaveBeenCalledWith('/mock/userData/cache.json')
+    const archivedCache = vi
+      .mocked(fs.writeJson)
+      .mock.calls.find(([target]) => target === '/mock/temp/backup/create-operation-id/cache.json')?.[1]
+    expect(archivedCache).toEqual({ 'internal.persist_probe': 7, 'window.bounds': windowBounds })
+    expect(fs.writeJson).not.toHaveBeenCalledWith('/mock/userData/cache.json', expect.anything(), expect.anything())
+    expect(fs.copy).not.toHaveBeenCalledWith('/mock/userData/cache.json', expect.anything())
   })
 
   it('rejects remote backup file names containing path separators', async () => {

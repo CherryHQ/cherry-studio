@@ -13,7 +13,7 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
-import dayjs from 'dayjs'
+import { formatBackupSyncTime } from '@renderer/utils/backup'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -75,7 +75,7 @@ const WebDavSettings: FC = () => {
         )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: SYNC_STATUS_COLOR }}>
-            {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
+            {t('settings.data.webdav.lastSync')}: {formatBackupSyncTime(webdavSync.lastSyncTime)}
           </span>
         )}
       </RowFlex>

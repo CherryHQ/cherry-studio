@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os'
 
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import { WindowType } from '@main/core/window/types'
 import type * as LegacyFile from '@main/utils/legacyFile'
 import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
 import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
@@ -326,6 +327,21 @@ describe('AutoBackupService', () => {
       'backup.auto_sync_state_changed',
       expect.objectContaining({ type: 'local', status: 'succeeded' })
     )
+
+    const warning = service
+      .getStateSnapshot()
+      .events.find((event) => event.type === 'local' && event.status === 'warning')
+    expect(warning).toMatchObject({ type: 'local', status: 'warning', timestamp: expect.any(Number) })
+    if (!warning || warning.status !== 'warning') throw new Error('Missing local backup warning event')
+    expect(service.getStateSnapshot().lastSuccessTimes.local).toBe(warning.timestamp)
+
+    await recreateService()
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { local: warning.timestamp },
+      events: [expect.objectContaining({ type: 'local', status: 'warning', reason: 'cleanup_failed' })],
+      pendingNotifications: []
+    })
   })
 
   it('aborts an active automatic backup while stopping', async () => {
@@ -356,6 +372,10 @@ describe('AutoBackupService', () => {
 
     await vi.advanceTimersByTimeAsync(60_000)
     expect(mocks.backupToWebdav).toHaveBeenCalledOnce()
+    expect(service.getStateSnapshot().lastSuccessTimes.webdav).toBeNull()
+    expect(service.getStateSnapshot().events.some((event) => event.type === 'webdav' && 'timestamp' in event)).toBe(
+      false
+    )
 
     await vi.advanceTimersByTimeAsync(30_000)
     await recreateService()
@@ -387,6 +407,141 @@ describe('AutoBackupService', () => {
     expect(failure).toMatchObject({ type: 'webdav', status: 'failed' })
     service.acknowledgeNotification(failure.type, failure.id)
     expect(service.getStateSnapshot().pendingNotifications).toEqual([])
+  })
+
+  it('restores the last successful automatic backup and terminal outcome after restart', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    mocks.backupToWebdav.mockResolvedValue({ result: true, cleanupError: null })
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    const succeeded = service
+      .getStateSnapshot()
+      .events.find((event) => event.type === 'webdav' && event.status === 'succeeded')
+    expect(succeeded).toMatchObject({ type: 'webdav', status: 'succeeded', timestamp: expect.any(Number) })
+    if (!succeeded || succeeded.status !== 'succeeded') throw new Error('Missing successful WebDAV backup event')
+
+    await recreateService()
+
+    const snapshot = service.getStateSnapshot()
+    expect(snapshot.lastSuccessTimes.webdav).toBe(succeeded.timestamp)
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({ type: 'webdav', status: 'succeeded', timestamp: succeeded.timestamp })
+    )
+    expect(snapshot.pendingNotifications).toEqual([])
+  })
+
+  it('keeps a manual success when a later automatic backup fails', async () => {
+    setPreference('data.backup.s3.auto_sync', false)
+    setPreference('data.backup.local.auto_sync', false)
+    setPreference('data.backup.nutstore.auto_sync', false)
+    service.recordManualBackupCompletion('webdav')
+    const lastSuccessTime = service.getStateSnapshot().lastSuccessTimes.webdav
+    expect(lastSuccessTime).toEqual(expect.any(Number))
+
+    mocks.backupToWebdav.mockRejectedValue(
+      new Error(`${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running.`)
+    )
+    await vi.advanceTimersByTimeAsync(60_000 + 7_000 + 17_000 + 37_000)
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { webdav: lastSuccessTime },
+      events: [
+        expect.objectContaining({
+          type: 'webdav',
+          status: 'failed',
+          timestamp: expect.any(Number),
+          errorMessage: expect.stringContaining(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
+        })
+      ]
+    })
+
+    await recreateService()
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { webdav: lastSuccessTime },
+      events: [
+        expect.objectContaining({
+          type: 'webdav',
+          status: 'failed',
+          errorMessage: expect.stringContaining(BACKUP_ACTIVE_WRITERS_ERROR_CODE)
+        })
+      ],
+      pendingNotifications: []
+    })
+  })
+
+  it.each([
+    {
+      name: 'failure',
+      event: { type: 'webdav', status: 'failed', timestamp: 100, errorMessage: 'upload failed' } as const
+    },
+    {
+      name: 'warning',
+      event: { type: 'webdav', status: 'warning', timestamp: 100, reason: 'cleanup_failed' } as const
+    }
+  ])('does not restore an older automatic $name after a manual success', async ({ event }) => {
+    ;(service as any).emit(event)
+    expect(service.getStateSnapshot().events).toContainEqual(expect.objectContaining(event))
+
+    service.recordManualBackupCompletion('webdav')
+    const lastSuccessTime = service.getStateSnapshot().lastSuccessTimes.webdav
+    expect(lastSuccessTime).toEqual(expect.any(Number))
+    expect(service.getStateSnapshot().events).not.toContainEqual(expect.objectContaining({ type: 'webdav' }))
+    expect(service.getStateSnapshot().pendingNotifications).toEqual([])
+
+    await recreateService()
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { webdav: lastSuccessTime },
+      events: [],
+      pendingNotifications: []
+    })
+  })
+
+  it('drops a persisted failure when the backend configuration changes', async () => {
+    service.recordManualBackupCompletion('s3')
+    const lastSuccessTime = service.getStateSnapshot().lastSuccessTimes.s3
+    expect(lastSuccessTime).toEqual(expect.any(Number))
+    ;(service as any).emit({ type: 's3', status: 'failed', timestamp: Date.now(), errorMessage: 'upload failed' })
+    expect(service.getStateSnapshot().pendingNotifications).toHaveLength(1)
+
+    setPreference('data.backup.s3.auto_sync', false)
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { s3: lastSuccessTime },
+      events: [],
+      pendingNotifications: []
+    })
+
+    await recreateService()
+
+    expect(service.getStateSnapshot()).toMatchObject({
+      lastSuccessTimes: { s3: lastSuccessTime },
+      events: [],
+      pendingNotifications: []
+    })
+  })
+
+  it('keeps a persisted failure when only the schedule interval changes', async () => {
+    ;(service as any).emit({ type: 's3', status: 'failed', timestamp: Date.now(), errorMessage: 'upload failed' })
+
+    setPreference('data.backup.s3.sync_interval', 120)
+    await recreateService()
+
+    expect(service.getStateSnapshot().events).toMatchObject([{ type: 's3', status: 'failed' }])
+  })
+
+  it('delivers automatic backup events to main and detached settings windows', () => {
+    mocks.broadcastToType.mockClear()
+
+    ;(service as any).emit({ type: 's3', status: 'succeeded', timestamp: 123 })
+
+    const event = service.getStateSnapshot().events.find((candidate) => candidate.type === 's3')
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'backup.auto_sync_state_changed', event)
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.SubWindow, 'backup.auto_sync_state_changed', event)
   })
 
   it('keeps the last result in snapshots while the next backup is running', () => {
