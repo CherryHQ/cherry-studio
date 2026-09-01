@@ -185,6 +185,15 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
     })
   })
 
+  // The supported-models table marks DeepSeek-V4 / GLM-5.2 "Responses API only" — Chat's
+  // enable_search is not served for them, so the chat path must inject nothing.
+  it.each(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'glm-5-2'])(
+    'injects no enable_search for the Responses-only line %s on the chat path',
+    (apiModelId) => {
+      expect(getWebSearchParams(qwencloud(apiModelId), preset('qwencloud'))).toEqual({})
+    }
+  )
+
   it('serves a copied QwenCloud provider identically (preset link, not runtime id)', () => {
     expect(getWebSearchParams(qwencloud('qwen3.7-max'), copyOf('qwencloud'))).toMatchObject({
       enable_search: true
@@ -194,7 +203,7 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   // DeepSeek-V4 / GLM-5.2 search through the Responses web_search tool (bare shape, no OpenAI-only
   // knobs); Qwen lines stay off the Responses tool — their search is Chat's enable_search.
   describe('qwencloud Responses web_search tool', () => {
-    it.each(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2'])('attaches the bare tool for %s', (id) => {
+    it.each(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2', 'glm-5-2'])('attaches the bare tool for %s', (id) => {
       expect(
         buildProviderBuiltinWebSearchConfig('openai', webSearchConfig, qwencloud(id), preset('qwencloud'))
       ).toEqual({ openai: {} })
