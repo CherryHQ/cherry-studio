@@ -27,6 +27,10 @@ describe('alignRangeValue', () => {
     expect(alignRangeValue(2.05, 1, 4, 0.1)).toBe(2.1)
   })
 
+  it('keeps values below a half-step on the nearer lower grid point', () => {
+    expect(alignRangeValue(1.049, 1, 4, 0.1)).toBe(1)
+  })
+
   it('measures steps from min, not from zero', () => {
     expect(alignRangeValue(1.1, 0.5, 2, 0.25)).toBe(1)
     expect(alignRangeValue(1.2, 0.5, 2, 0.25)).toBe(1.25)

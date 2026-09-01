@@ -44,6 +44,27 @@ function ControlledRange({
 }
 
 describe('PaintingFieldRenderer range contract', () => {
+  it('names both controls for the configured range', () => {
+    render(
+      <PaintingFieldRenderer
+        item={{
+          type: 'slider',
+          key: 'guidanceScale',
+          title: 'paintings.guidance_scale',
+          min: 1,
+          max: 20,
+          step: 0.1,
+          initialValue: 1
+        }}
+        painting={{ guidanceScale: 4.5 }}
+        onChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('slider', { name: 'paintings.guidance_scale' })).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: 'paintings.guidance_scale' })).toBeInTheDocument()
+  })
+
   it('keeps range numeric inputs compact at w-12 and h-8', () => {
     render(
       <PaintingFieldRenderer
@@ -53,6 +74,7 @@ describe('PaintingFieldRenderer range contract', () => {
       />
     )
 
+    // The numeric control must fit the 300px parameter overlay without crowding its slider.
     expect(screen.getByRole('spinbutton')).toHaveClass('w-12', 'h-8')
   })
 
@@ -122,6 +144,25 @@ describe('PaintingFieldRenderer range contract', () => {
     expect(screen.getByTestId('slider')).toHaveProperty('value', '2.5')
   })
 
+  it('shows the committed grid value when typed input snaps', async () => {
+    const user = userEvent.setup()
+    render(
+      <ControlledRange
+        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
+        initial={1}
+      />
+    )
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+    await user.keyboard('2.5')
+
+    expect(input).toHaveProperty('value', '3')
+    expect(input).toHaveAttribute('aria-valuenow', '3')
+    expect(screen.getByTestId('slider')).toHaveProperty('value', '3')
+  })
+
   it('restores the committed value when a cleared field blurs', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -132,6 +173,7 @@ describe('PaintingFieldRenderer range contract', () => {
     await user.clear(input)
 
     expect(input).toHaveProperty('value', '')
+    expect(input).not.toHaveAttribute('aria-valuenow')
     expect(onChange).not.toHaveBeenCalled()
 
     await user.tab()

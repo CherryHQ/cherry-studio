@@ -32,6 +32,7 @@ function parseRangeDraft(raw: string): number | null {
 
 function PaintingRangeField({
   fieldKey,
+  label,
   min,
   max,
   step,
@@ -39,6 +40,7 @@ function PaintingRangeField({
   onChange
 }: {
   fieldKey: string
+  label: string
   min: number
   max: number
   step?: number
@@ -69,9 +71,12 @@ function PaintingRangeField({
     setDraft((current) => (current === null ? current : String(numericValue)))
   }, [numericValue])
 
+  const ariaValueNow = draft === null ? numericValue : (parseRangeDraft(draft) ?? undefined)
+
   return (
     <div className="flex min-w-0 items-center gap-3">
       <Slider
+        aria-label={label}
         className="min-w-0 flex-1"
         min={min}
         max={max}
@@ -85,13 +90,14 @@ function PaintingRangeField({
         }}
       />
       <Input
+        aria-label={label}
         className={RANGE_VALUE_INPUT_CLASS}
         type="text"
         inputMode="decimal"
         role="spinbutton"
         aria-valuemin={min}
         aria-valuemax={max}
-        aria-valuenow={numericValue}
+        aria-valuenow={ariaValueNow}
         value={draft ?? String(numericValue)}
         onFocus={() => {
           setDraft((current) => current ?? String(numericValue))
@@ -103,7 +109,7 @@ function PaintingRangeField({
           if (isTransientRangeDraft(raw)) return
           const parsed = parseRangeDraft(raw)
           if (parsed === null) return
-          commitRange(parsed)
+          setDraft(String(commitRange(parsed)))
         }}
         onBlur={() => {
           if (draft !== null) {
@@ -187,18 +193,27 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
       const numericValue = Number(currentValue ?? item.min ?? 0)
       const min = item.min ?? 0
       const max = item.max ?? 100
+      const label = item.title ? t(item.title) : fieldKey
       // Degenerate single-value range (e.g. numImages 1..1): the slider has
       // nowhere to move and Radix renders its thumb flush to the rail edge,
       // which the parent's `overflow-hidden` clips. Skip the slider and show
       // a read-only number input instead.
       if (min === max) {
         return (
-          <Input className={RANGE_VALUE_INPUT_CLASS} type="number" value={String(numericValue)} readOnly disabled />
+          <Input
+            aria-label={label}
+            className={RANGE_VALUE_INPUT_CLASS}
+            type="number"
+            value={String(numericValue)}
+            readOnly
+            disabled
+          />
         )
       }
       return (
         <PaintingRangeField
           fieldKey={fieldKey}
+          label={label}
           min={min}
           max={max}
           step={item.step}

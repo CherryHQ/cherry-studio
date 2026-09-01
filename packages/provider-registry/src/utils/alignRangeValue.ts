@@ -18,7 +18,12 @@ export function alignRangeValue(value: number, min: number, max: number, step: n
   const clamped = Math.min(max, Math.max(min, value))
   if (!(step > 0) || min === max) return clamped
   const precision = Math.max(decimalPlaces(min), decimalPlaces(step))
-  const stepsFromMin = Math.round(Number(((clamped - min) / step).toFixed(precision)))
+  const rawStepsFromMin = (clamped - min) / step
+  const nearestHalfStep = Math.round(rawStepsFromMin * 2) / 2
+  const halfStepTolerance = Number.EPSILON * Math.max(1, Math.abs(rawStepsFromMin)) * 4
+  const stepsFromMin = Math.round(
+    Math.abs(rawStepsFromMin - nearestHalfStep) <= halfStepTolerance ? nearestHalfStep : rawStepsFromMin
+  )
   let aligned = Number((min + stepsFromMin * step).toFixed(precision))
   if (aligned > max) {
     aligned = Number((min + (stepsFromMin - 1) * step).toFixed(precision))

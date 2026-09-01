@@ -21,10 +21,11 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  *      falls back to its own default (e.g. the transport omits `size` and the
  *      vendor applies its own).
  *   3. Resets carry-over values the new model can't accept: enum/select
- *      values absent from the new `options` list, and range/slider values
- *      outside the new `[min, max]` window. Transports forward these
- *      unclamped and a controlled Radix slider won't self-correct, so a
- *      stale pick would otherwise reach the vendor verbatim.
+ *      values absent from the new `options` list, range/slider values outside
+ *      the new `[min, max]` window, and in-range slider values off the new
+ *      step grid. Transports forward these unchanged and a controlled Radix
+ *      slider won't self-correct, so a stale pick would otherwise reach the
+ *      vendor verbatim.
  *
  * Apply alongside `{ model: newModelId }` in `usePaintingModelSwitch` so
  * post-switch state contains exactly the fields the new model accepts AND
