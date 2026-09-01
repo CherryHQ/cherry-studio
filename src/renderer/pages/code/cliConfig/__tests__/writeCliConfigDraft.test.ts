@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { parseGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import type { CliConfigTarget, CliConfigWriteFile } from '@shared/utils/cliConfig'
 import { CLI_CONFIG_FILE_SPECS } from '@shared/utils/cliConfig'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1317,9 +1318,10 @@ describe('writeCliConfigDraft', () => {
       expect(env).toContain('GOOGLE_GENAI_API_VERSION=v1beta')
 
       const settings = JSON.parse(writes.find((w) => w.path.endsWith('settings.json'))!.content)
-      // Gateway addressing (single colon, providerId:apiModelId) plus the sentinel
-      // suffix that keeps gemini-cli's model normalization from rewriting the name.
-      expect(settings.model).toEqual({ name: 'deepseek:deepseek-chat@cherry' })
+      expect(parseGeminiGatewayModelId(settings.model.name)).toEqual({
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-chat'
+      })
       // The real provider is never read, so its key can't leak into the CLI config file.
       expect(dataApiService.get).not.toHaveBeenCalledWith('/providers/deepseek')
     })

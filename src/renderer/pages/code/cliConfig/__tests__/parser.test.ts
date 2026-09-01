@@ -97,6 +97,11 @@ describe('extractConnectionFromCliConfigDraft', () => {
     expect(extractConnectionFromCliConfigDraft(cliTool, files)).toEqual({ baseUrl, apiKey: 'sk-secret', model })
   })
 
+  it('preserves a direct Gemini model id ending in @cherry', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'model@cherry')
+    expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('model@cherry')
+  })
+
   it('returns null for an unknown tool', () => {
     expect(extractConnectionFromCliConfigDraft('nope', [])).toBeNull()
   })

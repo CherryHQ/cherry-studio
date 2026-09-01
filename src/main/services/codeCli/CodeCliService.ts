@@ -634,10 +634,9 @@ export class CodeCliService extends BaseService {
       // gemini-cli resolves its model with precedence `--model` → GEMINI_MODEL →
       // settings.model.name, and its `resolveModel` rewrites any name ending in "flash" to a
       // default Gemini model. Pass the model on the command line (highest precedence, honored
-      // verbatim) so the launched session hits the intended model. In gateway mode it needs the
-      // `providerId:modelId` address the gateway parses from the URL path, carrying the sentinel
-      // suffix so that rewrite can't corrupt a name ending in "flash" (see
-      // GEMINI_GATEWAY_MODEL_SUFFIX); direct mode passes the bare model id.
+      // verbatim) so the launched session hits the intended model. Gateway mode uses the tagged
+      // address that the route decodes without confusing its suffix with model content; direct
+      // mode passes the bare model id.
       if (normal) {
         // The gateway serves only `/v1beta`; force the SDK's API version at launch so a stale
         // `GOOGLE_GENAI_API_VERSION=v1` exported in the user's shell can't redirect it to `/v1`.

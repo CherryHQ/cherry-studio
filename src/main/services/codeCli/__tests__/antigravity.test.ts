@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { parseAntigravityGatewayModelPath } from '@shared/utils/apiGateway'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -101,7 +102,10 @@ describe('prepareAntigravityLaunch', () => {
       GEMINI_API_KEY: 'gateway-secret',
       GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:24444'
     })
-    expect(result.model).toBe('gemini-api://provider-a/models/models/gemini-flash')
+    expect(parseAntigravityGatewayModelPath(result.model.slice('gemini-api://'.length))).toEqual({
+      providerId: 'provider-a',
+      apiModelId: 'models/gemini-flash'
+    })
     expect(result.model).not.toContain('@cherry')
     expect(mocks.getByProviderId).not.toHaveBeenCalled()
   })
@@ -118,7 +122,10 @@ describe('prepareAntigravityLaunch', () => {
       directory: '/tmp/project'
     })
 
-    expect(result.model).toMatch(/^gemini-api:\/\/cherry-gw-v1\/models\/[A-Za-z0-9_-]+$/)
+    expect(parseAntigravityGatewayModelPath(result.model.slice('gemini-api://'.length))).toEqual({
+      providerId: 'team/models/west',
+      apiModelId: 'gemini-2.5-pro'
+    })
   })
 
   it('rejects an unsafe model id without touching the isolated settings', async () => {

@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import type { BinaryRemoveRequest, BinaryRemoveResult } from '@shared/types/binary'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const binaryManagerMock = vi.hoisted(() => ({
@@ -482,8 +483,8 @@ describe('CodeCliService', () => {
 
   // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
   // model, so the intended model is passed on the command line at launch — `--model` outranks settings
-  // and is honored verbatim — and in gateway mode it must carry the providerId prefix the gateway
-  // addresses by plus the @cherry sentinel, or the gateway can't route it.
+  // and is honored verbatim. Gateway mode uses a tagged address so the sentinel cannot collide with
+  // real model content.
   describe('run (gemini-cli passes the model via --model)', () => {
     const originalPlatform = process.platform
 
@@ -512,7 +513,7 @@ describe('CodeCliService', () => {
       }
     }
 
-    it('addresses the model as providerId:modelId plus the sentinel suffix in gateway mode', async () => {
+    it('passes the tagged gateway model address in gateway mode', async () => {
       const script = await launchScript({
         mode: 'normal',
         cliTool: CodeCli.GEMINI_CLI,
@@ -523,7 +524,9 @@ describe('CodeCliService', () => {
       })
       // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
       // any name satisfying endsWith("flash") to a default Gemini model.
-      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
+      expect(script).toContain(
+        `--model ${formatGeminiGatewayModelId('618d8838-1791-44df-8802-34f8444c0935', 'agent/deepseek-v4-flash')}`
+      )
       // The gateway serves only /v1beta, so the launch env forces the SDK's API version — a stale
       // GOOGLE_GENAI_API_VERSION=v1 in the user's shell would otherwise redirect it to /v1. (The
       // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
