@@ -525,7 +525,7 @@ function demoteLinkMath(node: Link): void {
 function isIndependentEnvironment(node: InlineMath, source: string): boolean {
   const offset = node.position?.start.offset
   if (offset === undefined) return false
-  const lineStart = source.lastIndexOf('\n', offset - 1) + 1
+  const lineStart = Math.max(source.lastIndexOf('\n', offset - 1), source.lastIndexOf('\r', offset - 1)) + 1
   return /^ {0,3}$/.test(source.slice(lineStart, offset))
 }
 
@@ -620,13 +620,13 @@ function promoteDisplayMath(tree: Root): void {
 
 function repairMathMeta(tree: Root, source: string): void {
   visit(tree, 'math', (node) => {
-    if (!node.meta?.startsWith('\\begin{')) return
+    if (!/^\\(?:begin|tag)\b/.test(node.meta ?? '')) return
     const start = node.position?.start.offset
     const end = node.position?.end.offset
     if (start === undefined || end === undefined) return
 
     const raw = source.slice(start, end)
-    const match = /^(\${2,})([^\r\n$]+)(\r\n|\n|\r)([\s\S]*[^\r\n])\1[ \t]*$/.exec(raw)
+    const match = /^(\${2,})([^\r\n$]+)(\r\n|\n|\r)([\s\S]*[^\r\n])(?:\r\n|\n|\r)?\1[ \t]*$/.exec(raw)
     if (!match) return
 
     node.value = `${match[2]}${match[3]}${match[4]}`

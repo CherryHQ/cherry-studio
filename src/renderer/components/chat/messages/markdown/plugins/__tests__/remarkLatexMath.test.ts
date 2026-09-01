@@ -101,6 +101,14 @@ describe('remarkLatexMath', () => {
     ])
   })
 
+  it('parses an independent environment after a CR-only line ending', () => {
+    const source = 'Before formula.\r\\begin{equation}\rx=1\r\\end{equation}'
+    const tree = parse(source)
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'math', value: '\\begin{equation}\rx=1\r\\end{equation}' }])
+    expect(textValue(tree)).toContain('Before formula.')
+  })
+
   it('parses the multiline derivation from issue #19576 as one display node', () => {
     const source = `Here is a derivation:
 \\[\\begin{aligned}
@@ -206,6 +214,12 @@ describe('remarkLatexMath', () => {
     expect(container.querySelector('.katex-error')).toBeNull()
     expect(container.textContent).toContain('After formula.')
     expect(container.textContent).toContain('link')
+  })
+
+  it('preserves a leading tag in existing multiline display math', () => {
+    const source = '$$\\tag{1}\nx=1\n$$'
+
+    expect(mathNodes(source)).toMatchObject([{ type: 'math', meta: null, value: '\\tag{1}\nx=1' }])
   })
 
   it.each([
