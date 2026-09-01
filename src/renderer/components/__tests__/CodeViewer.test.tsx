@@ -196,6 +196,24 @@ describe('CodeViewer', () => {
     expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
   })
 
+  it('keeps the nested horizontal scrollbar visible when an ancestor auto-hides its scrollbar', () => {
+    const { container, getByTestId } = render(
+      <div data-testid="outer-scrollbar" style={{ scrollbarColor: 'transparent transparent' }}>
+        <CodeViewer
+          value="long=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          language="text"
+          wrapped={false}
+        />
+      </div>
+    )
+
+    const outerScrollbar = getByTestId('outer-scrollbar')
+    const codeScroller = container.querySelector('.shiki-scroller') as HTMLElement
+
+    expect(outerScrollbar).toHaveStyle({ scrollbarColor: 'transparent transparent' })
+    expect(codeScroller).toHaveStyle({ scrollbarColor: 'auto' })
+  })
+
   it('lets the line-content flex item shrink so long unbreakable lines wrap instead of overflowing', () => {
     // The wrapped line-content must be able to shrink below its min-content width
     // (base64, URLs, minified JSON), otherwise long lines overflow the container
