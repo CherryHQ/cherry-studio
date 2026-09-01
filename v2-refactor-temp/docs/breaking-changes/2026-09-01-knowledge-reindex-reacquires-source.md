@@ -2,7 +2,7 @@
 title: Knowledge base "Reindex" now re-reads the original source
 category: changed
 severity: breaking
-introduced_in_pr: TBD
+introduced_in_pr: 19829
 date: 2026-09-01
 ---
 
