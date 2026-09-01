@@ -1,5 +1,8 @@
-/** Height of one list item in pixels. */
-export const QUICK_PANEL_ITEM_HEIGHT = 31
+/** Visible height of one QuickPanel row in pixels. */
+export const QUICK_PANEL_ROW_HEIGHT = 34
+
+/** Row height plus the one-pixel bottom gap used by the list. */
+export const QUICK_PANEL_ITEM_HEIGHT = QUICK_PANEL_ROW_HEIGHT + 1
 
 /** Safe gap between the panel top and frame top in pixels. */
 export const QUICK_PANEL_SAFE_MARGIN = 8

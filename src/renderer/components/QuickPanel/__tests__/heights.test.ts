@@ -17,6 +17,10 @@ const base = {
 }
 
 describe('getQuickPanelHeights', () => {
+  it('accounts for the 34px rendered row plus its one-pixel inter-row gap', () => {
+    expect(QUICK_PANEL_ITEM_HEIGHT).toBe(35)
+  })
+
   it('sums the rendered body padding and border widths', () => {
     const style = {
       paddingTop: '5px',

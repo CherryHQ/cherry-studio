@@ -109,6 +109,17 @@ describe('SelectDropdown', () => {
       expect(options[0]).toHaveFocus()
     })
 
+    it('supports option navigation immediately after the listbox opens', async () => {
+      render(<SelectDropdown {...defaultProps} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      const firstOption = screen.getByRole('option', { name: 'Alpha' })
+      await waitFor(() => expect(firstOption).toHaveFocus())
+      fireEvent.keyDown(firstOption, { key: 'End' })
+
+      expect(screen.getByRole('option', { name: 'Gamma' })).toHaveFocus()
+    })
+
     it('moves focus to options outside the rendered virtual window', async () => {
       render(<SelectDropdown {...defaultProps} virtualize />)
       fireEvent.click(screen.getByRole('button'))

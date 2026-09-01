@@ -177,7 +177,7 @@ export const ColorPicker = ({ value, defaultValue = '#000000', onChange, classNa
 export type ColorPickerSelectionProps = HTMLAttributes<HTMLDivElement>
 
 export const ColorPickerSelection = memo(
-  ({ className, 'aria-label': ariaLabel, ...props }: ColorPickerSelectionProps) => {
+  ({ className, 'aria-label': ariaLabel, 'aria-valuetext': ariaValueText, ...props }: ColorPickerSelectionProps) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const [isDragging, setIsDragging] = useState(false)
     const { hue, saturation, brightness, updateColor } = useColorPicker()
@@ -271,7 +271,7 @@ export const ColorPickerSelection = memo(
       <div
         {...props}
         className={cn(
-          'relative size-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-[1px] focus-visible:ring-inset focus-visible:ring-ring/35',
+          'relative h-40 w-full cursor-crosshair touch-none rounded-lg outline-none focus-visible:ring-[1px] focus-visible:ring-inset focus-visible:ring-ring/35',
           className
         )}
         tabIndex={0}
@@ -280,7 +280,7 @@ export const ColorPickerSelection = memo(
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(saturation)}
-        aria-valuetext={`Saturation ${Math.round(saturation)}%, brightness ${Math.round(brightness)}%`}
+        aria-valuetext={ariaValueText ?? `Saturation ${Math.round(saturation)}%, brightness ${Math.round(brightness)}%`}
         onKeyDown={handleKeyDown}
         onPointerDown={(e) => {
           e.preventDefault()
@@ -378,7 +378,7 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
 
 export type ColorPickerEyeDropperProps = ComponentProps<typeof Button>
 
-export const ColorPickerEyeDropper = ({ className, ...props }: ColorPickerEyeDropperProps) => {
+export const ColorPickerEyeDropper = ({ className, onClick, ...props }: ColorPickerEyeDropperProps) => {
   const { updateColor } = useColorPicker()
 
   // EyeDropper is a Chromium-only experimental API. Renders nothing on browsers
@@ -403,12 +403,15 @@ export const ColorPickerEyeDropper = ({ className, ...props }: ColorPickerEyeDro
   return (
     <Button
       className={cn('shrink-0 text-muted-foreground', className)}
-      onClick={handleEyeDropper}
       size="icon"
       type="button"
       variant="outline"
       aria-label="Pick color from screen"
-      {...props}>
+      {...props}
+      onClick={(event) => {
+        onClick?.(event)
+        if (!event.defaultPrevented) void handleEyeDropper()
+      }}>
       <PipetteIcon size={16} />
     </Button>
   )

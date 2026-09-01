@@ -98,7 +98,6 @@ cherry-studio
 │   ├── aiCore/                  #   @cherrystudio/ai-core
 │   ├── ai-sdk-provider/         #   Custom AI SDK providers
 │   ├── provider-registry/       #   Provider registry
-│   ├── mcp-trace/               #   OpenTelemetry tracing
 │   └── extension-table-plus/    #   TipTap table extension
 │
 ├── docs/                        # Documentation (this directory)

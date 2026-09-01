@@ -4,7 +4,7 @@ import * as React from 'react'
 type InputSize = 'sm' | 'default' | 'lg'
 
 interface InputProps extends Omit<React.ComponentProps<'input'>, 'size'> {
-  size?: InputSize
+  size?: InputSize | number
 }
 
 const inputSizeClasses: Record<InputSize, string> = {
@@ -14,17 +14,20 @@ const inputSizeClasses: Record<InputSize, string> = {
 }
 
 function Input({ className, type, size = 'default', ...props }: InputProps) {
+  const semanticSize = typeof size === 'number' ? 'default' : size
+
   return (
     <input
       type={type}
+      size={typeof size === 'number' ? size : undefined}
       data-slot="input"
-      data-size={size}
+      data-size={semanticSize}
       className={cn(
         'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent py-1 transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed',
         'focus-visible:border-primary',
         'disabled:opacity-50',
         'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-        inputSizeClasses[size],
+        inputSizeClasses[semanticSize],
         className
       )}
       {...props}

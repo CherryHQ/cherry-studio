@@ -58,6 +58,12 @@ describe('resolveWorkspaceFile', () => {
     expect(file.media_type).toBe('image/png')
   })
 
+  it('infers video MIME types for native channel delivery', async () => {
+    await writeFile(path.join(workspace, 'clip.mp4'), 'x')
+    const file = await resolveWorkspaceFile(workspace, 'clip.mp4')
+    expect(file.media_type).toBe('video/mp4')
+  })
+
   it('falls back to octet-stream for unknown extensions', async () => {
     await writeFile(path.join(workspace, 'blob.xyz'), 'x')
     const file = await resolveWorkspaceFile(workspace, 'blob.xyz')

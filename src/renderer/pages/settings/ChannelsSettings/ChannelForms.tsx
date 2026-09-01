@@ -12,7 +12,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
-import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
+import { PermissionModeSelectItem } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
 import { permissionModeCards } from '@renderer/utils/agent'
@@ -87,12 +87,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
         <SelectContent>
           <SelectItem value={INHERIT_PERMISSION_MODE_VALUE}>{t('agent.channels.security.inheritFromAgent')}</SelectItem>
           {permissionModeCards.map((card) => (
-            <SelectItem key={card.mode} value={card.mode}>
-              <div className="flex items-center gap-2">
-                <PermissionModeIcon mode={card.mode} size={14} />
-                <PermissionModeOptionLabel card={card} t={t} withDescription={false} />
-              </div>
-            </SelectItem>
+            <PermissionModeSelectItem key={card.mode} card={card} compact t={t} />
           ))}
         </SelectContent>
       </Select>

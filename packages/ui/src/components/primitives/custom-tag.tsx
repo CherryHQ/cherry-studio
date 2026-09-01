@@ -70,7 +70,6 @@ const CustomTag: FC<CustomTagProps> = ({
               top: `${size * 0.2}px`,
               bottom: `${size * 0.2}px`,
               fontSize: `${size * 0.8}px`,
-              color: actualColor,
               aspectRatio: 1
             }}
             onClick={(e) => {

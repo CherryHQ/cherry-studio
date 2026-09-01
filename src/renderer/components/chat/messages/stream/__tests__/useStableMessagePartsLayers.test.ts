@@ -1,4 +1,3 @@
-import type { TranslationOverlayEntry } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -17,20 +16,19 @@ describe('useStablePartsByMessageId', () => {
     const partsB = [textPart('b')]
     const messages = [makeMessage('m1', partsA), makeMessage('m2', partsB)]
     const overlay: Record<string, CherryMessagePart[]> = {}
-    const translationOverlay: Record<string, TranslationOverlayEntry> = {}
 
-    const { result, rerender } = renderHook(({ msgs, ov, tov }) => useStablePartsByMessageId(msgs, ov, tov), {
-      initialProps: { msgs: messages, ov: overlay, tov: translationOverlay }
+    const { result, rerender } = renderHook(({ msgs, ov }) => useStablePartsByMessageId(msgs, ov), {
+      initialProps: { msgs: messages, ov: overlay }
     })
 
     const first = result.current
     // re-render with the SAME messages array — container should be preserved
-    rerender({ msgs: messages, ov: overlay, tov: translationOverlay })
+    rerender({ msgs: messages, ov: overlay })
     expect(result.current).toBe(first)
 
     // re-render with a new array but element-identical message refs — still stable
     const messagesRefRenewed = [...messages]
-    rerender({ msgs: messagesRefRenewed, ov: overlay, tov: translationOverlay })
+    rerender({ msgs: messagesRefRenewed, ov: overlay })
     expect(result.current).toBe(first)
   })
 
@@ -42,7 +40,7 @@ describe('useStablePartsByMessageId', () => {
     const messagesT1 = [makeMessage('m1', partsA), makeMessage('m2', partsBOriginal)]
     const messagesT2 = [makeMessage('m1', partsA), makeMessage('m2', partsBAppended)]
 
-    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}, {}), {
+    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}), {
       initialProps: { msgs: messagesT1 }
     })
 
@@ -65,7 +63,7 @@ describe('useStablePartsByMessageId', () => {
     const msgsT1 = [makeMessage('m1', partsA)]
     const msgsT2 = [makeMessage('m1', partsA), makeMessage('m2', [textPart('b')])]
 
-    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}, {}), {
+    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}), {
       initialProps: { msgs: msgsT1 }
     })
 
@@ -82,7 +80,7 @@ describe('useStablePartsByMessageId', () => {
     const msgsT1 = [makeMessage('m1', partsA), makeMessage('m2', partsB)]
     const msgsT2 = [makeMessage('m1', partsA)]
 
-    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}, {}), {
+    const { result, rerender } = renderHook(({ msgs }) => useStablePartsByMessageId(msgs, {}), {
       initialProps: { msgs: msgsT1 }
     })
 
@@ -99,7 +97,7 @@ describe('useStablePartsByMessageId', () => {
     const messages = [makeMessage('m1', partsBase)]
 
     const { result, rerender } = renderHook(
-      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStablePartsByMessageId(messages, ov, {}),
+      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStablePartsByMessageId(messages, ov),
       { initialProps: { ov: { m1: overlayParts } as Record<string, CherryMessagePart[]> } }
     )
 
@@ -124,7 +122,7 @@ describe('useStablePartsByMessageId', () => {
     const messages = [makeMessage('m1', historyParts)]
 
     const { result, rerender } = renderHook(
-      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStableMessagePartsLayers(messages, ov, {}),
+      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) => useStableMessagePartsLayers(messages, ov),
       {
         initialProps: {
           ov: { 'live-m2': liveParts, 'live-m3': retainedLiveParts } as Record<string, CherryMessagePart[]>
@@ -153,64 +151,5 @@ describe('useStablePartsByMessageId', () => {
     expect(result.current.partsByMessageId['live-m2']).toBeUndefined()
     expect(result.current.partsByMessageId['live-m3']).toBeUndefined()
     expect(result.current.partsByMessageId).toBe(result.current.historyPartsByMessageId)
-  })
-
-  it('keeps translated history sealed while execution overlay frames change', () => {
-    const baseParts = [textPart('base')]
-    const firstFrame = [textPart('stream-1')]
-    const secondFrame = [textPart('stream-2')]
-    const messages = [makeMessage('m1', baseParts)]
-    const translation: TranslationOverlayEntry = {
-      content: 'bonjour',
-      targetLanguage: 'fr-FR' as TranslationOverlayEntry['targetLanguage']
-    }
-
-    const { result, rerender } = renderHook(
-      ({ ov }: { ov: Record<string, CherryMessagePart[]> }) =>
-        useStableMessagePartsLayers(messages, ov, { m1: translation }),
-      { initialProps: { ov: { m1: firstFrame } } }
-    )
-
-    const firstHistoryMap = result.current.historyPartsByMessageId
-    const firstCurrentMap = result.current.partsByMessageId
-    expect(firstHistoryMap['m1'][0]).toBe(baseParts[0])
-    expect(firstHistoryMap['m1'][1].type).toBe('data-translation')
-    expect(firstCurrentMap['m1'][0]).toBe(firstFrame[0])
-
-    rerender({ ov: { m1: secondFrame } })
-
-    expect(result.current.historyPartsByMessageId).toBe(firstHistoryMap)
-    expect(result.current.historyPartsByMessageId['m1']).toBe(firstHistoryMap['m1'])
-    expect(result.current.partsByMessageId).not.toBe(firstCurrentMap)
-    expect(result.current.partsByMessageId['m1'][0]).toBe(secondFrame[0])
-  })
-
-  it('appends and clears a translation overlay part correctly', () => {
-    const partsBase = [textPart('hello')]
-    const messages = [makeMessage('m1', partsBase)]
-    const trEntry: TranslationOverlayEntry = {
-      content: 'bonjour',
-      targetLanguage: 'fr-FR' as TranslationOverlayEntry['targetLanguage']
-    }
-
-    const { result, rerender } = renderHook(
-      ({ tov }: { tov: Record<string, TranslationOverlayEntry> }) => useStablePartsByMessageId(messages, {}, tov),
-      { initialProps: { tov: {} as Record<string, TranslationOverlayEntry> } }
-    )
-
-    expect(result.current['m1']).toBe(partsBase)
-
-    // Add translation overlay — new array with appended translation part,
-    // base part still ref-equal so the existing block renderer can skip.
-    rerender({ tov: { m1: trEntry } })
-    const withOverlay = result.current['m1']
-    expect(withOverlay).not.toBe(partsBase)
-    expect(withOverlay.length).toBe(2)
-    expect(withOverlay[0]).toBe(partsBase[0])
-    expect(withOverlay[1].type).toBe('data-translation')
-
-    // Remove overlay — back to baseParts ref
-    rerender({ tov: {} })
-    expect(result.current['m1']).toBe(partsBase)
   })
 })

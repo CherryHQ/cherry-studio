@@ -5,14 +5,7 @@ import type { BridgeToolCallResult, BridgeToolDescriptor } from '@cherrystudio/d
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import type { AgentMcpServer } from '@main/ai/runtime/agentMcpServers'
-import {
-  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
-  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
-  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES
-} from '@main/ai/runtime/toolApproval/cherryBuiltinApproval'
+import { listBuiltinToolPolicies } from '@main/ai/toolApproval/builtinToolPolicy'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -51,24 +44,23 @@ export function buildDshCherryToolName(serverName: string, toolName: string): st
   return `${safePrefix.slice(0, 50)}_${hash}`
 }
 
-const toDshRuntimeName = (runtimeName: string): string => {
-  const [, serverName, toolName] = runtimeName.split('__')
-  return buildDshCherryToolName(serverName, toolName)
-}
+export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'auto' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
 
-export const DSH_AUTO_APPROVED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),
-  buildDshCherryToolName('agent-memory', 'memory'),
-  buildDshCherryToolName('skills', 'search_skills'),
-  ...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName),
-  ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES.map(toDshRuntimeName)
-])
+export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
 
-export const DSH_APPROVAL_REQUIRED_BRIDGED_TOOLS: ReadonlySet<string> = new Set([
-  ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map((name) => buildDshCherryToolName('cherry-tools', name)),
-  ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName),
-  ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.map(toDshRuntimeName)
-])
+export const DSH_NON_BYPASSABLE_APPROVAL_BRIDGED_TOOLS: ReadonlySet<string> = new Set(
+  listBuiltinToolPolicies({ approval: 'required', bypassApproval: 'enforce' }).map(({ serverName, toolName }) =>
+    buildDshCherryToolName(serverName, toolName)
+  )
+)
 
 /** Warm user-configured catalogs before the connection snapshot captures their tool schemas. */
 export async function warmDshMcpToolCatalogs(mcpIds: readonly string[]): Promise<void> {

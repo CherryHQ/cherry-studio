@@ -89,6 +89,13 @@ export const ThinkingTokenLimitsSchema = z
 /** Reasoning effort levels */
 const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
+/** Verbosity of the reasoning summary an endpoint returns (OpenAI `reasoning.summary`). */
+export const ReasoningSummarySchema = z.enum(['auto', 'concise', 'detailed'])
+export type ReasoningSummary = z.infer<typeof ReasoningSummarySchema>
+
+export const ServiceTierSelectionSchema = z.enum(['standard', 'auto', 'fast', 'flex'])
+export type ServiceTierSelection = z.infer<typeof ServiceTierSelectionSchema>
+
 /** Common reasoning fields shared across all reasoning type variants */
 const CommonReasoningFieldsSchema = {
   /** Source declaration of the model's reasoning knobs (effort/budget/toggle). */
@@ -96,6 +103,8 @@ const CommonReasoningFieldsSchema = {
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
   /** Endpoint-projected choices exposed to the renderer. */
   selectableEfforts: z.array(ReasoningEffortSchema).optional(),
+  /** Endpoint-projected: present only where the wire carries a summary verbosity knob. */
+  summaryOptions: z.array(ReasoningSummarySchema).optional(),
   /** What the API does when no reasoning param is sent. */
   defaultEffort: ReasoningEffortSchema.optional(),
   interleaved: z.boolean().optional()
@@ -390,6 +399,21 @@ export const ModelSchema = z.object({
   reasoning: RuntimeReasoningSchema.optional(),
   /** Whether this exact provider-model pair supports the provider's Fast transport. */
   supportsFastMode: z.boolean().optional(),
+  /** Endpoint-projected request controls safe to expose to the renderer. */
+  requestControls: z
+    .object({
+      serviceTier: z
+        .object({
+          default: ServiceTierSelectionSchema,
+          options: z.array(ServiceTierSelectionSchema).min(1)
+        })
+        .refine((control) => control.options.includes(control.default), {
+          message: 'service tier default must be one of its options',
+          path: ['default']
+        })
+        .optional()
+    })
+    .optional(),
   /** Parameter support */
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 

@@ -70,6 +70,8 @@ export function runStartupRecovery(
     //    next dispatch tick (the WHERE in claimNextPendingTx now excludes
     //    cancelRequested=true rows from being claimed, but a leftover row
     //    must still be reduced to a terminal state here).
+    //    finishedAt gets sweep time (the real transition); read models order
+    //    cancelled runs by cancelRequestedAt, so the late settle reorders nothing.
     const cancelRequestedIds = active
       .filter((r) => r.cancelRequested && (r.status === 'running' || r.status === 'delayed' || r.status === 'pending'))
       .map((r) => r.id)

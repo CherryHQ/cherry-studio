@@ -26,6 +26,7 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { chatMessageRoles } from '@shared/data/types/file'
 import {
   type BranchMessage,
@@ -45,12 +46,13 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { isAssistantActivityTransition, isConversationActivityRole } from './utils/activityTime'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
+import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -92,6 +94,13 @@ export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
+}
+
+export interface LiveMessageRangeMetadata {
+  readonly createdAt: string
+  readonly entityJsonBytes: number
+  readonly id: string
+  readonly topicId: string
 }
 
 /**
@@ -145,6 +154,25 @@ function rowToMessage(row: MessageRow): Message {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+function messageEntityJsonBytes(): SQL<number> {
+  return sql<number>`length(cast(json_object(
+    'id', ${messageTable.id},
+    'topicId', ${messageTable.topicId},
+    'parentId', ${messageTable.parentId},
+    'role', ${messageTable.role},
+    'data', json(${messageTable.data}),
+    'searchableText', ${messageTable.searchableText},
+    'status', ${messageTable.status},
+    'siblingsGroupId', ${messageTable.siblingsGroupId},
+    'modelId', ${messageTable.modelId},
+    'messageSnapshot', json(${messageTable.messageSnapshot}),
+    'stats', json(${messageTable.stats}),
+    'compactionSummary', ${messageTable.compactionSummary},
+    'createdAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${messageTable.createdAt} / 1000.0, 'unixepoch'),
+    'updatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${messageTable.updatedAt} / 1000.0, 'unixepoch')
+  ) as blob))`
 }
 
 function completeApprovalWait(
@@ -825,6 +853,52 @@ export class MessageService {
       )
       .all()
     return rows.map((row) => row.id)
+  }
+
+  listLiveCreatedInRangeMetadataPage({
+    fromMs,
+    toMs,
+    cursor: rawCursor,
+    limit
+  }: {
+    fromMs: number
+    toMs: number
+    cursor?: string
+    limit: number
+  }): CursorPaginationResponse<LiveMessageRangeMetadata> {
+    const db = application.get('DbService').getDb()
+    const ordering = keysetOrdering(messageTable.createdAt, messageTable.id, { major: 'desc', tie: 'asc' })
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'message-range-metadata')
+    const rows = db
+      .select({
+        createdAt: messageTable.createdAt,
+        entityJsonBytes: messageEntityJsonBytes(),
+        id: messageTable.id,
+        topicId: messageTable.topicId
+      })
+      .from(messageTable)
+      .innerJoin(topicTable, eq(messageTable.topicId, topicTable.id))
+      .where(
+        and(
+          gte(messageTable.createdAt, fromMs),
+          lte(messageTable.createdAt, toMs),
+          isNull(messageTable.deletedAt),
+          isNull(topicTable.deletedAt),
+          ne(messageTable.role, 'root'),
+          cursor ? ordering.where(cursor) : undefined
+        )
+      )
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasNext = rows.length > limit
+    const pageRows = hasNext ? rows.slice(0, limit) : rows
+    const tail = pageRows[pageRows.length - 1]
+    return {
+      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    }
   }
 
   /**
@@ -2073,7 +2147,7 @@ export class MessageService {
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const rootId = this.getRootMessageIdTx(tx, topicId)
 
       const rows = tx
@@ -2094,6 +2168,24 @@ export class MessageService {
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
     })
+
+    if (result.deletedIds.length > 0) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'membership',
+          routeParams: { topicId },
+          entityIds: result.deletedIds
+        },
+        { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: result.deletedIds },
+        { endpoint: '/messages/:id', entityIds: result.deletedIds },
+        { endpoint: '/topics', kind: 'projection', entityIds: [topicId] },
+        { endpoint: '/topics/:id', routeParams: { id: topicId }, entityIds: [topicId] },
+        { endpoint: '/topics/latest' }
+      ])
+    }
+
+    return result
   }
 
   /**

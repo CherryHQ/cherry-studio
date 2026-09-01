@@ -202,7 +202,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
         className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
+          <h2 className="max-h-36 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}
           </h2>
 

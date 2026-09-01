@@ -43,9 +43,7 @@ export function usePins(entityType: EntityType, options: UsePinsOptions = {}): U
     refetch
   } = useQuery('/pins', { enabled, query: { entityType } })
 
-  useDataChange('/pins', () => {
-    if (enabled) void refetch()
-  })
+  useDataChange(enabled ? '/pins' : [], () => void refetch())
 
   const {
     trigger: createPin,

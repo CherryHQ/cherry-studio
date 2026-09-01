@@ -13,4 +13,5 @@ export {
   type BridgeToolCallResult,
   type BridgeToolDescriptor
 } from './protocol'
-export { resolveDshRuntimeEntry } from './runtime'
+export { resolveBundledDshRuntimeEntry, resolveDshRuntimeEntry } from './runtime'
+export { DSH_RUNTIME_ENTRY_NAMES, type DshRuntimeEntrySpecifier } from './runtimeEntries'

@@ -1,7 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { SourceSnapshot } from '@data/services/AiUsageRecordService'
 import type { RetainedContext } from '@main/ai/messages/retainedContext'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
@@ -61,6 +61,8 @@ export interface AiBaseRequest {
   apiKeyOverride?: string
   /** Canonical per-turn reasoning selection captured when the message was submitted. */
   reasoningEffort?: ReasoningEffortOption
+  /** Canonical provider request tier captured when the message was submitted. */
+  serviceTier?: ServiceTierSelection
   /** Whether the turn requests the provider-model pair's Fast transport. */
   fastMode?: boolean
   /**
@@ -110,4 +112,10 @@ export interface AiStreamRequest extends AiBaseRequest {
    */
   retainedContext?: RetainedContext
   runtime?: { kind: 'agent-session'; sessionId: string; turnId: string }
+  /**
+   * Attribution for callers with no assistant to derive it from. Neutral on purpose:
+   * the agent-only `usageContext` also rewrites `chatId` to an agent session id, so
+   * reusing it would record a mini app's call as an agent turn.
+   */
+  source?: SourceSnapshot | null
 }

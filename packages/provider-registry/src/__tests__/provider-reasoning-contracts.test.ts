@@ -15,9 +15,29 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  // DeepSeek publishes one effort table for both V4 SKUs (thinking_mode guide), so Flash and Pro
-  // must not drift apart — and neither may send `xhigh` verbatim, which DeepSeek degrades to `high`.
-  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])(
+  it('encodes OpenRouter Off as an explicit none effort', () => {
+    const wire = provider('openrouter').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+
+    expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
+  })
+
+  it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
+    expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
+      input: { currency: 'USD', perMillionTokens: 0.44 },
+      output: { currency: 'USD', perMillionTokens: 1.32 }
+    })
+    expect(override('deepseek', 'deepseek-v4-pro').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
+      input: { currency: 'USD', perMillionTokens: 1.32 },
+      output: { currency: 'USD', perMillionTokens: 3.96 }
+    })
+  })
+
+  // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
+  // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
+  // degrades to `high`.
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'maps %s reasoning to the official effort vocabulary',
     (modelId) => {
       const contracts = override('deepseek', modelId).reasoningContracts
@@ -39,7 +59,7 @@ describe('provider reasoning contracts', () => {
       expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
         operations: [
           { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-          { target: 'reasoning_effort', value: { source: 'effort' } }
+          { target: 'reasoningEffort', value: { source: 'effort' } }
         ],
         effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
       })
@@ -166,6 +186,41 @@ describe('provider reasoning contracts', () => {
       expect(pinned ?? []).toEqual([])
     }
   )
+
+  // Poe serves Responses natively; Chat Completions remains fail-closed and
+  // retains only audited per-model wire contracts.
+  it('routes Poe chat through the Responses endpoint with standard reasoning', () => {
+    const poe = provider('poe')
+    expect(poe.defaultChatEndpoint).toBe('openai-responses')
+    expect(poe.endpointConfigs?.['openai-responses']?.reasoningFormat).toEqual({ type: 'openai-responses' })
+    expect(poe.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toEqual({ disabled: true })
+  })
+
+  // Poe's Responses emulation breaks Claude streams, so the full official roster
+  // must prefer Anthropic Messages.
+  it('pins every official Poe Claude bot to anthropic-messages first', () => {
+    const expected = [
+      'claude-haiku-4-5',
+      'claude-opus-4-5',
+      'claude-opus-4-6',
+      'claude-opus-4-7',
+      'claude-opus-4-8',
+      'claude-sonnet-4-5',
+      'claude-sonnet-4-6'
+    ]
+    const claudeOverrides = provider('poe').overrides?.filter(({ modelId }) => modelId?.startsWith('claude-')) ?? []
+    expect(claudeOverrides.map(({ modelId }) => modelId).sort()).toEqual(expected)
+    for (const entry of claudeOverrides) {
+      expect(entry.endpointTypes?.[0], entry.modelId).toBe('anthropic-messages')
+    }
+  })
+
+  it.each([
+    ['gpt-oss-20b', 'accounts/fireworks/models/gpt-oss-20b'],
+    ['minimax-m2-7', 'accounts/fireworks/models/minimax-m2p7']
+  ])('keeps the Fireworks wire identity for de-listed model %s', (modelId, apiModelId) => {
+    expect(override('fireworks', modelId).apiModelId).toBe(apiModelId)
+  })
 
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(

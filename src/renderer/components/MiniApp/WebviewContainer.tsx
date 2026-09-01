@@ -1,12 +1,56 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
-import { memo, useCallback, useEffect, useRef } from 'react'
+import type { MiniAppKind } from '@shared/data/types/miniApp'
+import { MINI_APP_KEYDOWN_CHANNEL, type MiniAppKeyPayload } from '@shared/utils/webviewKey'
+import type { DidNavigateInPageEvent, DidStartNavigationEvent, IpcMessageEvent, WebviewTag } from 'electron'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewContainer')
+
+type PrepareState = 'ready' | 'preparing' | 'failed'
+
+/**
+ * A `kind='app'` webview may not attach before the main process has installed the
+ * protocol handler, network policy and proxy on its partition. `will-attach-webview`
+ * can only veto — it is synchronous while `ensurePartition` is not — so the wait has
+ * to happen here. `site` webviews carry no per-partition policy and mount at once.
+ *
+ * The hook returns readiness ONLY. It never learns the preload path: the element's
+ * `preload` attribute wants a `file:` URL rather than a path, and main sets
+ * `webPreferences.preload` itself in `will-attach-webview` — so there is nothing
+ * here for the renderer to get wrong or to leak.
+ */
+function useMiniAppPrepared(appid: string, kind: MiniAppKind): PrepareState {
+  const [state, setState] = useState<PrepareState>(kind === 'app' ? 'preparing' : 'ready')
+
+  useEffect(() => {
+    if (kind !== 'app') return setState('ready')
+    let cancelled = false
+    setState('preparing')
+    ipcApi.request('mini_app.runtime.prepare', { appId: appid }).then(
+      () => !cancelled && setState('ready'),
+      (error) => {
+        logger.error('Failed to prepare mini app partition', error)
+        if (!cancelled) setState('failed')
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [appid, kind])
+
+  useEffect(() => {
+    if (state !== 'ready' || kind !== 'app') return
+    // Fire-and-forget ON PURPOSE: the page must paint whether or not the network
+    // answers, and a failed check is not a failed launch.
+    void ipcApi.request('mini_app.update.check_on_open', { appId: appid }).catch(() => {})
+  }, [state, kind, appid])
+
+  return state
+}
 
 /**
  * WebviewContainer is a component that renders a webview element.
@@ -17,35 +61,48 @@ const WebviewContainer = memo(
   ({
     appid,
     url,
+    kind,
     onSetRefCallback,
     onLoadedCallback,
-    onNavigateCallback
+    onNavigateCallback,
+    onFocusChange
   }: {
     appid: string
     url: string
+    kind: MiniAppKind
     onSetRefCallback: (appid: string, element: WebviewTag | null) => void
     onLoadedCallback: (appid: string) => void
     onNavigateCallback: (appid: string, url: string) => void
+    /** Reported to the pool, which owns the `webview.focused` context key for all panes. */
+    onFocusChange?: (appid: string, focused: boolean) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
     const { t } = useTranslation()
     const [enableSpellCheck] = usePreference('app.spell_check.enabled')
     const [openLinkExternal] = usePreference('feature.mini_app.open_link_external')
+
     const handleRef = useCallback(
       (element: WebviewTag | null) => {
         onSetRefCallback(appid, element)
         if (element) {
           // React omits unknown boolean attributes; Electron enables popups by attribute presence.
-          element.setAttribute('allowpopups', 'true')
+          // Local apps must never open a window: a new window escapes every policy
+          // installed on this partition.
+          if (kind === 'site') element.setAttribute('allowpopups', 'true')
           webviewRef.current = element
         } else {
           webviewRef.current = null
         }
       },
-      [appid, onSetRefCallback]
+      [appid, kind, onSetRefCallback]
     )
 
+    const prepareState = useMiniAppPrepared(appid, kind)
+
     useEffect(() => {
+      // Part of the identity of "is there a webview to set up": without it the effect
+      // runs once against a null ref and never again.
+      if (prepareState !== 'ready') return
       const webview = webviewRef.current
       if (!webview) return
 
@@ -90,8 +147,10 @@ const WebviewContainer = memo(
         const webviewId = webview.getWebContentsId()
         if (webviewId) {
           void ipcApi.request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
-          // Set link opening behavior for this webview
-          void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
+          // Sites only: a mini app guest keeps its own deny-all popup policy.
+          if (kind === 'site') {
+            void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
+          }
         }
 
         if (!loadCallbackFired) {
@@ -109,6 +168,25 @@ const WebviewContainer = memo(
         loadCallbackFired = false
       }
 
+      // Replay the guest's keydown on the host window so the normal keybinding
+      // resolution sees it; `target` identifies which webview it came from.
+      const handleGuestKeydown = (event: IpcMessageEvent) => {
+        if (event.channel !== MINI_APP_KEYDOWN_CHANNEL) return
+
+        const payload = event.args[0] as MiniAppKeyPayload | undefined
+        if (!payload?.isTrusted || document.activeElement !== webview) return
+
+        const replayed = new KeyboardEvent('keydown', { ...payload, cancelable: true })
+        Object.defineProperty(replayed, 'target', { get: () => webview })
+        window.dispatchEvent(replayed)
+      }
+
+      const handleFocus = () => onFocusChange?.(appid, true)
+      const handleBlur = () => onFocusChange?.(appid, false)
+
+      webview.addEventListener('ipc-message', handleGuestKeydown)
+      webview.addEventListener('focus', handleFocus)
+      webview.addEventListener('blur', handleBlur)
       webview.addEventListener('did-start-navigation', handleStartNavigation)
       webview.addEventListener('dom-ready', handleDomReady)
       webview.addEventListener('did-finish-load', handleLoaded)
@@ -120,6 +198,9 @@ const WebviewContainer = memo(
 
       return () => {
         clearLoadCallbackTimer()
+        webview.removeEventListener('ipc-message', handleGuestKeydown)
+        webview.removeEventListener('focus', handleFocus)
+        webview.removeEventListener('blur', handleBlur)
         webview.removeEventListener('did-start-navigation', handleStartNavigation)
         webview.removeEventListener('dom-ready', handleDomReady)
         webview.removeEventListener('did-finish-load', handleLoaded)
@@ -128,44 +209,46 @@ const WebviewContainer = memo(
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appid, url])
+    }, [appid, url, prepareState])
 
-    // Setup keyboard shortcuts handler for print and save
-    useIpcOn('webview.search_hotkey_pressed', async (payload) => {
-      // Get webviewId when event is triggered
-      const webviewId = webviewRef.current?.getWebContentsId()
+    // Print / save-as-HTML for the guest page. Not renderer commands — they act on
+    // this webview, so they key off the replayed event's target instead.
+    useEffect(() => {
+      const handleShortcut = async (event: KeyboardEvent) => {
+        if (event.target !== webviewRef.current) return
+        if (!event.ctrlKey && !event.metaKey) return
 
-      // Only handle events for this webview
-      if (!webviewId || payload.webviewId !== webviewId) return
+        const key = event.key.toLowerCase()
+        if (key !== 'p' && key !== 's') return
 
-      const key = payload.key?.toLowerCase()
-      const isModifier = payload.control || payload.meta
+        const webviewId = webviewRef.current?.getWebContentsId()
+        if (!webviewId) return
 
-      if (!isModifier || !key) return
-
-      try {
-        if (key === 'p') {
-          // Print to PDF
-          logger.info(`Printing webview ${appid} to PDF`)
-          const filePath = await ipcApi.request('webview.print_to_pdf', { webviewId })
-          if (filePath) {
-            toast.success(t('miniApp.shortcut.pdf_saved', { path: filePath }))
-            logger.info(`PDF saved to: ${filePath}`)
+        try {
+          if (key === 'p') {
+            logger.info(`Printing webview ${appid} to PDF`)
+            const filePath = await ipcApi.request('webview.print_to_pdf', { webviewId })
+            if (filePath) {
+              toast.success(t('miniApp.shortcut.pdf_saved', { path: filePath }))
+              logger.info(`PDF saved to: ${filePath}`)
+            }
+          } else {
+            logger.info(`Saving webview ${appid} as HTML`)
+            const filePath = await ipcApi.request('webview.save_as_html', { webviewId })
+            if (filePath) {
+              toast.success(t('miniApp.shortcut.html_saved', { path: filePath }))
+              logger.info(`HTML saved to: ${filePath}`)
+            }
           }
-        } else if (key === 's') {
-          // Save as HTML
-          logger.info(`Saving webview ${appid} as HTML`)
-          const filePath = await ipcApi.request('webview.save_as_html', { webviewId })
-          if (filePath) {
-            toast.success(t('miniApp.shortcut.html_saved', { path: filePath }))
-            logger.info(`HTML saved to: ${filePath}`)
-          }
+        } catch (error) {
+          logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
+          toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
         }
-      } catch (error) {
-        logger.error(`Failed to handle shortcut for webview ${appid}:`, error as Error)
-        toast.error(t('miniApp.shortcut.failed', { message: (error as Error).message }))
       }
-    })
+
+      window.addEventListener('keydown', handleShortcut)
+      return () => window.removeEventListener('keydown', handleShortcut)
+    }, [appid, t])
 
     // Update webview settings when they change
     useEffect(() => {
@@ -175,13 +258,15 @@ const WebviewContainer = memo(
         const webviewId = webviewRef.current.getWebContentsId()
         if (webviewId) {
           void ipcApi.request('webview.set_spell_check_enabled', { webviewId, isEnable: enableSpellCheck })
-          void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
+          if (kind === 'site') {
+            void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
+          }
         }
       } catch (error) {
         // WebView may not be ready yet, settings will be applied in dom-ready event
         logger.debug(`WebView ${appid} not ready for settings update`)
       }
-    }, [appid, openLinkExternal, enableSpellCheck])
+    }, [appid, kind, openLinkExternal, enableSpellCheck])
 
     const WebviewStyle: React.CSSProperties = {
       width: '100%',
@@ -190,15 +275,24 @@ const WebviewContainer = memo(
       display: 'inline-flex'
     }
 
+    if (prepareState === 'failed') {
+      return (
+        <div data-mini-app-prepare-failed style={WebviewStyle}>
+          {t('miniApp.error.prepare_failed')}
+        </div>
+      )
+    }
+    if (prepareState === 'preparing') return <div style={WebviewStyle} />
+
     return (
       <webview
         key={appid}
         ref={handleRef}
         data-mini-app-id={appid}
         style={WebviewStyle}
-        partition="persist:webview"
+        partition={kind === 'app' ? `persist:miniapp:${appid}` : 'persist:webview'}
         useragent={
-          appid === 'google'
+          kind === 'site' && appid === 'google'
             ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
             : undefined
         }

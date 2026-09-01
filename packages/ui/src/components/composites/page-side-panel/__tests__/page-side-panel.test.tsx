@@ -207,6 +207,48 @@ describe('PageSidePanel', () => {
       expect(first).toHaveFocus()
     })
 
+    it('keeps the modal focus scope local to a scoped portal', () => {
+      const controls: { first: HTMLButtonElement | null; last: HTMLButtonElement | null } = {
+        first: null,
+        last: null
+      }
+
+      function ScopedPanel() {
+        const [container, setContainer] = React.useState<HTMLDivElement | null>(null)
+        return (
+          <div aria-hidden="true">
+            <div ref={setContainer}>
+              <PortalContainerProvider container={container}>
+                <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+                  <button
+                    ref={(element) => {
+                      controls.first = element
+                    }}
+                    type="button">
+                    First
+                  </button>
+                  <button
+                    ref={(element) => {
+                      controls.last = element
+                    }}
+                    type="button">
+                    Last
+                  </button>
+                </PageSidePanel>
+              </PortalContainerProvider>
+            </div>
+          </div>
+        )
+      }
+
+      render(<ScopedPanel />)
+      if (!controls.first || !controls.last) throw new Error('Expected panel controls to render')
+      controls.last.focus()
+      fireEvent.keyDown(controls.last, { key: 'Tab' })
+
+      expect(controls.first).toHaveFocus()
+    })
+
     it('wraps Shift+Tab from the initially focused panel to the last control', () => {
       render(
         <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>

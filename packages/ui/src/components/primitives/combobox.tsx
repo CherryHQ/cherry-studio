@@ -71,12 +71,80 @@ const comboboxInputSizeClasses = {
 export type ComboboxOption<TExtra extends object = Record<never, never>> = {
   value: string
   label: string
+  group?: string
   disabled?: boolean
   icon?: React.ReactNode
   description?: string
 } & TExtra
 
 export type ComboboxSearchPlacement = 'content' | 'trigger'
+
+interface ComboboxOptionListProps<TExtra extends object> {
+  emptyText: string
+  isSelected: (value: string) => boolean
+  manualFilterEnabled: boolean
+  multiple: boolean
+  onSelect: (value: string) => void
+  options: ComboboxOption<TExtra>[]
+  renderOptionContent: (option: ComboboxOption<TExtra>) => React.ReactNode
+  visibleOptions: ComboboxOption<TExtra>[]
+}
+
+function ComboboxOptionList<TExtra extends object>({
+  emptyText,
+  isSelected,
+  manualFilterEnabled,
+  multiple,
+  onSelect,
+  options,
+  renderOptionContent,
+  visibleOptions
+}: ComboboxOptionListProps<TExtra>) {
+  const renderOption = (option: ComboboxOption<TExtra>, fallbackToLabel: boolean) => (
+    <CommandItem
+      key={option.value}
+      value={fallbackToLabel ? option.value || option.label : option.value}
+      keywords={[option.label, option.description ?? '', option.group ?? '']}
+      disabled={option.disabled}
+      aria-checked={multiple ? isSelected(option.value) : undefined}
+      onSelect={() => onSelect(option.value)}
+      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
+      {renderOptionContent(option)}
+    </CommandItem>
+  )
+
+  const renderOptionGroups = (groupOptions: ComboboxOption<TExtra>[], fallbackToLabel: boolean) => {
+    const groups = new Map<string | undefined, ComboboxOption<TExtra>[]>()
+    for (const option of groupOptions) {
+      const optionsInGroup = groups.get(option.group) ?? []
+      optionsInGroup.push(option)
+      groups.set(option.group, optionsInGroup)
+    }
+
+    return Array.from(groups.entries()).map(([group, optionsInGroup], index) => (
+      <CommandGroup key={`${group ?? 'ungrouped'}:${index}`} heading={group}>
+        {optionsInGroup.map((option) => renderOption(option, fallbackToLabel))}
+      </CommandGroup>
+    ))
+  }
+
+  return (
+    <CommandList aria-multiselectable={multiple || undefined}>
+      {manualFilterEnabled ? (
+        visibleOptions.length === 0 ? (
+          <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
+        ) : (
+          renderOptionGroups(visibleOptions, true)
+        )
+      ) : (
+        <>
+          <CommandEmpty>{emptyText}</CommandEmpty>
+          {renderOptionGroups(options, false)}
+        </>
+      )}
+    </CommandList>
+  )
+}
 
 export interface ComboboxProps<TExtra extends object = Record<never, never>>
   extends Omit<VariantProps<typeof comboboxTriggerVariants>, 'state'> {
@@ -117,6 +185,7 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   portalContainer?: React.ComponentProps<typeof PopoverContent>['portalContainer']
   triggerStyle?: React.CSSProperties
   width?: string | number
+  'aria-label'?: React.AriaAttributes['aria-label']
 
   // Other
   name?: string
@@ -152,6 +221,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   triggerStyle,
   width,
   size,
+  'aria-label': ariaLabel,
   name,
   'aria-labelledby': ariaLabelledBy
 }: ComboboxProps<TExtra>) {
@@ -211,7 +281,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         return filterOption(option, activeSearch)
       }
 
-      return [option.label, option.value, option.description]
+      return [option.label, option.value, option.description, option.group]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -421,6 +491,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               value={triggerInputValue}
               placeholder={triggerInputPlaceholder}
               disabled={disabled}
+              aria-label={ariaLabel}
               aria-labelledby={ariaLabelledBy}
               aria-expanded={open}
               aria-invalid={error}
@@ -463,6 +534,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         <div
           role="combobox"
           tabIndex={disabled ? -1 : 0}
+          aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
           aria-expanded={open}
           aria-invalid={error}
@@ -526,9 +598,11 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <Button
             variant="outline"
             size={size}
+            data-size={size ?? 'default'}
             disabled={disabled}
             style={{ width: triggerWidth, ...triggerStyle }}
             className={cn(comboboxTriggerVariants({ state, size }), className)}
+            aria-label={ariaLabel}
             aria-labelledby={defaultTriggerLabelledBy}
             aria-expanded={open}
             aria-invalid={error}>
@@ -562,42 +636,16 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onValueChange={handleContentSearchChange}
             />
           )}
-          <CommandList>
-            {manualFilterEnabled ? (
-              visibleOptions.length === 0 ? (
-                <div className="py-6 text-center text-muted-foreground text-sm">{emptyText}</div>
-              ) : (
-                <CommandGroup>
-                  {visibleOptions.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value || option.label}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )
-            ) : (
-              <>
-                <CommandEmpty>{emptyText}</CommandEmpty>
-                <CommandGroup>
-                  {options.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value}
-                      disabled={option.disabled}
-                      onSelect={() => handleSelect(option.value)}
-                      className={cn(comboboxItemVariants({ state: option.disabled ? 'disabled' : 'default' }))}>
-                      {renderOptionContent(option)}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
+          <ComboboxOptionList
+            emptyText={emptyText}
+            isSelected={isSelected}
+            manualFilterEnabled={manualFilterEnabled}
+            multiple={multiple}
+            onSelect={handleSelect}
+            options={options}
+            renderOptionContent={renderOptionContent}
+            visibleOptions={visibleOptions}
+          />
         </Command>
       </PopoverContent>
       {name && <input type="hidden" name={name} value={multiple ? JSON.stringify(value) : (value as string)} />}

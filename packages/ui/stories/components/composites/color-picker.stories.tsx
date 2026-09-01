@@ -32,8 +32,8 @@ type Story = StoryObj<typeof meta>
 export const Default: Story = {
   render: () => (
     <div className="w-72">
-      <ColorPicker defaultValue="#22c55e" className="gap-3">
-        <ColorPickerSelection className="h-40 w-full rounded-lg" />
+      <ColorPicker defaultValue="#22c55e">
+        <ColorPickerSelection />
         <div className="flex items-center gap-2">
           <ColorPickerEyeDropper size="icon-sm" />
           <div className="flex-1 space-y-2">
@@ -54,8 +54,8 @@ export const Default: Story = {
 export const SelectionAndHue: Story = {
   render: () => (
     <div className="w-64">
-      <ColorPicker defaultValue="#3b82f6" className="gap-3">
-        <ColorPickerSelection className="h-40 w-full rounded-lg" />
+      <ColorPicker defaultValue="#3b82f6">
+        <ColorPickerSelection />
         <div className="flex items-center gap-2">
           <ColorPickerEyeDropper size="icon-sm" />
           <ColorPickerHue className="flex-1" />
@@ -90,9 +90,8 @@ export const Controlled: Story = {
               )
               .join('')}`
             setColor(hex)
-          }}
-          className="gap-3">
-          <ColorPickerSelection className="h-40 w-full rounded-lg" />
+          }}>
+          <ColorPickerSelection />
           <ColorPickerHue />
         </ColorPicker>
       </div>
@@ -104,8 +103,8 @@ export const Controlled: Story = {
 export const WithEyeDropper: Story = {
   render: () => (
     <div className="w-64">
-      <ColorPicker defaultValue="#f59e0b" className="gap-3">
-        <ColorPickerSelection className="h-40 w-full rounded-lg" />
+      <ColorPicker defaultValue="#f59e0b">
+        <ColorPickerSelection />
         <div className="flex items-center gap-2">
           <ColorPickerEyeDropper size="icon-sm" />
           <ColorPickerHue className="flex-1" />
