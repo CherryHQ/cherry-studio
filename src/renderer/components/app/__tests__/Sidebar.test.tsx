@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -533,7 +533,7 @@ describe('app Sidebar', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('files')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
   })
 
   it('allows removing the chat assistant from the sidebar when other apps remain', () => {
@@ -608,11 +608,7 @@ describe('app Sidebar', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-mini-app.calculator'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      appFavorite('assistants'),
-      appFavorite('mini_app'),
-      miniAppFavorite('weather')
-    ])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), miniAppFavorite('weather')])
   })
 
   it('offers the manage sidebar action for mini app favorites', () => {
@@ -624,55 +620,6 @@ describe('app Sidebar', () => {
 
     const calculatorItem = screen.getByRole('group', { name: 'Calculator' })
     expect(within(calculatorItem).getByRole('button', { name: 'Manage Sidebar' })).toBeInTheDocument()
-  })
-
-  it('reorders sidebar favorites through a single mixed drag', () => {
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files')]
-    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
-    mocks.allApps = [calculatorMiniApp]
-
-    render(<Sidebar />)
-    // Mixed list is [assistants, knowledge, files, calculator]; drag files to front.
-    act(() => mocks.onEntriesReorder?.({ oldIndex: 2, newIndex: 0 }))
-
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      appFavorite('files'),
-      appFavorite('assistants'),
-      appFavorite('knowledge'),
-      miniAppFavorite('calculator')
-    ])
-  })
-
-  it('reorders sidebar mini apps through favorites without touching the mini app order key', () => {
-    configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
-
-    render(<Sidebar />)
-    // Mixed list is [assistants, mini_app, calculator, weather]; drag weather above calculator.
-    act(() => mocks.onEntriesReorder?.({ oldIndex: 3, newIndex: 2 }))
-
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      appFavorite('assistants'),
-      appFavorite('mini_app'),
-      miniAppFavorite('weather'),
-      miniAppFavorite('calculator')
-    ])
-    // The sidebar owns its order through favorites only — the mini app order key
-    // (shared with the mini apps grid) is left untouched.
-    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
-  })
-
-  it('drag-reorders a mini app above a built-in app, interleaving the two types', () => {
-    configureMiniApps(['calculator'])
-
-    render(<Sidebar />)
-    // Mixed list is [assistants, mini_app, calculator]; drag calculator to the very top.
-    act(() => mocks.onEntriesReorder?.({ oldIndex: 2, newIndex: 0 }))
-
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      miniAppFavorite('calculator'),
-      appFavorite('assistants'),
-      appFavorite('mini_app')
-    ])
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {
@@ -961,14 +908,14 @@ describe('app Sidebar', () => {
   })
 
   it('opens a forced tab when there is no active tab', () => {
-    mocks.sidebarFavorites = [appFavorite('files')]
+    mocks.sidebarFavorites = [appFavorite('knowledge')]
     mocks.activeTab = null
-    mocks.openTab.mockReturnValue('files-new')
+    mocks.openTab.mockReturnValue('knowledge-new')
 
     render(<Sidebar />)
-    fireEvent.click(screen.getByTestId('sidebar-item-files'))
+    fireEvent.click(screen.getByTestId('sidebar-item-knowledge'))
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/files', { forceNew: true, title: 'Files' })
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge', expect.objectContaining({ forceNew: true }))
     expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()

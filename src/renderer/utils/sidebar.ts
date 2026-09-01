@@ -114,14 +114,18 @@ const SIDEBAR_APP_DEFINITIONS = [
 export type SidebarAppId = (typeof SIDEBAR_APP_DEFINITIONS)[number]['id']
 export type SidebarApp = SidebarAppDefinition<SidebarAppId>
 
-export const SIDEBAR_APPS: readonly SidebarApp[] = SIDEBAR_APP_DEFINITIONS
+const CORE_SIDEBAR_APP_IDS = new Set<SidebarAppId>(['assistants', 'agents', 'translate', 'knowledge'])
 
-const SIDEBAR_APP_BY_ID: Record<SidebarAppId, SidebarApp> = SIDEBAR_APPS.reduce(
+export const SIDEBAR_APPS: readonly SidebarApp[] = SIDEBAR_APP_DEFINITIONS.filter((app) =>
+  CORE_SIDEBAR_APP_IDS.has(app.id)
+)
+
+const SIDEBAR_APP_BY_ID: Partial<Record<SidebarAppId, SidebarApp>> = SIDEBAR_APPS.reduce(
   (acc, app) => {
     acc[app.id] = app
     return acc
   },
-  {} as Record<SidebarAppId, SidebarApp>
+  {} as Partial<Record<SidebarAppId, SidebarApp>>
 )
 
 export function getSidebarApp(id: SidebarAppId): SidebarApp | undefined {

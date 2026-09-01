@@ -7,7 +7,6 @@ import {
   getOrderedVisibleSidebarFavorites,
   getSidebarDefaultLandingUrl,
   getSidebarFavoriteItems,
-  getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   isMessageOnlyConversationUrl,
   removeSidebarEntityFavorite,
@@ -28,7 +27,7 @@ const assistantFavorite = (id: string): SidebarFavoriteItem => ({ type: 'assista
 
 describe('sidebar config helpers', () => {
   it('keeps the fixed sidebar app order available', () => {
-    expect(SIDEBAR_FAVORITE_ORDER.slice(0, 5)).toEqual(['assistants', 'agents', 'paintings', 'translate', 'mini_app'])
+    expect(SIDEBAR_FAVORITE_ORDER).toEqual(['assistants', 'agents', 'translate', 'knowledge'])
   })
 
   it('preserves the preference order when reading ordered visible sidebar favorites', () => {
@@ -48,7 +47,7 @@ describe('sidebar config helpers', () => {
     ).toEqual(['translate', 'agents'])
   })
 
-  it('ignores mini app favorites when reading system sidebar favorites', () => {
+  it('drops mini app favorites from the core sidebar', () => {
     expect(
       getOrderedVisibleSidebarFavorites([
         appFavorite('translate'),
@@ -59,7 +58,7 @@ describe('sidebar config helpers', () => {
     ).toEqual(['translate', 'assistants', 'agents'])
   })
 
-  it('returns the full mixed list interleaved in stored order', () => {
+  it('preserves legacy mini app favorites in the stored mixed list', () => {
     expect(
       getOrderedVisibleSidebarFavoriteItems([
         appFavorite('translate'),
@@ -69,7 +68,7 @@ describe('sidebar config helpers', () => {
     ).toEqual([appFavorite('translate'), miniAppFavorite('calculator'), appFavorite('agents')])
   })
 
-  it('does not alter the stored mixed order', () => {
+  it('keeps legacy mini app entries in the stored mixed list', () => {
     expect(getOrderedVisibleSidebarFavoriteItems([miniAppFavorite('calculator'), appFavorite('assistants')])).toEqual([
       miniAppFavorite('calculator'),
       appFavorite('assistants')
@@ -82,19 +81,12 @@ describe('sidebar config helpers', () => {
         appFavorite('agents'),
         appFavorite('assistants'),
         appFavorite('translate'),
-        appFavorite('paintings'),
         appFavorite('knowledge')
       ])
-    ).toEqual([
-      appFavorite('agents'),
-      appFavorite('assistants'),
-      appFavorite('translate'),
-      appFavorite('paintings'),
-      appFavorite('knowledge')
-    ])
+    ).toEqual([appFavorite('agents'), appFavorite('assistants'), appFavorite('translate'), appFavorite('knowledge')])
   })
 
-  it('reads mini app favorite ids from typed sidebar favorites', () => {
+  it('reads legacy mini app favorite ids for backward compatibility', () => {
     expect(
       getSidebarMiniAppFavoriteIds([
         appFavorite('translate'),
@@ -144,7 +136,7 @@ describe('sidebar config helpers', () => {
       '/app/translate'
     )
     expect(getSidebarDefaultLandingUrl([appFavorite('assistants'), appFavorite('agents')], 'zhipu')).toBe('/app/chat')
-    expect(getSidebarDefaultLandingUrl([appFavorite('paintings')], 'zhipu')).toBe('/app/paintings/zhipu')
+    expect(getSidebarDefaultLandingUrl([appFavorite('paintings')], 'zhipu')).toBe('')
   })
 
   it('returns an empty default landing url when no app is visible', () => {
@@ -153,9 +145,8 @@ describe('sidebar config helpers', () => {
     expect(getSidebarDefaultLandingUrl([miniAppFavorite('calculator')], 'zhipu')).toBe('')
   })
 
-  it('resolves menu paths and active items with the paintings provider route', () => {
-    expect(getSidebarMenuPath('paintings', 'zhipu')).toBe('/app/paintings/zhipu')
-    expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('paintings')
+  it('does not resolve removed app routes', () => {
+    expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('')
   })
 
   it('resolves the active item for query-keyed conversation routes', () => {
@@ -163,8 +154,7 @@ describe('sidebar config helpers', () => {
     expect(resolveSidebarActiveItem('/app/agents?sessionId=xyz')).toBe('agents')
   })
 
-  it('does not mark the launchpad sidebar item active for concrete mini app routes', () => {
-    expect(resolveSidebarActiveItem('/app/mini-app')).toBe('mini_app')
+  it('does not mark legacy mini app routes active', () => {
     expect(resolveSidebarActiveItem('/app/mini-app/qwen')).toBe('')
   })
 
@@ -179,7 +169,7 @@ describe('sidebar config helpers', () => {
 })
 
 describe('sidebar favorites mutations', () => {
-  it('pins an app to the very end of the mixed list', () => {
+  it('pins an app while preserving legacy mini apps', () => {
     expect(setSidebarAppPinned([appFavorite('assistants'), miniAppFavorite('calculator')], 'knowledge', true)).toEqual([
       appFavorite('assistants'),
       miniAppFavorite('calculator'),
@@ -187,7 +177,7 @@ describe('sidebar favorites mutations', () => {
     ])
   })
 
-  it('unpins an app while preserving mini apps', () => {
+  it('unpins an app while preserving legacy mini apps', () => {
     expect(
       setSidebarAppPinned(
         [appFavorite('assistants'), appFavorite('knowledge'), miniAppFavorite('calculator')],
@@ -203,13 +193,13 @@ describe('sidebar favorites mutations', () => {
     ])
   })
 
-  it('toggles a mini app on and off, preserving apps', () => {
+  it('toggles a legacy mini app favorite', () => {
     const added = toggleSidebarMiniApp([appFavorite('assistants'), miniAppFavorite('calculator')], 'weather')
     expect(added).toEqual([appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('weather')])
     expect(toggleSidebarMiniApp(added, 'calculator')).toEqual([appFavorite('assistants'), miniAppFavorite('weather')])
   })
 
-  it('removes a mini app while preserving apps and other mini apps', () => {
+  it('removes a mini app from legacy preferences while retaining other entries', () => {
     expect(
       removeSidebarMiniApp(
         [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('weather')],
@@ -288,7 +278,7 @@ describe('sidebar favorites mutations', () => {
 })
 
 describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
-  it('reorders apps and mini apps together into any interleaved order', () => {
+  it('preserves mini apps when reordering legacy favorites', () => {
     expect(
       reorderSidebarFavorites(
         [appFavorite('assistants'), appFavorite('knowledge'), miniAppFavorite('calculator')],
@@ -297,7 +287,7 @@ describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
     ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants'), appFavorite('knowledge')])
   })
 
-  it('keeps stored favorites missing from a partial order at the end', () => {
+  it('keeps legacy favorites missing from a partial order', () => {
     expect(
       reorderSidebarFavorites(
         [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('stale')],
@@ -329,22 +319,22 @@ describe('launchpad app order (independent from sidebar favorites)', () => {
   })
 
   it('keeps the stored order first and appends missing apps in canonical order', () => {
-    const ordered = getOrderedLaunchpadApps(['files', 'assistants'])
-    expect(ordered.slice(0, 2)).toEqual(['files', 'assistants'])
+    const ordered = getOrderedLaunchpadApps(['knowledge', 'assistants'])
+    expect(ordered.slice(0, 2)).toEqual(['knowledge', 'assistants'])
     expect([...ordered].sort()).toEqual([...SIDEBAR_FAVORITE_ORDER].sort())
     expect(new Set(ordered).size).toBe(ordered.length)
   })
 
   it('drops unknown and duplicate stored ids', () => {
-    const ordered = getOrderedLaunchpadApps(['files', 'ghost', 'files', 'assistants'])
-    expect(ordered.slice(0, 2)).toEqual(['files', 'assistants'])
+    const ordered = getOrderedLaunchpadApps(['knowledge', 'ghost', 'knowledge', 'assistants'])
+    expect(ordered.slice(0, 2)).toEqual(['knowledge', 'assistants'])
     expect(ordered).not.toContain('ghost')
     expect(new Set(ordered).size).toBe(ordered.length)
   })
 
   it('reorders to the requested order and keeps missing apps at the end', () => {
-    const next = reorderLaunchpadApps(['assistants', 'agents', 'files'], ['files', 'assistants', 'agents'])
-    expect(next.slice(0, 3)).toEqual(['files', 'assistants', 'agents'])
+    const next = reorderLaunchpadApps(['assistants', 'agents', 'knowledge'], ['knowledge', 'assistants', 'agents'])
+    expect(next.slice(0, 3)).toEqual(['knowledge', 'assistants', 'agents'])
     expect([...next].sort()).toEqual([...SIDEBAR_FAVORITE_ORDER].sort())
   })
 

@@ -7,11 +7,13 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - BAChat
       - main
       - v2
       - "release/v*"
   pull_request:
     branches:
+      - BAChat
       - main
       - develop
       - v2

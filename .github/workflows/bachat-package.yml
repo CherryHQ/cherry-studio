@@ -1,0 +1,85 @@
+name: BAChat Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - BAChat
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bachat-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Package (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            command: pnpm build:linux
+          - name: Windows
+            os: windows-2022
+            command: pnpm build:win
+          - name: macOS
+            os: macos-latest
+            command: pnpm build:mac
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_BUILDER_7Z_FILTER: BCJ
+      NODE_OPTIONS: --max-old-space-size=8192
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
+
+      - name: Set up macOS build dependencies
+        if: runner.os == 'macOS'
+        run: brew install python-setuptools
+
+      - name: Restore pnpm cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        run: ${{ matrix.command }}
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: bachat-${{ matrix.name }}-${{ github.sha }}
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.dmg
+            dist/*.exe
+            dist/*.rpm
+            dist/*.snap
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
