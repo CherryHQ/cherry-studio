@@ -231,7 +231,7 @@ describe('Application.getPath', () => {
   })
 
   // Note: compile-time PathKey enforcement is verified via `pnpm typecheck`
-  // (which runs tsgo). vitest's compile path uses esbuild and does not
+  // (which runs tsc). vitest's compile path uses esbuild and does not
   // enforce type-only directives like @ts-expect-error reliably, so we do
   // not assert them here.
 })
