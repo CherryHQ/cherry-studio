@@ -1,13 +1,18 @@
 import { Button, EmptyState, SearchInput, Tooltip } from '@cherrystudio/ui'
+import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Menu, Plus } from 'lucide-react'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { Menu, PackagePlus, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -26,11 +31,16 @@ const MiniAppsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newAppOpen, setNewAppOpen] = useState(false)
+  const [isFileDragging, setIsFileDragging] = useState(false)
   // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
   const { allApps, miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
+  const droppedInstall = useMiniAppInstallPreview(() => setIsFileDragging(false))
+  const hasOpenDialog =
+    settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
+  const pageDropDisabled = hasOpenDialog || droppedInstall.busy
   // EVERY row, not `miniApps`: a disabled official app is still installed.
   const builtinApps = useBuiltinMiniApps(allApps, i18n.language)
 
@@ -52,11 +62,76 @@ const MiniAppsPage: FC = () => {
     setEditingApp(null)
   }
 
+  const hasFilePayload = (event: React.DragEvent<HTMLDivElement>) =>
+    Array.from(event.dataTransfer.types).includes('Files')
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (pageDropDisabled || !hasFilePayload(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setIsFileDragging(false)
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length !== 1 || !files[0].name.toLowerCase().endsWith('.miniapp')) {
+      toast.error(t('miniApp.install.drop_invalid'))
+      return
+    }
+
+    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(files[0]))
+    if (!filePath.success) {
+      toast.error(t('miniApp.install.drop_invalid'))
+      return
+    }
+
+    void droppedInstall.settle(
+      () => ipcApi.request('mini_app.install.preview_file', { filePath: filePath.data }),
+      'miniApp.install.preview_error'
+    )
+  }
+
+  useEffect(() => {
+    if (droppedInstall.error) {
+      toast.error(t(droppedInstall.error.key, droppedInstall.error.params))
+    }
+  }, [droppedInstall.error, t])
+
   return (
     <div
       data-ui="mini-apps.view"
-      className="flex h-full min-h-0 flex-1 flex-col text-foreground"
+      className="relative flex h-full min-h-0 flex-1 flex-col text-foreground"
+      onDragEnter={(event) => {
+        if (pageDropDisabled || !hasFilePayload(event)) return
+        event.preventDefault()
+        event.stopPropagation()
+        setIsFileDragging(true)
+      }}
+      onDragOver={(event) => {
+        if (pageDropDisabled || !hasFilePayload(event)) return
+        event.preventDefault()
+        event.stopPropagation()
+        event.dataTransfer.dropEffect = 'copy'
+        setIsFileDragging(true)
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return
+        setIsFileDragging(false)
+      }}
+      onDrop={handleDrop}
       onContextMenu={handleContextMenu}>
+      {isFileDragging && !pageDropDisabled && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-ui="mini-apps.drop-overlay"
+          className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-background/95 backdrop-blur-sm">
+          <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
+            <span className="flex size-12 items-center justify-center rounded-full bg-accent">
+              <PackagePlus className="size-6 text-foreground-secondary" strokeWidth={1.5} />
+            </span>
+            <p className="font-medium text-foreground text-sm">{t('miniApp.install.drop_here')}</p>
+            <p className="text-muted-foreground text-xs">{t('miniApp.install.pick_hint')}</p>
+          </div>
+        </div>
+      )}
       <Navbar>
         <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>
@@ -166,6 +241,14 @@ const MiniAppsPage: FC = () => {
         <NewMiniAppPanel open={newAppOpen || editingApp != null} app={editingApp} onClose={closeCustomAppPanel} />
         {/* Mounted only while open: unmounting is one of the panel's cancel paths. */}
         {install && <InstallMiniAppPanel builtinAppId={install.builtinAppId} onClose={() => setInstall(null)} />}
+        {droppedInstall.preview && (
+          <InstallConsentDialog
+            preview={droppedInstall.preview}
+            busy={droppedInstall.busy}
+            onCancel={droppedInstall.cancelPreview}
+            onConfirm={droppedInstall.confirm}
+          />
+        )}
       </div>
     </div>
   )

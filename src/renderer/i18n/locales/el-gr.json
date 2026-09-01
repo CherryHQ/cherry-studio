@@ -2407,6 +2407,8 @@
   "miniApp.install.clear_data": "Διαγραφή των υπαρχόντων δεδομένων και αρχείων αυτής της mini app",
   "miniApp.install.confirm": "Εγκατάσταση",
   "miniApp.install.downgrade_keep_data_warning": "Τα δεδομένα που έγραψε η {{installed}} ίσως να μη λειτουργούν με παλαιότερη έκδοση.",
+  "miniApp.install.drop_here": "Αποθέστε εδώ το πακέτο .miniapp για εγκατάσταση.",
+  "miniApp.install.drop_invalid": "Αποθέστε ένα πακέτο .miniapp κάθε φορά.",
   "miniApp.install.install_error": "Δεν ήταν δυνατή η εγκατάσταση του πακέτου: {{message}}",
   "miniApp.install.installed_downgrade": "Η έκδοση {{installed}} είναι εγκατεστημένη· αυτό το πακέτο είναι παλαιότερο ({{version}}). Επανεγκατάσταση;",
   "miniApp.install.installed_same": "Η έκδοση {{version}} είναι ήδη εγκατεστημένη. Επανεγκατάσταση;",

@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   openTab: vi.fn(),
+  request: vi.fn().mockResolvedValue(null),
+  toastError: vi.fn(),
   useMiniAppVisibility: vi.fn(() => ({
     visible: [],
     hidden: [],
@@ -63,6 +65,12 @@ vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     openTab: mocks.openTab
   })
+}))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError, success: vi.fn() }
 }))
 
 // Partial: the installed tile reads `useSharedCacheValue` from the same module.
@@ -217,6 +225,8 @@ describe('MiniAppsPage', () => {
     mocks.updateAppStatus.mockClear()
     mocks.removeCustomMiniApp.mockClear()
     mocks.openTab.mockClear()
+    mocks.request.mockReset().mockResolvedValue(null)
+    mocks.toastError.mockClear()
     mocks.useMiniAppVisibility.mockClear()
     ;(window as unknown as { toast: { success: () => void; error: () => void; warning: () => void } }).toast = {
       success: vi.fn(),
@@ -291,6 +301,59 @@ describe('MiniAppsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.title' }))
     expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-app-id', '')
+  })
+
+  it('requests an install preview for a dropped .miniapp package', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/example.miniapp')
+    const { container } = render(<MiniAppsPage />)
+    const page = container.querySelector('[data-ui="mini-apps.view"]')
+    const file = new File(['package'], 'example.miniapp')
+    const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
+
+    fireEvent.dragEnter(page!, { dataTransfer })
+    expect(screen.getByRole('status')).toHaveTextContent('miniApp.install.drop_here')
+
+    fireEvent.drop(page!, { dataTransfer })
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('mini_app.install.preview_file', {
+        filePath: '/tmp/example.miniapp'
+      })
+    })
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('rejects drops that are not exactly one .miniapp package', () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/notes.txt')
+    const { container } = render(<MiniAppsPage />)
+    const page = container.querySelector('[data-ui="mini-apps.view"]')
+
+    fireEvent.drop(page!, {
+      dataTransfer: { files: [new File(['notes'], 'notes.txt')], types: ['Files'], dropEffect: 'none' }
+    })
+
+    expect(mocks.toastError).toHaveBeenCalledWith('miniApp.install.drop_invalid')
+    expect(fileApi.getPathForFile).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalledWith('mini_app.install.preview_file', expect.anything())
+  })
+
+  it('leaves file drag handling to the add dialog while it is open', () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/example.miniapp')
+    const { container } = render(<MiniAppsPage />)
+    const page = container.querySelector('[data-ui="mini-apps.view"]')
+    const file = new File(['package'], 'example.miniapp')
+    const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
+
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.title' }))
+    fireEvent.dragEnter(page!, { dataTransfer })
+    fireEvent.drop(page!, { dataTransfer })
+
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(fileApi.getPathForFile).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalledWith('mini_app.install.preview_file', expect.anything())
   })
 
   it('offers an uninstalled builtin, and routes it to consent rather than open', () => {

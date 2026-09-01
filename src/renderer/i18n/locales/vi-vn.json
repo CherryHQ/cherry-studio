@@ -2407,6 +2407,8 @@
   "miniApp.install.clear_data": "Xóa dữ liệu và tệp hiện có của mini app này",
   "miniApp.install.confirm": "Cài đặt",
   "miniApp.install.downgrade_keep_data_warning": "Dữ liệu do {{installed}} ghi có thể không dùng được với phiên bản cũ hơn.",
+  "miniApp.install.drop_here": "Thả gói .miniapp vào đây để cài đặt.",
+  "miniApp.install.drop_invalid": "Mỗi lần chỉ thả một gói .miniapp.",
   "miniApp.install.install_error": "Không thể cài đặt gói: {{message}}",
   "miniApp.install.installed_downgrade": "Phiên bản {{installed}} đã được cài; gói này cũ hơn ({{version}}). Cài lại?",
   "miniApp.install.installed_same": "Phiên bản {{version}} đã được cài. Cài lại?",

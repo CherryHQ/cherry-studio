@@ -13,7 +13,9 @@ import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsen
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { FC } from 'react'
+import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,10 +36,39 @@ const looksLikeUrl = (value: string): boolean => {
 export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation()
   const [manifestUrl, setManifestUrl] = useState('')
+  const [isFileDragging, setIsFileDragging] = useState(false)
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(onClose)
 
   const handlePick = () =>
     settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
+
+  const hasFilePayload = (event: React.DragEvent<HTMLDivElement>) =>
+    Array.from(event.dataTransfer.types).includes('Files')
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasFilePayload(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setIsFileDragging(false)
+    if (busy) return
+
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length !== 1 || !files[0].name.toLowerCase().endsWith('.miniapp')) {
+      toast.error(t('miniApp.install.drop_invalid'))
+      return
+    }
+
+    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(files[0]))
+    if (!filePath.success) {
+      toast.error(t('miniApp.install.drop_invalid'))
+      return
+    }
+
+    void settle(
+      () => ipcApi.request('mini_app.install.preview_file', { filePath: filePath.data }),
+      'miniApp.install.preview_error'
+    )
+  }
 
   // One address: the user types whichever mirror they can reach, and the manifest itself
   // names the pair every later fetch chooses between.
@@ -50,8 +81,30 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
   return (
     <>
       <div className="flex flex-col gap-4 py-4">
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-5">
-          <p className="text-center text-muted-foreground text-sm">{t('miniApp.install.pick_hint')}</p>
+        <div
+          data-ui="mini-apps.install-dropzone"
+          className={`flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-5 transition-colors ${isFileDragging ? 'border-border-strong bg-accent/50' : ''}`}
+          onDragEnter={(event) => {
+            if (!hasFilePayload(event) || busy) return
+            event.preventDefault()
+            event.stopPropagation()
+            setIsFileDragging(true)
+          }}
+          onDragOver={(event) => {
+            if (!hasFilePayload(event) || busy) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = 'copy'
+            setIsFileDragging(true)
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget.contains(event.relatedTarget as Node)) return
+            setIsFileDragging(false)
+          }}
+          onDrop={handleDrop}>
+          <p className="text-center text-muted-foreground text-sm">
+            {t(isFileDragging ? 'miniApp.install.drop_here' : 'miniApp.install.pick_hint')}
+          </p>
           <Button variant="outline" onClick={handlePick} disabled={busy}>
             {t('miniApp.install.choose_file')}
           </Button>

@@ -2407,6 +2407,8 @@
   "miniApp.install.clear_data": "Удалить существующие данные и файлы этого мини-приложения",
   "miniApp.install.confirm": "Установить",
   "miniApp.install.downgrade_keep_data_warning": "Данные, записанные версией {{installed}}, могут не работать в более старой версии.",
+  "miniApp.install.drop_here": "Перетащите пакет .miniapp сюда, чтобы установить его.",
+  "miniApp.install.drop_invalid": "Перетаскивайте по одному пакету .miniapp за раз.",
   "miniApp.install.install_error": "Не удалось установить пакет: {{message}}",
   "miniApp.install.installed_downgrade": "Установлена версия {{installed}}; этот пакет старее ({{version}}). Переустановить?",
   "miniApp.install.installed_same": "Версия {{version}} уже установлена. Переустановить?",

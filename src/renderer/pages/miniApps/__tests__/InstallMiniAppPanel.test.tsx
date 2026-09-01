@@ -1,6 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,6 +50,26 @@ afterAll(async () => {
 })
 
 describe('InstallMiniAppPanel', () => {
+  it('requests an install preview for a .miniapp dropped on the file picker', async () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/mygame.miniapp')
+    request.mockResolvedValueOnce(preview)
+    const { container } = render(<InstallMiniAppPicker onClose={vi.fn()} />)
+    const dropzone = container.querySelector('[data-ui="mini-apps.install-dropzone"]')
+    const file = new File(['package'], 'mygame.miniapp')
+    const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
+
+    fireEvent.dragEnter(dropzone!, { dataTransfer })
+    expect(dropzone).toHaveTextContent('Drop the .miniapp package here to install it.')
+
+    fireEvent.drop(dropzone!, { dataTransfer })
+
+    expect(request).toHaveBeenCalledWith('mini_app.install.preview_file', {
+      filePath: '/tmp/mygame.miniapp'
+    })
+    expect(await screen.findByTestId('install-preview')).toBeInTheDocument()
+  })
+
   it('treats a canceled file dialog as a non-event', async () => {
     // Closing the native dialog is normal use — no card, no alert, and nothing to
     // cancel later either: main registered no token for it.

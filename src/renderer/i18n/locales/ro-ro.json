@@ -2407,6 +2407,8 @@
   "miniApp.install.clear_data": "Șterge datele și fișierele existente ale acestei mini-aplicații",
   "miniApp.install.confirm": "Instalează",
   "miniApp.install.downgrade_keep_data_warning": "Datele scrise de {{installed}} s-ar putea să nu funcționeze cu o versiune mai veche.",
+  "miniApp.install.drop_here": "Plasează pachetul .miniapp aici pentru a-l instala.",
+  "miniApp.install.drop_invalid": "Plasează câte un singur pachet .miniapp.",
   "miniApp.install.install_error": "Pachetul nu a putut fi instalat: {{message}}",
   "miniApp.install.installed_downgrade": "Versiunea {{installed}} este instalată; acest pachet este mai vechi ({{version}}). Reinstalezi?",
   "miniApp.install.installed_same": "Versiunea {{version}} este deja instalată. Reinstalezi?",

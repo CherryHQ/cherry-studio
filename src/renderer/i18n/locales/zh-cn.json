@@ -2407,6 +2407,8 @@
   "miniApp.install.clear_data": "删除该小程序现有数据和文件",
   "miniApp.install.confirm": "安装",
   "miniApp.install.downgrade_keep_data_warning": "{{installed}} 写入的数据可能与旧版本不兼容。",
+  "miniApp.install.drop_here": "将 .miniapp 包拖到这里安装。",
+  "miniApp.install.drop_invalid": "请一次拖入一个 .miniapp 包。",
   "miniApp.install.install_error": "无法安装该包：{{message}}",
   "miniApp.install.installed_downgrade": "已安装 {{installed}}，此包为更低的版本（{{version}}）。是否重新安装？",
   "miniApp.install.installed_same": "已安装相同版本 {{version}}。是否重新安装？",

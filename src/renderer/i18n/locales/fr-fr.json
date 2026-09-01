@@ -2407,6 +2407,8 @@
   "miniApp.install.clear_data": "Supprimer les données et fichiers existants de cette mini-app",
   "miniApp.install.confirm": "Installer",
   "miniApp.install.downgrade_keep_data_warning": "Les données écrites par {{installed}} risquent de ne pas fonctionner avec une version plus ancienne.",
+  "miniApp.install.drop_here": "Déposez le paquet .miniapp ici pour l’installer.",
+  "miniApp.install.drop_invalid": "Déposez un seul paquet .miniapp à la fois.",
   "miniApp.install.install_error": "Impossible d'installer le paquet : {{message}}",
   "miniApp.install.installed_downgrade": "La version {{installed}} est installée ; ce paquet est plus ancien ({{version}}). Réinstaller ?",
   "miniApp.install.installed_same": "La version {{version}} est déjà installée. Réinstaller ?",
