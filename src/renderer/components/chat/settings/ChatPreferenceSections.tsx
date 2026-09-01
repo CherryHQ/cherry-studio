@@ -296,7 +296,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             />
           </SettingRow>
           <SettingDivider />
-          <SettingRow id="setting-appearance-confirm-delete-message" className="scroll-mt-6">
+          <SettingRow className="scroll-mt-6">
             <SettingSwitch
               checked={pasteLongTextAsFile}
               onCheckedChange={setPasteLongTextAsFile}
@@ -322,7 +322,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </>
           )}
           <SettingDivider />
-          <SettingRow>
+          <SettingRow id="setting-appearance-confirm-delete-message" className="scroll-mt-6">
             <SettingSwitch
               checked={confirmDeleteMessage}
               onCheckedChange={setConfirmDeleteMessage}
