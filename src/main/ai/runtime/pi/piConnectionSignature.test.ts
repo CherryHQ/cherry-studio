@@ -62,8 +62,8 @@ beforeEach(() => {
     workspaceId: 'workspace-1',
     workspace: { id: 'workspace-1', path: '/workspace', type: 'user' }
   })
-  mocks.getProvider.mockResolvedValue({ id: 'provider', updatedAt: 1 })
-  mocks.getModel.mockResolvedValue({ id: 'provider::model', updatedAt: 1 })
+  mocks.getProvider.mockReturnValue({ id: 'provider', updatedAt: 1 })
+  mocks.getModel.mockReturnValue({ id: 'provider::model', updatedAt: 1 })
   mocks.getApiKeys.mockReturnValue([{ id: 'key-1', key: 'secret', enabled: true }])
   mocks.listSkills.mockResolvedValue([{ id: 'skill-1', isEnabled: true, updatedAt: 1 }])
   mocks.listLocalSkillPaths.mockResolvedValue([])
@@ -93,8 +93,8 @@ describe('capturePiConnectionSnapshot', () => {
           workspaceId: 'workspace-2',
           workspace: { id: 'workspace-2', path: '/other', type: 'user' }
         }),
-      () => mocks.getProvider.mockResolvedValueOnce({ id: 'provider', updatedAt: 2 }),
-      () => mocks.getModel.mockResolvedValueOnce({ id: 'provider::model', updatedAt: 2 }),
+      () => mocks.getProvider.mockReturnValueOnce({ id: 'provider', updatedAt: 2 }),
+      () => mocks.getModel.mockReturnValueOnce({ id: 'provider::model', updatedAt: 2 }),
       () => mocks.getApiKeys.mockReturnValueOnce([{ id: 'key-2', key: 'rotated', enabled: true }]),
       () => mocks.listSkills.mockResolvedValueOnce([{ id: 'skill-2', isEnabled: true, updatedAt: 1 }]),
       () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
