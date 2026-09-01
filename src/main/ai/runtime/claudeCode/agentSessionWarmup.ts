@@ -31,7 +31,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
@@ -706,7 +706,7 @@ function deriveRouteFacts(
     const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
       branch: 'gateway',
-      baseUrl: `http://${host}:${port}`,
+      baseUrl: gatewayClientOrigin(host, port),
       credentialsFingerprint: fingerprintCredentials([
         typeof gatewayKey === 'string' ? gatewayKey : '',
         gatewayStateTag(config.enabled, apiGatewayService.isRunning())

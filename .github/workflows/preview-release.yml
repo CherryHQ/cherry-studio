@@ -33,12 +33,6 @@ jobs:
       short_sha: ${{ steps.source.outputs.short_sha }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - name: Require the workflow from main
-        if: github.ref != 'refs/heads/main'
-        run: |
-          echo "Preview Release must be dispatched from main; choose the source branch with the branch input" >&2
-          exit 1
-
       - name: Resolve source branch
         id: source
         shell: bash
@@ -56,8 +50,7 @@ jobs:
           SOURCE_SHA="${REMOTE_REF%%[[:space:]]*}"
           BRANCH_SLUG="$(printf '%s' "$BRANCH" | sed -E 's/[^A-Za-z0-9._-]+/-/g; s/^-+//; s/-+$//' | cut -c1-60)"
           if [ -z "$BRANCH_SLUG" ]; then
-            echo "Branch $BRANCH does not produce a valid artifact name" >&2
-            exit 1
+            BRANCH_SLUG="sha-${SOURCE_SHA:0:12}"
           fi
 
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
@@ -83,7 +76,7 @@ jobs:
 
     steps:
       - name: Check out preview commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false

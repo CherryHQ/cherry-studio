@@ -109,6 +109,7 @@ interface RetainedUpload {
   bundle: RetainedUploadBundle
   readonly description: string
   readonly fileSha256?: string
+  readonly uploadFileName: string
 }
 
 type DestinationIdentity = { readonly status: 'missing' } | ({ readonly status: 'present' } & SourceIdentity)
@@ -604,6 +605,7 @@ export class DiagnosticBundleService {
       this.retainedUploads.set(bundle.bundleId, {
         bundle: retainedBundle,
         description,
+        uploadFileName: bundle.fileName,
         ...(uploadResult.fileSha256 ? { fileSha256: uploadResult.fileSha256 } : {})
       })
       retainTempRoot = true
@@ -645,7 +647,7 @@ export class DiagnosticBundleService {
     const uploadResult = await cherryDiagnosticUploadClient.upload({
       description: retained.description,
       ...(retained.fileSha256 ? { expectedFileSha256: retained.fileSha256 } : {}),
-      fileName: retained.bundle.fileName,
+      fileName: retained.uploadFileName,
       filePath: retained.bundle.filePath
     })
     if (uploadResult.status === 'uploaded') {

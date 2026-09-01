@@ -25,7 +25,7 @@ vi.mock('../hooks/useProviderDeepLinkImport', () => ({
 }))
 
 vi.mock('../ProviderList', () => ({
-  ProviderList: ({ selectedProviderId, onSelectProvider }: any) => (
+  ProviderList: ({ selectedProviderId, onSelectProvider, onCustomProviderCreated }: any) => (
     <div>
       <div data-testid="selected-provider-id">{selectedProviderId ?? ''}</div>
       <button type="button" onClick={() => onSelectProvider('openai')}>
@@ -34,12 +34,36 @@ vi.mock('../ProviderList', () => ({
       <button type="button" onClick={() => onSelectProvider('anthropic')}>
         select-anthropic
       </button>
+      <button type="button" onClick={() => onSelectProvider('custom-with-key')}>
+        select-custom-with-key
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onSelectProvider('custom-with-key')
+          onCustomProviderCreated('custom-with-key', true)
+        }}>
+        create-custom-with-key
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onSelectProvider('custom-without-key')
+          onCustomProviderCreated('custom-without-key', false)
+        }}>
+        create-custom-without-key
+      </button>
     </div>
   )
 }))
 
 vi.mock('../ProviderSetting', () => ({
-  default: ({ providerId }: any) => <div>{`provider-setting-${providerId}`}</div>
+  default: ({ providerId, initialApiSetupStep }: any) => (
+    <div>
+      <span>{`provider-setting-${providerId}`}</span>
+      {initialApiSetupStep ? <span>{`api-setup-${initialApiSetupStep}`}</span> : null}
+    </div>
+  )
 }))
 
 describe('ProviderSettingsPage', () => {
@@ -188,5 +212,37 @@ describe('ProviderSettingsPage', () => {
     rerender(<ProviderSettingsPage />)
 
     expect(vi.mocked(useProviderDeepLinkImport).mock.calls.at(-1)?.[1]).toBe(firstSelector)
+  })
+
+  it.each([
+    { button: 'create-custom-with-key', providerId: 'custom-with-key', expectedStep: 'models' },
+    { button: 'create-custom-without-key', providerId: 'custom-without-key', expectedStep: 'api-key' }
+  ])('opens $expectedStep setup after creating $providerId', async ({ button, providerId, expectedStep }) => {
+    const user = userEvent.setup()
+    useProvidersMock.mockReturnValue({
+      providers: [...providers, { id: providerId, name: providerId, isEnabled: false }]
+    })
+
+    render(<ProviderSettingsPage />)
+    await user.click(screen.getByRole('button', { name: button }))
+
+    expect(await screen.findByText(`provider-setting-${providerId}`)).toBeInTheDocument()
+    expect(screen.getByText(`api-setup-${expectedStep}`)).toBeInTheDocument()
+  })
+
+  it('does not reopen a stale setup request after selecting another provider', async () => {
+    const user = userEvent.setup()
+    useProvidersMock.mockReturnValue({
+      providers: [...providers, { id: 'custom-with-key', name: 'Custom', isEnabled: false }]
+    })
+
+    render(<ProviderSettingsPage />)
+    await user.click(screen.getByRole('button', { name: 'create-custom-with-key' }))
+    expect(screen.getByText('api-setup-models')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'select-openai' }))
+    await user.click(screen.getByRole('button', { name: 'select-custom-with-key' }))
+
+    expect(screen.queryByText('api-setup-models')).not.toBeInTheDocument()
   })
 })
