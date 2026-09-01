@@ -103,27 +103,27 @@ describe('app Sidebar shortcuts', () => {
   })
 
   it('keeps a missing resource in place, disables activation, and allows removal', () => {
-    const missing = shortcut('core.skill', 'missing', 'Lost Skill')
+    const missing = shortcut('core.knowledge-base', 'missing', 'Lost Knowledge Base')
     mocks.shortcuts = [missing]
     mocks.resolutions = [{ status: 'missing', shortcut: missing }]
 
     render(<Sidebar />)
 
-    expect(screen.getByRole('button', { name: 'Lost Skill' })).toHaveAttribute('aria-disabled', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Lost Skill' }))
+    expect(screen.getByRole('button', { name: 'Lost Knowledge Base' })).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Lost Knowledge Base' }))
     expect(mocks.activate).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'launchpad.unpin_from_sidebar' }))
     expect(mocks.remove).toHaveBeenCalledWith(missing.target)
   })
 
   it('activates through the provider while the gateway owns tab title and new-tab policy', () => {
-    const skill = shortcut('core.skill', 'skill-1')
-    mocks.shortcuts = [skill]
+    const knowledgeBase = shortcut('core.knowledge-base', 'base-1')
+    mocks.shortcuts = [knowledgeBase]
     mocks.resolutions = [
       {
         status: 'resolved',
-        shortcut: skill,
-        resource: { label: 'Skill One', renderIcon: () => null, supportsNewTab: true }
+        shortcut: knowledgeBase,
+        resource: { label: 'Knowledge Base One', renderIcon: () => null, supportsNewTab: true }
       }
     ]
     mocks.activate.mockImplementation(
@@ -133,21 +133,21 @@ describe('app Sidebar shortcuts', () => {
 
     render(<Sidebar />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Knowledge Base One' }))
     expect(mocks.gatewayOpenWorkspace).toHaveBeenCalledWith(
-      { url: '/app/resource', title: 'Skill One', icon: undefined },
+      { url: '/app/resource', title: 'Knowledge Base One', icon: undefined },
       undefined
     )
     fireEvent.click(screen.getByRole('button', { name: 'common.open_in_new_tab' }))
     expect(mocks.gatewayOpenWorkspace).toHaveBeenLastCalledWith(
-      { url: '/app/resource', title: 'Skill One', icon: undefined },
+      { url: '/app/resource', title: 'Knowledge Base One', icon: undefined },
       { inNewTab: true }
     )
   })
 
   it('keeps the dropped order visible until the preference write confirms it', async () => {
-    const first = shortcut('core.skill', 'one', 'One')
-    const second = shortcut('core.mcp-server', 'two', 'Two')
+    const first = shortcut('core.knowledge-base', 'one', 'One')
+    const second = shortcut('core.topic', 'two', 'Two')
     const firstResolution = { status: 'missing', shortcut: first }
     const secondResolution = { status: 'unavailable', shortcut: second }
     let finishReorder: () => void = vi.fn()
@@ -174,8 +174,8 @@ describe('app Sidebar shortcuts', () => {
   })
 
   it('restores the persisted order when a drag write fails', async () => {
-    const first = shortcut('core.skill', 'one', 'One')
-    const second = shortcut('core.mcp-server', 'two', 'Two')
+    const first = shortcut('core.knowledge-base', 'one', 'One')
+    const second = shortcut('core.topic', 'two', 'Two')
     mocks.reorder.mockRejectedValue(new Error('write failed'))
     mocks.shortcuts = [first, second]
     mocks.resolutions = [

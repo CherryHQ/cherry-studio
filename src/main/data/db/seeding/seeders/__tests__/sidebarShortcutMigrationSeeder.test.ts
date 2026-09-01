@@ -78,7 +78,7 @@ describe('SidebarShortcutMigrationSeeder', () => {
   it('migrates mixed values without dropping new or future items', () => {
     const target: SidebarShortcutTarget = {
       kind: 'resource',
-      locator: { providerId: 'core.skill', resourceId: 'skill-1' },
+      locator: { providerId: 'core.prompt', resourceId: 'prompt-1' },
       activationId: 'reveal'
     }
     const shortcut = { type: 'shortcut', id: createSidebarShortcutId(target), target }

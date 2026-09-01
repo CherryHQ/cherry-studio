@@ -22,14 +22,14 @@ describe('sidebar shortcut storage transforms', () => {
       { type: 'agent', id: 'agent-1', fallbackLabel: 'Researcher' },
       { type: 'agent', id: 'agent-1' },
       future,
-      { type: 'shortcut', id: 'stale-id', target: shortcut('core.skill', 'skill-1').target }
+      { type: 'shortcut', id: 'stale-id', target: shortcut('core.prompt', 'prompt-1').target }
     ])
 
     expect(result).toEqual([
       shortcut('core.app', 'assistants'),
       { ...shortcut('core.agent', 'agent-1'), fallbackLabel: 'Researcher' },
       future,
-      shortcut('core.skill', 'skill-1')
+      shortcut('core.prompt', 'prompt-1')
     ])
     expect(getVisibleSidebarShortcutItems(result)).not.toContain(future)
   })
@@ -47,14 +47,27 @@ describe('sidebar shortcut storage transforms', () => {
     expect(addSidebarShortcut(result, reveal)).toEqual(result)
   })
 
+  it('drops shortcuts for resources that are no longer exposed in the sidebar', () => {
+    const agent = shortcut('core.agent', 'agent-1')
+
+    expect(
+      normalizeSidebarShortcutItems([
+        shortcut('core.skill', 'skill-1'),
+        shortcut('core.mcp-server', 'server-1'),
+        shortcut('core.provider', 'provider-1'),
+        agent
+      ])
+    ).toEqual([shortcut('core.app', 'assistants'), agent])
+  })
+
   it('keeps required shortcuts and reorders only visible shortcut slots', () => {
     const assistant = shortcut('core.app', 'assistants')
-    const skill = shortcut('core.skill', 'skill-1')
-    const server = shortcut('core.mcp-server', 'server-1')
+    const agent = shortcut('core.agent', 'agent-1')
+    const topic = shortcut('core.topic', 'topic-1')
     const future = { type: 'group', id: 'future' } as unknown as SidebarShortcutItem
-    const stored = [skill, future, assistant, server]
+    const stored = [agent, future, assistant, topic]
 
     expect(removeSidebarShortcut(stored, assistant.target)).toEqual(stored)
-    expect(reorderSidebarShortcuts(stored, [server, assistant, skill])).toEqual([server, future, assistant, skill])
+    expect(reorderSidebarShortcuts(stored, [topic, assistant, agent])).toEqual([topic, future, assistant, agent])
   })
 })

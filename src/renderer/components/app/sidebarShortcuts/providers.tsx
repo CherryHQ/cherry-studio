@@ -1,7 +1,5 @@
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
-import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
@@ -17,7 +15,7 @@ import {
 } from '@renderer/utils/sidebar'
 import { createSidebarShortcutId, type SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
 import { FileEntryIdSchema } from '@shared/data/types/file'
-import { BotMessageSquare, Database, FileText, MessagesSquare, Sparkles } from 'lucide-react'
+import { BotMessageSquare, Database, FileText, MessagesSquare } from 'lucide-react'
 
 import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
@@ -353,93 +351,6 @@ const fileEntryProvider: SidebarShortcutProvider = {
     isActiveResourceUrl(navigation.url, '/app/files', 'entryId', target.locator.resourceId)
 }
 
-const skillProvider: SidebarShortcutProvider = {
-  id: SIDEBAR_SHORTCUT_PROVIDER_IDS.SKILL,
-  validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.SKILL, target),
-  async resolveMany(targets) {
-    const skills = await dataApiService.get('/skills')
-    return mapRequested(
-      targets,
-      skills,
-      (skill) => skill.id,
-      (skill) => ({
-        label: skill.name,
-        renderIcon: ({ glyphSize }) => <Sparkles size={glyphSize} strokeWidth={1.6} />
-      })
-    )
-  },
-  subscribe: collectionSubscription('/skills'),
-  activate(target, gateway) {
-    if (!this.validate(target)) return
-    gateway.openSettings(`/settings/skills?id=${encodeURIComponent(target.locator.resourceId)}`)
-  },
-  isActive: (target, navigation) => {
-    const url = new URL(navigation.url, 'app://cherry')
-    return url.pathname === '/settings/skills' && url.searchParams.get('id') === target.locator.resourceId
-  }
-}
-
-const mcpServerProvider: SidebarShortcutProvider = {
-  id: SIDEBAR_SHORTCUT_PROVIDER_IDS.MCP_SERVER,
-  validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.MCP_SERVER, target),
-  async resolveMany(targets) {
-    const response = await dataApiService.get('/mcp-servers')
-    return mapRequested(
-      targets,
-      response.items,
-      (server) => server.id,
-      (server) => ({
-        label: server.name,
-        renderIcon: ({ glyphSize }) => (
-          <McpLogo className="opacity-60" width={glyphSize} height={glyphSize} aria-hidden />
-        )
-      })
-    )
-  },
-  subscribe: collectionSubscription('/mcp-servers'),
-  activate(target, gateway) {
-    if (!this.validate(target)) return
-    gateway.openSettings(`/settings/mcp/settings/${encodeURIComponent(target.locator.resourceId)}`)
-  },
-  isActive: (target, navigation) =>
-    navigation.url.startsWith(`/settings/mcp/settings/${encodeURIComponent(target.locator.resourceId)}`)
-}
-
-const providerProvider: SidebarShortcutProvider = {
-  id: SIDEBAR_SHORTCUT_PROVIDER_IDS.PROVIDER,
-  validate: (target) => validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.PROVIDER, target),
-  async resolveMany(targets) {
-    const providers = await dataApiService.get('/providers', { query: {} })
-    return mapRequested(
-      targets,
-      providers,
-      (provider) => provider.id,
-      (provider) => ({
-        label: provider.name,
-        renderIcon: ({ slotSize, glyphSize }) => (
-          <ProviderAvatarPrimitive
-            providerId={provider.id}
-            providerName={provider.name}
-            logo={provider.logoSrc ?? provider.logo}
-            size={slotSize}
-            artworkSize={glyphSize - 2}
-            displayContext="sidebar"
-          />
-        )
-      })
-    )
-  },
-  subscribe: collectionSubscription('/providers'),
-  activate(target, gateway) {
-    if (!this.validate(target)) return
-    gateway.openSettings(`/settings/provider?id=${encodeURIComponent(target.locator.resourceId)}`)
-  },
-  isActive: (target, navigation) => {
-    const url = new URL(navigation.url, 'app://cherry')
-    return url.pathname === '/settings/provider' && url.searchParams.get('id') === target.locator.resourceId
-  }
-}
-
 export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[] = [
   appProvider,
   miniAppProvider,
@@ -448,8 +359,5 @@ export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[]
   knowledgeBaseProvider,
   topicProvider,
   agentSessionProvider,
-  fileEntryProvider,
-  skillProvider,
-  mcpServerProvider,
-  providerProvider
+  fileEntryProvider
 ]

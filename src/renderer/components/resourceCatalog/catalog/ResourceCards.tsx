@@ -1,11 +1,8 @@
-import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
-import SidebarShortcutIcon from '@renderer/components/icons/SidebarShortcutIcon'
+import { Badge, Button, Switch } from '@cherrystudio/ui'
 import { useSkillMutationsById } from '@renderer/hooks/resourceCatalog'
-import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
-import { createSidebarShortcutTarget, SIDEBAR_SHORTCUT_PROVIDER_IDS } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import type { Group } from '@shared/data/types/group'
 import { Trash2 } from 'lucide-react'
@@ -60,27 +57,6 @@ function SkillGlobalToggle({ resource }: { resource: Extract<ResourceItem, { typ
       aria-label={t('settings.skills.globalToggle', { name: resource.name })}
       onCheckedChange={handleCheckedChange}
     />
-  )
-}
-
-function SkillSidebarToggle({ resource }: { resource: Extract<ResourceItem, { type: 'skill' }> }) {
-  const { t } = useTranslation()
-  const { isPinned, toggle } = useSidebarShortcuts()
-  const target = createSidebarShortcutTarget(SIDEBAR_SHORTCUT_PROVIDER_IDS.SKILL, resource.id)
-  const pinned = isPinned(target)
-  const label = t(pinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar')
-
-  return (
-    <Tooltip content={label}>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={label}
-        onClick={() => toggle(target, resource.name)}
-        className="text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100">
-        <SidebarShortcutIcon size={12} pinned={pinned} />
-      </Button>
-    </Tooltip>
   )
 }
 
@@ -157,7 +133,6 @@ export function ResourceCard({
             {r.type === 'skill' && isSettings ? (
               <div className="flex items-center gap-1">
                 <SkillGlobalToggle resource={r} />
-                <SkillSidebarToggle resource={r} />
                 <Button
                   variant="ghost"
                   size="icon-sm"

@@ -21,14 +21,14 @@ describe('SidebarShortcutService', () => {
     const harness = createClient()
     const service = new SidebarShortcutService(harness.client)
     const agent = createSidebarShortcutTarget('core.agent', 'agent-1')
-    const skill = createSidebarShortcutTarget('core.skill', 'skill-1')
+    const assistant = createSidebarShortcutTarget('core.assistant', 'assistant-1')
 
-    await Promise.all([service.setPinned(agent, true, 'Agent'), service.setPinned(skill, true, 'Skill')])
+    await Promise.all([service.setPinned(agent, true, 'Agent'), service.setPinned(assistant, true, 'Assistant')])
 
     expect(harness.current().map((item) => item.id)).toEqual([
       createSidebarShortcutId(createSidebarShortcutTarget('core.app', 'assistants')),
       createSidebarShortcutId(agent),
-      createSidebarShortcutId(skill)
+      createSidebarShortcutId(assistant)
     ])
   })
 
@@ -37,7 +37,7 @@ describe('SidebarShortcutService', () => {
     harness.set.mockRejectedValueOnce(new Error('write failed'))
     const service = new SidebarShortcutService(harness.client)
     const failed = service.setPinned(createSidebarShortcutTarget('core.agent', 'agent-1'), true)
-    const nextTarget = createSidebarShortcutTarget('core.skill', 'skill-1')
+    const nextTarget = createSidebarShortcutTarget('core.assistant', 'assistant-1')
     const next = service.setPinned(nextTarget, true)
 
     await expect(failed).rejects.toThrow('write failed')

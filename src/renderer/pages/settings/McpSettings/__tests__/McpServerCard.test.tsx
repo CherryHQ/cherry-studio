@@ -9,12 +9,7 @@ import McpServerCard from '../McpServerCard'
 
 const mocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
-  request: vi.fn(),
-  toggleSidebarShortcut: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
-  useSidebarShortcuts: () => ({ isPinned: () => false, toggle: mocks.toggleSidebarShortcut })
+  request: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -39,8 +34,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('McpServerCard', () => {
-  it('adds a server shortcut without opening the server editor', async () => {
-    const onEdit = vi.fn()
+  it('does not expose a sidebar shortcut action', () => {
     const server: McpServer = {
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Filesystem',
@@ -48,19 +42,10 @@ describe('McpServerCard', () => {
       command: 'npx',
       isActive: false
     }
-    const user = userEvent.setup()
 
-    render(<McpServerCard server={server} onEdit={onEdit} />)
-    await user.click(screen.getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
+    render(<McpServerCard server={server} onEdit={vi.fn()} />)
 
-    expect(mocks.toggleSidebarShortcut).toHaveBeenCalledWith(
-      {
-        kind: 'resource',
-        locator: { providerId: 'core.mcp-server', resourceId: '11111111-1111-4111-8111-111111111111' }
-      },
-      'Filesystem'
-    )
-    expect(onEdit).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
   })
 
   it('deletes a server whose card crashed through the mcp.server.remove IPC channel', async () => {

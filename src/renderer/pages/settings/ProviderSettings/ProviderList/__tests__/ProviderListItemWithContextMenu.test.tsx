@@ -1,14 +1,9 @@
 // @vitest-environment jsdom
 import type { Provider } from '@shared/data/types/provider'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-const toggleSidebarShortcut = vi.hoisted(() => vi.fn())
-
-vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
-  useSidebarShortcuts: () => ({ isPinned: () => false, toggle: toggleSidebarShortcut })
-}))
 vi.mock('@renderer/components/command', () => ({
   CommandContextMenu: ({
     children,
@@ -37,7 +32,7 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 import ProviderListItemWithContextMenu from '../ProviderListItemWithContextMenu'
 
 describe('ProviderListItemWithContextMenu', () => {
-  it('adds a Provider shortcut from the provider-owned menu', () => {
+  it('does not expose a sidebar shortcut action', () => {
     const provider = {
       id: 'provider-1',
       name: 'Provider One',
@@ -63,11 +58,6 @@ describe('ProviderListItemWithContextMenu', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
-
-    expect(toggleSidebarShortcut).toHaveBeenCalledWith(
-      { kind: 'resource', locator: { providerId: 'core.provider', resourceId: 'provider-1' } },
-      'Provider One'
-    )
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
   })
 })

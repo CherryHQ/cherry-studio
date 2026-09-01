@@ -180,11 +180,10 @@ export const SIDEBAR_SHORTCUT_PROVIDER_IDS = {
   KNOWLEDGE_BASE: 'core.knowledge-base',
   TOPIC: 'core.topic',
   AGENT_SESSION: 'core.agent-session',
-  FILE_ENTRY: 'core.file-entry',
-  SKILL: 'core.skill',
-  MCP_SERVER: 'core.mcp-server',
-  PROVIDER: 'core.provider'
+  FILE_ENTRY: 'core.file-entry'
 } as const
+
+const RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS = new Set(['core.skill', 'core.mcp-server', 'core.provider'])
 
 export function createSidebarShortcutTarget(
   providerId: string,
@@ -234,6 +233,7 @@ export function isSidebarShortcutItem(value: unknown): value is SidebarShortcutI
 function normalizeKnownSidebarShortcut(value: StoredSidebarItem): SidebarShortcutItem | undefined {
   if (value.type === 'shortcut') {
     if (!isSidebarShortcutTarget(value.target)) return undefined
+    if (RETIRED_SIDEBAR_SHORTCUT_PROVIDER_IDS.has(value.target.locator.providerId)) return undefined
     return {
       type: 'shortcut',
       id: createSidebarShortcutId(value.target),

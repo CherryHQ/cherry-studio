@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import type { SidebarShortcutTarget } from '@shared/data/preference/preferenceTypes'
-import { cleanup, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSidebarShortcutTarget } from '../../../../utils/sidebar'
@@ -18,25 +17,6 @@ vi.mock('@renderer/data/PreferenceService', () => ({
 vi.mock('@renderer/i18n/resolver', () => ({
   default: { t: (key: string) => key, on: vi.fn(), off: vi.fn() }
 }))
-vi.mock('@renderer/components/ProviderAvatar', () => ({
-  ProviderAvatarPrimitive: ({
-    size,
-    artworkSize,
-    displayContext
-  }: {
-    size: number
-    artworkSize?: number
-    displayContext?: string
-  }) => (
-    <span
-      data-testid="provider-avatar"
-      data-size={size}
-      data-artwork-size={artworkSize}
-      data-display-context={displayContext}
-    />
-  )
-}))
-
 function provider(id: string) {
   const result = CORE_SIDEBAR_SHORTCUT_PROVIDERS.find((candidate) => candidate.id === id)
   if (!result) throw new Error(`Missing provider ${id}`)
@@ -49,7 +29,6 @@ describe('core sidebar shortcut providers', () => {
   const gateway: SidebarActivationGateway = { openWorkspace, openSettings }
 
   beforeEach(() => {
-    cleanup()
     vi.clearAllMocks()
     mocks.preferenceGet.mockResolvedValue('openai')
   })
@@ -67,10 +46,7 @@ describe('core sidebar shortcut providers', () => {
       '018f47d2-e657-7b4c-a7c1-8b52cbb9d114',
       'workspace',
       '/app/files?entryId=018f47d2-e657-7b4c-a7c1-8b52cbb9d114'
-    ],
-    ['core.skill', 'skill/one', 'settings', '/settings/skills?id=skill%2Fone'],
-    ['core.mcp-server', 'server/one', 'settings', '/settings/mcp/settings/server%2Fone'],
-    ['core.provider', 'provider/one', 'settings', '/settings/provider?id=provider%2Fone']
+    ]
   ])('reveals %s resources through the activation gateway', async (providerId, resourceId, kind, expectedUrl) => {
     const target = createSidebarShortcutTarget(providerId, resourceId)
 
@@ -86,16 +62,8 @@ describe('core sidebar shortcut providers', () => {
     expect(shortcutProvider.validate(target)).toBe(false)
   })
 
-  it('renders provider logos in the shared slot with a lighter artwork footprint', async () => {
-    mocks.dataGet.mockResolvedValue([{ id: 'deepseek', name: 'DeepSeek' }])
-    const target = createSidebarShortcutTarget('core.provider', 'deepseek')
-    const result = await provider('core.provider').resolveMany([target])
-
-    render(result.values().next().value?.renderIcon({ slotSize: 18, glyphSize: 16 }))
-
-    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-size', '18')
-    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-artwork-size', '14')
-    expect(screen.getByTestId('provider-avatar')).toHaveAttribute('data-display-context', 'sidebar')
+  it.each(['core.skill', 'core.mcp-server', 'core.provider'])('does not register %s', (providerId) => {
+    expect(CORE_SIDEBAR_SHORTCUT_PROVIDERS.some((candidate) => candidate.id === providerId)).toBe(false)
   })
 
   it('batch-resolves only requested topics through one exact-id query', async () => {

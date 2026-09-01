@@ -12,22 +12,11 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const {
-  deleteGroupMock,
-  toggleSidebarShortcutMock,
-  updateGroupMock,
-  updateAssistantMock,
-  updateSkillGlobalEnabledMock
-} = vi.hoisted(() => ({
+const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
-  toggleSidebarShortcutMock: vi.fn(),
   updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   updateSkillGlobalEnabledMock: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useSidebarShortcuts', () => ({
-  useSidebarShortcuts: () => ({ isPinned: () => false, toggle: toggleSidebarShortcutMock })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -801,18 +790,10 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
-  it('adds a Skill shortcut from its settings card without opening the card', async () => {
-    const user = userEvent.setup()
-    const onEdit = vi.fn()
-    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps({ onEdit })} />)
+  it('does not expose a sidebar shortcut action on Skill settings cards', () => {
+    render(<ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />)
 
-    await user.click(screen.getByRole('button', { name: 'launchpad.pin_to_sidebar' }))
-
-    expect(toggleSidebarShortcutMock).toHaveBeenCalledWith(
-      { kind: 'resource', locator: { providerId: 'core.skill', resourceId: 'skill-1' } },
-      'Skill'
-    )
-    expect(onEdit).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'launchpad.pin_to_sidebar' })).not.toBeInTheDocument()
   })
 
   it('toggles a Skill globally from its settings card without opening the card', async () => {
