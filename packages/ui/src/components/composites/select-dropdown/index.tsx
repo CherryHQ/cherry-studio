@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 
@@ -12,8 +12,6 @@ export interface SelectDropdownProps<T extends { id: string }> {
   renderSelected: (item: T) => ReactNode
   renderItem: (item: T, isSelected: boolean) => ReactNode
   renderTriggerLeading?: ReactNode
-  onRemove?: (id: string) => void
-  removeLabel?: string
   placeholder?: string
   emptyText?: string
   maxHeight?: number
@@ -174,8 +172,6 @@ export function SelectDropdown<T extends { id: string }>({
   renderSelected,
   renderItem,
   renderTriggerLeading,
-  onRemove,
-  removeLabel,
   placeholder,
   emptyText,
   maxHeight = 240,
@@ -191,36 +187,6 @@ export function SelectDropdown<T extends { id: string }>({
 
   const renderRow = (item: T, index: number, onKeyDown: OptionKeyDownHandler = handleOptionKeyDown) => {
     const isSelected = selectedId === item.id
-    if (onRemove) {
-      return (
-        <div
-          className={cn(
-            'flex items-center gap-1 rounded-md pr-1 transition-colors',
-            isSelected && 'bg-primary/10 text-primary'
-          )}>
-          <button
-            type="button"
-            role="option"
-            aria-selected={isSelected}
-            data-option-index={index}
-            onKeyDown={onKeyDown}
-            onClick={() => {
-              onSelect(item.id)
-              setOpen(false)
-            }}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted">
-            {renderItem(item, isSelected)}
-          </button>
-          <button
-            type="button"
-            aria-label={removeLabel}
-            onClick={() => onRemove(item.id)}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <X size={10} />
-          </button>
-        </div>
-      )
-    }
     return (
       <button
         type="button"
@@ -287,7 +253,7 @@ export function SelectDropdown<T extends { id: string }>({
             renderRow={renderRow}
           />
         ) : (
-          <ScrollContainer className={cn(onRemove && 'space-y-1')} maxHeight={maxHeight}>
+          <ScrollContainer maxHeight={maxHeight}>
             {items.map((item, index) => (
               <div key={item.id}>{renderRow(item, index)}</div>
             ))}

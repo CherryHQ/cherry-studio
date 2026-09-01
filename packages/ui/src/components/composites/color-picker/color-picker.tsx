@@ -46,7 +46,7 @@ type ColorPickerContextValue = ColorChannels & {
 
 const ColorPickerContext = createContext<ColorPickerContextValue | undefined>(undefined)
 
-export const useColorPicker = () => {
+const useColorPicker = () => {
   const context = use(ColorPickerContext)
 
   if (!context) {
@@ -177,7 +177,14 @@ export const ColorPicker = ({ value, defaultValue = '#000000', onChange, classNa
 export type ColorPickerSelectionProps = HTMLAttributes<HTMLDivElement>
 
 export const ColorPickerSelection = memo(
-  ({ className, 'aria-label': ariaLabel, 'aria-valuetext': ariaValueText, ...props }: ColorPickerSelectionProps) => {
+  ({
+    className,
+    'aria-label': ariaLabel,
+    'aria-valuetext': ariaValueText,
+    onKeyDown,
+    onPointerDown,
+    ...props
+  }: ColorPickerSelectionProps) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const [isDragging, setIsDragging] = useState(false)
     const { hue, saturation, brightness, updateColor } = useColorPicker()
@@ -281,8 +288,13 @@ export const ColorPickerSelection = memo(
         aria-valuemax={100}
         aria-valuenow={Math.round(saturation)}
         aria-valuetext={ariaValueText ?? `Saturation ${Math.round(saturation)}%, brightness ${Math.round(brightness)}%`}
-        onKeyDown={handleKeyDown}
+        onKeyDown={(event) => {
+          onKeyDown?.(event)
+          if (!event.defaultPrevented) handleKeyDown(event)
+        }}
         onPointerDown={(e) => {
+          onPointerDown?.(e)
+          if (e.defaultPrevented) return
           e.preventDefault()
           e.currentTarget.focus({ preventScroll: true })
           setIsDragging(true)
@@ -417,7 +429,9 @@ export const ColorPickerEyeDropper = ({ className, onClick, ...props }: ColorPic
   )
 }
 
-export type ColorPickerOutputProps = ComponentProps<typeof SelectTrigger>
+export type ColorPickerOutputProps = Omit<ComponentProps<typeof SelectTrigger>, 'aria-label'> & {
+  'aria-label': string
+}
 
 const formats = ['hex', 'rgb', 'css', 'hsl']
 
@@ -427,7 +441,7 @@ export const ColorPickerOutput = ({ className, ...props }: ColorPickerOutputProp
   return (
     <Select onValueChange={setMode} value={mode}>
       <SelectTrigger size="sm" className={cn('w-20 shrink-0', className)} {...props}>
-        <SelectValue placeholder="Mode" />
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {formats.map((format) => (
@@ -440,15 +454,15 @@ export const ColorPickerOutput = ({ className, ...props }: ColorPickerOutputProp
   )
 }
 
-type PercentageInputProps = ComponentProps<typeof Input>
+type PercentageInputProps = ComponentProps<typeof Input> & { label: string }
 
-const PercentageInput = ({ className, ...props }: PercentageInputProps) => {
+const PercentageInput = ({ className, label, ...props }: PercentageInputProps) => {
   return (
     <div className="relative">
       <Input
         readOnly
         type="text"
-        aria-label="Alpha percentage"
+        aria-label={label}
         {...props}
         className={cn('w-[3.25rem] rounded-l-none bg-secondary shadow-none', className)}
         size="sm"
@@ -458,12 +472,17 @@ const PercentageInput = ({ className, ...props }: PercentageInputProps) => {
   )
 }
 
-const RGB_CHANNEL_LABELS = ['Red value', 'Green value', 'Blue value']
-const HSL_CHANNEL_LABELS = ['Hue value', 'Saturation value', 'Lightness value']
+export interface ColorPickerFormatLabels {
+  alphaPercentage: string
+  css: string
+  hex: string
+  hsl: readonly [string, string, string]
+  rgb: readonly [string, string, string]
+}
 
-export type ColorPickerFormatProps = HTMLAttributes<HTMLDivElement>
+export type ColorPickerFormatProps = HTMLAttributes<HTMLDivElement> & { labels: ColorPickerFormatLabels }
 
-export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProps) => {
+export const ColorPickerFormat = ({ className, labels, ...props }: ColorPickerFormatProps) => {
   const { hue, saturation, brightness, alpha, mode } = useColorPicker()
   const color = Color.hsv(hue, saturation, brightness).alpha(alpha / 100)
 
@@ -473,14 +492,14 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
     return (
       <div className={cn('-space-x-px relative flex w-full items-center rounded-md shadow-sm', className)} {...props}>
         <Input
-          aria-label="Hex color value"
+          aria-label={labels.hex}
           className="rounded-r-none bg-secondary shadow-none"
           readOnly
           size="sm"
           type="text"
           value={hex}
         />
-        <PercentageInput value={alpha} />
+        <PercentageInput label={labels.alphaPercentage} value={alpha} />
       </div>
     )
   }
@@ -498,7 +517,7 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
       <div className={cn('-space-x-px flex items-center rounded-md shadow-sm', className)} {...props}>
         {rgb.map((value, index) => (
           <Input
-            aria-label={RGB_CHANNEL_LABELS[index]}
+            aria-label={labels.rgb[index]}
             className={cn('rounded-r-none bg-secondary shadow-none', index && 'rounded-l-none')}
             key={index}
             readOnly
@@ -507,7 +526,7 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
             value={value}
           />
         ))}
-        <PercentageInput value={alpha} />
+        <PercentageInput label={labels.alphaPercentage} value={alpha} />
       </div>
     )
   }
@@ -522,7 +541,7 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
     return (
       <div className={cn('w-full rounded-md shadow-sm', className)} {...props}>
         <Input
-          aria-label="CSS color value"
+          aria-label={labels.css}
           className="w-full bg-secondary shadow-none"
           readOnly
           size="sm"
@@ -544,7 +563,7 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
       <div className={cn('-space-x-px flex items-center rounded-md shadow-sm', className)} {...props}>
         {hsl.map((value, index) => (
           <Input
-            aria-label={HSL_CHANNEL_LABELS[index]}
+            aria-label={labels.hsl[index]}
             className={cn('rounded-r-none bg-secondary shadow-none', index && 'rounded-l-none')}
             key={index}
             readOnly
@@ -553,7 +572,7 @@ export const ColorPickerFormat = ({ className, ...props }: ColorPickerFormatProp
             value={value}
           />
         ))}
-        <PercentageInput value={alpha} />
+        <PercentageInput label={labels.alphaPercentage} value={alpha} />
       </div>
     )
   }

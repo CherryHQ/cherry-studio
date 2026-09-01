@@ -35,6 +35,7 @@ export {
   ColorPickerEyeDropper,
   type ColorPickerEyeDropperProps,
   ColorPickerFormat,
+  type ColorPickerFormatLabels,
   type ColorPickerFormatProps,
   ColorPickerHue,
   type ColorPickerHueProps,

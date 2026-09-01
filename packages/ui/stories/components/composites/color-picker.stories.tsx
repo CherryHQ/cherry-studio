@@ -42,8 +42,17 @@ export const Default: Story = {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ColorPickerOutput />
-          <ColorPickerFormat className="flex-1" />
+          <ColorPickerOutput aria-label="Color format" />
+          <ColorPickerFormat
+            className="flex-1"
+            labels={{
+              alphaPercentage: 'Alpha percentage',
+              css: 'CSS color value',
+              hex: 'Hex color value',
+              hsl: ['Hue value', 'Saturation value', 'Lightness value'],
+              rgb: ['Red value', 'Green value', 'Blue value']
+            }}
+          />
         </div>
       </ColorPicker>
     </div>

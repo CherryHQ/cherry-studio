@@ -85,10 +85,15 @@ function PageSidePanel({
 
       const focusable = Array.from(
         panelRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
         )
       ).filter((element) => {
-        if (element.tabIndex < 0 || (element instanceof HTMLInputElement && element.type === 'hidden')) {
+        const isContentEditable =
+          element.hasAttribute('contenteditable') && element.getAttribute('contenteditable') !== 'false'
+        if (
+          (!isContentEditable && element.tabIndex < 0) ||
+          (element instanceof HTMLInputElement && element.type === 'hidden')
+        ) {
           return false
         }
 
@@ -128,13 +133,15 @@ function PageSidePanel({
     if (open) {
       closedByPointerDownRef.current = false
       triggerRef.current = document.activeElement as HTMLElement | null
-      requestAnimationFrame(() => {
+      const focusFrame = requestAnimationFrame(() => {
         panelRef.current?.focus()
       })
-    } else {
-      triggerRef.current?.focus()
-      triggerRef.current = null
+      return () => cancelAnimationFrame(focusFrame)
     }
+
+    triggerRef.current?.focus()
+    triggerRef.current = null
+    return undefined
   }, [open])
 
   const panel = (

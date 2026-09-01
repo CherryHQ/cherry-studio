@@ -167,19 +167,6 @@ describe('SelectDropdown', () => {
     })
   })
 
-  describe('remove callback', () => {
-    it('renders remove button and calls onRemove', () => {
-      const onRemove = vi.fn()
-      render(<SelectDropdown {...defaultProps} onRemove={onRemove} removeLabel="Delete" />)
-      fireEvent.click(screen.getByRole('button'))
-      // Find remove buttons by aria-label
-      const removeBtns = screen.getAllByLabelText('Delete')
-      expect(removeBtns).toHaveLength(3)
-      fireEvent.click(removeBtns[0])
-      expect(onRemove).toHaveBeenCalledWith('1')
-    })
-  })
-
   describe('renderTriggerLeading', () => {
     it('renders leading content in trigger', () => {
       render(<SelectDropdown {...defaultProps} renderTriggerLeading={<span>Icon</span>} />)

@@ -31,8 +31,11 @@ vi.mock('motion/react', async () => {
     }
 
   return {
-    AnimatePresence: ({ children }: { children: React.ReactNode }) =>
-      ReactActual.createElement(ReactActual.Fragment, null, children),
+    AnimatePresence: ({ children }: { children: React.ReactNode }) => {
+      const exitingChildren = ReactActual.useRef<React.ReactNode>(null)
+      if (children) exitingChildren.current = children
+      return ReactActual.createElement(ReactActual.Fragment, null, children || exitingChildren.current)
+    },
     motion: {
       aside: createMotionComponent('aside'),
       div: createMotionComponent('div')
@@ -156,6 +159,40 @@ describe('PageSidePanel', () => {
       expect(trigger).toHaveFocus()
     })
 
+    it('does not move focus back into a panel that started closing before its initial focus frame', () => {
+      let pendingFrame: FrameRequestCallback | undefined
+      let canceledFrame: number | undefined
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        pendingFrame = callback
+        return 1
+      })
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((handle) => {
+        canceledFrame = handle
+      })
+
+      function TestPanel() {
+        const [open, setOpen] = React.useState(false)
+        return (
+          <>
+            <button type="button" onClick={() => setOpen(true)}>
+              Open panel
+            </button>
+            <PageSidePanel open={open} onClose={() => setOpen(false)} />
+          </>
+        )
+      }
+
+      render(<TestPanel />)
+      const trigger = screen.getByRole('button', { name: 'Open panel' })
+      trigger.focus()
+      fireEvent.click(trigger)
+      fireEvent.pointerDown(screen.getByLabelText('Close'))
+
+      if (canceledFrame !== 1) pendingFrame?.(0)
+
+      expect(trigger).toHaveFocus()
+    })
+
     it('calls onClose on Escape key', () => {
       const onClose = vi.fn()
       render(<PageSidePanel open={true} onClose={onClose} />)
@@ -263,6 +300,22 @@ describe('PageSidePanel', () => {
       fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
 
       expect(last).toHaveFocus()
+    })
+
+    it('includes contenteditable controls in the modal focus scope', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <div contentEditable role="textbox" aria-label="Editor" />
+        </PageSidePanel>
+      )
+      const dialog = screen.getByRole('dialog')
+      const editor = screen.getByRole('textbox', { name: 'Editor' })
+
+      dialog.focus()
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+
+      expect(editor).toHaveFocus()
     })
   })
 
