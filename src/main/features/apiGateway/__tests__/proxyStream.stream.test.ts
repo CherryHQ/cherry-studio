@@ -278,6 +278,11 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         messages: expect.not.arrayContaining([expect.objectContaining({ role: 'system' })])
       })
     )
+    expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) => message === 'Appended assistant-tail continuation for internal agent request'
+      )
+    ).toBe(false)
     expect(params.system).toHaveLength(4)
   })
 
