@@ -894,6 +894,66 @@ describe('QuickPanelView', () => {
     expect(text).toBe('')
   })
 
+  it('consumes a button-tracked live filter when a visible panel is replaced', async () => {
+    // Bug: ComposerSurfaceRuntime close('panel_replaced') + immediate open batches isVisible
+    // false→true, so the isVisible=false dismiss effect never runs and the filter stays in draft.
+    const action = vi.fn()
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+
+    act(() => {
+      quickPanel?.close('panel_replaced')
+      quickPanel?.open({
+        list: [{ id: 'next', label: 'Next panel', icon: 'next', action: vi.fn() }],
+        symbol: '@',
+        title: 'Next',
+        triggerInfo: { type: 'button', position: 0 },
+        queryAnchor: 0,
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true
+      })
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
+    expect(await screen.findByText('Next panel')).toBeTruthy()
+  })
+
   it('consumes only the live-filter prefix when close happens after extra composer input', async () => {
     // Bug: consume used [anchor, cursor], so a keystroke after a KB pick deleted the new char too.
     const action = vi.fn()

@@ -135,6 +135,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const inputTriggerConsumedRef = useRef(false)
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
+  // Outgoing panel's flag — open() overwrites ctx.consumeQueryOnDismiss before layout runs.
+  const prevConsumeQueryOnDismissRef = useRef(false)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
   const isTrackedInputPanel = Boolean(
     ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
@@ -203,6 +205,33 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const fixedBottomItems = useMemo(() => list.filter((item) => item.fixedToBottom), [list])
   const scrollableItems = useMemo(() => list.filter((item) => !item.fixedToBottom), [list])
 
+  const consumeInputQuery = useCallback(() => {
+    if (!inputAdapter) return
+
+    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
+    if (queryAnchor === undefined) return
+
+    const text = inputAdapter.getText()
+    if (ctx.triggerInfo?.type === 'button') {
+      const searchQuery = consumableSearchQueryRef.current
+      if (!searchQuery) return
+      const queryEnd = queryAnchor + searchQuery.length
+      if (text.slice(queryAnchor, queryEnd) !== searchQuery) return
+      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryEnd })
+      return
+    }
+
+    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    if (cursorOffset <= queryAnchor) return
+    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
+  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
+
+  const consumeInputQueryOnce = useCallback(() => {
+    if (inputQueryConsumedRef.current) return
+    inputQueryConsumedRef.current = true
+    consumeInputQuery()
+  }, [consumeInputQuery])
+
   useLayoutEffect(() => {
     if (!ctx.isVisible && !ctx.symbol) {
       prevSymbolRef.current = ''
@@ -213,6 +242,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       inputTriggerConsumedRef.current = false
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
+      prevConsumeQueryOnDismissRef.current = false
       setActiveIndex(-1)
       return
     }
@@ -222,10 +252,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const panelGeneration = getPanelGeneration()
     const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
     if (isPanelGenerationChanged) {
+      // close('panel_replaced') + immediate open() batches isVisible false→true, so the
+      // isVisible=false dismiss effect never runs. Reclaim the outgoing live filter here.
+      if (prevPanelGenerationRef.current !== undefined && prevConsumeQueryOnDismissRef.current) {
+        consumeInputQueryOnce()
+      }
       listRef.current?.scrollToOffset?.(0, { align: 'start' })
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = panelGeneration
     }
+    prevConsumeQueryOnDismissRef.current = Boolean(ctx.consumeQueryOnDismiss)
 
     if (ctx.readOnly) {
       setActiveIndex(-1)
@@ -262,36 +298,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     prevSearchTextRef.current = activeSearchQuery
     prevSymbolRef.current = ctx.symbol
   }, [
+    activeSearchQuery,
+    consumeInputQueryOnce,
+    ctx.consumeQueryOnDismiss,
     ctx.isVisible,
     ctx.manageListExternally,
     ctx.readOnly,
     ctx.symbol,
     ctx.trackInputQuery,
     getPanelGeneration,
-    activeSearchQuery,
     list
   ])
-
-  const consumeInputQuery = useCallback(() => {
-    if (!inputAdapter) return
-
-    const queryAnchor = queryAnchorRef.current ?? ctx.queryAnchor
-    if (queryAnchor === undefined) return
-
-    const text = inputAdapter.getText()
-    if (ctx.triggerInfo?.type === 'button') {
-      const searchQuery = consumableSearchQueryRef.current
-      if (!searchQuery) return
-      const queryEnd = queryAnchor + searchQuery.length
-      if (text.slice(queryAnchor, queryEnd) !== searchQuery) return
-      inputAdapter.deleteTriggerRange({ from: queryAnchor, to: queryEnd })
-      return
-    }
-
-    const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
-    if (cursorOffset <= queryAnchor) return
-    inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
 
   const getCurrentPanelOptions = useCallback(
     (defaultIndex?: number): QuickPanelOpenOptions => ({
@@ -317,12 +334,6 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }),
     [activeSearchQuery, ctx]
   )
-
-  const consumeInputQueryOnce = useCallback(() => {
-    if (inputQueryConsumedRef.current) return
-    inputQueryConsumedRef.current = true
-    consumeInputQuery()
-  }, [consumeInputQuery])
 
   const handleClose = useCallback(
     (action?: QuickPanelCloseAction) => {
