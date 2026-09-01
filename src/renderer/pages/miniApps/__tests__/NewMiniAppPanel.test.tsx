@@ -223,11 +223,19 @@ describe('NewMiniAppPanel', () => {
     const { rerender } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
     // Website first, as before: the save button belongs to that form.
     expect(screen.getByRole('button', { name: /common\.save/ })).toBeInTheDocument()
+    expect(screen.queryByText('miniApp.add.site_description')).toBeNull()
 
     fireEvent.click(screen.getByRole('tab', { name: 'miniApp.add.tab_app' }))
     // The package tab IS the install panel's picker — one dialog, not a second entry.
+    expect(screen.getByText('miniApp.add.app_description')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'miniApp.install.choose_file' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /common\.save/ })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.developer_docs' }))
+    expect(mocks.ipcRequest).toHaveBeenCalledWith(
+      'system.shell.open_website',
+      'https://github.com/CherryHQ/cherry-studio-miniapps'
+    )
 
     rerender(
       <NewMiniAppPanel
