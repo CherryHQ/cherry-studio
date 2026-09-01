@@ -543,7 +543,7 @@
   "backup.confirm.button": "Chọn Vị trí Sao lưu",
   "backup.content": "Sao lưu tất cả dữ liệu, bao gồm lịch sử trò chuyện, cài đặt và cơ sở tri thức. Xin lưu ý rằng quá trình sao lưu có thể mất một thời gian, cảm ơn bạn đã kiên nhẫn.",
   "backup.error.active_data_writers": "Một cuộc trò chuyện hoặc Agent vẫn đang chạy. Hãy đợi hoàn tất rồi thử lại.",
-  "backup.error.disk_full": "Sao lưu thất bại do không đủ dung lượng ổ đĩa. Hãy giải phóng dung lượng rồi thử lại.",
+  "backup.error.disk_full": "Không đủ dung lượng ổ đĩa. Hãy giải phóng dung lượng rồi thử lại.",
   "backup.progress.completed": "Sao lưu đã hoàn tất",
   "backup.progress.compressing": "Đang nén tệp...",
   "backup.progress.copying_database": "Đang sao chép cơ sở dữ liệu...",

@@ -29,6 +29,15 @@ describe('getLocalizedBackupErrorMessage', () => {
     expect(getLocalizedBackupErrorMessage(error)).toBe('localized:backup.error.disk_full')
   })
 
+  it('uses the operation-neutral disk-full error for restore failures', () => {
+    expect(
+      getLocalizedBackupErrorMessage(
+        new Error('Error invoking remote method: ENOSPC: no space left on device'),
+        'message.restore.failed'
+      )
+    ).toBe('localized:backup.error.disk_full')
+  })
+
   it('uses the localized fallback for other errors', () => {
     expect(getLocalizedBackupErrorMessage(new Error('Disk is full'), 'message.restore.failed')).toBe(
       'localized:message.restore.failed'

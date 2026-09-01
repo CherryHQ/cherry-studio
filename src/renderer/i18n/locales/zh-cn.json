@@ -543,7 +543,7 @@
   "backup.confirm.button": "选择备份位置",
   "backup.content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
   "backup.error.active_data_writers": "当前有对话或智能体正在运行，请等待其结束后重试。",
-  "backup.error.disk_full": "磁盘空间不足，备份失败。请清理空间后重试。",
+  "backup.error.disk_full": "磁盘空间不足。请清理空间后重试。",
   "backup.progress.completed": "备份完成",
   "backup.progress.compressing": "压缩文件...",
   "backup.progress.copying_database": "复制数据库...",
