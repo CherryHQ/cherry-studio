@@ -1,4 +1,4 @@
-import type { BranchMessage, Message } from '@shared/data/types/message'
+import type { BranchMessage, BranchMessagesResponse, Message } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +19,16 @@ function message(id: string, role: Message['role'], createdAt: string, modelId: 
     stats: null,
     createdAt,
     updatedAt: createdAt
+  }
+}
+
+function branchPage(items: BranchMessage[], activeNodeId: string | null): BranchMessagesResponse {
+  return {
+    items,
+    nextCursor: undefined,
+    activeNodeId,
+    assistantId: 'assistant-1',
+    rootId: 'root-1'
   }
 }
 
@@ -61,5 +71,64 @@ describe('useTopicMessagesCache', () => {
     const nextBranch = result.current.branchWithoutIds(branch, new Set(['question-b']), 'question-b')
 
     expect(nextBranch).toEqual([])
+  })
+
+  it('updates page.activeNodeId to the promoted sibling during optimistic grouped-assistant delete', async () => {
+    const selectedReply = message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b')
+    const olderReply = message('answer-a', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a')
+    const newestReply = message('answer-c', 'assistant', '2026-08-28T00:00:03.000Z', 'provider-c::model-c')
+    const pages: BranchMessagesResponse[] = [
+      branchPage([{ message: selectedReply, siblingsGroup: [olderReply, newestReply] }], 'answer-b')
+    ]
+    const mutate = vi.fn(async (updater?: unknown) => {
+      if (typeof updater === 'function') {
+        return (updater as (current: BranchMessagesResponse[] | undefined) => BranchMessagesResponse[] | undefined)(
+          pages
+        )
+      }
+      return pages
+    })
+    const { result } = renderHook(() => useTopicMessagesCache({ topicId: 'topic-1', mutate }))
+
+    await result.current.seedOptimisticBranch((items, activeNodeId) =>
+      result.current.branchWithoutIds(items, new Set(['answer-b']), activeNodeId)
+    )
+
+    const nextPages = await mutate.mock.results[0]?.value
+    expect(nextPages).toEqual([
+      expect.objectContaining({
+        activeNodeId: 'answer-c',
+        items: [{ message: newestReply, siblingsGroup: [olderReply] }]
+      })
+    ])
+  })
+
+  it('does not invent page.activeNodeId when the deleted message was not active', async () => {
+    const activeReply = message('answer-c', 'assistant', '2026-08-28T00:00:03.000Z', 'provider-c::model-c')
+    const siblingReply = message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b')
+    const pages: BranchMessagesResponse[] = [
+      branchPage([{ message: activeReply, siblingsGroup: [siblingReply] }], 'answer-c')
+    ]
+    const mutate = vi.fn(async (updater?: unknown) => {
+      if (typeof updater === 'function') {
+        return (updater as (current: BranchMessagesResponse[] | undefined) => BranchMessagesResponse[] | undefined)(
+          pages
+        )
+      }
+      return pages
+    })
+    const { result } = renderHook(() => useTopicMessagesCache({ topicId: 'topic-1', mutate }))
+
+    await result.current.seedOptimisticBranch((items, activeNodeId) =>
+      result.current.branchWithoutIds(items, new Set(['answer-b']), activeNodeId)
+    )
+
+    const nextPages = await mutate.mock.results[0]?.value
+    expect(nextPages).toEqual([
+      expect.objectContaining({
+        activeNodeId: 'answer-c',
+        items: [{ message: activeReply, siblingsGroup: [] }]
+      })
+    ])
   })
 })

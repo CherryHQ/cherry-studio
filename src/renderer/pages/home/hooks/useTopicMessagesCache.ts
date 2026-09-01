@@ -58,6 +58,23 @@ function branchWithoutIds(
   })
 }
 
+/** When a transform promotes a sibling into the active slot, follow activeNodeId. */
+function activeNodeIdAfterOptimisticTransform(
+  previousItems: BranchMessage[],
+  nextItems: BranchMessage[],
+  activeNodeId: string | null
+): string | null {
+  if (!activeNodeId) return activeNodeId
+  if (nextItems.some((item) => item.message.id === activeNodeId)) return activeNodeId
+
+  const previousActive = previousItems.find((item) => item.message.id === activeNodeId)
+  if (!previousActive?.siblingsGroup?.length) return activeNodeId
+
+  const previousSiblingIds = new Set(previousActive.siblingsGroup.map((sibling) => sibling.id))
+  const promoted = nextItems.find((item) => previousSiblingIds.has(item.message.id))
+  return promoted?.message.id ?? activeNodeId
+}
+
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
   const metadata = message.metadata ?? {}
   const createdAt = metadata.createdAt ?? new Date().toISOString()
@@ -109,7 +126,14 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
       await mutate(
         (pages) => {
           if (!pages) return pages
-          return pages.map((page) => ({ ...page, items: transform(page.items, page.activeNodeId) }))
+          return pages.map((page) => {
+            const items = transform(page.items, page.activeNodeId)
+            return {
+              ...page,
+              items,
+              activeNodeId: activeNodeIdAfterOptimisticTransform(page.items, items, page.activeNodeId)
+            }
+          })
         },
         { revalidate: false }
       )
