@@ -543,6 +543,8 @@
   "backup.confirm.button": "Seleccionar ubicación de copia de seguridad",
   "backup.content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
   "backup.error.active_data_writers": "Una conversación o agente aún está en ejecución. Espere a que termine, luego inténtelo de nuevo.",
+  "backup.error.disk_full": "No hay suficiente espacio en disco. Libere espacio y vuelva a intentarlo.",
+  "backup.error.disk_full_with_available": "No hay suficiente espacio en disco ({{available}} disponibles). Libere espacio y vuelva a intentarlo.",
   "backup.progress.completed": "Copia de seguridad completada",
   "backup.progress.compressing": "Comprimiendo archivos...",
   "backup.progress.copying_database": "Copiando base de datos...",

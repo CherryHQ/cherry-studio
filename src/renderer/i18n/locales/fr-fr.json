@@ -543,6 +543,8 @@
   "backup.confirm.button": "Sélectionner l'emplacement de sauvegarde",
   "backup.content": "Sauvegarder toutes les données, y compris l'historique des conversations, les paramètres et la base de connaissances. Veuillez noter que le processus de sauvegarde peut prendre un certain temps, merci de votre patience.",
   "backup.error.active_data_writers": "Une conversation ou un agent est toujours en cours d'exécution. Attendez qu'il se termine, puis réessayez.",
+  "backup.error.disk_full": "L’espace disque est insuffisant. Libérez de l’espace, puis réessayez.",
+  "backup.error.disk_full_with_available": "L’espace disque est insuffisant ({{available}} disponibles). Libérez de l’espace, puis réessayez.",
   "backup.progress.completed": "Sauvegarde terminée",
   "backup.progress.compressing": "Compression des fichiers...",
   "backup.progress.copying_database": "Copie de la base de données...",
