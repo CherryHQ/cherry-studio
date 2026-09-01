@@ -1,6 +1,4 @@
 import i18n from '@renderer/i18n/resolver'
-import { getSettingsNavigationLabelKey } from '@renderer/utils/settingsNavigation'
-import type { TFunction } from 'i18next'
 
 /** Base URL for parsing relative route paths */
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -73,16 +71,6 @@ export function getDefaultRouteTitle(url: string): string {
   // Fallback to last segment of pathname
   const segments = sanitizedUrl.split('/').filter(Boolean)
   return segments.pop() || sanitizedUrl
-}
-
-/** Settings recents title: `Settings / {nav label}`, or the coarse root label. */
-export function getSettingsRecentTitle(url: string, translate: TFunction = i18n.t): string | undefined {
-  const pathname = new URL(url, BASE_URL).pathname
-  if (getBasePath(pathname) !== '/settings') return undefined
-
-  const rootTitle = translate('title.settings')
-  const navKey = getSettingsNavigationLabelKey(pathname)
-  return navKey ? `${rootTitle} / ${translate(navKey)}` : rootTitle
 }
 
 /**

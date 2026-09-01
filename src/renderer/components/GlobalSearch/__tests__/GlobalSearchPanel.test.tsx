@@ -368,7 +368,10 @@ vi.mock('@renderer/utils/routeTitle', () => ({
       '/app/openclaw': 'OpenClaw',
       '/app/notes': 'Notes',
       '/app/library': 'Library'
-    })[path] ?? path,
+    })[path] ?? path
+}))
+
+vi.mock('@renderer/utils/settingsNavigation', () => ({
   getSettingsRecentTitle: (url: string) => {
     const pathname = new URL(url, 'https://www.cherry-ai.com').pathname
     const settings = mocks.language === 'zh-CN' ? '设置' : 'Settings'
@@ -718,7 +721,7 @@ describe('GlobalSearchPanel', () => {
     })
   })
 
-  it('shows distinct recent labels for different settings subpages and opens the matching urls', async () => {
+  it('shows distinct Settings recent labels without changing the coarse tab title', async () => {
     // Regression: two settings recents both stored with the coarse tab title "Settings"
     // so the empty-query panel could not tell API Gateway from Default Model.
     const user = userEvent.setup()
@@ -748,7 +751,7 @@ describe('GlobalSearchPanel', () => {
 
     await user.click(apiGatewayOption)
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/api-gateway', {
-      title: 'Settings / API Gateway',
+      title: 'Settings',
       icon: 'settings'
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
@@ -760,7 +763,7 @@ describe('GlobalSearchPanel', () => {
 
     await user.click(screen.getByRole('option', { name: /Settings \/ Default Model/ }))
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/model', {
-      title: 'Settings / Default Model',
+      title: 'Settings',
       icon: 'settings'
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)

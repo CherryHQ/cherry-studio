@@ -1,3 +1,8 @@
+import i18n from '@renderer/i18n/resolver'
+import type { TFunction } from 'i18next'
+
+const BASE_URL = 'https://www.cherry-ai.com/'
+
 export const SETTINGS_NAVIGATION_LABEL_KEYS = {
   '/settings/provider': 'settings.provider.title',
   '/settings/model': 'settings.model',
@@ -33,4 +38,13 @@ export function getSettingsNavigationLabelKey(pathname: string): string | undefi
   return SETTINGS_NAVIGATION_LABEL_ENTRIES.find(
     ([path]) => normalized === path || normalized.startsWith(`${path}/`)
   )?.[1]
+}
+
+export function getSettingsRecentTitle(url: string, translate: TFunction = i18n.t): string | undefined {
+  const pathname = new URL(url, BASE_URL).pathname
+  if (pathname !== '/settings' && !pathname.startsWith('/settings/')) return undefined
+
+  const rootTitle = translate('title.settings')
+  const navKey = getSettingsNavigationLabelKey(pathname)
+  return navKey ? `${rootTitle} / ${translate(navKey)}` : rootTitle
 }
