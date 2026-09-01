@@ -66,7 +66,7 @@ const KnowledgeItemNoteContentPanel = ({ itemId, onBack }: KnowledgeItemNoteCont
         </div>
       </div>
 
-      <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <Scrollbar autoHideScrollbar={false} className="min-h-0 flex-1 px-4 py-3">
         {isLoading ? <KnowledgeItemNoteContentState>{t('common.loading')}</KnowledgeItemNoteContentState> : null}
         {!isLoading && error ? <KnowledgeItemNoteContentState>{error.message}</KnowledgeItemNoteContentState> : null}
         {!isLoading && !error ? (
