@@ -16,7 +16,7 @@ describe('useMacInputPreviewSync', () => {
 
   it('re-syncs anchor geometry on window resize', () => {
     const el = document.createElement('div')
-    el.getBoundingClientRect = vi.fn(() => ({ top: 10, left: 10, bottom: 20, right: 20 } as DOMRect))
+    el.getBoundingClientRect = vi.fn(() => ({ top: 10, left: 10, bottom: 20, right: 20 }) as DOMRect)
     document.body.appendChild(el)
     const ref = { current: el }
 
@@ -27,14 +27,16 @@ describe('useMacInputPreviewSync', () => {
 
     const callsBefore = (el.getBoundingClientRect as unknown as { mock: { calls: unknown[] } }).mock.calls.length
     window.dispatchEvent(new Event('resize'))
-    expect((el.getBoundingClientRect as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBeGreaterThan(callsBefore)
+    expect((el.getBoundingClientRect as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBeGreaterThan(
+      callsBefore
+    )
 
     document.body.removeChild(el)
   })
 
   it('does not sync when disabled', () => {
     const el = document.createElement('div')
-    el.getBoundingClientRect = vi.fn(() => ({ top: 0 } as DOMRect))
+    el.getBoundingClientRect = vi.fn(() => ({ top: 0 }) as DOMRect)
     const ref = { current: el }
 
     renderHook(() => useMacInputPreviewSync(ref, false))
@@ -45,7 +47,7 @@ describe('useMacInputPreviewSync', () => {
 
   it('syncs on next frame after mount (launch geometry)', () => {
     const el = document.createElement('div')
-    el.getBoundingClientRect = vi.fn(() => ({ top: 5 } as DOMRect))
+    el.getBoundingClientRect = vi.fn(() => ({ top: 5 }) as DOMRect)
     const ref = { current: el }
 
     const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb: FrameRequestCallback) => {

@@ -1,6 +1,5 @@
-import { useEffect } from 'react'
-
 import { isMac } from '@renderer/utils/platform'
+import { useEffect } from 'react'
 
 /**
  * Keeps macOS text input preview anchored to the composer after launch and window resize.
