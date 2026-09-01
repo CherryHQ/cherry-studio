@@ -724,16 +724,35 @@ describe('buildAgentParams web-tool routing', () => {
   })
 
   it.each([
-    { modelToolsPreferred: true, expectedRoute: 'server' },
-    { modelToolsPreferred: false, expectedRoute: 'client' }
+    {
+      name: 'model-native tools are preferred',
+      modelToolsPreferred: true,
+      defaultSearchKeywordsProvider: 'exa-mcp',
+      defaultFetchUrlsProvider: 'jina',
+      expectedRoute: 'server'
+    },
+    {
+      name: 'configured services are preferred',
+      modelToolsPreferred: false,
+      defaultSearchKeywordsProvider: 'exa-mcp',
+      defaultFetchUrlsProvider: 'jina',
+      expectedRoute: 'client'
+    },
+    {
+      name: 'configured services are preferred but unavailable',
+      modelToolsPreferred: false,
+      defaultSearchKeywordsProvider: null,
+      defaultFetchUrlsProvider: null,
+      expectedRoute: 'server'
+    }
   ])(
-    'injects only $expectedRoute implementations when model preference is $modelToolsPreferred',
-    async ({ modelToolsPreferred, expectedRoute }) => {
+    'injects only $expectedRoute implementations when $name',
+    async ({ modelToolsPreferred, defaultSearchKeywordsProvider, defaultFetchUrlsProvider, expectedRoute }) => {
       const preferences = new Map<string, unknown>([
         ['app.developer_mode.enabled', false],
         ['chat.web_search.model_tools_preferred', modelToolsPreferred],
-        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
-        ['chat.web_search.default_fetch_urls_provider', 'jina'],
+        ['chat.web_search.default_search_keywords_provider', defaultSearchKeywordsProvider],
+        ['chat.web_search.default_fetch_urls_provider', defaultFetchUrlsProvider],
         ['chat.web_search.provider_overrides', {}],
         ['chat.web_search.max_results', 5],
         ['chat.web_search.exclude_domains', []]
@@ -756,28 +775,6 @@ describe('buildAgentParams web-tool routing', () => {
       expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
     }
   )
-
-  it('injects model-native tools when configured services are preferred but unavailable', async () => {
-    const preferences = new Map<string, unknown>([
-      ['app.developer_mode.enabled', false],
-      ['chat.web_search.model_tools_preferred', false],
-      ['chat.web_search.default_search_keywords_provider', null],
-      ['chat.web_search.default_fetch_urls_provider', null],
-      ['chat.web_search.provider_overrides', {}],
-      ['chat.web_search.max_results', 5],
-      ['chat.web_search.exclude_domains', []]
-    ])
-    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
-    registry.register(clientSearchEntry)
-    registry.register(clientFetchEntry)
-
-    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
-
-    expect(result.tools?.web_search).toBeUndefined()
-    expect(result.tools?.web_fetch).toBeUndefined()
-    expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
-    expect(result.plugins.some((plugin) => plugin.name === 'urlContext')).toBe(true)
-  })
 
   it('keeps client search available through ExaMCP when the selected provider has no key', async () => {
     const preferences = new Map<string, unknown>([
