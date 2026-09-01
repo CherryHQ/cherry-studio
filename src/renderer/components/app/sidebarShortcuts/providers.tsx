@@ -161,7 +161,7 @@ const miniAppProvider: SidebarShortcutProvider = {
         label: app.nameKey ? i18n.t(app.nameKey) : app.name,
         renderIcon: ({ slotSize, glyphSize }) =>
           app.logo || app.logoSrc ? (
-            <MiniAppIcon app={app} appearance="bare" size={slotSize} />
+            <MiniAppIcon app={app} appearance="bare" size={slotSize} artworkSize={glyphSize - 2} />
           ) : (
             <Package size={glyphSize} strokeWidth={1.6} />
           ),
