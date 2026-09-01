@@ -292,14 +292,17 @@ describe('MiniAppsPage', () => {
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
   })
 
-  it('has one add entry, and it opens the add dialog in create mode', () => {
+  it('adds a launchpad entry that opens the add dialog in create mode', () => {
     render(<MiniAppsPage />)
     // The install panel has no toolbar entry of its own any more: packages are a tab of
     // the add dialog, and only a builtin tile mounts the standalone panel.
     expect(screen.queryByRole('button', { name: 'miniApp.install.title' })).toBeNull()
     expect(screen.queryByTestId('new-mini-app-panel')).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.title' }))
+    const addEntries = screen.getAllByRole('button', { name: 'miniApp.add.title' })
+    expect(addEntries).toHaveLength(2)
+
+    fireEvent.click(addEntries[1])
     expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-app-id', '')
   })
 
@@ -347,7 +350,7 @@ describe('MiniAppsPage', () => {
     const file = new File(['package'], 'example.miniapp')
     const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
 
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add.title' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'miniApp.add.title' })[0])
     fireEvent.dragEnter(page!, { dataTransfer })
     fireEvent.drop(page!, { dataTransfer })
 

@@ -62,6 +62,11 @@ const MiniAppsPage: FC = () => {
     setEditingApp(null)
   }
 
+  const openCreateAppPanel = () => {
+    setEditingApp(null)
+    setNewAppOpen(true)
+  }
+
   const hasFilePayload = (event: React.DragEvent<HTMLDivElement>) =>
     Array.from(event.dataTransfer.types).includes('Files')
 
@@ -141,14 +146,7 @@ const MiniAppsPage: FC = () => {
         <div className="flex shrink-0 items-start justify-end p-3">
           <div className="flex items-center gap-1">
             <Tooltip content={t('miniApp.add.title')}>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('miniApp.add.title')}
-                onClick={() => {
-                  setEditingApp(null)
-                  setNewAppOpen(true)
-                }}>
+              <Button variant="ghost" size="icon-sm" aria-label={t('miniApp.add.title')} onClick={openCreateAppPanel}>
                 <Plus size={14} />
               </Button>
             </Tooltip>
@@ -200,6 +198,19 @@ const MiniAppsPage: FC = () => {
                     {filteredApps.map((app) => (
                       <App key={app.appId} app={app} size={56} variant="launchpad" onEditCustom={setEditingApp} />
                     ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label={t('miniApp.add.title')}
+                      className="group h-auto min-h-[104px] w-[92px] flex-col justify-start gap-0 bg-transparent px-0 pt-1 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent"
+                      onClick={openCreateAppPanel}>
+                      <span className="mini-app-icon-frame flex size-[58px] items-center justify-center rounded-[14px] border border-border-subtle border-dashed bg-background-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
+                        <Plus className="size-6" strokeWidth={1.5} />
+                      </span>
+                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] leading-[18px]">
+                        {t('miniApp.add.title')}
+                      </span>
+                    </Button>
                   </div>
                 )}
                 {/* Shipped but not installed: a click opens consent, never a tab (no files on disk yet). */}
