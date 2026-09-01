@@ -106,6 +106,17 @@ describe('MarkdownFilePreview links', () => {
     expect(openFile).toHaveBeenCalledWith('C:\\Users\\Alice\\README.md')
   })
 
+  it('opens a UNC Markdown link through the host', async () => {
+    mocks.readText.mockResolvedValue(String.raw`[Report](\\\\server\share\docs\report.md)`)
+    const openFile = vi.fn()
+    const user = userEvent.setup()
+
+    renderArtifactPreview(openFile)
+    await user.click(await screen.findByRole('link', { name: 'Report' }))
+
+    expect(openFile).toHaveBeenCalledWith('\\\\server\\share\\docs\\report.md')
+  })
+
   it('keeps external links out of the local file opener', async () => {
     mocks.readText.mockResolvedValue('[Cherry Studio](https://cherry-ai.com)')
     const openFile = vi.fn()
@@ -118,7 +129,7 @@ describe('MarkdownFilePreview links', () => {
     expect(openFile).not.toHaveBeenCalled()
   })
 
-  it('renders fenced source without chat execution or HTML artifact controls', async () => {
+  it('keeps passive fenced-code actions without chat execution or HTML artifact controls', async () => {
     mocks.readText.mockResolvedValue(
       '```python\nprint("not executed")\n```\n\n```html\n<button>Not an artifact</button>\n```'
     )
@@ -128,6 +139,7 @@ describe('MarkdownFilePreview links', () => {
     const codeBlocks = await screen.findAllByLabelText('Code viewer')
     expect(codeBlocks[0]).toHaveTextContent('print("not executed")')
     expect(codeBlocks[1]).toHaveTextContent('<button>Not an artifact</button>')
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(await screen.findAllByRole('button', { name: 'code_block.copy.source' })).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: 'code_block.run' })).not.toBeInTheDocument()
   })
 })

@@ -169,7 +169,7 @@ function MarkdownCodeRenderer({ children: rawChildren, className, node: _node }:
   }
 
   return (
-    <CodeBlockView language={language} editable={false} isStreaming={isIncomplete}>
+    <CodeBlockView language={language} editable={false} allowExecution={false} isStreaming={isIncomplete}>
       {children}
     </CodeBlockView>
   )
