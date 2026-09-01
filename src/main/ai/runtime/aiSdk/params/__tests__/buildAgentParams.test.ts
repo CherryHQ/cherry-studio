@@ -153,6 +153,33 @@ describe('buildAgentParams provider resolution', () => {
     })
   })
 
+  it('skips runtime context discovery for operations that do not consume a text context window', async () => {
+    const provider = makeProvider({
+      id: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://ollama.test:11434' }
+      }
+    })
+    const model = makeModel({
+      id: 'ollama::nomic-embed-text',
+      providerId: 'ollama',
+      apiModelId: 'nomic-embed-text',
+      contextWindow: undefined
+    })
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model,
+      resolveRuntimeModelMetadata: false
+    })
+
+    expect(resolveOllamaModelContextWindowMock).not.toHaveBeenCalled()
+    expect(result.model).toBe(model)
+  })
+
   it('maps Groq service tiers after assistant custom parameters and before call overrides', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: { providerId: 'groq', providerSettings: {} },

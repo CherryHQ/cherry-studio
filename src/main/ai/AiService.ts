@@ -781,7 +781,7 @@ export class AiService extends BaseService {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
-    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt } = await this.buildAgentParamsFor(request, signal, [], undefined, false)
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
@@ -990,7 +990,13 @@ export class AiService extends BaseService {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, credentialReceipt, provider, model, assistant } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      [],
+      undefined,
+      false
+    )
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1037,7 +1043,7 @@ export class AiService extends BaseService {
       provider,
       model,
       assistant
-    } = await this.buildAgentParamsFor(request, signal)
+    } = await this.buildAgentParamsFor(request, signal, [], undefined, false)
     const usageContext = createCaptureContext({
       provider,
       model,
@@ -1193,7 +1199,8 @@ export class AiService extends BaseService {
     request: AsInProcess<AiBaseRequest> & { chatId?: string },
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = [],
-    getRepairUsagePlugins?: () => AiPlugin[]
+    getRepairUsagePlugins?: () => AiPlugin[],
+    resolveRuntimeModelMetadata = true
   ) {
     const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({
@@ -1204,7 +1211,8 @@ export class AiService extends BaseService {
       assistant,
       extraFeatures,
       getRepairUsagePlugins,
-      compactionSink: request.compactionSink
+      compactionSink: request.compactionSink,
+      resolveRuntimeModelMetadata
     })
     return { ...built, provider, assistant }
   }

@@ -110,6 +110,8 @@ export interface BuildAgentParamsInput {
   getRepairUsagePlugins?: () => AiPlugin[]
   /** Reports compaction progress to the UI; absent when there is no live stream. */
   compactionSink?: CompactionSink
+  /** Resolve request-blocking metadata used by text/agent context budgeting. */
+  resolveRuntimeModelMetadata?: boolean
 }
 
 export interface BuiltAgentParams {
@@ -139,12 +141,15 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride,
     request.chatId
   )
-  const model = await resolveRuntimeModel(provider, configuredModel, {
-    signal,
-    apiKey: getSdkApiKey(sdkConfig),
-    baseUrl: resolvedEndpoint.baseUrl,
-    fetch: getSdkFetch(sdkConfig)
-  })
+  const model =
+    input.resolveRuntimeModelMetadata === false
+      ? configuredModel
+      : await resolveRuntimeModel(provider, configuredModel, {
+          signal,
+          apiKey: getSdkApiKey(sdkConfig),
+          baseUrl: resolvedEndpoint.baseUrl,
+          fetch: getSdkFetch(sdkConfig)
+        })
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool

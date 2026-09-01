@@ -18,6 +18,7 @@ const OllamaErrorSchema = z.looseObject({
 })
 
 const OLLAMA_MODEL_INFO_CACHE_TTL_MS = 5 * 60 * 1000
+const OLLAMA_MODEL_INFO_TIMEOUT_MS = 5_000
 const contextWindowCache = new Map<string, { value: number; expiresAt: number }>()
 
 function pruneExpiredContextWindows(now: number): void {
@@ -75,18 +76,30 @@ async function fetchOllamaModelContextWindow(
   baseUrl: string,
   options?: { signal?: AbortSignal; apiKey?: string; baseUrl?: string; fetch?: FetchFunction }
 ): Promise<number | undefined> {
-  const { value } = await postJsonToApi({
-    url: `${baseUrl}/show`,
-    headers: buildProviderHeaders(provider, options?.apiKey),
-    body: { model: modelApiId, verbose: false },
-    successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
-    failedResponseHandler: createJsonErrorResponseHandler({
-      errorSchema: zodSchema(OllamaErrorSchema),
-      errorToMessage: (error) => error.error ?? error.message ?? 'Unknown Ollama error'
-    }),
-    abortSignal: options?.signal,
-    fetch: options?.fetch
-  })
+  const timeoutController = new AbortController()
+  const timeoutId = setTimeout(() => {
+    timeoutController.abort(new DOMException('Ollama model metadata request timed out', 'TimeoutError'))
+  }, OLLAMA_MODEL_INFO_TIMEOUT_MS)
+  const abortSignal = options?.signal
+    ? AbortSignal.any([options.signal, timeoutController.signal])
+    : timeoutController.signal
 
-  return extractOllamaContextWindow(value.model_info)
+  try {
+    const { value } = await postJsonToApi({
+      url: `${baseUrl}/show`,
+      headers: buildProviderHeaders(provider, options?.apiKey),
+      body: { model: modelApiId, verbose: false },
+      successfulResponseHandler: createJsonResponseHandler(zodSchema(OllamaShowResponseSchema)),
+      failedResponseHandler: createJsonErrorResponseHandler({
+        errorSchema: zodSchema(OllamaErrorSchema),
+        errorToMessage: (error) => error.error ?? error.message ?? 'Unknown Ollama error'
+      }),
+      abortSignal,
+      fetch: options?.fetch
+    })
+
+    return extractOllamaContextWindow(value.model_info)
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }

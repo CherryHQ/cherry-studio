@@ -271,6 +271,26 @@ describe('listModels — Ollama capabilities', () => {
       })
     )
   })
+
+  it('bounds runtime model metadata discovery when /api/show does not respond', async () => {
+    vi.useFakeTimers()
+    try {
+      postJsonToApiMock.mockImplementationOnce(
+        ({ abortSignal }: { abortSignal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            abortSignal.addEventListener('abort', () => reject(abortSignal.reason), { once: true })
+          })
+      )
+
+      const pending = resolveOllamaModelContextWindow(makeOllamaProvider(), 'hung-metadata:latest')
+      const rejection = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await rejection
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('listModels — geminiFetcher API key transport', () => {

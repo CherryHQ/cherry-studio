@@ -16,6 +16,7 @@ into everything `Agent.stream()` needs:
 
 ```ts
 interface BuiltAgentParams {
+  model: Model                      // effective model after runtime metadata discovery
   sdkConfig: SdkConfig             // providerId + providerSettings + modelId
   tools: ToolSet | undefined        // active + meta-tools after defer
   plugins: AiPlugin<any, any>[]     // model-adapter plugins (ordered)
