@@ -566,7 +566,7 @@ const openCodeAdapter: CliConfigAdapter = {
   }
 }
 
-function parseGeminiConfigModel(model: string): { isGateway: boolean; model: string } {
+function parseGeminiConfigModel(model: string, allowLegacy = false): { isGateway: boolean; model: string } {
   try {
     const tagged = parseGeminiGatewayModelId(model)
     if (tagged) {
@@ -576,7 +576,7 @@ function parseGeminiConfigModel(model: string): { isGateway: boolean; model: str
     return { isGateway: false, model }
   }
 
-  const legacy = parseLegacyGeminiGatewayModelId(model)
+  const legacy = allowLegacy ? parseLegacyGeminiGatewayModelId(model) : undefined
   if (legacy) {
     return { isGateway: true, model: formatGatewayModelId(legacy.providerId, legacy.apiModelId) }
   }
@@ -619,10 +619,13 @@ const geminiAdapter: CliConfigAdapter = {
   },
   updateDraftConfig(files, connection, configBlob) {
     const envText = getDraftFile(files, 'gemini-env')?.content ?? ''
+    const env = parseDotenv(envText)
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
     const model = requireDraftValue(connection.model, 'Gemini model')
     const currentModel = stringValue(asRecord(settings.model).name)
-    const isGateway = currentModel ? parseGeminiConfigModel(currentModel).isGateway : false
+    const isGateway = currentModel
+      ? parseGeminiConfigModel(currentModel, env.get('GOOGLE_GENAI_API_VERSION') === 'v1beta').isGateway
+      : false
     const address = isGateway ? parseGatewayModelId(model) : undefined
     const settingsModel = address ? formatGeminiGatewayModelId(address.providerId, address.apiModelId) : model
     return replaceDraftContent(
@@ -630,7 +633,7 @@ const geminiAdapter: CliConfigAdapter = {
         files,
         'gemini-env',
         renderDotenvFile(
-          buildGeminiEnvConfig(parseDotenv(envText), {
+          buildGeminiEnvConfig(env, {
             apiKey: connection.apiKey ?? '',
             baseUrl: connection.baseUrl ?? '',
             gateway: isGateway
@@ -670,7 +673,10 @@ const geminiAdapter: CliConfigAdapter = {
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
-      model: model === undefined ? model : parseGeminiConfigModel(model).model
+      model:
+        model === undefined
+          ? model
+          : parseGeminiConfigModel(model, env.get('GOOGLE_GENAI_API_VERSION') === 'v1beta').model
     }
   },
   extractConfig(files) {
