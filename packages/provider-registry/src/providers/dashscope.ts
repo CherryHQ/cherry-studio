@@ -130,6 +130,13 @@ const qwenResponsesSupport: ReasoningSupport = {
   supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
 }
 
+/** `qwen3.8-max-preview` serves thinking mode only, so its Responses contract drops the `'none'` tier. */
+const qwenResponsesThinkingOnlySupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'xhigh' }],
+  defaultEffort: 'xhigh',
+  supportedEfforts: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+}
+
 const qwen38Support: ReasoningSupport = {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
   defaultEffort: 'xhigh',
@@ -279,7 +286,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     ...endpointPin('qwen3.8-flash'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
-      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+      'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
     }
   },
   {
@@ -289,7 +296,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     ...endpointPin('qwen3.8-max'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
-      'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
+      'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
     }
   },
   {
@@ -299,7 +306,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     ...endpointPin('qwen3.8-max-preview'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38PreviewSupport, wire: qwen38PreviewChatWire },
-      'openai-responses': { support: qwen38PreviewSupport, wire: qwen38PreviewResponsesWire }
+      'openai-responses': { support: qwenResponsesThinkingOnlySupport, wire: qwen38PreviewResponsesWire }
     }
   },
   {
