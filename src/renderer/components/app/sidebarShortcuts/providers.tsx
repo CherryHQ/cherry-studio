@@ -1,4 +1,5 @@
 import { renderAgentEntityIcon, renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
+import { CLI_TOOLS, CliIcon } from '@renderer/components/icons/CliIcon'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { preferenceService } from '@renderer/data/PreferenceService'
@@ -21,6 +22,8 @@ import { SIDEBAR_ICON_COMPONENTS } from '../sidebarIcons'
 import type { ResolvedShortcut, SidebarShortcutProvider } from './types'
 
 const REVEAL_ACTIVATIONS = new Set<string | undefined>([undefined, 'reveal'])
+const CODE_CLI_TOOL_BY_ID = new Map<string, (typeof CLI_TOOLS)[number]>(CLI_TOOLS.map((tool) => [tool.value, tool]))
+const MiniAppFallbackIcon = SIDEBAR_ICON_COMPONENTS.mini_app
 
 function validates(providerId: string, target: SidebarShortcutTarget): boolean {
   return (
@@ -156,7 +159,12 @@ const miniAppProvider: SidebarShortcutProvider = {
       (app) => app.appId,
       (app) => ({
         label: app.nameKey ? i18n.t(app.nameKey) : app.name,
-        renderIcon: ({ slotSize }) => <MiniAppIcon app={app} appearance="bare" size={slotSize} />,
+        renderIcon: ({ slotSize, glyphSize }) =>
+          app.logo || app.logoSrc ? (
+            <MiniAppIcon app={app} appearance="bare" size={slotSize} />
+          ) : (
+            <MiniAppFallbackIcon size={glyphSize} strokeWidth={1.6} />
+          ),
         tabIcon: app.logoSrc ?? app.logo,
         supportsNewTab: true
       })
@@ -351,6 +359,36 @@ const fileEntryProvider: SidebarShortcutProvider = {
     isActiveResourceUrl(navigation.url, '/app/files', 'entryId', target.locator.resourceId)
 }
 
+const codeCliProvider: SidebarShortcutProvider = {
+  id: SIDEBAR_SHORTCUT_PROVIDER_IDS.CODE_CLI,
+  validate: (target) =>
+    validates(SIDEBAR_SHORTCUT_PROVIDER_IDS.CODE_CLI, target) && CODE_CLI_TOOL_BY_ID.has(target.locator.resourceId),
+  async resolveMany(targets) {
+    return mapRequested(
+      targets,
+      CLI_TOOLS,
+      (tool) => tool.value,
+      (tool) => ({
+        label: i18n.t(tool.label),
+        renderIcon: ({ slotSize }) => <CliIcon id={tool.value} size={slotSize} />,
+        supportsNewTab: true
+      })
+    )
+  },
+  subscribe: (_targets, invalidate) => languageSubscription(invalidate),
+  activate(target, gateway) {
+    if (!this.validate(target)) return
+    const tool = CODE_CLI_TOOL_BY_ID.get(target.locator.resourceId)
+    if (!tool) return
+    gateway.openWorkspace({
+      url: `/app/code?tool=${encodeURIComponent(tool.value)}`,
+      title: i18n.t(tool.label),
+      matchesCurrent: (currentUrl) => isActiveResourceUrl(currentUrl, '/app/code', 'tool', tool.value)
+    })
+  },
+  isActive: (target, navigation) => isActiveResourceUrl(navigation.url, '/app/code', 'tool', target.locator.resourceId)
+}
+
 export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[] = [
   appProvider,
   miniAppProvider,
@@ -359,5 +397,6 @@ export const CORE_SIDEBAR_SHORTCUT_PROVIDERS: readonly SidebarShortcutProvider[]
   knowledgeBaseProvider,
   topicProvider,
   agentSessionProvider,
-  fileEntryProvider
+  fileEntryProvider,
+  codeCliProvider
 ]
