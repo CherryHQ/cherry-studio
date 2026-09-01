@@ -35,6 +35,7 @@ export interface ResolvedSidebarEntry {
   renderIcon: (size: number, miniAppSize: 'md' | 'lg') => ReactNode
   isActive: (active: SidebarActiveState) => boolean
   onOpen: () => void
+  onOpenNewTab?: () => void
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 

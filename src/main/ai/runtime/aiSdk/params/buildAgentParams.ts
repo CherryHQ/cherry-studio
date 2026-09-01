@@ -61,9 +61,11 @@ import {
 } from '../../../utils/modelParameters'
 import {
   applyFastModeToProviderOptions,
+  applyServiceTierToProviderOptions,
   buildCapabilityProviderOptions,
   extractAiSdkStandardParams,
-  mergeCustomProviderParameters
+  mergeCustomProviderParameters,
+  resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
@@ -212,6 +214,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const reasoningEndpointType =
     runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
   const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const serviceTierControl = providerRegistryService.resolveServiceTierControl(provider, model, endpointType)
   const invocationModel = reasoningProfile.support
     ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
     : model
@@ -224,12 +227,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     model,
     endpointType
   )
+  const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
+  const reasoningSelection =
+    requestedReasoningSelection === 'auto' && !invocationModel.reasoning?.selectableEfforts.includes('auto')
+      ? 'default'
+      : requestedReasoningSelection
   const reasoning = resolveReasoningInvocation({
-    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    selection: reasoningSelection,
     model: invocationModel,
     profile: reasoningProfile.wire,
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
-    assistantSummary: provider.settings.summaryText
+    assistantSummary: assistant?.settings.reasoning_summary
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, {
     endpointType,
@@ -267,6 +275,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     reasoningProfile,
     reasoning,
+    serviceTierControl,
     requestContext,
     mcpToolIds,
     mcpResourceServerIds,
@@ -283,7 +292,14 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries, hasCitableTools })
+  const system = await assembleSystemPrompt({
+    assistant,
+    model,
+    tools,
+    deferredEntries,
+    hasCitableTools,
+    webSearchEnabled: finalWebToolRoutes.webSearch !== 'none'
+  })
   const options = buildAgentOptions(
     scope,
     contributions.stopConditions,
@@ -291,6 +307,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
   )
+  applyResponsesInstructions(options, system, endpointType, sdkConfig.providerOptionsKey)
 
   return {
     sdkConfig,
@@ -303,6 +320,29 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
+}
+
+/**
+ * OpenAI Responses API expects the system prompt in the top-level `instructions`
+ * field. The AI SDK only turns `system` into an input message and leaves
+ * `instructions` empty, which lets relay servers inject their own default system
+ * prompt and override the user's. Mirror the assembled system prompt there for
+ * Responses-endpoint models, unless the user already set it explicitly. (#16008)
+ */
+export function applyResponsesInstructions(
+  options: AgentOptions,
+  system: string | undefined,
+  endpointType: EndpointType | undefined,
+  providerOptionsKey: string
+): void {
+  if (!system || endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return
+  const providerOptions = (options.providerOptions ??= {})
+  const namespace = (providerOptions[providerOptionsKey] ??= {})
+  if (namespace.instructions != null) return
+  namespace.instructions = system
+  // `instructions` does not displace the system input message; without this the
+  // whole prompt ships twice.
+  namespace.systemMessageMode = 'remove'
 }
 
 async function resolveSdkConfig(
@@ -546,7 +586,8 @@ function buildAgentOptions(
     request,
     aiSdkProviderId,
     endpointType,
-    reasoning
+    reasoning,
+    serviceTierControl
   } = scope
 
   // One path for both callers, so protocol/model defaults (store, safetySettings, num_ctx…)
@@ -592,6 +633,23 @@ function buildAgentOptions(
           customBodyParams
         )
       }
+    }
+  }
+
+  if (serviceTierControl) {
+    providerOptions = applyServiceTierToProviderOptions(
+      providerOptions,
+      sdkConfig.providerOptionsKey,
+      serviceTierControl,
+      request.serviceTier ?? assistant?.settings.service_tier
+    )
+    if (serviceTierControl.wire.delivery.type === 'request-body') {
+      sdkConfig.providerSettings.fetch = createCustomParamsFetch(sdkConfig.providerSettings.fetch ?? globalThis.fetch, {
+        [serviceTierControl.wire.delivery.key]: resolveServiceTierWireValue(
+          serviceTierControl,
+          request.serviceTier ?? assistant?.settings.service_tier
+        )
+      })
     }
   }
 

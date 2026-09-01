@@ -28,7 +28,6 @@ function createLocalEmbeddingProviderRow(): LocalEmbeddingProviderRow {
     endpointConfigs: {},
     defaultChatEndpoint: null,
     authConfig: null,
-    apiFeatures: null,
     providerSettings: null,
     isEnabled: true
   }

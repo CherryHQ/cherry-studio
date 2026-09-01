@@ -127,7 +127,7 @@ describe('FilePreview', () => {
       modifiedAt: 1
     })
 
-    render(<FilePreview filePath={'/tmp/artifacts' as AbsoluteFilePath} />)
+    render(<FilePreview filePath={'/tmp/artifacts.md' as AbsoluteFilePath} />)
 
     expect(await screen.findByText('file_preview.directory.title')).toBeInTheDocument()
     expect(mocks.ipcApiRequest).toHaveBeenCalledOnce()

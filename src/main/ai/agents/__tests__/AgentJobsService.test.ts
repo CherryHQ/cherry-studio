@@ -10,6 +10,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
@@ -215,6 +216,13 @@ describe('AgentJobsService', () => {
       spy.mockRestore()
     })
 
+    it('refuses the reserved heartbeat prompt — nothing is written', () => {
+      expect(() => service.createTask(AGENT_ID, { ...form, prompt: '__heartbeat__' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.listAll({ type: 'agent.task' })).toHaveLength(0)
+    })
+
     it('rejects an invalid cron trigger up front — no row, no subscriptions, no timer', () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
 
@@ -252,6 +260,15 @@ describe('AgentJobsService', () => {
       expect(updated?.prompt).toBe('new prompt')
       expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ prompt: 'new prompt' })
       expect(getIntervalEntry(task.id)).toBe(originalEntry)
+    })
+
+    it('refuses to repoint an existing task at the reserved heartbeat prompt', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(() => service.updateTask(AGENT_ID, task.id, { prompt: '__heartbeat__' })).toThrow(
+        'reserved for the agent heartbeat'
+      )
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ prompt: form.prompt })
     })
 
     it('drops a semantically-equal trigger from the patch — the interval phase is not reset', () => {
@@ -592,6 +609,37 @@ describe('AgentJobsService', () => {
 
       expect(jobScheduleService.getById(task.id)).toBeNull()
       expect(subscriptionRows(task.id)).toHaveLength(0)
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('deleting an agent removes its schedules and disposes their timers (orphan cleanup)', async () => {
+      seedAgent(OTHER_AGENT_ID)
+      const own = service.createTask(AGENT_ID, form)
+      const second = service.createTask(AGENT_ID, { ...form, name: 'hourly-rollup' })
+      const foreign = service.createTask(OTHER_AGENT_ID, { ...form, name: 'foreign-task' })
+
+      expect(await service.deleteSchedulesForAgent(AGENT_ID)).toBe(2)
+
+      expect(jobScheduleService.getById(own.id)).toBeNull()
+      expect(jobScheduleService.getById(second.id)).toBeNull()
+      // other agents' schedules are untouched
+      expect(jobScheduleService.getById(foreign.id)).not.toBeNull()
+      expect(scheduler.has(`schedule:${own.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${second.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
+    })
+
+    it('agent deletion fires the cleanup through onAgentDeleted', async () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      // The full deleteAgent path needs the data-service registry (out of
+      // scope here); fire the real emitter the subscription listens on.
+      ;(
+        agentService as unknown as { _onAgentDeleted: { fire: (e: { agentId: string }) => void } }
+      )._onAgentDeleted.fire({ agentId: AGENT_ID })
+
+      // The subscription is fire-and-forget; let the microtask queue drain.
+      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
     })
 

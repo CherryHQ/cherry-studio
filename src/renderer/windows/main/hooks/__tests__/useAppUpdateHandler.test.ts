@@ -59,7 +59,7 @@ vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: { show: mocks.updateDialogShow }
 }))
 
-import { useAppUpdateHandler } from '../useAppUpdateHandler'
+import { getManualUpdateErrorMessageKey, useAppUpdateHandler } from '../useAppUpdateHandler'
 
 const releaseInfo: UpdateInfo = {
   version: '2.1.0',
@@ -160,8 +160,44 @@ describe('useAppUpdateHandler', () => {
     })
     expect(mocks.popupInfo).toHaveBeenCalledExactlyOnceWith({
       title: 'settings.about.updateError',
-      content: 'manual failure',
+      content: 'settings.about.updateError',
       icon: null
     })
+  })
+
+  it('maps unpublished 503 bodies to a friendly message instead of the raw HTTP response', () => {
+    mocks.appUpdateState.manualCheck = true
+    renderHook(() => useAppUpdateHandler())
+
+    emit(
+      'app.updater.error',
+      new Error('HttpError: 503\nnot_published\nCannot download https://releases.cherry-ai.com/latest.yml')
+    )
+
+    expect(mocks.popupInfo).toHaveBeenCalledExactlyOnceWith({
+      title: 'settings.about.updateError',
+      content: 'settings.about.updateNotPublished',
+      icon: null
+    })
+  })
+})
+
+describe('getManualUpdateErrorMessageKey', () => {
+  it('classifies unpublished release artifacts without exposing the updater body', () => {
+    expect(getManualUpdateErrorMessageKey(new Error('503 not_published'))).toBe('settings.about.updateNotPublished')
+    expect(getManualUpdateErrorMessageKey(new Error('HttpError: 503 Cannot find latest.yml'))).toBe(
+      'settings.about.updateNotPublished'
+    )
+    expect(
+      getManualUpdateErrorMessageKey(new Error('<html>503 not_published</html>\nPlease report this issue to GitHub'))
+    ).toBe('settings.about.updateNotPublished')
+  })
+
+  it('falls back to the generic update error for unrelated failures', () => {
+    expect(getManualUpdateErrorMessageKey(new Error('manual failure'))).toBe('settings.about.updateError')
+    expect(getManualUpdateErrorMessageKey(new Error('ENOTFOUND releases.cherry-ai.com'))).toBe(
+      'settings.about.updateError'
+    )
+    expect(getManualUpdateErrorMessageKey(undefined)).toBe('settings.about.updateError')
   })
 })

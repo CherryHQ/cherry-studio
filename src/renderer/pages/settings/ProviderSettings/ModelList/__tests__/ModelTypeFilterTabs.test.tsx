@@ -92,4 +92,29 @@ describe('ModelTypeFilterTabs', () => {
     expect(tabList).toHaveClass('w-max', 'min-w-full', 'shrink-0')
     expect(tabList).not.toHaveClass('w-full', 'max-w-full', 'overflow-x-auto')
   })
+
+  it('omits empty model types from the simplified filter row', () => {
+    const counts = {
+      all: 2,
+      text: 2,
+      image: 0,
+      embedding: 0,
+      audio: 0,
+      video: 0,
+      rerank: 0,
+      speech: 0,
+      transcription: 0
+    }
+    const { rerender } = render(
+      <ModelTypeFilterTabs value="all" onValueChange={vi.fn()} counts={counts} hideEmptyFilters />
+    )
+
+    expect(screen.getByRole('tab', { name: /models\.all/ })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /models\.type\.text/ })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /models\.type\.image/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /models\.type\.embedding/ })).not.toBeInTheDocument()
+
+    rerender(<ModelTypeFilterTabs value="image" onValueChange={vi.fn()} counts={counts} hideEmptyFilters />)
+    expect(screen.getByRole('tab', { name: /models\.type\.image/ })).toBeInTheDocument()
+  })
 })

@@ -2,4 +2,4 @@
 '@cherrystudio/ai-core': patch
 ---
 
-Forward the caller-injected `fetch` in the `azure-anthropic` provider variant. The variant rebuilds the Anthropic provider via `createAnthropic(...)` from a curated subset of settings and previously dropped `fetch`, so a custom fetch (e.g. a proxy-aware implementation) injected at the provider-config layer was silently lost for Azure Claude requests.
+Forward the caller-injected `fetch` in the `azure-anthropic` provider variant. The variant rebuilds the Anthropic provider via `createAnthropic(...)` from a curated subset of settings and previously dropped `fetch`, so a custom fetch (e.g. a proxy-aware implementation) injected at the provider-config layer was silently lost for Azure Claude requests. This restores proxy support for third-party APIs behind a proxy/VPN (e.g. yunwu.ai) when routed through the Azure Anthropic path — fixes #18633.

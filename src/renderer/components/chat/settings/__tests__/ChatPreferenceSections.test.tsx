@@ -1,4 +1,6 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +21,8 @@ const mocks = vi.hoisted(() => ({
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
     'chat.input.show_estimated_tokens': false,
+    'chat.input.paste_long_text_as_file': false,
+    'chat.input.paste_long_text_threshold': 1500,
     'chat.message.render_as_markdown': false,
     'chat.message.show_outline': false,
     'chat.code.show_line_numbers': false,
@@ -59,43 +63,48 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 }))
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
-  useCodeStyle: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
+  useCodeStyleThemeCatalog: () => ({ loadThemeNames: mocks.loadThemeNames, themeNames: ['auto', 'github'] })
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
-  Divider: ({ className }: { className?: string }) => <hr className={className} />,
-  Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
-    <div className={className}>{children}</div>
-  ),
-  Select: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  SelectContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  SelectItem: ({ children, value }: PropsWithChildren<{ value: string }>) => <div data-value={value}>{children}</div>,
-  SelectTrigger: ({ children }: PropsWithChildren) => <button type="button">{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder?: ReactNode }) => <span>{placeholder}</span>,
-  Slider: ({ value }: { value: number[] }) => <div data-testid="slider" data-value={value.join(',')} />,
-  Switch: ({
-    'aria-label': ariaLabel,
-    checked,
-    onCheckedChange
-  }: {
-    'aria-label'?: string
-    checked?: boolean
-    onCheckedChange?: (checked: boolean) => void
-  }) => (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      data-checked={String(Boolean(checked))}
-      onClick={() => onCheckedChange?.(!checked)}
-    />
-  ),
-  Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const { EditableNumber } = await importOriginal<typeof CherryStudioUi>()
+
+  return {
+    CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
+    Divider: ({ className }: { className?: string }) => <hr className={className} />,
+    EditableNumber,
+    Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
+      <div className={className}>{children}</div>
+    ),
+    Select: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    SelectContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    SelectItem: ({ children, value }: PropsWithChildren<{ value: string }>) => <div data-value={value}>{children}</div>,
+    SelectTrigger: ({ children }: PropsWithChildren) => <button type="button">{children}</button>,
+    SelectValue: ({ placeholder }: { placeholder?: ReactNode }) => <span>{placeholder}</span>,
+    Slider: ({ value }: { value: number[] }) => <div data-testid="slider" data-value={value.join(',')} />,
+    Switch: ({
+      'aria-label': ariaLabel,
+      checked,
+      onCheckedChange
+    }: {
+      'aria-label'?: string
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) => (
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        data-checked={String(Boolean(checked))}
+        onClick={() => onCheckedChange?.(!checked)}
+      />
+    ),
+    Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  }
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -106,6 +115,8 @@ describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
+    mocks.preferenceValues['chat.input.paste_long_text_as_file'] = false
+    mocks.preferenceValues['chat.input.paste_long_text_threshold'] = 1500
     mocks.loadThemeNames.mockClear()
     mocks.setPreference.mockClear()
   })
@@ -132,6 +143,44 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
     expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
     expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
+  })
+
+  it('hides the long paste threshold until the paste-as-file toggle is enabled', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<ChatPreferenceSections />)
+
+    const toggle = screen.getByRole('button', { name: 'settings.messages.input.paste_long_text_as_file' })
+    expect(toggle).toHaveAttribute('data-checked', 'false')
+    expect(screen.queryByText('settings.messages.input.paste_long_text_threshold')).toBeNull()
+
+    await user.click(toggle)
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.paste_long_text_as_file', true)
+    rerender(<ChatPreferenceSections />)
+
+    expect(
+      screen.getByRole('spinbutton', {
+        name: 'settings.messages.input.paste_long_text_threshold'
+      })
+    ).toBeInTheDocument()
+  })
+
+  it('lets the user update the long paste threshold through the real number field', async () => {
+    const user = userEvent.setup()
+    mocks.preferenceValues['chat.input.paste_long_text_as_file'] = true
+    render(<ChatPreferenceSections />)
+
+    const thresholdInput = screen.getByRole('spinbutton', {
+      name: 'settings.messages.input.paste_long_text_threshold'
+    })
+    expect(thresholdInput).toHaveAttribute('min', '500')
+    expect(thresholdInput).toHaveAttribute('max', '10000')
+    expect(thresholdInput).toHaveAttribute('step', '100')
+
+    await user.clear(thresholdInput)
+    await user.type(thresholdInput, '2400')
+
+    expect(mocks.setPreference).toHaveBeenCalledWith('chat.input.paste_long_text_threshold', 2400)
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {

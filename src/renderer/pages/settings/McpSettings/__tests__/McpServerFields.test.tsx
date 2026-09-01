@@ -6,6 +6,7 @@ import {
   type McpFormValues,
   resolveMcpConfigInstallSource,
   resolveMcpConfigTransportType,
+  showsEnvEditor,
   toMcpFormDefaultValues,
   toMcpServerFields
 } from '../McpServerFields'
@@ -33,6 +34,19 @@ const stdioFormValues = (overrides: Partial<McpFormValues> = {}): McpFormValues 
 describe('toMcpServerFields', () => {
   it('clears environment variables when the stdio env input is empty', () => {
     expect(toMcpServerFields(stdioFormValues()).env).toEqual({})
+  })
+
+  it('keeps the API key of a hosted built-in server that connects over HTTP', () => {
+    // QVeris authenticates with env.QVERIS_API_KEY whatever transport it uses; dropping env
+    // on save would leave a migrated or freshly installed server permanently unconfigurable.
+    const values = stdioFormValues({
+      serverType: 'streamableHttp',
+      baseUrl: 'https://mcp.qveris.ai/mcp',
+      command: '',
+      env: 'QVERIS_API_KEY=secret'
+    })
+
+    expect(toMcpServerFields(values).env).toEqual({ QVERIS_API_KEY: 'secret' })
   })
 
   it('clears headers when the remote server headers input is empty', () => {
@@ -131,5 +145,22 @@ describe('buildMcpSchema', () => {
     expect(result.error?.issues).toContainEqual(
       expect.objectContaining({ path: ['command'], message: 'settings.mcp.command' })
     )
+  })
+})
+
+describe('showsEnvEditor', () => {
+  it('offers env wherever the runtime reads it', () => {
+    expect(showsEnvEditor('stdio')).toBe(true)
+    expect(showsEnvEditor('inMemory')).toBe(true)
+  })
+
+  it('offers env to a hosted built-in that authenticates with one, such as QVeris', () => {
+    expect(showsEnvEditor('streamableHttp', true)).toBe(true)
+  })
+
+  it('hides env from remote servers that never read it', () => {
+    // flomo and Nowledge Mem are built-in HTTP servers with no env consumer.
+    expect(showsEnvEditor('streamableHttp')).toBe(false)
+    expect(showsEnvEditor('sse')).toBe(false)
   })
 })

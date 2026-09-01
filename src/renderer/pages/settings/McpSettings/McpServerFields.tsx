@@ -62,6 +62,15 @@ export function resolveMcpConfigTransportType(type: McpServer['type'], name: str
   return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
 }
 
+/**
+ * Env reaches the runtime for stdio and in-memory servers. Over HTTP only a built-in that
+ * declares it needs configuration reads it — QVeris turns `QVERIS_API_KEY` into its auth
+ * header — so every other remote server keeps the editor hidden.
+ */
+export function showsEnvEditor(serverType: McpServer['type'], builtinRequiresEnv?: boolean): boolean {
+  return serverType === 'stdio' || serverType === 'inMemory' || Boolean(builtinRequiresEnv)
+}
+
 export function resolveMcpConfigInstallSource(
   server: Pick<McpServer, 'installSource' | 'name' | 'type'>
 ): McpServer['installSource'] {
@@ -249,8 +258,10 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
   } else {
     fields.command = values.command
     fields.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
-    fields.env = parseKeyValueString(values.env ?? '')
   }
+  // Env is not stdio-only: hosted built-ins such as QVeris keep their API key here whatever
+  // transport they use, so it must round-trip instead of being dropped on save.
+  fields.env = parseKeyValueString(values.env ?? '')
 
   return fields
 }
@@ -280,6 +291,8 @@ interface FieldsProps {
   registryState: McpRegistryState
   /** Built-in servers keep their identity while exposing transport-specific configuration. */
   isBuiltin?: boolean
+  /** A built-in that declares `shouldConfig`: its credentials live in env whatever the transport. */
+  builtinRequiresEnv?: boolean
   /** Single-column layout for the quick-create dialog. */
   singleColumn?: boolean
   /** Allows quick-create to render args before the advanced section. */
@@ -437,8 +450,15 @@ export function McpArgsField({ form }: Pick<FieldsProps, 'form'>) {
   )
 }
 
-/** Transport details: headers for remote servers, registry / args / env for stdio. */
-export function McpTransportFields({ form, serverType, registryState, singleColumn, includeArgs = true }: FieldsProps) {
+/** Transport details: headers for remote servers, registry / args for stdio, env where credentials live. */
+export function McpTransportFields({
+  form,
+  serverType,
+  registryState,
+  builtinRequiresEnv,
+  singleColumn,
+  includeArgs = true
+}: FieldsProps) {
   const { t } = useTranslation()
   const { registry, selectedRegistryType, customRegistryUrl, onSelectRegistry, onCustomRegistryChange } = registryState
 
@@ -505,9 +525,9 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
           )}
         />
       )}
-      {(serverType === 'stdio' || serverType === 'inMemory') && (
+      {(serverType === 'stdio' || serverType === 'inMemory') && includeArgs && <McpArgsField form={form} />}
+      {showsEnvEditor(serverType, builtinRequiresEnv) && (
         <>
-          {includeArgs && <McpArgsField form={form} />}
           <FormField
             control={form.control}
             name="env"
