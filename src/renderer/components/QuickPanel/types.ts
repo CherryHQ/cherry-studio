@@ -24,6 +24,7 @@ export interface QuickPanelInsertTokenOptions {
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
+  getSelectionEndOffset?: () => number
   /**
    * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
    * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that

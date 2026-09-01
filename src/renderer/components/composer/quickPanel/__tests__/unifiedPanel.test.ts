@@ -114,15 +114,6 @@ describe('prepareComposerQuickPanelSearch', () => {
       consumeQueryOnDismiss: true,
       triggerInfo: { type: 'button' }
     })
-
-    // consumeInputQuery deletes [queryAnchor, cursor] when queryAnchor is defined. After the
-    // trigger is gone, leftover text sits at the caret; a stale 0-anchor would wipe it.
-    cursorOffset = text.length
-    const consumeQueryAnchor = result.queryAnchor
-    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
-      inputAdapter.deleteTriggerRange({ from: consumeQueryAnchor, to: cursorOffset })
-    }
-    expect(text).toBe('hello world')
   })
 
   it('starts button-opened search at the cursor without changing existing text', () => {
@@ -716,7 +707,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
   it('does not treat leftover slash text as a resource submenu live filter', () => {
     // Bug: slash-open handleItemAction consumes `/prompt ` then still forwards queryAnchor 0
     // into openUnifiedPanelSubmenu, so leftover `hello world` is tracked and later wiped.
-    const leftover = 'hello world'
     const onToolLauncherSelect = vi.fn()
     const options = createUnifiedQuickPanelOpenOptions(
       [
@@ -741,7 +731,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         quickPanel,
         onToolLauncherSelect,
         queryAnchor: 0,
-        triggerInfo: { type: 'input', position: 0, originalText: `/prompt ${leftover}` }
+        triggerInfo: { type: 'input', position: 0, originalText: '/prompt hello world' }
       }
     )
     const skills = options.list[0]
@@ -759,15 +749,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     const opened = vi.mocked(quickPanel.open).mock.calls[0][0]
     expect(opened.queryAnchor).toBeUndefined()
     expect(opened.triggerInfo).toEqual({ type: 'button' })
-
-    let text = leftover
-    let cursorOffset = leftover.length
-    const consumeQueryAnchor = opened.queryAnchor
-    if (consumeQueryAnchor !== undefined && cursorOffset > consumeQueryAnchor) {
-      text = `${text.slice(0, consumeQueryAnchor)}${text.slice(cursorOffset)}`
-      cursorOffset = consumeQueryAnchor
-    }
-    expect(text).toBe(leftover)
   })
 
   it('does not forward a slash queryAnchor into a panel launcher that opens a resource submenu', () => {

@@ -1067,6 +1067,47 @@ describe('QuickPanelView', () => {
     expect(input.getText()).toBe(leftover)
   })
 
+  it('tracks replacement text from a selected composer range without consuming surrounding draft', async () => {
+    const captureDispatch = vi.fn()
+    const input = createMutableTrackedInput('prefix SELECTED suffix', 'prefix '.length)
+    const inputAdapter = {
+      ...input.inputAdapter,
+      getSelectionEndOffset: () => 'prefix SELECTED'.length
+    } satisfies QuickPanelInputAdapter
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card' },
+            { id: 'other', label: 'Other note', icon: 'other' }
+          ]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    expect(screen.getByText('Other note')).toBeInTheDocument()
+
+    input.setText('prefix card suffix', 'prefix card'.length)
+    act(() => input.emitInput())
+
+    await waitFor(() => expect(screen.queryByText('Other note')).not.toBeInTheDocument())
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 'prefix '.length, to: 'prefix card'.length })
+    expect(input.getText()).toBe('prefix  suffix')
+  })
+
   it('consumes a live filter on outside click without deleting leftover draft', async () => {
     const action = vi.fn()
     const leftover = 'hello world'

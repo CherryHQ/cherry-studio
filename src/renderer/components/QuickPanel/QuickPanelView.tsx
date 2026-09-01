@@ -510,6 +510,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const text = inputAdapter.getText()
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+    const selectionEndOffset = inputAdapter.getSelectionEndOffset?.() ?? cursorOffset
+    const hasSelectedText = selectionEndOffset > cursorOffset
     const queryAnchor = Math.max(
       0,
       Math.min(ctx.queryAnchor ?? ctx.triggerInfo?.position ?? cursorOffset, cursorOffset)
@@ -520,9 +522,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     queryAnchorRef.current = queryAnchor
-    // Text after the caret is leftover draft, not a live filter for later consume.
+    // Text after the selection is leftover draft, not a live filter for later consume.
     leftoverSuffixRef.current =
-      ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' ? text.slice(cursorOffset) : ''
+      ctx.consumeQueryOnDismiss && ctx.triggerInfo?.type === 'button' ? text.slice(selectionEndOffset) : ''
     if (!isTrackedInputPanel) {
       leftoverSuffixRef.current = ''
       setInputSearchText('')
@@ -542,7 +544,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     const nextSearchText =
       ctx.triggerInfo?.type === 'button' && ctx.consumeQueryOnDismiss
-        ? (getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current) ?? '')
+        ? hasSelectedText
+          ? ''
+          : (getButtonTrackedSearchText(text, queryAnchor, cursorOffset, leftoverSuffixRef.current) ?? '')
         : text.slice(queryAnchor, cursorOffset)
     if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
