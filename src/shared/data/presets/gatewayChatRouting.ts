@@ -100,9 +100,52 @@ export function resolveDmxapiEndpointType(modelId: string): EndpointType {
   return resolveDmxapiChatRoute(modelId).endpointType
 }
 
+export type CherryinChatFamily = 'anthropic' | 'gemini' | 'openai-responses' | 'openai-chat' | 'compat'
+
+export function resolveCherryinChatFamily(modelId: string): CherryinChatFamily {
+  const baseId = modelId.toLowerCase().split('/').pop() ?? modelId.toLowerCase()
+  if (baseId.startsWith('claude')) return 'anthropic'
+  if (
+    (baseId.startsWith('gemini') || baseId.startsWith('imagen')) &&
+    !baseId.endsWith('no-think') &&
+    !baseId.endsWith('-search') &&
+    !baseId.includes('embedding')
+  ) {
+    return 'gemini'
+  }
+  if (isOpenAILLM(baseId)) return isOpenAIChatCompletionOnly(baseId) ? 'openai-chat' : 'openai-responses'
+  return 'compat'
+}
+
+const CHERRYIN_ENDPOINT: Record<CherryinChatFamily, EndpointType> = {
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'openai-responses': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-chat': ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  compat: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+}
+
+const CHERRYIN_OPTIONS_KEY: Record<CherryinChatFamily, string> = {
+  anthropic: 'anthropic',
+  gemini: 'google',
+  'openai-responses': 'openai',
+  'openai-chat': 'openai',
+  compat: 'cherryin'
+}
+
+export function resolveCherryinChatRoute(modelId: string): GatewayModelRoute {
+  const family = resolveCherryinChatFamily(modelId)
+  return { endpointType: CHERRYIN_ENDPOINT[family], providerOptionsKey: CHERRYIN_OPTIONS_KEY[family] }
+}
+
+export function resolveCherryinEndpointType(modelId: string): EndpointType {
+  return CHERRYIN_ENDPOINT[resolveCherryinChatFamily(modelId)]
+}
+
 const GATEWAY_MODEL_ROUTERS: Partial<Record<string, (modelId: string) => GatewayModelRoute>> = {
   [SystemProviderIds.aihubmix]: resolveAihubmixChatRoute,
-  [SystemProviderIds.dmxapi]: resolveDmxapiChatRoute
+  [SystemProviderIds.dmxapi]: resolveDmxapiChatRoute,
+  [SystemProviderIds.cherryin]: resolveCherryinChatRoute
 }
 
 /** Resolve a gateway's per-model wire route from data available in both main and renderer. */
