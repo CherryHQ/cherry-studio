@@ -1,4 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange } from '@data/hooks/useDataChange'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 
 /**
@@ -15,9 +16,10 @@ export function useImageGenerationSupport(
   providerId: string | undefined,
   modelId: string | undefined
 ): ImageGenerationSupport | undefined {
-  const { data } = useQuery('/providers/:providerId/models/:modelId*/image-generation-support', {
+  const { data, refetch } = useQuery('/providers/:providerId/models/:modelId*/image-generation-support', {
     params: { providerId: providerId ?? '__none__', modelId: modelId ?? '__none__' },
     enabled: Boolean(providerId && modelId)
   })
+  useDataChange('/providers/:providerId/models/:modelId*/image-generation-support', () => void refetch())
   return data ?? undefined
 }

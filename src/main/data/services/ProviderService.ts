@@ -15,7 +15,6 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import { buildApiFeaturesBaseline, diffApiFeatures } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
@@ -35,17 +34,38 @@ import type {
   AuthType,
   EndpointConfigOverride,
   Provider,
-  ProviderSettings,
-  RuntimeApiFeatures
+  ProviderSettings
 } from '@shared/data/types/provider'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
+import { resolveEndpointDialect } from '@shared/utils/provider'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { isRetiredProvider } from '../retiredProviders'
+
 const logger = loggerService.withContext('DataApi:ProviderService')
 
+function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
+  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return patch
+
+  const result: Record<string, unknown> =
+    target !== null && typeof target === 'object' && !Array.isArray(target)
+      ? { ...(target as Record<string, unknown>) }
+      : {}
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null) {
+      delete result[key]
+    } else {
+      result[key] = applyJsonMergePatch(result[key], value)
+    }
+  }
+  return result
+}
+
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 /**
  * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
@@ -101,6 +121,15 @@ function assertManagedCherryAiProviderMutationAllowed(providerId: string, operat
   }
 
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI provider cannot be modified')
+}
+
+function assertProviderAvailable<T extends ProviderIdentity>(
+  row: T | null | undefined,
+  providerId: string
+): asserts row is T {
+  if (!row || isRetiredProvider(row.providerId, row.presetProviderId)) {
+    throw DataApiErrorFactory.notFound('Provider', providerId)
+  }
 }
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
@@ -188,6 +217,14 @@ function projectEndpointConfigOverrides(
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+    // Same delta rule per dialect key: a value equal to the registry's is not an override.
+    const baselineDialect = resolveEndpointDialect({ endpointConfigs: presetConfigs ?? undefined }, ep)
+    const dialect = Object.fromEntries(
+      Object.entries(config.dialect ?? {}).filter(
+        ([flag, value]) => value !== undefined && value !== baselineDialect[flag as keyof typeof baselineDialect]
+      )
+    )
+    if (Object.keys(dialect).length > 0) override.dialect = dialect
     if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
       override.adapterFamily = storedConfigs[ep].adapterFamily
     }
@@ -217,13 +254,6 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     authType = row.authConfig.type
   }
 
-  // Merge API features: app defaults ← registry baseline ← row delta.
-  const apiFeatures: RuntimeApiFeatures = {
-    ...DEFAULT_API_FEATURES,
-    ...presetMetadata.apiFeatures,
-    ...row.apiFeatures
-  }
-
   // Merge settings
   const settings: ProviderSettings = {
     ...DEFAULT_PROVIDER_SETTINGS,
@@ -249,7 +279,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
     // endpoint-type key set) resolve from the CURRENT registry at read time
     // (#17096 — the seeder is insert-only, so the row alone goes stale);
-    // the row contributes only the user-owned baseUrl override. Legacy
+    // the row contributes user-owned baseUrl and dialect overrides. Legacy
     // registry-only fields such as `reasoningFormatType` are stripped first.
     endpointConfigs:
       providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
@@ -260,10 +290,10 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     authOptional: presetMetadata.authOptional,
     serverTools: presetMetadata.serverTools ?? [],
     ...(presetMetadata.reportedCostCurrency ? { reportedCostCurrency: presetMetadata.reportedCostCurrency } : {}),
+    reportsActualCost: presetMetadata.reportsActualCost ?? false,
     fastMode: presetMetadata.fastMode,
     apiKeys,
     authType,
-    apiFeatures,
     settings,
     isEnabled: row.isEnabled
   }
@@ -309,7 +339,7 @@ class ProviderService {
             .all()
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
-    return rows.map(rowToRuntimeProvider)
+    return rows.filter((row) => !isRetiredProvider(row.providerId, row.presetProviderId)).map(rowToRuntimeProvider)
   }
 
   /**
@@ -319,9 +349,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     return rowToRuntimeProvider(row)
   }
@@ -330,6 +358,9 @@ class ProviderService {
    * Create a new provider
    */
   create(dto: CreateProviderDto): Provider {
+    if (isRetiredProvider(dto.providerId, dto.presetProviderId)) {
+      throw DataApiErrorFactory.invalidOperation(`create provider ${dto.providerId}`, 'provider is retired')
+    }
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
     const endpointConfigs = projectEndpointConfigOverrides(
@@ -341,7 +372,6 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
-    const apiFeatures = diffApiFeatures(dto.apiFeatures, buildApiFeaturesBaseline(presetMetadata.apiFeatures))
     const defaultChatEndpoint =
       dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
@@ -360,7 +390,6 @@ class ProviderService {
             defaultChatEndpoint,
             apiKeys: dto.apiKeys ?? [],
             authConfig: dto.authConfig ?? null,
-            apiFeatures,
             providerSettings: dto.providerSettings ?? null,
             isEnabled: false
           }
@@ -398,8 +427,8 @@ class ProviderService {
       // into the row and break the "row stores only overrides" contract.
       const [current] = tx
         .select({
+          providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
-          apiFeatures: userProviderTable.apiFeatures,
           endpointConfigs: userProviderTable.endpointConfigs,
           isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
@@ -409,9 +438,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!current) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(current, providerId)
 
       const updates: Partial<InsertUserProviderRow> = {}
 
@@ -433,7 +460,7 @@ class ProviderService {
       }
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
       const presetMetadata =
-        dto.defaultChatEndpoint !== undefined || dto.apiFeatures !== undefined
+        dto.defaultChatEndpoint !== undefined
           ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(providerId, current.presetProviderId)
           : undefined
       // A renderer may echo the merged runtime value while editing an unrelated
@@ -443,20 +470,11 @@ class ProviderService {
         updates.defaultChatEndpoint =
           dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint ? null : dto.defaultChatEndpoint
       }
-      // apiFeatures follows the providerSettings pattern: shallow-merge the
-      // stored delta with the PATCH inside the tx (lost-update-safe), then
-      // reduce against the registry baseline so only real overrides persist.
-      if (dto.apiFeatures !== undefined) {
-        updates.apiFeatures = diffApiFeatures(
-          { ...current.apiFeatures, ...dto.apiFeatures },
-          buildApiFeaturesBaseline(presetMetadata?.apiFeatures)
-        )
-      }
       if (dto.providerSettings !== undefined) {
-        updates.providerSettings = {
-          ...(current.providerSettings as Partial<ProviderSettings> | null),
-          ...dto.providerSettings
-        }
+        updates.providerSettings = applyJsonMergePatch(
+          current.providerSettings,
+          dto.providerSettings
+        ) as Partial<ProviderSettings>
       }
 
       if (dto.isEnabled === true && !current.isEnabled) {
@@ -525,9 +543,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     const allKeys = row.apiKeys ?? []
     if (override !== undefined) {
@@ -582,9 +598,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     const apiKeys = row.apiKeys ?? []
     return options.enabled ? apiKeys.filter((k) => k.isEnabled) : apiKeys
@@ -597,9 +611,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
     const [row] = db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId)).limit(1).all()
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+    assertProviderAvailable(row, providerId)
 
     return row.authConfig ?? null
   }
@@ -620,9 +632,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
 
@@ -665,9 +675,21 @@ class ProviderService {
   replaceApiKeys(providerId: string, apiKeys: ApiKeyEntry[]): Provider {
     assertManagedCherryAiProviderMutationAllowed(providerId, `replace API keys for provider ${providerId}`)
 
-    const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
     const db = application.get('DbService').getDb()
     const provider = db.transaction((tx) => {
+      const [current] = tx
+        .select({
+          providerId: userProviderTable.providerId,
+          presetProviderId: userProviderTable.presetProviderId
+        })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
+        .all()
+
+      assertProviderAvailable(current, providerId)
+
+      const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
       const [row] = tx
         .update(userProviderTable)
         .set({ apiKeys: normalizedApiKeys })
@@ -682,7 +704,7 @@ class ProviderService {
       return rowToRuntimeProvider(row)
     })
 
-    logger.info('Replaced provider API keys', { providerId, count: normalizedApiKeys.length })
+    logger.info('Replaced provider API keys', { providerId, count: apiKeys.length })
 
     return provider
   }
@@ -710,9 +732,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
       const keyIndex = existingKeys.findIndex((entry) => entry.id === keyId)
@@ -782,9 +802,7 @@ class ProviderService {
         .limit(1)
         .all()
 
-      if (!row) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(row, providerId)
 
       const existingKeys = row.apiKeys ?? []
       const updatedKeys = existingKeys.filter((entry) => entry.id !== keyId)
@@ -815,15 +833,16 @@ class ProviderService {
   delete(providerId: string): void {
     const deletedModelCount = application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
-        .select({ presetProviderId: userProviderTable.presetProviderId })
+        .select({
+          providerId: userProviderTable.providerId,
+          presetProviderId: userProviderTable.presetProviderId
+        })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
         .all()
 
-      if (!provider) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
+      assertProviderAvailable(provider, providerId)
 
       // Block deletion of canonical preset rows. `presetProviderId === providerId`
       // covers presets that group under themselves; the registry check also

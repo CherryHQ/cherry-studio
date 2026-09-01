@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { createRequire } from 'node:module'
 import { beforeAll, beforeEach, expect, vi } from 'vitest'
 
+import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
 import { resetPopupMocks } from './__mocks__/renderer/popup'
 import { resetToastMocks } from './__mocks__/renderer/toast'
 
@@ -189,6 +190,7 @@ vi.mock('@cherrystudio/ui', () => {
     useMarkdownBlockContext: () => ({ content: '' }),
     createSlugger: () => ({ slug: (value) => String(value ?? '') }),
     extractTextFromNode: () => '',
+    BlurCancelPointerSensor: class BlurCancelPointerSensor {},
     ReorderableList: ({ items, renderItem, getId }) =>
       React.createElement(
         React.Fragment,
@@ -924,6 +926,7 @@ vi.mock('@cherrystudio/ui', () => {
       secondaryLabel,
       onSecondary,
       preset,
+      compact: _compact,
       ...props
     }) =>
       React.createElement(
@@ -968,8 +971,7 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
-    AvatarImage: ({ src, ...props }) =>
-      React.createElement('img', { ...props, src, alt: '', 'data-testid': 'avatar-image' }),
+    AvatarImage: ({ src, ...props }) => React.createElement('img', { ...props, src, 'data-testid': 'avatar-image' }),
     AvatarFallback: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
@@ -986,6 +988,7 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
+    DescriptionSwitch: MockCherrystudioUI.DescriptionSwitch,
     Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -1003,6 +1006,14 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
     TabsContent: ({ children, value, ...props }) =>
       React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
+    // InputGroup primitives — flattened: the input and its addons render side by side
+    InputGroup: ({ children, ...props }) => React.createElement('div', { ...props, role: 'group' }, children),
+    InputGroupInput: (props) => React.createElement('input', props),
+    InputGroupAddon: ({ children, align, ...props }) =>
+      React.createElement('div', { ...props, 'data-align': align }, children),
+    InputGroupButton: ({ children, variant, size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button' }, children),
+    InputGroupText: ({ children, ...props }) => React.createElement('span', props, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>

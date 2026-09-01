@@ -1,7 +1,18 @@
+---
+description: app_state SQLite table for durable owner-private completion and reconciliation markers
+sources:
+  - src/main/data/db/schemas/appState.ts
+  - src/main/data/db/seeding/SeedRunner.ts
+  - src/main/data/migration/v2/core/MigrationEngine.ts
+  - src/main/services/file/tasks/contentMetadataGeneration.ts
+---
+
 # App State System Overview
 
-`app_state` is a SQLite-backed key-value table holding durable **internal continuity markers** — the app's own record of one-time work it has performed (data migration, seeding, one-off setup).
-It exists to preserve functional continuity across restarts: losing a value does not lose user data, but makes the app re-run a one-time flow the user has already been through.
+`app_state` is a SQLite-backed key-value table holding durable internal markers:
+the app's record of one-time work or reconciliation generations it has already
+applied. Losing a value does not directly delete user data, but may repeat an
+expensive migration, seed, or metadata reconciliation.
 
 ## When to Use
 
@@ -11,7 +22,7 @@ Write to `app_state` only when **all three** hold:
 | ------------------------------------------------------------- | --------------- |
 | Is this internal app/module state, not a user-facing setting? | Yes             |
 | Must it survive restarts?                                     | Yes             |
-| Would losing it make the user re-experience a one-time flow?  | Yes             |
+| Would losing it repeat completed setup or reconciliation work? | Yes           |
 
 Otherwise use another system:
 
@@ -37,11 +48,11 @@ Otherwise use another system:
 
 ### Access
 
-No dedicated service — the owning module reads/writes `appStateTable` directly through its own `DbType` handle.
-
-**Why none today:** every current consumer runs during app startup, at or before the lifecycle's earliest phase, so a lifecycle-managed service would be unavailable to them — preboot migration even supplies its own DB connection. App-state content is inherently startup-stage; no consumer yet needs it during a later lifecycle phase.
-
-**Future:** if consumers with a confirmed need arise during or after the lifecycle, a shared app-state access service may be introduced then. Do not add one preemptively.
+There is no shared service. Each owner reads and writes its own key through the
+database handle already available to that owner. Migration receives its
+dedicated migration DB; seeding uses the boot database; file metadata
+reconciliation uses `DbService`. Sharing the table does not make keys a
+cross-domain API.
 
 ### Ownership
 
@@ -68,7 +79,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | `seed:<name>`         | `SeedRunner`     | `{ version: string }`   | Seeding journal, one row per seeder. See [Database Seeding Guide](./database-seeding-guide.md).                                                                                                              |
 | `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `fileManager:contentMetadataGeneration` | `FileManager` | `{ version: number }` | Trust generation for internal-file `size` / `contentHash`; a version change atomically invalidates old hashes before background reconciliation. |
-| `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention; serves only the one-time v1→2.0.0 migration and disappears when the migration module is removed after 2.0.x. Do not rename; do not model new keys on it. |
+| `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention. Do not rename and do not model new keys on it. |
 
 ## Related Source Code
 

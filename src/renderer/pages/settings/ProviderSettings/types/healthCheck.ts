@@ -1,32 +1,30 @@
 import type { SerializedError } from '@renderer/types/error'
-import { HealthStatus } from '@renderer/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
 
-export { HealthStatus }
+export enum HealthStatus {
+  SUCCESS = 'success',
+  FAILED = 'failed',
+  NOT_CHECKED = 'not_checked'
+}
+
+export type ModelCheckKeySelection = { mode: 'all' } | { mode: 'single'; keyId: string }
+
+export interface ModelCheckCredentialPolicy {
+  canSelectApiKey: boolean
+  requiresApiKey: boolean
+}
+
+export type ModelCheckCredential =
+  | { kind: 'api-key'; entry: ApiKeyEntry }
+  | { kind: 'provider-auth'; id: 'provider-auth'; key: '' }
 
 export type ApiKeyConnectivity =
-  | {
-      kind: 'idle'
-      status: HealthStatus.NOT_CHECKED
-      checking: false
-      error?: never
-      model?: Model
-      latency?: never
-    }
-  | {
-      kind: 'checking'
-      status: HealthStatus.NOT_CHECKED
-      checking: true
-      error?: never
-      model?: Model
-      latency?: never
-    }
   | {
       kind: 'failed'
       status: HealthStatus.FAILED
       checking: false
       error: SerializedError
-      model?: Model
       latency?: never
     }
   | {
@@ -34,12 +32,11 @@ export type ApiKeyConnectivity =
       status: HealthStatus.SUCCESS
       checking: false
       error?: never
-      model?: Model
       latency?: number
     }
 
 export type ApiKeyWithStatus = ApiKeyConnectivity & {
-  key: string
+  credential: ModelCheckCredential
 }
 
 export type ModelHealthCheckGenerationOutput = 'image' | 'video' | 'audio'
@@ -60,15 +57,6 @@ export type ModelWithStatus =
       status: HealthStatus.NOT_CHECKED
       keyResults: []
       checking: true
-      latency?: never
-      error?: never
-    }
-  | {
-      kind: 'idle'
-      model: Model
-      status: HealthStatus.NOT_CHECKED
-      keyResults: []
-      checking: false
       latency?: never
       error?: never
     }
@@ -103,7 +91,7 @@ export type ModelWithStatus =
 
 export interface ModelCheckOptions {
   models: readonly Model[]
-  apiKeys: string[]
+  credentials: ModelCheckCredential[]
   isConcurrent: boolean
   timeout?: number
   signal?: AbortSignal

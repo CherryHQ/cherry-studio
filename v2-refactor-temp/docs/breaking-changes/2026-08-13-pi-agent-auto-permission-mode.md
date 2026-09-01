@@ -13,17 +13,18 @@ Fast (Pi) agents now offer the "Approve for Me" permission mode, and new ones ar
 destructive shell command (`rm`, `sudo`, `git reset --hard`, a piped remote script, a command reaching into the
 home directory, …), or a file tool pointed outside its workspace and data directory.
 
-"Full Access" on a Fast (Pi) agent is now unconditional: tools that used to keep asking even there (knowledge-base
-edits, image generation, CLI installs, assistant settings tools) run without a prompt, and the global-install
-block no longer applies. Disabling a tool is the only thing that still stops it.
+"Full Access" on a Fast (Pi) agent now lifts every approval prompt: tools that used to keep asking even there
+(knowledge-base edits, image generation, CLI installs, assistant settings tools) run without a prompt. Two
+explicit safety blocks still apply — disabled tools, and shell commands that install into the shared global
+environment (`npm install -g`, `pip install --user`, …), which are denied outright rather than prompted.
 
 Advanced (Claude Agent) agents are unchanged.
 
 ## Why this matters to the user
 
 A new Fast agent interrupts far less than before, stopping when it recognizes a risky operation.
-Users who had picked "Full Access" on a Fast agent will notice it has become genuinely unattended — nothing is
-held back any more.
+Users who had picked "Full Access" on a Fast agent will notice it has become genuinely unattended — only
+disabled tools and global installs are still held back, and those are denied without interrupting.
 
 ## What the user should do
 

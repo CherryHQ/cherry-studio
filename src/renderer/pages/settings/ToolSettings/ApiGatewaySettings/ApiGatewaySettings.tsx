@@ -20,6 +20,7 @@ import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
+import { gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { ExternalLink, Eye, EyeOff, Play, RotateCcw, Square } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -50,7 +51,7 @@ const ApiGatewaySettings: FC = () => {
 
   const serverHost = apiGatewayConfig.host || API_SERVER_DEFAULTS.HOST
   const serverPort = apiGatewayConfig.port || API_SERVER_DEFAULTS.PORT
-  const serverUrl = `http://${serverHost}:${serverPort}`
+  const serverUrl = gatewayClientOrigin(serverHost, serverPort)
   const apiKey = apiGatewayConfig.apiKey || ''
   const authorizationHeader = `Authorization: Bearer ${apiKey || 'your-api-key'}`
 

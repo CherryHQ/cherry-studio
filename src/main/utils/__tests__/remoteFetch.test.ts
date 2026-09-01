@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import type { IncomingMessage } from 'node:http'
 import type { RequestOptions } from 'node:https'
 
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const httpRequestMock = vi.hoisted(() => vi.fn())
@@ -59,6 +60,8 @@ describe('fetchRemoteText', () => {
     httpsRequestMock.mockReset()
     lookupMock.mockReset()
     lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', false)
   })
 
   it('fetches through a prevalidated DNS address without re-resolving at connection time', async () => {
@@ -111,6 +114,37 @@ describe('fetchRemoteText', () => {
     await expect(fetchRemoteText('https://example.com/article')).rejects.toThrow(/DNS resolved/)
 
     expect(httpRequestMock).not.toHaveBeenCalled()
+    expect(httpsRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('reaches a private DNS answer when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    lookupMock.mockResolvedValue([{ address: '10.0.0.5', family: 4 }])
+    mockHttpsResponse({ body: 'intranet' })
+
+    await expect(fetchRemoteText('https://wiki.internal/page')).resolves.toBe('intranet')
+
+    const requestOptions = httpsRequestMock.mock.calls[0]?.[0] as RequestOptions
+    const callback = vi.fn()
+    requestOptions.lookup?.('wiki.internal', {}, callback)
+    expect(callback).toHaveBeenCalledWith(null, '10.0.0.5', 4)
+  })
+
+  it('reaches a literal LAN address when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+    mockHttpsResponse({ body: 'nas' })
+
+    await expect(fetchRemoteText('https://192.168.1.10:8080/docs')).resolves.toBe('nas')
+
+    expect(lookupMock).not.toHaveBeenCalled()
+  })
+
+  it('still rejects non-http schemes and credentials when app.fetch.allow_private_network is on', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.fetch.allow_private_network', true)
+
+    await expect(fetchRemoteText('file:///etc/passwd')).rejects.toThrow(/Invalid remote url/)
+    await expect(fetchRemoteText('https://user:pass@192.168.1.10/x')).rejects.toThrow(/credentials are not allowed/)
+
     expect(httpsRequestMock).not.toHaveBeenCalled()
   })
 

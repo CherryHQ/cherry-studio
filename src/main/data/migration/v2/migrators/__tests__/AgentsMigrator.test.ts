@@ -114,6 +114,49 @@ describe('AgentsMigrator', () => {
     expect(result.warnings).toEqual(['agents.db not found - no agents data to migrate'])
   })
 
+  it('preserves a non-SQLite legacy agents db and lets the remaining migration continue', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-invalid-db-'))
+    const dataDir = join(tempRoot, 'Data')
+    const dbPath = join(dataDir, 'agents.db')
+    const context = createMigrationContext({
+      paths: {
+        legacyAgentDbFile: dbPath,
+        legacyClaudeConfigDir: join(tempRoot, '.claude'),
+        legacyClaudeProjectsDir: join(tempRoot, '.claude', 'projects'),
+        claudeConfigDir: join(dataDir, 'Agents', '.claude'),
+        claudeProjectsDir: join(dataDir, 'Agents', '.claude', 'projects')
+      }
+    })
+    await mkdir(dataDir)
+    await writeFile(dbPath, 'not a sqlite database')
+
+    try {
+      const prepareResult = await migrator.prepare(context)
+      const executeResult = await migrator.execute(context)
+      const validateResult = await migrator.validate(context)
+
+      expect(prepareResult).toEqual({
+        success: true,
+        itemCount: 0,
+        warningMessages: [{ key: 'migration.completed.agent_database_unreadable' }]
+      })
+      expect(executeResult).toEqual({ success: true, processedCount: 0 })
+      expect(validateResult.success).toBe(true)
+      expect(await readFile(dbPath, 'utf8')).toBe('not a sqlite database')
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('does not hide retryable legacy agents database errors', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockImplementation(() => {
+      throw Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })
+    })
+
+    await expect(migrator.prepare(createMigrationContext())).rejects.toMatchObject({ code: 'SQLITE_BUSY' })
+  })
+
   it('copies the legacy Claude config even when no legacy agents db exists', async () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
     const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-claude-config-'))

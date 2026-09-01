@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListGroup from './ModelListGroup'
+import { useModelListHealthResults, useModelListHealthRun } from './modelListHealthContext'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupSection } from './useProviderModelList'
 
@@ -32,6 +33,7 @@ interface ModelListSectionsProps {
   onDeleteModels: (models: Model[]) => Promise<void>
   bulkActionDisabled?: boolean
   expansionCommand?: { expanded: boolean; version: number }
+  onContinueApiSetup?: () => void
 }
 
 type ModelListVirtualRow =
@@ -67,9 +69,12 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   onDeleteModel,
   onDeleteModels,
   bulkActionDisabled,
-  expansionCommand
+  expansionCommand,
+  onContinueApiSetup
 }) => {
   const { t } = useTranslation()
+  const { modelStatusMap } = useModelListHealthResults()
+  const { apiKeyEntries, savingKeyId, toggleApiKey } = useModelListHealthRun()
   const [groupOpenOverrides, setGroupOpenOverrides] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -138,7 +143,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
       <EmptyState
         compact
         title={t('settings.models.empty')}
-        description={t('settings.models.empty_hint')}
+        description={t(
+          onContinueApiSetup ? 'settings.provider.api_setup.models_empty_hint' : 'settings.models.empty_hint'
+        )}
+        actionLabel={onContinueApiSetup ? t('settings.provider.api_setup.continue_models') : undefined}
+        onAction={onContinueApiSetup}
         className="min-h-40"
       />
     )
@@ -190,6 +199,10 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
             <ModelListItem
               provider={provider}
               model={row.model}
+              modelStatus={modelStatusMap.get(row.model.id)}
+              apiKeyEntries={apiKeyEntries}
+              savingKeyId={savingKeyId}
+              onToggleApiKey={toggleApiKey}
               onEdit={onEditModel}
               onDelete={onDeleteModel}
               disabled={disabled || pendingModelIds.has(row.model.id)}

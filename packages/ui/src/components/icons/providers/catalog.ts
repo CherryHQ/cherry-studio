@@ -4,7 +4,7 @@
  *
  * Bulk component lookup — ordinary icon rendering uses loaders.ts instead
  *
- * Generated at: 2026-08-15T00:18:18.134Z
+ * Generated at: 2026-08-26T09:13:48.306Z
  * Total icons: 159
  */
 import { type CompoundIcon } from '../types'
@@ -71,7 +71,6 @@ import { GpustackIcon } from './gpustack'
 import { GrokIcon } from './grok'
 import { GroqIcon } from './groq'
 import { HigressIcon } from './higress'
-import { HuaweiMaasIcon } from './huawei-maas'
 import { HuggingfaceIcon } from './huggingface'
 import { HyperbolicIcon } from './hyperbolic'
 import { IdeogramIcon } from './ideogram'
@@ -121,6 +120,7 @@ import { OpenclawIcon } from './openclaw'
 import { OpenCodeGoIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
+import { ParallelIcon } from './parallel'
 import { PerplexityIcon } from './perplexity'
 import { Ph8Icon } from './ph8'
 import { PoeIcon } from './poe'
@@ -233,7 +233,6 @@ export const PROVIDER_ICON_CATALOG = {
   grok: GrokIcon,
   groq: GroqIcon,
   higress: HigressIcon,
-  'huawei-maas': HuaweiMaasIcon,
   huggingface: HuggingfaceIcon,
   hyperbolic: HyperbolicIcon,
   ideogram: IdeogramIcon,
@@ -282,6 +281,7 @@ export const PROVIDER_ICON_CATALOG = {
   opencode: OpenCodeGoIcon,
   openrouter: OpenrouterIcon,
   paddleocr: PaddleocrIcon,
+  parallel: ParallelIcon,
   perplexity: PerplexityIcon,
   ph8: Ph8Icon,
   poe: PoeIcon,

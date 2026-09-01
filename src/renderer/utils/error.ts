@@ -334,7 +334,17 @@ export function providerErrorText(error: SerializedError | undefined): string {
 
   const parsed = parseJSON(body)
   // Probe the common shapes one level deep; an unknown shape falls through to the raw body.
-  const picked = parsed && (parsed.error?.message ?? parsed.message ?? parsed.detail ?? parsed.msg ?? parsed.error)
+  // Some providers (e.g. AMD) nest the message under `detail.error.message`; probe one
+  // more level there so users see the message, not the raw JSON body.
+  const picked =
+    parsed &&
+    (parsed.error?.message ??
+      parsed.message ??
+      parsed.detail?.error?.message ??
+      parsed.detail?.message ??
+      parsed.detail ??
+      parsed.msg ??
+      parsed.error)
   const text = typeof picked === 'string' && picked.trim() ? picked.trim() : body
   return text.length > PROVIDER_ERROR_TEXT_MAX ? `${text.slice(0, PROVIDER_ERROR_TEXT_MAX)}…` : text
 }

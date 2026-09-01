@@ -4,6 +4,7 @@ import type { PreferenceShortcutType } from '@shared/data/preference/preferenceT
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -261,6 +262,7 @@ describe('ShortcutSettings shortcut recorder', () => {
   })
 
   it('bulk toggles shortcuts using the platform-resolved binding', async () => {
+    const user = userEvent.setup()
     shortcutsMock.shortcuts = [
       makeShortcut({
         command: 'tab.next',
@@ -272,13 +274,33 @@ describe('ShortcutSettings shortcut recorder', () => {
 
     renderShortcutSettings()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.shortcuts.all_disable' }))
+    await user.click(screen.getByRole('button', { name: 'common.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'settings.shortcuts.all_disable' }))
 
     await waitFor(() => {
       expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
         'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
       })
     })
+  })
+
+  it('clears the search when switching shortcut categories', async () => {
+    const user = userEvent.setup()
+    shortcutsMock.shortcuts = [
+      makeShortcut({ label: 'Search everywhere' }),
+      { ...makeShortcut({ command: 'tab.next', label: 'Next chat' }), group: 'chat' }
+    ]
+
+    renderShortcutSettings()
+
+    await user.click(screen.getByRole('button', { name: 'common.search' }))
+    const search = screen.getByRole('searchbox', { name: 'common.search' })
+    await user.type(search, 'Search')
+    await user.click(screen.getByRole('button', { name: /settings.shortcuts.categories.all/ }))
+    await user.click(await screen.findByRole('menuitemradio', { name: /settings.shortcuts.categories.chat/ }))
+
+    expect(search).toHaveValue('')
+    expect(screen.getByText('Next chat')).toBeInTheDocument()
   })
 
   // Pages that own a feature but not its shortcut link here with `?command=<id>`. Landing on

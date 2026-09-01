@@ -6,11 +6,13 @@ import type { SerializedError } from '@shared/types/error'
 import { APICallError, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ApprovalRequestedEvent } from '../../types'
 import type { AiStreamRequest } from '../../types/requests'
 import { AiStreamAdmissionError } from '../admission'
 import type {
   AiStreamManagerConfig,
   CherryUIMessage,
+  ConversationCompletedEvent,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -31,6 +33,7 @@ class FakeListener implements StreamListener {
   alive = true
   onDoneImpl?: (result: StreamDoneResult) => void | Promise<void>
   onPausedImpl?: (result: StreamPausedResult) => void | Promise<void>
+  onErrorImpl?: (result: StreamErrorResult) => void | Promise<void>
 
   constructor(id: string, terminalPhase?: 'persistence') {
     this.id = id
@@ -52,8 +55,9 @@ class FakeListener implements StreamListener {
     return this.onPausedImpl?.(result)
   }
 
-  onError(result: StreamErrorResult): void {
+  onError(result: StreamErrorResult): void | Promise<void> {
     this.errorResults.push(result)
+    return this.onErrorImpl?.(result)
   }
 
   isAlive(): boolean {
@@ -128,6 +132,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
+const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -140,7 +145,11 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
+    AgentSessionRuntimeService: {
+      willContinueTopic: mockWillContinueTopic,
+      abortPendingTurn: mockAbortPendingTurn,
+      closeSession: mockCloseSession
+    }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -188,6 +197,19 @@ async function flushUntil(predicate: () => boolean, maxTicks = 1000): Promise<vo
   throw new Error(`flushUntil: predicate never became true within ${maxTicks} ticks`)
 }
 
+/**
+ * Microtask-only variant of `flushUntil`, for suites on blanket fake timers where
+ * `setImmediate` never fires. Advances no clock, so a test's own timer control is
+ * left untouched.
+ */
+async function flushMicrotasksUntil(predicate: () => boolean, maxTicks = 100): Promise<void> {
+  for (let i = 0; i < maxTicks; i++) {
+    if (predicate()) return
+    await Promise.resolve()
+  }
+  throw new Error(`flushMicrotasksUntil: predicate never became true within ${maxTicks} microtasks`)
+}
+
 function chunk(text: string): UIMessageChunk {
   return { type: 'text-delta', delta: text, id: 'p1' } as unknown as UIMessageChunk
 }
@@ -214,13 +236,15 @@ function startSingle(
     listeners: StreamListener[]
     siblingsGroupId?: number
     abortController?: AbortController
+    isPersistentConversation?: boolean
   }
 ) {
   manager.send({
     topicId: opts.topicId,
     models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
-    siblingsGroupId: opts.siblingsGroupId
+    siblingsGroupId: opts.siblingsGroupId,
+    isPersistentConversation: opts.isPersistentConversation
   })
   const snapshot = manager.inspect(opts.topicId)
   if (!snapshot) throw new Error(`inspect() returned undefined for topicId=${opts.topicId}`)
@@ -231,10 +255,16 @@ function startSingle(
 
 describe('AiStreamManager', () => {
   let mgr: ReturnType<typeof createManager>
+  let approvalRequestedEvents: ApprovalRequestedEvent[]
+  let conversationCompletedEvents: ConversationCompletedEvent[]
 
   beforeEach(() => {
     vi.useFakeTimers()
     mgr = createManager()
+    approvalRequestedEvents = []
+    conversationCompletedEvents = []
+    mgr.onApprovalRequested((event) => approvalRequestedEvents.push(event))
+    mgr.onConversationCompleted((event) => conversationCompletedEvents.push(event))
     vi.clearAllMocks()
     mockStreamText.mockImplementation(async (request: AiStreamRequest) =>
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
@@ -272,6 +302,7 @@ describe('AiStreamManager', () => {
         messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
         listener: new FakeListener('gateway:request-1'),
         contextOwner: 'caller',
+        tokenUsageSource: 'agent',
         usageContext: {
           agentSessionId: 'session-1',
           assistantMessageId: 'message-1',
@@ -279,7 +310,82 @@ describe('AiStreamManager', () => {
         }
       })
 
-      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+      )
+    })
+  })
+
+  describe('approval notifications', () => {
+    it('publishes each persistent approval id once', () => {
+      vi.setSystemTime(1_000)
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'provider-a::model-a',
+        request: req('topic-1'),
+        listeners: [new FakeListener('wc:1')],
+        isPersistentConversation: true
+      })
+      const approvalChunk = {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tool-call-1'
+      } as UIMessageChunk
+
+      mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tool-call-1',
+        output: 'approved'
+      } as UIMessageChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', approvalChunk)
+      mgr.onChunk('topic-1', 'provider-a::model-a', {
+        ...approvalChunk,
+        approvalId: 'approval-2'
+      } as UIMessageChunk)
+
+      expect(approvalRequestedEvents).toEqual([
+        { topicId: 'topic-1', approvalId: 'approval-1', requestedAt: 1_000 },
+        { topicId: 'topic-1', approvalId: 'approval-2', requestedAt: 1_000 }
+      ])
+    })
+
+    it('does not publish automatically approved tool execution', () => {
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'provider-a::model-a',
+        request: req('topic-1'),
+        listeners: [new FakeListener('wc:1')],
+        isPersistentConversation: true
+      })
+
+      mgr.onChunk('topic-1', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'tool-call-1',
+        toolName: 'read_file',
+        input: {}
+      } as UIMessageChunk)
+
+      expect(approvalRequestedEvents).toEqual([])
+    })
+
+    it('does not publish approval requests for temporary streams', () => {
+      startSingle(mgr, {
+        topicId: 'temporary-1',
+        modelId: 'provider-a::model-a',
+        request: req('temporary-1'),
+        listeners: [new FakeListener('wc:1')],
+        isPersistentConversation: false
+      })
+
+      mgr.onChunk('temporary-1', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tool-call-1'
+      } as UIMessageChunk)
+
+      expect(approvalRequestedEvents).toEqual([])
     })
   })
 
@@ -1291,10 +1397,13 @@ describe('AiStreamManager', () => {
       await Promise.resolve()
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(mgr.hasLiveStream('a')).toBe(false)
+      expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(true)
 
       releasePersistence()
       await terminal
       expect(renderer.doneResults).toHaveLength(1)
+      expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
     })
 
     it('suppresses the original terminal notification after persistence surfaced an error', async () => {
@@ -1314,6 +1423,7 @@ describe('AiStreamManager', () => {
 
       expect(persistence.doneResults).toHaveLength(1)
       expect(renderer.doneResults).toHaveLength(0)
+      expect(mgr.hasTerminalPersistenceInFlight('a')).toBe(false)
     })
 
     it('flushes trace spans for completed chat topics', async () => {
@@ -1468,6 +1578,87 @@ describe('AiStreamManager', () => {
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
       expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    it('holds same-topic admission until paused persistence and runtime close settle', async () => {
+      vi.useRealTimers()
+      const listener = new FakeListener('persistence:agent')
+      let releasePersistence!: () => void
+      listener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releasePersistence = resolve
+        })
+      let releaseRuntimeClose!: () => void
+      mockCloseSession.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRuntimeClose = resolve
+          })
+      )
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [listener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => listener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releasePersistence()
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseRuntimeClose()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
+    })
+
+    it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseContinuationPersistence!: () => void
+      continuationListener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseContinuationPersistence = resolve
+        })
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => continuationListener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseContinuationPersistence()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
     })
   })
 
@@ -2328,12 +2519,17 @@ describe('AiStreamManager', () => {
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       expect(mgr.hasPendingSteer('a')).toBe(false)
-      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u1', 'high', 'flex', true)
       expect(mgr.hasPendingSteer('a')).toBe(true)
 
       await flush()
       expect(dispatchSpy).toHaveBeenCalledTimes(1)
-      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), {
+        ...steerReq('a', 'u1'),
+        reasoningEffort: 'high',
+        serviceTier: 'flex',
+        fastMode: true
+      })
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
@@ -2863,6 +3059,135 @@ describe('AiStreamManager', () => {
       fakeCacheService.getShared.mockClear()
     })
 
+    it.each(['done', 'paused', 'error'] as const)(
+      'keeps a replacement stream authoritative after a stale %s callback resumes',
+      async (terminalKind) => {
+        const topicId = `stale-${terminalKind}`
+        const modelId = 'p::m'
+        const staleListener = new FakeListener(`wc:stale-${terminalKind}`)
+        let releaseTerminal!: () => void
+        const terminalBlocked = new Promise<void>((resolve) => {
+          releaseTerminal = resolve
+        })
+        const blockTerminal = () => terminalBlocked
+
+        if (terminalKind === 'done') staleListener.onDoneImpl = blockTerminal
+        else if (terminalKind === 'paused') staleListener.onPausedImpl = blockTerminal
+        else staleListener.onErrorImpl = blockTerminal
+
+        // Keep the real execution loop parked so the paused case is driven exactly once by the
+        // explicit abort + onExecutionPaused pair below.
+        if (terminalKind === 'paused') {
+          mockStreamText.mockImplementationOnce(() => new Promise<ReadableStream<UIMessageChunk>>(() => {}))
+        }
+
+        startSingle(mgr, {
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [staleListener]
+        })
+        const staleTurnId = statusWritesFor(topicId).at(-1)?.turnId
+
+        let staleTerminalPromise: Promise<void>
+        if (terminalKind === 'done') {
+          staleTerminalPromise = mgr.onExecutionDone(topicId, modelId)
+        } else if (terminalKind === 'paused') {
+          mgr.abort(topicId, 'user-stop')
+          staleTerminalPromise = mgr.onExecutionPaused(topicId, modelId)
+        } else {
+          staleTerminalPromise = mgr.onExecutionError(topicId, modelId, error('stale failure'))
+        }
+
+        const staleTerminalResults =
+          terminalKind === 'done'
+            ? staleListener.doneResults
+            : terminalKind === 'paused'
+              ? staleListener.pausedResults
+              : staleListener.errorResults
+        expect(staleTerminalResults).toHaveLength(1)
+
+        const replacementListener = new FakeListener(`wc:replacement-${terminalKind}`)
+        startSingle(mgr, {
+          topicId,
+          modelId,
+          request: req(topicId),
+          listeners: [replacementListener]
+        })
+        const replacementPending = statusWritesFor(topicId).at(-1)!
+        const replacementTurnId = replacementPending.turnId
+        expect(replacementPending.status).toBe('pending')
+        expect(replacementTurnId).toMatch(/^\d+:\d+$/)
+        expect(replacementTurnId).not.toBe(staleTurnId)
+
+        mgr.enqueuePendingSteer(topicId, `steer-${terminalKind}`)
+        const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+        releaseTerminal()
+        await staleTerminalPromise
+
+        expect(statusWritesFor(topicId).at(-1)).toMatchObject({
+          status: 'pending',
+          turnId: replacementTurnId
+        })
+        expect(mgr.inspect(topicId)).toMatchObject({
+          status: 'pending',
+          listenerIds: [replacementListener.id]
+        })
+        expect(mgr.hasPendingSteer(topicId)).toBe(true)
+
+        vi.advanceTimersByTime(31_000)
+        expect(mgr.inspect(topicId)).toMatchObject({
+          status: 'pending',
+          listenerIds: [replacementListener.id]
+        })
+
+        await mgr.onExecutionDone(topicId, modelId)
+        // `scheduleNextChatTurn` launches the continuation detached (`queueMicrotask` + `void`),
+        // so the terminal resolving says nothing about the dispatch having run yet.
+        await flushMicrotasksUntil(() => dispatchSpy.mock.calls.length > 0)
+        expect(dispatchSpy).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            trigger: 'steer-continuation',
+            topicId,
+            userMessageId: `steer-${terminalKind}`
+          })
+        )
+      }
+    )
+
+    it('runs the terminal lifecycle when the stream remains current after listener dispatch', async () => {
+      const topicId = 'current-terminal'
+      const listener = new FakeListener('wc:current-terminal')
+      let releaseTerminal!: () => void
+      const terminalBlocked = new Promise<void>((resolve) => {
+        releaseTerminal = resolve
+      })
+      listener.onDoneImpl = () => terminalBlocked
+
+      startSingle(mgr, {
+        topicId,
+        modelId: 'p::m',
+        request: req(topicId),
+        listeners: [listener]
+      })
+      const turnId = statusWritesFor(topicId).at(-1)?.turnId
+      const terminalPromise = mgr.onExecutionDone(topicId, 'p::m')
+
+      expect(listener.doneResults).toHaveLength(1)
+      expect(statusWritesFor(topicId).at(-1)).toMatchObject({ status: 'pending', turnId })
+
+      releaseTerminal()
+      await terminalPromise
+
+      expect(statusWritesFor(topicId).at(-1)).toMatchObject({ status: 'done', turnId })
+      expect(mgr.inspect(topicId)?.status).toBe('done')
+
+      vi.advanceTimersByTime(31_000)
+      expect(mgr.inspect(topicId)).toBeUndefined()
+    })
+
     it('records pending on send, streaming on first chunk, done on terminal; grace-period cleanup is silent', async () => {
       startSingle(mgr, {
         topicId: 't',
@@ -2885,6 +3210,7 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
       expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
       expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
+      expect(conversationCompletedEvents).toEqual([])
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal
@@ -2892,6 +3218,64 @@ describe('AiStreamManager', () => {
       // via `topic.stream.last_seen_completion.*`.
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+    })
+
+    it('reports one persistent assistant completion after all models finish', async () => {
+      vi.setSystemTime(1_234)
+
+      mgr.send({
+        topicId: 'topic-1',
+        models: [
+          { modelId: 'p::m1', request: req('topic-1') },
+          { modelId: 'p::m2', request: req('topic-1') }
+        ],
+        listeners: [new FakeListener('l:topic-1')],
+        isPersistentConversation: true
+      })
+      await mgr.onExecutionDone('topic-1', 'p::m1')
+      expect(conversationCompletedEvents).toEqual([])
+
+      await mgr.onExecutionDone('topic-1', 'p::m2')
+
+      expect(conversationCompletedEvents).toEqual([
+        {
+          topicId: 'topic-1',
+          turnId: expect.stringMatching(/^\d+:\d+$/),
+          completedAt: 1_234
+        }
+      ])
+    })
+
+    it('does not report a completion for a stream without a persistent completion target', async () => {
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'p::m',
+        request: req('topic-1'),
+        listeners: [new FakeListener('l:topic-1')]
+      })
+      await mgr.onExecutionDone('topic-1', 'p::m')
+
+      expect(conversationCompletedEvents).toEqual([])
+    })
+
+    it('treats runtime turns as persistent conversations without caller metadata', async () => {
+      vi.setSystemTime(2_345)
+
+      mgr.startRuntimeTurn({
+        topicId: 'agent-session:session-1',
+        modelId: 'p::m',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('l:session-1')]
+      })
+      await mgr.onExecutionDone('agent-session:session-1', 'p::m')
+
+      expect(conversationCompletedEvents).toEqual([
+        {
+          topicId: 'agent-session:session-1',
+          turnId: expect.stringMatching(/^\d+:\d+$/),
+          completedAt: 2_345
+        }
+      ])
     })
 
     it('sets lastCompletedAt only on done; carries forward through subsequent live; bumps on next done', async () => {
@@ -2949,7 +3333,8 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        isPersistentConversation: true
       })
       mgr.abort('t', 'user-stop')
       await vi.runAllTimersAsync()
@@ -2957,6 +3342,7 @@ describe('AiStreamManager', () => {
       const abortedEntry = statusWritesFor('t').at(-1)
       expect(abortedEntry?.status).toBe('aborted')
       expect(abortedEntry?.lastCompletedAt).toBeUndefined()
+      expect(conversationCompletedEvents).toEqual([])
     })
 
     it('records aborted when the user stops the stream', async () => {
@@ -2977,13 +3363,15 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        isPersistentConversation: true
       })
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
       // pending → error directly; we never fabricate a `streaming` transition
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
+      expect(conversationCompletedEvents).toEqual([])
     })
 
     it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
@@ -2991,7 +3379,8 @@ describe('AiStreamManager', () => {
         topicId: 't',
         modelId: 'p::m',
         request: req('t'),
-        listeners: [new FakeListener('l:t')]
+        listeners: [new FakeListener('l:t')],
+        isPersistentConversation: true
       })
 
       // `tool-approval-request` records the pending toolCallId and flips pending → streaming.
@@ -3004,6 +3393,7 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
       expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(conversationCompletedEvents).toEqual([])
     })
 
     it('clears awaiting-approval when a tool-output chunk resolves the approval before terminal', async () => {

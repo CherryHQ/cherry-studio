@@ -1,3 +1,10 @@
+---
+description: Full WindowManager method tables — open/close/create/destroy, window ops, queries, broadcast, pools, behavior setters
+sources:
+  - src/main/core/window/WindowManager.ts
+  - src/main/core/window/behavior.ts
+---
+
 # WindowManager API Reference
 
 Full method reference for `WindowManager`. For conceptual guidance and when-to-use each group, see [Usage Guide](./window-manager-usage.md).
@@ -20,7 +27,11 @@ Two layers: **Consumer** methods are the universal API and should be used by all
 | `show` | `(windowId: string) => boolean` | Show a window. Does NOT change macOS Dock state — the Dock tracks window existence + per-type override, not visibility (matching native macOS: Cmd+W hiding a window does not remove the app from the Dock). |
 | `hide` | `(windowId: string) => boolean` | Hide a window. Does NOT change macOS Dock state — same reason as `show`. If callers want the Dock to disappear too (tray-mode UX), use `wm.behavior.setMacShowInDockByType` BEFORE `hide`. |
 | `minimize` | `(windowId: string) => boolean` | Minimize a window. |
-| `maximize` | `(windowId: string) => boolean` | Toggle maximize/unmaximize. |
+| `maximize` | `(windowId: string) => boolean` | Maximize a window. |
+| `unmaximize` | `(windowId: string) => boolean` | Unmaximize a window. |
+| `isMaximized` | `(windowId: string) => boolean` | Return whether a window is maximized. |
+| `setFullScreen` | `(windowId: string, value: boolean) => boolean` | Enter or leave full-screen mode. |
+| `isFullScreen` | `(windowId: string) => boolean` | Return whether a window is in full-screen mode. |
 | `restore` | `(windowId: string) => boolean` | Restore a minimized window. |
 | `focus` | `(windowId: string) => boolean` | Focus a window. |
 
@@ -62,6 +73,8 @@ Naming convention: methods with `Info` in the name return serializable `WindowIn
 
 ## Broadcast
 
+These are raw transport primitives used by WindowManager and remaining legacy channels. Product events should normally use `IpcApiService.broadcast` / `broadcastToType`, which adds the typed event name and payload contract.
+
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `broadcast` | `(channel: string, ...args: unknown[]) => void` | Send IPC to all managed windows. Skips destroyed windows. |
@@ -71,19 +84,19 @@ Naming convention: methods with `Info` in the name return serializable `WindowIn
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `open<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | When `args.initData` is supplied, written atomically to the store before the method returns; also pushed to the renderer as the `WindowManager_Reused` payload on reuse paths. |
-| `create<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never fires `Reused` (all create paths are fresh creation). |
+| `open<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | When `args.initData` is supplied, written atomically to the store before the method returns; also pushed to the renderer as the `window.reused` payload on reuse paths. |
+| `create<T>` | `(type: WindowType, args?: { initData?: T, options?: Partial<WindowOptions> }) => string` | Same atomicity as `open`, but never sends `window.reused` (all create paths are fresh creation). |
 | `setInitData` | `(windowId: string, data: unknown) => void` | Low-level primitive. Prefer the `open/create` args form in new code. |
 | `getInitData` | `(windowId: string) => unknown \| null` | Retrieve initialization data. Cleared on pool release; preserved on singleton hide. |
-| `pushInitData<T>` | `(windowId: string, data: T) => boolean` | Push fresh init data to an already-open window. Writes the store and fires `WindowManager_Reused` in one step. Returns `false` if the window is missing or destroyed. Main-process only. |
+| `pushInitData<T>` | `(windowId: string, data: T) => boolean` | Push fresh init data to an already-open window. Writes the store and sends `window.reused` in one step. Returns `false` if the window is missing or destroyed. Main-process only. |
 | `pushInitDataToType<T>` | `(type: WindowType, data: T) => number` | Same as `pushInitData` but fans out to every live window of the given type. Returns the number of windows that received the event. Does not filter by visibility — idle pooled windows receive the payload too. |
 
 **Timing contract:**
 
 - **Cold start** (fresh creation): `createWindow` writes `initData` to the store synchronously before returning, so any `getInitData` invoke from the renderer (after React mounts) sees the fresh value. The renderer should use the [`useWindowInitData` hook](./window-manager-usage.md#renderer-usewindowinitdata-hook) — it handles the invoke on mount automatically.
-- **Reuse** (pool recycle / singleton reopen): `open()` simultaneously writes to the store AND fires `WindowManager_Reused` with the same payload. The `useWindowInitData` hook updates its state directly from the event payload — no round-trip.
+- **Reuse** (pool recycle / singleton reopen): `open()` simultaneously writes to the store AND sends `window.reused` with the same payload. The `useWindowInitData` hook updates its state directly from the event payload — no round-trip.
 - **No initData** on a reuse call: the event is NOT fired. No "empty Reused" events — the hook therefore never needs a fallback invoke.
-- **Live update** (already-open window): call `pushInitData` / `pushInitDataToType` from any main-process service. Both paths reuse the `WindowManager_Reused` channel, so `useWindowInitData` picks up the new payload in-place with no remount — useful for "swap the visible window's context without `close()`+`open()` flicker". Unlike reuse, these methods forbid `undefined` payloads: pushing nothing has no meaningful semantics here.
+- **Live update** (already-open window): call `pushInitData` / `pushInitDataToType` from any main-process service. Both paths reuse the `window.reused` event, so `useWindowInitData` picks up the new payload in-place with no remount — useful for "swap the visible window's context without `close()`+`open()` flicker". Unlike reuse, these methods forbid `undefined` payloads: pushing nothing has no meaningful semantics here.
 
 `webContents.send` is fire-and-forget and does not buffer messages sent before the renderer registers listeners. This is exactly why fresh windows can't use PUSH — they still must PULL via `getInitData` on mount.
 
@@ -96,36 +109,23 @@ Naming convention: methods with `Info` in the name return serializable `WindowIn
 
 See [Suspend / Resume](./window-manager-warmup-mechanics.md#suspend--resume) for semantics while suspended.
 
-## Title Bar
-
-| Method | Signature | Description |
-|--------|-----------|-------------|
-| `setTitleBarOverlay` | `(options: TitleBarOverlayOptions) => void` | Update title bar overlay on all windows with overlay configured. |
-
 ## Renderer IPC Surface
 
-All methods above are main-process APIs. WindowManager also exposes an IPC surface so the renderer can drive window operations for itself. Channel constants live in `src/shared/IpcChannel.ts`; handlers are registered in `WindowManager.registerIpcHandlers()`.
+All methods above are main-process APIs. The renderer has a deliberately narrower IpcApi surface declared in `src/shared/ipc/schemas/window.ts` and implemented by `src/main/ipc/handlers/window.ts`. Caller-window routes derive identity from `IpcContext.senderId`; the renderer never supplies a window id.
 
-Preload only wraps `getInitData` as `window.api.windowManager.getInitData()`. The other channels are invoked directly via `window.electron.ipcRenderer.invoke(IpcChannel.WindowManager_*, ...)`. `WindowManager_Reused` is a push-only channel (main → renderer) — see [Warmup Mechanics → `WindowManager_Reused` IPC](./window-manager-warmup-mechanics.md#windowmanager_reused-ipc).
-
-| Channel | Direction | Args | Effect |
+| Route/event | Direction | Input/payload | Effect |
 |---|---|---|---|
-| `WindowManager_Open` | renderer → main | `(type, initData?)` | `wm.open(type, { initData })`. Returns window ID. Throws if `type` is not registered. |
-| `WindowManager_GetInitData` | renderer → main | — | `wm.getInitData(senderWindowId)`. Returns stored init data or `null`. |
-| `WindowManager_Close` | renderer → main | `(type?)` | `wm.close(resolveTargetWindowId(sender, type))`. Returns boolean. |
-| `WindowManager_Show` | renderer → main | `(type?)` | `wm.show(...)`. |
-| `WindowManager_Hide` | renderer → main | `(type?)` | `wm.hide(...)`. |
-| `WindowManager_Minimize` | renderer → main | `(type?)` | `wm.minimize(...)`. |
-| `WindowManager_Maximize` | renderer → main | `(type?)` | `wm.maximize(...)`. |
-| `WindowManager_Focus` | renderer → main | `(type?)` | `wm.focus(...)`. |
-| `WindowManager_Reused` | main → renderer (push) | `(payload)` | Fires on pool recycle or singleton reopen when the caller supplied `initData`. |
+| `window.close` | renderer → main | void | Ask `MainWindowService.requestClose` first, otherwise close the caller through WindowManager. |
+| `window.minimize` / `window.maximize` / `window.unmaximize` | renderer → main | void | Operate on the caller window. |
+| `window.set_full_screen` | renderer → main | `boolean` | Set full-screen state on the caller window. |
+| `window.is_maximized` / `window.is_full_screen` | renderer → main | void | Query caller-window state; returns `false` for an unmanaged sender. |
+| `window.get_init_data` | renderer → main | void | Read the caller's stored init data, or `null` for an unmanaged sender. |
+| `window.reused` | main → renderer | `unknown` | Directed event sent on reuse/live init-data update. |
+| `window.maximized_changed` / `window.fullscreen_changed` | main → renderer | `boolean` | Directed state-change events for the affected window. |
 
-**Target resolution for the optional `type` argument** (Close / Show / Hide / Minimize / Maximize / Focus):
+`window.main.*` and `window.sub.*` routes in the same schema are explicit domain operations delegated to `MainWindowService` or `SubWindowService`; they are not generic cross-window targeting. Opening named windows remains a navigation/domain capability rather than part of the caller-window surface.
 
-- **No `type`**: the target is the sender's own window, resolved via `getWindowIdByWebContents(event.sender)`. This is the common case — a window acting on itself.
-- **With `type`**: the target must be a **singleton** — the first (and only) window of that type. `default` and `pooled` lifecycles are **not supported** for cross-window targeting via IPC; the call silently returns `false` and the operation is a no-op.
-
-The bare renderer consumption pattern for `Reused` uses `ipcRenderer.on(IpcChannel.WindowManager_Reused, ...)` — but most renderer code should prefer the [`useWindowInitData` hook](./window-manager-usage.md#renderer-usewindowinitdata-hook), which encapsulates both cold-start `getInitData` invoke and reuse payload delivery.
+Use [`useWindowInitData`](./window-manager-usage.md#renderer-usewindowinitdata-hook) for init data. It combines the cold-start `window.get_init_data` request with the `window.reused` subscription.
 
 ## Events
 
@@ -144,7 +144,7 @@ For non-pooled windows, the same two endpoints apply without any intermediate st
 | `onWindowCreatedByType(type, listener)` | `(type, listener) => Disposable` | Convenience variant of `onWindowCreated` that filters to a single `WindowType`. Equivalent to `onWindowCreated` + an inline `if (managed.type === type)` guard, but avoids the boilerplate at every call site. Prefer this for single-type subscriptions (the typical consumer case). |
 | `onWindowDestroyedByType(type, listener)` | `(type, listener) => Disposable` | Type-filtered counterpart to `onWindowDestroyed`. Same filtering semantics as `onWindowCreatedByType`. |
 
-The intermediate Released and Recycled stages have no dedicated events — side effects on `hide` / `close` / `show` should be expressed as declarative [Platform Quirks](./window-manager-platform.md#platform-quirks), and per-session data on recycle is delivered via the `WindowManager_Reused` IPC payload (see [Init Data](#init-data)).
+The intermediate Released and Recycled stages have no dedicated lifecycle events — side effects on `hide` / `close` / `show` should be expressed as declarative [Platform Quirks](./window-manager-platform.md#platform-quirks), and per-session data on recycle is delivered via the `window.reused` IpcApi payload (see [Init Data](#init-data)).
 
 **Usage notes for pooled windows:**
 

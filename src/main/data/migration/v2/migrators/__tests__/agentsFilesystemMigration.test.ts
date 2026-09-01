@@ -37,6 +37,8 @@ const { copyMutation, platformState, realpathFailures } = vi.hoisted(() => ({
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeCpEntry: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
+    linkFailure: undefined as undefined | NodeJS.ErrnoException,
+    linkCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
   platformState: { isMac: false, isWin: false },
@@ -81,6 +83,11 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       const result = await original.copyFile(...args)
       await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
       return result
+    },
+    link: async (...args: Parameters<typeof original.link>) => {
+      copyMutation.linkCalls.push([String(args[0]), String(args[1])])
+      if (copyMutation.linkFailure) throw copyMutation.linkFailure
+      return original.link(...args)
     },
     realpath: async (...args: Parameters<typeof original.realpath>) => {
       const failure = realpathFailures.get(path.resolve(String(args[0])))
@@ -156,6 +163,8 @@ describe('agentsFilesystemMigration', () => {
     copyMutation.afterCopyFile = undefined
     copyMutation.beforeCpEntry = undefined
     copyMutation.copyFileCalls.length = 0
+    copyMutation.linkFailure = undefined
+    copyMutation.linkCalls.length = 0
     copyMutation.symlinkCalls.length = 0
     realpathFailures.clear()
     platformState.isMac = false
@@ -830,9 +839,12 @@ describe('agentsFilesystemMigration', () => {
         sessions: [session]
       })
       try {
-        await vi.waitFor(() => {
-          expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
-        })
+        await vi.waitFor(
+          () => {
+            expect(copyMutation.copyFileCalls.some(([source]) => source.endsWith('file-016.txt'))).toBe(true)
+          },
+          { timeout: 10_000 }
+        )
       } finally {
         releaseFirst()
         await migration
@@ -1723,6 +1735,44 @@ describe('agentsFilesystemMigration', () => {
     }
   )
 
+  it('preserves an Agent data directory that already contains identity files', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'SOUL.md'), 'legacy soul')
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    await mkdir(agentDataPath, { recursive: true })
+    await writeFile(path.join(agentDataPath, 'SOUL.md'), 'existing soul')
+    await writeFile(path.join(agentDataPath, 'V2-ONLY.md'), 'stale agent data')
+
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [latestSession]
+    }
+
+    // First run: source exists, target is cleared and re-populated.
+    const result1 = await stageLegacyAgentFiles(input)
+    expect(result1.skippedTargetCount).toBe(0)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+    // V2-ONLY.md is removed because the target was cleared.
+    await expect(access(path.join(agentDataPath, 'V2-ONLY.md'))).rejects.toThrow()
+
+    // Remove the v1 source workspace to simulate an app update cleanup.
+    await rm(legacyWorkspace, { recursive: true })
+
+    // Second run: source is gone, target with identity files is preserved.
+    const result2 = await stageLegacyAgentFiles(input)
+    expect(result2.skippedTargetCount).toBe(1)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('legacy soul')
+  })
+
   it('replaces an existing identity target without changing the legacy source', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
     await mkdir(legacyWorkspace, { recursive: true })
@@ -1843,6 +1893,38 @@ describe('agentsFilesystemMigration', () => {
     ).rejects.toThrow(/identity destination conflict/i)
 
     expect(await readFile(destinationSoulPath, 'utf8')).toBe('concurrent soul')
+    expect(await readFile(sourceSoulPath, 'utf8')).toBe('legacy soul')
+  })
+
+  it('publishes an identity file when Windows reports EISDIR for hard links', async () => {
+    const { agentsDataRoot, legacyWorkspace } = await createFixture()
+    const sourceSoulPath = path.join(legacyWorkspace, 'SOUL.md')
+    const destinationSoulPath = path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md')
+    await mkdir(legacyWorkspace, { recursive: true })
+    await writeFile(sourceSoulPath, 'legacy soul')
+    copyMutation.linkFailure = Object.assign(new Error('illegal operation on a directory'), {
+      code: 'EISDIR',
+      syscall: 'link'
+    })
+
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
+
+    await expect(
+      stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [latestSession]
+      })
+    ).resolves.toEqual({ skippedTargetCount: 0 })
+
+    expect(copyMutation.linkCalls).toHaveLength(1)
+    expect(copyMutation.copyFileCalls.some(([, destinationPath]) => destinationPath === destinationSoulPath)).toBe(true)
+    expect(await readFile(destinationSoulPath, 'utf8')).toBe('legacy soul')
     expect(await readFile(sourceSoulPath, 'utf8')).toBe('legacy soul')
   })
 

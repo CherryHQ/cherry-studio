@@ -24,7 +24,12 @@
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
-import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
+import {
+  CITATION_MARKER_PATTERN,
+  mapCitationMarksToTags,
+  mapMarkdownOutsideCode,
+  normalizeCitationMarks
+} from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
   CITATION_SNIPPET_MAX_CHARS,
@@ -37,6 +42,7 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import { PI_TOOL_CALL_TOOL_NAME } from '@shared/ai/piBuiltinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -94,11 +100,18 @@ function sourceIdToNumber(sourceId: unknown): number | undefined {
   return Number.isFinite(value) && value >= 0 ? value + 1 : undefined
 }
 
+/** `mcp__cherry-tools__web_search` → `web_search`; null for any other server or tool. */
+function citableCherryToolName(wireName: string): string | null {
+  const parsed = parseFunctionCallToolName(wireName)
+  if (!parsed || parsed.serverPart !== CHERRY_TOOLS_MCP_SERVER) return null
+  return CITABLE_TOOL_NAMES.has(parsed.toolPart) ? parsed.toolPart : null
+}
+
 /**
  * The builtin lookup tool a part's completed output belongs to, across all
- * three wire shapes (static AI-SDK part, tool_invoke wrapper, cherry-tools
- * MCP dynamic-tool). Third-party MCP tools that happen to share a name are
- * deliberately excluded.
+ * four wire shapes (static AI-SDK part, tool_invoke wrapper, cherry-tools
+ * MCP dynamic-tool, pi's tool_call wrapper). Third-party MCP tools that happen
+ * to share a name are deliberately excluded.
  */
 function resolveCitableToolName(part: CherryMessagePart): string | null {
   if (!isToolUIPart(part as UIMessagePart<UIDataTypes, UITools>)) return null
@@ -122,11 +135,14 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     return null
   }
 
-  const parsed = parseFunctionCallToolName(rawName)
-  if (parsed && parsed.serverPart === CHERRY_TOOLS_MCP_SERVER && CITABLE_TOOL_NAMES.has(parsed.toolPart)) {
-    return parsed.toolPart
+  // pi runs every tool through its code-mode `tool_call` wrapper, so the target's wire name lives
+  // in the input rather than the part's own name — the `tool_invoke` shape with an MCP-style name.
+  if (rawName === PI_TOOL_CALL_TOOL_NAME) {
+    const input = toolPart.input
+    return isRecord(input) && typeof input.name === 'string' ? citableCherryToolName(input.name) : null
   }
-  return null
+
+  return citableCherryToolName(rawName)
 }
 
 /**
@@ -361,8 +377,29 @@ function createCitationLookup(citations: MessageCitations): {
   return { lookup, markerNumberMap }
 }
 
+/**
+ * Rewrite whatever a model puts inside a `[cite:…]` bracket into the chained `[cite:a][cite:b]`
+ * the prompt asks for. Models keep inventing near-misses — padding, comma lists, a repeated
+ * `cite:` per id — so read the bracket as a bag of ids rather than matching one spelling at a
+ * time: every id-shaped token in it is an id, and a bracket holding none is left alone.
+ */
+function canonicalizeMarkers(content: string): string {
+  return mapMarkdownOutsideCode(content, (text) =>
+    text.replace(/\[cite:[^\]\n]*\]/g, (marker) => {
+      const ids = marker
+        .slice('[cite:'.length, -1)
+        .match(/[\w-]+/g)
+        ?.filter((id) => id !== 'cite')
+      return ids?.length ? ids.map((id) => `[cite:${id}]`).join('') : marker
+    })
+  )
+}
+
 function normalizeMarkerContent(content: string, markerNumberMap: Map<number, Citation>): string {
-  return markerNumberMap.size > 0 ? normalizeCitationMarks(content, markerNumberMap, WEB_SEARCH_SOURCE.AISDK) : content
+  const canonical = canonicalizeMarkers(content)
+  return markerNumberMap.size > 0
+    ? normalizeCitationMarks(canonical, markerNumberMap, WEB_SEARCH_SOURCE.AISDK)
+    : canonical
 }
 
 function collapseMarkerRuns(text: string, byMarker: ReadonlyMap<string, Citation>): string {
@@ -385,7 +422,7 @@ export function resolveCitationMarkerParts(
   citations: MessageCitations
 ): ResolvedCitationMarkers[] {
   if (citations.byId.size === 0) {
-    return contents.map((content) => ({ content, byMarker: new Map(), cited: [] }))
+    return contents.map((content) => ({ content: canonicalizeMarkers(content), byMarker: new Map(), cited: [] }))
   }
 
   const { lookup, markerNumberMap } = createCitationLookup(citations)
@@ -434,20 +471,13 @@ export function resolveCitationMarkers(content: string, citations: MessageCitati
 }
 
 /**
- * A `[cite:id]` marker together with the space that separates it from the
- * preceding sentence, so a dropped marker takes that space with it instead of
- * leaving `Claim .` behind.
- */
-const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
-
-/**
  * Export / copy view: every resolved `[cite:id]` marker becomes a plain `[N]`,
  * and an id that resolves to nothing is dropped — an internal marker must never
  * escape into exported text or the clipboard. Also returns the cited sources in
  * display order so the caller can render a sources list.
  *
- * Rendering deliberately leaves an unresolved id visible (it is a model mistake
- * worth seeing on screen); an export is a finished document, so it is removed.
+ * Rendering drops unresolved ids too (`mapCitationMarksToTags`), so screen,
+ * export and clipboard agree that the internal id never reaches the user.
  */
 export function toExportableCitations(
   content: string,
@@ -475,7 +505,7 @@ export function toExportableCitations(
  * without inventing a second, conflicting sequence.
  */
 export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(content, (text) => text.replace(CITATION_MARKER_PATTERN, ''))
+  return mapMarkdownOutsideCode(canonicalizeMarkers(content), (text) => text.replace(CITATION_MARKER_PATTERN, ''))
 }
 
 /**

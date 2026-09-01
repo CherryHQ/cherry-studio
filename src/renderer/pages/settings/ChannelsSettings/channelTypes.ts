@@ -72,7 +72,6 @@ export type ChannelData = {
   type: string
   name: string
   agentId?: string | null
-  sessionId?: string | null
   workspace?: AgentSessionWorkspaceSource
   config: Record<string, unknown>
   isActive: boolean

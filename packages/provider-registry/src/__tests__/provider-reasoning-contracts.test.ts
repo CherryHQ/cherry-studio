@@ -15,9 +15,23 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  // DeepSeek publishes one effort table for both V4 SKUs (thinking_mode guide), so Flash and Pro
-  // must not drift apart — and neither may send `xhigh` verbatim, which DeepSeek degrades to `high`.
-  it.each(['deepseek-v4-flash', 'deepseek-v4-pro'])(
+  it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
+    expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
+      input: { currency: 'USD', perMillionTokens: 0.44 },
+      output: { currency: 'USD', perMillionTokens: 1.32 }
+    })
+    expect(override('deepseek', 'deepseek-v4-pro').pricing).toEqual({
+      cacheRead: { currency: 'USD', perMillionTokens: 0.044 },
+      input: { currency: 'USD', perMillionTokens: 1.32 },
+      output: { currency: 'USD', perMillionTokens: 3.96 }
+    })
+  })
+
+  // DeepSeek publishes one effort table for every V4 SKU (thinking_mode guide), so the Flash, Vision
+  // and Pro contracts must not drift apart — and none may send `xhigh` verbatim, which DeepSeek
+  // degrades to `high`.
+  it.each(['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4-pro'])(
     'maps %s reasoning to the official effort vocabulary',
     (modelId) => {
       const contracts = override('deepseek', modelId).reasoningContracts
@@ -39,7 +53,7 @@ describe('provider reasoning contracts', () => {
       expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
         operations: [
           { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-          { target: 'reasoning_effort', value: { source: 'effort' } }
+          { target: 'reasoningEffort', value: { source: 'effort' } }
         ],
         effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
       })

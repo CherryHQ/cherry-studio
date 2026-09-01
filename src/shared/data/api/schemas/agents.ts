@@ -7,7 +7,7 @@
  */
 
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
-import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { ServiceTierSelectionSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import * as z from 'zod'
 
@@ -50,6 +50,7 @@ export const AgentConfigurationSchema = z
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
     reasoning_effort: ReasoningEffortOptionSchema.optional(),
+    service_tier: ServiceTierSelectionSchema.optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
@@ -183,6 +184,11 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   updatedAt: z.string()
 })
 export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
+export type TaskRunSummary =
+  | { status: 'queued' }
+  | { status: 'running' }
+  | { status: 'completed' | 'failed' | 'cancelled'; finishedAt: string }
+export type ScheduledTaskListItem = ScheduledTaskEntity & { runSummary: TaskRunSummary | null }
 
 export const TaskRunLogEntitySchema = z.strictObject({
   id: z.string(),
@@ -255,20 +261,6 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
-export const DeleteAgentQuerySchema = z.strictObject({
-  /**
-   * Delete the agent's sessions in the same main-process transaction.
-   * Omitted/false preserves the historical "delete agent only" behavior.
-   */
-  deleteSessions: z.boolean().optional()
-})
-export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
-
-export interface DeleteAgentResult {
-  deleted: boolean
-  deletedSessionIds?: string[]
-}
-
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -282,7 +274,7 @@ export type AgentSchemas = {
     }
   }
 
-  /** Get, update, or delete a specific agent */
+  /** Get or update a specific agent. Deletion is a mixed DB/runtime command on IpcApi. */
   '/agents/:agentId': {
     GET: {
       params: { agentId: string }
@@ -293,18 +285,13 @@ export type AgentSchemas = {
       body: UpdateAgentDto
       response: AgentEntity
     }
-    DELETE: {
-      params: { agentId: string }
-      query?: DeleteAgentQueryParams
-      response: DeleteAgentResult
-    }
   }
 
   /** List scheduled tasks across every agent (settings overview, paginated) */
   '/agent-tasks': {
     GET: {
       query?: ListQuery
-      response: OffsetPaginationResponse<ScheduledTaskEntity>
+      response: OffsetPaginationResponse<ScheduledTaskListItem>
     }
   }
 

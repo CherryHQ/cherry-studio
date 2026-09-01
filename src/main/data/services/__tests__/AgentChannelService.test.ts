@@ -1,9 +1,14 @@
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelSessionTable } from '@data/db/schemas/agentChannel'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
+const DISCORD_CONFIG = { bot_token: 'test-token-123', allowed_channel_ids: [] }
 const SYSTEM_WORKSPACE = { type: 'system' as const }
 
 describe('AgentChannelService', () => {
@@ -244,6 +249,108 @@ describe('AgentChannelService', () => {
     it('returns false when channel does not exist', async () => {
       const result = agentChannelService.deleteChannel('nonexistent')
       expect(result).toBe(false)
+    })
+  })
+
+  describe('conversation sessions', () => {
+    it('rotates one active session per conversation while retaining channel ownership for inactive sessions', async () => {
+      const agentId = 'agent-channel-session'
+      await insertAgent(agentId)
+      const channel = agentChannelService.createChannel({
+        type: 'feishu',
+        name: 'Feishu',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: {}
+      })
+      const first = agentSessionService.create({ agentId, name: 'First', workspace: SYSTEM_WORKSPACE })
+      const second = agentSessionService.create({ agentId, name: 'Second', workspace: SYSTEM_WORKSPACE })
+
+      application.get('DbService').withWriteTx((tx) => {
+        agentChannelService.activateSessionTx(tx, {
+          channelId: channel.id,
+          conversationId: 'dm-alice',
+          sessionId: first.id
+        })
+        agentChannelService.activateSessionTx(tx, {
+          channelId: channel.id,
+          conversationId: 'dm-alice',
+          sessionId: second.id
+        })
+      })
+
+      expect(agentChannelService.getActiveSessionId(channel.id, 'dm-alice')).toBe(second.id)
+      expect(agentChannelService.findBySessionId(first.id)?.id).toBe(channel.id)
+      expect(agentChannelService.findBySessionId(second.id)?.id).toBe(channel.id)
+      const rows = dbh.db
+        .select()
+        .from(agentChannelSessionTable)
+        .where(eq(agentChannelSessionTable.channelId, channel.id))
+        .all()
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ sessionId: first.id, isActive: false }),
+          expect.objectContaining({ sessionId: second.id, isActive: true })
+        ])
+      )
+
+      const invalid = agentSessionService.create({ agentId, name: 'Invalid', workspace: SYSTEM_WORKSPACE })
+      expect(() =>
+        dbh.db
+          .insert(agentChannelSessionTable)
+          .values({ sessionId: invalid.id, channelId: channel.id, isActive: true })
+          .run()
+      ).toThrow(/CHECK constraint failed/)
+
+      const duplicate = agentSessionService.create({ agentId, name: 'Duplicate', workspace: SYSTEM_WORKSPACE })
+      expect(() =>
+        dbh.db
+          .insert(agentChannelSessionTable)
+          .values({
+            sessionId: duplicate.id,
+            channelId: channel.id,
+            conversationId: 'dm-alice',
+            isActive: true
+          })
+          .run()
+      ).toThrow(/UNIQUE constraint failed/)
+    })
+
+    it('keeps active sessions isolated by channel and conversation id', async () => {
+      const agentId = 'agent-isolated-conversations'
+      await insertAgent(agentId)
+      const channel = agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'Telegram',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      const otherChannel = agentChannelService.createChannel({
+        type: 'discord',
+        name: 'Discord',
+        agentId,
+        workspace: SYSTEM_WORKSPACE,
+        config: DISCORD_CONFIG
+      })
+      const alice = agentSessionService.create({ agentId, name: 'Alice', workspace: SYSTEM_WORKSPACE })
+      const otherAlice = agentSessionService.create({ agentId, name: 'Other Alice', workspace: SYSTEM_WORKSPACE })
+
+      application.get('DbService').withWriteTx((tx) => {
+        agentChannelService.activateSessionTx(tx, {
+          channelId: channel.id,
+          conversationId: 'alice',
+          sessionId: alice.id
+        })
+        agentChannelService.activateSessionTx(tx, {
+          channelId: otherChannel.id,
+          conversationId: 'alice',
+          sessionId: otherAlice.id
+        })
+      })
+
+      expect(agentChannelService.getActiveSessionId(channel.id, 'alice')).toBe(alice.id)
+      expect(agentChannelService.getActiveSessionId(otherChannel.id, 'alice')).toBe(otherAlice.id)
     })
   })
 })

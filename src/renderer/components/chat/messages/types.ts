@@ -1,10 +1,11 @@
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
-import type { Citation } from '@renderer/types/message'
+import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -22,16 +23,10 @@ import type {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
-export interface MessageUiState {
-  foldSelected?: boolean
-  multiModelMessageStyle?: string
-  useful?: boolean
-  disclosures?: Record<string, boolean>
-}
+export type { MessageUiState } from '@renderer/types/message'
 
 export interface MessageListSelectionState {
   enabled: boolean
@@ -64,6 +59,11 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+}
+
+export interface MessageActivityStore {
+  getSnapshot: (message: MessageListItem) => MessageActivityState
+  subscribe: (messageId: string, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
@@ -197,6 +197,7 @@ export interface MessageListItem {
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats
+  delivery?: AgentSessionDelivery
   mentions?: Array<{
     id: string
     name: string
@@ -310,11 +311,11 @@ export interface MessageListState {
   translationLanguagesStatus?: 'loading' | 'error' | 'ready'
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
+  messageActivityStore?: MessageActivityStore
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   isMessageTranslating?: (messageId: string) => boolean
   getFileView?: (file: FileMetadata) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
-  externalCodeEditors?: ExternalAppInfo[]
   getTranslationLanguageLabel?: (
     language: TranslateLangCode | TranslateLanguage | null,
     withEmoji?: boolean
@@ -349,13 +350,13 @@ export interface MessageListActions {
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
+  openDiagnosticReport?: (description?: string) => void
+  resolvePath?: (path: string) => string
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
-  showInFolder?: (path: string) => void | Promise<void>
   openExternalUrl?: (url: string) => void | Promise<void>
-  openInExternalApp?: (app: ExternalAppInfo, path: string) => void | Promise<void>
   navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void | Promise<void>
   openUserProfile?: () => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>

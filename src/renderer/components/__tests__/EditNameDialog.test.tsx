@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import EditNameDialog from '../EditNameDialog'
@@ -115,5 +116,24 @@ describe('EditNameDialog', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('对比'))
+  })
+
+  it('keeps spaces when nested under a keyboard-activatable parent', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <div
+        onKeyDown={(event) => {
+          if (event.key === ' ' || event.key === 'Spacebar') event.preventDefault()
+        }}>
+        <EditNameDialog open title="Edit name" initialName="Alpha" onSubmit={onSubmit} onOpenChange={onOpenChange} />
+      </div>
+    )
+
+    const input = within(screen.getByRole('dialog')).getByLabelText('Name')
+    await user.clear(input)
+    await user.type(input, 'Alpha Beta')
+
+    expect(input).toHaveValue('Alpha Beta')
   })
 })

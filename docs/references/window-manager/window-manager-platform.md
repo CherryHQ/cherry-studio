@@ -1,3 +1,11 @@
+---
+description: Per-window platform configuration — static platformOverrides, declarative behavior layer, and macOS quirks patches
+sources:
+  - src/main/core/window/quirks.ts
+  - src/main/core/window/behavior.ts
+  - src/main/core/window/windowRegistry.ts
+---
+
 # Window Platform Configuration
 
 WindowManager splits per-window configuration into three orthogonal layers:

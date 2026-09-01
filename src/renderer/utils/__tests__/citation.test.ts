@@ -445,7 +445,7 @@ Numbered list:
       expect(result).toContain('3</sup>](https://example3.com) citations')
     })
 
-    it('should preserve non-matching cite marks', () => {
+    it('should drop non-matching cite marks instead of exposing the internal id', () => {
       const content = 'Text with [cite:1] and [cite:3] citations'
       const citations: Citation[] = [{ number: 1, url: 'https://example1.com', title: 'Test 1' }]
       const citationMap = createCitationMap(citations)
@@ -453,7 +453,7 @@ Numbered list:
       const result = mapCitationMarksToTags(content, citationMap)
 
       expect(result).toContain('1</sup>](https://example1.com)')
-      expect(result).toContain('[cite:3]') // Should remain unchanged
+      expect(result).toBe("Text with [<sup data-citation='1'>1</sup>](https://example1.com) and citations")
     })
 
     it('should handle nested cite marks', () => {
@@ -480,13 +480,13 @@ Numbered list:
       expect(result).toBe('Text without citations')
     })
 
-    it('should handle malformed citation numbers', () => {
+    it('drops an id-shaped mark it cannot resolve but leaves an empty bracket alone', () => {
       const content = 'Text with [cite:abc] and [cite:] marks'
       const citationMap = new Map()
 
       const result = mapCitationMarksToTags(content, citationMap)
 
-      expect(result).toBe('Text with [cite:abc] and [cite:] marks')
+      expect(result).toBe('Text with and [cite:] marks')
     })
   })
 
@@ -507,7 +507,7 @@ Numbered list:
     })
 
     // A non-http URL is not linkable, so the marker must be a bare <sup>: an empty-href
-    // markdown link gets rewritten by rehype-harden into "<span>… [blocked]</span>".
+    // markdown link gets unwrapped by rehype-harden into a "<span>", losing the tooltip.
     it('should emit a bare sup (no link wrapper) when the URL is invalid', () => {
       const citation: Citation = {
         number: 2,
