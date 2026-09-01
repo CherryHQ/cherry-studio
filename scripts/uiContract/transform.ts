@@ -198,23 +198,6 @@ function explicitSemanticId(dataUi: AttributeInfo | undefined): string | undefin
   return dataUi.value.split(/\s+/).find((token) => token && !token.includes(':'))
 }
 
-function byteOffsetMap(source: string): (byteOffset: number) => number {
-  const offsets = new Map<number, number>([[0, 0]])
-  let bytes = 0
-  let characters = 0
-  for (const character of source) {
-    bytes += Buffer.byteLength(character)
-    characters += character.length
-    offsets.set(bytes, characters)
-  }
-
-  return (byteOffset: number): number => {
-    const exact = offsets.get(byteOffset)
-    if (exact !== undefined) return exact
-    throw new Error(`Invalid UTF-8 byte offset ${byteOffset}`)
-  }
-}
-
 function componentNameFromNode(node: AstRecord): string | undefined {
   if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && isRecord(node.id)) {
     return typeof node.id.name === 'string' ? node.id.name : undefined
@@ -267,9 +250,9 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   }
   const program = parsed.program
   const magicString = new MagicString(source)
-  // Oxc ESTree spans are UTF-8 byte offsets, while JavaScript and MagicString
-  // use UTF-16 string indices. Keep every source edit behind one conversion map.
-  const spanToCharacter = byteOffsetMap(source)
+  // oxc-parser exposes ESTree spans as JavaScript string indices, which
+  // MagicString accepts directly. Keep source edits behind one offset helper.
+  const spanToCharacter = (offset: number): number => offset
   const descriptors: UiNodeDescriptor[] = []
   const runtimeImports = new Set<'mergeDataUi' | 'mergeUiProps' | 'UiDataSlot'>()
 
