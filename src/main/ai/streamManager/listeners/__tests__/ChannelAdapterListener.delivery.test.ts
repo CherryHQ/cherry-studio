@@ -2,7 +2,7 @@ import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { StreamDoneResult, StreamPausedResult, StreamErrorResult } from '../../types'
+import type { StreamDoneResult, StreamErrorResult, StreamPausedResult } from '../../types'
 import { ChannelAdapterListener } from '../ChannelAdapterListener'
 
 function makeAdapter(overrides: Partial<ChannelAdapter> = {}): ChannelAdapter {
@@ -80,9 +80,12 @@ describe('ChannelAdapterListener delivery error propagation', () => {
       sendMessage: vi.fn().mockRejectedValue(sendError)
     })
     const listener = new ChannelAdapterListener(adapter, 'chat-1')
-    await expect(listener.onError({ error: { message: 'model error', name: 'Error', stack: null }, status: 'error' } as StreamErrorResult)).rejects.toThrow(
-      'error delivery failed'
-    )
+    await expect(
+      listener.onError({
+        error: { message: 'model error', name: 'Error', stack: null },
+        status: 'error'
+      } as StreamErrorResult)
+    ).rejects.toThrow('error delivery failed')
     expect(listener.deliveryError).toBe(sendError)
   })
 

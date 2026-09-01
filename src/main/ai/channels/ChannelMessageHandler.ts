@@ -492,7 +492,9 @@ export class ChannelMessageHandler {
           try {
             const raw = t('common.channel_delivery_failed', { error: streamErrorMessage } as any)
             const text =
-              typeof raw === 'string' && !raw.includes('channel_delivery_failed') ? raw : `Delivery failed: ${streamErrorMessage}`
+              typeof raw === 'string' && !raw.includes('channel_delivery_failed')
+                ? raw
+                : `Delivery failed: ${streamErrorMessage}`
             await adapter.sendMessage(message.chatId, text, responseOptionsFor(message))
           } catch (sendErr) {
             logger.debug('Failed to send delivery failure notification to channel', {
@@ -960,14 +962,7 @@ export class ChannelMessageHandler {
     }
 
     const text = await executionDone
-    try {
-      await Promise.race([
-        channelListener.waitForDelivery(),
-        new Promise<void>((resolve) => setTimeout(resolve, 10000))
-      ])
-    } catch (e) {
-      throw e
-    }
+    await Promise.race([channelListener.waitForDelivery(), new Promise<void>((resolve) => setTimeout(resolve, 10000))])
     if (channelListener.deliveryError) throw channelListener.deliveryError
     return text
   }

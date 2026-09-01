@@ -22,7 +22,7 @@ export class ChannelAdapterListener implements StreamListener {
   }
 
   async waitForDelivery(): Promise<void> {
-    let start = Date.now()
+    const start = Date.now()
     while (!this.deliveryPromise && Date.now() - start < 300) {
       await new Promise<void>((r) => setTimeout(r, 5))
     }
@@ -50,6 +50,8 @@ export class ChannelAdapterListener implements StreamListener {
       this.resolveDeliverySettled = resolve
       this.rejectDeliverySettled = reject
     })
+    // Mark as handled to avoid Vitest unhandled rejection when onDone throws before waitForDelivery is awaited
+    this.deliveryPromise.catch(() => {})
   }
 
   /** Deliver a final message using the inbound message's response context. */
