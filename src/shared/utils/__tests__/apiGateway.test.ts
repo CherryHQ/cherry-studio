@@ -1,5 +1,10 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import {
+  ANTIGRAVITY_MODEL_PATH_SEPARATOR,
+  formatGatewayModelId,
+  formatGeminiGatewayModelId,
+  gatewayClientOrigin
+} from '@shared/utils/apiGateway'
 import { describe, expect, it } from 'vitest'
 
 /** The gateway proxy's parse side (proxyStream.ts): split on the FIRST ':'. */
@@ -49,6 +54,12 @@ describe('formatGatewayModelId', () => {
   it('round-trips an apiModelId that itself contains the Antigravity separator', () => {
     const id = formatGatewayModelId('provider-a', 'models/gemini-flash')
     expect(parseAntigravityPath(id)).toEqual({ providerId: 'provider-a', modelId: 'models/gemini-flash' })
+  })
+
+  it('keeps a real @cherry model distinct from the Gemini gateway wrapper', () => {
+    expect(formatGatewayModelId('provider-a', 'model@cherry')).not.toBe(
+      formatGeminiGatewayModelId('provider-a', 'model')
+    )
   })
 })
 

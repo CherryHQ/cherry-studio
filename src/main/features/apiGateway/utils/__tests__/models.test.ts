@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getProvider: vi.fn(),
   listProviders: vi.fn(),
-  listModels: vi.fn()
+  listModels: vi.fn(),
+  loggerWarn: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -23,7 +24,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -163,6 +164,29 @@ describe('api gateway model listing', () => {
     const response = await getModels()
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
+  it('logs an unaddressable model without dropping surrounding valid models', async () => {
+    mocks.listProviders.mockReturnValue([
+      { id: 'openai', name: 'OpenAI' },
+      { id: 'corp:west', name: 'Corp West' },
+      { id: 'anthropic', name: 'Anthropic' }
+    ])
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
+      {
+        id: `${providerId}::model`,
+        providerId,
+        apiModelId: 'model',
+        ownedBy: providerId,
+        capabilities: []
+      }
+    ])
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:model', 'anthropic:model'])
+    expect(mocks.loggerWarn).toHaveBeenCalledOnce()
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.stringContaining('corp:west'))
   })
 
   // Reviewer A1: an external-cli provider (e.g. claude-code) authenticates via its own CLI login,
