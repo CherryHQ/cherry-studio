@@ -69,14 +69,10 @@ import {
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
 import {
-<<<<<<< HEAD
-  filterReasoningForProviderOptions,
-  normalizeRequestedSelection,
-=======
   extractReasoningBodyParams,
   filterReasoningForProviderOptions,
   isRequestBodyTarget,
->>>>>>> ef50e82413 (fix(reasoning): correct self-hosted body priority and deep merge)
+  normalizeRequestedSelection,
   resolveReasoningInvocation
 } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
