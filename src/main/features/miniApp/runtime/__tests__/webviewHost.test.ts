@@ -11,8 +11,13 @@ const { PRELOAD, runtime } = vi.hoisted(() => ({
     ready: new Set<string>(),
     quiescing: new Set<string>(),
     sessionApp: new Map<unknown, string>(),
-    registerGuest: (_appId: string, _id: number): void => {},
-    unregisterGuest: (_id: number): void => {}
+    registerGuest: (_appId: string, _id: number): void => {
+      void _appId
+      void _id
+    },
+    unregisterGuest: (_id: number): void => {
+      void _id
+    }
   }
 }))
 vi.mock('@application', async () => {

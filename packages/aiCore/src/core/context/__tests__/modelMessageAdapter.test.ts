@@ -2,7 +2,6 @@ import type { ModelMessage } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { fromModelMessages, toModelMessages } from '../modelMessageAdapter'
-import type { ContextMessage } from '../types'
 
 describe('fromModelMessages', () => {
   it('keeps string-shorthand user content as text in IR', () => {

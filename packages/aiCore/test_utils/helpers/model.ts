@@ -18,7 +18,6 @@ import { vi } from 'vitest'
 import * as z from 'zod'
 
 import type { StreamTextParams, StreamTextResult } from '../../src/core/plugins'
-import type { RegisteredProviderId } from '../../src/core/providers/types'
 import type { AiRequestContext } from '../../src/types'
 
 /**
