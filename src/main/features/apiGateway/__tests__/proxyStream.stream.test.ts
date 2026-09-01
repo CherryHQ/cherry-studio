@@ -337,7 +337,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     )
   })
 
-  it('omits identity-only standing system for string and array Support requests', async () => {
+  it('retains a Cherry Support identity when the SDK supplies only its own identity', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
     mockIsInternalSupportRequest.mockReturnValue(true)
@@ -348,8 +348,10 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       "You are a Claude agent, built on Anthropic's Claude Agent SDK."
     ].join('\n\n')
     await processAndCaptureStreamMessages(stringParams)
-    expect(mockToUIMessages.mock.calls[0][0].system).toBeUndefined()
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ system: undefined }))
+    expect(mockToUIMessages.mock.calls[0][0].system).toContain('Cherry Support')
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ system: expect.stringContaining('Cherry Support') })
+    )
 
     mockToUIMessages.mockClear()
     mockStreamPrompt.mockClear()
@@ -361,11 +363,15 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       { type: 'text', text: "You are a Claude agent, built on Anthropic's Claude Agent SDK." }
     ] as MessageCreateParams['system']
     await processAndCaptureStreamMessages(arrayParams)
-    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([])
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ system: undefined }))
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('Cherry Support') })
+    ])
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ system: expect.stringContaining('Cherry Support') })
+    )
   })
 
-  it('leaves empty string and empty array system values unchanged', async () => {
+  it('supplies a standing identity when an authenticated Support request has an empty system prompt', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
     mockIsInternalSupportRequest.mockReturnValue(true)
@@ -373,8 +379,10 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const stringParams = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
     stringParams.system = ''
     await processAndCaptureStreamMessages(stringParams)
-    expect(mockToUIMessages.mock.calls[0][0].system).toBe('')
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ system: undefined }))
+    expect(mockToUIMessages.mock.calls[0][0].system).toContain('Cherry Support')
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ system: expect.stringContaining('Cherry Support') })
+    )
 
     mockToUIMessages.mockClear()
     mockStreamPrompt.mockClear()
@@ -383,9 +391,12 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     const arrayParams = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
     arrayParams.system = [] as MessageCreateParams['system']
     await processAndCaptureStreamMessages(arrayParams)
-    expect(mockToUIMessages.mock.calls[0][0]).toBe(arrayParams)
-    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([])
-    expect(mockStreamPrompt).toHaveBeenCalledWith(expect.objectContaining({ system: undefined }))
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('Cherry Support') })
+    ])
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ system: expect.stringContaining('Cherry Support') })
+    )
   })
 
   it('preserves the Cherry Support prompt when workspace instructions quote an SDK identity', async () => {
@@ -530,6 +541,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         role: 'system',
         parts: [{ type: 'text', text: 'You are Cherry Studio official built-in product support.' }]
       },
+      { id: 'inline-leading', role: 'system', parts: [{ type: 'text', text: 'Available agent types: ...' }] },
       { id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'First turn' }] },
       { id: 'inline', role: 'system', parts: [{ type: 'text', text: 'MCP servers are still connecting.' }] },
       { id: 'user-2', role: 'user', parts: [{ type: 'text', text: 'Second turn' }] }
@@ -544,6 +556,7 @@ describe('processMessage (internal Agent continuation normalization)', () => {
       expect.objectContaining({
         system: 'You are Cherry Studio official built-in product support.',
         messages: [
+          expect.objectContaining({ id: 'inline-leading', role: 'system' }),
           expect.objectContaining({ id: 'user-1', role: 'user' }),
           expect.objectContaining({ id: 'inline', role: 'system' }),
           expect.objectContaining({ id: 'user-2', role: 'user' })

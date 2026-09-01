@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { type AgentPromptBase, PromptBuilder } from '@main/ai/agents/prompt'
+import { MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS } from '@main/ai/runtime/supportPrompt'
 import { getAppLanguage } from '@main/i18n'
 import { replacePromptVariables } from '@main/utils/prompt'
 import { BUILTIN_AGENT_ROLE } from '@shared/ai/builtinAgent'
@@ -61,7 +62,13 @@ export async function buildAgentRuntimePrompt({
   const isSupport = builtinRole === BUILTIN_AGENT_ROLE.SUPPORT
   let instructions = agent.instructions
 
-  if (builtinRole && !instructions?.trim()) {
+  if (isSupport) {
+    instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
+    if (!instructions) {
+      logger.error('Builtin Cherry Support definition missing; using minimal fallback instructions')
+      instructions = MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS
+    }
+  } else if (builtinRole && !instructions?.trim()) {
     instructions = loadBuiltinAgentDefinition(builtinRole)?.instructions
     if (!instructions && isAssistant) {
       logger.error('Builtin Cherry Assistant definition missing; using minimal fallback instructions')
@@ -90,8 +97,8 @@ export async function buildAgentRuntimePrompt({
       agentInstructions,
       hasAgentInstructions ? AGENT_INSTRUCTION_PRECEDENCE_PROMPT : undefined,
       workspaceCustomBase,
-      parts.context,
       workspaceInstructions,
+      parts.context,
       customBaseContext,
       citationsGuidance,
       REPORT_ARTIFACTS_PROMPT,

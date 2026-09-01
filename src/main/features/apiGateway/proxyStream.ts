@@ -20,6 +20,7 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { normalizeAnthropicSupportSystemPrompt } from '@main/ai/runtime/supportPrompt'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
 import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
@@ -41,12 +42,6 @@ import { applyAgentPromptCacheKey } from './utils/promptCacheKey'
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
-const CONFLICTING_SUPPORT_IDENTITY_MARKERS = [
-  'You are Claude Code',
-  "Anthropic's official CLI",
-  "You are a Claude agent, built on Anthropic's Claude Agent SDK."
-] as const
-const CHERRY_SUPPORT_IDENTITY_MARKERS = ['official built-in product support', '官方内置的产品支持'] as const
 
 type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
 
@@ -66,88 +61,16 @@ function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
 }
 
 function extractSystemPrompt(messages: CherryUIMessage[]): { conversation: CherryUIMessage[]; system?: string } {
-  const systemSections: string[] = []
-  let index = 0
-  for (; index < messages.length; index++) {
-    const message = messages[index]
-    if (message.role !== 'system') break
-    const text = message.parts
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text)
-      .join('\n')
-    if (text) systemSections.push(text)
-  }
+  const [standing, ...conversation] = messages
+  if (standing?.role !== 'system') return { conversation: messages }
+  const system = standing.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n')
   return {
-    conversation: messages.slice(index),
-    system: systemSections.length > 0 ? systemSections.join('\n\n') : undefined
+    conversation,
+    system: system || undefined
   }
-}
-
-function containsMarker(text: string, markers: readonly string[]): boolean {
-  return markers.some((marker) => text.includes(marker))
-}
-
-function isCherryOwnedSupportIdentity(text: string): boolean {
-  return containsMarker(text, CHERRY_SUPPORT_IDENTITY_MARKERS)
-}
-
-function isConflictingSdkIdentity(text: string): boolean {
-  return containsMarker(text, CONFLICTING_SUPPORT_IDENTITY_MARKERS) && !isCherryOwnedSupportIdentity(text)
-}
-
-function leadingStandingIdentityEnd(texts: readonly string[]): number {
-  const cherryIndex = texts.findIndex(isCherryOwnedSupportIdentity)
-  return cherryIndex === -1 ? texts.length : cherryIndex
-}
-
-function stripConflictingLeadingLines(section: string): string {
-  const lines = section.split('\n')
-  let start = 0
-  while (start < lines.length && lines[start].trim() === '') start++
-  while (start < lines.length && isConflictingSdkIdentity(lines[start])) start++
-  return lines.slice(start).join('\n')
-}
-
-function stripLeadingConflictingIdentityText(text: string): string | undefined {
-  const sections = text.split('\n\n')
-  const leadingEnd = leadingStandingIdentityEnd(sections)
-  const kept: string[] = []
-  for (let index = 0; index < sections.length; index++) {
-    const section = sections[index]
-    if (index > leadingEnd) {
-      kept.push(section)
-      continue
-    }
-    if (index < leadingEnd) {
-      if (!isConflictingSdkIdentity(section)) kept.push(section)
-      continue
-    }
-    const stripped = stripConflictingLeadingLines(section).trim()
-    if (stripped.length > 0) kept.push(stripped)
-  }
-  const remaining = kept.join('\n\n').trim()
-  return remaining.length > 0 ? remaining : undefined
-}
-
-function removeConflictingSupportIdentity(params: MessageCreateParams): MessageCreateParams {
-  if (typeof params.system === 'string') {
-    if (params.system.length === 0) return params
-    const system = stripLeadingConflictingIdentityText(params.system)
-    if (system === params.system) return params
-    return { ...params, system }
-  }
-  if (!Array.isArray(params.system)) return params
-  const leadingEnd = leadingStandingIdentityEnd(params.system.map((block) => (block.type === 'text' ? block.text : '')))
-  const system = params.system.flatMap((block, index) => {
-    if (block.type !== 'text') return [block]
-    if (index > leadingEnd) return [block]
-    const stripped = stripLeadingConflictingIdentityText(block.text)
-    if (!stripped) return []
-    return stripped === block.text ? [block] : [{ ...block, text: stripped }]
-  })
-  return system.length === params.system.length && system.every((block, index) => block === params.system?.[index])
-    ? params
-    : { ...params, system }
 }
 
 /**
@@ -265,7 +188,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
 
   if (isInternalAnthropicAgentRequest) {
     const anthropicParams = isInternalSupportRequest
-      ? removeConflictingSupportIdentity(params as MessageCreateParams)
+      ? normalizeAnthropicSupportSystemPrompt(params as MessageCreateParams)
       : (params as MessageCreateParams)
     effectiveParams = anthropicParams
     const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
