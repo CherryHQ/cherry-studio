@@ -757,6 +757,32 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
+  it('keeps a captured mutator scoped to the query key that created it', async () => {
+    spyGet().mockImplementation((async (path: string) => ({
+      items: [],
+      nextCursor: undefined,
+      activeNodeId: path.includes('/t1/') ? 't1' : 't2'
+    })) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      ({ topicId }) => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId } }),
+      { wrapper: Wrapper, initialProps: { topicId: 't1' } }
+    )
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t1'))
+    const mutateTopicOne = result.current.mutate
+
+    rerender({ topicId: 't2' })
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('t2'))
+    await act(async () => {
+      await mutateTopicOne([{ ...emptyPage, activeNodeId: 'updated-t1' }] as never, { revalidate: false })
+    })
+
+    expect(result.current.pages[0]?.activeNodeId).toBe('t2')
+    rerender({ topicId: 't1' })
+    await waitFor(() => expect(result.current.pages[0]?.activeNodeId).toBe('updated-t1'))
+  })
+
   it('bound mutate revalidates every loaded page without revalidateAll', async () => {
     let olderPageText = 'stale approval'
     const getSpy = spyGet()

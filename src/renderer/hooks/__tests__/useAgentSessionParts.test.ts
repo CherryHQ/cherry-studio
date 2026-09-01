@@ -69,7 +69,10 @@ function mockLiveAgentSessionParts(initialItems: AgentSessionMessageEntity[]) {
     const mutate = useCallback(
       async (updater?: unknown) => {
         const current = visiblePagesBySession.get(sessionId) ?? []
-        const next = typeof updater === 'function' ? (updater as (value: Pages) => Pages | undefined)(current) : current
+        const next =
+          typeof updater === 'function'
+            ? await (updater as (value: Pages) => Pages | undefined | Promise<Pages | undefined>)(current)
+            : current
         visiblePagesBySession.set(sessionId, next ?? current)
         setVersion((version) => version + 1)
         return visiblePagesBySession.get(sessionId)
@@ -517,5 +520,34 @@ describe('useAgentSessionParts', () => {
 
     expect(live.trigger).toHaveBeenCalledOnce()
     expect(live.getIds()).toEqual([])
+  })
+
+  it('applies a late DELETE success to the session where deletion began', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    live.setItems('session-2', [sessionMessageRow('message-2', 'session-2')])
+    let resolveDelete!: () => void
+    live.trigger.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolveDelete = () => resolve(undefined)
+        })
+    )
+
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionParts(sessionId), {
+      initialProps: { sessionId: 'session-1' }
+    })
+    let pendingDelete!: Promise<void>
+    act(() => {
+      pendingDelete = result.current.deleteMessage('message-1')
+    })
+
+    rerender({ sessionId: 'session-2' })
+    await act(async () => {
+      resolveDelete()
+      await pendingDelete
+    })
+
+    expect(live.getIds('session-1')).toEqual([])
+    expect(live.getIds('session-2')).toEqual(['message-2'])
   })
 })

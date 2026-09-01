@@ -57,7 +57,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteConfiguration, SWRInfiniteKeyedMutator } from 'swr/infinite'
-import useSWRInfinite from 'swr/infinite'
+import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import type { SWRMutationConfiguration } from 'swr/mutation'
 import useSWRMutation from 'swr/mutation'
 
@@ -837,6 +837,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     swrOptions?: SWRInfiniteConfiguration
   }
 ): UseInfiniteQueryResult<ResponseForPath<TPath, 'GET'>> {
+  const { mutate: globalMutate } = useSWRConfig()
   const limit = options?.limit ?? 10
   const enabled = options?.enabled !== false
 
@@ -863,6 +864,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     },
     [resolvedPath, options?.query, limit, enabled]
   )
+  const infiniteCacheKey = useMemo(() => unstable_serialize_infinite(getKey), [getKey])
 
   const infiniteFetcher = (key: [string, Record<string, unknown>]) => {
     return getFetcher(key as unknown as [ConcreteApiPaths, QueryParamsForPath<ConcreteApiPaths, 'GET'>?]) as Promise<
@@ -875,7 +877,16 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     ...options?.swrOptions
   })
 
-  const { error, isLoading, isValidating, mutate, setSize } = swrResult
+  const { error, isLoading, isValidating, mutate: boundMutate, setSize } = swrResult
+  const mutate = useCallback(
+    ((data, opts) =>
+      data === undefined
+        ? boundMutate(data, opts)
+        : globalMutate(infiniteCacheKey, data as never, opts as never)) as SWRInfiniteKeyedMutator<
+      ResponseForPath<TPath, 'GET'>[]
+    >,
+    [boundMutate, globalMutate, infiniteCacheKey]
+  )
 
   // Stabilize `pages` reference: when SWR's `data` is unchanged across rerenders
   // the consumer gets `===` equality, which is required for `useInfiniteFlatItems`
@@ -908,7 +919,7 @@ export function useInfiniteQuery<TPath extends ApiPath>(
     loadNext,
     refresh,
     reset,
-    mutate: mutate as SWRInfiniteKeyedMutator<ResponseForPath<TPath, 'GET'>[]>
+    mutate
   }
 }
 
