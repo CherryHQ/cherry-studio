@@ -23,6 +23,9 @@ const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
+  const [webdavAllowSelfSignedTls, setWebdavAllowSelfSignedTls] = usePreference(
+    'data.backup.webdav.allow_self_signed_tls'
+  )
   const [webdavDisableStream, setWebdavDisableStream] = usePreference('data.backup.webdav.disable_stream')
   const [webdavHost, setWebdavHost] = usePreference('data.backup.webdav.host')
   const [webdavMaxBackups, setWebdavMaxBackups] = usePreference('data.backup.webdav.max_backups')
@@ -213,6 +216,18 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
       </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.webdav.allowSelfSignedTls.title')}</SettingRowTitle>
+        <Switch
+          aria-label={t('settings.data.webdav.allowSelfSignedTls.title')}
+          checked={webdavAllowSelfSignedTls}
+          onCheckedChange={(value) => void setWebdavAllowSelfSignedTls(value)}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.webdav.allowSelfSignedTls.help')}</SettingHelpText>
+      </SettingRow>
       {webdavSync && webdavSyncInterval > 0 && (
         <>
           <SettingDivider />
@@ -235,12 +250,14 @@ const WebDavSettings: FC = () => {
         <WebdavBackupManager
           visible={backupManagerVisible}
           onClose={closeBackupManager}
+          tlsCertificateHint
           webdavConfig={{
             webdavHost,
             webdavUser,
             webdavPass,
             webdavPath,
-            webdavDisableStream
+            webdavDisableStream,
+            allowSelfSignedTls: webdavAllowSelfSignedTls
           }}
         />
       </>
