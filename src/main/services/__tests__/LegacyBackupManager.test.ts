@@ -498,7 +498,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       if (String(target).includes('/mock/temp/backup')) {
         throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
       }
-      return undefined as never
+      return undefined
     })
 
     await expect(backupManager.cleanupStaleTempArtifacts()).resolves.toBeUndefined()
@@ -530,7 +530,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       directory: vi.fn(),
       finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
     }
-    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.mocked(ZipArchive).mockReturnValue(archive)
     vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
     vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
 
@@ -556,7 +556,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       if (String(target).endsWith('legacy.zip')) {
         throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
       }
-      return undefined as never
+      return undefined
     })
     const outputs: Writable[] = []
     vi.mocked(fs.createWriteStream).mockImplementation(() => {
@@ -574,7 +574,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       directory: vi.fn(),
       finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
     }
-    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.mocked(ZipArchive).mockReturnValue(archive)
     vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
     vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
 
@@ -588,7 +588,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       if (String(target).endsWith('legacy.zip')) {
         throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
       }
-      return undefined as never
+      return undefined
     })
 
     await expect(
@@ -602,7 +602,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       if (String(target).includes('create-operation-id')) {
         throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
       }
-      return undefined as never
+      return undefined
     })
     mockArchiveClose()
 
@@ -632,7 +632,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       directory: vi.fn(),
       finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
     }
-    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.mocked(ZipArchive).mockReturnValue(archive)
     vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
     vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
     vi.mocked(fs.chmod).mockClear()
@@ -986,7 +986,7 @@ describe('BackupManager direct v2 data compatibility', () => {
       if (String(target).includes('restore-staging')) {
         throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
       }
-      return undefined as never
+      return undefined
     })
 
     await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(

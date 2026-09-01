@@ -676,7 +676,7 @@ describe('FilesPage keyboard rename', () => {
 
 describe('FilesPage keyboard select all', () => {
   it('selects all visible files with Cmd+A on macOS', async () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     renderFilesPage([entry, secondEntry])
     const user = userEvent.setup()
 
@@ -691,7 +691,7 @@ describe('FilesPage keyboard select all', () => {
 
   it('selects all visible files with Ctrl+A outside macOS', async () => {
     platformState.isMac = false
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' }
     renderFilesPage([entry, secondEntry])
     const user = userEvent.setup()
 
