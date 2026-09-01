@@ -1,6 +1,7 @@
 import { SearchInput } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { Search } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +29,9 @@ const SettingsSearchBox = () => {
   const { listboxId, optionDomId } = useSettingsSearchDomIds()
   const hasResults = isSearchPage && resultCount > 0
   const [value, setValue] = useState(urlQuery)
+  // Collapsed icon ↔ expanded field: the affordance sits in the header action
+  // slot; opening is user-opted-in, staying open tracks the search flow
+  const [open, setOpen] = useState(isSearchPage)
   // Tracks the previous input value across effect passes — distinguishes a
   // user-initiated clear from a deep-link seed still in flight
   const prevValueRef = useRef(value)
@@ -53,12 +57,15 @@ const SettingsSearchBox = () => {
       // already: the mirrored debounced navigate must replace, not duplicate
       hasPushedRef.current = true
       leaveInFlightRef.current = false
+      setOpen(true)
       return
     }
     // Reset even on empty-value exits (the back path skips the value check):
     // a stale true downgrades the next session's first entry to replace
     hasPushedRef.current = false
     leaveInFlightRef.current = false
+    // Leaving the search page ends the search flow — collapse back to icon
+    setOpen(false)
     if (value) {
       setValue('')
       setLiveQuery('')
@@ -132,13 +139,25 @@ const SettingsSearchBox = () => {
     return () => clearTimeout(handle)
   }, [value, navigate, isSearchPage, router, performLeave])
 
-  // pt-2.5 mirrors the provider column's search row — both boxes top-align
+  // Header action slot: a quiet search icon until invoked, then the field
+  if (!open) {
+    return (
+      <button
+        type="button"
+        aria-label={t('settings.search.placeholder')}
+        onClick={() => setOpen(true)}
+        className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground">
+        <Search className="size-4" />
+      </button>
+    )
+  }
+
   return (
-    <div className="px-2.5 pt-2.5 pb-1">
+    <div className="fade-in slide-in-from-right-2 w-36 animate-in duration-150">
       <SearchInput
+        autoFocus
         size="sm"
-        // h-8 matches the settings row height (menu items, provider search
-        // field); sm keeps the compact text
+        // h-8 matches the header row height; sm keeps the compact text
         containerClassName="h-8"
         value={value}
         placeholder={t('settings.search.placeholder')}
@@ -157,6 +176,9 @@ const SettingsSearchBox = () => {
         }}
         onClear={exitSearch}
         clearLabel={t('common.clear')}
+        onBlur={() => {
+          if (!value && !isSearchPage) setOpen(false)
+        }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') {
             e.preventDefault()
@@ -170,6 +192,7 @@ const SettingsSearchBox = () => {
           } else if (e.key === 'Escape') {
             e.preventDefault()
             exitSearch()
+            if (!value && !isSearchPage) setOpen(false)
           }
         }}
       />

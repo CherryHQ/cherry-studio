@@ -27,12 +27,14 @@ vi.mock('@cherrystudio/ui', () => ({
     value,
     onChange,
     onKeyDown,
+    onBlur,
     'aria-controls': ariaControls,
     'aria-activedescendant': ariaActivedescendant
   }: {
     value: string
     onChange: (e: { target: { value: string } }) => void
     onKeyDown: (e: { key: string; preventDefault: () => void }) => void
+    onBlur?: () => void
     'aria-controls'?: string
     'aria-activedescendant'?: string
   }) => (
@@ -41,6 +43,7 @@ vi.mock('@cherrystudio/ui', () => ({
       value={value}
       onChange={onChange}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
       aria-controls={ariaControls}
       aria-activedescendant={ariaActivedescendant}
     />
@@ -60,6 +63,36 @@ describe('SettingsSearchBox', () => {
     routerMock.history.canGoBack.mockReturnValue(true)
     setLiveQuery(undefined)
     publishResults(0)
+  })
+
+  // Off the search page the box renders as a collapsed icon — expand first
+  const openBox = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'settings.search.placeholder' }))
+    return screen.getByTestId('search-input')
+  }
+
+  it('renders as a quiet icon until invoked, expanding on click', () => {
+    render(<SettingsSearchBox />)
+
+    // Collapsed: no combobox in the DOM, just the labeled icon button
+    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.search.placeholder' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.search.placeholder' }))
+    expect(screen.getByTestId('search-input')).toBeInTheDocument()
+  })
+
+  it('collapses on empty Escape/blur off the search page without walking history', () => {
+    render(<SettingsSearchBox />)
+    const input = openBox()
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
+    expect(routerMock.history.back).not.toHaveBeenCalled()
+
+    openBox()
+    fireEvent.blur(screen.getByTestId('search-input'))
+    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
   })
 
   it('does not walk history back when a deep-link dispatch lands on the search page', async () => {
@@ -110,9 +143,10 @@ describe('SettingsSearchBox', () => {
 
   it('publishes keystrokes to the live query store immediately (pre-debounce)', () => {
     render(<SettingsSearchBox />)
+    const input = openBox()
     const { result } = renderHook(() => useSettingsSearchKeyboard())
 
-    fireEvent.change(screen.getByTestId('search-input'), { target: { value: 'pro' } })
+    fireEvent.change(input, { target: { value: 'pro' } })
 
     // Before any debounced navigation: Enter must already jump on 'pro'
     expect(result.current.liveQuery).toBe('pro')
@@ -135,6 +169,7 @@ describe('SettingsSearchBox', () => {
 
   it('does nothing when the box is empty off the search page', () => {
     render(<SettingsSearchBox />)
+    openBox()
     expect(routerMock.history.back).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalled()
   })
@@ -149,12 +184,13 @@ describe('SettingsSearchBox', () => {
     fireEvent.change(input, { target: { value: '' } })
     expect(routerMock.history.back).toHaveBeenCalled()
 
-    // Landing on another section with the box still empty — then searching
+    // Landing on another section collapses the box back to the icon — the
+    // next search re-expands it, and that fresh session must push (not replace)
     locationMock.pathname = '/settings/general'
     searchMock.q = undefined
     view.rerender(<SettingsSearchBox />)
 
-    fireEvent.change(input, { target: { value: 'theme' } })
+    fireEvent.change(openBox(), { target: { value: 'theme' } })
     // replace:false is the contract: back must return to the origin section
     await waitFor(
       () =>
@@ -167,7 +203,7 @@ describe('SettingsSearchBox', () => {
 
   it('replaces, not pushes, the mirrored navigate after a back/forward re-entry', async () => {
     const view = render(<SettingsSearchBox />)
-    const input = screen.getByTestId('search-input')
+    const input = openBox()
 
     // First session on general pushes the search entry
     fireEvent.change(input, { target: { value: 'proxy' } })
