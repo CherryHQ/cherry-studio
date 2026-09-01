@@ -328,11 +328,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     // A live turn's connection pins the model captured at turn creation; the agent may have been
     // edited to a different model since (here: agent.model is still provider-1::model-1).
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      'session-1',
-      undefined,
-      'provider-1::model-2' as any
-    )
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     expect(request?.sdkModelId).toBe('model-2-api')
     // The whole route follows the override — the unset plan/small defaults must pin to the captured
@@ -375,11 +371,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       contextWindow: 262_144
     }))
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      'session-1',
-      undefined,
-      'provider-1::model-2' as any
-    )
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
     expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
@@ -535,11 +527,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       smallModel: 'other::small'
     })
 
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      'session-1',
-      undefined,
-      'provider-1::model-2' as any
-    )
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1', undefined, 'provider-1::model-2')
 
     // The captured turn only recorded its primary; the edited plan/small must NOT leak in. They pin to the
     // captured primary, so every ANTHROPIC_DEFAULT_* stays on model-2 and the cross-provider sub-models do

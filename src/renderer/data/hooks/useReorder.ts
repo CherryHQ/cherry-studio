@@ -298,7 +298,7 @@ export function useReorder(
         if (optimistic !== undefined) {
           await writeCache(resolvedCollectionUrl, optimistic)
         }
-        await patchOrder({ params: { ...mutationParams, id }, body: anchor } as Parameters<typeof patchOrder>[0])
+        await patchOrder({ params: { ...mutationParams, id }, body: anchor })
       } catch (err) {
         logger.warn(`move failed for ${String(collectionUrl)} id=${id}, rolling back`, { error: err })
         // Rollback regardless of `revalidateOnSuccess` — the optimistic

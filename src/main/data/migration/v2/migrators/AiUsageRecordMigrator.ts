@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
 import type { MessageSnapshot, MessageStats } from '@shared/data/types/message'
-import { type Currency, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -131,7 +131,7 @@ function resolveLegacyCost(stats: MessageStats): LegacyAggregateInput['cost'] {
   if (!cost) return undefined
   return {
     amount: cost.amount,
-    currency: cost.currency as Currency,
+    currency: cost.currency,
     source: cost.providerReportedRequestCount > 0 ? 'provider' : 'computed'
   }
 }

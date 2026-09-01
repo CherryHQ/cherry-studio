@@ -4,7 +4,6 @@ import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
 import type { FileEntry } from '@shared/data/types/file'
-import type { PaintingMode } from '@shared/data/types/painting'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
@@ -76,9 +75,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
 
       try {
         const persisted = shouldCreate
-          ? await createPainting(
-              paintingDataToCreateDto(targetPainting as PaintingData & { providerId: string; mode: PaintingMode })
-            )
+          ? await createPainting(paintingDataToCreateDto(targetPainting))
           : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
         targetPainting.persistedAt = persisted.createdAt
       } catch (error) {
@@ -102,11 +99,11 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
         Object.assign(generationState, updates, { generationStatus: 'running' as const })
         cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
-        applyIfVisible({ ...targetPainting, ...generationState } as PaintingData)
+        applyIfVisible({ ...targetPainting, ...generationState })
       }
 
       visibleIdRef.current = targetPainting.id
-      onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
+      onPaintingChange({ ...targetPainting, ...generationState })
       registerPaintingAbortController(targetPainting.id, controller)
       pushGenerationState(generationState)
 
@@ -126,7 +123,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         cacheService.set(cacheKey, null)
         // Merge the freshly-generated output into the in-memory draft; do not
         // re-read from the DB record (which would drop params / mode again).
-        applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
+        applyIfVisible({ ...targetPainting, files: generatedFiles })
         await refresh()
       } catch (error) {
         const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
@@ -136,7 +133,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
         }
         cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
-        applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
+        applyIfVisible({ ...targetPainting, ...failedState })
         if (!isCanceled) {
           presentPaintingGenerateError(error)
         }

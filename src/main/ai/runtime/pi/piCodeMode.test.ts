@@ -20,7 +20,7 @@ function tool(overrides: Partial<ToolDefinition> & Pick<ToolDefinition, 'name'>)
       type: 'object',
       properties: { query: { type: 'string' } },
       required: ['query']
-    } as ToolDefinition['parameters'],
+    },
     execute: vi.fn<ToolDefinition['execute']>(async () => ({
       content: [{ type: 'text' as const, text: 'ok' }],
       details: { ok: true }

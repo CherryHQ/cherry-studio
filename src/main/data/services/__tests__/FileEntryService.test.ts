@@ -21,7 +21,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { ContentHash, FileEntryId } from '@shared/data/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 
 // `@logger` is mocked globally by tests/main.setup.ts with the unified
@@ -66,7 +65,7 @@ describe('FileEntryService', () => {
     })
 
     it('returns null for missing id', async () => {
-      const result = fileEntryService.findById('019606a0-0000-7000-8000-9999ffffffff' as FileEntryId)
+      const result = fileEntryService.findById('019606a0-0000-7000-8000-9999ffffffff')
       expect(result).toBeNull()
     })
 
@@ -1642,7 +1641,7 @@ describe('FileEntryService', () => {
     })
 
     it('is idempotent on missing id', async () => {
-      expect(fileEntryService.delete('019606a0-0000-7000-8000-000000000cff' as FileEntryId)).toBeUndefined()
+      expect(fileEntryService.delete('019606a0-0000-7000-8000-000000000cff')).toBeUndefined()
     })
   })
 
@@ -1914,7 +1913,7 @@ describe('FileEntryService', () => {
         cleanupPolicy: 'manual',
         name: 'e',
         ext: 'txt',
-        externalPath: '/abs/orphan.txt' as AbsoluteFilePath
+        externalPath: '/abs/orphan.txt'
       })
 
       const externalsOnly = fileEntryService.findManualUnreferenced({ origin: 'external' })

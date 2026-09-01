@@ -92,7 +92,7 @@ beforeAll(() => {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as unknown as typeof ResizeObserver
+  }
   Element.prototype.scrollIntoView = vi.fn()
 })
 

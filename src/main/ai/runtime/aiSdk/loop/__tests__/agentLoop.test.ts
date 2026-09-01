@@ -23,8 +23,8 @@ vi.mock('@cherrystudio/ai-core', () => ({
 async function makeAgent(overrides: Partial<AgentLoopParams> = {}) {
   const { Agent } = await import('../../Agent')
   return new Agent({
-    providerId: 'openai' as never,
-    providerSettings: {} as never,
+    providerId: 'openai',
+    providerSettings: {},
     modelId: 'test-model',
     ...overrides
   })

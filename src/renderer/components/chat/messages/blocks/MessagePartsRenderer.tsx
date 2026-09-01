@@ -460,7 +460,7 @@ function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean
 /** Extract CherryProviderMetadata from a part. */
 function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefined {
   if ('providerMetadata' in part && part.providerMetadata) {
-    return part.providerMetadata.cherry as CherryProviderMetadata | undefined
+    return part.providerMetadata.cherry
   }
   return undefined
 }

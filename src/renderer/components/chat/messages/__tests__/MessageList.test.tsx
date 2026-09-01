@@ -538,7 +538,7 @@ describe('MessageList', () => {
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )
@@ -582,11 +582,11 @@ describe('MessageList', () => {
           streamingLayers: {
             historyPartsByMessageId: historyParts,
             liveMessageIds: ['assistant-live']
-          } as NonNullable<MessageListProviderValue['state']['streamingLayers']>,
+          },
           partsByMessageId: {
             ...historyParts,
             'assistant-live': [{ type: 'text', text: 'streaming' }]
-          } as MessageListProviderValue['state']['partsByMessageId']
+          }
         },
         actions
       )

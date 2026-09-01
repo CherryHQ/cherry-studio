@@ -130,17 +130,16 @@ vi.mock('../TopicNamingSettings', () => ({
 
 import ModelSettings from '../ModelSettings'
 
-const createModel = (providerId: string, apiModelId: string): Model =>
-  ({
-    id: `${providerId}::${apiModelId}`,
-    providerId,
-    apiModelId,
-    name: apiModelId,
-    capabilities: [],
-    supportsStreaming: true,
-    isEnabled: true,
-    isHidden: false
-  }) as Model
+const createModel = (providerId: string, apiModelId: string): Model => ({
+  id: `${providerId}::${apiModelId}`,
+  providerId,
+  apiModelId,
+  name: apiModelId,
+  capabilities: [],
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+})
 
 describe('ModelSettings', () => {
   beforeEach(() => {

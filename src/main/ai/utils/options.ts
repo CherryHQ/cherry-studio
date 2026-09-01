@@ -68,7 +68,7 @@ export function applyServiceTierToProviderOptions<T extends ProviderOptions>(
     if (!namespace || !Object.hasOwn(namespace, control.wire.delivery.key)) return providerOptions
     const cleanedNamespace = { ...namespace }
     delete cleanedNamespace[control.wire.delivery.key]
-    return { ...providerOptions, [providerOptionsKey]: cleanedNamespace } as T
+    return { ...providerOptions, [providerOptionsKey]: cleanedNamespace }
   }
   return {
     ...providerOptions,
@@ -76,7 +76,7 @@ export function applyServiceTierToProviderOptions<T extends ProviderOptions>(
       ...providerOptions[providerOptionsKey],
       [control.wire.delivery.key]: resolveServiceTierWireValue(control, selection)
     }
-  } as T
+  }
 }
 
 function shouldNormalizeOpenAICompatibleReasoning(
@@ -253,7 +253,7 @@ export function mergeCustomProviderParameters(
   providerOptions: Record<string, Record<string, JSONValue>>,
   providerParams: Record<string, any>,
   rawProviderId: string,
-  adapterFamily: AppProviderId = rawProviderId as AppProviderId
+  adapterFamily: AppProviderId = rawProviderId
 ): Record<string, Record<string, JSONValue>> {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]

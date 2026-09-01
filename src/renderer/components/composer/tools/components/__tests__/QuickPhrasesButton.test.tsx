@@ -211,7 +211,7 @@ describe('QuickPhrasesToolRuntime', () => {
 
     const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
     act(() => {
-      manageItem.action({} as never)
+      manageItem.action({})
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -263,7 +263,7 @@ describe('QuickPhrasesToolRuntime', () => {
 
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
     act(() => {
-      addItem.action({} as never)
+      addItem.action({})
     })
     screen.getByRole('button', { name: 'save prompt' }).click()
 
@@ -314,7 +314,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
     const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
     act(() => {
-      manageItem.action({} as never)
+      manageItem.action({})
     })
 
     expect(mocks.openResourceEditDialog).toHaveBeenCalledWith({
@@ -347,7 +347,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
     act(() => {
-      addItem.action({ inputAdapter } as never)
+      addItem.action({ inputAdapter })
     })
     act(() => {
       screen.getByText('close prompt edit').click()
@@ -378,7 +378,7 @@ describe('QuickPhrasesToolRuntime', () => {
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
     act(() => {
-      addItem.action({} as never)
+      addItem.action({})
     })
     screen.getByRole('button', { name: 'save prompt' }).click()
 

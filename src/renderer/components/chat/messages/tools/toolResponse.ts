@@ -65,7 +65,7 @@ export function getCanonicalToolName(part: CherryMessagePart): string | undefine
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
-  return getCanonicalToolName(part as unknown as CherryMessagePart) ?? 'unknown'
+  return getCanonicalToolName(part) ?? 'unknown'
 }
 
 function mapPartStateToStatus(state: string | undefined, approved?: boolean): McpToolResponseStatus {

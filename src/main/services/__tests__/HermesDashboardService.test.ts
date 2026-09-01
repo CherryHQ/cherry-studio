@@ -1,4 +1,3 @@
-import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type * as NodeFsPromises from 'node:fs/promises'
 
@@ -74,7 +73,7 @@ describe('HermesDashboardService', () => {
     mocks.getRawShellEnv.mockResolvedValue({ PATH: '/system/bin' })
     mocks.realpath.mockRejectedValue(new Error('ENOENT'))
     mocks.refreshShellEnv.mockResolvedValue({ PATH: '/managed/bin' })
-    mocks.spawn.mockReturnValue(child as unknown as NodeChildProcess.ChildProcess)
+    mocks.spawn.mockReturnValue(child)
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -84,10 +83,11 @@ describe('HermesDashboardService', () => {
         json: async () => ({ hermes_home: '/home/test/.hermes', gateway_running: false })
       }))
     )
-    vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals) => {
-      if (pid === -child.pid) queueMicrotask(() => child.close(signal ?? 'SIGTERM'))
+    vi.spyOn(process, 'kill').mockImplementation((pid: number, signal?: string | number) => {
+      const closeSignal = signal === 'SIGKILL' ? 'SIGKILL' : 'SIGTERM'
+      if (pid === -child.pid) queueMicrotask(() => child.close(closeSignal))
       return true
-    }) as typeof process.kill)
+    })
   })
 
   afterEach(() => {
@@ -377,7 +377,7 @@ describe('HermesDashboardService', () => {
   it('escalates to a forced kill and reports an error when its child ignores termination', async () => {
     const service = new HermesDashboardService()
     await service.start()
-    vi.mocked(process.kill).mockImplementation((() => true) as typeof process.kill)
+    vi.mocked(process.kill).mockImplementation(() => true)
     vi.useFakeTimers()
 
     const stopping = service.stop()

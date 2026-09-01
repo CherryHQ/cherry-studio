@@ -158,7 +158,7 @@ function setupRegistryData() {
         maxOutputTokens: 4096
       }
     ]
-  } as ReturnType<typeof readModelRegistry>)
+  })
 
   mockReadProviderModels.mockReturnValue({
     version: '1.0',
@@ -168,7 +168,7 @@ function setupRegistryData() {
         modelId: 'gpt-4o'
       }
     ]
-  } as ReturnType<typeof readProviderModelRegistry>)
+  })
 
   mockReadProviders.mockReturnValue({
     version: '1.0',
@@ -315,13 +315,13 @@ describe('ProviderRegistryService', () => {
             input: { perMillionTokens: 5 },
             output: { perMillionTokens: 15 }
           }
-        } as any,
+        },
         {
           providerId: 'openai',
           modelId: 'gpt-4o',
           parameterSupport: { temperature: { supported: false } },
           pricing: { output: { perMillionTokens: 12 } }
-        } as any,
+        },
         'openai'
       )
 
@@ -421,11 +421,11 @@ describe('ProviderRegistryService', () => {
             capabilities: ['function-call']
           }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [{ providerId: 'openai', modelId: 'qwen3-coder' }]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -493,7 +493,7 @@ describe('ProviderRegistryService', () => {
             reasoning: {}
           }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValueOnce({
         version: '1.0',
         overrides: [
@@ -503,7 +503,7 @@ describe('ProviderRegistryService', () => {
             replaceWith: Symbol('invalid-replacement') as unknown as string
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValueOnce({
         version: '1.0',
         providers: [
@@ -557,7 +557,7 @@ describe('ProviderRegistryService', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', capabilities: ['function-call'] }]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -569,7 +569,7 @@ describe('ProviderRegistryService', () => {
             name: 'DeepSeek-V4-Flash 原厂直供'
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -609,14 +609,14 @@ describe('ProviderRegistryService', () => {
           { id: 'minimax-m2-1', name: 'MiniMax M2.1', capabilities: ['function-call'] },
           { id: 'qwen-plus', name: 'Qwen-Plus', capabilities: ['function-call'] }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
           { providerId: 'dashscope', modelId: 'minimax-m2-1', apiModelId: 'MiniMax-M2.1' },
           { providerId: 'dashscope', modelId: 'qwen-plus' }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -660,11 +660,11 @@ describe('ProviderRegistryService', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5', capabilities: ['function-call'] }]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [{ providerId: 'aws-bedrock', modelId: 'claude-sonnet-4-5' }]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -693,10 +693,8 @@ describe('ProviderRegistryService', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'sd-1-5', name: 'SD 1.5', imageGeneration: block }]
-      } as ReturnType<typeof readModelRegistry>)
-      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
-        typeof readProviderModelRegistry
-      >)
+      })
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -717,11 +715,11 @@ describe('ProviderRegistryService', () => {
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'image-model', name: 'Image Model', imageGeneration: block }]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [{ providerId: 'openai', modelId: 'image-model' }]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [{ id: 'openai', name: 'OpenAI', defaultChatEndpoint: null, metadata: {} }]
@@ -737,10 +735,8 @@ describe('ProviderRegistryService', () => {
     })
 
     it('getImageGenerationSupport returns null when the model is unknown', async () => {
-      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
-      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
-        typeof readProviderModelRegistry
-      >)
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] })
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -797,7 +793,7 @@ describe('ProviderRegistryService', () => {
             disabled: true
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [
@@ -858,7 +854,7 @@ describe('ProviderRegistryService', () => {
       // Regression: a vendor-exclusive override (e.g. Ollama's x/z-image-turbo) that sets
       // imageGeneration but omits `capabilities` synthesizes with capabilities: [] — invisible to
       // the Paintings model filter, which requires the image-generation capability.
-      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -880,7 +876,7 @@ describe('ProviderRegistryService', () => {
             imageGeneration: { modes: { generate: { supports: {} } } }
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [{ id: 'ollama', name: 'Ollama', defaultChatEndpoint: null, metadata: {} }]
@@ -915,7 +911,7 @@ describe('ProviderRegistryService', () => {
             capabilities: ['image-generation']
           }
         ]
-      } as ReturnType<typeof readModelRegistry>)
+      })
       mockReadProviderModels.mockReturnValue({
         version: '1.0',
         overrides: [
@@ -925,7 +921,7 @@ describe('ProviderRegistryService', () => {
             apiModelId: 'Qwen/Qwen-Image'
           }
         ]
-      } as ReturnType<typeof readProviderModelRegistry>)
+      })
       mockReadProviders.mockReturnValue({
         version: '1.0',
         providers: [

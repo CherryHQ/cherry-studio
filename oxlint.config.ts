@@ -91,8 +91,7 @@ module.exports = defineConfig({
     'typescript/no-require-imports': 'off',
     'typescript/no-this-alias': 'error',
     'typescript/no-unnecessary-parameter-property-assignment': 'error',
-    // TODO: error — tsgolint 7 backlog (1508 diagnostics / 488 files), tracked in #17746
-    'typescript/no-unnecessary-type-assertion': 'off',
+    'typescript/no-unnecessary-type-assertion': 'error',
     'typescript/no-unnecessary-type-constraint': 'error',
     'typescript/no-unsafe-declaration-merging': 'error',
     'typescript/no-unsafe-function-type': 'error',

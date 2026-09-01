@@ -261,7 +261,7 @@ export const COMMAND_DEFINITIONS = [
 export type CommandId = (typeof COMMAND_DEFINITIONS)[number]['id']
 
 export const commandShortcutPreferenceKey = (command: CommandId): CommandShortcutPreferenceKey<CommandId> =>
-  `shortcut.${command}` as CommandShortcutPreferenceKey<CommandId>
+  `shortcut.${command}`
 
 export const KEYBINDING_RULES = COMMAND_DEFINITIONS.flatMap((definition) =>
   definition.keybinding

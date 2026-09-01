@@ -66,7 +66,7 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
       createdAt: target.createdAt ?? '',
       updatedAt: target.updatedAt ?? target.createdAt ?? '',
       messages: []
-    } as Topic
+    }
   }
 
   return {
@@ -78,7 +78,7 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
     createdAt: target.createdAt ?? '',
     updatedAt: target.createdAt ?? '',
     messages: []
-  } as Topic
+  }
 }
 
 function getTargetMessageType(target: GlobalSearchMessagePreviewTarget) {

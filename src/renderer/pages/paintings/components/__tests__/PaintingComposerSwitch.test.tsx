@@ -48,16 +48,15 @@ const { default: PaintingComposer } = await import('../PaintingComposer')
 const makeEntry = (id: string): FileEntry =>
   ({ id, name: `${id}.png`, ext: 'png', size: 100, origin: 'internal' }) as unknown as FileEntry
 
-const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData =>
-  ({
-    id,
-    providerId: 'openai',
-    model,
-    mode: 'generate',
-    prompt: '',
-    files: [],
-    inputFiles
-  }) as PaintingData
+const makePainting = (id: string, inputFiles: FileEntry[], model = 'gpt-image-1'): PaintingData => ({
+  id,
+  providerId: 'openai',
+  model,
+  mode: 'generate',
+  prompt: '',
+  files: [],
+  inputFiles
+})
 
 const handlers = {
   generating: false,

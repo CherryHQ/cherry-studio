@@ -97,7 +97,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
       return createPiToolAuthorizer(ctx)({
         toolName: event.toolName,
         toolCallId: event.toolCallId,
-        input: event.input as Record<string, unknown>,
+        input: event.input,
         signal: extCtx.signal
       })
     })

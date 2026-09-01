@@ -91,7 +91,7 @@ async function buildCodexDraft(configBlob: Record<string, unknown> = {}): Promis
 describe('formatCliConfigDraftFile', () => {
   it('pretty-prints JSON drafts (2-space indent, trailing newline)', () => {
     const file: CliConfigFileDraft = {
-      target: 'claude-settings' as CliConfigTarget,
+      target: 'claude-settings',
       label: '',
       path: '',
       language: 'json',
@@ -102,7 +102,7 @@ describe('formatCliConfigDraftFile', () => {
 
   it('leaves non-JSON (toml/dotenv) drafts untouched', () => {
     const file: CliConfigFileDraft = {
-      target: 'kimi-config' as CliConfigTarget,
+      target: 'kimi-config',
       label: '',
       path: '',
       language: 'toml',
@@ -196,9 +196,7 @@ describe('updateCliConfigDraftConfig', () => {
   })
 
   it('returns the files unchanged when there is no managed connection', () => {
-    const files: CliConfigFileDraft[] = [
-      { target: 'codex-config' as CliConfigTarget, label: '', path: '', language: 'toml', content: '' }
-    ]
+    const files: CliConfigFileDraft[] = [{ target: 'codex-config', label: '', path: '', language: 'toml', content: '' }]
     expect(updateCliConfigDraftConfig('unknown-tool', files, { goalMode: true })).toBe(files)
   })
 
@@ -243,7 +241,7 @@ describe('updateCliConfigDraftConfig', () => {
   it('opencode: keeps the model display name across a config-only update', () => {
     const files: CliConfigFileDraft[] = [
       {
-        target: 'opencode-config' as CliConfigTarget,
+        target: 'opencode-config',
         label: '',
         path: '',
         language: 'json',
@@ -275,7 +273,7 @@ describe('updateCliConfigDraftConfig', () => {
     const model = `deepseek:deepseek-v4-flash${GEMINI_GATEWAY_MODEL_SUFFIX}`
     const gatewayFiles: CliConfigFileDraft[] = [
       {
-        target: 'gemini-env' as CliConfigTarget,
+        target: 'gemini-env',
         label: '',
         path: '/resolved~/.gemini/.env',
         language: 'dotenv',
@@ -283,7 +281,7 @@ describe('updateCliConfigDraftConfig', () => {
           'GEMINI_API_KEY=cs-sk-gateway\nGOOGLE_GEMINI_BASE_URL=http://127.0.0.1:23333\nGOOGLE_GENAI_API_VERSION=v1beta\n'
       },
       {
-        target: 'gemini-settings' as CliConfigTarget,
+        target: 'gemini-settings',
         label: '',
         path: '/resolved~/.gemini/settings.json',
         language: 'json',

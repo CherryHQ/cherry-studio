@@ -161,13 +161,13 @@ describe('KnowledgeBaseToolRuntime', () => {
 
     panelList[0].action?.({
       item: { ...panelList[0], isSelected: true }
-    } as never)
+    })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0], mocks.knowledgeBases[1]])
 
     panelList[1].action?.({
       item: { ...panelList[1], isSelected: false }
-    } as never)
+    })
 
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
   })

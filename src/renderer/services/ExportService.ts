@@ -1501,7 +1501,7 @@ const getScrollableElement = (): HTMLElement | null => {
     const style = window.getComputedStyle(div)
     if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
       if (div.querySelector('.ProseMirror')) {
-        return div as HTMLElement
+        return div
       }
     }
   }

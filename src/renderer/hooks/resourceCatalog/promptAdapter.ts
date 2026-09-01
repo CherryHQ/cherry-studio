@@ -76,12 +76,7 @@ function getPromptBindingRefreshPaths(params: PromptBindingParams): ConcreteApiP
     params.targetType === 'assistant'
       ? { type: 'assistant', id: params.targetId }
       : { type: 'agent', id: params.targetId }
-  return [
-    '/prompts',
-    '/prompt-bindings',
-    getPromptBindingCollectionPath(target),
-    `/prompts/${params.id}/bindings` as ConcreteApiPaths
-  ]
+  return ['/prompts', '/prompt-bindings', getPromptBindingCollectionPath(target), `/prompts/${params.id}/bindings`]
 }
 
 export function usePromptBindingMutations(target: PromptBindingTarget) {

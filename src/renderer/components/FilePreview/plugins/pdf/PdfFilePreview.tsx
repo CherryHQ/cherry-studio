@@ -335,7 +335,7 @@ export default function PdfFilePreview({ filePath, fileName, metadata, refreshKe
       .getOutline()
       .then((items) => {
         if (cancelled) return
-        setOutlineItems((items ?? []) as PdfOutlineItem[])
+        setOutlineItems(items ?? [])
         setOutlineStatus('ready')
       })
       .catch((error: unknown) => {

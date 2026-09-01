@@ -37,7 +37,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 // The page reads `?command=<id>` to focus one row; rendered without a router, the real hook
 // throws. Tests set this to choose which row (if any) arrives focused.
-const { routerSearch } = vi.hoisted(() => ({ routerSearch: { current: {} as { command?: string } } }))
+const { routerSearch } = vi.hoisted(() => ({ routerSearch: { current: {} } }))
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => routerSearch.current
 }))

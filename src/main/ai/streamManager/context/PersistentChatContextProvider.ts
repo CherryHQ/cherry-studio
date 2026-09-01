@@ -6,7 +6,7 @@
  */
 
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
+import type { ModelMessage, UIMessage } from 'ai'
 
 import { application } from '@application'
 import { ContextPrompts, resolveCompressionOutputTokens, summarizeModelMessages } from '@cherrystudio/ai-core'
@@ -79,8 +79,7 @@ const logger = loggerService.withContext('PersistentChatContextProvider')
  * replaces the spinner rather than appending a second anchor.
  */
 function toCompactionSink(subscriber: StreamListener): CompactionSink {
-  return (anchorId, data) =>
-    subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk)
+  return (anchorId, data) => subscriber.onChunk({ type: 'data-compaction-anchor', id: anchorId, data })
 }
 
 /** Media cost table for the turn. Unreachable provider row → the openai table. */
@@ -849,7 +848,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return {
       id: m.id,
       role: m.role,
-      parts: (m.data?.parts ?? []) as CompactionRow['parts'],
+      parts: m.data?.parts ?? [],
       compactionSummary: m.compactionSummary ?? undefined,
       contextTokens: m.stats?.contextTokens ?? undefined
     }

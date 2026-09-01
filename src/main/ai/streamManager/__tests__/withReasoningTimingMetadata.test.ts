@@ -50,11 +50,11 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'text-start', id: 't1' } as UIMessageChunk,
-          { type: 'text-delta', id: 't1', delta: 'answer' } as UIMessageChunk
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'answer' }
         ])
       )
     )
@@ -68,7 +68,7 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
+          { type: 'reasoning-start', id: 'r1' },
           {
             type: 'reasoning-end',
             id: 'r1',
@@ -76,7 +76,7 @@ describe('withReasoningTimingMetadata', () => {
               openai: { itemId: 'provider-item' },
               cherry: { existing: true }
             }
-          } as UIMessageChunk
+          }
         ])
       )
     )
@@ -105,7 +105,7 @@ describe('withReasoningTimingMetadata', () => {
               'claude-code': { parentToolCallId: 'parent-tool' },
               cherry: { transport: 'claude-agent' }
             }
-          } as UIMessageChunk,
+          },
           {
             type: 'reasoning-end',
             id: 'r1',
@@ -113,7 +113,7 @@ describe('withReasoningTimingMetadata', () => {
               openai: { itemId: 'provider-item' },
               cherry: { existing: true }
             }
-          } as UIMessageChunk
+          }
         ])
       )
     )
@@ -141,15 +141,15 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' } as UIMessageChunk,
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'thinking' },
           {
             type: 'reasoning-delta',
             id: 'r1',
             delta: '',
             providerMetadata: { anthropic: { signature: 'sig-abc' } }
-          } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk
+          },
+          { type: 'reasoning-end', id: 'r1' }
         ])
       )
     )
@@ -167,17 +167,17 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
+          { type: 'start' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
           {
             type: 'reasoning-delta',
             id: 'r1',
             delta: '',
             providerMetadata: { anthropic: { signature: 'sig-abc' } }
-          } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,
@@ -206,10 +206,10 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'a' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'b' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'a' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'b' } as UIMessageChunk
+          { type: 'reasoning-start', id: 'a' },
+          { type: 'reasoning-start', id: 'b' },
+          { type: 'reasoning-end', id: 'a' },
+          { type: 'reasoning-end', id: 'b' }
         ])
       )
     )
@@ -225,14 +225,14 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'text-start', id: 't1' } as UIMessageChunk,
-          { type: 'text-delta', id: 't1', delta: 'answer' } as UIMessageChunk,
-          { type: 'text-end', id: 't1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          { type: 'start' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'text-start', id: 't1' },
+          { type: 'text-delta', id: 't1', delta: 'answer' },
+          { type: 'text-end', id: 't1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,
@@ -257,7 +257,7 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
+          { type: 'start' },
           {
             type: 'reasoning-start',
             id: 'r1',
@@ -265,10 +265,10 @@ describe('withReasoningTimingMetadata', () => {
               'claude-code': { parentToolCallId: 'parent-tool' },
               cherry: { transport: 'claude-agent' }
             }
-          } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,
@@ -289,7 +289,7 @@ describe('withReasoningTimingMetadata', () => {
 
   it('passes through reasoning-end chunks untouched if no matching reasoning-start was seen', async () => {
     const chunks = await collect(
-      withReasoningTimingMetadata(streamFrom([{ type: 'reasoning-end', id: 'unmatched-id' } as UIMessageChunk]))
+      withReasoningTimingMetadata(streamFrom([{ type: 'reasoning-end', id: 'unmatched-id' }]))
     )
 
     expect(chunks[0]).toEqual({ type: 'reasoning-end', id: 'unmatched-id' })
@@ -308,9 +308,9 @@ describe('withReasoningTimingMetadata', () => {
     const chunks = await collect(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-end', id: 'r1' }
         ])
       )
     )
@@ -332,11 +332,11 @@ describe('withReasoningTimingMetadata', () => {
     const result = await pipeStreamLoop(
       withReasoningTimingMetadata(
         streamFrom([
-          { type: 'start' } as UIMessageChunk,
-          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
-          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
-          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
-          { type: 'finish' } as UIMessageChunk
+          { type: 'start' },
+          { type: 'reasoning-start', id: 'r1' },
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' },
+          { type: 'reasoning-end', id: 'r1' },
+          { type: 'finish' }
         ])
       ),
       new AbortController().signal,

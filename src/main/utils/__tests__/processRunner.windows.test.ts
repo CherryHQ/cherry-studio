@@ -1,3 +1,4 @@
+// oxlint-disable typescript/no-unnecessary-type-assertion -- tsgolint 7 false-positives vs tsc 7 (see #17746)
 import type { ChildProcess } from 'node:child_process'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'

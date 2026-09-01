@@ -1012,7 +1012,7 @@ describe('getProviderDisplayName', () => {
     // System ids resolve via i18n getProviderLabelKey(id). In test env the label
     // falls back to a stable value derived from the id, so we just assert the
     // result is a non-empty string (not the runtime user-set name).
-    const result = getProviderDisplayName({ id: 'openai', name: 'Openai User Override' } as any)
+    const result = getProviderDisplayName({ id: 'openai', name: 'Openai User Override' })
     expect(typeof result).toBe('string')
     expect(result.length).toBeGreaterThan(0)
   })

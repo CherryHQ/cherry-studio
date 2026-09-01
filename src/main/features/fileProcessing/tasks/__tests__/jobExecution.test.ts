@@ -23,7 +23,7 @@ const {
   resolveProcessorConfigByFeatureMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   capabilityHandlerMock: {
-    mode: 'background' as 'background' | 'remote-poll',
+    mode: 'background',
     prepare: vi.fn()
   },
   fsStatMock: vi.fn(),

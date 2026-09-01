@@ -8,15 +8,14 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   getTopicMessages: vi.fn()
 }))
 
-const message = (role: 'user' | 'assistant', text: string): ExportableMessage =>
-  ({
-    id: `message-${role}`,
-    role,
-    topicId: 'topic-1',
-    createdAt: '2026-01-01T00:00:00.000Z',
-    status: 'success',
-    parts: [{ type: 'text', text }]
-  }) as ExportableMessage
+const message = (role: 'user' | 'assistant', text: string): ExportableMessage => ({
+  id: `message-${role}`,
+  role,
+  topicId: 'topic-1',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  status: 'success',
+  parts: [{ type: 'text', text }]
+})
 
 describe('processMessagesContent', () => {
   it('does not put a horizontal rule between the title and the first message', () => {

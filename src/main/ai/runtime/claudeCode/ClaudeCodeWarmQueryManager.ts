@@ -62,7 +62,7 @@ export function stripWarmQueryOptions(options: Options): Options {
     steerHolder: _steerHolder,
     ...rest
   } = options as Options & { steerHolder?: unknown }
-  return rest as Options
+  return rest
 }
 
 function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): unknown {

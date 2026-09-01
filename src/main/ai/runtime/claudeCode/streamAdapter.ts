@@ -404,7 +404,7 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'number') out[key] = value
   }
-  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /**

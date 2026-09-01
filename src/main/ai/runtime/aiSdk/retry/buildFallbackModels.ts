@@ -67,7 +67,7 @@ function pickFallbackCallOptions(options: AgentOptions): FallbackCallOptions | u
   const entries = FALLBACK_CALL_OPTION_KEYS.flatMap((key) =>
     options[key] === undefined ? [] : ([[key, options[key]]] as const)
   )
-  return entries.length > 0 ? (Object.fromEntries(entries) as FallbackCallOptions) : undefined
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
 }
 
 export function buildFallbackModels(args: BuildFallbackModelsArgs): FallbackResolver[] {

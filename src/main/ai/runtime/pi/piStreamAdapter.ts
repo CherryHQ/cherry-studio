@@ -70,7 +70,7 @@ export class PiStreamAdapter {
         this.messageSeq += 1
         return
       case 'message_update':
-        this.handleAssistantDelta(event.assistantMessageEvent as AssistantMessageEventLike)
+        this.handleAssistantDelta(event.assistantMessageEvent)
         return
       case 'tool_execution_start':
         this.handleToolStart(event.toolCallId, event.toolName, event.args)

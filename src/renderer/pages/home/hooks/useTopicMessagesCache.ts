@@ -23,7 +23,6 @@ import { useMutation } from '@data/hooks/useDataApi'
 import type {
   BranchMessage,
   BranchMessagesResponse,
-  CherryMessagePart,
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
@@ -47,7 +46,7 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       parentId: metadata.parentId ?? null,
       role: message.role,
       data: {
-        parts: (message.parts ?? []) as CherryMessagePart[]
+        parts: message.parts ?? []
       },
       searchableText: '',
       status:

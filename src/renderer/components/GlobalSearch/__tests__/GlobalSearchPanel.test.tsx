@@ -995,7 +995,7 @@ describe('GlobalSearchPanel', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
-    } as never)
+    })
     mocks.queryResult = {
       query: 'topic',
       groups: [
@@ -1034,7 +1034,7 @@ describe('GlobalSearchPanel', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
-    } as never)
+    })
     mocks.queryResult = {
       query: 'topic',
       groups: [
@@ -2174,7 +2174,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh name from server' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2228,7 +2228,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Already fresh' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2258,7 +2258,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'Fresh session name from server' })
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
@@ -2450,7 +2450,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' } as never)
+    mocks.dataApiGet.mockResolvedValueOnce({ name: 'First Refresh' })
 
     const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
     await waitFor(() => {
@@ -2476,7 +2476,7 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ]
-    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' } as never)
+    mocks.dataApiGet.mockResolvedValue({ name: 'Refreshed Title' })
 
     const { unmount } = render(<GlobalSearchPanel onClose={mocks.onClose} />)
     await waitFor(() => {

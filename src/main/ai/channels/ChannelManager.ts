@@ -279,7 +279,7 @@ export class ChannelManager extends BaseService {
 
     const config = channel.config as ChannelConfig & Record<string, unknown>
     channelService.updateChannel(channelId, {
-      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
+      config: { ...config, app_id: creds.appId, app_secret: creds.appSecret }
     })
 
     logger.info('Saved QR registration credentials, reconnecting', { agentId, channelId })

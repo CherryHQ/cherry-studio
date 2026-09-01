@@ -44,7 +44,7 @@ export const useChannels = (type?: AgentChannelType) => {
   const updateChannel = useCallback(
     async (id: string, updates: UpdateAgentChannelDto) => {
       try {
-        return await updateTrigger({ params: { channelId: id }, body: updates as never })
+        return await updateTrigger({ params: { channelId: id }, body: updates })
       } catch (err) {
         logger.error('Failed to update channel', err as Error)
         toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.updateError')))

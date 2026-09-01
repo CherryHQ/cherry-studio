@@ -65,7 +65,7 @@ async function transform(
     {
       prompt: [textMessage('system', 'system'), textMessage('user', 'hello')],
       ...input
-    } as LanguageModelV3CallOptions,
+    },
     provider,
     assistant
   )

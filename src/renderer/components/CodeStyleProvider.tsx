@@ -102,7 +102,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       svg: 'xml',
       vab: 'vb',
       graphviz: 'dot'
-    } as Record<string, string>
+    }
   }, [])
 
   useEffect(() => {

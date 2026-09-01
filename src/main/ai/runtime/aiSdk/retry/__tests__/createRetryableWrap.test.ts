@@ -90,7 +90,7 @@ describe('createRetryableWrap', () => {
 
     const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
     const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
-    const result = await wrapped.doGenerate({ prompt: [] } as never)
+    const result = await wrapped.doGenerate({ prompt: [] })
 
     expect(primaryGenerate).toHaveBeenCalledTimes(1)
     expect(fallbackGenerate).toHaveBeenCalledTimes(1)
@@ -102,7 +102,7 @@ describe('createRetryableWrap', () => {
     const wrap = createRetryableWrap({ fallbacks: [resolve], retryPolicy: policy() })
 
     const wrapped = wrap!(makeFakeLanguageModel('gpt-4', vi.fn().mockResolvedValue(okResult)))
-    await wrapped.doGenerate({ prompt: [] } as never)
+    await wrapped.doGenerate({ prompt: [] })
 
     // Primary succeeded → the fallback resolver was never called.
     expect(resolve).not.toHaveBeenCalled()
@@ -121,7 +121,7 @@ describe('createRetryableWrap', () => {
 
     const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
     const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
-    const result = await wrapped.doGenerate({ prompt: [] } as never)
+    const result = await wrapped.doGenerate({ prompt: [] })
 
     expect(firstGenerate).toHaveBeenCalledTimes(1)
     expect(secondGenerate).toHaveBeenCalledTimes(1)
@@ -139,7 +139,7 @@ describe('createRetryableWrap', () => {
 
     const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
     const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
-    await wrapped.doGenerate({ prompt: [], temperature: 0.9 } as never)
+    await wrapped.doGenerate({ prompt: [], temperature: 0.9 })
 
     // ai-retry merges the fallback's options into the call options it replays.
     expect(fallbackGenerate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.1, maxOutputTokens: 256 }))
@@ -152,7 +152,7 @@ describe('createRetryableWrap', () => {
       const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(429))
       const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
 
-      const pending = Promise.resolve(wrapped.doGenerate({ prompt: [] } as never)).catch((e: unknown) => e)
+      const pending = Promise.resolve(wrapped.doGenerate({ prompt: [] })).catch((e: unknown) => e)
       await vi.advanceTimersByTimeAsync(10_000)
       await pending
 
@@ -172,7 +172,7 @@ describe('createRetryableWrap', () => {
       const primaryGenerate = vi.fn().mockRejectedValueOnce(makeApiError(429)).mockResolvedValue(okResult)
       const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
 
-      const pending = wrapped.doGenerate({ prompt: [] } as never)
+      const pending = wrapped.doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(2_000)
       const result = await pending
 
@@ -203,7 +203,7 @@ describe('createRetryableWrap', () => {
         .mockResolvedValue(okResult)
       const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
 
-      const pending = wrapped.doGenerate({ prompt: [] } as never)
+      const pending = wrapped.doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(0)
       expect(primaryGenerate).toHaveBeenCalledTimes(1)
       await vi.advanceTimersByTimeAsync(1_999)
@@ -234,7 +234,7 @@ describe('createRetryableWrap', () => {
       })
       const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(429))
 
-      const pending = wrap!(makeFakeLanguageModel('primary', primaryGenerate)).doGenerate({ prompt: [] } as never)
+      const pending = wrap!(makeFakeLanguageModel('primary', primaryGenerate)).doGenerate({ prompt: [] })
       await vi.advanceTimersByTimeAsync(2_000)
       await pending
 
@@ -256,8 +256,8 @@ describe('createRetryableWrap', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(makeApiError(401))))
 
-    await expect(wrapped.doGenerate({ prompt: [] } as never)).rejects.toThrow()
-    await expect(wrapped.doGenerate({ prompt: [] } as never)).rejects.toThrow()
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toThrow()
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toThrow()
 
     expect(resolveNull.mock.calls.length).toBeGreaterThan(1)
     expect(resolveFallback).toHaveBeenCalledTimes(1)
@@ -273,7 +273,7 @@ describe('createRetryableWrap', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn().mockRejectedValue(primaryError)))
 
-    await expect(wrapped.doGenerate({ prompt: [] } as never)).rejects.toBe(primaryError)
+    await expect(wrapped.doGenerate({ prompt: [] })).rejects.toBe(primaryError)
     expect(first).toHaveBeenCalled()
     expect(second).toHaveBeenCalled()
   })
@@ -292,7 +292,7 @@ describe('createRetryableWrap', () => {
       })
 
       const pending = Promise.resolve(
-        wrap!(makeFakeLanguageModel('primary', primaryGenerate)).doGenerate({ prompt: [] } as never)
+        wrap!(makeFakeLanguageModel('primary', primaryGenerate)).doGenerate({ prompt: [] })
       ).catch((caught: unknown) => caught)
       await vi.advanceTimersByTimeAsync(2_000)
       const caught = await pending
@@ -333,7 +333,7 @@ describe('createRetryableWrap', () => {
       })
       const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn(), doStream))
 
-      const result = await wrapped.doStream({ prompt: [] } as never)
+      const result = await wrapped.doStream({ prompt: [] })
       const collected = collectStream(result.stream)
       await vi.advanceTimersByTimeAsync(2_000)
       const parts = await collected
@@ -360,7 +360,7 @@ describe('createRetryableWrap', () => {
     })
     const wrapped = wrap!(makeFakeLanguageModel('primary', vi.fn(), doStream))
 
-    const result = await wrapped.doStream({ prompt: [] } as never)
+    const result = await wrapped.doStream({ prompt: [] })
     const parts = await collectStream(result.stream)
 
     expect(doStream).toHaveBeenCalledOnce()

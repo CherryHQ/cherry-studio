@@ -411,7 +411,7 @@ export class KnowledgeItemService {
     update?: FailedKnowledgeItemStatusUpdate
   ): string[] {
     if (status === 'failed') {
-      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update)
     }
     return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
   }
@@ -659,6 +659,8 @@ export class KnowledgeItemService {
       const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
+          // Runtime guards above narrow the item kind; Drizzle cannot carry that correlation through the spread.
+          // oxlint-disable-next-line typescript/no-unnecessary-type-assertion
           data: { ...existingItem.data, ...patch } as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))

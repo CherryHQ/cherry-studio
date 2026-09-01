@@ -40,6 +40,6 @@ export function applyApprovalDecisions(
         approved: decision.approved,
         ...(decision.reason !== undefined ? { reason: decision.reason } : {})
       }
-    } as CherryMessagePart
+    }
   })
 }

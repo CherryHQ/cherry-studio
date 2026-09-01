@@ -7,7 +7,6 @@ import {
   stripGeminiGatewayModelSuffix
 } from '@shared/utils/apiGateway'
 
-import type { InputParamsMap } from '../adapters'
 import { googleEnvelope } from '../errors'
 import { authorizeApiRequest } from '../middleware/auth'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
@@ -100,7 +99,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
 
       if (method === 'countTokens') {
         return {
-          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model, request.signal)
+          totalTokens: await estimateGeminiRequestTokens(body, model, request.signal)
         }
       }
       if (!GENERATE_METHODS.has(method)) {

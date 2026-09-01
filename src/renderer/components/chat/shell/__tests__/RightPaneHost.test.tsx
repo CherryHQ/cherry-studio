@@ -208,7 +208,7 @@ function stubRect(element: HTMLElement, { top, bottom }: { top: number; bottom: 
     x: 0,
     y: top,
     toJSON: () => ({})
-  } as DOMRect)
+  })
 }
 
 describe('RightPaneHost', () => {
@@ -918,7 +918,7 @@ describe('RightPaneHost', () => {
       window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
         rafCallbacks.push(callback)
         return nextRafId++
-      }) as typeof window.requestAnimationFrame
+      })
       window.cancelAnimationFrame = vi.fn()
     })
 

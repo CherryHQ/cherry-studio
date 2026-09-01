@@ -393,7 +393,7 @@ export class PreferenceService extends BaseService {
         .getDb()
         .update(preferenceTable)
         .set({
-          value: value as any
+          value: value
         })
         .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, cacheKey)))
         .run()

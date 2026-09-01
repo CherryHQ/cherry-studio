@@ -91,10 +91,13 @@ describe('model output formatters on unreadable stored output', () => {
       value: { items: [{ id: 'b1' }], total: 1 }
     })
     expect(
-      knowledgeListModelOutput({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] } as never, {
-        ...listInput,
-        baseId: 'b1'
-      })
+      knowledgeListModelOutput(
+        { baseId: 'b1', totalItems: 0, truncated: false, nodes: [] },
+        {
+          ...listInput,
+          baseId: 'b1'
+        }
+      )
     ).toEqual({ type: 'text', value: 'Knowledge base "b1" has no items yet.' })
   })
 

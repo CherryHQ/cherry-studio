@@ -53,7 +53,7 @@ describe('isDshCompatibleModel', () => {
       authMethods: ['oauth'],
       defaultChatEndpoint: 'anthropic-messages',
       endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
-    } as Partial<Provider>)
+    })
     expect(isDshCompatibleModel(loginProvider, makeModel({}))).toBe(true)
   })
 

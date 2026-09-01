@@ -276,9 +276,7 @@ export class ProviderExtension<
         if (!this.instances.has(baseHash)) {
           this.instances.set(baseHash, baseProvider as TProvider)
         }
-        finalProvider = (await Promise.resolve(
-          variant.transform(baseProvider as TProvider, mergedSettings)
-        )) as TProvider
+        finalProvider = await Promise.resolve(variant.transform(baseProvider as TProvider, mergedSettings))
       } else {
         finalProvider = baseProvider as TProvider
       }

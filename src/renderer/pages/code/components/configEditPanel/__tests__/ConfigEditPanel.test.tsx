@@ -134,7 +134,7 @@ vi.mock('@renderer/components/ModelSelector', () => ({
     trigger: ReactNode
   }) => (
     <div data-testid="model-selector">
-      <button type="button" onClick={() => onSelect('anthropic::claude-new' as UniqueModelId)}>
+      <button type="button" onClick={() => onSelect('anthropic::claude-new')}>
         select new model
       </button>
       <button type="button" onClick={() => onSettingsNavigate?.(modelSettingsNavigateMock)}>
@@ -310,9 +310,7 @@ function renderPanel(
       cliTool={options.cliTool ?? CodeCli.CLAUDE_CODE}
       provider={options.provider ?? provider}
       providerConfig={
-        options.providerConfig === undefined
-          ? { modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }
-          : options.providerConfig
+        options.providerConfig === undefined ? { modelId: 'anthropic::claude-old', config: {} } : options.providerConfig
       }
       isCurrentProvider={options.isCurrentProvider ?? true}
       modelFilter={() => true}
@@ -439,7 +437,7 @@ describe('ConfigEditPanel', () => {
     renderPanel(onSubmit, {
       isCurrentProvider: false,
       providerConfig: {
-        modelId: 'anthropic::claude-old' as UniqueModelId,
+        modelId: 'anthropic::claude-old',
         config: {
           env: {
             ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-detailed',
@@ -688,7 +686,7 @@ describe('ConfigEditPanel', () => {
       isCurrentProvider: false,
       files: [],
       providerConfig: {
-        modelId: 'anthropic::claude-old' as UniqueModelId,
+        modelId: 'anthropic::claude-old',
         config: { agentPreset: 'minimal', permissionMode: 'workspace-write' }
       }
     })

@@ -46,7 +46,7 @@ function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpT
 
 function normalizeArgs(args: ToolResponseLike['arguments']): Record<string, unknown> | unknown[] | null {
   if (args === undefined || args === null) return null
-  if (typeof args === 'object') return args as Record<string, unknown> | unknown[]
+  if (typeof args === 'object') return args
   return { value: args }
 }
 

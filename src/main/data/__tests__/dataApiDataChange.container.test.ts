@@ -30,7 +30,7 @@ vi.mock('@application', async () => {
   class WindowManager {
     broadcast = broadcastSpy
   }
-  container.register(WindowManager as never)
+  container.register(WindowManager)
 
   return {
     application: {

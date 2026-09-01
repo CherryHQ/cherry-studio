@@ -100,7 +100,7 @@ export function sanitizeAgentConfiguration(raw: unknown): {
   }
   const reparsed = AgentConfigurationSchema.safeParse(filtered)
   return {
-    data: reparsed.success ? reparsed.data : ({} as AgentConfiguration),
+    data: reparsed.success ? reparsed.data : {},
     invalidKeys
   }
 }

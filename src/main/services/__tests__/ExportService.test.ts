@@ -62,7 +62,7 @@ describe('ExportService.exportToWord', () => {
     })
 
     it('writes an openable docx whose document.xml contains the converted paragraphs', async () => {
-      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile } as never)
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: false, filePath: tmpFile })
 
       const service = await freshService()
       await service.exportToWord('# Title\n\nBody paragraph', 'doc.docx')

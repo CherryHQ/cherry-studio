@@ -622,7 +622,7 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * safety check, so the crash net can still locate the parked aside.
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
-  writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)
+  writeRestoreJournal({ ...ctx.journal, state, step })
   const stagingRoot = application.getPath('feature.backup.restore.staging')
   fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
 }

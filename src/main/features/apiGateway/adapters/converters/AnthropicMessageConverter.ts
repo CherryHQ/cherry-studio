@@ -304,7 +304,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
     }
     const reasoningDetails = this.openRouterReasoningCache?.get(`openrouter-${toolCallId}`)
     if (reasoningDetails) {
-      options.openrouter = { reasoning_details: (sanitizeJson(reasoningDetails) as JSONValue[]) || [] }
+      options.openrouter = { reasoning_details: sanitizeJson(reasoningDetails) || [] }
     }
     return Object.keys(options).length > 0 ? options : undefined
   }

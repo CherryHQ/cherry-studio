@@ -102,7 +102,7 @@ export class ProxyService extends BaseService {
     void this.proxyReconciler.flush().then(() => {
       const error = this.proxyReconciler.getLastError()
       if (error) {
-        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error as Error)
+        logger.error('Initial proxy apply failed; traffic uses the default route until the next change', error)
       }
     })
   }

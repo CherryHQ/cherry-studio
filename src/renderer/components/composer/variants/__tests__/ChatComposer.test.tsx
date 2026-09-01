@@ -668,8 +668,8 @@ describe('ChatComposer', () => {
         observe: instance.observe,
         unobserve: instance.unobserve,
         disconnect: instance.disconnect
-      } as unknown as ResizeObserver
-    }) as unknown as typeof ResizeObserver
+      }
+    })
 
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
@@ -2190,7 +2190,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })
@@ -2294,7 +2294,7 @@ describe('ChatComposer', () => {
               promptText: knowledgePrompt,
               index: 0,
               textOffset: 'summarize '.length
-            } as ComposerSerializedToken
+            }
           ]
         })
       })
@@ -3528,7 +3528,7 @@ describe('ChatComposer', () => {
     mocks.modelPending = false
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingButton message={message as any} parts={parts} />
+        <StartEditingButton message={message} parts={parts} />
         <ChatComposer topic={topic} onSend={onSend} useMentionedModelSelector />
       </MessageEditingProvider>
     )
@@ -3855,7 +3855,7 @@ describe('ChatComposer', () => {
 
     view.rerender(
       <MessageEditingProvider>
-        <StartEditingOnMount enabled={false} message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <StartEditingOnMount enabled={false} message={message} parts={[{ type: 'text', text: 'old' }]} />
         <ChatComposer topic={nextTopic} onSend={onSend} />
       </MessageEditingProvider>
     )
@@ -4672,7 +4672,7 @@ describe('ChatComposer', () => {
             payload: syncedFile,
             index: 0,
             textOffset: 0
-          } as ComposerSerializedToken
+          }
         ]
       })
     })

@@ -165,7 +165,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       },
       settings: {
         extraHeaders: { 'User-Agent': 'CustomAgent/1.0', 'X-Custom': 'on' }
-      } as never
+      }
     })
     const model = makeModel({
       id: 'copilot::gpt-4o',

@@ -143,7 +143,7 @@ vi.mock('@cherrystudio/ui', async () => {
           preventDefault: () => {
             defaultPrevented = true
           }
-        } as Event)
+        })
 
         if (!defaultPrevented) {
           contentRef.current
@@ -159,7 +159,7 @@ vi.mock('@cherrystudio/ui', async () => {
             preventDefault: () => {
               defaultPrevented = true
             }
-          } as Event)
+          })
 
           if (!defaultPrevented) {
             triggerRef.current?.focus()

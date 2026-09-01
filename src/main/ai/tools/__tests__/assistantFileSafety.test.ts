@@ -189,7 +189,7 @@ describe('publishFileNoClobber', () => {
       dev: largeParentDev,
       ino: largeParentIno
     }) as typeof parentStat
-    vi.mocked(stat).mockResolvedValueOnce(largeParentStat as never)
+    vi.mocked(stat).mockResolvedValueOnce(largeParentStat)
     await writeFile(staged, 'new content')
 
     await publishFileNoClobber(staged, target)

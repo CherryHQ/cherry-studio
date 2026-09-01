@@ -24,14 +24,14 @@ describe('BedrockExtension toolFactories', () => {
   it('wires webSearch to the provider web-search tool', () => {
     const factory = BedrockExtension.config.toolFactories?.webSearch
     expect(factory).toBeDefined()
-    const result = factory(fakeProvider as any)({ maxUses: 3 } as any)
+    const result = factory(fakeProvider as any)({ maxUses: 3 })
     expect(result).toEqual({ tools: { webSearch: { tool: 'webSearch_20260209', config: { maxUses: 3 } } } })
   })
 
   it('wires urlContext to the provider web-fetch tool', () => {
     const factory = BedrockExtension.config.toolFactories?.urlContext
     expect(factory).toBeDefined()
-    const result = factory(fakeProvider as any)({} as any)
+    const result = factory(fakeProvider as any)({})
     expect(result).toEqual({ tools: { urlContext: { tool: 'webFetch_20260209', config: {} } } })
   })
 
