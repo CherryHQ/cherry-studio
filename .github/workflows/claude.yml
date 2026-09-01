@@ -78,7 +78,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || steps.manual-pr.outputs.head_sha || format('refs/pull/{0}/head', github.event.issue.number) }}
           fetch-depth: 1
@@ -163,7 +163,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
 

@@ -30,7 +30,7 @@ jobs:
       version: ${{ steps.release-version.outputs.version }}
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -214,7 +214,7 @@ jobs:
       contents: read
     steps:
       - name: Check out exact main commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false

@@ -14,6 +14,7 @@ import * as z from 'zod'
 
 import type { ImageGenerationSupport, ModelConfig, ReasoningSupport, SupportSpec } from '../src/schemas/model'
 import type { ProviderModelOverride } from '../src/schemas/provider-models'
+import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
@@ -201,15 +202,15 @@ export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null 
       values: selectableEfforts,
       ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { default: defaultEffort } : {})
     })
-  } else if (!descriptor.supports_max_tokens && !descriptor.mandatory && descriptor.default_enabled !== undefined) {
-    controls.push({ kind: 'toggle', default: descriptor.default_enabled })
+  }
+  if (!descriptor.mandatory) {
+    controls.push({
+      kind: 'toggle',
+      ...(descriptor.default_enabled !== undefined ? { default: descriptor.default_enabled } : {})
+    })
   }
 
-  return {
-    controls,
-    ...(selectableEfforts.length > 0 ? { supportedEfforts: selectableEfforts } : {}),
-    ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { defaultEffort } : {})
-  }
+  return dropUndef({ controls, ...deriveLegacyReasoningFields(controls) }) as ReasoningSupport
 }
 
 /** Merge generated OpenRouter support with a hand-written exact override. Hand-written fields win. */
