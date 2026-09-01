@@ -1,19 +1,6 @@
 import { getDeviceType } from '@main/utils/system'
-import { describe, expect, it, vi } from 'vitest'
-
-const preferenceGet = vi.hoisted(() =>
-  vi.fn((key: string) => {
-    if (key === 'app.user.name') return 'Test User'
-    if (key === 'app.language') return 'en-US'
-    return undefined
-  })
-)
-
-vi.mock('@application', () => ({
-  application: {
-    get: () => ({ get: preferenceGet })
-  }
-}))
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -41,6 +28,12 @@ import {
   resolveAgentRuntimeContextPrompt,
   resolveAgentTurnContextPrompt
 } from '../agentPrompt'
+
+beforeEach(() => {
+  MockMainPreferenceServiceUtils.resetMocks()
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Test User')
+  MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+})
 
 describe('agent runtime context snapshot', () => {
   it('captures nothing when the agent has not opted in', () => {
