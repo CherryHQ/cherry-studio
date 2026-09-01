@@ -88,7 +88,8 @@ describe('extractConnectionFromCliConfigDraft', () => {
     ['opencode', CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', 'https://api.deepseek.com/v1'],
     ['gemini', CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', 'https://generativelanguage.googleapis.com'],
     ['qwen', CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', 'https://api.deepseek.com/v1'],
-    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1']
+    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1'],
+    ['hermes', CodeCli.HERMES, chatProvider, 'hermes-3', 'https://api.deepseek.com/v1']
   ]
 
   it.each(cases)('round-trips baseUrl/apiKey/model for %s', async (_name, cliTool, provider, model, baseUrl) => {
@@ -141,7 +142,15 @@ describe('extractConnectionFromCliConfigDraft', () => {
       ]
     ],
     ['qwen', CodeCli.QWEN_CODE, [{ target: 'qwen-settings', label: '', path: '', language: 'json', content: '{}' }]],
-    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]]
+    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]],
+    [
+      'hermes',
+      CodeCli.HERMES,
+      [
+        { target: 'hermes-config', label: '', path: '', language: 'yaml', content: '' },
+        { target: 'hermes-env', label: '', path: '', language: 'dotenv', content: '' }
+      ]
+    ]
   ]
 
   it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {

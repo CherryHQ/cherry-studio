@@ -1,12 +1,28 @@
 # Local Review
 
-Single-agent review for local changes. Reviews the diff, presents confirmed
-issues, and lets the user interactively choose which ones to fix.
+Single-agent review for a small scope, or as the explicit fallback when a
+runtime cannot launch independent subagents. Scope and `SMALL_SCOPE` are
+derived by `SKILL.md` § Scope derivation. Reviews the diff and reports
+confirmed issues with fix guidance; edits code only when the invocation
+explicitly authorized fixing.
+Follow `SKILL.md` § Interaction and interruption contract; this flow introduces
+no additional prompt category.
+
+## Input from SKILL.md
+
+- `REVIEW_TARGET`, the resolved review scope, and `SMALL_SCOPE`, all derived
+  by `SKILL.md` § Scope derivation.
+- `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
+  fixing (`fix` modifier or equivalent user wording). Commit and range
+  targets are always report-only regardless of the flag.
+- `LIMITED_SINGLE_AGENT`: `true` only when a non-small scope was routed here
+  because the runtime has no subagent capability. Default `false`.
 
 ## References
 
 | File | Purpose |
 |------|---------|
+| `consumer-review.md` | Consumer review stage (changes adding/expanding shared surface) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -17,47 +33,43 @@ issues, and lets the user interactively choose which ones to fix.
 
 ## Step 1: Scope
 
-Determine the diff to review based on `$ARGUMENTS` and working tree state:
-
-- **Empty `$ARGUMENTS`**, **uncommitted changes exist**: scope is
-  uncommitted changes only. Fetch with `git diff HEAD` (staged + unstaged
-  tracked files). Also check for untracked files with `git status --porcelain`
-  (`??` lines) and read their contents for review.
-- **Empty `$ARGUMENTS`**, **no uncommitted changes**: find the base branch by
-  checking common base branches in order: `main`, `master`. Use the first one
-  that exists. Fetch the branch diff:
-  ```
-  git merge-base origin/{base_branch} HEAD
-  git diff <merge-base-sha>
-  ```
-  Also check for untracked files with `git status --porcelain` (`??` lines).
-- **Commit hash** (e.g., `abc123`): validate with `git rev-parse --verify`,
-  then `git show`.
-- **Commit range** (e.g., `abc123..def456` or `abc123...def456`): validate both
-  endpoints. Fetch the diff including both endpoints:
-  ```
-  git diff A~1..B
-  ```
-- **File/directory paths**: verify all paths exist on disk, then read file
-  contents.
-
-If diff is empty → show usage examples and exit:
-`/gh-pr-review` (uncommitted changes or current branch),
-`/gh-pr-review a1b2c3d`, `/gh-pr-review a1b2c3d..e4f5g6h`,
-`/gh-pr-review src/foo.ts`, `/gh-pr-review 123`,
-`/gh-pr-review https://github.com/.../pull/123`.
+Scope, resolved-scope emptiness, and `SMALL_SCOPE` are owned by `SKILL.md`
+§ Scope derivation. The router already resolved them; when invoked
+standalone, derive them with those rules and print its usage examples if the
+resolved scope is empty. Do not restate the derivation here.
 
 ---
 
 ## Step 2: Review
 
+Run the review stages defined in `SKILL.md` § Review Stages in order.
+
+1. **Product Demand gate** — follow `SKILL.md` § Review Stages, stage 1 for
+   the skip test and mode rules: skip silently only after inspecting the
+   semantics the change expresses or constrains, never from its change type;
+   interactive is the default (ask the current user for the product decision
+   and stop the whole review if the direction is rejected), and record-only
+   automated behavior applies only when the invocation or workflow context
+   explicitly identifies an automated run, carrying the product-impact
+   summary into Step 4's report. Skip this step when the PR wrapper already
+   ran the gate.
+2. **Consumer review** — whenever the diff adds or expands shared surface,
+   judged by diff semantics rather than change label. Follow
+   `consumer-review.md`; only surviving surfaces continue to the stages below.
+3. **Architecture-First, Implementation, Style** — as follows.
+
 Review the diff. Apply `code-checklist.md` to code files,
 `doc-checklist.md` to documentation files. Apply `cherry-review-guidance.md` to
-code, mixed, Cherry architecture documentation, and project-skill changes. For
-React component changes, also consult `vercel-react-best-practices` skill for
-detailed performance patterns. When changed lines depend on surrounding context,
-read the relevant sections or related definitions as needed. Untracked files
-have no diff — review their full contents as new code.
+code, mixed, Cherry architecture documentation, and project-skill changes:
+first read the docs its "Mandatory Baseline Docs" section requires for the
+touched processes, then load only the on-demand references it routes to.
+Review architecture-first — settle placement, ownership, and
+abstraction-integrity findings against those docs before line-level detail;
+doc violations are Warning minimum. For React component changes, also consult
+`vercel-react-best-practices` skill for detailed performance patterns. When
+changed lines depend on surrounding context, read the relevant sections or
+related definitions as needed. Untracked files have no diff — review their
+full contents as new code.
 
 If the branch has an associated GitHub PR, inspect its checks with `gh pr
 checks` and include failing or pending CI in the review. Do not run `pnpm lint`,
@@ -81,23 +93,39 @@ but ruled out.
 Consult `judgment-matrix.md` for risk level assessment, worth-fixing criteria,
 and special rules. Discard issues that are not worth reporting.
 
-If no issues remain after filtering → report "no issues found" and exit.
+If no issues remain after filtering, keep an empty issue list and continue to
+Step 4 so every mandatory disclosure is still reported. Step 5 may be skipped
+because there are no confirmed issues to evolve into checklist candidates.
 
 ---
 
-## Step 4: Report and fix
+## Step 4: Fix and report
 
-Present a summary of what was reviewed, then list all confirmed issues. Ask
-which ones to fix via multi-select. Each option's label is the issue summary
-(e.g., `[risk] file:line — description`). Follow the grouping rule in
-`SKILL.md`: ≤4 items → one question; >4 items → group by priority or category
-(each group ≤4 options), then present all groups as separate questions in a
-single prompt.
+Do not ask the user which issues to fix.
 
-If the user selects any issues, apply the fixes. Do not run local lint, test, or
-format commands as part of the review flow. Report that existing CI covers the
-reviewed commit, not unpushed local fixes; re-check CI only after the fixes are
-published through a user-authorized workflow.
+Apply `judgment-matrix.md` § Handling by Risk Level, which owns what each risk
+level permits under `AUTHORIZED_FIX`. Keep every applied fix at the defect's
+altitude per `cherry-review-guidance.md` § Fix Recommendation Policy.
+
+Present a summary of what was reviewed and either the issues fixed/reported
+with their fix guidance or "no issues found". If
+`LIMITED_SINGLE_AGENT = true`, explicitly state that the scope was non-small
+but the runtime had no subagent capability, so the review was single-agent and
+did not include independent adversarial verification. In an automated session
+with product impact, include the Product Demand summary — impact, direction,
+and points needing human confirmation — explicitly marked as awaiting a
+product decision, never as approved.
+
+Validation: when fixes were applied, the session is a coding task — run the
+validation selected per `SKILL.md` § Validation after applied fixes and report
+the results; a failure caused by a fix means the fix is reverted or reported
+as failed.
+
+When nothing was edited, do not run local lint/test/format and state the CI
+baseline recorded in Step 2, matching it: with an associated PR, existing CI
+covers the reviewed commit but not any unpushed change; with no associated PR
+— file, commit, or local-branch review — CI validation is unavailable and the
+result is static review only. Never claim CI coverage the target does not have.
 
 ---
 
@@ -105,4 +133,5 @@ published through a user-authorized workflow.
 
 Review all confirmed issues from this session. If any represent a recurring
 pattern not covered by the current checklist, read `checklist-evolution.md` and
-follow its steps.
+record valid candidates as `proposed` in the report. A regular review never
+accepts, inserts, or claims to persist checklist rules.

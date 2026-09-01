@@ -33,10 +33,16 @@ function makeProvider(overrides: Partial<Provider> = {}): Provider {
 }
 
 describe('getProviderDisplayName', () => {
-  it('returns the localized label for canonical preset providers (id === presetProviderId)', () => {
+  it('returns the localized label for system providers', () => {
     const provider = makeProvider({ id: 'openai', presetProviderId: 'openai', name: 'My OpenAI' })
 
     expect(getProviderDisplayName(provider)).toBe('Label(openai)')
+  })
+
+  it('uses the system provider id when a registry provider inherits another preset', () => {
+    const provider = makeProvider({ id: 'minimax-global', presetProviderId: 'minimax', name: 'minimax-global' })
+
+    expect(getProviderDisplayName(provider)).toBe('Label(minimax-global)')
   })
 
   it('keeps multiple derived providers visually distinct instead of collapsing to the preset label', () => {
