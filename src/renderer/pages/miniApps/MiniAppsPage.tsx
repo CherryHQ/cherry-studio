@@ -1,4 +1,4 @@
-import { Button, EmptyState, SearchInput, Tooltip } from '@cherrystudio/ui'
+import { Button, EmptyState, SearchInput, Tooltip, useDropzone } from '@cherrystudio/ui'
 import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
@@ -31,13 +31,12 @@ const MiniAppsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newAppOpen, setNewAppOpen] = useState(false)
-  const [isFileDragging, setIsFileDragging] = useState(false)
   // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
   const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
   const { allApps, miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
-  const droppedInstall = useMiniAppInstallPreview(() => setIsFileDragging(false))
+  const droppedInstall = useMiniAppInstallPreview(() => undefined)
   const hasOpenDialog =
     settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
   const pageDropDisabled = hasOpenDialog || droppedInstall.busy
@@ -67,21 +66,14 @@ const MiniAppsPage: FC = () => {
     setNewAppOpen(true)
   }
 
-  const hasFilePayload = (event: React.DragEvent<HTMLDivElement>) =>
-    Array.from(event.dataTransfer.types).includes('Files')
-
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    if (pageDropDisabled || !hasFilePayload(event)) return
-    event.preventDefault()
-    event.stopPropagation()
-    setIsFileDragging(false)
-    const files = Array.from(event.dataTransfer.files)
-    if (files.length !== 1 || !files[0].name.toLowerCase().endsWith('.miniapp')) {
+  const handleDrop = (files: File[]) => {
+    const file = files[0]
+    if (!file) {
       toast.error(t('miniApp.install.drop_invalid'))
       return
     }
 
-    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(files[0]))
+    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file))
     if (!filePath.success) {
       toast.error(t('miniApp.install.drop_invalid'))
       return
@@ -93,6 +85,20 @@ const MiniAppsPage: FC = () => {
     )
   }
 
+  const { getRootProps, isDragActive } = useDropzone({
+    disabled: pageDropDisabled,
+    maxFiles: 1,
+    multiple: false,
+    noClick: true,
+    noKeyboard: true,
+    validator: (file) =>
+      file.name.toLowerCase().endsWith('.miniapp')
+        ? null
+        : { code: 'file-invalid-type', message: 'Expected a .miniapp package' },
+    onDropAccepted: handleDrop,
+    onDropRejected: () => toast.error(t('miniApp.install.drop_invalid'))
+  })
+
   useEffect(() => {
     if (droppedInstall.error) {
       toast.error(t(droppedInstall.error.key, droppedInstall.error.params))
@@ -101,28 +107,11 @@ const MiniAppsPage: FC = () => {
 
   return (
     <div
+      {...getRootProps()}
       data-ui="mini-apps.view"
       className="relative flex h-full min-h-0 flex-1 flex-col text-foreground"
-      onDragEnter={(event) => {
-        if (pageDropDisabled || !hasFilePayload(event)) return
-        event.preventDefault()
-        event.stopPropagation()
-        setIsFileDragging(true)
-      }}
-      onDragOver={(event) => {
-        if (pageDropDisabled || !hasFilePayload(event)) return
-        event.preventDefault()
-        event.stopPropagation()
-        event.dataTransfer.dropEffect = 'copy'
-        setIsFileDragging(true)
-      }}
-      onDragLeave={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node)) return
-        setIsFileDragging(false)
-      }}
-      onDrop={handleDrop}
       onContextMenu={handleContextMenu}>
-      {isFileDragging && !pageDropDisabled && (
+      {isDragActive && !pageDropDisabled && (
         <div
           role="status"
           aria-live="polite"

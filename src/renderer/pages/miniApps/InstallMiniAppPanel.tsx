@@ -2,6 +2,8 @@ import {
   Alert,
   Button,
   DialogFooter,
+  Dropzone,
+  DropzoneEmptyState,
   Field,
   FieldLabel,
   InputGroup,
@@ -15,7 +17,6 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { FC } from 'react'
-import type React from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,29 +37,19 @@ const looksLikeUrl = (value: string): boolean => {
 export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation()
   const [manifestUrl, setManifestUrl] = useState('')
-  const [isFileDragging, setIsFileDragging] = useState(false)
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(onClose)
 
   const handlePick = () =>
     settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
 
-  const hasFilePayload = (event: React.DragEvent<HTMLDivElement>) =>
-    Array.from(event.dataTransfer.types).includes('Files')
-
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasFilePayload(event)) return
-    event.preventDefault()
-    event.stopPropagation()
-    setIsFileDragging(false)
-    if (busy) return
-
-    const files = Array.from(event.dataTransfer.files)
-    if (files.length !== 1 || !files[0].name.toLowerCase().endsWith('.miniapp')) {
+  const handleDrop = (files: File[]) => {
+    const file = files[0]
+    if (!file) {
       toast.error(t('miniApp.install.drop_invalid'))
       return
     }
 
-    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(files[0]))
+    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file))
     if (!filePath.success) {
       toast.error(t('miniApp.install.drop_invalid'))
       return
@@ -81,34 +72,30 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
   return (
     <>
       <div className="flex flex-col gap-4 py-4">
-        <div
+        <Dropzone
+          aria-label={t('miniApp.install.choose_file')}
           data-ui="mini-apps.install-dropzone"
-          className={`flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-5 transition-colors ${isFileDragging ? 'border-border-strong bg-accent/50' : ''}`}
-          onDragEnter={(event) => {
-            if (!hasFilePayload(event) || busy) return
-            event.preventDefault()
-            event.stopPropagation()
-            setIsFileDragging(true)
-          }}
-          onDragOver={(event) => {
-            if (!hasFilePayload(event) || busy) return
-            event.preventDefault()
-            event.stopPropagation()
-            event.dataTransfer.dropEffect = 'copy'
-            setIsFileDragging(true)
-          }}
-          onDragLeave={(event) => {
-            if (event.currentTarget.contains(event.relatedTarget as Node)) return
-            setIsFileDragging(false)
-          }}
-          onDrop={handleDrop}>
-          <p className="text-center text-muted-foreground text-sm">
-            {t(isFileDragging ? 'miniApp.install.drop_here' : 'miniApp.install.pick_hint')}
-          </p>
-          <Button variant="outline" onClick={handlePick} disabled={busy}>
-            {t('miniApp.install.choose_file')}
-          </Button>
-        </div>
+          className="gap-3 border-dashed px-4 py-5"
+          disabled={busy}
+          maxFiles={1}
+          multiple={false}
+          noClick
+          noKeyboard
+          validator={(file) =>
+            file.name.toLowerCase().endsWith('.miniapp')
+              ? null
+              : { code: 'file-invalid-type', message: 'Expected a .miniapp package' }
+          }
+          onClick={handlePick}
+          onDrop={handleDrop}
+          onError={() => toast.error(t('miniApp.install.drop_invalid'))}>
+          <DropzoneEmptyState>
+            <div className="flex flex-col items-center gap-3 text-center">
+              <p className="text-muted-foreground text-sm">{t('miniApp.install.pick_hint')}</p>
+              <span className="font-medium text-foreground text-sm">{t('miniApp.install.choose_file')}</span>
+            </div>
+          </DropzoneEmptyState>
+        </Dropzone>
 
         <Field>
           <FieldLabel htmlFor="miniapp-install-url">{t('miniApp.install.url_section')}</FieldLabel>

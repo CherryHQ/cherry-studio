@@ -315,7 +315,7 @@ describe('MiniAppsPage', () => {
     const dataTransfer = { files: [file], types: ['Files'], dropEffect: 'none' }
 
     fireEvent.dragEnter(page!, { dataTransfer })
-    expect(screen.getByRole('status')).toHaveTextContent('miniApp.install.drop_here')
+    expect(await screen.findByRole('status')).toHaveTextContent('miniApp.install.drop_here')
 
     fireEvent.drop(page!, { dataTransfer })
 
@@ -327,7 +327,7 @@ describe('MiniAppsPage', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
-  it('rejects drops that are not exactly one .miniapp package', () => {
+  it('rejects drops that are not exactly one .miniapp package', async () => {
     const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
     fileApi.getPathForFile = vi.fn(() => '/tmp/notes.txt')
     const { container } = render(<MiniAppsPage />)
@@ -337,7 +337,7 @@ describe('MiniAppsPage', () => {
       dataTransfer: { files: [new File(['notes'], 'notes.txt')], types: ['Files'], dropEffect: 'none' }
     })
 
-    expect(mocks.toastError).toHaveBeenCalledWith('miniApp.install.drop_invalid')
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('miniApp.install.drop_invalid'))
     expect(fileApi.getPathForFile).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalledWith('mini_app.install.preview_file', expect.anything())
   })
