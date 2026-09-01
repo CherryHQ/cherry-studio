@@ -1,7 +1,7 @@
 import type * as CryptoModule from 'node:crypto'
 import { Readable, Writable } from 'node:stream'
 
-import { BACKUP_ACTIVE_WRITERS_ERROR_CODE } from '@shared/types/backup'
+import { BACKUP_ACTIVE_WRITERS_ERROR_CODE, BACKUP_DISK_FULL_ERROR_CODE } from '@shared/types/backup'
 import type * as PathModule from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,6 +70,7 @@ const {
   mockCheckpointTruncateAssert,
   mockReadAppliedChain,
   mockCreateAtomicWriteStream,
+  mockStatfs,
   mockRandomUUID,
   mockZipExtract,
   mockZipClose,
@@ -128,6 +129,7 @@ const {
     mockCheckpointTruncateAssert: vi.fn(),
     mockReadAppliedChain: vi.fn(),
     mockCreateAtomicWriteStream: vi.fn(),
+    mockStatfs: vi.fn(),
     mockRandomUUID: vi.fn(),
     mockZipExtract,
     mockZipClose,
@@ -220,7 +222,8 @@ vi.mock('fs-extra', () => ({
     existsSync: vi.fn(),
     promises: {
       mkdir: vi.fn(),
-      readFile: vi.fn()
+      readFile: vi.fn(),
+      statfs: mockStatfs
     }
   },
   pathExists: vi.fn(),
@@ -248,7 +251,8 @@ vi.mock('fs-extra', () => ({
   existsSync: vi.fn(),
   promises: {
     mkdir: vi.fn(),
-    readFile: vi.fn()
+    readFile: vi.fn(),
+    statfs: mockStatfs
   }
 }))
 
@@ -556,6 +560,26 @@ describe('BackupManager direct v2 data compatibility', () => {
 
     expect(output.abort).toHaveBeenCalledOnce()
     expect(fs.remove).not.toHaveBeenCalledWith('/backups/backup.zip')
+  })
+
+  it('reports the available space on the staging filesystem when a data copy runs out of space', async () => {
+    vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
+      return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
+    })
+    vi.spyOn(backupManager as any, 'copyDirectoryOrCreate').mockResolvedValue(undefined)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(42)
+    const diskFullError = Object.assign(new Error('ENOSPC: no space left on device'), {
+      code: 'ENOSPC',
+      path: '/mock/userData/Data/source.bin',
+      dest: '/mock/temp/backup/create-operation-id/Data/source.bin'
+    })
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockRejectedValueOnce(diskFullError)
+    mockStatfs.mockResolvedValueOnce({ bsize: 4096, bavail: 128 })
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      `${BACKUP_DISK_FULL_ERROR_CODE}:524288`
+    )
+    expect(mockStatfs).toHaveBeenCalledWith('/mock/temp/backup/create-operation-id/Data')
   })
 
   it('copies Data while excluding transient SQLite sidecars and the restore journal', async () => {

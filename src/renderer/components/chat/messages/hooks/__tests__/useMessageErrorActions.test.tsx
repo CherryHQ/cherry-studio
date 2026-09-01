@@ -109,14 +109,16 @@ describe('useMessageErrorActions', () => {
       status: 'error'
     } satisfies MessageListItem
     const error = { message: 'runtime failed', name: 'AgentRuntimeError', stack: '' }
+    const diagnosticReport = { location: 'Agent conversation' }
     const persistDiagnosis = vi.fn()
-    const { result } = renderHook(() => useMessageErrorActions({ persistDiagnosis }))
+    const { result } = renderHook(() => useMessageErrorActions({ diagnosticReport, persistDiagnosis }))
 
     await result.current.openErrorDetail?.({ message, partId: 'message-1-part-0', error })
 
     expect(mocks.showErrorDetailPopup).toHaveBeenCalledWith(
       expect.objectContaining({
         blockId: 'message-1-part-0',
+        diagnosticReport,
         error,
         onDiagnosisComplete: persistDiagnosis
       })

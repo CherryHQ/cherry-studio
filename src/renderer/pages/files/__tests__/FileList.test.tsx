@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 import type { FileContextMenuActions } from '../FileContextMenu'
 import type { FileItem } from '../fileDisplay'
@@ -156,18 +160,21 @@ describe('FileList', () => {
     expect(virtualizerMocks.scrollToIndex).toHaveBeenCalledWith(37, { align: 'auto' })
   })
 
-  it('opens rows while checkbox interactions only select', () => {
+  it('forwards checkbox state and the Shift modifier without opening the row', async () => {
     const onSelect = vi.fn()
     const onOpen = vi.fn()
+    const user = userEvent.setup()
 
     render(<FileList {...fileListProps(null)} onSelect={onSelect} onOpen={onOpen} />)
 
     const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
-    fireEvent.click(checkbox)
-    expect(onSelect).toHaveBeenCalledWith(file.id)
+    await user.keyboard('{Shift>}')
+    await user.click(checkbox)
+    await user.keyboard('{/Shift}')
+    expect(onSelect).toHaveBeenCalledWith(file.id, true, true)
     expect(onOpen).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByText(file.name))
+    await user.click(screen.getByText(file.name))
     expect(onOpen).toHaveBeenCalledWith(file)
     expect(onSelect).toHaveBeenCalledOnce()
   })

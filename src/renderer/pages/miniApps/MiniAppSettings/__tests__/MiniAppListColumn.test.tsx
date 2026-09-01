@@ -43,6 +43,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 const miniApp = (appId: string, name: string): MiniApp => ({
+  kind: 'site',
   appId,
   presetMiniAppId: appId,
   name,
