@@ -98,7 +98,9 @@ export interface KnowledgeScopePartData {
 }
 
 /** Context boundary marker. Hidden from both the transcript and the model. */
-export type ClearPartData = Record<string, never>
+export type ClearPartData = {
+  dismissedNoResponse?: boolean
+}
 
 /** The runtime could not resume the prior CLI conversation and continued on a fresh one. */
 export type ConversationResetPartData = Record<string, never>

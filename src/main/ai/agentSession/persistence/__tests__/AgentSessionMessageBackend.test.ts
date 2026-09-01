@@ -62,7 +62,7 @@ describe('AgentSessionMessageBackend', () => {
         message: {
           id: 'assistant-1',
           role: 'assistant',
-          status: 'success',
+          status: 'error',
           data: { parts: [] },
           modelId: undefined
         }

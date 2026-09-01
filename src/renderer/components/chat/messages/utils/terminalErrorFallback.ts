@@ -1,5 +1,5 @@
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { hasRenderableContent, isHiddenMarkerPart, isRenderablePart } from '@shared/data/messageRenderability'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 
 function isDismissedNoResponseMarker(part: CherryMessagePart): boolean {
   return (
@@ -49,4 +49,4 @@ export function withTerminalErrorFallback(
   return next
 }
 
-export { isHiddenMarkerPart, isRenderablePart, hasRenderableContent }
+export { hasRenderableContent, isHiddenMarkerPart, isRenderablePart }
