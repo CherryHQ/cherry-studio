@@ -306,8 +306,10 @@ describe('WebSearchButton', () => {
     expect(webSearchLauncher.disabled).toBe(true)
   })
 
-  // Both routes render the same globe, and the preference that picks between them lives in settings,
-  // so the tooltip is the only place the user can see which side will serve the request.
+  // Both routes render the same globe, so the tooltip is the only place the user can see which side
+  // will serve the request. A ready external search provider claims the route regardless of the
+  // preference (mirrors the main process), and the preference only orders the sides when no ready
+  // external provider exists.
   it('names the serving side in the tooltip', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
     mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
@@ -316,9 +318,21 @@ describe('WebSearchButton', () => {
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
     unmount()
 
+    // The ready exa-mcp provider outranks the builtin-capable Gemini route even when server tools
+    // are preferred — the provider-native route would bypass the user's configured provider.
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', false)
     mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
     mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
+
+    const clientRender = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
+    clientRender.unmount()
+
+    // Break the client provider's readiness (emptied apiHost) to exercise the builtin fallback:
+    // a configured-but-broken provider leaves the preference in charge, so the server route wins.
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      'exa-mcp': { capabilities: { searchKeywords: { apiHost: '' } } }
+    })
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
     expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')

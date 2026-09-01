@@ -525,12 +525,19 @@ async function resolveRequestWebToolRoutes(
       ])
     : [false, false]
   const clientToolsPreferred = preferenceService.get('chat.web_search.client_tools_preferred')
+  // A ready external search provider (Bing, Exa, Tavily, etc.) must serve the request's search: the
+  // provider-native route would otherwise bypass the user's configured provider and fail through
+  // relays that cannot execute it ("Server not found: default_api"). The preference only orders the
+  // two sides when the client side is actually available. Known tradeoff (noted in review): when only
+  // search has a ready client provider, an available server URL-context is dropped rather than mixed
+  // in — the web tool group stays single-sided (#17322).
+  const clientSearchPreferred = clientToolsPreferred || clientSearchAvailable
 
   return resolveWebToolRoutes(model, provider, {
     webSearchEnabled: clientWebToolsEnabled,
     clientSearchAvailable,
     clientFetchAvailable,
-    clientToolsPreferred,
+    clientToolsPreferred: clientSearchPreferred,
     endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort

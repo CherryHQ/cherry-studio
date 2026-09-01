@@ -205,6 +205,21 @@ describe('web-tool routing', () => {
     ).toEqual({ webSearch: 'none', webFetch: 'client', reasons: { webSearch: 'no-backend' } })
   })
 
+  // Reviewed in #15755: callers promote a ready external search provider to the whole group's
+  // preference (`clientToolsPreferred || clientSearchAvailable`), so the client side wins even when
+  // only search has a backend there. The usable server URL-context is dropped rather than mixed
+  // into the request — per-capability routing would restore the lost fetch but break the web-tool
+  // group exclusivity that keeps client agentic tools away from provider-native ones (#17322).
+  it('drops an available server fetch when the external-provider override claims the client side for the group', () => {
+    expect(
+      resolveWebToolRoutes(claude, serverProvider, {
+        ...bothEnabled,
+        clientFetchAvailable: false,
+        clientToolsPreferred: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'none', reasons: { webFetch: 'no-backend' } })
+  })
+
   it('recognizes provider-native URL fetch for supported model families', () => {
     expect(isBuiltinWebFetchAvailable(claude, serverProvider)).toBe(true)
     expect(isBuiltinWebFetchAvailable(model('private-model'), serverProvider)).toBe(false)
