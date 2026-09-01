@@ -63,7 +63,6 @@ export class ChannelManager extends BaseService {
     { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
   >()
   private readonly channelLogs = new ChannelLogBuffer()
-  private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
 
   protected async onReady(): Promise<void> {
     await this.start()
@@ -180,22 +179,12 @@ export class ChannelManager extends BaseService {
     return this.channelLogs.get(channelId)
   }
 
-  /** Get live connection status for all active adapters. */
-  getAllStatuses(): ChannelStatusEvent[] {
-    const result: ChannelStatusEvent[] = []
-    for (const [, adapter] of this.adapters) {
-      const cached = this.channelStatuses.get(adapter.channelId)
-      result.push({
-        channelId: adapter.channelId,
-        connected: adapter.connected,
-        ...(cached?.error && !adapter.connected ? { error: cached.error } : {})
-      })
-    }
-    return result
-  }
-
   private sendToRenderer<E extends IpcEventName>(event: E, data: EventPayload<E>): void {
     application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
+  }
+
+  private publishStatus(status: ChannelStatusEvent): void {
+    application.get('CacheService').setShared(`channel.status.${status.channelId}`, status)
   }
 
   /** Disconnect the adapter for a single channel without reconnecting. */
@@ -389,20 +378,20 @@ export class ChannelManager extends BaseService {
         })
       })
 
-      // Forward log & status events to renderer via IPC
+      // Logs remain event-like; connection status is a main-owned shared snapshot.
       adapter.on('log', (entry) => {
         this.channelLogs.append(entry.channelId, entry)
         this.sendToRenderer('channel.log', entry)
       })
 
       adapter.on('statusChange', (status) => {
-        this.channelStatuses.set(status.channelId, status)
-        this.sendToRenderer('channel.status_changed', status)
+        this.publishStatus(status)
       })
 
       // Register adapter immediately so it's discoverable. Callers can either
       // await connect for strict workflows or leave it in the background.
       this.adapters.set(key, adapter)
+      this.publishStatus({ channelId: row.id, connected: adapter.connected })
 
       const connect = async () => {
         try {
@@ -437,8 +426,7 @@ export class ChannelManager extends BaseService {
         connected: false,
         error: error instanceof Error ? error.message : String(error)
       }
-      this.channelStatuses.set(row.id, errorStatus)
-      this.sendToRenderer('channel.status_changed', errorStatus)
+      this.publishStatus(errorStatus)
       if (options.awaitConnect) {
         throw error
       }

@@ -55,6 +55,7 @@ export class HermesDashboardService extends BaseService {
 
   protected onInit(): void {
     this.isLifecycleStopping = false
+    application.get('CacheService').setShared('feature.hermes_dashboard.status', this.getStatus())
   }
 
   protected async onStop(): Promise<void> {
@@ -215,11 +216,7 @@ export class HermesDashboardService extends BaseService {
   private updateStatus(status: HermesDashboardStatus, url?: string): void {
     this.status = status
     this.url = url
-    try {
-      application.get('IpcApiService').broadcast('hermes_dashboard.status_changed', this.getStatus())
-    } catch (error) {
-      logger.warn('Failed to broadcast Hermes Dashboard status', error as Error)
-    }
+    application.get('CacheService').setShared('feature.hermes_dashboard.status', this.getStatus())
   }
 
   private async stopOwnedProcessLocked(): Promise<void> {

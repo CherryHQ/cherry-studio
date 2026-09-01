@@ -1,8 +1,8 @@
 /**
  * Disk-space health of the volume that hosts Cherry Studio's user-data directory.
  *
- * Produced by the main-process StorageMonitorService and pushed to the main
- * window (renderer) so it can surface a low-disk warning. `low` means the free
+ * Produced by the main-process StorageMonitorService and published through the
+ * shared cache so the renderer can surface a low-disk warning. `low` means the free
  * space dropped below the warning threshold (data loss becomes likely).
  */
 export type StorageHealthLevel = 'ok' | 'low'

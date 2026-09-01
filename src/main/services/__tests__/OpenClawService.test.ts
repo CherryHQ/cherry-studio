@@ -13,6 +13,7 @@ const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
+const cacheSetSharedMock = vi.hoisted(() => vi.fn())
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -103,6 +104,7 @@ vi.mock('@application', () => ({
       }
       if (name === 'BinaryManager') return binaryManagerMock
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
+      if (name === 'CacheService') return { setShared: cacheSetSharedMock }
       if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -720,7 +722,7 @@ describe('OpenClawService gateway status state machine', () => {
 
       // Returns the newer authoritative state instead of reviving 'running' from the stale probe.
       await expect(pending).resolves.toEqual({ status: 'starting', port: 18790 })
-      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
+      expect(cacheSetSharedMock).not.toHaveBeenCalledWith('feature.openclaw.gateway_status', 'running')
     })
   })
 
@@ -1004,30 +1006,32 @@ describe('OpenClawService gateway status state machine', () => {
     })
   })
 
-  // ─── status broadcasts + periodic probe ─────────────────────
+  // ─── shared status snapshots + periodic probe ───────────────
 
-  describe('gateway status broadcasts', () => {
+  describe('gateway shared status', () => {
     const statusPayloads = () =>
-      broadcastMock.mock.calls.filter((call) => call[0] === 'openclaw.status_changed').map((call) => call[1])
+      cacheSetSharedMock.mock.calls
+        .filter((call) => call[0] === 'feature.openclaw.gateway_status')
+        .map((call) => call[1])
 
-    it('broadcasts starting then running on a successful start', async () => {
+    it('publishes starting then running on a successful start', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
       findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await expect(service.startGateway()).resolves.toEqual({ success: true })
 
-      expect(statusPayloads()).toEqual([{ status: 'starting' }, { status: 'running' }])
+      expect(statusPayloads()).toEqual(['starting', 'running'])
     })
 
-    it('broadcasts error when the start fails', async () => {
+    it('publishes error when the start fails', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
       findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockRejectedValue(new Error('Gateway timeout'))
 
       await expect(service.startGateway()).resolves.toMatchObject({ success: false })
 
-      expect(statusPayloads().at(-1)).toEqual({ status: 'error' })
+      expect(statusPayloads().at(-1)).toBe('error')
     })
 
     it('announces stopped when a stop completes', async () => {
@@ -1036,18 +1040,17 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(service.stopGateway()).resolves.toEqual({ success: true })
 
-      expect(statusPayloads().at(-1)).toEqual({ status: 'stopped' })
+      expect(statusPayloads().at(-1)).toBe('stopped')
     })
 
     it('confirms stopped on a no-op stop so a stale renderer is corrected', async () => {
       ;(service as any).gatewayStatus = 'stopped'
       checkPortOpenSpy.mockResolvedValue(false)
-      broadcastMock.mockClear()
+      cacheSetSharedMock.mockClear()
 
       await expect(service.stopGateway()).resolves.toEqual({ success: true })
 
-      // No transition happened, but the request still announces the terminal state.
-      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+      expect(cacheSetSharedMock).toHaveBeenCalledWith('feature.openclaw.gateway_status', 'stopped')
     })
 
     it('keeps the current custom port when startGateway is called without one', async () => {
@@ -1139,7 +1142,7 @@ describe('OpenClawService gateway status state machine', () => {
       await (service as any).probeGatewayTick()
 
       expect((service as any).gatewayStatus).toBe('stopped')
-      expect(broadcastMock).toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+      expect(cacheSetSharedMock).toHaveBeenCalledWith('feature.openclaw.gateway_status', 'stopped')
     })
 
     // The tick only watches what this service believes it owns. Discovering a gateway
@@ -1182,7 +1185,7 @@ describe('OpenClawService gateway status state machine', () => {
       await tick
 
       expect((service as any).gatewayStatus).toBe('stopped')
-      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'running' })
+      expect(cacheSetSharedMock).not.toHaveBeenCalledWith('feature.openclaw.gateway_status', 'running')
     })
 
     it('discards an unhealthy probe when the gateway port changed mid-flight', async () => {
@@ -1197,7 +1200,7 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect((service as any).gatewayStatus).toBe('running')
       expect((service as any).gatewayPort).toBe(18888)
-      expect(broadcastMock).not.toHaveBeenCalledWith('openclaw.status_changed', { status: 'stopped' })
+      expect(cacheSetSharedMock).not.toHaveBeenCalledWith('feature.openclaw.gateway_status', 'stopped')
     })
 
     it('discards an unhealthy probe after a restart returned to the same status and port', async () => {
@@ -1214,8 +1217,10 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect((service as any).gatewayStatus).toBe('running')
       // Exactly the two simulated transitions — the stale probe contributed nothing.
-      const payloads = broadcastMock.mock.calls.filter((c) => c[0] === 'openclaw.status_changed').map((c) => c[1])
-      expect(payloads).toEqual([{ status: 'stopped' }, { status: 'running' }])
+      const payloads = cacheSetSharedMock.mock.calls
+        .filter((call) => call[0] === 'feature.openclaw.gateway_status')
+        .map((call) => call[1])
+      expect(payloads).toEqual(['stopped', 'running'])
     })
   })
 
