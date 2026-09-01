@@ -3635,15 +3635,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.075
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 0.75
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 7.5
+          "perMillionTokens": 3.75
         }
       },
       "providerId": "copilot"
@@ -3827,6 +3827,10 @@
           "currency": "USD",
           "perMillionTokens": 0.02
         },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.2
@@ -3844,19 +3848,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.2
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 3.125
+          "perMillionTokens": 2.5
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 10
         }
       },
       "providerId": "copilot"
@@ -3868,6 +3872,10 @@
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
         },
         "input": {
           "currency": "USD",
@@ -6925,6 +6933,104 @@
       }
     },
     {
+      "apiModelId": "qwen3.8-flash",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "qwen3-8-flash",
+      "name": "Qwen3.8 Flash",
+      "providerId": "dashscope",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "qwen3.8-max",
       "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-8-max",
@@ -6977,15 +7083,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "low", "medium", "xhigh"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["none", "low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -7068,15 +7170,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["low", "medium", "xhigh"]
+                "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -8416,6 +8514,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -8533,6 +8645,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash-vision-exp",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.014
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -8650,6 +8776,20 @@
     {
       "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.044
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.32
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.96
+        }
+      },
       "providerId": "deepseek",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -10494,7 +10634,7 @@
       "providerId": "doubao"
     },
     {
-      "apiModelId": "accounts/fireworks/models/deepseek-v4-flash",
+      "apiModelId": "accounts/fireworks/models/deepseek-v4-flash-0731",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
       "pricing": {
@@ -10616,43 +10756,24 @@
       }
     },
     {
-      "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
-      "modelId": "glm-5-1",
-      "providerId": "fireworks",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        },
-        "openai-chat-completions": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        },
-        "openai-responses": {
-          "support": {
-            "controls": [
-              {
-                "kind": "toggle"
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
+      "apiModelId": "accounts/fireworks/routers/glm-5p1-fast",
       "endpointTypes": ["openai-responses", "anthropic-messages", "openai-chat-completions"],
       "modelId": "glm-5-1-fast",
       "name": "GLM 5.1 Fast",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.52
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 8.8
+        }
+      },
       "providerId": "fireworks",
       "reasoningContracts": {
         "anthropic-messages": {
@@ -10805,6 +10926,44 @@
           }
         }
       }
+    },
+    {
+      "apiModelId": "accounts/fireworks/models/glm-5p3",
+      "modelId": "glm-5-3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.26
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "providerId": "fireworks"
+    },
+    {
+      "apiModelId": "accounts/fireworks/models/glm-5p3-flash",
+      "modelId": "glm-5-3-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.029
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "fireworks"
     },
     {
       "apiModelId": "accounts/fireworks/models/gpt-oss-120b",
@@ -11222,7 +11381,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.059
         },
         "input": {
           "currency": "USD",
@@ -12586,7 +12745,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
@@ -13716,15 +13875,34 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.033
+          "perMillionTokens": 0.035
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.132
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.528
+          "perMillionTokens": 0.58
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "tencent/hy4-preview",
+      "modelId": "hy4-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
         }
       },
       "providerId": "gateway"
@@ -13917,7 +14095,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.19
+          "perMillionTokens": 0.16
         },
         "input": {
           "currency": "USD",
@@ -14017,6 +14195,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.18
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "inclusionai/ling-3.0-flash-fin-free",
+      "modelId": "ling-3-0-flash-fin",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       },
       "providerId": "gateway"
@@ -14599,7 +14792,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.01
         },
         "input": {
           "currency": "USD",
@@ -14607,7 +14800,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.2
         }
       },
       "providerId": "gateway"
@@ -15130,7 +15323,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.25
         },
         "input": {
           "currency": "USD",
@@ -15149,15 +15342,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.625
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.3
+          "perMillionTokens": 3
         }
       },
       "providerId": "gateway"
@@ -16134,6 +16331,21 @@
     {
       "apiModelId": "zai-org/GLM-5.2",
       "modelId": "glm-5-2",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
+      "apiModelId": "zai-org/GLM-5.3",
+      "modelId": "glm-5-3",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -17952,20 +18164,16 @@
       }
     },
     {
-      "apiModelId": "deepseek-ai/deepseek-v4-pro",
+      "apiModelId": "deepseek-ai/deepseek-v4-pro-0813",
       "modelId": "deepseek-v4-pro",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.003625
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 0
         }
       },
       "providerId": "nvidia",
@@ -20316,15 +20524,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.004375
+          "perMillionTokens": 0.035
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.0175
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.0725
+          "perMillionTokens": 0.58
         }
       },
       "providerId": "opencode",
@@ -20337,6 +20545,33 @@
                 "values": ["none", "low", "high"]
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "hy4-preview",
+      "endpointTypes": ["openai-chat-completions"],
+      "modelId": "hy4-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": []
           }
         }
       }
@@ -21066,6 +21301,83 @@
       }
     },
     {
+      "apiModelId": "qwen3.8-flash",
+      "endpointTypes": ["anthropic-messages"],
+      "modelId": "qwen3-8-flash",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.016
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.47
+        }
+      },
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 262144,
+                "min": 1
+              },
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1024,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "apiModelId": "qwen3.8-max",
       "endpointTypes": ["anthropic-messages"],
       "modelId": "qwen3-8-max",
@@ -21363,7 +21675,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21393,7 +21710,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21423,7 +21745,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21453,7 +21780,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21483,7 +21815,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21518,10 +21855,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "medium", "low"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "medium", "low"]
+            "supportedEfforts": ["max", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21556,10 +21897,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21594,10 +21939,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21632,10 +21981,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21670,10 +22023,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21708,10 +22065,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21746,10 +22107,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21784,10 +22149,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21817,7 +22186,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21847,7 +22221,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -21882,10 +22261,13 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "high", "medium", "low"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["max", "high", "medium", "low"]
+            "supportedEfforts": ["max", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21920,10 +22302,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -21958,10 +22344,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "xhigh", "high", "medium", "low"]
+            "supportedEfforts": ["max", "xhigh", "high", "medium", "low", "none"]
           }
         }
       }
@@ -22116,7 +22506,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22160,7 +22555,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22186,7 +22586,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22197,15 +22602,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.1345
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.269
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.38
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "openrouter",
@@ -22217,7 +22622,8 @@
                 "default": false,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22239,7 +22645,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22250,15 +22661,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.015904
+          "perMillionTokens": 0.017721
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.07952
+          "perMillionTokens": 0.088606
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.15904
+          "perMillionTokens": 0.177212
         }
       },
       "providerId": "openrouter",
@@ -22270,10 +22681,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "low"]
+            "supportedEfforts": ["max", "high", "low", "none"]
           }
         }
       }
@@ -22281,20 +22696,7 @@
     {
       "apiModelId": "~deepseek/deepseek-v4-flash-latest",
       "modelId": "deepseek-v4-flash-latest",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.007
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        }
-      },
+      "name": "DeepSeek V4 Flash Latest",
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -22304,10 +22706,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "low"]
+            "supportedEfforts": ["max", "high", "low", "none"]
           }
         }
       }
@@ -22338,10 +22744,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "low"]
+            "supportedEfforts": ["max", "high", "low", "none"]
           }
         }
       }
@@ -22352,15 +22762,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0374
+          "perMillionTokens": 0.044
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.122
+          "perMillionTokens": 1.32
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.366
+          "perMillionTokens": 3.96
         }
       },
       "providerId": "openrouter",
@@ -22372,10 +22782,13 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "low"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["max", "high", "low"]
+            "supportedEfforts": ["max", "high", "low", "none"]
           }
         }
       }
@@ -22386,15 +22799,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.044
+          "perMillionTokens": 0.04
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.44
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.2
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter"
@@ -22433,7 +22846,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22455,7 +22873,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22767,7 +23190,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -22859,7 +23287,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -23053,10 +23486,14 @@
                 "default": "minimal",
                 "kind": "effort",
                 "values": ["high", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "minimal"]
+            "supportedEfforts": ["high", "minimal", "none"]
           }
         }
       }
@@ -23160,10 +23597,14 @@
                 "default": "minimal",
                 "kind": "effort",
                 "values": ["high", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "minimal"]
+            "supportedEfforts": ["high", "minimal", "none"]
           }
         }
       }
@@ -23198,10 +23639,14 @@
                 "default": "minimal",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
+            "supportedEfforts": ["high", "medium", "low", "minimal", "none"]
           }
         }
       }
@@ -23305,10 +23750,14 @@
                 "default": "minimal",
                 "kind": "effort",
                 "values": ["high", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "minimal"]
+            "supportedEfforts": ["high", "minimal", "none"]
           }
         }
       }
@@ -23343,10 +23792,14 @@
                 "default": "minimal",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "minimal"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "minimal",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
+            "supportedEfforts": ["high", "medium", "low", "minimal", "none"]
           }
         }
       }
@@ -23547,19 +24000,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0375
+          "perMillionTokens": 0.075
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 0.020833
+          "perMillionTokens": 0.041667
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.375
+          "perMillionTokens": 0.75
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.875
+          "perMillionTokens": 3.75
         }
       },
       "providerId": "openrouter",
@@ -23609,10 +24062,13 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "minimal"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
+            "supportedEfforts": ["high", "medium", "low", "minimal", "none"]
           }
         }
       }
@@ -23777,19 +24233,19 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0375
+          "perMillionTokens": 0.075
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 0.020833
+          "perMillionTokens": 0.041667
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.375
+          "perMillionTokens": 0.75
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.875
+          "perMillionTokens": 3.75
         }
       },
       "providerId": "openrouter",
@@ -23933,7 +24389,8 @@
                 "default": false,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -23964,7 +24421,8 @@
                 "default": false,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -23990,7 +24448,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24016,7 +24479,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24042,7 +24510,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24068,7 +24541,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24094,7 +24572,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24125,7 +24608,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24156,7 +24640,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24187,7 +24672,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24198,15 +24684,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.234
+          "perMillionTokens": 0.1794
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.26
+          "perMillionTokens": 0.966
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.96
+          "perMillionTokens": 3.036
         }
       },
       "providerId": "openrouter",
@@ -24218,7 +24704,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24245,10 +24732,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["xhigh", "high"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["xhigh", "high"]
+            "supportedEfforts": ["xhigh", "high", "none"]
           }
         }
       }
@@ -24347,7 +24838,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24378,7 +24870,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -24389,15 +24882,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.247
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 1.1875
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 4.18
         }
       },
       "providerId": "openrouter",
@@ -24662,6 +25155,10 @@
                 "default": "none",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "none",
@@ -24764,10 +25261,13 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["high", "medium", "low"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low"]
+            "supportedEfforts": ["high", "medium", "low", "none"]
           }
         }
       }
@@ -24798,6 +25298,9 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -24915,6 +25418,9 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -24949,6 +25455,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25014,7 +25524,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-4-image-2",
+      "name": "OpenAI: GPT-5.4 Image 2",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -25038,6 +25550,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25072,6 +25588,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25106,6 +25626,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25170,6 +25694,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25238,6 +25766,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25276,6 +25808,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25314,6 +25850,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25352,6 +25892,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25390,6 +25934,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25428,6 +25976,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25493,7 +26045,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image",
+      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -25574,7 +26128,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image-mini",
+      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -25955,6 +26511,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["max", "xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -25989,6 +26549,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["xhigh", "high", "medium", "low", "none"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -26149,7 +26713,8 @@
                 "default": false,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -26214,6 +26779,10 @@
                 "default": "low",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "low",
@@ -26570,7 +27139,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -26592,7 +27166,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -26614,7 +27193,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -26690,6 +27274,10 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["high", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -26713,6 +27301,44 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["high", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["high", "low", "none"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "tencent/hy4-preview",
+      "modelId": "hy4-preview",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.042
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.834
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.501
         }
       },
       "providerId": "openrouter",
@@ -26754,6 +27380,10 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "medium", "low", "minimal", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -26788,6 +27418,10 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["max", "high", "medium", "low", "minimal", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -26901,7 +27535,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -26932,7 +27567,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -26943,11 +27579,11 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.19
+          "perMillionTokens": 0.18
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.67
+          "perMillionTokens": 0.66
         },
         "output": {
           "currency": "USD",
@@ -26989,10 +27625,14 @@
                 "default": "max",
                 "kind": "effort",
                 "values": ["max", "high", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "max",
-            "supportedEfforts": ["max", "high", "low"]
+            "supportedEfforts": ["max", "high", "low", "none"]
           }
         }
       }
@@ -27023,10 +27663,14 @@
                 "default": "max",
                 "kind": "effort",
                 "values": ["max", "high", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "max",
-            "supportedEfforts": ["max", "high", "low"]
+            "supportedEfforts": ["max", "high", "low", "none"]
           }
         }
       }
@@ -27249,7 +27893,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -27276,7 +27921,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -27318,6 +27964,34 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.063
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "inclusionai/ling-3.0-flash-fin:free",
+      "modelId": "ling-3-0-flash-fin",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter",
@@ -27427,7 +28101,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.8
+          "perMillionTokens": 0.696
         }
       },
       "providerId": "openrouter"
@@ -27487,7 +28161,13 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -27652,6 +28332,10 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
@@ -27681,7 +28365,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -27707,7 +28396,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -27744,7 +28438,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -27889,7 +28588,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28030,6 +28734,9 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["high", "none"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -28098,6 +28805,10 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["high", "none"]
+              },
+              {
+                "default": false,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -28210,11 +28921,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.35
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "openrouter",
@@ -28394,7 +29105,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28420,7 +29132,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28446,7 +29163,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28468,7 +29190,13 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28495,10 +29223,14 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["medium", "low"]
+            "supportedEfforts": ["medium", "low", "none"]
           }
         }
       }
@@ -28509,15 +29241,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.1
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.6
+          "perMillionTokens": 2.2
         }
       },
       "providerId": "openrouter",
@@ -28529,10 +29261,14 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["high", "medium"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
-            "supportedEfforts": ["high", "medium"]
+            "supportedEfforts": ["high", "medium", "none"]
           }
         }
       }
@@ -28559,7 +29295,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28586,7 +29327,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28608,7 +29354,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28630,7 +29381,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28720,7 +29476,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28742,7 +29503,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28768,7 +29534,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28824,7 +29595,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -28864,28 +29640,6 @@
       }
     },
     {
-      "apiModelId": "allenai/olmo-3-32b-think",
-      "modelId": "olmo-3-32b",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        }
-      },
-      "providerId": "openrouter",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "support": {
-            "controls": []
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "writer/palmyra-x5",
       "modelId": "palmyra-x5",
       "pricing": {
@@ -28918,7 +29672,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29180,7 +29939,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29217,7 +29981,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29298,7 +30067,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29309,18 +30083,23 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.29
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.08
+          "perMillionTokens": 2.4
         }
       },
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29342,7 +30121,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29353,22 +30137,27 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.225
+          "perMillionTokens": 0.25
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.225
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.8
+          "perMillionTokens": 1.25
         }
       },
       "providerId": "openrouter",
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29390,7 +30179,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29412,7 +30206,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29434,7 +30233,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29460,7 +30264,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29482,7 +30291,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29513,7 +30327,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29528,11 +30343,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.9
         }
       },
       "providerId": "openrouter",
@@ -29544,7 +30359,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29570,7 +30386,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29601,7 +30422,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29627,7 +30449,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29657,7 +30484,13 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29692,7 +30525,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29727,7 +30561,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29796,10 +30631,14 @@
                 "default": "xhigh",
                 "kind": "effort",
                 "values": ["xhigh", "medium", "low"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["xhigh", "medium", "low"]
+            "supportedEfforts": ["xhigh", "medium", "low", "none"]
           }
         }
       }
@@ -29818,7 +30657,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
@@ -29829,7 +30668,13 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "default": true,
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -29894,7 +30739,8 @@
                 "default": true,
                 "kind": "toggle"
               }
-            ]
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -30000,7 +30846,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -30022,7 +30873,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -30053,13 +30909,9 @@
       "apiModelId": "qwen/qwen3-next-80b-a3b-instruct",
       "modelId": "qwen3-next-80b-a3b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.07
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
@@ -30137,11 +30989,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       },
       "providerId": "openrouter"
@@ -30923,7 +31775,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31239,22 +32096,6 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "thedrummer/rocinante-12b",
-      "modelId": "rocinante-12b",
-      "name": "Rocinante 12B",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "sakana/sakana-namazu",
       "modelId": "sakana-namazu",
       "name": "Sakana Namazu",
@@ -31281,6 +32122,10 @@
                 "default": "high",
                 "kind": "effort",
                 "values": ["high", "none"]
+              },
+              {
+                "default": true,
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "high",
@@ -31306,7 +32151,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31329,7 +32179,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31357,10 +32212,13 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["high", "medium", "low"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low"]
+            "supportedEfforts": ["high", "medium", "low", "none"]
           }
         }
       }
@@ -31388,10 +32246,13 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "minimal"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
+            "supportedEfforts": ["high", "medium", "low", "minimal", "none"]
           }
         }
       }
@@ -31419,10 +32280,13 @@
                 "default": "medium",
                 "kind": "effort",
                 "values": ["high", "medium", "low", "minimal"]
+              },
+              {
+                "kind": "toggle"
               }
             ],
             "defaultEffort": "medium",
-            "supportedEfforts": ["high", "medium", "low", "minimal"]
+            "supportedEfforts": ["high", "medium", "low", "minimal", "none"]
           }
         }
       }
@@ -31445,7 +32309,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31779,7 +32648,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31805,7 +32679,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31842,7 +32721,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31886,7 +32770,12 @@
       "reasoningContracts": {
         "openai-chat-completions": {
           "support": {
-            "controls": []
+            "controls": [
+              {
+                "kind": "toggle"
+              }
+            ],
+            "supportedEfforts": ["none", "auto"]
           }
         }
       }
@@ -31957,11 +32846,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.22
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.85
+          "perMillionTokens": 0.8
         }
       },
       "providerId": "openrouter",
@@ -32005,22 +32894,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.4
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "arcee-ai/virtuoso-large",
-      "modelId": "virtuoso-large",
-      "name": "Virtuoso Large",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.75
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.2
         }
       },
       "providerId": "openrouter"
@@ -32077,9 +32950,51 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "Claude-Fable-5",
+      "apiModelId": "claude-haiku-4.5",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-fable-5",
+      "modelId": "claude-haiku-4-5",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "claude-opus-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-5",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -32245,9 +33160,9 @@
       }
     },
     {
-      "apiModelId": "Claude-Sonnet-4.6",
+      "apiModelId": "claude-sonnet-4.5",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-sonnet-4-6",
+      "modelId": "claude-sonnet-4-5",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -32287,9 +33202,9 @@
       }
     },
     {
-      "apiModelId": "Claude-Sonnet-5",
+      "apiModelId": "Claude-Sonnet-4.6",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-sonnet-5",
+      "modelId": "claude-sonnet-4-6",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -36352,11 +37267,6 @@
       }
     },
     {
-      "apiModelId": "deepseek-v3.2",
-      "modelId": "deepseek-v3-2",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "deepseek-v4-flash",
       "modelId": "deepseek-v4-flash",
       "providerId": "tokenhub"
@@ -36404,77 +37314,6 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hunyuan-2.0-thinking-20251109",
-      "modelId": "hunyuan-2-0",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hunyuan-2.0-instruct-20251111",
-      "modelId": "hunyuan-2-0-instruct",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hy-image-lite",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "seed": {
-                "type": "text"
-              }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/lite",
-              "isSync": true
-            }
-          }
-        }
-      },
-      "modelId": "hy-image-lite",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "hy-image-v3.0",
-      "imageGeneration": {
-        "modes": {
-          "generate": {
-            "supports": {
-              "addWatermark": {
-                "type": "switch"
-              },
-              "aspectRatio": {
-                "default": "1:1",
-                "options": ["1:1", "4:3", "3:4", "16:9", "9:16"],
-                "render": "chips",
-                "type": "enum"
-              },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
-              "seed": {
-                "type": "text"
-              }
-            },
-            "vendorTransport": {
-              "endpoint": "/v1/api/image/submit"
-            }
-          }
-        }
-      },
-      "modelId": "hy-image-v3-0",
-      "providerId": "tokenhub"
-    },
-    {
       "apiModelId": "hy-mt2-lite",
       "modelId": "hy-mt2-lite",
       "providerId": "tokenhub"
@@ -36495,8 +37334,8 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "hy3-preview",
-      "modelId": "hy3-preview",
+      "apiModelId": "hy4-preview",
+      "modelId": "hy4-preview",
       "providerId": "tokenhub"
     },
     {
@@ -36512,11 +37351,6 @@
     {
       "apiModelId": "kimi-k2.7-code",
       "modelId": "kimi-k2-7-code",
-      "providerId": "tokenhub"
-    },
-    {
-      "apiModelId": "minimax-m2.5",
-      "modelId": "minimax-m2-5",
       "providerId": "tokenhub"
     },
     {
@@ -37713,5 +38547,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "0f6b3a627de2d8e0"
+  "version": "e480b304ca4cc435"
 }

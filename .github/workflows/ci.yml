@@ -34,7 +34,7 @@ jobs:
       test-infra: ${{ steps.filter.outputs.test-infra }}
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Detect code changes
         id: filter
@@ -91,7 +91,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # The PR merge commit and its parents are enough for changeset comparison.
           fetch-depth: ${{ github.event_name == 'pull_request' && '2' || '1' }}
@@ -181,16 +181,19 @@ jobs:
             exit 1
           fi
           pnpm i18n:check
+          pnpm i18n:unused:check
 
       - name: Read-only Checks
         run: |
           # Share one checkout/install while keeping independent checks parallel.
           # Do not kill sibling checks on failure so every failure is reported.
+          # `--max-processes 1` lands on the typecheck script's trailing concurrently call and
+          # serializes it: eslint plus two concurrent tsgo runs OOM the runner mid-job.
           pnpm exec concurrently \
             --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
             --prefix-colors "blue,yellow,cyan,green" \
             "pnpm test:lint" \
-            "pnpm typecheck && pnpm i18n:hardcoded:strict" \
+            "pnpm typecheck --max-processes 1 && pnpm i18n:hardcoded:strict" \
             "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \
             "pnpm docs:check"
 
@@ -252,7 +255,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -307,7 +310,9 @@ jobs:
             exit 0
           fi
 
-          projects=(--project main)
+          # `preload` rides with `main`: the two share one paths-filter (`src/preload/**` is
+          # listed under `main:`), so a preload change triggers this job and must run its tests.
+          projects=(--project main --project preload)
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
             projects+=(--project aiCore)
@@ -368,7 +373,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -437,7 +442,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -492,7 +497,7 @@ jobs:
     if: always() && (needs.basic-checks.result == 'failure' || needs.general-test.result == 'failure' || needs.package-test.result == 'failure' || needs.render-test.result == 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Node.js
         uses: actions/setup-node@v6

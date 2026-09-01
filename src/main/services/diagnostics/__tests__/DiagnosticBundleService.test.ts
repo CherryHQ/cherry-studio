@@ -924,7 +924,42 @@ describe('DiagnosticBundleService', () => {
     expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
       description: 'Line one\r\nLine two',
       expectedFileSha256: fileSha256,
+      fileName: failed.fileName,
+      filePath: savedPath
+    })
+    await expect(access(savedPath)).resolves.toBeUndefined()
+  })
+
+  it('keeps the logical ZIP file name when retrying from an extensionless saved path', async () => {
+    const fileSha256 = 'a'.repeat(64)
+    const savedPath = path.join(workDir, 'saved-diagnostics')
+    uploadMocks.upload
+      .mockResolvedValueOnce({ fileSha256, reason: 'service_unavailable', status: 'rejected' })
+      .mockImplementationOnce(async ({ fileName }: { fileName: string }) =>
+        fileName.endsWith('.zip')
+          ? { reportId: RETRY_REPORT_ID, status: 'uploaded' }
+          : { reason: 'invalid_archive', status: 'rejected' }
+      )
+    const service = new DiagnosticBundleService()
+
+    const failed = await service.uploadBundle(UPLOAD_INPUT)
+    if (failed.status !== 'submission_failed') throw new Error('Expected retained failed submission')
+    electronMocks.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: savedPath })
+
+    await expect(service.saveUploadBundle({ bundleId: failed.bundleId }, 'main-window')).resolves.toEqual({
+      bundleId: failed.bundleId,
       fileName: path.basename(savedPath),
+      filePath: savedPath,
+      status: 'saved'
+    })
+    await expect(service.retryUpload({ bundleId: failed.bundleId })).resolves.toEqual({
+      reportId: RETRY_REPORT_ID,
+      status: 'uploaded'
+    })
+    expect(uploadMocks.upload).toHaveBeenNthCalledWith(2, {
+      description: 'Line one\r\nLine two',
+      expectedFileSha256: fileSha256,
+      fileName: failed.fileName,
       filePath: savedPath
     })
     await expect(access(savedPath)).resolves.toBeUndefined()

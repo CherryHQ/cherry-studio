@@ -457,8 +457,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     const session = this.session
     if (!session?.isStreaming) return false
 
-    // buildAgentUserContent intentionally flattens attachments to absolute paths for filesystem agents;
-    // pi's native image channel stays unused until Cherry models multimodal agent attachments end-to-end.
+    // buildAgentUserContent intentionally flattens attachments to filenames and absolute paths for
+    // filesystem agents; pi's native image channel stays unused until Cherry models multimodal agent
+    // attachments end-to-end.
     const wrappedText = wrapSteerReminder(buildAgentUserContent(input.message))
     const pending: PendingSteer = { input }
     this.pendingSteers.push(pending)
