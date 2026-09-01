@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { mergeHeaders } from '@main/utils/http'
 import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -38,15 +39,12 @@ const BASE_HEADERS = {
   'user-agent': 'Visual Studio Code (desktop)'
 }
 
-const mergeHeaders = (headers?: Record<string, string>): Record<string, string> => {
-  const mergedHeaders = new Headers(BASE_HEADERS)
-  for (const [name, value] of Object.entries(headers ?? {})) {
-    mergedHeaders.set(name, value)
-  }
-  mergedHeaders.set('accept', BASE_HEADERS.accept)
-  mergedHeaders.set('content-type', BASE_HEADERS['content-type'])
-  return Object.fromEntries(mergedHeaders.entries())
-}
+// accept / content-type are forced back on: GitHub's OAuth endpoints only speak JSON.
+const authHeaders = (headers?: Record<string, string>): Record<string, string> =>
+  mergeHeaders(BASE_HEADERS, headers, {
+    accept: BASE_HEADERS.accept,
+    'content-type': BASE_HEADERS['content-type']
+  })
 
 // 接口定义移到顶部，便于查阅
 interface UserResponse {
@@ -167,7 +165,7 @@ class CopilotService {
     headers?: Record<string, string>
   ): Promise<AuthResponse> => {
     try {
-      const requestHeaders = mergeHeaders(headers)
+      const requestHeaders = authHeaders(headers)
 
       const response = await net.fetch(CONFIG.API_URLS.GITHUB_DEVICE_CODE, {
         method: 'POST',
@@ -197,7 +195,7 @@ class CopilotService {
     device_code: string,
     headers?: Record<string, string>
   ): Promise<TokenResponse> => {
-    const requestHeaders = mergeHeaders(headers)
+    const requestHeaders = authHeaders(headers)
 
     let currentDelay = CONFIG.POLLING.INITIAL_DELAY_MS
 
@@ -266,17 +264,14 @@ class CopilotService {
     headers?: Record<string, string>
   ): Promise<CopilotTokenResponse> => {
     try {
-      const requestHeaders = mergeHeaders(headers)
+      const requestHeaders = authHeaders(headers)
 
       const encryptedToken = await fs.promises.readFile(this.tokenFilePath)
       const access_token = safeStorage.decryptString(Buffer.from(encryptedToken))
 
       const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
         method: 'GET',
-        headers: {
-          ...requestHeaders,
-          authorization: `token ${access_token}`
-        }
+        headers: mergeHeaders(requestHeaders, { authorization: `token ${access_token}` })
       })
 
       if (!response.ok) {

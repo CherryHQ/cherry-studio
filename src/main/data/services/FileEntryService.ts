@@ -41,8 +41,24 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import type { CanonicalFilePath } from '@shared/utils/file'
-import { and, asc, count, eq, gt, isNotNull, isNull, lt, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import type { FileType } from '@shared/types/file'
+import { type CanonicalFilePath, fileTypeMap } from '@shared/utils/file'
+import {
+  and,
+  asc,
+  count,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+  type SQLWrapper
+} from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 import { ZodError } from 'zod'
@@ -114,6 +130,7 @@ export type ListFilesSortBy = 'name' | 'createdAt' | 'updatedAt' | 'size' | 'ext
 export interface ListCursorQuery {
   readonly origin?: FileEntryOrigin
   readonly inTrash?: boolean
+  readonly fileType?: FileType
   readonly sortBy?: ListFilesSortBy
   readonly sortOrder?: 'asc' | 'desc'
   readonly cursor?: string
@@ -372,6 +389,21 @@ const DEFAULT_LIST_SORT_ORDER: ListSortOrder = 'asc'
 const FILE_ENTRY_SIZE_NULL_SORT_VALUE = -1
 // SafeExtSchema rejects whitespace, so this non-empty cursor key is reserved for NULL ext and sorts before real ext values.
 const FILE_ENTRY_EXT_NULL_SORT_VALUE = ' '
+const FILE_EXTENSIONS_BY_TYPE = new Map<FileType, string[]>()
+for (const [extension, fileType] of Object.entries(fileTypeMap)) {
+  const extensions = FILE_EXTENSIONS_BY_TYPE.get(fileType) ?? []
+  extensions.push(extension)
+  FILE_EXTENSIONS_BY_TYPE.set(fileType, extensions)
+}
+const KNOWN_FILE_EXTENSIONS = Object.keys(fileTypeMap)
+
+function getFileTypeFilterCondition(fileType: FileType): SQL {
+  const normalizedExtension = sql<string>`lower(${fileEntryTable.ext})`
+  if (fileType === 'other') {
+    return or(isNull(fileEntryTable.ext), notInArray(normalizedExtension, KNOWN_FILE_EXTENSIONS))!
+  }
+  return inArray(normalizedExtension, FILE_EXTENSIONS_BY_TYPE.get(fileType) ?? [])
+}
 
 function getListSortValue(row: FileEntryRow, sortBy: ListSortBy): string | number {
   switch (sortBy) {
@@ -621,6 +653,9 @@ class FileEntryServiceImpl implements FileEntryService {
       filterConditions.push(isNotNull(fileEntryTable.deletedAt))
     } else {
       filterConditions.push(isNull(fileEntryTable.deletedAt))
+    }
+    if (query.fileType) {
+      filterConditions.push(getFileTypeFilterCondition(query.fileType))
     }
 
     const sortBy = query.sortBy ?? DEFAULT_LIST_SORT_BY

@@ -581,6 +581,10 @@ const NotesPage: FC = () => {
     [createNote, requestFileTransition]
   )
 
+  const handleCreateUntitledNote = useCallback(() => {
+    void handleCreateNote(t('notes.untitled_note'))
+  }, [handleCreateNote, t])
+
   const handleToggleExpanded = useCallback(
     (nodeId: string) => {
       const targetNode = findNode(notesTree, nodeId)
@@ -1125,6 +1129,7 @@ const NotesPage: FC = () => {
               onMarkdownChange={handleMarkdownChange}
               editorRef={editorRef}
               codeEditorRef={codeEditorRef}
+              onCreateNote={handleCreateUntitledNote}
             />
           )}
         </div>

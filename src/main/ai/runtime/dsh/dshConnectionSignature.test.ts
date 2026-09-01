@@ -12,10 +12,18 @@ const mocks = vi.hoisted(() => ({
   getSkillDirectory: vi.fn(),
   findMcp: vi.fn(),
   listTools: vi.fn(),
-  findBySessionId: vi.fn()
+  findBySessionId: vi.fn(),
+  getTurnTrustedNotifyChannels: vi.fn()
 }))
 
-vi.mock('@application', () => ({ application: { get: () => ({ listTools: mocks.listTools }) } }))
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) =>
+      name === 'AgentSessionRuntimeService'
+        ? { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
+        : { listTools: mocks.listTools }
+  }
+}))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getSession } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('@data/services/ProviderService', () => ({
@@ -65,6 +73,7 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
+  mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
 })
 
 describe('captureDshConnectionSnapshot', () => {
@@ -108,7 +117,7 @@ describe('captureDshConnectionSnapshot', () => {
   it('returns the exact provider, model, skills, MCP, and channel facts signed by the snapshot', async () => {
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'pdf', isEnabled: true }])
     mocks.listLocalSkillPaths.mockResolvedValue(['/workspace/.agents/skills/review'])
-    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', agentId: agent.id })
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', type: 'telegram', agentId: agent.id })
 
     const snapshot = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
 
@@ -117,9 +126,19 @@ describe('captureDshConnectionSnapshot', () => {
       model: { id: 'provider::model' },
       enabledApiKeys: [{ id: 'key-1', key: 'secret', enabled: true }],
       additionalSkillPaths: ['/skills/pdf', '/workspace/.agents/skills/review'],
-      linkedChannel: { id: 'channel-1' }
+      linkedChannel: { id: 'channel-1', type: 'telegram' }
     })
     expect(snapshot.mcpServerSnapshots.get('mcp-1')).toMatchObject({ id: 'mcp-1', name: 'server' })
+  })
+
+  it('changes its signature when task notification recipients change', async () => {
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-1', type: 'telegram' }])
+    const first = await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')
+    mocks.getTurnTrustedNotifyChannels.mockReturnValue([{ id: 'channel-2', type: 'feishu' }])
+
+    await expect(captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.not.toMatchObject({
+      signature: first.signature
+    })
   })
 
   it('does not attach a session link owned by another agent', async () => {
