@@ -58,6 +58,10 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
   default: () => null
 }))
 
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => 'global'
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   modelGenerating: vi.fn().mockResolvedValue(undefined)
 }))
