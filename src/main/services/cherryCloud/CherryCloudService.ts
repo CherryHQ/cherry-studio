@@ -70,6 +70,8 @@ function emptyState(): CherryCloudState {
 }
 
 function resolveApiOrigin(): string {
+  const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
+  if (configuredOrigin) return new URL(configuredOrigin).origin
   return app.isPackaged ? PRODUCTION_API_ORIGIN : DEVELOPMENT_API_ORIGIN
 }
 

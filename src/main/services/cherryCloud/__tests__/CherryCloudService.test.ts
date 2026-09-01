@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appIsPackaged: false,
@@ -208,6 +208,7 @@ async function createSignedInService(): Promise<CherryCloudService> {
 
 describe('CherryCloudService', () => {
   beforeEach(() => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
     mocks.appIsPackaged = false
@@ -217,6 +218,10 @@ describe('CherryCloudService', () => {
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('persists the signed-in account across service restarts', async () => {
@@ -345,6 +350,19 @@ describe('CherryCloudService', () => {
     expect(mocks.loopbackOpen).toHaveBeenCalledOnce()
     expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com.cn/api/v1/desktop/authorizations')
     expect(JSON.parse(mocks.netFetch.mock.calls[0][1].body as string).callback_port).toBe(49152)
+  })
+
+  it('uses the configured Cloud origin for login requests', async () => {
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'https://cloud-dev.cherry-ai.com/')
+    mocks.appIsPackaged = true
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await service.startLogin()
+
+    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud-dev.cherry-ai.com/api/v1/desktop/authorizations')
+    expect(mocks.loopbackOpen).toHaveBeenCalledWith(expect.any(Function), 'https://cloud-dev.cherry-ai.com')
   })
 
   it('returns to signed out when browser authorization expires without a callback', async () => {
