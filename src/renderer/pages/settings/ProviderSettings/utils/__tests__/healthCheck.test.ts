@@ -214,8 +214,11 @@ describe('resolveModelCheckCredentials', () => {
 })
 
 describe('getModelHealthCheckSkipReason', () => {
-  it('skips generation and speech models with an explicit reason', () => {
-    expect(getModelHealthCheckSkipReason(createModel('image', [MODEL_CAPABILITY.IMAGE_GENERATION]))).toBeNull()
+  it('skips billable image probes and unsupported media operations with an explicit reason', () => {
+    expect(getModelHealthCheckSkipReason(createModel('image', [MODEL_CAPABILITY.IMAGE_GENERATION]))).toEqual({
+      kind: 'generation_cost',
+      output: 'image'
+    })
     expect(getModelHealthCheckSkipReason(createModel('video', [MODEL_CAPABILITY.VIDEO_GENERATION]))).toEqual({
       kind: 'unsupported_probe'
     })
@@ -234,6 +237,11 @@ describe('getModelHealthCheckSkipReason', () => {
     expect(
       getModelHealthCheckSkipReason(
         createModel('chat-and-audio', [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.AUDIO_GENERATION])
+      )
+    ).toBeNull()
+    expect(
+      getModelHealthCheckSkipReason(
+        createModel('chat-and-image', [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION])
       )
     ).toBeNull()
   })

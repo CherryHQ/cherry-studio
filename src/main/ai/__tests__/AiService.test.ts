@@ -1544,6 +1544,37 @@ describe('AiService tool approval', () => {
     }
   })
 
+  it('skips an unavailable declared operation when a later endpoint can be probed', async () => {
+    const service = createService()
+    const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue(
+      makeProvider({
+        id: 'test-provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com/v1' }
+        }
+      })
+    )
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::mixed-model',
+      providerId: 'test-provider',
+      apiModelId: 'mixed-model',
+      name: 'Mixed Model',
+      capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.TEXT_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::mixed-model' })
+
+    expect(embedSpy).not.toHaveBeenCalled()
+    expect(generateSpy).toHaveBeenCalledWith(expect.objectContaining({ system: 'test', prompt: 'hi' }))
+  })
+
   it('checks a mixed-capability model through its preferred chat endpoint', async () => {
     const service = createService()
     const embedSpy = vi.spyOn(service, 'embedMany').mockResolvedValue({ embeddings: [[1]] })
@@ -1652,10 +1683,18 @@ describe('AiService tool approval', () => {
     expect(generateSpy).not.toHaveBeenCalled()
   })
 
-  it('checks image-only models through the image endpoint, not chat', async () => {
+  it('does not execute a billable image generation health probe', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
     const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockProviderGetByProviderId.mockReturnValue(
+      makeProvider({
+        id: 'test-provider',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: { baseUrl: 'https://images.example.com/v1' }
+        }
+      })
+    )
     mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-image',
       providerId: 'test-provider',
@@ -1668,9 +1707,11 @@ describe('AiService tool approval', () => {
       isHidden: false
     })
 
-    await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
+    await expect(service.checkModel({ uniqueModelId: 'test-provider::test-image' })).rejects.toThrow(
+      "Model health checks do not support the 'image-generation' operation"
+    )
 
-    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ prompt: expect.any(String) }))
+    expect(imageSpy).not.toHaveBeenCalled()
     expect(generateSpy).not.toHaveBeenCalled()
   })
 

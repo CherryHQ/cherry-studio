@@ -81,6 +81,35 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
+  it('keeps discovered operation capabilities for a model without a registry match', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'new-api::opaque-embedding-model',
+        providerId: 'new-api',
+        apiModelId: 'opaque-embedding-model',
+        name: 'opaque-embedding-model',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'new-api::opaque-embedding-model',
+        providerId: 'new-api',
+        apiModelId: 'opaque-embedding-model',
+        name: 'Opaque Embedding Model',
+        capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('new-api')
+
+    expect(models[0]).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.EMBEDDING],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+    })
+  })
+
   it('never lets registry metadata rewrite an explicit routing preference', async () => {
     listModelsMock.mockResolvedValueOnce([
       {

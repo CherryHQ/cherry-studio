@@ -1156,12 +1156,25 @@ export class AiService extends BaseService {
     }
 
     const modelOperations = getModelOperationCapabilities(model.capabilities)
+    const supportedProbeOperations: readonly ModelOperationCapability[] = [
+      MODEL_CAPABILITY.TEXT_GENERATION,
+      MODEL_CAPABILITY.RERANK,
+      MODEL_CAPABILITY.EMBEDDING
+    ]
     const operationForEndpoint = (endpointType: EndpointType | undefined): ModelOperationCapability | undefined => {
       if (!endpointType) return undefined
       const allowed = endpointAllowedOperationCapabilities(endpointType)
       const defaultOperation = endpointDefaultOperationCapability(endpointType)
-      if (defaultOperation && modelOperations.includes(defaultOperation)) return defaultOperation
-      return allowed.find((operation) => modelOperations.includes(operation))
+      if (
+        defaultOperation &&
+        supportedProbeOperations.includes(defaultOperation) &&
+        modelOperations.includes(defaultOperation)
+      ) {
+        return defaultOperation
+      }
+      return allowed.find(
+        (operation) => supportedProbeOperations.includes(operation) && modelOperations.includes(operation)
+      )
     }
 
     const preferredEndpoint = model.preferredEndpointType
@@ -1174,26 +1187,27 @@ export class AiService extends BaseService {
 
     if (!operation) {
       for (const endpointType of model.endpointTypes ?? []) {
+        if (!isModelEndpointTypeAvailable(model, provider, endpointType)) continue
         operation = operationForEndpoint(endpointType)
         if (operation) break
       }
     }
 
-    if (
-      !operation &&
-      !model.endpointTypes?.length &&
-      modelOperations.includes(MODEL_CAPABILITY.TEXT_GENERATION) &&
-      getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
-    ) {
-      operation = MODEL_CAPABILITY.TEXT_GENERATION
+    if (!operation && !model.endpointTypes?.length) {
+      if (
+        modelOperations.includes(MODEL_CAPABILITY.TEXT_GENERATION) &&
+        getModelPreferredEndpoint(model, provider, MODEL_CAPABILITY.TEXT_GENERATION)
+      ) {
+        operation = MODEL_CAPABILITY.TEXT_GENERATION
+      }
+      operation ??= [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.EMBEDDING].find((candidate) =>
+        modelOperations.includes(candidate)
+      )
     }
-
-    operation ??= [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.IMAGE_GENERATION].find(
-      (candidate) => modelOperations.includes(candidate)
-    )
 
     if (!operation) {
       const unsupportedOperations: readonly ModelOperationCapability[] = [
+        MODEL_CAPABILITY.IMAGE_GENERATION,
         MODEL_CAPABILITY.AUDIO_TRANSCRIPT,
         MODEL_CAPABILITY.AUDIO_GENERATION,
         MODEL_CAPABILITY.VIDEO_GENERATION
@@ -1230,14 +1244,6 @@ export class AiService extends BaseService {
       })
     } else if (operation === MODEL_CAPABILITY.EMBEDDING) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (operation === MODEL_CAPABILITY.IMAGE_GENERATION) {
-      // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
-      probe = this.generateImage({
-        ...probeRequest,
-        prompt: 'a red circle',
-        paramValues: {},
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
     } else if (operation === MODEL_CAPABILITY.TEXT_GENERATION) {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
