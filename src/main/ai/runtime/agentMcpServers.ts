@@ -2,7 +2,7 @@ import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { resolveAgentCapabilities } from '@main/ai/agents/builtin/builtinAgentCapabilities'
+import { resolveAgentCapabilities, resolveHostTools } from '@main/ai/agents/builtin/builtinAgentCapabilities'
 import { createMcpBridgeServer } from '@main/ai/mcp/createMcpBridgeServer'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
@@ -53,7 +53,9 @@ export function buildAgentMcpServers(
   notificationContext = resolveAgentNotificationContext(session.id, agent.id, linkedChannelSnapshot)
 ): Record<string, AgentMcpServer> {
   const servers: Record<string, AgentMcpServer> = {}
-  const capabilities = resolveAgentCapabilities(agent)
+  const channelLinked =
+    linkedChannelSnapshot === undefined ? notificationContext.sourceChannel !== null : linkedChannelSnapshot !== null
+  const hostTools = resolveHostTools(agent, { channelLinked })
 
   for (const mcpId of agent.mcps ?? []) {
     try {
@@ -102,7 +104,7 @@ export function buildAgentMcpServers(
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT)) {
     servers.assistant = {
       name: CHERRY_MCP_SERVER.ASSISTANT,
-      instance: new AssistantServer(agent.model ?? undefined, capabilities.hostTools?.tools).mcpServer
+      instance: new AssistantServer(agent.model ?? undefined, hostTools?.tools).mcpServer
     }
   }
   if (mountedServers.has(CHERRY_MCP_SERVER.ASSISTANT_FILES)) {

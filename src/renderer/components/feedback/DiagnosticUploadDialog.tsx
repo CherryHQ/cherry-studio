@@ -2,7 +2,6 @@ import {
   Alert,
   Button,
   Checkbox,
-  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -17,6 +16,7 @@ import CopyButton from '@renderer/components/CopyButton'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { describeDiagnosticChatSource, describeDiagnosticFileSource } from '@renderer/utils/diagnosticSourceSummary'
 import type { DiagnosticRange, DiagnosticUploadFailureReason } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import {
@@ -25,7 +25,6 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import { LoaderCircle } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,26 +41,30 @@ type UploadResult = Exclude<OutputFor<'diagnostics.bundle.upload'>, { status: 'b
 type SavedUploadResult = Extract<OutputFor<'diagnostics.bundle.save_upload'>, { status: 'saved' }>
 type OperationStatus = 'idle' | 'saving' | 'submitting'
 
+function discardRetainedUpload(bundleId: string) {
+  return ipcApi.request('diagnostics.bundle.discard_upload', { bundleId })
+}
+
 interface DiagnosticUploadDialogProps {
+  readonly fixedRange?: DiagnosticRange
   readonly initialDescription?: string
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB']
-  const unitIndex = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
-  const value = bytes / 1024 ** unitIndex
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`
-}
-
-export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open }: DiagnosticUploadDialogProps) {
+export function DiagnosticUploadDialog({
+  fixedRange,
+  initialDescription,
+  onOpenChange,
+  open
+}: DiagnosticUploadDialogProps) {
   const { t } = useTranslation()
   const uploadFormId = useId()
-  const [range, setRange] = useState<DiagnosticRange>('24h')
+  const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
+  const effectiveRange = fixedRange ?? selectedRange
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
+  const [includeChatRecords, setIncludeChatRecords] = useState(false)
   const [description, setDescription] = useState(initialDescription ?? '')
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
@@ -71,8 +74,22 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   const [operationStatus, setOperationStatus] = useState<OperationStatus>('idle')
   const [result, setResult] = useState<UploadResult | null>(null)
   const [savedUpload, setSavedUpload] = useState<SavedUploadResult | null>(null)
-  const [retryConfirmationOpen, setRetryConfirmationOpen] = useState(false)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
+  const retainedBundleIdRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      const retainedBundleId = retainedBundleIdRef.current
+      if (!retainedBundleId) return
+      retainedBundleIdRef.current = null
+      void discardRetainedUpload(retainedBundleId).catch((error) =>
+        logger.error('Failed to discard retained diagnostic upload on unmount', error as Error)
+      )
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -80,7 +97,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     setIsInspecting(true)
     setInspectError(false)
     void ipcApi
-      .request('diagnostics.bundle.inspect', { range })
+      .request('diagnostics.bundle.inspect', { range: effectiveRange })
       .then((inspection) => {
         if (active) setInspectResult(inspection)
       })
@@ -96,7 +113,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     return () => {
       active = false
     }
-  }, [open, range])
+  }, [effectiveRange, open])
 
   useEffect(() => {
     if (result) primaryActionRef.current?.focus()
@@ -108,8 +125,10 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
 
   const logsAvailable = inspectResult?.sources.logs.available ?? false
   const tracesAvailable = inspectResult?.sources.traces.available ?? false
+  const chatRecordsAvailable = inspectResult?.sources.chatRecords.available ?? false
   const effectiveIncludeLogs = includeLogs && logsAvailable
   const effectiveIncludeTraces = includeTraces && tracesAvailable
+  const effectiveIncludeChatRecords = includeChatRecords && chatRecordsAvailable
   const isInspectionPending = open && !inspectError && (isInspecting || inspectResult === null)
   const normalizedDescription = description.trim()
   const descriptionValid =
@@ -124,11 +143,12 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     if (!nextOpen && isBusy) return
     if (!nextOpen && result && result.status !== 'uploaded') {
       try {
-        const discardResult = await ipcApi.request('diagnostics.bundle.discard_upload', { bundleId: result.bundleId })
+        const discardResult = await discardRetainedUpload(result.bundleId)
         if (discardResult.status === 'busy') {
           toast.error(t('settings.about.diagnostics.errors.busy'))
           return
         }
+        retainedBundleIdRef.current = null
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
         return
@@ -157,10 +177,19 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
   }
 
   const acceptSubmissionResult = (uploadResult: OutputFor<'diagnostics.bundle.upload'>) => {
+    if (!mountedRef.current) {
+      if (uploadResult.status !== 'busy' && uploadResult.status !== 'uploaded') {
+        void discardRetainedUpload(uploadResult.bundleId).catch((error) =>
+          logger.error('Failed to discard retained diagnostic upload after unmount', error as Error)
+        )
+      }
+      return
+    }
     if (uploadResult.status === 'busy') {
       toast.error(t('settings.about.diagnostics.errors.busy'))
       return
     }
+    retainedBundleIdRef.current = uploadResult.status === 'uploaded' ? null : uploadResult.bundleId
     setResult(uploadResult)
   }
 
@@ -170,16 +199,17 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
     try {
       const uploadResult = await ipcApi.request('diagnostics.bundle.upload', {
         description: normalizedDescription,
+        includeChatRecords: effectiveIncludeChatRecords,
         includeLogs: effectiveIncludeLogs,
         includeTraces: effectiveIncludeTraces,
-        range
+        range: effectiveRange
       })
       acceptSubmissionResult(uploadResult)
     } catch (error) {
       logger.error('Failed to upload diagnostic bundle', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
-      setOperationStatus('idle')
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
@@ -200,7 +230,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
       logger.error('Failed to retry diagnostic upload', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.upload_failed'))
     } finally {
-      setOperationStatus('idle')
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
@@ -218,7 +248,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
       logger.error('Failed to save retained diagnostic upload', error as Error)
       toast.error(t('settings.about.diagnostics.upload.errors.save_failed'))
     } finally {
-      setOperationStatus('idle')
+      if (mountedRef.current) setOperationStatus('idle')
     }
   }
 
@@ -243,6 +273,9 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
           </DialogHeader>
 
           <Scrollbar className="min-h-0 px-6 py-2">
+            <span className="sr-only" role="status" aria-live="polite">
+              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+            </span>
             {result ? (
               <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
             ) : (
@@ -272,19 +305,21 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   ) : null}
                 </section>
 
-                <section className="space-y-2">
-                  <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                  <SegmentedControl<DiagnosticRange>
-                    value={range}
-                    onValueChange={(nextRange) => {
-                      setRange(nextRange)
-                      setInspectResult(null)
-                      setAcknowledged(false)
-                    }}
-                    options={rangeOptions}
-                    disabled={isBusy}
-                  />
-                </section>
+                {fixedRange === undefined ? (
+                  <section className="space-y-2">
+                    <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+                    <SegmentedControl<DiagnosticRange>
+                      value={selectedRange}
+                      onValueChange={(nextRange) => {
+                        setSelectedRange(nextRange)
+                        setInspectResult(null)
+                        setAcknowledged(false)
+                      }}
+                      options={rangeOptions}
+                      disabled={isBusy}
+                    />
+                  </section>
+                ) : null}
 
                 <section className="divide-y divide-border rounded-xl border border-border">
                   <SourceRow
@@ -297,7 +332,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   />
                   <SourceRow
                     title={t('settings.about.diagnostics.sources.logs.title')}
-                    description={sourceDescription(t, inspectResult?.sources.logs, isInspectionPending)}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
                     checked={effectiveIncludeLogs}
                     disabled={isBusy || isInspectionPending || !logsAvailable}
                     onCheckedChange={(checked) => {
@@ -307,7 +342,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   />
                   <SourceRow
                     title={t('settings.about.diagnostics.sources.traces.title')}
-                    description={sourceDescription(t, inspectResult?.sources.traces, isInspectionPending)}
+                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
                     checked={effectiveIncludeTraces}
                     disabled={isBusy || isInspectionPending || !tracesAvailable}
                     onCheckedChange={(checked) => {
@@ -315,14 +350,22 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                       setAcknowledged(false)
                     }}
                   />
+                  <SourceRow
+                    title={t('settings.about.diagnostics.sources.chat_records.title')}
+                    description={describeDiagnosticChatSource(
+                      t,
+                      inspectResult?.sources.chatRecords,
+                      isInspectionPending
+                    )}
+                    checked={effectiveIncludeChatRecords}
+                    disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
+                    onCheckedChange={(checked) => {
+                      setIncludeChatRecords(checked)
+                      setAcknowledged(false)
+                    }}
+                  />
                 </section>
 
-                {isInspectionPending ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm" role="status">
-                    <LoaderCircle className="size-4 animate-spin" />
-                    {t('settings.about.diagnostics.inspecting')}
-                  </div>
-                ) : null}
                 {inspectError ? (
                   <p className="text-error text-sm" role="alert">
                     {t('settings.about.diagnostics.errors.inspect_failed')}
@@ -361,7 +404,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   onClick={() => handleOpenChange(false)}>
                   {t('settings.about.diagnostics.actions.close')}
                 </Button>
-                {result.status === 'submission_failed' ? (
+                {result.status !== 'uploaded' ? (
                   <Button variant="outline" onClick={() => void openManualForm()}>
                     {t('settings.about.diagnostics.report.open_manual_form')}
                   </Button>
@@ -372,16 +415,7 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
                   </Button>
                 ) : null}
                 {result.status !== 'uploaded' ? (
-                  <Button
-                    ref={primaryActionRef}
-                    variant="emphasis"
-                    onClick={() => {
-                      if (result.status === 'submission_unknown') {
-                        setRetryConfirmationOpen(true)
-                      } else {
-                        void retryUpload()
-                      }
-                    }}>
+                  <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
                     {t('settings.about.diagnostics.report.retry')}
                   </Button>
                 ) : null}
@@ -399,19 +433,6 @@ export function DiagnosticUploadDialog({ initialDescription, onOpenChange, open 
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={retryConfirmationOpen}
-        onOpenChange={setRetryConfirmationOpen}
-        title={t('settings.about.diagnostics.report.retry_unknown_title')}
-        description={t('settings.about.diagnostics.report.retry_unknown_description')}
-        cancelText={t('settings.about.diagnostics.actions.cancel')}
-        confirmText={t('settings.about.diagnostics.report.retry')}
-        onConfirm={() => {
-          setRetryConfirmationOpen(false)
-          void retryUpload()
-        }}
-      />
     </>
   )
 }
@@ -483,19 +504,6 @@ function failureReasonText(t: ReturnType<typeof useTranslation>['t'], reason: Di
     submission_rejected: 'settings.about.diagnostics.report.failure_reasons.submission_rejected'
   }
   return t(keys[reason])
-}
-
-function sourceDescription(
-  t: ReturnType<typeof useTranslation>['t'],
-  source: InspectResult['sources']['logs'] | undefined,
-  isInspectionPending: boolean
-): string {
-  if (isInspectionPending) return t('settings.about.diagnostics.sources.inspecting')
-  if (!source?.available) return t('settings.about.diagnostics.sources.unavailable')
-  return t('settings.about.diagnostics.sources.summary', {
-    count: source.fileCount,
-    size: formatBytes(source.estimatedBytes)
-  })
 }
 
 function SourceRow({

@@ -20,6 +20,7 @@ describe('PreferenceSeeder', () => {
     'feature.quick_assistant.model_id',
     'feature.translate.model_id'
   ]
+  const clientWebToolsPreferredKey = 'chat.web_search.client_tools_preferred'
 
   it('should insert all default preferences into empty table', async () => {
     const seed = new PreferenceSeeder()
@@ -156,16 +157,26 @@ describe('PreferenceSeeder', () => {
     expect(legacy.value).toBe('plain-value')
   })
 
+  it('defaults web tools to model-native capabilities', async () => {
+    new PreferenceSeeder().run(dbh.db)
+
+    const [preference] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, clientWebToolsPreferredKey)))
+    expect(preference.value).toBe(false)
+  })
+
   it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
     const sidebarKey = 'ui.sidebar.favorites'
     const persisted = [
-      { id: 'assistants', type: 'app' },
       { id: 'agents', type: 'app' },
+      { id: 'assistants', type: 'app' },
       { id: 'translate', type: 'app' }
     ]
     const generatedDefault = DefaultPreferences.default[sidebarKey]
 
-    expect(generatedDefault[0]).toEqual({ id: 'agents', type: 'app' })
+    expect(generatedDefault[0]).toEqual({ id: 'assistants', type: 'app' })
     expect(persisted).not.toEqual(generatedDefault)
 
     await dbh.db.insert(preferenceTable).values({

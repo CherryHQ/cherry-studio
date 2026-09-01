@@ -58,3 +58,4 @@ export type AutoBackupSnapshot = {
 }
 
 export const BACKUP_ACTIVE_WRITERS_ERROR_CODE = 'BACKUP_ACTIVE_WRITERS'
+export const BACKUP_DISK_FULL_ERROR_CODE = 'BACKUP_DISK_FULL'
