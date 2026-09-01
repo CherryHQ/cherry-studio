@@ -39,8 +39,14 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
   return `(() => {
     const sendConsoleMessage = console.debug.bind(console)
     document.currentScript?.remove()
-    const scrollbarRoot = document.scrollingElement ?? document.documentElement
-    scrollbarRoot.style.scrollbarGutter = 'stable'
+    let scrollbarRoot = null
+    const applyScrollbarGutter = () => {
+      const nextScrollbarRoot = document.scrollingElement ?? document.documentElement
+      if (scrollbarRoot && scrollbarRoot !== nextScrollbarRoot) scrollbarRoot.style.scrollbarGutter = ''
+      scrollbarRoot = nextScrollbarRoot
+      scrollbarRoot.style.scrollbarGutter = 'stable'
+    }
+    applyScrollbarGutter()
     const send = (type, value) => {
       sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
     }
@@ -106,7 +112,10 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
       resizeObserver.observe(document.documentElement)
       if (document.body) resizeObserver.observe(document.body)
     }
-    window.addEventListener('load', reportHeight, true)
+    window.addEventListener('load', () => {
+      applyScrollbarGutter()
+      reportHeight()
+    }, true)
     window.addEventListener('resize', reportHeight)
     window.addEventListener('wheel', handleWheel, { capture: true, passive: false })
     if (scrollActivationDelay > 0) {

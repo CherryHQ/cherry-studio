@@ -100,10 +100,13 @@ function hasHtmlPreviewScrollbarGutter(html: string): boolean {
   let found = false
   let ownedStyle = false
   let styleContent = ''
+  let templateDepth = 0
   const parser = new Parser(
     {
       onopentag(name, attributes) {
-        if (name === 'style' && HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes) {
+        if (name === 'template') {
+          templateDepth += 1
+        } else if (templateDepth === 0 && name === 'style' && HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes) {
           ownedStyle = true
           styleContent = ''
         }
@@ -112,9 +115,12 @@ function hasHtmlPreviewScrollbarGutter(html: string): boolean {
         if (ownedStyle) styleContent += text
       },
       onclosetag(name) {
-        if (name !== 'style' || !ownedStyle) return
-        found ||= styleContent === HTML_PREVIEW_SCROLLBAR_GUTTER_CSS
-        ownedStyle = false
+        if (name === 'style' && ownedStyle) {
+          found ||= styleContent === HTML_PREVIEW_SCROLLBAR_GUTTER_CSS
+          ownedStyle = false
+        } else if (name === 'template') {
+          templateDepth -= 1
+        }
       }
     },
     { lowerCaseTags: true }
