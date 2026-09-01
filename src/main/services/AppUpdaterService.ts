@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { computeBackoff } from '@main/core/job/runtime/backoff'
@@ -7,9 +5,11 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { regionService } from '@main/services/RegionService'
+import { getAppEdition } from '@main/utils/appEdition'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { AppEdition } from '@shared/types/appEdition'
 import { APP_NAME } from '@shared/utils/constants'
 import {
   hasMultiLanguageReleaseNotes,
@@ -27,31 +27,16 @@ import { AppUpdater, autoUpdater } from 'electron-updater'
 const logger = loggerService.withContext('AppUpdaterService')
 
 type ReleaseRegion = 'cn' | 'global'
-type ReleaseEdition = 'cn' | 'global'
 
 const RELEASE_HISTORY_URL = 'https://releases.cherry-ai.com/release-history.json'
 const RELEASE_HISTORY_TIMEOUT_MS = 10_000
 const RELEASE_HISTORY_MAX_BYTES = 1024 * 1024
 
-function readReleaseEdition(): ReleaseEdition {
-  const packageMetadata = JSON.parse(readFileSync(application.getPath('app.root', 'package.json'), 'utf8')) as {
-    cherryEdition?: unknown
-  }
-
-  if (packageMetadata.cherryEdition === undefined || packageMetadata.cherryEdition === 'global') {
-    return 'global'
-  }
-  if (packageMetadata.cherryEdition === 'cn') {
-    return 'cn'
-  }
-  throw new Error(`Unsupported release edition: ${String(packageMetadata.cherryEdition)}`)
-}
-
-function getEditionUpdateChannel(channel: UpgradeChannel, edition: ReleaseEdition): string {
+function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): string {
   return edition === 'cn' ? `${channel}-cn` : channel
 }
 
-function getUpdateHeaders(region: ReleaseRegion, edition: ReleaseEdition) {
+function getUpdateHeaders(region: ReleaseRegion, edition: AppEdition) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
@@ -106,7 +91,6 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
 export class AppUpdaterService extends BaseService {
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
-  private releaseEdition: ReleaseEdition | null = null
   // Consecutive scheduled-check failures, drives backoff; reset on success.
   private updateCheckFailures = 0
 
@@ -203,7 +187,7 @@ export class AppUpdaterService extends BaseService {
 
     const ipCountry = await regionService.getCountry()
     const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
-    const edition = this.getReleaseEdition()
+    const edition = getAppEdition()
     const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
     const updateHeaders = getUpdateHeaders(region, edition)
@@ -298,13 +282,6 @@ export class AppUpdaterService extends BaseService {
     }
 
     return latestRelease ? mergeReleaseHistory([latestRelease], history) : history
-  }
-
-  private getReleaseEdition(): ReleaseEdition {
-    if (this.releaseEdition === null) {
-      this.releaseEdition = readReleaseEdition()
-    }
-    return this.releaseEdition
   }
 
   public cancelDownload() {

@@ -16,6 +16,7 @@ describe('edition packaging', () => {
 
     expect({
       appId: config.appId,
+      edition: config.extraMetadata?.cherryEdition,
       nsisGuid: config.nsis.guid,
       productName: config.productName,
       protocol: config.protocols[0].schemes[0],
@@ -23,6 +24,7 @@ describe('edition packaging', () => {
       windowsArtifactName: config.win.artifactName
     }).toEqual({
       appId: 'com.kangfenmao.CherryStudio',
+      edition: GLOBAL_EDITION,
       nsisGuid: '41a4ccd8-bcc0-5710-9eee-0e164da68057',
       productName: 'Cherry Studio',
       protocol: 'cherrystudio',

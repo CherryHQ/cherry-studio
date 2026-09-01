@@ -1,3 +1,5 @@
+import type { AppEdition } from '@shared/types/appEdition'
+
 export type User = {
   id: string
   name: string
@@ -19,6 +21,7 @@ export type CodeStyleVarious = 'auto' | string
 
 export type AppInfo = {
   version: string
+  edition: AppEdition
   isPackaged: boolean
   appPath: string
   homePath: string

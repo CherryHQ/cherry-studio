@@ -9,6 +9,9 @@ vi.mock('@renderer/i18n/resolver', () => ({ initI18n: initI18nMock }))
 const { exposeControlSurfaceMock } = vi.hoisted(() => ({ exposeControlSurfaceMock: vi.fn() }))
 vi.mock('@data/utils/dataApiDevtools', () => ({ DataApiDevtools: { exposeControlSurface: exposeControlSurfaceMock } }))
 
+const { appInfoPreloadMock } = vi.hoisted(() => ({ appInfoPreloadMock: vi.fn(async () => {}) }))
+vi.mock('@renderer/services/AppInfoService', () => ({ appInfoService: { preload: appInfoPreloadMock } }))
+
 describe('prepareWindow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -20,6 +23,7 @@ describe('prepareWindow', () => {
     expect(preferenceService.preloadAll).toHaveBeenCalledTimes(1)
     expect(preferenceService.preload).not.toHaveBeenCalled()
     expect(initI18nMock).toHaveBeenCalledTimes(1)
+    expect(appInfoPreloadMock).not.toHaveBeenCalled()
   })
 
   it('preloads exactly the given keys for a key-list preference', async () => {
@@ -35,6 +39,27 @@ describe('prepareWindow', () => {
 
     expect(exposeControlSurfaceMock).toHaveBeenCalledTimes(1)
     return pending
+  })
+
+  it('preloads app info when the first frame needs application identity', async () => {
+    await prepareWindow({ preference: 'all', appInfo: true })
+
+    expect(appInfoPreloadMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for requested app info before resolving', async () => {
+    let resolveAppInfo!: () => void
+    appInfoPreloadMock.mockImplementationOnce(() => new Promise<void>((resolve) => (resolveAppInfo = resolve)))
+
+    let settled = false
+    const pending = prepareWindow({ preference: 'all', appInfo: true }).then(() => (settled = true))
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveAppInfo()
+    await pending
+    expect(settled).toBe(true)
   })
 
   it('resolves only after both i18n and the preference warm-up complete', async () => {

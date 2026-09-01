@@ -16,6 +16,7 @@
     "rebuild:electron": "electron-rebuild --force --only better-sqlite3",
     "rebuild:node": "node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3",
     "dev": "pnpm rebuild:electron && pnpm download:binaries && dotenv electron-vite dev",
+    "dev:cn": "dotenv -v CHERRY_EDITION=cn -- pnpm dev",
     "dev:watch": "pnpm rebuild:electron && dotenv electron-vite dev -- -w",
     "debug": "pnpm rebuild:electron && dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "pnpm run typecheck && electron-vite build",

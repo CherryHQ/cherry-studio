@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client'
 
 import SubWindowApp from './SubWindowApp'
 
-await prepareWindow({ preference: 'all' })
+await prepareWindow({ preference: 'all', appInfo: true })
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<SubWindowApp />)

@@ -6,6 +6,7 @@ import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
 import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
+import { getAppEdition } from '@main/utils/appEdition'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
@@ -15,6 +16,7 @@ import { app, BrowserWindow } from 'electron'
 export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.get_info': async () => ({
     version: app.getVersion(),
+    edition: getAppEdition(),
     isPackaged: app.isPackaged,
     appPath: application.getPath('app.root'),
     homePath: application.getPath('sys.home'),
