@@ -98,6 +98,7 @@ const claudeModels: { apiModelId: string; modelId: string }[] = [
 export default openaiCompatible({
   id: 'poe',
   name: 'Poe',
+  supportedEditions: ['global'],
   baseUrl: 'https://api.poe.com/v1/',
   // Poe silently ignores top-level reasoning_effort. Unknown/community bots
   // stay fail-closed until their custom parameter contract is known.

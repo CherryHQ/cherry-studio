@@ -1,6 +1,8 @@
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { appInfoService } from '@renderer/services/AppInfoService'
+import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
@@ -11,7 +13,6 @@ import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderA
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
-import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
 
 interface ProviderSettingsSearch {
   addProviderData?: string
@@ -29,6 +30,7 @@ interface ProviderSettingsContentProps {
 }
 
 function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
+  const appEdition = appInfoService.get().edition
   const search = useSearch({ strict: false }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
@@ -41,7 +43,14 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
   const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
-  const visibleProviders = useMemo(() => providers.filter(isProviderSettingsListVisibleProvider), [providers])
+  const visibleProviders = useMemo(
+    () =>
+      providers.filter(
+        (provider) =>
+          isProviderSettingsListVisibleProvider(provider) && isProviderAvailableInEdition(provider, appEdition)
+      ),
+    [appEdition, providers]
+  )
   const filterModeHint = search.filter === 'agent' ? 'agent' : undefined
 
   useEffect(() => {

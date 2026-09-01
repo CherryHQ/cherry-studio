@@ -1,5 +1,7 @@
+import { isProviderAvailableInEdition } from '@renderer/utils/providerSettings'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { Provider } from '@shared/data/types/provider'
+import type { AppEdition } from '@shared/types/appEdition'
 import { describe, expect, it, vi } from 'vitest'
 
 // isProviderSettingsListVisibleProvider only reads the provider id; stub the i18n +
@@ -39,6 +41,23 @@ describe('isProviderSettingsListVisibleProvider', () => {
 
   it('keeps a normal provider visible', () => {
     expect(isProviderSettingsListVisibleProvider(provider('openai'))).toBe(true)
+  })
+})
+
+describe('isProviderAvailableInEdition', () => {
+  const cases: Array<[string, Partial<Provider>, AppEdition, boolean]> = [
+    ['all-edition preset in the CN edition', { supportedEditions: ['global', 'cn'] }, 'cn', true],
+    ['all-edition preset in the global edition', { supportedEditions: ['global', 'cn'] }, 'global', true],
+    ['global-only preset in the CN edition', { supportedEditions: ['global'] }, 'cn', false],
+    ['global-only preset in the global edition', { supportedEditions: ['global'] }, 'global', true],
+    ['CN-only preset in the CN edition', { supportedEditions: ['cn'] }, 'cn', true],
+    ['CN-only preset in the global edition', { supportedEditions: ['cn'] }, 'global', false],
+    ['custom provider in the CN edition', {}, 'cn', true],
+    ['custom provider in the global edition', {}, 'global', true]
+  ]
+
+  it.each(cases)('%s', (_label, providerFields, edition, expected) => {
+    expect(isProviderAvailableInEdition({ ...provider('provider'), ...providerFields }, edition)).toBe(expected)
   })
 })
 

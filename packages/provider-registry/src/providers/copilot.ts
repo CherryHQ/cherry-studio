@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'copilot',
   name: 'Github Copilot',
+  supportedEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {

@@ -6,6 +6,7 @@ const webSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 export default defineProvider({
   id: 'openai',
   name: 'OpenAI',
+  supportedEditions: ['global'],
   defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
     'openai-responses': {

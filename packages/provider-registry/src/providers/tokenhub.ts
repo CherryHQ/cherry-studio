@@ -9,6 +9,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'tokenhub',
   name: 'TokenHub',
+  supportedEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://tokenhub.tencentmaas.com' },

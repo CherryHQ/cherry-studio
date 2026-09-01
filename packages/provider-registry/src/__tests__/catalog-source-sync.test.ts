@@ -27,6 +27,10 @@ import {
 } from '../patterns/server-tool-constraints.gen'
 import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
+import {
+  findLegacyProviderSupportedEditions,
+  LEGACY_PROVIDER_SUPPORTED_EDITIONS
+} from '../providers/legacyProviderEditions'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
@@ -76,6 +80,20 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
   `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
 
 describe('catalog ↔ source sync (regenerate guard)', () => {
+  it('classifies every source provider by supported application edition', () => {
+    for (const provider of PROVIDERS) {
+      expect(provider.supportedEditions).toContain('global')
+    }
+  })
+
+  it('classifies historical presets without treating unknown custom providers as presets', () => {
+    for (const [providerId, supportedEditions] of Object.entries(LEGACY_PROVIDER_SUPPORTED_EDITIONS)) {
+      expect(findLegacyProviderSupportedEditions(providerId)).toEqual(supportedEditions)
+    }
+
+    expect(findLegacyProviderSupportedEditions('custom-provider')).toBeUndefined()
+  })
+
   it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {
     const missing = PROVIDERS.filter((p) => !providerById.has(p.id)).map((p) => p.id)
     expect(missing).toEqual([]) // src has a provider data/ doesn't → run `pnpm generate`

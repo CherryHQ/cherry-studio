@@ -27,6 +27,7 @@ const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 export default defineProvider({
   id: 'new-api',
   name: 'New API',
+  supportedEditions: ['global', 'cn'],
   // Self-hosted: only the default endpoint carries the placeholder host. A
   // baseUrl here would override the user's single host on every other endpoint.
   endpointConfigs: {

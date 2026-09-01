@@ -7,6 +7,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'voyageai',
   name: 'VoyageAI',
+  supportedEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   modelListSource: 'registry',
   endpointConfigs: {

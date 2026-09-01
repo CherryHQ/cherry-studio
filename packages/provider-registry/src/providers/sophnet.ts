@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'sophnet',
   name: 'SophNet',
+  supportedEditions: ['global', 'cn'],
   baseUrl: 'https://www.sophnet.com/api/open-apis/v1',
   website: {
     apiKey: 'https://sophnet.com/#/project/key',

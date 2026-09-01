@@ -20,6 +20,7 @@ const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 export default defineProvider({
   id: 'aihubmix',
   name: 'AiHubMix',
+  supportedEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

@@ -45,7 +45,8 @@
           "modelScope": "model-dependent",
           "vendors": ["anthropic", "gemini"]
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -65,7 +66,8 @@
           "official": "https://developer.amd.com.cn/radeon/"
         }
       },
-      "name": "AMD GPU Cloud"
+      "name": "AMD GPU Cloud",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -92,7 +94,8 @@
           "official": "https://www.siliconflow.cn"
         }
       },
-      "name": "Silicon"
+      "name": "Silicon",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -136,7 +139,8 @@
           "modelScope": "model-dependent",
           "vendors": ["anthropic", "gemini"]
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "authOptional": true,
@@ -155,7 +159,8 @@
           "official": "https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html"
         }
       },
-      "name": "OpenVINO Model Server"
+      "name": "OpenVINO Model Server",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -175,7 +180,8 @@
           "official": "https://one.ocoolai.com/"
         }
       },
-      "name": "ocoolAI"
+      "name": "ocoolAI",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -244,7 +250,8 @@
           "modelScope": "model-dependent",
           "vendors": ["zhipu"]
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -320,7 +327,8 @@
           "id": "web-search",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -340,7 +348,8 @@
           "official": "https://www.alayanew.com/"
         }
       },
-      "name": "AlayaNew"
+      "name": "AlayaNew",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -368,7 +377,8 @@
           "official": "https://www.dmxapi.cn/"
         }
       },
-      "name": "DMXAPI"
+      "name": "DMXAPI",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -388,7 +398,8 @@
           "official": "https://www.aiionly.com"
         }
       },
-      "name": "AIOnly"
+      "name": "AIOnly",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -408,7 +419,8 @@
           "official": "https://ai.burncloud.com/"
         }
       },
-      "name": "BurnCloud"
+      "name": "BurnCloud",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -432,7 +444,8 @@
           "official": "https://302.ai"
         }
       },
-      "name": "302.AI"
+      "name": "302.AI",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -452,7 +465,8 @@
           "official": "https://maas.lanyun.net"
         }
       },
-      "name": "LANYUN"
+      "name": "LANYUN",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -472,7 +486,8 @@
           "official": "https://ph8.co"
         }
       },
-      "name": "PH8"
+      "name": "PH8",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -492,7 +507,8 @@
           "official": "https://sophnet.com"
         }
       },
-      "name": "SophNet"
+      "name": "SophNet",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -512,7 +528,8 @@
           "official": "https://ppio.com/"
         }
       },
-      "name": "PPIO"
+      "name": "PPIO",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -539,7 +556,8 @@
           "official": "https://qiniu.com"
         }
       },
-      "name": "Qiniu"
+      "name": "Qiniu",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -655,7 +673,8 @@
           "id": "url-context",
           "modelScope": "all-chat-models"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "authOptional": true,
@@ -681,7 +700,8 @@
           "official": "https://ollama.com/"
         }
       },
-      "name": "Ollama"
+      "name": "Ollama",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "description": "New API - AI model provider",
@@ -722,7 +742,8 @@
           "modelScope": "model-dependent",
           "vendors": ["anthropic", "gemini"]
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "authOptional": true,
@@ -749,7 +770,8 @@
           "official": "https://lmstudio.ai/"
         }
       },
-      "name": "LM Studio"
+      "name": "LM Studio",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "anthropic-messages",
@@ -779,7 +801,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "authMethods": ["external-cli"],
@@ -808,7 +831,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "authMethods": ["oauth"],
@@ -913,7 +937,8 @@
         }
       },
       "modelListSource": "registry",
-      "name": "OpenAI Codex"
+      "name": "OpenAI Codex",
+      "supportedEditions": ["global"]
     },
     {
       "authMethods": ["oauth"],
@@ -933,7 +958,8 @@
         }
       },
       "modelListSource": "registry",
-      "name": "Grok CLI"
+      "name": "Grok CLI",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-responses",
@@ -1041,7 +1067,8 @@
           "id": "web-search",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1160,7 +1187,8 @@
           "official": "https://opencode.ai"
         }
       },
-      "name": "OpenCode Go"
+      "name": "OpenCode Go",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1274,7 +1302,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "google-generate-content",
@@ -1304,7 +1333,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "google-generate-content",
@@ -1337,7 +1367,8 @@
           "modelScope": "model-dependent",
           "vendors": ["gemini"]
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1354,7 +1385,8 @@
           "official": "https://github.com/features/copilot"
         }
       },
-      "name": "Github Copilot"
+      "name": "Github Copilot",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1423,7 +1455,8 @@
           "modelScope": "model-dependent",
           "vendors": ["kimi"]
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1443,7 +1476,8 @@
           "official": "https://www.baichuan-ai.com/"
         }
       },
-      "name": "BAICHUAN AI"
+      "name": "BAICHUAN AI",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1487,7 +1521,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1511,7 +1546,8 @@
           "official": "https://platform.stepfun.com/"
         }
       },
-      "name": "StepFun"
+      "name": "StepFun",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1587,7 +1623,8 @@
           "modelScope": "model-dependent",
           "vendors": ["doubao"]
         }
-      ]
+      ],
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1611,7 +1648,8 @@
           "official": "https://platform.minimaxi.com/"
         }
       },
-      "name": "MiniMax"
+      "name": "MiniMax",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1652,7 +1690,8 @@
           "official": "https://groq.com/"
         }
       },
-      "name": "Groq"
+      "name": "Groq",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1675,7 +1714,8 @@
           "official": "https://www.together.ai"
         }
       },
-      "name": "Together"
+      "name": "Together",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-responses",
@@ -1770,7 +1810,8 @@
           "official": "https://fireworks.ai/"
         }
       },
-      "name": "Fireworks"
+      "name": "Fireworks",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1796,7 +1837,8 @@
           "official": "https://build.nvidia.com/explore/discover"
         }
       },
-      "name": "nvidia"
+      "name": "nvidia",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-responses",
@@ -1864,7 +1906,8 @@
           "id": "web-search",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1887,7 +1930,8 @@
           "official": "https://mistral.ai"
         }
       },
-      "name": "Mistral"
+      "name": "Mistral",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1907,7 +1951,8 @@
           "official": "https://jina.ai"
         }
       },
-      "name": "Jina"
+      "name": "Jina",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1933,7 +1978,8 @@
           "id": "web-search",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1957,7 +2003,8 @@
           "official": "https://modelscope.cn"
         }
       },
-      "name": "ModelScope"
+      "name": "ModelScope",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1977,7 +2024,8 @@
           "official": "https://www.ctyun.cn"
         }
       },
-      "name": "Xirang"
+      "name": "Xirang",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2006,7 +2054,8 @@
         }
       },
       "modelListSource": "registry",
-      "name": "TokenHub"
+      "name": "TokenHub",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2026,7 +2075,8 @@
           "official": "https://cloud.baidu.com/"
         }
       },
-      "name": "Baidu Cloud"
+      "name": "Baidu Cloud",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "authOptional": true,
@@ -2048,7 +2098,8 @@
           "official": "https://gpustack.ai/"
         }
       },
-      "name": "GPUStack"
+      "name": "GPUStack",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2069,7 +2120,8 @@
         }
       },
       "modelListSource": "registry",
-      "name": "VoyageAI"
+      "name": "VoyageAI",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "anthropic-messages",
@@ -2105,7 +2157,8 @@
           "id": "url-context",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2144,7 +2197,8 @@
           "id": "web-search",
           "modelScope": "model-dependent"
         }
-      ]
+      ],
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2245,7 +2299,8 @@
         }
       },
       "modelListSource": "registry",
-      "name": "LongCat"
+      "name": "LongCat",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-responses",
@@ -2269,7 +2324,8 @@
           "official": "https://huggingface.co/"
         }
       },
-      "name": "Hugging Face"
+      "name": "Hugging Face",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2289,7 +2345,8 @@
           "official": "https://vercel.com/ai-gateway"
         }
       },
-      "name": "Vercel AI Gateway"
+      "name": "Vercel AI Gateway",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2325,7 +2382,8 @@
           "official": "https://www.cerebras.ai"
         }
       },
-      "name": "Cerebras AI"
+      "name": "Cerebras AI",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2362,7 +2420,8 @@
           "official": "https://mimo.mi.com/"
         }
       },
-      "name": "Xiaomi MiMo"
+      "name": "Xiaomi MiMo",
+      "supportedEditions": ["global", "cn"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2387,7 +2446,8 @@
         }
       },
       "name": "zai",
-      "presetProviderId": "zhipu"
+      "presetProviderId": "zhipu",
+      "supportedEditions": ["global"]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2412,8 +2472,9 @@
         }
       },
       "name": "minimax-global",
-      "presetProviderId": "minimax"
+      "presetProviderId": "minimax",
+      "supportedEditions": ["global"]
     }
   ],
-  "version": "4a6f7225220e7a46"
+  "version": "84cd208dbef3850e"
 }

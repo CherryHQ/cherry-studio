@@ -6,10 +6,11 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
   isProviderPresetInstanceSource,
-  isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { appInfoService } from '@renderer/services/AppInfoService'
 import { toast } from '@renderer/services/toast'
+import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
@@ -42,6 +43,7 @@ export default function ProviderList({
 }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const appEdition = appInfoService.get().edition
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
@@ -128,8 +130,12 @@ export default function ProviderList({
   }, [allModels, searchText])
 
   const filteredProviders = useMemo(() => {
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     return providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
+        return false
+      }
+      if (!isProviderAvailableInEdition(provider, appEdition)) {
         return false
       }
       if (provider.id === 'ovms' && !isOvmsSupported) {
@@ -141,10 +147,9 @@ export default function ProviderList({
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
-  }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
+  }, [appEdition, filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
 
   const providerCounts = useMemo(
     () =>
@@ -159,9 +164,12 @@ export default function ProviderList({
   const presetSources = useMemo(
     () =>
       providers.filter(
-        (provider) => isProviderPresetInstanceSource(provider) && isProviderSettingsListVisibleProvider(provider)
+        (provider) =>
+          isProviderPresetInstanceSource(provider) &&
+          isProviderSettingsListVisibleProvider(provider) &&
+          isProviderAvailableInEdition(provider, appEdition)
       ),
-    [providers]
+    [appEdition, providers]
   )
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {

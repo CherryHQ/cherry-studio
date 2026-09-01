@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'ocoolai',
   name: 'ocoolAI',
+  supportedEditions: ['global'],
   baseUrl: 'https://api.ocoolai.com',
   website: {
     apiKey: 'https://one.ocoolai.com/token',

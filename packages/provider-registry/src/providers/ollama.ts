@@ -3,6 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'ollama',
   name: 'Ollama',
+  supportedEditions: ['global', 'cn'],
   authOptional: true,
   endpointConfigs: {
     'anthropic-messages': {

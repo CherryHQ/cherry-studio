@@ -19,6 +19,7 @@ const geminiWebToolModels = [
 export default defineProvider({
   id: 'vertexai',
   name: 'VertexAI',
+  supportedEditions: ['global'],
   defaultChatEndpoint: 'google-generate-content',
   endpointConfigs: {
     'anthropic-messages': {

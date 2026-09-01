@@ -9,7 +9,14 @@ import ProviderSettingsPage from '../ProviderSettingsPage'
 
 const navigateMock = vi.fn()
 const useProvidersMock = vi.fn()
+const { appInfoMocks } = vi.hoisted(() => ({
+  appInfoMocks: { edition: 'global' as 'global' | 'cn' }
+}))
 let searchMock: Record<string, string | undefined> = {}
+
+vi.mock('@renderer/services/AppInfoService', () => ({
+  appInfoService: { get: () => ({ edition: appInfoMocks.edition }) }
+}))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => useProvidersMock(...args)
@@ -83,6 +90,7 @@ describe('ProviderSettingsPage', () => {
       error: undefined,
       refetch: vi.fn().mockResolvedValue(undefined)
     })
+    appInfoMocks.edition = 'global'
   })
 
   it('shows loading state without mounting the provider list', () => {
@@ -203,6 +211,27 @@ describe('ProviderSettingsPage', () => {
     })
     expect(screen.getByTestId('selected-provider-id')).toHaveTextContent('openai')
     expect(screen.queryByText('provider-setting-cherryai')).not.toBeInTheDocument()
+  })
+
+  it('falls back from a provider hidden in the current application edition', async () => {
+    appInfoMocks.edition = 'cn'
+    MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
+    useProvidersMock.mockReturnValue({
+      providers: [
+        { id: 'openai', name: 'OpenAI', isEnabled: true, supportedEditions: ['global'] },
+        { id: 'zhipu', name: 'ZhiPu', isEnabled: true, supportedEditions: ['global', 'cn'] },
+        { id: 'custom-provider', name: 'Custom Provider', isEnabled: true }
+      ],
+      hasLoaded: true,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ProviderSettingsPage />)
+
+    expect(await screen.findByText('provider-setting-zhipu')).toBeInTheDocument()
+    expect(screen.queryByText('provider-setting-openai')).not.toBeInTheDocument()
   })
 
   it('passes a stable provider selector to deep-link import across rerenders', () => {

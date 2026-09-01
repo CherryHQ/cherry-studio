@@ -3,8 +3,9 @@ import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/use
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { appInfoService } from '@renderer/services/AppInfoService'
 import { getSearchMatchScore } from '@renderer/utils/model'
-import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -97,9 +98,13 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
+  const appEdition = appInfoService.get().edition
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
-  const availableProviders = providers
+  const availableProviders = useMemo(
+    () => providers.filter((provider) => isProviderAvailableInEdition(provider, appEdition)),
+    [appEdition, providers]
+  )
   const availableModels = models
 
   const baseModelFilter = useCallback(

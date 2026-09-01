@@ -1,0 +1,22 @@
+import type { ProviderEdition } from '../schemas/provider'
+
+const ALL_EDITIONS = ['global', 'cn'] as const satisfies readonly ProviderEdition[]
+const GLOBAL_ONLY_EDITIONS = ['global'] as const satisfies readonly ProviderEdition[]
+
+// Presets removed from the current catalog can still exist in migrated user data.
+export const LEGACY_PROVIDER_SUPPORTED_EDITIONS = {
+  github: GLOBAL_ONLY_EDITIONS,
+  yi: ALL_EDITIONS,
+  infini: ALL_EDITIONS,
+  hyperbolic: GLOBAL_ONLY_EDITIONS,
+  hunyuan: ALL_EDITIONS,
+  'tencent-cloud-ti': ALL_EDITIONS,
+  'gitee-ai': ALL_EDITIONS
+} as const satisfies Record<string, readonly ProviderEdition[]>
+
+export function findLegacyProviderSupportedEditions(providerId: string): ProviderEdition[] | undefined {
+  const supportedEditions =
+    LEGACY_PROVIDER_SUPPORTED_EDITIONS[providerId as keyof typeof LEGACY_PROVIDER_SUPPORTED_EDITIONS]
+
+  return supportedEditions ? [...supportedEditions] : undefined
+}

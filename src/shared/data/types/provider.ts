@@ -19,6 +19,7 @@ import {
   objectValues,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
+import { APP_EDITIONS } from '@shared/types/appEdition'
 import * as z from 'zod'
 
 export type { ServerTool, ServerToolConfig }
@@ -249,6 +250,8 @@ export const ProviderSchema = z.object({
   logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
+  /** Application editions that should offer the resolved preset. */
+  supportedEditions: z.array(z.enum(APP_EDITIONS)).min(1).optional(),
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type connection configuration */

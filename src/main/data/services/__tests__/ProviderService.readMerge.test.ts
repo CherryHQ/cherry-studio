@@ -32,7 +32,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
           },
           defaultChatEndpoint: 'openai-chat-completions',
           reportsActualCost: false,
-          reportedCostCurrency: 'USD'
+          reportedCostCurrency: 'USD',
+          supportedEditions: ['global', 'cn']
         },
         {
           id: 'my-relay',
@@ -224,6 +225,27 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.dialect).toBeUndefined()
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
+    expect(provider.supportedEditions).toEqual(['global', 'cn'])
+  })
+
+  it('classifies historical presets while keeping custom providers edition-neutral', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'hyperbolic',
+        presetProviderId: 'hyperbolic',
+        name: 'Hyperbolic',
+        orderKey: 'a0'
+      },
+      {
+        providerId: 'custom-provider',
+        presetProviderId: null,
+        name: 'Custom Provider',
+        orderKey: 'a1'
+      }
+    ])
+
+    expect(providerService.getByProviderId('hyperbolic').supportedEditions).toEqual(['global'])
+    expect(providerService.getByProviderId('custom-provider').supportedEditions).toBeUndefined()
   })
 
   it('persists an endpoint dialect as a delta: deviations stick, registry echoes vanish', async () => {

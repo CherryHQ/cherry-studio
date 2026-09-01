@@ -18,8 +18,15 @@ const scrollIntoViewMock = vi.fn()
 const { providerEditorDrawerSpy } = vi.hoisted(() => ({
   providerEditorDrawerSpy: vi.fn()
 }))
+const { appInfoMocks } = vi.hoisted(() => ({
+  appInfoMocks: { edition: 'global' as 'global' | 'cn' }
+}))
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
+
+vi.mock('@renderer/services/AppInfoService', () => ({
+  appInfoService: { get: () => ({ edition: appInfoMocks.edition }) }
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -196,6 +203,7 @@ describe('ProviderList', () => {
     ipcRequest.mockImplementation((route: string) =>
       route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
     )
+    appInfoMocks.edition = 'global'
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -236,6 +244,64 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.queryByText('CherryAI')).not.toBeInTheDocument()
     expect(screen.queryByTestId('provider-list-item-cherryai')).not.toBeInTheDocument()
+  })
+
+  it('shows only providers available in the current application edition', () => {
+    appInfoMocks.edition = 'cn'
+    const cnPreset = {
+      ...providers[0],
+      id: 'zhipu',
+      name: 'ZhiPu',
+      presetProviderId: 'zhipu',
+      authType: 'api-key',
+      supportedEditions: ['global', 'cn']
+    }
+    const globalPreset = {
+      ...providers[0],
+      presetProviderId: 'openai',
+      authType: 'api-key',
+      supportedEditions: ['global']
+    }
+    const customProvider = {
+      ...providers[0],
+      id: 'custom-provider',
+      name: 'Custom Provider'
+    }
+    useProvidersMock.mockReturnValue({
+      providers: [cnPreset, globalPreset, customProvider],
+      createProvider: vi.fn()
+    })
+
+    render(<ProviderList selectedProviderId="zhipu" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getByText('ZhiPu')).toBeInTheDocument()
+    expect(screen.getByText('Custom Provider')).toBeInTheDocument()
+    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(providerEditorDrawerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        presetSources: [cnPreset]
+      })
+    )
+  })
+
+  it('shows China and overseas providers in the global edition', () => {
+    const cnPreset = {
+      ...providers[0],
+      id: 'zhipu',
+      name: 'ZhiPu',
+      presetProviderId: 'zhipu',
+      supportedEditions: ['global', 'cn']
+    }
+    const overseasPreset = {
+      ...providers[0],
+      supportedEditions: ['global']
+    }
+    useProvidersMock.mockReturnValue({ providers: [cnPreset, overseasPreset], createProvider: vi.fn() })
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getByText('ZhiPu')).toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toBeInTheDocument()
   })
 
   it('offers only safe canonical preset sources to the custom provider editor', () => {

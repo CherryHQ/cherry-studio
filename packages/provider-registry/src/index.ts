@@ -68,6 +68,7 @@ export type {
   ProviderConfig as ProtoProviderConfig,
   ProviderReasoningFormat as ProtoProviderReasoningFormat,
   ProviderConfig,
+  ProviderEdition,
   ProviderReasoningFormat,
   ReasoningFormatType,
   RegistryEndpointConfig,
@@ -79,6 +80,7 @@ export type {
 } from './schemas/provider'
 export {
   FastModeTransportSchema,
+  ProviderEditionSchema,
   REASONING_FORMAT_TYPES,
   ServerToolConfigSchema,
   ServiceTierDeliverySchema,
@@ -107,6 +109,9 @@ export {
 } from './schemas/reasoningWire'
 export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
+
+// Application-edition support for presets removed from the current catalog.
+export { findLegacyProviderSupportedEditions } from './providers/legacyProviderEditions'
 
 // Model ID normalization utilities
 export {
