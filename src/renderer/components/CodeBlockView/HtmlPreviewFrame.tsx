@@ -93,10 +93,34 @@ export function injectHtmlPreviewCsp(html: string, csp: string): string {
 }
 
 export const HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER = 'data-cherry-html-preview-scrollbar'
-export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>html{overflow-y:auto;scrollbar-gutter:stable}</style>`
+const HTML_PREVIEW_SCROLLBAR_GUTTER_CSS = 'html{overflow-y:auto;scrollbar-gutter:stable}'
+export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>${HTML_PREVIEW_SCROLLBAR_GUTTER_CSS}</style>`
 
 function hasHtmlPreviewScrollbarGutter(html: string): boolean {
-  return html.includes(HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE)
+  let found = false
+  let ownedStyle = false
+  let styleContent = ''
+  const parser = new Parser(
+    {
+      onopentag(name, attributes) {
+        if (name === 'style' && HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes) {
+          ownedStyle = true
+          styleContent = ''
+        }
+      },
+      ontext(text) {
+        if (ownedStyle) styleContent += text
+      },
+      onclosetag(name) {
+        if (name !== 'style' || !ownedStyle) return
+        found ||= styleContent === HTML_PREVIEW_SCROLLBAR_GUTTER_CSS
+        ownedStyle = false
+      }
+    },
+    { lowerCaseTags: true }
+  )
+  parser.end(html)
+  return found
 }
 
 export function injectHtmlPreviewScrollbarGutter(html: string): string {

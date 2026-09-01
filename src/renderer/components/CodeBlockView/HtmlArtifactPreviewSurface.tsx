@@ -39,7 +39,8 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
   return `(() => {
     const sendConsoleMessage = console.debug.bind(console)
     document.currentScript?.remove()
-    document.documentElement.style.scrollbarGutter = 'stable'
+    const scrollbarRoot = document.scrollingElement ?? document.documentElement
+    scrollbarRoot.style.scrollbarGutter = 'stable'
     const send = (type, value) => {
       sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
     }

@@ -154,6 +154,22 @@ describe('HtmlPreviewFrame', () => {
     expect(injected).toContain('.preview{color:red}')
   })
 
+  it.each([
+    [
+      'a comment',
+      '<!-- <style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style> -->'
+    ],
+    [
+      'inert text',
+      '<textarea><style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style></textarea>'
+    ]
+  ])('does not let the owned style serialized as %s suppress injection', (_label, authorHtml) => {
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+    const parsed = new DOMParser().parseFromString(injected, 'text/html')
+
+    expect(parsed.head.querySelectorAll('style[data-cherry-html-preview-scrollbar]')).toHaveLength(1)
+  })
+
   it('applies the gutter to the actual scrolling element for doctype-less documents', () => {
     const frameDocument = document.implementation.createHTMLDocument()
     Object.defineProperty(frameDocument, 'scrollingElement', { configurable: true, value: frameDocument.body })
