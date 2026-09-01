@@ -1,6 +1,4 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
-import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import { MenuDivider, MenuItem, MenuList, PageHeader, SearchInput } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import {
@@ -12,41 +10,46 @@ import {
 } from '@renderer/pages/settings/settingsStyles'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import {
-  Activity,
-  Bell,
-  CalendarClock,
-  Cloud,
-  Command,
-  Crop,
-  FileBox,
-  FileCode,
-  HardDrive,
-  Info,
-  Package,
-  Palette,
-  PictureInPicture2,
-  Radio,
-  ScanText,
-  Search,
-  Settings2,
-  Terminal,
-  TextCursorInput,
-  ToolCase,
-  Zap
-} from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { settingsNavigationSections, type SettingsPath } from './settingsNavigation'
+import { buildSettingsSearchEntries, filterSettingsSearchEntries } from './settingsSearch'
 
 const SettingsPage: FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { pathname } = location
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const [searchText, setSearchText] = useState('')
+
+  const searchEntries = useMemo(
+    () =>
+      buildSettingsSearchEntries(
+        settingsNavigationSections,
+        i18n.getResourceBundle('en-US', 'translation') as Record<string, string>,
+        t
+      ),
+    [i18n, t]
+  )
+  const matchingPaths = useMemo(
+    () => new Set(filterSettingsSearchEntries(searchEntries, searchText).map((entry) => entry.path)),
+    [searchEntries, searchText]
+  )
+  const isSearching = searchText.trim().length > 0
+  const visibleSections = isSearching
+    ? settingsNavigationSections
+        .map((section) => ({ ...section, items: section.items.filter((item) => matchingPaths.has(item.path)) }))
+        .filter((section) => section.items.length > 0)
+    : settingsNavigationSections
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
-  const go = (path: string) => navigate({ to: path })
+  const go = (path: SettingsPath) => {
+    setSearchText('')
+    void navigate({ to: path })
+  }
 
   return (
     <div
@@ -61,201 +64,51 @@ const SettingsPage: FC = () => {
           data-ui="settings.navigation"
           className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
           <PageHeader title={t('title.settings')} className="mb-1" />
+          <div className="px-2.5 pb-2">
+            <SearchInput
+              size="sm"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+              onClear={() => setSearchText('')}
+              clearLabel={t('common.clear')}
+              placeholder={t('common.search')}
+              aria-label={t('common.search')}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && searchText) {
+                  event.stopPropagation()
+                  setSearchText('')
+                }
+              }}
+            />
+          </div>
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={settingsSubmenuListClassName}>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Cloud />}
-                label={t('settings.provider.title')}
-                active={isActive('/settings/provider')}
-                onClick={() => go('/settings/provider')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Package />}
-                label={t('settings.model')}
-                active={isActive('/settings/model')}
-                onClick={() => go('/settings/model')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<FileBox />}
-                label={t('settings.dependencies.localModels.title')}
-                active={isActive('/settings/local-models')}
-                onClick={() => go('/settings/local-models')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<GatewayIcon />}
-                label={t('apiGateway.title')}
-                active={isActive('/settings/api-gateway')}
-                onClick={() => go('/settings/api-gateway')}
-              />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.capabilities')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<McpLogo width={16} height={16} className="text-foreground" />}
-                label={t('agent.settings.toolsMcp.mcp.tab')}
-                active={isActive('/settings/mcp')}
-                onClick={() => go('/settings/mcp')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<ToolCase />}
-                label={t('settings.skills.title')}
-                active={isActive('/settings/skills')}
-                onClick={() => go('/settings/skills')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Zap />}
-                label={t('settings.prompts.title')}
-                active={isActive('/settings/prompts')}
-                onClick={() => go('/settings/prompts')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Search />}
-                label={t('settings.tool.websearch.title')}
-                active={isActive('/settings/websearch')}
-                onClick={() => go('/settings/websearch')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<FileCode />}
-                label={t('settings.tool.file_processing.features.document_to_markdown.title')}
-                active={isActive('/settings/file-processing')}
-                onClick={() => go('/settings/file-processing')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<ScanText />}
-                label={t('settings.tool.file_processing.features.image_to_text.title')}
-                active={isActive('/settings/ocr')}
-                onClick={() => go('/settings/ocr')}
-              />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.personal')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Settings2 />}
-                label={t('settings.general.common.title')}
-                active={isActive('/settings/general')}
-                onClick={() => go('/settings/general')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Palette />}
-                label={t('settings.appearance.title')}
-                active={isActive('/settings/appearance')}
-                onClick={() => go('/settings/appearance')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Bell />}
-                label={t('settings.notification.title')}
-                active={isActive('/settings/notifications')}
-                onClick={() => go('/settings/notifications')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<HardDrive />}
-                label={t('settings.data.title')}
-                active={isActive('/settings/data')}
-                onClick={() => go('/settings/data')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Activity />}
-                label={t('settings.usage.title')}
-                active={isActive('/settings/usage')}
-                onClick={() => go('/settings/usage')}
-              />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.automation')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Radio />}
-                label={t('settings.channels.title')}
-                active={isActive('/settings/channels')}
-                onClick={() => go('/settings/channels')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<CalendarClock />}
-                label={t('settings.scheduledTasks.title')}
-                active={isActive('/settings/scheduled-tasks')}
-                onClick={() => go('/settings/scheduled-tasks')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Command />}
-                label={t('settings.shortcuts.title')}
-                active={isActive('/settings/shortcut')}
-                onClick={() => go('/settings/shortcut')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<PictureInPicture2 />}
-                label={t('settings.quickAssistant.title')}
-                active={isActive('/settings/quick-assistant')}
-                onClick={() => go('/settings/quick-assistant')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<TextCursorInput />}
-                label={t('selection.name')}
-                active={isActive('/settings/selection-assistant')}
-                onClick={() => go('/settings/selection-assistant')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Crop />}
-                label={t('settings.screenshot.title')}
-                active={isActive('/settings/screenshot')}
-                onClick={() => go('/settings/screenshot')}
-              />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Terminal />}
-                label={t('settings.dependencies.title')}
-                active={isActive('/settings/dependencies')}
-                onClick={() => go('/settings/dependencies')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Info />}
-                label={t('settings.about.label')}
-                active={isActive('/settings/about')}
-                onClick={() => go('/settings/about')}
-              />
-            </MenuList>
+            {visibleSections.length > 0 ? (
+              <MenuList className={settingsSubmenuListClassName}>
+                {visibleSections.map((section, sectionIndex) => (
+                  <Fragment key={section.labelKey ?? 'primary'}>
+                    {sectionIndex > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
+                    {section.labelKey && (
+                      <div className={settingsSubmenuSectionTitleClassName}>{t(section.labelKey)}</div>
+                    )}
+                    {section.items.map((item) => (
+                      <MenuItem
+                        key={item.path}
+                        className={settingsSubmenuItemClassName}
+                        labelClassName={settingsSubmenuItemLabelClassName}
+                        icon={item.icon}
+                        label={t(item.labelKey)}
+                        active={isActive(item.path)}
+                        onClick={() => go(item.path)}
+                      />
+                    ))}
+                  </Fragment>
+                ))}
+              </MenuList>
+            ) : (
+              <div role="status" className="px-5 py-3 text-muted-foreground text-xs">
+                {t('common.no_results')}
+              </div>
+            )}
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 min-w-0 flex-1">
