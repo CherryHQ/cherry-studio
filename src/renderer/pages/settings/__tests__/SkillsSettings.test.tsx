@@ -1,3 +1,5 @@
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -6,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillsSettings } from '../SkillsSettings'
 
 const resourceCatalogViewMock = vi.hoisted(() => vi.fn())
-const persistCacheState = vi.hoisted(() => ({ enabledOnly: false }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -18,47 +19,49 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@data/hooks/useCache', async () => {
-  const React = await import('react')
-
-  return {
-    usePersistCache: () => {
-      const [value, setValue] = React.useState(persistCacheState.enabledOnly)
-      const update = (next: boolean) => {
-        persistCacheState.enabledOnly = next
-        setValue(next)
-      }
-      return [value, update]
-    }
-  }
-})
-
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: (props: {
     resourceType: string
-    resourceFilter?: (resource: { type: 'skill'; raw: { isGlobalEnabled: boolean } }) => boolean
+    resourceFilter?: (resource: ResourceItem) => boolean
     toolbarLeading?: ReactNode
   }) => {
     resourceCatalogViewMock(props)
-    const resources = [
-      { type: 'skill' as const, name: 'Enabled skill', raw: { isGlobalEnabled: true } },
-      { type: 'skill' as const, name: 'Disabled skill', raw: { isGlobalEnabled: false } }
-    ].filter((resource) => props.resourceFilter?.(resource) ?? true)
-
-    return (
-      <div data-testid="resource-catalog">
-        {props.toolbarLeading}
-        {resources.map((resource) => (
-          <div key={resource.name}>{resource.name}</div>
-        ))}
-      </div>
-    )
+    return <div data-testid="resource-catalog">{props.toolbarLeading}</div>
   }
 }))
 
+function createSkillResource(isGlobalEnabled: boolean): Extract<ResourceItem, { type: 'skill' }> {
+  return {
+    id: isGlobalEnabled ? 'enabled-skill' : 'disabled-skill',
+    type: 'skill',
+    name: isGlobalEnabled ? 'Enabled skill' : 'Disabled skill',
+    description: '',
+    avatar: 'S',
+    createdAt: '2026-08-20T00:00:00.000Z',
+    updatedAt: '2026-08-20T00:00:00.000Z',
+    raw: {
+      id: isGlobalEnabled ? 'enabled-skill' : 'disabled-skill',
+      name: isGlobalEnabled ? 'Enabled skill' : 'Disabled skill',
+      description: '',
+      folderName: 'skill',
+      source: 'local',
+      sourceUrl: null,
+      namespace: null,
+      author: null,
+      version: null,
+      sourceTags: [],
+      contentHash: 'hash',
+      isGlobalEnabled,
+      isEnabled: isGlobalEnabled,
+      createdAt: '2026-08-20T00:00:00.000Z',
+      updatedAt: '2026-08-20T00:00:00.000Z'
+    }
+  }
+}
+
 describe('SkillsSettings', () => {
   beforeEach(() => {
-    persistCacheState.enabledOnly = false
+    MockUseCacheUtils.resetMocks()
     resourceCatalogViewMock.mockClear()
   })
 
@@ -74,22 +77,26 @@ describe('SkillsSettings', () => {
     expect(resourceCatalogViewMock.mock.calls[0]?.[0]).not.toHaveProperty('description')
   })
 
-  it('filters to globally enabled Skills and restores the filter after reopening settings', async () => {
+  it('stores the enabled-only preference and restores it after reopening settings', async () => {
     const user = userEvent.setup()
     const firstView = render(<SkillsSettings />)
 
-    expect(screen.getByText('Enabled skill')).toBeInTheDocument()
-    expect(screen.getByText('Disabled skill')).toBeInTheDocument()
-
     await user.click(screen.getByRole('switch', { name: 'Enabled Skills Only' }))
 
-    expect(screen.getByText('Enabled skill')).toBeInTheDocument()
-    expect(screen.queryByText('Disabled skill')).not.toBeInTheDocument()
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.skills.enabled_only')).toBe(true)
 
     firstView.unmount()
     render(<SkillsSettings />)
 
     expect(screen.getByRole('switch', { name: 'Enabled Skills Only' })).toBeChecked()
-    expect(screen.queryByText('Disabled skill')).not.toBeInTheDocument()
+  })
+
+  it('keeps globally enabled Skills when the enabled-only filter is active', () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.skills.enabled_only', true)
+    render(<SkillsSettings />)
+
+    const filter = resourceCatalogViewMock.mock.calls[0]?.[0].resourceFilter
+    expect(filter(createSkillResource(true))).toBe(true)
+    expect(filter(createSkillResource(false))).toBe(false)
   })
 })

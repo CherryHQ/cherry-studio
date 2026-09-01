@@ -54,6 +54,7 @@ export function ResourceCatalogView({
     () => (resourceFilter ? gridProps.resources.filter(resourceFilter) : gridProps.resources),
     [gridProps.resources, resourceFilter]
   )
+  const hasHiddenResources = Boolean(resourceFilter && gridProps.resources.length > 0 && visibleResources.length === 0)
 
   useEffect(() => {
     if (hasActiveDialog) setDialogsActivated(true)
@@ -93,6 +94,7 @@ export function ResourceCatalogView({
           <ResourceGrid
             {...gridProps}
             resources={visibleResources}
+            hasHiddenResources={hasHiddenResources}
             onOpenSystemSkills={resourceType === 'skill' ? gridProps.onOpenSystemSkills : undefined}
             toolbarLeading={toolbarLeading}
             variant={variant}
