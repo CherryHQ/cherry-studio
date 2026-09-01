@@ -188,7 +188,6 @@
 | [Lifecycle Migration Guide](./references/lifecycle/lifecycle-migration-guide.md) | Converting legacy singleton, raw-new, and free-function services to lifecycle decorators and registry entries |
 | [Lifecycle Overview](./references/lifecycle/lifecycle-overview.md) | Lifecycle internals — bootstrap phases, hooks, service states, events, and parallel initialization ordering |
 | [Lifecycle Usage Guide](./references/lifecycle/lifecycle-usage.md) | Code examples for lifecycle decorators, IPC and timer helpers, error handling, conditional activation, pause/resume |
-| [Process Manager](./references/lifecycle/process-manager.md) | Lifecycle ownership, startup state, and bounded shutdown for app-owned external child processes |
 
 ### Logging
 
@@ -216,6 +215,12 @@
 | [Runtime probes](./references/mini-app/probes.md) | The runtime measurements behind the sandbox — WebRTC escape, Web Storage ceiling, TransformStream terminal callbacks, host-cache reuse — recorded in enough detail to rebuild each probe when Electron moves |
 | [Sandbox](./references/mini-app/sandbox.md) | What a mini app cannot do — blocked Web Storage, default-deny network, CORS on own files, navigation and popups — and what to use instead |
 | [Theming](./references/mini-app/theming.md) | Matching Cherry's look from a mini app — the served /__cherry/theme.css, the stable CSS variable contract, dark mode, fonts and Tailwind mapping |
+
+### Process Manager
+
+| Document | Description |
+|----------|-------------|
+| [Process Manager](./references/process-manager/README.md) | Registry ownership, startup state, and bounded shutdown for app-owned external child processes |
 
 ### Provider Model
 

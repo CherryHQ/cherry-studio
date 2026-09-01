@@ -1,5 +1,5 @@
 ---
-description: Lifecycle ownership, startup state, and bounded shutdown for app-owned external child processes
+description: Registry ownership, startup state, and bounded shutdown for app-owned external child processes
 sources:
   - src/main/services/process/
   - src/main/services/OpenClawService.ts
@@ -10,7 +10,7 @@ sources:
 
 # Process Manager
 
-`ProcessManager` owns external child processes started directly by Cherry Studio. It provides a registry of `ChildProcessHandle` instances and acts as the shutdown safety net for handles that remain active when the application stops.
+`ProcessManager` is a business service under `src/main/services/process/`, not part of the core lifecycle infrastructure. It owns external child processes started directly by Cherry Studio, provides a registry of `ChildProcessHandle` instances, and participates in the lifecycle system as the shutdown safety net for handles that remain active when the application stops.
 
 Readiness probes, configuration rollback, diagnostics, and discovery of externally started processes stay in the business service. Those behaviors differ by executable and are not part of the generic process lifecycle.
 
