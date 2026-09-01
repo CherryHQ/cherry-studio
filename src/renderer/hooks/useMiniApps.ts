@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useCache } from '@data/hooks/useCache'
-import { useInvalidateCache, useMutation, useQuery, useReadCache } from '@data/hooks/useDataApi'
+import { useDataChange, useInvalidateCache, useMutation, useQuery, useReadCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
@@ -14,7 +14,9 @@ import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/dat
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
+import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * Data Flow Design:
@@ -44,6 +46,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
  *      own app under Global.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
+  if (app.kind === 'app') return true
   if (region === 'CN') return true
 
   if (!app.supportedRegions || app.supportedRegions.length === 0) {
@@ -155,7 +158,17 @@ async function settleAndInvalidate(
 export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const queryEnabled = options.enabled ?? true
   const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
-  const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
+  const { i18n: i18nInstance } = useTranslation()
+  const language = i18nInstance.language
+  // Main resolved `name` for the language at query time and the query is cached; a
+  // language switch would otherwise leave every installed app under its old name.
+  const rawApps: MiniApp[] = useMemo(
+    () =>
+      (data ?? []).map((app) =>
+        app.kind === 'app' ? { ...app, name: resolveLocalizedText(app.nameI18n, language) } : app
+      ),
+    [data, language]
+  )
 
   // Partition by status in single pass (js-combine-iterations)
   const { allApps, enabled, disabled, pinned } = useMemo(() => {
@@ -555,3 +568,16 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
 }
 
 export type UseMiniAppsReturn = ReturnType<typeof useMiniApps>
+
+/**
+ * Converges `/mini-apps` after the writes DataApi cannot see: install, uninstall,
+ * update apply and rollback commit through IpcApi, so no mutation invalidates the
+ * query cache. Main publishes `notifyDataApiDataChange` after each commit; this is
+ * the renderer half. Mounted ONCE per window by `useWindowRuntime`.
+ */
+export function useMiniAppListSync(): void {
+  const invalidate = useInvalidateCache()
+  useDataChange('/mini-apps', () => {
+    void invalidate('/mini-apps')
+  })
+}

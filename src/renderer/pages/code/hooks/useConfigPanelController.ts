@@ -4,6 +4,7 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isFileConfiguredCli } from '@shared/utils/cliConfig'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -71,17 +72,21 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
+  const writesCliConfig = isFileConfiguredCli(selectedCliTool)
 
-  // For a gateway write: start the gateway if needed and resolve the fresh key, then hand back the
+  // For a gateway write: start the gateway if needed and resolve its configured key, then hand back the
   // synthetic provider + key so `writeCliConfigDraft` injects the gateway URL/key (never the real
   // provider key). Returns undefined for non-gateway providers.
   const resolveGatewayWriteContext = useCallback(
     async (providerId: string): Promise<CliConfigGatewayContext | undefined> => {
-      if (!isApiGatewayProviderId(providerId) || !apiGatewayProvider) return undefined
-      const apiKey = await apiGatewayProvider.ensureReady()
+      if (!writesCliConfig || !isApiGatewayProviderId(providerId) || !apiGatewayProvider) {
+        return undefined
+      }
+      await apiGatewayProvider.ensureRunning()
+      const apiKey = await apiGatewayProvider.getApiKey()
       return { provider: apiGatewayProvider.provider, apiKey }
     },
-    [apiGatewayProvider]
+    [apiGatewayProvider, writesCliConfig]
   )
   // Tracks tools with an in-flight enable/disable. writeCliConfigDraft / clearCliConfig write multiple
   // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
@@ -142,7 +147,8 @@ export function useConfigPanelController({
       if (isApiGatewayProviderId(editingProvider.id) && writePrimaryModel === false && !cliConfigModelId) {
         throw new Error('Cannot resolve the detailed gateway model')
       }
-      const shouldApplyCliConfig = currentProviderId === editingProvider.id || shouldEnableAfterSave
+      const shouldApplyCliConfig =
+        writesCliConfig && (currentProviderId === editingProvider.id || shouldEnableAfterSave)
       // Preference and the external CLI files are one user-visible config. The active provider owns
       // the current files, so with nothing addressing a model the write below is skipped and
       // persisting anyway would strand the files on their previous contents (e.g. flipping Claude's
@@ -167,7 +173,14 @@ export function useConfigPanelController({
         setCurrentCliConfigConnection(null)
         return
       }
-      if (!cliConfigModelId || !shouldApplyCliConfig) return
+      if (!cliConfigModelId) return
+      if (!shouldApplyCliConfig) {
+        if (shouldEnableAfterSave) {
+          await setCurrentProvider(editingProvider.id)
+          setCurrentCliConfigConnection(null)
+        }
+        return
+      }
 
       try {
         const gateway = isApiGatewayProviderId(editingProvider.id)
@@ -220,7 +233,8 @@ export function useConfigPanelController({
       setCurrentProvider,
       setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
-      gatewayModelsById
+      gatewayModelsById,
+      writesCliConfig
     ]
   )
 
@@ -237,7 +251,9 @@ export function useConfigPanelController({
         // tool params back on. Finally mark the reserved id current (or clear it when re-toggled).
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           try {
-            await clearCliConfig({ cliTool: selectedCliTool })
+            if (writesCliConfig) {
+              await clearCliConfig({ cliTool: selectedCliTool })
+            }
             if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {
               await writeOwnLoginCliConfigDraft({
                 cliTool: selectedCliTool,
@@ -256,7 +272,7 @@ export function useConfigPanelController({
         }
         if (!isEnabling) {
           try {
-            if (selectedCliTool !== CodeCli.DEEPSEEK_HARNESS) {
+            if (writesCliConfig) {
               await clearCliConfig({ cliTool: selectedCliTool })
             }
             // Only clear the active selection after any required scrub succeeds; otherwise the UI could show
@@ -292,12 +308,12 @@ export function useConfigPanelController({
           return
         }
 
-        if (selectedCliTool === CodeCli.DEEPSEEK_HARNESS) {
+        if (!writesCliConfig) {
           try {
             await setCurrentProvider(provider.id)
             setCurrentCliConfigConnection(null)
           } catch (err) {
-            logger.error('Failed to select DeepSeek Harness provider:', err as Error)
+            logger.error('Failed to select CLI provider:', err as Error)
             toast.error(t('code.apply_failed'))
           }
           return
@@ -338,6 +354,7 @@ export function useConfigPanelController({
       setCurrentCliConfigConnection,
       resolveGatewayWriteContext,
       gatewayModelsById,
+      writesCliConfig,
       t
     ]
   )
@@ -388,7 +405,7 @@ export function useConfigPanelController({
             providerConfig: providerConfigs[editingProvider.id] ?? null,
             isCurrentProvider: currentProviderId === editingProvider.id,
             modelFilter: makeModelFilter(editingProvider.id),
-            // Preview key only (may be null before first start); the actual write uses a fresh key.
+            // Preview key only (may be null before first start); the actual write reads the configured key.
             gateway:
               isApiGatewayProviderId(editingProvider.id) && apiGatewayProvider
                 ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }

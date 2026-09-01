@@ -83,7 +83,10 @@ export function AgentSelector(props: AgentSelectorProps) {
 
   // Keep in lockstep with TasksSettings' agents query — they share one SWR
   // cache entry only while path + query serialize identically.
-  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const { data, isLoading, refetch } = useQuery('/agents', {
+    enabled: selectorOpen,
+    query: { limit: AGENTS_MAX_LIMIT }
+  })
   const { createAgent, isCreatingAgent } = useAgentMutations()
   const {
     isLoading: isPinnedLoading,
@@ -92,7 +95,7 @@ export function AgentSelector(props: AgentSelectorProps) {
     pinnedIds,
     refetch: refetchPins,
     togglePin
-  } = usePins('agent')
+  } = usePins('agent', { enabled: selectorOpen })
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
   const items: AgentSelectorItem[] = useMemo(

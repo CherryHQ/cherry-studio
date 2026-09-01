@@ -19,7 +19,11 @@ import {
 vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
-vi.mock('../shellEnv', () => ({ getShellEnv: vi.fn() }))
+vi.mock('../shellEnv', () => ({
+  getShellEnv: vi.fn(),
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 vi.mock('which')
 
 // On win32 `path` and `path.win32` are the same object, so a mock installed on one is

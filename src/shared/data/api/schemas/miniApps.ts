@@ -7,6 +7,7 @@
 
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import { type OrderEndpoints, OrderRequestSchema } from './_endpointHelpers'
@@ -43,7 +44,7 @@ export const CreateMiniAppSchema = z.strictObject({
   url: MiniAppUrlSchema,
   /**
    * Custom logo — a preset key only (`{ kind: 'key', key }`). Uploaded images
-   * go through the `mini_app.set_logo` IpcApi command, not this DTO.
+   * go through the `mini_app.settings.set_logo` IpcApi command, not this DTO.
    */
   logo: CreateLogoSchema.optional()
 })
@@ -53,7 +54,8 @@ export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
  * Zod schema for updating an existing miniapp.
  *
  * Preset rows may only update `status`; custom rows can also update their
- * user-editable fields. Standalone reordering uses the dedicated `/order`
+ * user-editable fields; installed (`kind='app'`) rows may only update `status`
+ * and their two model slots. Standalone reordering uses the dedicated `/order`
  * endpoints; `order` here is only valid with a status update.
  */
 export const UpdateMiniAppSchema = z
@@ -62,9 +64,13 @@ export const UpdateMiniAppSchema = z
     /** Place a row in its target status partition atomically with the status change. */
     order: OrderRequestSchema.optional(),
     name: z.string().min(1).optional(),
-    url: MiniAppUrlSchema.optional()
+    url: MiniAppUrlSchema.optional(),
     // Logo edits (preset key / image upload / clear) go through the
-    // `mini_app.set_logo` IpcApi command, not this PATCH body.
+    // `mini_app.settings.set_logo` IpcApi command, not this PATCH body.
+    /** Installed apps only; `null` = follow the global default model. */
+    aiModelId: UniqueModelIdSchema.nullable().optional(),
+    /** Installed apps only; `null` = follow the global quick model. */
+    aiQuickModelId: UniqueModelIdSchema.nullable().optional()
   })
   .refine((dto) => dto.order === undefined || dto.status !== undefined, {
     message: 'order requires status',

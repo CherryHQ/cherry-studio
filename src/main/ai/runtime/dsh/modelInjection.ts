@@ -15,12 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import {
-  type DshApi,
-  hasDshTextInput,
-  mapEndpointToDshApi,
-  resolveDshEndpointType
-} from '@shared/ai/dshModelCompatibility'
+import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -58,17 +53,6 @@ export class DshMissingApiKeyError extends Error {
     super(`Provider "${providerId}" has no API key configured for dsh agents`)
     this.name = 'DshMissingApiKeyError'
     this.providerId = providerId
-  }
-}
-
-/** Thrown when a model explicitly declares no text input, which DSH rc.6 requires. */
-export class DshUnsupportedModelInputError extends Error {
-  readonly modelId: string
-
-  constructor(modelId: string) {
-    super(`Model "${modelId}" is not supported by dsh agents: text input is required`)
-    this.name = 'DshUnsupportedModelInputError'
-    this.modelId = modelId
   }
 }
 
@@ -137,6 +121,8 @@ export interface DshModelConfig {
   maxTokens: number
   input: DshInputModality[]
   reasoningEfforts: false | DshReasoningEfforts
+  /** OpenAI-compatible protocol overrides owned by Cherry's provider settings. */
+  compat?: { supportsDeveloperRole: boolean }
 }
 
 export interface DshProviderInjection {
@@ -201,7 +187,6 @@ export function buildDshProviderInjection(
   if (!api) {
     throw new DshUnsupportedProviderError(provider.id)
   }
-  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
   if (!apiKey.trim()) throw new DshMissingApiKeyError(provider.id)
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
@@ -224,7 +209,17 @@ export function buildDshProviderInjection(
       contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
-      reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
+      reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
+      ...(api === 'openai-completions' || api === 'openai-responses'
+        ? {
+            compat: {
+              supportsDeveloperRole:
+                (resolvedEndpoint.endpointType
+                  ? provider.endpointConfigs?.[resolvedEndpoint.endpointType]?.dialect?.developerRole
+                  : undefined) ?? false
+            }
+          }
+        : {})
     },
     usageCapture: {
       owner: 'agent-sdk',
@@ -262,8 +257,6 @@ export function buildDshGatewayInjection(
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
-  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
   return {
@@ -280,7 +273,8 @@ export function buildDshGatewayInjection(
       contextWindow: resolveAgentContextWindow(model),
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
-      reasoningEfforts: buildDshReasoningEfforts(model, reasoning)
+      reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
+      compat: { supportsDeveloperRole: true }
     },
     // The gateway middleware records provider usage; agent-sdk capture would double-count.
     usageCapture: { owner: 'provider-calls' }
@@ -344,13 +338,10 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {
     if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
-    if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
     // Consent only (persisted intent) — no ensureRunning/ensureValidApiKey side effects here.
     if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
-  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
-
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
   if (!apiKeys.some((entry) => entry.key.trim())) throw new DshMissingApiKeyError(providerId)
 }

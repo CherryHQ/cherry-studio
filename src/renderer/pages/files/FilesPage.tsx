@@ -736,9 +736,8 @@ function FilesPage() {
     [files, isTrash, refetchFiles, t]
   )
 
-  const handleDelete = useCallback(
-    (ids?: Set<string>) => {
-      const targetIds = ids ?? selectedIds
+  const requestDelete = useCallback(
+    (targetIds: Set<string>) => {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
@@ -749,7 +748,12 @@ function FilesPage() {
 
       void performDelete(new Set(targets.map((file) => file.id)))
     },
-    [files, isTrash, performDelete, selectedIds]
+    [files, isTrash, performDelete]
+  )
+
+  const handleDelete = useCallback(
+    (ids?: Set<string>) => requestDelete(ids ?? selectedIds),
+    [requestDelete, selectedIds]
   )
 
   const emptyTrash = useCallback(async () => {
@@ -831,14 +835,19 @@ function FilesPage() {
     setRenamingId(id)
   }, [])
 
+  const handleDeleteOne = useCallback((id: string) => requestDelete(new Set([id])), [requestDelete])
+  const handleRestoreOne = useCallback((id: string) => void handleRestore(new Set([id])), [handleRestore])
+  const handleRenameConfirm = useCallback((id: string, name: string) => void handleRename(id, name), [handleRename])
+  const handleRenameCancel = useCallback(() => setRenamingId(null), [])
+
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
       onRename: startInlineRename,
-      onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
+      onDelete: handleDeleteOne,
+      onRestore: handleRestoreOne,
       onShowInFolder: handleShowInFolder
     }),
-    [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
+    [handleDeleteOne, handleRestoreOne, handleShowInFolder, startInlineRename]
   )
 
   const handleSort = useCallback(
@@ -1023,12 +1032,12 @@ function FilesPage() {
                     files={filteredFiles}
                     scrollRef={contentScrollRef}
                     onOpen={handleOpen}
-                    onDelete={(id) => handleDelete(new Set([id]))}
+                    onDelete={handleDeleteOne}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 ) : (
                   <FileList
@@ -1039,13 +1048,13 @@ function FilesPage() {
                     onOpen={handleOpen}
                     isTrash={isTrash}
                     menuActions={listMenuActions}
-                    onDelete={(id) => handleDelete(new Set([id]))}
-                    onRestore={(id) => void handleRestore(new Set([id]))}
+                    onDelete={handleDeleteOne}
+                    onRestore={handleRestoreOne}
                     onRename={startInlineRename}
                     onShowInFolder={handleShowInFolder}
                     renamingId={renamingId}
-                    onRenameConfirm={(id, name) => void handleRename(id, name)}
-                    onRenameCancel={() => setRenamingId(null)}
+                    onRenameConfirm={handleRenameConfirm}
+                    onRenameCancel={handleRenameCancel}
                   />
                 )}
               </>
