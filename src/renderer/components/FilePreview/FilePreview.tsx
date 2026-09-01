@@ -109,9 +109,21 @@ interface FilePreviewPluginRendererProps {
   fileName: string
   filePath: AbsoluteFilePath
   metadata: FilePreviewFileMetadata
-  plugin: FilePreviewPlugin
+  plugin: PreloadedFilePreviewPlugin
   refreshKey: number
   type: FilePreviewType
+}
+
+interface PreloadedFilePreviewPlugin {
+  descriptor: FilePreviewPlugin
+  modulePromise: ReturnType<FilePreviewPlugin['load']>
+}
+
+function preloadFilePreviewPlugin(descriptor: FilePreviewPlugin): PreloadedFilePreviewPlugin {
+  const modulePromise = Promise.resolve().then(() => descriptor.load())
+  // React.lazy observes the original rejection only when metadata accepts this candidate.
+  void modulePromise.catch(() => {})
+  return { descriptor, modulePromise }
 }
 
 interface FilePreviewShellProps {
@@ -145,13 +157,13 @@ function FilePreviewPluginRenderer({
   refreshKey,
   type
 }: FilePreviewPluginRendererProps) {
-  const PluginPreview = useMemo(() => lazy(plugin.load), [plugin])
+  const PluginPreview = useMemo(() => lazy(() => plugin.modulePromise), [plugin])
 
   return (
     <ErrorBoundary
-      key={`${plugin.id}:${filePath}:${refreshKey}`}
+      key={`${plugin.descriptor.id}:${filePath}:${refreshKey}`}
       FallbackComponent={PluginErrorFallback}
-      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.id}`, error)}>
+      onError={(error) => logger.error(`Failed to render file preview plugin: ${plugin.descriptor.id}`, error)}>
       <Suspense fallback={<FilePreviewLoading />}>
         <PluginPreview
           filePath={filePath}
@@ -184,7 +196,7 @@ type FilePreviewResolution =
   | {
       file: NormalizedFilePreviewTarget
       metadata: FilePreviewFileMetadata
-      plugin: FilePreviewPlugin | null
+      plugin: PreloadedFilePreviewPlugin | null
       requestKey: string
       status: 'ready'
     }
@@ -209,7 +221,10 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
 
     void (async () => {
       try {
-        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const metadataPromise = ipcApi.request('file.get_metadata', createFilePathHandle(file.filePath))
+        const candidateDescriptor = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
+        const candidatePlugin = candidateDescriptor ? preloadFilePreviewPlugin(candidateDescriptor) : null
+        const metadata = await metadataPromise
         if (cancelled) return
 
         if (!metadata) {
@@ -222,12 +237,12 @@ export function FilePreview({ filePath, header, refreshKey = 0, type = 'file' }:
           return
         }
 
-        let plugin = resolveExtensionPlugin(file.filePath, filePreviewRegistry)
-        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.id)) {
+        let plugin = candidatePlugin
+        if (!plugin || TEXT_CONTENT_PLUGIN_IDS.has(plugin.descriptor.id)) {
           const isText = metadata.type === 'text'
 
           if (!plugin && isText) {
-            plugin = textFilePreviewPlugin
+            plugin = preloadFilePreviewPlugin(textFilePreviewPlugin)
           } else if (plugin && !isText) {
             plugin = null
           }
