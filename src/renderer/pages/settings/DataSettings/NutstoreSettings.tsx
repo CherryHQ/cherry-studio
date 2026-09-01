@@ -1,5 +1,6 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -23,6 +24,7 @@ import {
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getLocalizedBackupErrorMessage } from '@renderer/utils/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { Check, ExternalLink, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
@@ -34,6 +36,7 @@ import { type FileStat } from 'webdav'
 import NutstorePathPopup from './NutstorePathPopup'
 
 const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
+const logger = loggerService.withContext('NutstoreSettings')
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -107,14 +110,24 @@ const NutstoreSettings: FC = () => {
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
     setCheckConnectionLoading(true)
-    const isConnectedToNutstore = await checkConnection()
+    // A non-404 probe failure (403/5xx) rejects rather than returning false;
+    // treat it as a failed check so the loading state can never hang.
+    let isConnectedToNutstore = false
+    let failTitle: string | null = null
+    try {
+      isConnectedToNutstore = await checkConnection()
+    } catch (error) {
+      logger.error('[NutstoreSettings] Check connection failed:', error as Error)
+      failTitle = getLocalizedBackupErrorMessage(error, 'settings.data.nutstore.checkConnection.fail')
+    }
 
-    toast[isConnectedToNutstore ? 'success' : 'error']({
-      timeout: 2000,
-      title: isConnectedToNutstore
-        ? t('settings.data.nutstore.checkConnection.success')
-        : t('settings.data.nutstore.checkConnection.fail')
-    })
+    if (isConnectedToNutstore) {
+      toast.success({ timeout: 2000, title: t('settings.data.nutstore.checkConnection.success') })
+    } else {
+      // Default timeout (3s): the classified cause appended to the title needs
+      // more than 2s to read (matches WebdavBackupManager's error-toast precedent).
+      toast.error({ title: failTitle ?? t('settings.data.nutstore.checkConnection.fail') })
+    }
 
     setNsConnected(isConnectedToNutstore)
     setCheckConnectionLoading(false)

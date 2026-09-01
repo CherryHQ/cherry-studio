@@ -199,13 +199,18 @@ export function shouldSilenceFsyncDirError(code: string | undefined): boolean {
 /**
  * fsync(2) the directory containing `target` so the rename's directory-entry
  * update reaches stable storage. Best-effort: returns silently when the FS
- * doesn't support directory fsync (Windows, network mounts, some FUSE
- * backends), and warn-logs when the failure looks like a real IO problem
- * (EIO, ENOSPC, …) so an unexpected loss of durability is at least visible
- * in oncall dashboards. The rename itself has already committed; the caller
- * doesn't need to fail just because the metadata flush couldn't be confirmed.
+ * doesn't support directory fsync (network mounts, some FUSE backends, and
+ * win32 — gated up front since libuv cannot fsync a directory handle there,
+ * so EPERM is guaranteed noise), and warn-logs when the failure looks like a
+ * real IO problem (EIO, ENOSPC, …) so an unexpected loss of durability is at
+ * least visible in oncall dashboards. The rename itself has already
+ * committed; the caller doesn't need to fail just because the metadata flush
+ * couldn't be confirmed.
  */
 async function fsyncDirectoryOf(target: string): Promise<void> {
+  // Skip before attempting: no POSIX errno classifier is consulted on win32,
+  // mirroring LegacyBackupManager.fsyncTree's platform gate.
+  if (process.platform === 'win32') return
   try {
     const dirHandle = await fsOpen(path.dirname(target), 'r')
     try {

@@ -311,8 +311,9 @@ jobs:
           fi
 
           # `preload` rides with `main`: the two share one paths-filter (`src/preload/**` is
-          # listed under `main:`), so a preload change triggers this job and must run its tests.
-          projects=(--project main --project preload)
+          # listed under `main:`), so a preload change triggers this job and must run its
+          # tests — unsharded, because its single test file is below the shard count.
+          projects=(--project main)
 
           if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
             projects+=(--project aiCore)
@@ -332,6 +333,9 @@ jobs:
 
           pnpm rebuild:node
           pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/${{ matrix.shards }}
+          # Vitest's shard check rejects a per-pool bucket smaller than the shard
+          # count, so `preload` cannot ride the sharded invocation above.
+          pnpm exec vitest run --project preload
 
   general-test:
     runs-on: ubuntu-latest

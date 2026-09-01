@@ -286,7 +286,12 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
     vi.restoreAllMocks()
   })
 
-  it('warn-logs when fsync(dir) fails with a non-silenced errno (EPERM)', async () => {
+  // POSIX-only contracts: the win32 gate skips the fsync attempt entirely
+  // (covered by the dedicated win32 test below), so errno classification on
+  // the dir open can only be exercised where directory fsync exists.
+  const itOnPosix = it.skipIf(process.platform === 'win32')
+
+  itOnPosix('warn-logs when fsync(dir) fails with a non-silenced errno (EPERM)', async () => {
     // Inject EPERM on the directory open call (flags === 'r'). The tmp file
     // open call (flags === 'w') still passes through, so the rename succeeds
     // and atomicWriteFile resolves — fsyncDirectoryOf is best-effort.
@@ -312,7 +317,7 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
     )
   })
 
-  it('stays silent when fsync(dir) fails with a silenced errno (EINVAL: FS rejects dir fsync)', async () => {
+  itOnPosix('stays silent when fsync(dir) fails with a silenced errno (EINVAL: FS rejects dir fsync)', async () => {
     // Windows / FUSE / network mounts surface EINVAL/EISDIR/ENOTSUP for
     // directory fsync; the classifier silences these because they are
     // expected and would spam dashboards.
@@ -328,6 +333,30 @@ describe('fsyncDirectoryOf (end-to-end warn observability via atomicWriteFile)',
 
     expect(await readFile(target, 'utf-8')).toBe('payload')
     expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('skips the directory fsync entirely on win32 (no dir open, no warn)', async () => {
+    // Regression guard for issue #10512: skip BEFORE attempting the dir open —
+    // libuv cannot fsync a directory handle on win32, so EPERM is pure noise.
+    const originalPlatform = process.platform
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    try {
+      const target = path.join(tmp, 'data.txt')
+      mockOpen.mockImplementation(async (p, flags) => {
+        if (flags === 'r' && p === path.dirname(target)) {
+          throw makeErrnoErr('EPERM', 'operation not permitted')
+        }
+        return actualOpen(p as string, flags as never)
+      })
+
+      await atomicWriteFile(target as AbsoluteFilePath, 'payload')
+
+      expect(await readFile(target, 'utf-8')).toBe('payload')
+      expect(mockOpen).not.toHaveBeenCalledWith(path.dirname(target), 'r')
+      expect(mockLoggerWarn).not.toHaveBeenCalled()
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    }
   })
 })
 

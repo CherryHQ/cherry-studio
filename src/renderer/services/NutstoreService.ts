@@ -58,12 +58,9 @@ export async function checkConnection() {
     return false
   }
 
-  const isSuccess = await window.api.backup.checkWebdavConnection({
-    ...config,
-    webdavPath: '/'
-  })
-
-  return isSuccess
+  // Probe the configured backup path, not the server root: a green result
+  // must mean the backup target itself is reachable (issue #10512).
+  return window.api.backup.checkWebdavConnection(config)
 }
 
 export async function backupToNutstore({ customFileName = '' }: { customFileName?: string } = {}) {
