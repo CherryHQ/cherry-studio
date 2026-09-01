@@ -47,7 +47,7 @@ export function useAutoBackupEvents(): void {
   const notify = useEffectEvent((event: AutoBackupEvent) => {
     const cacheKey = notificationCacheKey(event)
     if ((event.status === 'warning' || event.status === 'failed') && !cacheService.hasCasual(cacheKey)) {
-      cacheService.setCasual(cacheKey, true)
+      cacheService.setCasual(cacheKey, true, 24 * 60 * 60 * 1000) // 24 hours
       if (event.status === 'warning') toast.warning(t('message.backup.cleanup_failed'))
       else toast.error(getLocalizedBackupErrorMessage(new Error(event.errorMessage)))
       void ipcApi
