@@ -1,7 +1,6 @@
 import { arch } from 'node:os'
 
 import { application } from '@application'
-import { repairMigratedV1TopicOrder } from '@data/migration/v2'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
@@ -48,7 +47,6 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.data_reset.request': async () => requestDataReset(),
   'app.migration_v2.rerun': async () => requestV1Remigration(),
-  'app.migration_v2.repair_topic_order': async (source) => repairMigratedV1TopicOrder(source),
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },

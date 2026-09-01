@@ -9,7 +9,6 @@ const {
   inspectTargetMock,
   requestDataResetMock,
   requestV1RemigrationMock,
-  repairMigratedV1TopicOrderMock,
   requestRelocationMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -20,7 +19,6 @@ const {
   inspectTargetMock: vi.fn(),
   requestDataResetMock: vi.fn(),
   requestV1RemigrationMock: vi.fn(),
-  repairMigratedV1TopicOrderMock: vi.fn(),
   requestRelocationMock: vi.fn()
 }))
 
@@ -30,9 +28,6 @@ vi.mock('@application', () => ({
     getPath: appGetPathMock,
     relaunch: appRelaunchMock
   }
-}))
-vi.mock('@data/migration/v2', () => ({
-  repairMigratedV1TopicOrder: repairMigratedV1TopicOrderMock
 }))
 vi.mock('@main/services/dataReset', () => ({
   requestDataReset: requestDataResetMock,
@@ -178,15 +173,5 @@ describe('appHandlers', () => {
 
     expect(requestV1RemigrationMock).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
-  })
-
-  it('delegates v1 topic-order repair to the owning domain module', async () => {
-    const source = { assistants: [{ topics: [{ id: 't-c' }] }] }
-    repairMigratedV1TopicOrderMock.mockReturnValueOnce({ applied: true, reason: 'repaired' })
-
-    const result = await appHandlers['app.migration_v2.repair_topic_order'](source, ctx)
-
-    expect(repairMigratedV1TopicOrderMock).toHaveBeenCalledExactlyOnceWith(source)
-    expect(result).toEqual({ applied: true, reason: 'repaired' })
   })
 })

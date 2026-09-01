@@ -134,12 +134,11 @@ Topic data is merged from Dexie + Redux before transformation:
 | `compact` | `CompactBlock` | Direct copy |
 | `unknown` | (skipped) | Placeholder blocks are dropped |
 
-Already-migrated profiles that still have V1 Redux persist (`persist:cherry-studio`) are repaired once by `repairMigratedV1TopicOrder`: overlapping topic ids are permuted into Redux order; pin ids are permuted only for first-write `pinned === true`; post-migration V2 rows and V2-created pins keep their slots. Profiles whose persist is gone are left as-is.
+Topic and pin order are read from the migration-owned Redux export while ChatMigrator is running. Normal V2 startup never reads the removed V1 Redux Persist store, so later V2 reorders and recreated pins remain untouched.
 
 ## Implementation Files
 
 - `ChatMigrator.ts` - Main migrator class with prepare/execute/validate phases
-- `repairV1TopicOrder.ts` - One-shot already-migrated order rewrite
 - `utils/v1TopicOrder.ts` - Redux flatten + leftover append
 - `mappings/ChatMappings.ts` - Pure transformation functions and type definitions
 

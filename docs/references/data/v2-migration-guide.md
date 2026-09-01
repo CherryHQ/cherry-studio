@@ -79,7 +79,7 @@ src/main/data/migration/v2/
 
 ## Core Contracts
 
-- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the engine's durable run marker (ChatMigrator also writes `chatMigrator:v1TopicOrderRepair` after a successful topic-order stamp). It clears new-schema tables before running and aborts on validation or global foreign-key failure.
+- `core/MigrationEngine.ts` coordinates all migrators in order, surfaces progress to the UI, and uses `app_state.key = 'migration_v2_status'` as the engine's durable run marker. It clears new-schema tables before running and aborts on validation or global foreign-key failure.
 - `core/MigrationPaths.ts` defines `MigrationPaths` (a frozen object of pre-computed paths) and `resolveMigrationPaths()` which detects v1 legacy userData directories from `~/.cherrystudio/config/config.json`. Called once at the migration gate entry, before engine initialization. All migration code uses these paths instead of `app.getPath()` — see the **Path safety** convention below.
 - `core/MigrationContext.ts` builds the shared context passed to every migrator:
   - `sources`: `ElectronStoreReader` (electron-store), `ReduxStateReader` (per-category Redux Persist export files), `DexieFileReader` (JSON exports), `LegacyHomeConfigReader` (v1 `~/.cherrystudio/config/config.json` for the config-file migration path used by `BootConfigMigrator`)

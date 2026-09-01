@@ -88,26 +88,6 @@ export const appRequestSchemas = {
   }),
   'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.migration_v2.rerun': defineRoute({ input: z.void(), output: z.void() }),
-  'app.migration_v2.repair_topic_order': defineRoute({
-    input: z.object({
-      assistants: z
-        .array(
-          z.object({
-            topics: z.array(z.object({ id: z.string().min(1), pinned: z.boolean().optional() })).optional()
-          })
-        )
-        .optional(),
-      defaultAssistant: z
-        .object({
-          topics: z.array(z.object({ id: z.string().min(1), pinned: z.boolean().optional() })).optional()
-        })
-        .optional()
-    }),
-    output: z.object({
-      applied: z.boolean(),
-      reason: z.enum(['already_applied', 'no_source', 'no_overlap', 'repaired'])
-    })
-  }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.release_notes.get': defineRoute({
     input: z.void(),

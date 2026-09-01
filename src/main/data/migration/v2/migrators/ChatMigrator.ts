@@ -76,7 +76,6 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { writeV1TopicOrderRepairMarker } from '../repairV1TopicOrder'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import {
   collectV1TopicOrderIds,
@@ -472,7 +471,6 @@ export class ChatMigrator extends BaseMigrator {
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (this.topicCount === 0) {
       logger.info('No topics to migrate')
-      writeV1TopicOrderRepairMarker(ctx.db, 'migration')
       return { success: true, processedCount: 0 }
     }
 
@@ -1315,8 +1313,6 @@ export class ChatMigrator extends BaseMigrator {
     // assistant (migrated at order 2), message.topicId / parentId / modelId, and
     // chat_message_file_ref.sourceId/fileEntryId all resolve by now.
     this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
-    writeV1TopicOrderRepairMarker(db, 'migration')
-
     return { topicsInserted, messagesInserted, pinsInserted }
   }
 }
