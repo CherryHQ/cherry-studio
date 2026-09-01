@@ -63,6 +63,7 @@
   "chat.conversation.new": "Νέα συνομιλία",
   "common.channel_available_commands": "Διαθέσιμες εντολές:",
   "common.channel_command_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία της εντολής. Δοκιμάστε ξανά αργότερα.",
+  "common.channel_delivery_failed": "[to be translated]: ⚠️ Failed to deliver reply to channel: {{error}}",
   "common.channel_message_dropped": "⚠️ Το μήνυμα δεν αποδόθηκε. Παρακαλώ δοκιμάστε ξανά ή ελέγξτε τη διαμόρφωση καναλιού.",
   "common.channel_message_processing_error": "⚠️ Παρουσιάστηκε σφάλμα κατά την επεξεργασία του μηνύματός σας. Δοκιμάστε ξανά αργότερα.",
   "common.channel_new_session_created": "Δημιουργήθηκε νέα συνεδρία.",

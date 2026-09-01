@@ -488,6 +488,18 @@ export class ChannelMessageHandler {
         } else {
           // Mid-stream error: let the adapter update its streaming UI.
           adapter.onStreamError(message.chatId, streamErrorMessage, responseOptions).catch(() => {})
+          // Delivery failure (ChannelAdapterListener threw) should surface an actionable message, not just a silent log.
+          try {
+            const raw = t('common.channel_delivery_failed', { error: streamErrorMessage } as any)
+            const text =
+              typeof raw === 'string' && !raw.includes('channel_delivery_failed') ? raw : `Delivery failed: ${streamErrorMessage}`
+            await adapter.sendMessage(message.chatId, text, responseOptionsFor(message))
+          } catch (sendErr) {
+            logger.debug('Failed to send delivery failure notification to channel', {
+              chatId: message.chatId,
+              error: sendErr instanceof Error ? sendErr.message : String(sendErr)
+            })
+          }
         }
         throw streamError
       } finally {
@@ -929,11 +941,12 @@ export class ChannelMessageHandler {
       isAlive: () => !abortController.signal.aborted
     }
 
+    const channelListener = new ChannelAdapterListener(adapter, chatId, false, responseOptions)
     try {
       const started = await startAgentSessionRun({
         sessionId: session.id,
         userParts: [{ type: 'text', text: content }],
-        listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, responseOptions)],
+        listeners: [sentinel, channelListener],
         headless: true,
         requireIdle: { expectedAgentId: session.agentId }
       })
@@ -946,7 +959,17 @@ export class ChannelMessageHandler {
       onAdmitted?.()
     }
 
-    return executionDone
+    const text = await executionDone
+    try {
+      await Promise.race([
+        channelListener.waitForDelivery(),
+        new Promise<void>((resolve) => setTimeout(resolve, 10000))
+      ])
+    } catch (e) {
+      throw e
+    }
+    if (channelListener.deliveryError) throw channelListener.deliveryError
+    return text
   }
 
   /**
