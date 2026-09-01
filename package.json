@@ -43,6 +43,7 @@
     "i18n:hardcoded": "tsx scripts/i18n-check-hardcoded-strings.ts",
     "i18n:hardcoded:strict": "cross-env I18N_STRICT=true tsx scripts/i18n-check-hardcoded-strings.ts",
     "i18n:unused": "tsx scripts/i18n-check-unused.ts",
+    "i18n:unused:check": "tsx scripts/i18n-check-unused.ts --fail-on-unused",
     "i18n:remove-unused": "tsx scripts/i18n-check-unused.ts --clean",
     "styles:canonical": "tsx scripts/fix-tailwind-canonical-classes.ts",
     "ui:contract:query": "tsx scripts/uiContract/query.ts",
@@ -93,7 +94,7 @@
     "changeset:publish": "changeset publish",
     "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build",
     "packages:release": "pnpm packages:build && changeset publish",
-    "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm skills:check && pnpm docs:check",
+    "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:unused:check && pnpm i18n:hardcoded:strict && pnpm skills:check && pnpm docs:check",
     "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:provider-registry && pnpm test:scripts",
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },

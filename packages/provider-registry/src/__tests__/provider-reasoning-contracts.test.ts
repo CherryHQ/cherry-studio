@@ -15,6 +15,12 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
+  it('encodes OpenRouter Off as an explicit none effort', () => {
+    const wire = provider('openrouter').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+
+    expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
+  })
+
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
     expect(override('deepseek', 'deepseek-v4-flash').pricing).toEqual({
       cacheRead: { currency: 'USD', perMillionTokens: 0.014 },
