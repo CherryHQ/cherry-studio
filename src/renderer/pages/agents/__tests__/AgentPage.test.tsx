@@ -1450,7 +1450,7 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    await waitFor(() => expect(agentPageMocks.setLastUsedSessionId).toHaveBeenCalledWith(null))
+    await waitFor(() => expect(cacheService.setPersist).toHaveBeenCalledWith('ui.agent.last_used_session_id', null))
     // Recovery re-enters the bare route exactly once and does not loop.
     const recoveryNavigations = agentPageMocks.navigate.mock.calls.filter(
       (call) => call[0]?.search && Object.keys(call[0].search).length === 0

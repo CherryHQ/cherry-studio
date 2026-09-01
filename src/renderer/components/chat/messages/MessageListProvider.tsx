@@ -1,5 +1,5 @@
 import type { Context, ReactNode } from 'react'
-import { createContext, use, useMemo } from 'react'
+import { createContext, use, useCallback, useMemo, useSyncExternalStore } from 'react'
 
 import { PartsProvider } from './blocks/MessagePartsContext'
 import type {
@@ -25,9 +25,11 @@ import type {
  *   translationLanguages). Changes when the user flips a
  *   setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
- *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
+ *   (getMessageUiState, getMessageSiblings,
  *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
  *   changes when the underlying selectors are rebuilt (rare in practice).
+ * - `MessageListActivityContext` — stable keyed activity store and legacy getter.
+ *   Message frames subscribe only to their own message id.
  *
  * Existing consumers continue to use the merged `useMessageListUi()` /
  * `useMessageListData()` for back-compat; high-frequency consumers
@@ -64,14 +66,17 @@ type MessageListUiSelectorsValue = Pick<
   MessageListState,
   | 'getMessageUiState'
   | 'getMessageSiblings'
-  | 'getMessageActivityState'
   | 'isMessageTranslating'
   | 'getFileView'
   | 'isToolAutoApproved'
   | 'getTranslationLanguageLabel'
 >
 
-type MessageListUiValue = MessageListUiStaticValue & MessageListUiSelectorsValue
+type MessageListActivityValue = Pick<MessageListState, 'getMessageActivityState' | 'messageActivityStore'>
+
+type MessageListUiValue = MessageListUiStaticValue &
+  MessageListUiSelectorsValue &
+  Pick<MessageListActivityValue, 'getMessageActivityState'>
 type MessageListDataLegacyValue = MessageListDataValue & { messages: MessageListItem[] }
 
 const MessageListDataContext = createContext<MessageListDataValue | null>(null)
@@ -82,6 +87,7 @@ const MessageListRenderConfigContext = createContext<MessageRenderConfig | null>
 const MessageListSelectionContext = createContext<MessageListSelectionState | undefined | null>(null)
 const MessageListUiStaticContext = createContext<MessageListUiStaticValue | null>(null)
 const MessageListUiSelectorsContext = createContext<MessageListUiSelectorsValue | null>(null)
+const MessageListActivityContext = createContext<MessageListActivityValue | null>(null)
 const MessageListEditingContext = createContext<string | null>(null)
 
 export const MessageListProvider = ({ value, children }: { value: MessageListProviderValue; children: ReactNode }) => {
@@ -135,7 +141,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       getMessageUiState: state.getMessageUiState,
       getMessageSiblings: state.getMessageSiblings,
-      getMessageActivityState: state.getMessageActivityState,
       isMessageTranslating: state.isMessageTranslating,
       getFileView: state.getFileView,
       isToolAutoApproved: state.isToolAutoApproved,
@@ -144,12 +149,19 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     [
       state.getMessageUiState,
       state.getMessageSiblings,
-      state.getMessageActivityState,
       state.isMessageTranslating,
       state.getFileView,
       state.isToolAutoApproved,
       state.getTranslationLanguageLabel
     ]
+  )
+
+  const activity = useMemo<MessageListActivityValue>(
+    () => ({
+      getMessageActivityState: state.getMessageActivityState,
+      messageActivityStore: state.messageActivityStore
+    }),
+    [state.getMessageActivityState, state.messageActivityStore]
   )
 
   return (
@@ -162,9 +174,11 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
                 <MessageListSelectionContext value={state.selection}>
                   <MessageListUiStaticContext value={uiStatic}>
                     <MessageListUiSelectorsContext value={uiSelectors}>
-                      <MessageListEditingContext value={state.editingMessageId ?? null}>
-                        {children}
-                      </MessageListEditingContext>
+                      <MessageListActivityContext value={activity}>
+                        <MessageListEditingContext value={state.editingMessageId ?? null}>
+                          {children}
+                        </MessageListEditingContext>
+                      </MessageListActivityContext>
                     </MessageListUiSelectorsContext>
                   </MessageListUiStaticContext>
                 </MessageListSelectionContext>
@@ -204,10 +218,11 @@ export const useOptionalMessageListTopicId = (): string | undefined => {
 export const useOptionalMessageListUi = (): MessageListUiValue | undefined => {
   const stat = use(MessageListUiStaticContext)
   const sel = use(MessageListUiSelectorsContext)
+  const activity = use(MessageListActivityContext)
   return useMemo<MessageListUiValue | undefined>(() => {
-    if (stat === null || sel === null) return undefined
-    return { ...stat, ...sel }
-  }, [stat, sel])
+    if (stat === null || sel === null || activity === null) return undefined
+    return { ...stat, ...sel, getMessageActivityState: activity.getMessageActivityState }
+  }, [activity, stat, sel])
 }
 
 export const useMessageListUiStatic = (): MessageListUiStaticValue => {
@@ -216,6 +231,51 @@ export const useMessageListUiStatic = (): MessageListUiStaticValue => {
 
 export const useMessageListUiSelectors = (): MessageListUiSelectorsValue => {
   return useRequiredContext(MessageListUiSelectorsContext, 'useMessageListUiSelectors')
+}
+
+const INACTIVE_MESSAGE_ACTIVITY_STATE = Object.freeze({
+  isProcessing: false,
+  isStreamTarget: false,
+  isApprovalAnchor: false
+})
+
+export const useMessageListItemActivityState = (message: MessageListItem) => {
+  const activity = useRequiredContext(MessageListActivityContext, 'useMessageListItemActivityState')
+  const store = activity.messageActivityStore
+  const subscribe = useCallback(
+    (listener: () => void) => store?.subscribe(message.id, listener) ?? (() => {}),
+    [message.id, store]
+  )
+  const getSnapshot = useCallback(
+    () => store?.getSnapshot(message) ?? INACTIVE_MESSAGE_ACTIVITY_STATE,
+    [message, store]
+  )
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
+  return store ? snapshot : (activity.getMessageActivityState?.(message) ?? INACTIVE_MESSAGE_ACTIVITY_STATE)
+}
+
+export const useAnyMessageListItemProcessing = (messages: readonly MessageListItem[]) => {
+  const activity = useRequiredContext(MessageListActivityContext, 'useAnyMessageListItemProcessing')
+  const store = activity.messageActivityStore
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!store) return () => {}
+      const unsubscribes = messages.map((message) => store.subscribe(message.id, listener))
+      return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
+    },
+    [messages, store]
+  )
+  const getSnapshot = useCallback(
+    () =>
+      messages.some((message) => {
+        const state = store?.getSnapshot(message) ?? activity.getMessageActivityState?.(message)
+        return state?.isProcessing ?? message.status === 'pending'
+      }),
+    [activity, messages, store]
+  )
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 /**
@@ -275,5 +335,9 @@ export const useMessageListEditingId = (): string | null => use(MessageListEditi
 export const useMessageListUi = (): MessageListUiValue => {
   const stat = useRequiredContext(MessageListUiStaticContext, 'useMessageListUi')
   const sel = useRequiredContext(MessageListUiSelectorsContext, 'useMessageListUi')
-  return useMemo(() => ({ ...stat, ...sel }), [stat, sel])
+  const activity = useRequiredContext(MessageListActivityContext, 'useMessageListUi')
+  return useMemo(
+    () => ({ ...stat, ...sel, getMessageActivityState: activity.getMessageActivityState }),
+    [activity, stat, sel]
+  )
 }

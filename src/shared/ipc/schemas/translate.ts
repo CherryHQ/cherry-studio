@@ -19,9 +19,7 @@ export const translateRequestSchemas = {
     input: z.object({
       streamId: z.string(),
       text: z.string(),
-      targetLangCode: z.custom<TranslateLangCode>(),
-      messageId: z.string().optional(),
-      sourceLangCode: z.custom<TranslateLangCode>().optional()
+      targetLangCode: z.custom<TranslateLangCode>()
     }),
     output: z.object({ streamId: z.string() })
   }),
