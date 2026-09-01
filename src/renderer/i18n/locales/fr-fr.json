@@ -2956,6 +2956,7 @@
   "provider.infini": "Infini",
   "provider.jina": "Jina",
   "provider.lanyun": "LANYUN",
+  "provider.llmman": "llmman",
   "provider.lmstudio": "LM Studio",
   "provider.local-embedding": "Modèles locaux",
   "provider.longcat": "LongCat AI",
