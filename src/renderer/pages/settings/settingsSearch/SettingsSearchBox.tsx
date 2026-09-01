@@ -136,6 +136,9 @@ const SettingsSearchBox = () => {
     <div className="px-2.5 pb-1">
       <SearchInput
         size="sm"
+        // h-8 matches the settings row height (menu items, provider search
+        // field); sm keeps the compact text
+        containerClassName="h-8"
         value={value}
         placeholder={t('settings.search.placeholder')}
         aria-label={t('settings.search.placeholder')}
