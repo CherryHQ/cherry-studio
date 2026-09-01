@@ -3,8 +3,8 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import ts from '@typescript/typescript6'
 import { __unstable__loadDesignSystem } from 'tailwindcss'
-import ts from 'typescript'
 
 type DesignSystem = Awaited<ReturnType<typeof __unstable__loadDesignSystem>>
 
