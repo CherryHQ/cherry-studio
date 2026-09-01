@@ -183,6 +183,22 @@ describe('HtmlPreviewFrame', () => {
     ).not.toBeNull()
   })
 
+  it.each([
+    [
+      'noscript',
+      '<noscript><style data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style></noscript><main>Preview</main>'
+    ],
+    [
+      'a disabled stylesheet',
+      '<style disabled data-cherry-html-preview-scrollbar>html{overflow-y:auto;scrollbar-gutter:stable}</style><main>Preview</main>'
+    ]
+  ])('does not let an inactive owned style in %s suppress the live gutter', (_label, authorHtml) => {
+    const injected = injectHtmlPreviewScrollbarGutter(authorHtml)
+    const parsed = new DOMParser().parseFromString(injected, 'text/html')
+
+    expect(parsed.head.querySelectorAll('style[data-cherry-html-preview-scrollbar]:not([disabled])')).toHaveLength(1)
+  })
+
   it('applies the gutter to the actual scrolling element for doctype-less documents', () => {
     const frameDocument = document.implementation.createHTMLDocument()
     Object.defineProperty(frameDocument, 'scrollingElement', { configurable: true, value: frameDocument.body })

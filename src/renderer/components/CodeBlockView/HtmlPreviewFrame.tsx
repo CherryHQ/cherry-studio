@@ -96,17 +96,23 @@ export const HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER = 'data-cherry-html-preview-sc
 const HTML_PREVIEW_SCROLLBAR_GUTTER_CSS = 'html{overflow-y:auto;scrollbar-gutter:stable}'
 export const HTML_PREVIEW_SCROLLBAR_GUTTER_STYLE = `<style ${HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER}>${HTML_PREVIEW_SCROLLBAR_GUTTER_CSS}</style>`
 
+function isActiveOwnedScrollbarStyle(attributes: Record<string, string>): boolean {
+  if (!(HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes)) return false
+  // `disabled` stylesheets are not applied and must not suppress live head injection
+  return !('disabled' in attributes)
+}
+
 function hasHtmlPreviewScrollbarGutter(html: string): boolean {
   let found = false
   let ownedStyle = false
   let styleContent = ''
-  let templateDepth = 0
+  let inactiveDepth = 0
   const parser = new Parser(
     {
       onopentag(name, attributes) {
-        if (name === 'template') {
-          templateDepth += 1
-        } else if (templateDepth === 0 && name === 'style' && HTML_PREVIEW_SCROLLBAR_GUTTER_MARKER in attributes) {
+        if (name === 'template' || name === 'noscript') {
+          inactiveDepth += 1
+        } else if (inactiveDepth === 0 && name === 'style' && isActiveOwnedScrollbarStyle(attributes)) {
           ownedStyle = true
           styleContent = ''
         }
@@ -118,8 +124,8 @@ function hasHtmlPreviewScrollbarGutter(html: string): boolean {
         if (name === 'style' && ownedStyle) {
           found ||= styleContent === HTML_PREVIEW_SCROLLBAR_GUTTER_CSS
           ownedStyle = false
-        } else if (name === 'template') {
-          templateDepth -= 1
+        } else if (name === 'template' || name === 'noscript') {
+          inactiveDepth -= 1
         }
       }
     },

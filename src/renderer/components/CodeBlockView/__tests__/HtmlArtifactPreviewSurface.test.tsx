@@ -52,13 +52,20 @@ describe('HtmlArtifactPreviewSurface', () => {
     const frameDocument = document.implementation.createHTMLDocument()
     let scrollRoot: Element = frameDocument.documentElement
     Object.defineProperty(frameDocument, 'scrollingElement', { configurable: true, get: () => scrollRoot })
+    Object.defineProperty(frameDocument, 'readyState', { configurable: true, get: () => 'loading' })
     const loadListeners: EventListener[] = []
+    const domContentLoadedListeners: EventListener[] = []
     const frameWindow = {
       addEventListener: vi.fn((type: string, listener: EventListener) => {
         if (type === 'load') loadListeners.push(listener)
       }),
       scrollBy: vi.fn()
     }
+    frameDocument.addEventListener = vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+      if (type === 'DOMContentLoaded') {
+        domContentLoadedListeners.push(typeof listener === 'function' ? listener : listener.handleEvent.bind(listener))
+      }
+    }) as typeof frameDocument.addEventListener
 
     new Function('document', 'window', 'console', 'ResizeObserver', bridgeScript)(
       frameDocument,
@@ -67,12 +74,17 @@ describe('HtmlArtifactPreviewSurface', () => {
       undefined
     )
     expect(frameDocument.documentElement.style.scrollbarGutter).toBe('stable')
+    expect(domContentLoadedListeners.length).toBeGreaterThan(0)
 
     scrollRoot = frameDocument.body
-    loadListeners.forEach((listener) => listener(new Event('load')))
+    domContentLoadedListeners.forEach((listener) => listener(new Event('DOMContentLoaded')))
 
     expect(frameDocument.body.style.scrollbarGutter).toBe('stable')
     expect(frameDocument.documentElement.style.scrollbarGutter).toBe('')
+
+    loadListeners.forEach((listener) => listener(new Event('load')))
+
+    expect(frameDocument.body.style.scrollbarGutter).toBe('stable')
   })
 
   it('keeps interactive fragments interactive: active fragments also go to the webview tier', () => {

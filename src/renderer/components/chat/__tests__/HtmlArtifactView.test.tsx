@@ -443,8 +443,13 @@ describe('HtmlArtifactView', () => {
     expect(instrumentedHtml).toContain("style.overscrollBehaviorY === 'contain'")
     expect(instrumentedHtml).toContain('element.scrollHeight - 1')
     expect(instrumentedHtml).toContain('html{overflow-y:auto;scrollbar-gutter:stable}')
-    expect(instrumentedHtml).toContain('const scrollbarRoot = document.scrollingElement ?? document.documentElement')
+    expect(instrumentedHtml).toContain('let scrollbarRoot = null')
+    expect(instrumentedHtml).toContain('const applyScrollbarGutter = () => {')
+    expect(instrumentedHtml).toContain(
+      'const nextScrollbarRoot = document.scrollingElement ?? document.documentElement'
+    )
     expect(instrumentedHtml).toContain("scrollbarRoot.style.scrollbarGutter = 'stable'")
+    expect(instrumentedHtml).toContain("document.addEventListener('DOMContentLoaded', applyScrollbarGutter, true)")
   })
 
   it('routes webview boundary wheels through the scroll runtime', () => {

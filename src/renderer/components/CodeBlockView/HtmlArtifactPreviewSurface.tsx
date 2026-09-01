@@ -42,11 +42,18 @@ function getHtmlArtifactBridgeScript(messagePrefix: string, scrollActivationDela
     let scrollbarRoot = null
     const applyScrollbarGutter = () => {
       const nextScrollbarRoot = document.scrollingElement ?? document.documentElement
+      if (!nextScrollbarRoot?.style) return
       if (scrollbarRoot && scrollbarRoot !== nextScrollbarRoot) scrollbarRoot.style.scrollbarGutter = ''
       scrollbarRoot = nextScrollbarRoot
       scrollbarRoot.style.scrollbarGutter = 'stable'
     }
     applyScrollbarGutter()
+    // Re-apply once body exists: quirks/doctype-less scrollingElement becomes body after head runs.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyScrollbarGutter, true)
+    } else {
+      applyScrollbarGutter()
+    }
     const send = (type, value) => {
       sendConsoleMessage(${JSON.stringify(messagePrefix)} + JSON.stringify({ type, value }))
     }
