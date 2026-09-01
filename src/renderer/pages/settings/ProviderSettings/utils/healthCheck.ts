@@ -157,13 +157,14 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
 
 export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSkipReason | null {
   const operations = getModelOperationCapabilities(model.capabilities)
-  const supportsProbe = [
-    MODEL_CAPABILITY.TEXT_GENERATION,
-    MODEL_CAPABILITY.RERANK,
-    MODEL_CAPABILITY.EMBEDDING,
-    MODEL_CAPABILITY.IMAGE_GENERATION
-  ].some((operation) => operations.includes(operation))
-  return supportsProbe ? null : { kind: 'unsupported_probe' }
+  const supportsProbe = [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.EMBEDDING].some(
+    (operation) => operations.includes(operation)
+  )
+  if (supportsProbe) return null
+  if (operations.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
+    return { kind: 'generation_cost', output: 'image' }
+  }
+  return { kind: 'unsupported_probe' }
 }
 
 export function summarizeHealthResults(results: ModelWithStatus[], providerName?: string): string {

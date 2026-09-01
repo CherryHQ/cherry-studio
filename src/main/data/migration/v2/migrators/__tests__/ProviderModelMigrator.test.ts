@@ -1319,7 +1319,7 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.RERANK])
     })
 
-    it('classifies an explicitly disabled opaque rerank model as text generation', async () => {
+    it('drops a rerank-only endpoint when rerank was explicitly disabled', async () => {
       const migrationContext = createContext(dbh.db, {
         llm: {
           providers: [
@@ -1342,7 +1342,8 @@ describe('ProviderModelMigrator', () => {
         .select()
         .from(userModelTable)
         .where(eq(userModelTable.id, 'new-api::opaque-model-id'))
-      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.JINA_RERANK])
+      expect(modelRow.endpointTypes).toBeNull()
+      expect(modelRow.preferredEndpointType).toBeNull()
       expect(modelRow.capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION])
     })
 

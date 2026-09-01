@@ -9,6 +9,7 @@ import {
   endpointDefaultOperationCapability,
   type EndpointType,
   getModelOperationCapabilities,
+  isEndpointCompatibleWithOperation,
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@cherrystudio/provider-registry'
@@ -419,11 +420,20 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 }
 
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
-  const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
-  // v1 already separated the route (`endpoint_type`) from the capability set
-  // (`supported_endpoint_types`); carry it over instead of losing it in the merged array, whose
-  // first entry comes from `supported_endpoint_types` whenever v1 stored one.
-  const preferredEndpointType = mapEndpointTypes(legacy.endpoint_type)?.[0] ?? null
+  const mappedEndpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
+  const capabilities = mapCapabilities(legacy.capabilities, mappedEndpointTypes)
+  const operations = getModelOperationCapabilities(capabilities)
+  const compatibleEndpointTypes = (mappedEndpointTypes ?? []).filter((endpointType) =>
+    operations.some((operation) => isEndpointCompatibleWithOperation(endpointType, operation))
+  )
+  const endpointTypes = compatibleEndpointTypes.length > 0 ? compatibleEndpointTypes : null
+  // v1 stored the preferred route separately from the supported set; preserve it only when the
+  // final capability contract still permits that route.
+  const mappedPreferredEndpointType = mapEndpointTypes(legacy.endpoint_type)?.[0]
+  const preferredEndpointType =
+    mappedPreferredEndpointType && compatibleEndpointTypes.includes(mappedPreferredEndpointType)
+      ? mappedPreferredEndpointType
+      : null
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
@@ -437,7 +447,7 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     name: legacy.name ?? legacy.id,
     description: legacy.description ?? null,
     group: legacy.group ?? null,
-    capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
+    capabilities,
     inputModalities: null,
     outputModalities: null,
     endpointTypes,
