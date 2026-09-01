@@ -59,7 +59,7 @@ describe('validateCliConfigDraftForWrite (secret redaction when editing config t
       {
         target: 'hermes-config',
         label: 'Hermes config',
-        path: '/resolved~/.hermes/config.yaml',
+        path: '/resolved-hermes/config.yaml',
         language: 'yaml',
         content: 'api_key: sk-ant-real-secret\n  malformed: yaml'
       }

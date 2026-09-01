@@ -40,7 +40,7 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
 
-  it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
+  it('defaults sidebar favorites to Chat before Agent for new users', () => {
     const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
       { id: 'assistants', type: 'app' },
       { id: 'agents', type: 'app' },
@@ -72,6 +72,10 @@ describe('DefaultPreferences', () => {
     const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
 
     expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
+  })
+
+  it('shows estimated input tokens by default for new users', () => {
+    expect(DefaultPreferences.default['chat.input.show_estimated_tokens']).toBe(true)
   })
 
   it('does not keep legacy classic/modern layout preferences', () => {

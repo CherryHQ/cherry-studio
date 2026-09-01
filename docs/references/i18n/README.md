@@ -122,8 +122,9 @@ Both catalogs use `en-us.json` as the source of truth by default. Set `TRANSLATI
 |---|---|---|
 | `pnpm i18n:sync` | Synchronize every locale with the base locale and sort keys | Yes |
 | `pnpm i18n:check` | Check catalog structure, key alignment, sorting, main-process key coverage, and translated values | No |
-| `pnpm i18n:unused` | Report renderer keys that are not referenced by source code | No |
-| `pnpm i18n:remove-unused` | Remove selected unused renderer keys from every renderer locale | Yes |
+| `pnpm i18n:unused` | Report renderer and main keys that are not referenced by source code | No |
+| `pnpm i18n:unused:check` | Fail when renderer or main keys are not referenced by source code | No |
+| `pnpm i18n:remove-unused` | Remove selected unused keys from every renderer and main locale | Yes |
 | `pnpm i18n:hardcoded` | Report likely hardcoded user-visible strings | No |
 | `pnpm i18n:hardcoded:strict` | Run the hardcoded-string check in CI mode | No |
 
@@ -144,7 +145,7 @@ pnpm i18n:check
 
 ### `i18n:unused` - Find Unused Keys
 
-This script scans renderer source code and reports keys that are present in the renderer catalog but not found in source code. It does not scan or modify the main-process catalog.
+This script analyzes the renderer and main-process catalogs independently. Renderer keys are checked across renderer, main, shared, and package source because main can emit renderer translation keys. Main keys count only literal `t()` calls imported from `@main/i18n` in production main source, so tests, comments, and unrelated same-name strings cannot keep a main key alive.
 
 This command only prints a report and does not modify any files:
 
@@ -152,7 +153,7 @@ This command only prints a report and does not modify any files:
 pnpm i18n:unused
 ```
 
-The report includes:
+The report includes, for each catalog:
 
 - Total unused key count
 - Unused key count by top-level namespace
@@ -164,6 +165,16 @@ For machine-readable output, use JSON mode:
 pnpm i18n:unused --json
 ```
 
+The JSON object is keyed by `renderer` and `main`, with an independent result for each catalog.
+
+CI uses the failing check mode so unused keys cannot be merged:
+
+```bash
+pnpm i18n:unused:check
+```
+
+This prints the same grouped report and exits with a non-zero status when any unused key is found.
+
 #### Cleaning Unused Keys
 
 Use `i18n:remove-unused` when you want to delete unused keys. Cleaning is opt-in and only runs through this remove command.
@@ -174,7 +185,7 @@ Run interactive cleanup:
 pnpm i18n:remove-unused
 ```
 
-The prompt lists top-level namespaces, such as `common`, `settings`, or `translate`. Select one or more namespaces to delete only the unused leaf keys in those groups.
+The prompt runs separately for each catalog that has unused keys and lists top-level namespaces such as `common`, `settings`, or `translate`. Select one or more namespaces to delete only the unused leaf keys in those groups.
 
 Run non-interactive cleanup for specific namespaces:
 
@@ -182,13 +193,18 @@ Run non-interactive cleanup for specific namespaces:
 pnpm i18n:remove-unused --groups common,settings
 ```
 
+Named groups apply independently to both catalogs.
+
 Run non-interactive cleanup for all unused keys:
 
 ```bash
 pnpm i18n:remove-unused --all
 ```
 
-Cleanup updates every file in `src/renderer/i18n/locales/`.
+Cleanup updates every file in both catalog directories:
+
+- `src/renderer/i18n/locales/`
+- `src/main/i18n/locales/`
 
 After deletion, the script sorts keys to keep the files consistent with the existing i18n format.
 
@@ -210,7 +226,7 @@ The exact text match is intentionally conservative: if a complete key string app
 
 #### Safe Cleanup Workflow
 
-1. Run `pnpm i18n:unused` and review the grouped report.
+1. Run `pnpm i18n:unused` and review the renderer and main grouped reports.
 2. If a key looks suspicious, search for the exact key in source code before cleaning.
 3. Clean only a small namespace at a time with `pnpm i18n:remove-unused --groups <namespace>`, or use `pnpm i18n:remove-unused --all` when the full report has already been reviewed.
 4. Review the JSON diff.
@@ -243,10 +259,11 @@ Complete the i18n translations introduced by this change.
 - Run pnpm i18n:sync before translating, then run pnpm i18n:check.
 ```
 
-Pull request CI runs `i18n:sync` and fails when it produces an uncommitted diff. It then runs the read-only check:
+Pull request CI runs `i18n:sync` and fails when it produces an uncommitted diff. It then runs the read-only checks:
 
 ```bash
 pnpm i18n:check
+pnpm i18n:unused:check
 ```
 
 The check rejects remaining placeholders, empty translations, missing interpolation variables, changed `<Trans>` component tags, changed `$t()` references, bracketed model notes, implausibly long explanations, and dropped protected terms. CI also runs the strict hardcoded-string check.

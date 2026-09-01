@@ -20,7 +20,11 @@ import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFile
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { resolveAgentTurnContextPrompt } from '@main/ai/runtime/agentPrompt'
-import { buildAgentUserContent, wrapAgentSessionDeliveryContent } from '@main/ai/runtime/agentUserContent'
+import {
+  appendAgentAttachmentPaths,
+  buildAgentUserContent,
+  wrapAgentSessionDeliveryContent
+} from '@main/ai/runtime/agentUserContent'
 import { appendRuntimeContextReminderText, wrapRuntimeContextReminder, wrapSteerReminder } from '@main/ai/steerReminder'
 import { toCherryBuiltinRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -418,7 +422,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       initializeTimeoutMs: request.initializeTimeoutMs,
       credentialsFingerprint: request.credentialsFingerprint,
       usageCapture: request.usageCapture,
-      knowledgeBaseIds: request.knowledgeBaseIds
+      knowledgeBaseIds: request.knowledgeBaseIds,
+      notificationContext: request.notificationContext
     })
 
     // A matching warm process may have selected a different rotated key when
@@ -1275,7 +1280,7 @@ async function materializeUserContent(
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
-  let textContent = appendAttachmentPaths(text, resolvedPaths.files)
+  let textContent = appendAgentAttachmentPaths(text, resolvedPaths.files)
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
@@ -1299,18 +1304,6 @@ function appendAttachmentManifest(
     .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
     .join('\n')
   const section = `Attachment manifest:\n${list}`
-  return text.trim() ? `${text}\n\n${section}` : section
-}
-
-function appendAttachmentPaths(text: string, files: ResolvedAttachmentPath[]): string {
-  if (files.length === 0) return text
-
-  // Managed copies are stored under a UUID filename, so the display name has to travel
-  // with the path — otherwise multiple attachments are indistinguishable to the model.
-  const list = files
-    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
-    .join('\n')
-  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
 }
 

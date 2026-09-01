@@ -62,6 +62,20 @@ describe('web search provider schemas', () => {
     })
   })
 
+  it('models Parallel as an API-key-authenticated keyword search provider', () => {
+    const parallel = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'parallel')
+
+    expect(parallel).toBeDefined()
+    expect(parallel!.capabilities).toEqual([
+      {
+        feature: 'searchKeywords',
+        requiresApiHost: true,
+        requiresApiKey: true,
+        apiHost: 'https://api.parallel.ai'
+      }
+    ])
+  })
+
   it('models Fetch as a hostless built-in URL fetch provider', () => {
     const fetch = PRESETS_WEB_SEARCH_PROVIDERS.find((preset) => preset.id === 'fetch')
 

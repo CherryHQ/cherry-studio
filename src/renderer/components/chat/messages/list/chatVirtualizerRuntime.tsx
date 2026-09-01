@@ -529,15 +529,23 @@ export function useChatVirtualizerRuntime<T>({
     [dataKeys, items]
   )
 
-  const wrappedRenderItem = useCallback((item: WrappedItem<T>) => {
-    // Tag with data-message-index so the selectionchange listener can
-    // map a text selection back to a data index for keepMounted.
-    return (
-      <div key={item.key} data-message-index={item.originalIndex} data-message-key={item.key} style={{ width: '100%' }}>
-        {renderItemRef.current(item.value, item.originalIndex)}
-      </div>
-    )
-  }, [])
+  const wrappedRenderItem = useCallback(
+    (item: WrappedItem<T>) => {
+      // Keep the bottom inset inside the measured live item. Streaming growth
+      // then expands the native scroll range before virtua refreshes its cache.
+      const isLastItem = item.originalIndex === itemsRef.current.length - 1
+      return (
+        <div
+          key={item.key}
+          data-message-index={item.originalIndex}
+          data-message-key={item.key}
+          style={{ width: '100%', paddingBottom: isLastItem ? bottomPadding : undefined }}>
+          {renderItemRef.current(item.value, item.originalIndex)}
+        </div>
+      )
+    },
+    [bottomPadding]
+  )
 
   // ---- per-topic scroll position memory -------------------------------
 
@@ -603,6 +611,15 @@ export function useChatVirtualizerRuntime<T>({
     updateScrollToBottomButtonVisibility,
     viewportFollow
   ])
+
+  useLayoutEffect(() => {
+    const content = contentRef.current
+    if (!content || typeof MutationObserver === 'undefined') return
+
+    const observer = new MutationObserver(() => autoStick.onContentSizeChange())
+    observer.observe(content, { childList: true, characterData: true, subtree: true })
+    return () => observer.disconnect()
+  }, [autoStick])
 
   // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
   // restores the saved anchor for this topic, or scrolls to the newest message

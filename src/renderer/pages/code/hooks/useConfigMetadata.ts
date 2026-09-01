@@ -114,6 +114,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     resolveProviderMeta,
     resolveProviderMetaForTool,
     gatewayModelsById,
+    modelById,
     defaultGatewayModelId,
     isGatewayModelsLoading
   }
