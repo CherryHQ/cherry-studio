@@ -2,31 +2,18 @@ import os from 'node:os'
 
 import { getDeviceType } from '@main/utils/system'
 import { defaultLanguage } from '@shared/utils/languages'
-import { describe, expect, it, vi } from 'vitest'
-
-const preferenceGet = vi.hoisted(() =>
-  vi.fn((key: string) => {
-    if (key === 'app.user.name') return 'Test User'
-    if (key === 'app.language') return 'en-US'
-    return undefined
-  })
-)
-
-vi.mock('@application', () => ({
-  application: {
-    get: () => ({ get: preferenceGet })
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({ warn: vi.fn(), error: vi.fn() })
-  }
-}))
+import { MockMainPreferenceServiceExport, MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { buildRuntimeContextPrompt, buildWebSearchDateContext } from '../prompt'
 
 describe('buildRuntimeContextPrompt', () => {
+  beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Test User')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+  })
+
   it('resolves the supported system variables into one context block', async () => {
     const prompt = await buildRuntimeContextPrompt('Test Model')
 
@@ -53,7 +40,7 @@ describe('buildRuntimeContextPrompt', () => {
   })
 
   it('does not invent a username when PreferenceService has none', async () => {
-    preferenceGet.mockImplementation((key: string) => {
+    MockMainPreferenceServiceExport.preferenceService.get.mockImplementation((key: string) => {
       if (key === 'app.language') return 'en-US'
       return undefined
     })
@@ -62,7 +49,7 @@ describe('buildRuntimeContextPrompt', () => {
   })
 
   it('falls back to defaultLanguage when app.language is unset', async () => {
-    preferenceGet.mockImplementation(() => undefined)
+    MockMainPreferenceServiceExport.preferenceService.get.mockImplementation(() => undefined)
 
     await expect(buildRuntimeContextPrompt('Test Model', 'Language: {{language}}')).resolves.toBe(
       `Language: ${defaultLanguage}`
