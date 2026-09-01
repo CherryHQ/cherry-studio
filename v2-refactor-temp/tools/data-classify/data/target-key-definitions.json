@@ -750,6 +750,13 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.webdav.allow_self_signed_tls",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow self-signed/unverifiable TLS certificates for WebDAV backup transport (v2 new feature, no v1 source)"
     }
   ]
 }

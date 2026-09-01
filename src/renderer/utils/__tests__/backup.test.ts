@@ -51,4 +51,74 @@ describe('getLocalizedBackupErrorMessage', () => {
       'localized:message.restore.failed'
     )
   })
+
+  it('maps Node TLS verification failures to the WebDAV self-signed guidance when hinted', () => {
+    // Real message text Node emits for the certificate errors we claim to catch.
+    expect(
+      getLocalizedBackupErrorMessage(new Error('unable to verify the first certificate'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:backup.error.webdav_tls_certificate')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('DEPTH_ZERO_SELF_SIGNED_CERT: self-signed certificate'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:backup.error.webdav_tls_certificate')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('unable to get local issuer certificate'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:backup.error.webdav_tls_certificate')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('unable to get issuer certificate'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:backup.error.webdav_tls_certificate')
+    // Chain failure spelled without hyphens: both spellings occur in the wild.
+    expect(
+      getLocalizedBackupErrorMessage(new Error('self signed certificate in certificate chain'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:backup.error.webdav_tls_certificate')
+  })
+
+  it('does NOT advise the switch for expiry/hostname failures (they need a cert fix, not a bypass)', () => {
+    expect(
+      getLocalizedBackupErrorMessage(new Error('certificate has expired'), undefined, { tlsCertificateHint: true })
+    ).toBe('localized:message.backup.failed')
+    expect(
+      getLocalizedBackupErrorMessage(
+        new Error("Hostname/IP does not match certificate's altnames: example.com"),
+        undefined,
+        { tlsCertificateHint: true }
+      )
+    ).toBe('localized:message.backup.failed')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('certificate is not yet valid'), undefined, { tlsCertificateHint: true })
+    ).toBe('localized:message.backup.failed')
+    expect(
+      getLocalizedBackupErrorMessage(new Error('deepest certificate expiration check failed'), undefined, {
+        tlsCertificateHint: true
+      })
+    ).toBe('localized:message.backup.failed')
+  })
+
+  it('does NOT give WebDAV guidance without the hint (S3/local transports must not see it)', () => {
+    expect(getLocalizedBackupErrorMessage(new Error('unable to verify the first certificate'))).toBe(
+      'localized:message.backup.failed'
+    )
+    expect(
+      getLocalizedBackupErrorMessage(
+        new Error('self-signed certificate in certificate chain'),
+        'message.restore.failed'
+      )
+    ).toBe('localized:message.restore.failed')
+  })
+
+  it('keeps TLS wording distinct from transport failures that are not certificate problems', () => {
+    expect(getLocalizedBackupErrorMessage(new Error('ECONNREFUSED connection refused'))).toBe(
+      'localized:message.backup.failed'
+    )
+    expect(getLocalizedBackupErrorMessage(new Error('401 Unauthorized'))).toBe('localized:message.backup.failed')
+  })
 })

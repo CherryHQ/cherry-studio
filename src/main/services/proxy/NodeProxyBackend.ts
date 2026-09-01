@@ -149,7 +149,12 @@ export class NodeProxyBackend {
         return originalMethod(url, options, callback)
       }
       if (options.agent instanceof https.Agent) {
-        ;(agent as https.Agent).options.rejectUnauthorized = options.agent.options.rejectUnauthorized
+        // Per-request TLS option — mutating the shared proxy agent would leak
+        // the caller's rejectUnauthorized to later unrelated requests.
+        const tlsStance = options.agent.options.rejectUnauthorized
+        if (typeof tlsStance === 'boolean') {
+          ;(options as https.RequestOptions).rejectUnauthorized = tlsStance
+        }
       }
       options.agent = agent
       return url ? originalMethod(url, options, callback) : originalMethod(options, callback)
