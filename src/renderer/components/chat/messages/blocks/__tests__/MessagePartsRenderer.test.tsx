@@ -348,8 +348,12 @@ vi.mock('../CompactBlock', () => ({
 
 vi.mock('../TranslationBlock', () => ({
   __esModule: true,
-  default: ({ content, isStreaming }: any) => (
-    <div data-testid="mock-translation-block" data-streaming={String(!!isStreaming)}>
+  default: ({ content, isStreaming, onDelete }: any) => (
+    <div
+      data-testid="mock-translation-block"
+      data-streaming={String(!!isStreaming)}
+      data-has-delete={String(!!onDelete)}
+      onClick={onDelete}>
       {content}
     </div>
   )
@@ -1679,6 +1683,28 @@ describe('MessagePartsRenderer', () => {
       ).toHaveLength(1)
     })
 
+    it('keeps a prepared diagnostic report action outside collapsed process history', () => {
+      renderParts([
+        toolPart('read'),
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'prepare-report',
+          toolName: 'mcp__assistant__prepare_diagnostic_report',
+          state: 'output-available',
+          output: {
+            content: [{ type: 'text', text: 'Diagnostic report draft prepared.' }],
+            structuredContent: { ok: true, description: 'Editable diagnostic report draft' },
+            metadata: { type: 'mcp', serverId: 'assistant', serverName: 'assistant' }
+          }
+        }
+      ] as unknown as CherryMessagePart[])
+
+      expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+      const visibleDiagnosticAction = screen.getByTestId('mock-message-tools')
+      expect(visibleDiagnosticAction).toHaveAttribute('data-tool-name', 'mcp__assistant__prepare_diagnostic_report')
+      expect(visibleDiagnosticAction.closest('[data-testid="tool-history-content"]')).toBeNull()
+    })
+
     it('does not show an empty completed process group for a non-renderable provider tool', () => {
       renderParts([
         { ...toolPart('search', 'output-available', 'unknown_provider_tool'), toolType: 'provider' },
@@ -2024,6 +2050,27 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'result.pdf')
       expect(await screen.findByTestId('mock-message-video')).toHaveAttribute('data-file-path', '/tmp/result.mp4')
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('removes this message translation through the inline delete when the action is available', () => {
+      const removeMessageTranslation = vi.fn()
+      renderParts(
+        [{ type: 'data-translation', data: { content: 'translated answer' } }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-translated' }),
+        { removeMessageTranslation }
+      )
+
+      const block = screen.getByTestId('mock-translation-block')
+      expect(block).toHaveAttribute('data-has-delete', 'true')
+      fireEvent.click(block)
+      expect(removeMessageTranslation).toHaveBeenCalledWith('msg-translated')
+    })
+
+    it('hides the inline translation delete in read-only embeds without removeMessageTranslation', () => {
+      renderParts([
+        { type: 'data-translation', data: { content: 'translated answer' } }
+      ] as unknown as CherryMessagePart[])
+      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'false')
     })
   })
 })

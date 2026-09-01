@@ -369,12 +369,12 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
 
     return (
       <Suspense fallback={null}>
-        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} isStreaming={isStreaming}>
           {children}
         </SpecialView>
       </Suspense>
     )
-  }, [children, codeImageTools, language])
+  }, [children, codeImageTools, isStreaming, language])
 
   const renderHeader = useMemo(() => {
     if (isInSpecialView) {
@@ -400,7 +400,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
     return (
       <div
         className={cn(
-          'split-view-wrapper flex *:w-full *:flex-[1_1_auto]',
+          'split-view-wrapper flex *:min-w-0 *:flex-1',
           !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&

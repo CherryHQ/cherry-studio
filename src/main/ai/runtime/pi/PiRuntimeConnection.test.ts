@@ -1,4 +1,5 @@
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
@@ -13,6 +14,7 @@ const WORKSPACE = '/work/space'
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 const PI_BUILTIN_TOOL_NAMES = ['read', 'bash', 'edit', 'write']
+const MANAGED_BASH_TOOL = { name: 'bash' }
 const CODE_MODE_TOOL_NAMES = ['tool_search', 'tool_describe', 'tool_call', 'tool_exec']
 const AUTONOMY_TOOL_NAMES = [
   'mcp__cherry-tools__cron',
@@ -72,6 +74,7 @@ const mocks = vi.hoisted(() => ({
   sessionOpen: vi.fn(),
   reload: vi.fn(),
   createAgentSession: vi.fn(),
+  createBashToolDefinition: vi.fn(),
   prompt: vi.fn(),
   compact: vi.fn(),
   steer: vi.fn(),
@@ -80,8 +83,11 @@ const mocks = vi.hoisted(() => ({
   dispose: vi.fn(),
   getContextUsage: vi.fn(),
   createOpts: undefined as Record<string, unknown> | undefined,
+  bashToolOptions: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
+  setShellCommandPrefix: vi.fn(),
+  getShellEnv: vi.fn(),
   isStreaming: false,
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionId: 'sess-1' as string | undefined,
@@ -152,10 +158,15 @@ vi.mock('./piSdk', () => ({
   loadPiApiStreamSimple: mocks.loadPiApiStreamSimple
 }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: mocks.getShellEnv,
+  getPathFromEnvironment: (env: Record<string, string | undefined>) =>
+    Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1]
+}))
 
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
-const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
@@ -198,7 +209,7 @@ const fakePi = {
   SettingsManager: {
     inMemory: (...args: unknown[]) => {
       mocks.settingsArgs = args
-      return {}
+      return { setShellCommandPrefix: mocks.setShellCommandPrefix }
     }
   },
   SessionManager: { create: mocks.sessionCreate, open: mocks.sessionOpen },
@@ -208,7 +219,8 @@ const fakePi = {
       mocks.loaderOpts = opts
     }
   },
-  createAgentSession: mocks.createAgentSession
+  createAgentSession: mocks.createAgentSession,
+  createBashToolDefinition: mocks.createBashToolDefinition
 }
 
 const input: AgentRuntimeConnectInput = {
@@ -273,8 +285,10 @@ beforeEach(() => {
   toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
+  mocks.bashToolOptions = undefined
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
+  mocks.getShellEnv.mockResolvedValue({ PATH: '/opt/homebrew/bin:/usr/bin' })
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
   mocks.sessionId = SESSION_ID
@@ -312,7 +326,7 @@ beforeEach(() => {
           .filter((skill: { isEnabled: boolean }) => skill.isEnabled)
           .map((skill: { folderName: string }) => mocks.getSkillDirectory(skill.folderName)),
         mcpServerSnapshots: new Map((agent.mcps ?? []).map((id: string) => [id, { id }])),
-        linkedChannel: linkedChannel ? { id: linkedChannel.id } : null,
+        linkedChannel: linkedChannel ? { id: linkedChannel.id, type: linkedChannel.type } : null,
         signature: JSON.stringify({
           agent: {
             ...agent,
@@ -352,7 +366,15 @@ beforeEach(() => {
       ]
     }
   })
-  mocks.getPath.mockImplementation((key: string) => (key === 'feature.agents.pi.root' ? PI_ROOT : PI_SESSIONS))
+  mocks.getPath.mockImplementation((key: string) => {
+    if (key === 'feature.agents.pi.root') return PI_ROOT
+    if (key === 'feature.agents.pi.sessions') return PI_SESSIONS
+    if (key === 'feature.binary.data') return '/cherry/Toolchain/mise'
+    if (key === 'feature.binary.data.isolated.rustup') return '/cherry/Toolchain/rustup'
+    if (key === 'feature.binary.data.isolated.cargo') return '/cherry/Toolchain/cargo'
+    if (key === 'cherry.bin') return '/cherry/bin'
+    return PI_SESSIONS
+  })
   mocks.loadPiSdk.mockResolvedValue(fakePi)
   mocks.loadPiAiCompat.mockResolvedValue({ unregisterApiProviders: mocks.unregisterApiProviders })
   mocks.loadPiApiStreamSimple.mockResolvedValue(mocks.providerStreamSimple)
@@ -392,6 +414,10 @@ beforeEach(() => {
     mocks.createOpts = opts
     return { session: fakeSession }
   })
+  mocks.createBashToolDefinition.mockImplementation((_cwd: string, options: Record<string, unknown>) => {
+    mocks.bashToolOptions = options
+    return MANAGED_BASH_TOOL
+  })
 })
 
 afterEach(() => {
@@ -399,6 +425,34 @@ afterEach(() => {
 })
 
 describe('PiRuntimeConnection', () => {
+  it('appends the login-shell PATH without replacing pi runtime prefixes', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    if (process.platform === 'win32') {
+      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith('export PATH="$PATH":\'/opt/homebrew/bin:/usr/bin\'')
+    }
+    expect(buildPiLoginPathPrefix("/opt/homebrew/bin:/Users/o'connor/bin", 'darwin')).toBe(
+      "export PATH=\"$PATH\":'/opt/homebrew/bin:/Users/o'\"'\"'connor/bin'"
+    )
+    expect(buildPiLoginPathPrefix('C:\\Users\\tester\\bin', 'win32')).toBeUndefined()
+  })
+
+  it('reads a mixed-case Windows Path key', async () => {
+    mocks.getShellEnv.mockResolvedValueOnce({ Path: 'C:\\Users\\tester\\bin;C:\\Windows' })
+
+    await new PiRuntimeConnection(input).start()
+
+    if (process.platform === 'win32') {
+      expect(mocks.setShellCommandPrefix).not.toHaveBeenCalled()
+    } else {
+      expect(mocks.setShellCommandPrefix).toHaveBeenCalledWith(
+        'export PATH="$PATH":\'C:\\Users\\tester\\bin;C:\\Windows\''
+      )
+    }
+  })
+
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 
@@ -451,6 +505,75 @@ describe('PiRuntimeConnection', () => {
         AZURE_OPENAI_API_VERSION: '2025-04-01-preview'
       }
     })
+  })
+
+  it('layers Cherry-managed tools onto Pi bash without dropping Pi PATH entries', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.createBashToolDefinition).toHaveBeenCalledWith(WORKSPACE, expect.any(Object))
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'gh --version',
+      cwd: WORKSPACE,
+      env: { PATH: ['/pi/agent/bin', '/system/bin'].join(path.delimiter), PI_ONLY: 'preserved' }
+    })
+
+    expect(result.env.PATH?.split(path.delimiter)).toEqual([
+      path.join('/cherry/Toolchain/mise', 'shims'),
+      '/cherry/bin',
+      '/pi/agent/bin',
+      '/system/bin'
+    ])
+    expect(result.env).toMatchObject({
+      PI_ONLY: 'preserved',
+      MISE_DATA_DIR: '/cherry/Toolchain/mise',
+      MISE_SHIMS_DIR: path.join('/cherry/Toolchain/mise', 'shims')
+    })
+  })
+
+  it('preserves a caller-owned mise environment instead of redirecting its shims', async () => {
+    await new PiRuntimeConnection(input).start()
+
+    const spawnHook = (
+      mocks.bashToolOptions as {
+        spawnHook: (context: { command: string; cwd: string; env: NodeJS.ProcessEnv }) => {
+          command: string
+          cwd: string
+          env: NodeJS.ProcessEnv
+        }
+      }
+    ).spawnHook
+    const result = spawnHook({
+      command: 'node --version',
+      cwd: WORKSPACE,
+      env: {
+        PATH: ['/home/user/.local/share/mise/shims', path.join('/cherry/Toolchain/mise', 'shims'), '/system/bin'].join(
+          path.delimiter
+        ),
+        MISE_DATA_DIR: '/home/user/.local/share/mise',
+        MISE_SHIMS_DIR: '/home/user/.local/share/mise/shims'
+      }
+    })
+
+    expect(result.env.PATH?.split(path.delimiter)).toEqual([
+      '/home/user/.local/share/mise/shims',
+      '/system/bin',
+      '/cherry/bin'
+    ])
+    expect(result.env).toMatchObject({
+      MISE_DATA_DIR: '/home/user/.local/share/mise',
+      MISE_SHIMS_DIR: '/home/user/.local/share/mise/shims'
+    })
+    expect(result.env.MISE_CONFIG_DIR).toBeUndefined()
+    expect(result.env.PATH?.split(path.delimiter)).not.toContain(path.join('/cherry/Toolchain/mise', 'shims'))
   })
 
   it('keeps authenticated proxy requests on the credential-aware Node transport', async () => {
@@ -602,7 +725,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
-      `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_sess-1.jsonl`,
+      path.join(PI_SESSIONS, '2026-07-06T00-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
@@ -617,7 +740,7 @@ describe('PiRuntimeConnection', () => {
 
     await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
     expect(mocks.sessionOpen).toHaveBeenCalledWith(
-      `${PI_SESSIONS}/2026-07-06T01-00-00-000Z_sess-1.jsonl`,
+      path.join(PI_SESSIONS, '2026-07-06T01-00-00-000Z_sess-1.jsonl'),
       PI_SESSIONS,
       WORKSPACE
     )
@@ -1227,6 +1350,10 @@ describe('PiRuntimeConnection', () => {
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
     expect(factories).toHaveLength(2)
     expect(mocks.createOpts?.tools).toEqual([...PI_BUILTIN_TOOL_NAMES, ...CODE_MODE_TOOL_NAMES])
+    expect(mocks.createOpts?.customTools).toEqual([
+      MANAGED_BASH_TOOL,
+      ...CODE_MODE_TOOL_NAMES.map((name) => ({ name }))
+    ])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
@@ -1388,6 +1515,7 @@ describe('PiRuntimeConnection', () => {
       expect(mocks.warmMcpToolCatalogs).toHaveBeenCalledWith(['srv-1', 'srv-2'])
       expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(mocks.buildAgentMcpServers.mock.results[0].value)
       expect(mocks.createOpts?.customTools).toEqual([
+        MANAGED_BASH_TOOL,
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1511,6 +1639,7 @@ describe('PiRuntimeConnection', () => {
         undefined
       )
       expect(mocks.createOpts?.customTools).toEqual([
+        MANAGED_BASH_TOOL,
         { name: 'tool_search' },
         { name: 'tool_describe' },
         { name: 'tool_call' },
@@ -1569,7 +1698,7 @@ describe('PiRuntimeConnection', () => {
     it('scopes cron/notify default delivery to the channel linked to this session', async () => {
       mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
       mocks.getById.mockReturnValue(agentSession)
-      mocks.findChannelBySessionId.mockReturnValue({ id: 'chan-1', agentId: 'agent-1' })
+      mocks.findChannelBySessionId.mockReturnValue({ id: 'chan-1', type: 'telegram', agentId: 'agent-1' })
       await new PiRuntimeConnection(input).start()
 
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledWith(
@@ -1577,7 +1706,7 @@ describe('PiRuntimeConnection', () => {
         expect.objectContaining({ id: 'agent-1' }),
         new Set(['cherry-tools', 'agent-memory', 'skills', 'mcp-manager']),
         expect.any(Map),
-        { id: 'chan-1' },
+        { id: 'chan-1', type: 'telegram' },
         AGENT_DATA_PATH,
         undefined
       )
@@ -1614,7 +1743,7 @@ describe('PiRuntimeConnection', () => {
     it('uses the always-on persona and code-mode tools for a standard agent', async () => {
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.customTools).toHaveLength(4)
+      expect(mocks.createOpts?.customTools).toHaveLength(5)
       expect(mocks.buildAgentMcpServers).toHaveBeenCalledOnce()
       expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
       expect(appendedSystemPrompt()).toContain('AGENT PROMPT')

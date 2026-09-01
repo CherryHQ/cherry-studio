@@ -50,7 +50,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
-  // Provider-agnostic: tool schemas lose the keywords providers reject.
+  // Provider compatibility: strip unsupported schema keywords, then apply Gemini-specific tool filtering.
   toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
