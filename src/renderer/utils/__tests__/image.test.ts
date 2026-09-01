@@ -15,6 +15,7 @@ import {
   convertToBase64,
   getImageBlobFromSource,
   IMAGE_CAPTURE_ATTRIBUTE,
+  imageInputToPreviewUrl,
   makeSvgSizeAdaptive,
   MAX_ENTITY_IMAGE_UPLOAD_BYTES,
   prepareEntityImageBytes,
@@ -599,6 +600,119 @@ describe('utils/image', () => {
 
       expect(result.outerHTML).toBe(originalOuterHTML)
     })
+  })
+
+  describe('imageInputToPreviewUrl', () => {
+    let previewBlob: Blob | undefined
+    let createObjectUrlDescriptor: PropertyDescriptor | undefined
+    const readBlob = (blob: Blob) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result))
+        reader.onerror = () => reject(reader.error)
+        reader.readAsText(blob)
+      })
+
+    beforeEach(() => {
+      previewBlob = undefined
+      createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: vi.fn((blob: Blob) => {
+          previewBlob = blob
+          return 'blob:svg-preview'
+        })
+      })
+    })
+
+    afterEach(() => {
+      if (createObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      }
+    })
+
+    it('restores viewBox dimensions on a responsive SVG preview without mutating the live node', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 960 480')
+      svg.setAttribute('width', '100%')
+      svg.style.maxWidth = '960px'
+      svg.innerHTML = '<text x="20" y="40">First line</text><text x="20" y="80">Second line</text>'
+
+      await expect(imageInputToPreviewUrl(svg, { format: 'svg' })).resolves.toBe('blob:svg-preview')
+
+      expect(svg.getAttribute('width')).toBe('100%')
+      expect(svg.hasAttribute('height')).toBe(false)
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('960')
+      expect(previewSvg.getAttribute('height')).toBe('480')
+      expect(previewSvg.getAttribute('viewBox')).toBe('0 0 960 480')
+      expect(previewSvg.textContent).toContain('First line')
+      expect(previewSvg.textContent).toContain('Second line')
+    })
+
+    it('preserves an SVG that already has positive intrinsic dimensions', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 800 400')
+      svg.setAttribute('width', '320px')
+      svg.setAttribute('height', '180px')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('320px')
+      expect(previewSvg.getAttribute('height')).toBe('180px')
+    })
+
+    it.each([
+      ['width only', '1600', null],
+      ['height only', null, '900'],
+      ['relative width', '20em', null],
+      ['signed and trailing-decimal lengths', '+320', '180.']
+    ])('preserves valid %s SVG sizing', async (_label, width, height) => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 16 9')
+      if (width !== null) svg.setAttribute('width', width)
+      if (height !== null) svg.setAttribute('height', height)
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe(width)
+      expect(previewSvg.getAttribute('height')).toBe(height)
+    })
+
+    it('replaces a non-finite SVG length with finite viewBox dimensions', async () => {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 800 400')
+      svg.setAttribute('width', '1e309px')
+
+      await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+      const previewSvg = new DOMParser().parseFromString(await readBlob(previewBlob!), 'image/svg+xml').documentElement
+      expect(previewSvg.getAttribute('width')).toBe('800')
+      expect(previewSvg.getAttribute('height')).toBe('400')
+    })
+
+    it.each(['NaN 0 800 400', '0 Infinity 800 400'])(
+      'does not derive intrinsic dimensions from an invalid viewBox origin: %s',
+      async (viewBox) => {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('viewBox', viewBox)
+        svg.setAttribute('width', '100%')
+
+        await imageInputToPreviewUrl(svg, { format: 'svg' })
+
+        const previewSvg = new DOMParser().parseFromString(
+          await readBlob(previewBlob!),
+          'image/svg+xml'
+        ).documentElement
+        expect(previewSvg.getAttribute('width')).toBe('100%')
+        expect(previewSvg.hasAttribute('height')).toBe(false)
+      }
+    )
   })
 
   describe('getImageBlobFromSource', () => {

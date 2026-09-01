@@ -4579,6 +4579,7 @@
   "settings.provider.create_custom.request_preview": "Διαδρομή αιτήματος: {{path}}",
   "settings.provider.create_custom.title": "Προσθήκη Προσαρμοσμένου Παρόχου",
   "settings.provider.delete.content": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον παροχό;",
+  "settings.provider.delete.header": "Διαγραφή {{key}}",
   "settings.provider.delete.title": "Διαγραφή παρόχου",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Επιχειρησιακό)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (Διεθνές)",

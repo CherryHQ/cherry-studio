@@ -25524,7 +25524,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-4-image-2",
+      "name": "OpenAI: GPT-5.4 Image 2",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26043,7 +26045,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image",
+      "name": "OpenAI: GPT-5 Image",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -26124,7 +26128,9 @@
       },
       "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image-mini",
+      "name": "OpenAI: GPT-5 Image Mini",
       "outputModalities": ["image", "text"],
+      "ownedBy": "openrouter",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -32944,9 +32950,51 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "Claude-Fable-5",
+      "apiModelId": "claude-haiku-4.5",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-fable-5",
+      "modelId": "claude-haiku-4-5",
+      "providerId": "poe",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "extra_body.thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "claude-opus-4.5",
+      "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
+      "modelId": "claude-opus-4-5",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -33112,9 +33160,9 @@
       }
     },
     {
-      "apiModelId": "Claude-Sonnet-4.6",
+      "apiModelId": "claude-sonnet-4.5",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-sonnet-4-6",
+      "modelId": "claude-sonnet-4-5",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -33154,9 +33202,9 @@
       }
     },
     {
-      "apiModelId": "Claude-Sonnet-5",
+      "apiModelId": "Claude-Sonnet-4.6",
       "endpointTypes": ["anthropic-messages", "openai-chat-completions"],
-      "modelId": "claude-sonnet-5",
+      "modelId": "claude-sonnet-4-6",
       "providerId": "poe",
       "reasoningContracts": {
         "openai-chat-completions": {
@@ -38499,5 +38547,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "40d817144bf46fc2"
+  "version": "e480b304ca4cc435"
 }
