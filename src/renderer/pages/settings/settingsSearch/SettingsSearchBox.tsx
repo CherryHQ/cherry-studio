@@ -137,9 +137,9 @@ const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
     return () => clearTimeout(handle)
   }, [value, navigate, isSearchPage, router, performLeave])
 
-  // Full sidebar width under the header while a search session is active
+  // Expands horizontally over the header row at the standing box's width
   return (
-    <div className="fade-in slide-in-from-top-1 animate-in px-2.5 pb-1 duration-150">
+    <div className="fade-in slide-in-from-right-2 w-full animate-in duration-150">
       <SearchInput
         autoFocus
         size="sm"

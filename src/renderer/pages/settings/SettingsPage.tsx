@@ -50,11 +50,17 @@ const SettingsPage: FC = () => {
           <div
             data-ui="settings.navigation"
             className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
-            <PageHeader
-              title={t('title.settings')}
-              className="mb-1"
-              action={
-                searchOpen ? undefined : (
+            {searchOpen ? (
+              // Expanded: the field covers the whole header row at the standing
+              // box's width (same mt/h/mb rhythm so the menu never shifts)
+              <div className="mt-2 mb-1 flex h-8 shrink-0 items-center px-2.5">
+                <SettingsSearchBox onCollapse={() => setSearchOpen(false)} />
+              </div>
+            ) : (
+              <PageHeader
+                title={t('title.settings')}
+                className="mb-1"
+                action={
                   <button
                     type="button"
                     aria-label={t('settings.search.placeholder')}
@@ -62,10 +68,9 @@ const SettingsPage: FC = () => {
                     className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground">
                     <Search className="size-4" />
                   </button>
-                )
-              }
-            />
-            {searchOpen && <SettingsSearchBox onCollapse={() => setSearchOpen(false)} />}
+                }
+              />
+            )}
             <Scrollbar className="min-h-0 flex-1 select-none">
               <MenuList className={settingsSubmenuListClassName}>
                 {settingsMenu.map((item, index) => {
