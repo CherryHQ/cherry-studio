@@ -140,6 +140,32 @@ describe('SecretInput', () => {
     expect(screen.getByRole('button', { name: 'Hide credential' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('keeps a controlled numeric credential visible while the user edits it', async () => {
+    function Harness() {
+      const [value, setValue] = useState(123)
+      return (
+        <SecretInput
+          aria-label="Credential"
+          value={value}
+          onChange={(event) => setValue(Number(event.target.value))}
+          showLabel="Show credential"
+          hideLabel="Hide credential"
+        />
+      )
+    }
+
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: 'Show credential' }))
+    const input = screen.getByLabelText('Credential')
+    await user.type(input, '4')
+
+    expect(input).toHaveValue('1234')
+    expect(input).toHaveAttribute('type', 'text')
+    expect(screen.getByRole('button', { name: 'Hide credential' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('does not spellcheck a revealed credential unless the caller opts in', async () => {
     const user = userEvent.setup()
     const { rerender } = render(

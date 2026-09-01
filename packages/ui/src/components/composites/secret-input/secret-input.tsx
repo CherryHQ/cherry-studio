@@ -37,11 +37,12 @@ function SecretInput({
   ...props
 }: SecretInputProps) {
   const [isVisible, setIsVisible] = useState(false)
-  const lastUserValueRef = useRef(value)
+  const normalizedValue = value === undefined ? undefined : String(value)
+  const lastUserValueRef = useRef(normalizedValue)
   const visibilityLabel = isVisible ? hideLabel : showLabel
 
-  if (value !== undefined && value !== lastUserValueRef.current) {
-    lastUserValueRef.current = value
+  if (normalizedValue !== undefined && normalizedValue !== lastUserValueRef.current) {
+    lastUserValueRef.current = normalizedValue
     if (isVisible) {
       setIsVisible(false)
     }
