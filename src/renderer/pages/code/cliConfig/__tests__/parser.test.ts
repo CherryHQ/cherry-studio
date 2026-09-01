@@ -104,6 +104,8 @@ describe('extractConnectionFromCliConfigDraft', () => {
 
   it('preserves a direct Gemini model id containing a colon and ending in @cherry', async () => {
     const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'publisher:model@cherry')
+    const envFile = files.find((file) => file.target === 'gemini-env')!
+    envFile.content += 'GOOGLE_GENAI_API_VERSION=v1beta\n'
     expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('publisher:model@cherry')
   })
 

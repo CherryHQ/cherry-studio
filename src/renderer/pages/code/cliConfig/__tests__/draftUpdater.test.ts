@@ -320,6 +320,8 @@ describe('updateCliConfigDraftConfig', () => {
   it('preserves direct Gemini content shaped like the old gateway suffix through a config edit', async () => {
     const model = 'publisher:model@cherry'
     const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, model)
+    const envFile = files.find((file) => file.target === 'gemini-env')!
+    envFile.content += 'GOOGLE_GENAI_API_VERSION=v1beta\n'
     const updated = updateCliConfigDraftConfig(CodeCli.GEMINI_CLI, files, {
       general: { defaultApprovalMode: 'plan' }
     })

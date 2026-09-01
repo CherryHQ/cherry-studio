@@ -582,6 +582,10 @@ function parseGeminiConfigModel(model: string, allowLegacy = false): { isGateway
   return { isGateway: false, model }
 }
 
+function isLegacyGeminiGatewayConfig(env: Map<string, string>): boolean {
+  return env.get('GOOGLE_GENAI_API_VERSION') === 'v1beta' && (env.get('GEMINI_API_KEY') ?? '').startsWith('cs-sk-')
+}
+
 const geminiAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.GEMINI_CLI),
   providerBaseUrls: (provider) => [normalizeUrl(resolveGeminiBaseUrl(provider))].filter(Boolean),
@@ -623,7 +627,7 @@ const geminiAdapter: CliConfigAdapter = {
     const model = requireDraftValue(connection.model, 'Gemini model')
     const currentModel = stringValue(asRecord(settings.model).name)
     const isGateway = currentModel
-      ? parseGeminiConfigModel(currentModel, env.get('GOOGLE_GENAI_API_VERSION') === 'v1beta').isGateway
+      ? parseGeminiConfigModel(currentModel, isLegacyGeminiGatewayConfig(env)).isGateway
       : false
     const address = isGateway ? parseGatewayModelId(model) : undefined
     const settingsModel = address ? formatGeminiGatewayModelId(address.providerId, address.apiModelId) : model
@@ -672,10 +676,7 @@ const geminiAdapter: CliConfigAdapter = {
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
-      model:
-        model === undefined
-          ? model
-          : parseGeminiConfigModel(model, env.get('GOOGLE_GENAI_API_VERSION') === 'v1beta').model
+      model: model === undefined ? model : parseGeminiConfigModel(model, isLegacyGeminiGatewayConfig(env)).model
     }
   },
   extractConfig(files) {
