@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 
 import { BaseService } from '@main/core/lifecycle'
+import type * as ProcessRunner from '@main/utils/processRunner'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -41,7 +42,10 @@ vi.mock('@main/core/platform', () => ({
     return mocks.isWin
   }
 }))
-vi.mock('@main/utils/processRunner', () => ({ crossPlatformSpawn: mocks.spawn }))
+vi.mock('@main/utils/processRunner', async (importOriginal) => ({
+  ...(await importOriginal<typeof ProcessRunner>()),
+  crossPlatformSpawn: mocks.spawn
+}))
 vi.mock('@main/utils/shellEnv', () => ({
   getRawShellEnv: vi.fn(async () => ({
     PATH: '/system/bin',
@@ -207,7 +211,7 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.writeConfig).toHaveBeenCalledTimes(2)
     expect(mocks.spawn).toHaveBeenCalledWith(
       '/usr/local/bin/dsh',
-      ['web', '--host', '127.0.0.1', '--port', '0'],
+      ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'],
       expect.objectContaining({ cwd: '/mock/userData/Data/DeepSeekHarness/Workspace', detached: true })
     )
     expect(mocks.spawn.mock.calls[0][2].env).not.toHaveProperty('CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY')

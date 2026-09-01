@@ -47,8 +47,9 @@ docs above reference them:
 
 - [`adapter-family.md`](./adapter-family.md) — endpoint → `@ai-sdk/*`
   routing. (Covered also at [Provider Resolution](./provider-cluster.md).)
-- [`translate-on-main.md`](./translate-on-main.md) — translate flow,
-  why it's not chat-shape.
+- [`translate-on-main.md`](./translate-on-main.md) — historical v2 translation
+  design note; the current contract lives in the canonical
+  [Text Translation](../../../docs/references/ai/translation.md) reference.
 - [`branch-navigation.md`](./branch-navigation.md) — UX for branched
   DAG history; UX-side, not on the AiService critical path.
 - [`token-estimator-p0.md`](./token-estimator-p0.md) — backend token

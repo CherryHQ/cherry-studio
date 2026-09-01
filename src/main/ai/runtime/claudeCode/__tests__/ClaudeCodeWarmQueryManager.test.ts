@@ -198,6 +198,31 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(current)
   })
 
+  it('does not consume a warm query with different notification authority', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    const sourceContext = {
+      sourceChannel: { id: 'channel-1', type: 'telegram' as const },
+      channels: [{ id: 'channel-1', type: 'telegram' as const }],
+      allowAnyOwnedChannel: true
+    }
+
+    await manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any, notificationContext: sourceContext })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      notificationContext: {
+        sourceChannel: null,
+        channels: [{ id: 'channel-2', type: 'feishu' }],
+        allowAnyOwnedChannel: false
+      }
+    })
+
+    expect(consumed).toBeUndefined()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
   it('uses the same signature with or without abortController', () => {
     const withAbort = createClaudeCodeWarmQuerySignature({
       model: 'sonnet',
@@ -326,7 +351,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+        frozenModels: [
+          { modelId: 'sonnet', apiModelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }
+        ]
       }
     })
     const consumed = await manager.consume({
@@ -339,7 +366,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
         providerId: 'anthropic',
         providerName: 'Anthropic',
         source: null,
-        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+        frozenModels: [
+          { modelId: 'sonnet', apiModelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }
+        ]
       }
     })
 
