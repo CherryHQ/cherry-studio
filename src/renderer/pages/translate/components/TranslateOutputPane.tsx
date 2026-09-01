@@ -1,6 +1,7 @@
-import { Scrollbar } from '@cherrystudio/ui'
+import { defaultMarkdownPlugins, Scrollbar, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 import { Check, Copy, NotebookPen } from 'lucide-react'
 import type { Ref } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
@@ -8,7 +9,6 @@ import IconButton from './IconButton'
 type Props = {
   ref?: Ref<HTMLDivElement>
   translatedContent: string
-  renderedMarkdown: string
   enableMarkdown: boolean
   translating: boolean
   copied: boolean
@@ -20,7 +20,6 @@ type Props = {
 const TranslateOutputPane = ({
   ref,
   translatedContent,
-  renderedMarkdown,
   enableMarkdown,
   translating,
   copied,
@@ -29,6 +28,7 @@ const TranslateOutputPane = ({
   onScroll
 }: Props) => {
   const { t } = useTranslation()
+  const markdownPlugins = useMemo(() => ({ ...defaultMarkdownPlugins, math: withMath({ singleDollar: true }) }), [])
 
   return (
     <div
@@ -46,7 +46,15 @@ const TranslateOutputPane = ({
             </div>
           ) : translatedContent ? (
             enableMarkdown ? (
-              <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
+              // The shared streaming component memoizes completed blocks, so
+              // long documents render live without a per-frame full reparse.
+              <StreamingMarkdown
+                id="translate-output"
+                plugins={markdownPlugins}
+                animated={translating ? undefined : false}
+                parseIncompleteMarkdown={translating}>
+                {translatedContent}
+              </StreamingMarkdown>
             ) : (
               <div className="wrap-break-word whitespace-pre-wrap text-foreground">{translatedContent}</div>
             )

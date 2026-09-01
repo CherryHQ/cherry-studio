@@ -307,4 +307,50 @@ describe('useSmoothStream', () => {
 
     expect(lastText(onUpdate)).toBe('hello')
   })
+
+  it('fires onSettled once when the queue drains, not during playout', () => {
+    const onUpdate = vi.fn()
+    const onSettled = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ done }: { done: boolean }) => useSmoothStream({ onUpdate, onSettled, streamDone: done, minDelay: 0 }),
+      { initialProps: { done: false } }
+    )
+
+    act(() => result.current.addChunk('hello'))
+    act(() => tick(16, 30))
+    // still streaming: text plays out but nothing has settled
+    expect(onSettled).not.toHaveBeenCalled()
+
+    rerender({ done: true })
+    act(() => tick(16, 30))
+    expect(onSettled).toHaveBeenCalledTimes(1)
+    expect(onSettled).toHaveBeenLastCalledWith('hello')
+
+    // no further frames are scheduled, so nothing fires again
+    act(() => tick(16, 30))
+    expect(onSettled).toHaveBeenCalledTimes(1)
+  })
+
+  it('fires onSettled again when a second stream drains', () => {
+    const onUpdate = vi.fn()
+    const onSettled = vi.fn()
+    const { result, rerender } = renderHook(
+      ({ done }: { done: boolean }) => useSmoothStream({ onUpdate, onSettled, streamDone: done, minDelay: 0 }),
+      { initialProps: { done: false } }
+    )
+
+    act(() => result.current.addChunk('first'))
+    rerender({ done: true })
+    act(() => tick(16, 30))
+    expect(onSettled).toHaveBeenCalledTimes(1)
+
+    rerender({ done: false })
+    act(() => result.current.reset(''))
+    act(() => result.current.addChunk('second'))
+    rerender({ done: true })
+    act(() => tick(16, 30))
+    expect(onSettled).toHaveBeenCalledTimes(2)
+    expect(onSettled).toHaveBeenLastCalledWith('second')
+    expect(lastText(onUpdate)).toBe('second')
+  })
 })

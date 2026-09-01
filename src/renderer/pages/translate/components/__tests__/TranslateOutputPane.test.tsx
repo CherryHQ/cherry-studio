@@ -21,7 +21,10 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </div>
   ),
-  NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
+  NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  StreamingMarkdown: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  defaultMarkdownPlugins: {},
+  withMath: () => ({})
 }))
 
 const baseProps = () => ({
