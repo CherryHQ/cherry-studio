@@ -97,7 +97,7 @@ module.exports = defineConfig({
     'typescript/no-unsafe-declaration-merging': 'error',
     'typescript/no-unsafe-function-type': 'error',
     'typescript/no-unsafe-unary-minus': 'error',
-    'typescript/no-useless-default-assignment': 'off', // TODO: error — 1.76 default-warn; rule + fixes split to a dedicated PR
+    'typescript/no-useless-default-assignment': 'error',
     'typescript/no-useless-empty-export': 'error',
     'typescript/no-wrapper-object-types': 'error',
     'typescript/prefer-as-const': 'error',
