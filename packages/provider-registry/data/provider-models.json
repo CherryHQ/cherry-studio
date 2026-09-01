@@ -7061,15 +7061,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "low", "medium", "xhigh"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["none", "low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -7163,15 +7159,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "low", "medium", "xhigh"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["none", "low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -7254,15 +7246,11 @@
               {
                 "default": "xhigh",
                 "kind": "effort",
-                "values": ["low", "medium", "xhigh"]
+                "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
             "defaultEffort": "xhigh",
-            "supportedEfforts": ["low", "medium", "xhigh"],
-            "thinkingTokenLimits": {
-              "max": 262144,
-              "min": 0
-            }
+            "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
@@ -38781,5 +38769,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e14d8817b71e035f"
+  "version": "14ee574ac0c88cbe"
 }

@@ -108,6 +108,7 @@ function makeJobSnapshot(scheduleId: string | null = 's1'): JobSnapshot {
     error: null,
     parentId: null,
     cancelRequested: false,
+    cancelRequestedAt: null,
     metadata: {},
     timeoutMs: null,
     createdAt: '2026-05-20T00:00:00.000Z',
@@ -246,6 +247,45 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ sessionId: null, result: 'Skipped (disabled)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
+  // v1 gave every agent a `heartbeat` task; v2's job_schedule is UNIQUE on (type, name), so
+  // the migration renames all but the first to `task_<v1Id>` — still heartbeats, still gated.
+  it('skips a disabled heartbeat whose schedule name the migration disambiguated', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task_hb-2'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: false }))
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (disabled)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(mockStartRun).not.toHaveBeenCalled()
+  })
+
+  // Same renamed schedule, heartbeat on: it must run heartbeat.md, not hand the raw
+  // sentinel to the model (whose reply then reached every subscribed channel).
+  it('runs a disambiguated heartbeat from heartbeat.md rather than the raw sentinel', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('task_hb-2'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockReturnValueOnce({ id: 'ws-1', type: 'user', path: '/ws/a' } as never)
+    vi.mocked(readHeartbeat).mockResolvedValueOnce('check the inbox')
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+    const promise = runAgentTask(makeCtx())
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    captured.listeners[0].onDone({ status: 'completed' })
+    await promise
+
+    expect(mockStartRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userParts: [{ type: 'text', text: expect.stringContaining('check the inbox') }]
+      })
+    )
+    expect(mockStartRun).not.toHaveBeenCalledWith(
+      expect.objectContaining({ userParts: [{ type: 'text', text: '__heartbeat__' }] })
+    )
   })
 
   it('treats a built-in Assistant heartbeat like any other Agent heartbeat', async () => {

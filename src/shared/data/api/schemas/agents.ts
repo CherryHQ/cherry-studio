@@ -195,7 +195,8 @@ export const TaskRunLogEntitySchema = z.strictObject({
   scheduleId: z.string(),
   sessionId: z.string().nullable().optional(),
   startedAt: z.string(),
-  durationMs: z.number(),
+  /** null while unfinished and for runs that never started (no queue-wait shown as duration). */
+  durationMs: z.number().nullable(),
   /** JobStatus terminal set + 'running' (pending/delayed collapse to 'running' for display). */
   status: z.enum(['running', 'completed', 'failed', 'cancelled']),
   result: z.string().nullable().optional(),
