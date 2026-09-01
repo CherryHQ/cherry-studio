@@ -244,8 +244,9 @@ export class TopicNamingService {
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (nextName === (latestSession.name ?? '').trim()) return
 
-      agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      this.notifyAgentSessionAutoRenamed(sessionId)
+      if (agentSessionService.tryAutoRename(sessionId, latestSession.name ?? '', nextName)) {
+        this.notifyAgentSessionAutoRenamed(sessionId)
+      }
     } catch (error) {
       logger.warn('Failed to auto-rename agent session from first user message', {
         sessionId,
@@ -313,8 +314,9 @@ export class TopicNamingService {
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
-      agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      this.notifyAgentSessionAutoRenamed(sessionId)
+      if (agentSessionService.tryAutoRename(sessionId, latestSession.name ?? '', nextName)) {
+        this.notifyAgentSessionAutoRenamed(sessionId)
+      }
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', {
         agentId,

@@ -740,6 +740,32 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
+  tryAutoRename(id: string, expectedName: string, name: string): boolean {
+    const changed = withSqliteErrors(
+      () =>
+        application
+          .get('DbService')
+          .getDb()
+          .update(sessionsTable)
+          .set({ name, isNameManuallyEdited: false })
+          .where(
+            and(
+              eq(sessionsTable.id, id),
+              eq(sessionsTable.name, expectedName),
+              eq(sessionsTable.isNameManuallyEdited, false),
+              sql`EXISTS (
+                SELECT 1 FROM ${agentSessionMessageTable}
+                WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+              )`
+            )
+          )
+          .run().changes > 0,
+      defaultHandlersFor('Session', id)
+    )
+    if (changed) this.notifyReadModelChange([id], 'projection')
+    return changed
+  }
+
   updateTx(
     tx: DbOrTx,
     id: string,

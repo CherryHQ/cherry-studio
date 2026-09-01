@@ -275,10 +275,8 @@ const AgentChat = ({
       })
       if (!confirmed) return
       try {
-        // One abort IPC: drain + DELETE stay under the same per-topic dispatch lock.
-        await runtime.stop({ clearSessionMessages: true })
-        // Exact path: every SWR query variant + infinite key, including Global Search.
-        await invalidateCache([`/agent-sessions/${sessionSnapshot.id}/messages`])
+        await runtime.clearMessages()
+        await invalidateCache([`/agent-sessions/${sessionSnapshot.id}/messages`, '/search/contents'])
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
       }

@@ -5,7 +5,7 @@ import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
 import { createBuiltinSupportSession } from '@main/ai/agents/createBuiltinSupportSession'
-import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { AiStreamAdmissionError, WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
@@ -189,10 +189,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     const wc = senderWebContents(senderId)
     if (wc) application.get('AiStreamManager').detach(wc, request)
   },
-  'ai.stream.abort': async ({ topicId, clearSessionMessages }) => {
-    await application
-      .get('AiStreamManager')
-      .abortAndDrain(topicId, 'user-requested', clearSessionMessages ? { clearSessionMessages: true } : undefined)
+  'ai.stream.abort': async ({ topicId }) => {
+    await application.get('AiStreamManager').abortAndDrain(topicId, 'user-requested')
   },
 
   // ── Tool calls — deferred output lookup + approval decisions. ──
@@ -225,6 +223,13 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
+  },
+  'ai.agent.session.messages.clear': async ({ sessionId }) => {
+    await application
+      .get('AiStreamManager')
+      .abortAndDrain(buildAgentSessionTopicId(sessionId), 'user-requested', () => {
+        agentSessionMessageService.clearSessionMessages(sessionId)
+      })
   },
   'ai.agent.session.delete': ({ sessionIds }) =>
     application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),

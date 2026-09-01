@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
-  updateSession: vi.fn()
+  tryAutoRenameSession: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -63,7 +63,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSession,
-    update: mocks.updateSession
+    tryAutoRename: mocks.tryAutoRenameSession
   }
 }))
 
@@ -104,6 +104,7 @@ function mockRenameInputs() {
     data: { parts: [{ type: 'text', text: 'Hello there' }] }
   })
   mocks.generateText.mockResolvedValue({ text: 'Generated Title' })
+  mocks.tryAutoRenameSession.mockReturnValue(true)
 }
 
 describe('TopicNamingService', () => {
@@ -250,10 +251,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'Generated Title',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'common.unnamed', 'Generated Title')
   })
 
   it('renames default unnamed agent sessions from the first user message without generating a summary', async () => {
@@ -263,7 +261,7 @@ describe('TopicNamingService', () => {
       name: '未命名',
       isNameManuallyEdited: false
     })
-    mocks.updateSession.mockReturnValue({ id: 'session-1' })
+    mocks.tryAutoRenameSession.mockReturnValue(true)
 
     createService().maybeRenameAgentSessionFromFirstUserMessage(
       'session-1',
@@ -271,10 +269,11 @@ describe('TopicNamingService', () => {
     )
 
     expect(mocks.generateText).not.toHaveBeenCalled()
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'Please inspect the renderer startup path and sugge',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith(
+      'session-1',
+      '未命名',
+      'Please inspect the renderer startup path and sugge'
+    )
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.agent.session.auto_renamed', { sessionId: 'session-1' })
   })
 
@@ -301,10 +300,7 @@ describe('TopicNamingService', () => {
 
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
 
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'First user text',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'common.unnamed', 'First user text')
     expect(mocks.generateText).not.toHaveBeenCalled()
   })
 
@@ -315,14 +311,11 @@ describe('TopicNamingService', () => {
       name,
       isNameManuallyEdited: false
     })
-    mocks.updateSession.mockReturnValue({ id: 'session-1' })
+    mocks.tryAutoRenameSession.mockReturnValue(true)
 
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
 
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'First user text',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', name, 'First user text')
   })
 
   it('does not first-message rename a topic after a manual rename race', async () => {
@@ -428,7 +421,7 @@ describe('TopicNamingService', () => {
       name: '未命名',
       isNameManuallyEdited: false
     })
-    mocks.updateSession.mockReturnValue({ id: 'session-1' })
+    mocks.tryAutoRenameSession.mockReturnValue(true)
 
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', {
       parts: [
@@ -438,10 +431,11 @@ describe('TopicNamingService', () => {
       ]
     } as never)
 
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'Inspect renderer startup suggest fixes',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith(
+      'session-1',
+      '未命名',
+      'Inspect renderer startup suggest fixes'
+    )
   })
 
   it('does not first-message rename an agent session after a manual rename race', async () => {
@@ -462,7 +456,7 @@ describe('TopicNamingService', () => {
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'First user text')
 
     expect(mocks.getSession).toHaveBeenCalledTimes(2)
-    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.tryAutoRenameSession).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })
 
@@ -473,7 +467,7 @@ describe('TopicNamingService', () => {
       name: '未命名',
       isNameManuallyEdited: false
     })
-    mocks.updateSession.mockImplementation(() => {
+    mocks.tryAutoRenameSession.mockImplementation(() => {
       throw new Error('write failed')
     })
 
@@ -502,7 +496,7 @@ describe('TopicNamingService', () => {
       phase: 'initial',
       error
     })
-    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.tryAutoRenameSession).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })
 
@@ -516,7 +510,7 @@ describe('TopicNamingService', () => {
 
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'New user text')
 
-    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.tryAutoRenameSession).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })
 
@@ -534,7 +528,7 @@ describe('TopicNamingService', () => {
     } as never)
 
     expect(mocks.generateText).not.toHaveBeenCalled()
-    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.tryAutoRenameSession).not.toHaveBeenCalled()
   })
 
   it('allows summary rename after the first-message temporary agent session title', async () => {
@@ -550,10 +544,7 @@ describe('TopicNamingService', () => {
       parts: [{ type: 'text', text: 'Agent response' }]
     } as never)
 
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'Generated Title',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'User request', 'Generated Title')
   })
 
   it('allows summary rename after first-message extraction and summary extraction see the same message data', async () => {
@@ -572,10 +563,7 @@ describe('TopicNamingService', () => {
 
     createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', userMessageData as never)
 
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'first line second line',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'common.unnamed', 'first line second line')
 
     vi.clearAllMocks()
     mocks.getSession.mockReturnValue({
@@ -591,10 +579,7 @@ describe('TopicNamingService', () => {
       parts: [{ type: 'text', text: 'Agent response' }]
     } as never)
 
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
-      name: 'Generated Title',
-      isNameManuallyEdited: false
-    })
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'first line second line', 'Generated Title')
   })
 
   it('does not summary-rename an agent session after a manual rename race', async () => {
@@ -619,7 +604,7 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledOnce()
     expect(mocks.getSession).toHaveBeenCalledTimes(2)
-    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.tryAutoRenameSession).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })
 

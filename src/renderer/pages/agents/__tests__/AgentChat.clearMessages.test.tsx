@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
-const stopLiveTurnMock = vi.hoisted(() => vi.fn(async () => undefined))
+const clearSessionMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
 function lastInvalidateCache(): ReturnType<typeof mockUseInvalidateCache> {
@@ -84,7 +84,8 @@ vi.mock('../useAgentChatRuntimeState', () => ({
     hasOlder: false,
     loadOlder: vi.fn(),
     sendMessage: vi.fn(),
-    stop: stopLiveTurnMock,
+    stop: vi.fn(),
+    clearMessages: clearSessionMessagesMock,
     composerContext: undefined,
     streamingLayers: {},
     optimisticAskUserQuestionInputsByToolCallId: {},
@@ -181,8 +182,11 @@ describe('AgentChat clear messages command', () => {
       centered: true
     })
     await waitFor(() => {
-      expect(stopLiveTurnMock).toHaveBeenCalledExactlyOnceWith({ clearSessionMessages: true })
-      expect(invalidateCache).toHaveBeenCalledExactlyOnceWith(['/agent-sessions/session-1/messages'])
+      expect(clearSessionMessagesMock).toHaveBeenCalledOnce()
+      expect(invalidateCache).toHaveBeenCalledExactlyOnceWith([
+        '/agent-sessions/session-1/messages',
+        '/search/contents'
+      ])
     })
   })
 
@@ -195,13 +199,13 @@ describe('AgentChat clear messages command', () => {
 
     await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
-    expect(stopLiveTurnMock).not.toHaveBeenCalled()
+    expect(clearSessionMessagesMock).not.toHaveBeenCalled()
     expect(invalidateCache).not.toHaveBeenCalled()
   })
 
   it('reports a failed clear without invalidating the retained messages', async () => {
     const user = userEvent.setup()
-    stopLiveTurnMock.mockRejectedValueOnce(new Error('disk full'))
+    clearSessionMessagesMock.mockRejectedValueOnce(new Error('disk full'))
 
     renderAgentChat()
     const invalidateCache = lastInvalidateCache()
@@ -224,6 +228,6 @@ describe('AgentChat clear messages command', () => {
     await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
     expect(fallback).toHaveBeenCalledOnce()
-    expect(stopLiveTurnMock).not.toHaveBeenCalled()
+    expect(clearSessionMessagesMock).not.toHaveBeenCalled()
   })
 })

@@ -314,20 +314,6 @@ describe('useChatWithHistory', () => {
     expect(stop).toHaveBeenCalledTimes(1)
   })
 
-  it('stop({ clearSessionMessages: true }) asks abort to DELETE under the same drain lock', async () => {
-    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
-    const { result } = renderHook(() => useChatWithHistory('agent-session:session-1', [], refresh))
-
-    await act(async () => {
-      await result.current.stop({ clearSessionMessages: true })
-    })
-
-    expect(streamAbortMock).toHaveBeenCalledWith({
-      topicId: 'agent-session:session-1',
-      clearSessionMessages: true
-    })
-  })
-
   it('starts the main-process abort before stopping the local SDK stream', async () => {
     const calls: string[] = []
     streamAbortMock.mockImplementationOnce(async () => {

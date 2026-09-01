@@ -19,7 +19,7 @@ const EMPTY_EXECUTIONS: readonly ActiveExecution[] = Object.freeze([])
 export interface UseChatWithHistoryResult {
   sendMessage: (message?: { text: string; files?: FileUIPart[] }, options?: ChatRequestOptions) => Promise<void>
   regenerate: (options?: ChatRequestOptions & { messageId?: string }) => Promise<void>
-  stop: (options?: { clearSessionMessages?: boolean }) => Promise<void>
+  stop: () => Promise<void>
   error: Error | undefined
   status: ReturnType<typeof useChat<CherryUIMessage>>['status']
   setMessages: (messages: CherryUIMessage[] | ((messages: CherryUIMessage[]) => CherryUIMessage[])) => void
@@ -66,20 +66,12 @@ export function useChatWithHistory(
     experimental_throttle: 100
   })
 
-  const stop = useCallback(
-    async (options?: { clearSessionMessages?: boolean }) => {
-      const mainAbort = enabled
-        ? ipcApi.request('ai.stream.abort', {
-            topicId,
-            ...(options?.clearSessionMessages ? { clearSessionMessages: true as const } : {})
-          })
-        : Promise.resolve()
-      const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
-      if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
-      if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason
-    },
-    [enabled, sdkStop, topicId]
-  )
+  const stop = useCallback(async () => {
+    const mainAbort = enabled ? ipcApi.request('ai.stream.abort', { topicId }) : Promise.resolve()
+    const [mainAbortResult, sdkStopResult] = await Promise.allSettled([mainAbort, sdkStop()])
+    if (mainAbortResult.status === 'rejected') throw mainAbortResult.reason
+    if (sdkStopResult.status === 'rejected') throw sdkStopResult.reason
+  }, [enabled, sdkStop, topicId])
 
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh

@@ -133,13 +133,6 @@ const fakeCacheService = {
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
-const mockClearSessionMessages = vi.fn<(sessionId: string) => { deletedIds: string[] }>(() => ({ deletedIds: [] }))
-
-vi.mock('@main/data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    clearSessionMessages: (sessionId: string) => mockClearSessionMessages(sessionId)
-  }
-}))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -280,7 +273,6 @@ describe('AiStreamManager', () => {
     mockWillContinueTopic.mockReturnValue(false)
     mockAbortPendingTurn.mockReturnValue(false)
     mockGetMessageById.mockReset()
-    mockClearSessionMessages.mockReset().mockReturnValue({ deletedIds: [] })
     sharedCacheStore.clear()
   })
 
@@ -1669,7 +1661,7 @@ describe('AiStreamManager', () => {
       expect(nextTurnAdmitted).toBe(true)
     })
 
-    it('holds admission through session-message deletion so a queued run cannot be admitted then erased', async () => {
+    it('holds admission through post-drain work so a queued run cannot enter before cleanup', async () => {
       vi.useRealTimers()
       const events: string[] = []
       let releaseRuntimeClose!: () => void
@@ -1679,10 +1671,6 @@ describe('AiStreamManager', () => {
             releaseRuntimeClose = resolve
           })
       )
-      mockClearSessionMessages.mockImplementation((sessionId: string) => {
-        events.push(`clear:${sessionId}`)
-        return { deletedIds: ['assistant-1'] }
-      })
       startSingle(mgr, {
         topicId: 'agent-session:session-1',
         modelId: 'provider-a::model-a',
@@ -1690,33 +1678,20 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:agent')]
       })
 
-      const clearing = mgr.abortAndDrain('agent-session:session-1', 'user-requested', {
-        clearSessionMessages: true
+      const clearing = mgr.abortAndDrain('agent-session:session-1', 'user-requested', () => {
+        events.push('post-drain')
       })
       const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
         events.push('next-turn')
       })
 
       await flushUntil(() => mockCloseSession.mock.calls.length === 1)
-      expect(mockClearSessionMessages).not.toHaveBeenCalled()
       expect(events).toEqual([])
 
       releaseRuntimeClose()
       await expect(clearing).resolves.toBeUndefined()
       await expect(nextTurn).resolves.toBeUndefined()
-      expect(events).toEqual(['clear:session-1', 'next-turn'])
-    })
-
-    it('does not delete Agent Session messages on a plain abort', async () => {
-      startSingle(mgr, {
-        topicId: 'agent-session:session-1',
-        modelId: 'provider-a::model-a',
-        request: req('agent-session:session-1'),
-        listeners: [new FakeListener('l:agent')]
-      })
-
-      await mgr.abortAndDrain('agent-session:session-1', 'user-requested')
-      expect(mockClearSessionMessages).not.toHaveBeenCalled()
+      expect(events).toEqual(['post-drain', 'next-turn'])
     })
   })
 

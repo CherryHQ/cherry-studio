@@ -15,7 +15,6 @@ import {
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
-import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
 import type { SourceSnapshot } from '@main/data/services/AiUsageRecordService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -1197,16 +1196,8 @@ export class AiStreamManager extends BaseService {
     stream.status = 'aborted'
   }
 
-  /**
-   * Abort a user-visible topic and hold same-topic admission until its durable teardown settles.
-   * When `clearSessionMessages` is set on an Agent Session topic, DELETE runs in the same lock
-   * hold so a queued delivery cannot be admitted and then erased.
-   */
-  async abortAndDrain(
-    topicId: string,
-    reason: string,
-    options?: { readonly clearSessionMessages?: boolean }
-  ): Promise<void> {
+  /** Abort a user-visible topic and hold same-topic admission until durable teardown and cleanup settle. */
+  async abortAndDrain(topicId: string, reason: string, afterDrain?: () => void | Promise<void>): Promise<void> {
     await this.withDispatchLock(topicId, async () => {
       const stream = this.activeStreams.get(topicId)
       const loopPromises = stream ? [...stream.executions.values()].map((execution) => execution.loopPromise) : []
@@ -1237,10 +1228,8 @@ export class AiStreamManager extends BaseService {
         await drainReplacementLoops()
         await runtimeClosing
         await drainReplacementLoops()
-        if (options?.clearSessionMessages) {
-          agentSessionMessageService.clearSessionMessages(sessionId)
-        }
       }
+      await afterDrain?.()
     })
   }
 

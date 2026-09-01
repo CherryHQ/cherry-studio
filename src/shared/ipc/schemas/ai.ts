@@ -260,11 +260,7 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.stream.abort': defineRoute({
-    input: z.strictObject({
-      topicId: z.string().min(1),
-      // Agent Session clear: drain + DELETE under the same dispatch lock.
-      clearSessionMessages: z.boolean().optional()
-    }),
+    input: z.strictObject({ topicId: z.string().min(1) }),
     output: z.void()
   }),
 
@@ -316,6 +312,10 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.agent.session.close_warm': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  'ai.agent.session.messages.clear': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),

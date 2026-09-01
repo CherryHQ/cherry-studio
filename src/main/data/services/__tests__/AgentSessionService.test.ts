@@ -827,6 +827,21 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('auto-renames only while the retained session still has conversation messages', async () => {
+    const active = await createSession('Active request')
+    await insertSessionMessage(active.id, 'active-user')
+
+    expect(agentSessionService.tryAutoRename(active.id, active.name, 'Active title')).toBe(true)
+    expect(agentSessionService.getById(active.id).name).toBe('Active title')
+
+    const cleared = await createSession('Cleared request')
+    await insertSessionMessage(cleared.id, 'cleared-user')
+    await dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, cleared.id))
+
+    expect(agentSessionService.tryAutoRename(cleared.id, cleared.name, 'Stale title')).toBe(false)
+    expect(agentSessionService.getById(cleared.id).name).toBe('Cleared request')
+  })
+
   it('updates an empty session workspace', async () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')
