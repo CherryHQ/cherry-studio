@@ -72,6 +72,7 @@ export class LegacyFileCleanupPolicySeeder implements ISeeder {
       SET cleanup_policy = 'delete_when_unreferenced'
       WHERE cleanup_policy = 'manual'
         AND created_at <= ${completedAt}
+        AND updated_at <= ${completedAt}
         AND id IN (SELECT file_entry_id FROM migrated_file_ref)
       `)
     })

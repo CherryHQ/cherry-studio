@@ -459,6 +459,7 @@ describe('applyMigrations over a populated database', () => {
     const legacyPainting = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee'
     const legacyMiniApp = 'ffffffff-ffff-7fff-8fff-ffffffffffff'
     const legacyReferencedLater = 'abababab-abab-7aba-8aba-abababababab'
+    const legacyUserRetained = 'acacacac-acac-7aca-8aca-acacacacacac'
     const insertEntry = sqlite.prepare(
       `INSERT INTO file_entry
         (id, origin, name, ext, size, external_path, cleanup_policy, created_at, updated_at, deleted_at)
@@ -476,6 +477,7 @@ describe('applyMigrations over a populated database', () => {
       migrationCompletedAt - 1,
       migrationCompletedAt - 1
     )
+    insertEntry.run(legacyUserRetained, 'legacy-user-retained', migrationCompletedAt - 1, migrationCompletedAt + 1)
 
     sqlite
       .prepare(
@@ -495,6 +497,7 @@ describe('applyMigrations over a populated database', () => {
     insertProvider.run('legacy-provider', 'Legacy', 'a0', migrationCompletedAt - 1, migrationCompletedAt - 1)
     insertProvider.run('recent-provider', 'Recent', 'a1', migrationCompletedAt + 1, migrationCompletedAt + 1)
     insertProvider.run('later-provider', 'Later', 'a2', migrationCompletedAt + 1, migrationCompletedAt + 1)
+    insertProvider.run('retained-provider', 'Retained', 'a3', migrationCompletedAt - 1, migrationCompletedAt - 1)
     const insertRef = sqlite.prepare(
       `INSERT INTO provider_logo_file_ref (id, file_entry_id, source_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`
@@ -519,6 +522,13 @@ describe('applyMigrations over a populated database', () => {
       'later-provider',
       migrationCompletedAt + 1,
       migrationCompletedAt + 1
+    )
+    insertRef.run(
+      '24242424-2424-7424-8424-242424242424',
+      legacyUserRetained,
+      'retained-provider',
+      migrationCompletedAt - 1,
+      migrationCompletedAt - 1
     )
 
     sqlite
@@ -582,6 +592,7 @@ describe('applyMigrations over a populated database', () => {
       { name: 'legacy-referenced', cleanup_policy: 'delete_when_unreferenced' },
       { name: 'legacy-referenced-later', cleanup_policy: 'manual' },
       { name: 'legacy-unreferenced', cleanup_policy: 'manual' },
+      { name: 'legacy-user-retained', cleanup_policy: 'manual' },
       { name: 'recent-referenced', cleanup_policy: 'manual' }
     ])
   })
