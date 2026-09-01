@@ -129,13 +129,22 @@ type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
 
-function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
+function createServer(
+  agentId = 'agent_test',
+  workspacePath = WORKSPACE_PATH,
+  notifyChannelIds: string | string[] | null = 'ch1'
+) {
+  const trustedNotifyChannels = (Array.isArray(notifyChannelIds) ? notifyChannelIds : [notifyChannelIds]).flatMap(
+    (id) => (id ? [{ id, type: 'telegram' as const }] : [])
+  )
   // getKnowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
   return new CherryAutonomyTools({
     agentId,
     sessionId: 'session_test',
     workspaceSource: WORKSPACE_SOURCE,
     workspacePath,
+    trustedNotifyChannels,
+    allowAnyOwnedNotifyChannel: typeof notifyChannelIds === 'string',
     getKnowledgeBaseIds: () => []
   })
 }
@@ -153,6 +162,7 @@ async function callTool(
 describe('CherryAutonomyTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetChannel.mockImplementation((channelId: string) => ({ id: channelId, agentId: 'agent_1' }))
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
     mockSearchSessions.mockReturnValue([])
@@ -162,7 +172,7 @@ describe('CherryAutonomyTools', () => {
   })
 
   it('should list all tools', () => {
-    const server = createServer()
+    const server = createServer('agent_test', WORKSPACE_PATH, 'ch1')
     const tools = server.tools()
     expect(tools).toHaveLength(8)
     expect(tools.map((t) => t.name)).toEqual([
@@ -178,6 +188,24 @@ describe('CherryAutonomyTools', () => {
     expect(tools.find((tool) => tool.name === 'session_search')?.inputSchema.properties?.query).toMatchObject({
       maxLength: 4096
     })
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain('Files are first-class deliverables')
+    expect(tools.find((tool) => tool.name === 'notify')?.description).toContain(
+      'Configured recipients: telegram (ch1).'
+    )
+  })
+
+  it('hides notify for sessions without a source channel', async () => {
+    const server = createServer('agent_test', WORKSPACE_PATH, null)
+
+    expect(server.tools().map((tool) => tool.name)).not.toContain('notify')
+    expect(server.handles('notify')).toBe(true)
+
+    const result = await callTool(server, { message: 'Hello' }, 'notify')
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain(
+      'notify is unavailable because this turn has no configured notification recipients'
+    )
+    expect(mockGetNotifyAdapters).not.toHaveBeenCalled()
   })
 
   describe('session tools', () => {
@@ -465,7 +493,7 @@ describe('CherryAutonomyTools', () => {
       const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
       mockCreateTask.mockReturnValue(task)
 
-      const server = createServer('agent_1')
+      const server = createServer('agent_1', WORKSPACE_PATH, null)
       const result = await callTool(server, {
         action: 'add',
         name: 'Daily standup',
@@ -488,7 +516,7 @@ describe('CherryAutonomyTools', () => {
       const task = { id: 'task_2', name: 'check', trigger: { kind: 'interval', ms: 30 * 60_000 } }
       mockCreateTask.mockReturnValue(task)
 
-      const server = createServer('agent_2')
+      const server = createServer('agent_2', WORKSPACE_PATH, null)
       await callTool(server, {
         action: 'add',
         name: 'Health check',
@@ -509,7 +537,7 @@ describe('CherryAutonomyTools', () => {
     it('should parse hour+minute durations', async () => {
       mockCreateTask.mockReturnValue({ id: 'task_3' })
 
-      const server = createServer()
+      const server = createServer('agent_test', WORKSPACE_PATH, null)
       await callTool(server, {
         action: 'add',
         name: 'test',
@@ -528,7 +556,7 @@ describe('CherryAutonomyTools', () => {
     it('should create a one-time task with at', async () => {
       mockCreateTask.mockReturnValue({ id: 'task_4' })
 
-      const server = createServer()
+      const server = createServer('agent_test', WORKSPACE_PATH, null)
       await callTool(server, {
         action: 'add',
         name: 'Deploy',
@@ -570,8 +598,9 @@ describe('CherryAutonomyTools', () => {
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
-    it('should subscribe explicit channel_ids owned by this agent', async () => {
+    it('should subscribe an explicit live channel owned by the source-session Agent', async () => {
       mockGetChannel.mockReturnValue({ id: 'ch_own', agentId: 'agent_1' })
+      mockGetNotifyAdapters.mockReturnValue([{ channelId: 'ch_own', connected: true }])
       mockCreateTask.mockReturnValue({ id: 'task_ch' })
 
       const server = createServer('agent_1')
@@ -584,6 +613,70 @@ describe('CherryAutonomyTools', () => {
       })
 
       expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch_own'] }))
+    })
+
+    it('rejects an owned channel outside a task turn’s exact notification recipients', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_other', agentId: 'agent_1' })
+
+      const result = await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch_allowed']), {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_other']
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('treats an explicit empty channel_ids as no delivery while omission fans out', async () => {
+      mockCreateTask.mockReturnValue({ id: 'task_empty' })
+
+      await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']), {
+        action: 'add',
+        name: 'silent',
+        message: 'run',
+        cron: '* * * * *',
+        channel_ids: []
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: undefined }))
+    })
+
+    it.each([[null], ['ch1'], [{ id: 'ch1' }], [[1]]])(
+      'rejects a non-array channel_ids (%s) instead of reading it as omission',
+      async (rawChannelIds) => {
+        const result = await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']), {
+          action: 'add',
+          name: 'test',
+          message: 'run',
+          cron: '* * * * *',
+          channel_ids: rawChannelIds
+        })
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain("'channel_ids' must be an array of channel ids")
+        expect(mockCreateTask).not.toHaveBeenCalled()
+      }
+    )
+
+    it('rejects an owned but disconnected channel for a source-session turn', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_offline', agentId: 'agent_1' })
+      mockGetNotifyAdapters.mockReturnValue([{ channelId: 'ch_offline', connected: false }])
+
+      const result = await callTool(createServer('agent_1'), {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_offline']
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockCreateTask).not.toHaveBeenCalled()
     })
 
     it('should reject channel_ids owned by another agent without leaking existence', async () => {
@@ -600,6 +693,21 @@ describe('CherryAutonomyTools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain('Channel "ch_foreign" not found')
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
+
+    it('rejects default recipients that were reassigned after the turn began', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch1', agentId: 'agent_2' })
+
+      const result = await callTool(createServer('agent_1'), {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *'
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Channel "ch1" not found')
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
   })
@@ -648,18 +756,19 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('notify tool', () => {
-    function makeAdapter(channelId: string, chatIds: string[]) {
+    function makeAdapter(channelId: string, chatIds: string[], connected = true) {
       return {
         channelId,
+        connected,
         notifyChatIds: chatIds,
         sendMessage: mockSendMessage,
         sendFile: mockSendFile
       }
     }
 
-    it('should send notification to all notify adapters', async () => {
+    it('should send notification only to the source channel by default', async () => {
       mockSendMessage.mockResolvedValue(undefined)
-      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200']), makeAdapter('ch2', ['300'])])
 
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Hello user!' }, 'notify')
@@ -668,6 +777,7 @@ describe('CherryAutonomyTools', () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(2)
       expect(mockSendMessage).toHaveBeenCalledWith('100', 'Hello user!')
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Hello user!')
+      expect(mockSendMessage).not.toHaveBeenCalledWith('300', 'Hello user!')
       expect(result.content[0].text).toContain('Message sent to 2 chat(s)')
     })
 
@@ -678,18 +788,121 @@ describe('CherryAutonomyTools', () => {
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Targeted', channel_id: 'ch2' }, 'notify')
 
+      expect(mockGetNotifyAdapters).toHaveBeenCalledWith('agent_1')
       expect(mockSendMessage).toHaveBeenCalledTimes(1)
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Targeted')
       expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
     })
 
-    it('should return message when no notify channels found', async () => {
+    it('rejects an explicit source-session target outside the Agent’s live adapters', async () => {
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const result = await callTool(createServer('agent_1'), { message: 'Nope', channel_id: 'ch2' }, 'notify')
+
+      expect(mockGetNotifyAdapters).toHaveBeenCalledWith('agent_1')
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('rejects an explicit owned target whose adapter is disconnected', async () => {
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100']), makeAdapter('ch2', ['200'], false)])
+
+      const result = await callTool(createServer('agent_1'), { message: 'Nope', channel_id: 'ch2' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('revokes a trusted recipient after the channel is reassigned', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch1', agentId: 'agent_2' })
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const result = await callTool(createServer('agent_1'), { message: 'Nope' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('fans task notifications out to every configured recipient for both text and files', async () => {
+      mockSendMessage.mockResolvedValue(undefined)
+      mockSendFile.mockResolvedValue(undefined)
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100']), makeAdapter('ch2', ['200'])])
+      const workspace = await mkdtemp(path.join(tmpdir(), 'cherry-notify-fanout-'))
+      try {
+        await writeFile(path.join(workspace, 'report.txt'), 'done')
+        const result = await callTool(
+          createServer('agent_1', workspace, ['ch1', 'ch2']),
+          { message: 'Task complete', file_path: 'report.txt' },
+          'notify'
+        )
+
+        expect(mockSendMessage).toHaveBeenCalledWith('100', 'Task complete')
+        expect(mockSendMessage).toHaveBeenCalledWith('200', 'Task complete')
+        expect(mockSendFile).toHaveBeenCalledTimes(2)
+        expect(result.content[0].text).toContain('Message sent to 2 chat(s)')
+        expect(result.content[0].text).toContain('File "report.txt" sent to 2 chat(s)')
+      } finally {
+        await rm(workspace, { recursive: true, force: true })
+      }
+    })
+
+    it('allows a task to select one configured recipient and rejects an explicit cross-Agent channel outside its exact target set', async () => {
+      mockSendMessage.mockResolvedValue(undefined)
+      mockGetNotifyAdapters.mockReturnValue([
+        makeAdapter('ch1', ['100']),
+        makeAdapter('ch2', ['200']),
+        makeAdapter('foreign', ['300'])
+      ])
+      const server = createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2'])
+
+      await callTool(server, { message: 'Targeted', channel_id: 'ch2' }, 'notify')
+      expect(mockSendMessage).toHaveBeenCalledWith('200', 'Targeted')
+      expect(mockSendMessage).not.toHaveBeenCalledWith('100', 'Targeted')
+
+      const rejected = await callTool(server, { message: 'Nope', channel_id: 'foreign' }, 'notify')
+      expect(rejected.isError).toBe(true)
+      expect(rejected.content[0].text).toContain('not a configured notification recipient for this turn')
+      expect(mockSendMessage).not.toHaveBeenCalledWith('300', 'Nope')
+    })
+
+    it('defaults a cron created during a task run to every configured recipient', async () => {
+      mockCreateTask.mockReturnValue({ id: 'task-fanout' })
+      await callTool(createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']), {
+        action: 'add',
+        name: 'follow-up',
+        message: 'run',
+        every: '1h'
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch1', 'ch2'] }))
+    })
+
+    it('fails before dispatch when one configured recipient has no runtime adapter', async () => {
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const result = await callTool(
+        createServer('agent_1', WORKSPACE_PATH, ['ch1', 'ch2']),
+        { message: 'Hello' },
+        'notify'
+      )
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Configured notification recipient is unavailable: ch2')
+      expect(mockSendMessage).not.toHaveBeenCalled()
+    })
+
+    it('reports a configured recipient with no runtime adapter as unavailable', async () => {
       mockGetNotifyAdapters.mockReturnValue([])
 
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Hello' }, 'notify')
 
-      expect(result.content[0].text).toContain('No connected channels found')
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Configured notification recipient is unavailable: ch1')
+      expect(result.content[0].text).not.toContain('Configure at least one channel')
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
@@ -720,6 +933,14 @@ describe('CherryAutonomyTools', () => {
 
       expect(result.isError).toBe(true)
       expect(result.content[0].text).toContain("Provide 'message', 'file_path', or both")
+    })
+
+    it('rejects an empty explicit channel_id instead of broadcasting to configured recipients', async () => {
+      const result = await callTool(createServer(), { message: 'Hello', channel_id: '   ' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("'channel_id' must not be empty")
+      expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
     it('should report partial failures', async () => {

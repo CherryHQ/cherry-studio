@@ -271,7 +271,6 @@ const createSkillQuickPanelItems = (
     label: skill.name,
     description: skill.description ?? undefined,
     icon: <ToolCase size={16} />,
-    suffix: options.skillLabel,
     // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
     searchAliases: [options.skillLabel],
@@ -1032,7 +1031,7 @@ const AgentComposerInner = ({
     }
     const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text,
+      text: draft.text,
       tokens: draft.tokens,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
@@ -1058,9 +1057,12 @@ const AgentComposerInner = ({
 
   const persistFinalDraft = useEffectEvent(() => {
     if (!draftPersistenceEnabled || isInputHistoryActive) return
+    // Managed-sync token changes never reach `draftTokens` (isSyncingTokensRef suppresses
+    // onTokensChange), so the cache must come from one surface serialization, not the shadow state.
+    const draft = actionsRef.current.getDraft()
     writeAgentDraftCache(draftCacheKey, {
-      text,
-      tokens: draftTokensRef.current,
+      text: draft.text,
+      tokens: draft.tokens,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
       workspaceKey,
@@ -1138,18 +1140,18 @@ const AgentComposerInner = ({
     [agentId, t]
   )
 
+  const skillLabel = t('plugins.skills')
   const skillItems = useMemo<QuickPanelListItem[]>(
     () =>
       createSkillQuickPanelItems(availableSkills, {
-        skillLabel: t('plugins.skills'),
+        skillLabel,
         onInsertSkill: insertSkillToken
       }),
-    [availableSkills, insertSkillToken, t]
+    [availableSkills, insertSkillToken, skillLabel]
   )
   const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
 
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
-    const skillLabel = t('plugins.skills')
     return {
       id: AGENT_SKILLS_LAUNCHER_ID,
       kind: 'panel',
@@ -1159,8 +1161,8 @@ const AgentComposerInner = ({
       icon: <ToolCase />,
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
-      rootSearchItems: skillItems,
-      action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      rootSearchItems: skillItems.map((item) => ({ ...item, suffix: skillLabel })),
+      action: ({ parentPanel, queryAnchor, quickPanel }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
         })
@@ -1170,11 +1172,12 @@ const AgentComposerInner = ({
           symbol: AGENT_SKILLS_LAUNCHER_ID,
           parentPanel,
           queryAnchor,
-          triggerInfo: triggerInfo ?? { type: 'button' }
+          triggerInfo: { type: 'button' },
+          trackInputQuery: true
         })
       }
     }
-  }, [refreshAvailableSkills, skillItems, skillPanelItems, t])
+  }, [refreshAvailableSkills, skillItems, skillLabel, skillPanelItems])
 
   useEffect(
     () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
