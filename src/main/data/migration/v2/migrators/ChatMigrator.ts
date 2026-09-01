@@ -1045,12 +1045,8 @@ export class ChatMigrator extends BaseMigrator {
     // later duplicate-ID rewrite from invalidating parent and active-node refs.
     const oldMessages = this.normalizeMessageIds(oldTopic.messages || [], oldTopic.id)
 
-    // Build message tree structure
-    const messageTree = buildMessageTree(oldMessages)
-
     // === First pass: identify messages to skip (no blocks) ===
     const skippedMessageIds = new Set<string>()
-    const messageParentMap = new Map<string, string | null>() // messageId -> parentId
 
     for (const oldMsg of oldMessages) {
       const blockIds = oldMsg.blocks || []
@@ -1068,10 +1064,6 @@ export class ChatMigrator extends BaseMigrator {
         }
       }
 
-      // Store parent info from tree
-      const treeInfo = messageTree.get(oldMsg.id)
-      messageParentMap.set(oldMsg.id, treeInfo?.parentId ?? null)
-
       // Clear-context markers intentionally have no blocks and must remain in
       // the migrated tree. Other empty messages keep the legacy skip rule.
       if (blocks.length === 0 && oldMsg.type !== 'clear') {
@@ -1080,23 +1072,8 @@ export class ChatMigrator extends BaseMigrator {
       }
     }
 
-    // === Helper: resolve parent through skipped messages ===
-    // If parentId points to a skipped message, follow the chain to find a non-skipped ancestor
-    const resolveParentId = (parentId: string | null): string | null => {
-      let currentParent = parentId
-      const visited = new Set<string>() // Prevent infinite loops
-
-      while (currentParent && skippedMessageIds.has(currentParent)) {
-        if (visited.has(currentParent)) {
-          // Circular reference, break out
-          return null
-        }
-        visited.add(currentParent)
-        currentParent = messageParentMap.get(currentParent) ?? null
-      }
-
-      return currentParent
-    }
+    const migratableMessages = oldMessages.filter((message) => !skippedMessageIds.has(message.id))
+    const messageTree = buildMessageTree(migratableMessages)
 
     // === Second pass: transform messages that have blocks ===
     const newMessages: NewMessage[] = []
@@ -1118,12 +1095,9 @@ export class ChatMigrator extends BaseMigrator {
         const blockIds = oldMsg.blocks || []
         const blocks = this.resolveBlockIds(blockIds)
 
-        // Resolve parentId through any skipped messages
-        const resolvedParentId = resolveParentId(treeInfo.parentId)
-
         const newMsg = await transformMessage(
           oldMsg,
-          resolvedParentId, // Use resolved parent instead of original
+          treeInfo.parentId,
           treeInfo.siblingsGroupId,
           blocks,
           oldTopic.id,
@@ -1147,35 +1121,25 @@ export class ChatMigrator extends BaseMigrator {
       }
     }
 
-    // Fix dangling parentIds from second-pass skips (transform failure).
-    // resolveParentId only handles first-pass skips; if a message passed the first
-    // pass (had blocks) but failed transform, its children still reference it.
-    // Walk the ancestor chain to find the nearest migrated parent.
     const migratedMessageIds = new Set(newMessages.map((m) => m.id))
+    const migratedSourceMessages = migratableMessages.filter((message) => migratedMessageIds.has(message.id))
+    const migratedMessageTree = buildMessageTree(migratedSourceMessages)
+
     for (const msg of newMessages) {
-      if (msg.parentId && !migratedMessageIds.has(msg.parentId)) {
-        let ancestor = messageParentMap.get(msg.parentId) ?? null
-        const visited = new Set<string>([msg.parentId])
-        while (ancestor && !migratedMessageIds.has(ancestor)) {
-          if (visited.has(ancestor)) break
-          visited.add(ancestor)
-          ancestor = messageParentMap.get(ancestor) ?? null
-        }
-        if (ancestor) {
-          logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${ancestor}`)
+      const treeInfo = migratedMessageTree.get(msg.id)!
+      if (msg.parentId && msg.parentId !== treeInfo.parentId) {
+        if (treeInfo.parentId) {
+          logger.warn(`Resolved dangling parentId for message ${msg.id}: ${msg.parentId} → ${treeInfo.parentId}`)
         } else {
-          logger.warn(
-            `No migrated ancestor found for message ${msg.id} (original parentId: ${msg.parentId}), setting as root`
-          )
+          logger.warn(`No migrated parent found for message ${msg.id}, setting as root`)
           this.promotedToRootCount++
         }
-        msg.parentId = ancestor
       }
+      msg.parentId = treeInfo.parentId
+      msg.siblingsGroupId = treeInfo.siblingsGroupId
     }
 
-    // Recompute from surviving source rows so a skipped useful response falls
-    // back within its own terminal group instead of selecting an older group.
-    const activeNodeId = findActiveNodeId(oldMessages.filter((message) => migratedMessageIds.has(message.id)))
+    const activeNodeId = findActiveNodeId(migratedSourceMessages)
 
     // Transform topic with correct activeNodeId
     const newTopic = transformTopic(

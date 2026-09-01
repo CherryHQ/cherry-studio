@@ -150,6 +150,22 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.activeNodeId).toBe('a3')
   })
 
+  it('links a later user to a surviving sibling when the useful response is skipped', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const b4 = block('b4', 'u2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('a1', 'assistant', ['b2'], { askId: 'u1' }),
+      msg('a2', 'assistant', ['missing-block'], { askId: 'u1', useful: true }),
+      msg('u2', 'user', ['b4'])
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2, b4])
+
+    expect(toMsgMap(result?.messages ?? []).get('u2')?.parentId).toBe('a1')
+  })
+
   it('derives v1 topic activity from imported user creation and assistant completion times', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'a1')
