@@ -959,9 +959,10 @@ export function Topics({
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        // Same broadcast race as single-topic delete (#19583): a collapsed ('') mirror
-        // means the selection was nuked mid-delete — reselect instead of skipping.
-        if (deletedActiveTopicId && (!activeTopicIdRef.current || activeTopicIdRef.current === deletedActiveTopicId)) {
+        // Reselect while the current selection is dead — empty, or switched mid-delete to
+        // another topic of the same deleted set (it strands otherwise, #19583).
+        const currentActiveTopicId = activeTopicIdRef.current
+        if (deletedActiveTopicId && (!currentActiveTopicId || latestTargetTopicIds.has(currentActiveTopicId))) {
           if (replacement) setActiveTopic(replacement)
           else clearActiveTopic()
         }

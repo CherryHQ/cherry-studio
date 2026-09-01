@@ -516,7 +516,7 @@ describe('TopicService', () => {
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
-    it('scopes batch-delete by-id effects per deleted id', async () => {
+    it('emits one broadcast-wide by-id effect for batch deletes and a scoped one for single deletes', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 'topic-1', name: 'Topic 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'topic-2', name: 'Topic 2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
@@ -524,12 +524,20 @@ describe('TopicService', () => {
 
       notifyDataApiDataChangeMock.mockClear()
       topicService.deleteByIds(['topic-1', 'topic-2'])
-
       expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
         { endpoint: '/topics', kind: 'membership', entityIds: ['topic-1', 'topic-2'] },
         { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-1', 'topic-2'] },
-        { endpoint: '/topics/:id', routeParams: { id: 'topic-1' }, entityIds: ['topic-1'] },
-        { endpoint: '/topics/:id', routeParams: { id: 'topic-2' }, entityIds: ['topic-2'] },
+        { endpoint: '/topics/:id', entityIds: ['topic-1', 'topic-2'] },
+        { endpoint: '/topics/latest' }
+      ])
+
+      await dbh.db.insert(topicTable).values({ id: 'topic-3', name: 'Topic 3', orderKey: 'a2', createdAt: 1, updatedAt: 1 })
+      notifyDataApiDataChangeMock.mockClear()
+      topicService.deleteByIds(['topic-3'])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        { endpoint: '/topics', kind: 'membership', entityIds: ['topic-3'] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: ['topic-3'] },
+        { endpoint: '/topics/:id', routeParams: { id: 'topic-3' }, entityIds: ['topic-3'] },
         { endpoint: '/topics/latest' }
       ])
     })

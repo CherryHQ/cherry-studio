@@ -2240,6 +2240,81 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
+  it('reselects a live replacement when the selection switches into the assistant delete set mid-delete', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a1-first',
+              name: 'A1 First',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-a1-second',
+              name: 'A1 Second',
+              assistantId: 'assistant-1',
+              orderKey: 'b',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-b-live',
+              name: 'B Live',
+              assistantId: 'assistant-2',
+              orderKey: 'c',
+              createdAt: '2026-01-04T01:00:00.000Z',
+              updatedAt: '2026-01-04T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    let resolveDelete!: (value: { deletedIds: string[]; deletedCount: number }) => void
+    topicDataMocks.deleteTopicsByAssistantId.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+
+    const { rerenderTopicList, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' })
+    })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+
+    // Mid-delete switch to another topic of the same (deleted) set — it dies with the batch.
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({ id: 'topic-a1-first', assistantId: 'assistant-1', name: 'A1 First' })
+    )
+    await act(async () => {
+      resolveDelete({ deletedIds: ['topic-a1-first', 'topic-a1-second'], deletedCount: 2 })
+    })
+
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-live' }))
+    )
+  })
+
   it('switches to another assistant latest topic after deleting the active assistant last topic in the right panel', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [

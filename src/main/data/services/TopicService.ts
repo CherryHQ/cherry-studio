@@ -126,11 +126,13 @@ export class TopicService {
   ): void {
     if (topicIds.length === 0) return
     const entityIds = [...new Set(topicIds)]
-    // Deleted ids are terminal: scope each by-id effect to that exact id so only its
-    // subscribers revalidate; live-topic paths keep the broadcast-wide effect.
-    const byIdEffects: DataApiDataChangeEffect[] = options.deleted
-      ? entityIds.map((id) => ({ endpoint: '/topics/:id', routeParams: { id }, entityIds: [id] }))
-      : [{ endpoint: '/topics/:id', entityIds }]
+    // A terminal single delete scopes its by-id effect to that exact id; batches keep
+    // one broadcast-wide entry per the shared data-change contract (batch = one entry,
+    // and one entry can carry only one routeParams).
+    const byIdEffects: DataApiDataChangeEffect[] =
+      options.deleted && entityIds.length === 1
+        ? [{ endpoint: '/topics/:id', routeParams: { id: entityIds[0] }, entityIds }]
+        : [{ endpoint: '/topics/:id', entityIds }]
     notifyDataApiDataChange([
       { endpoint: '/topics', kind, entityIds },
       { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
