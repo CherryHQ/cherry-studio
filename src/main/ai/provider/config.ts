@@ -38,7 +38,7 @@ import { isEmpty } from 'es-toolkit/compat'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
-import { customFetch } from '../utils/customFetch'
+import { customFetch, resolveDefaultFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
@@ -385,7 +385,9 @@ export async function resolveProviderAiSdkConfig(
   // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
-  config.providerSettings.fetch ??= customFetch
+  // On React Native the default fetch cannot stream, so prefer expo/fetch when
+  // available; otherwise the SDK throws "does not support streaming".
+  config.providerSettings.fetch ??= resolveDefaultFetch()
 
   return {
     config,
