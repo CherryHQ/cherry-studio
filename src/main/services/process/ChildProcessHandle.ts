@@ -83,6 +83,9 @@ export class ChildProcessHandle {
     try {
       const shellEnv = await Promise.race([getShellEnv(), cancelled])
       const env = this.def.env ? { ...shellEnv, ...this.def.env } : shellEnv
+      for (const name of Object.keys(env)) {
+        if (env[name] === undefined) delete env[name]
+      }
       child = crossPlatformSpawn(this.def.command, this.def.args ?? [], {
         cwd: this.def.cwd,
         env,

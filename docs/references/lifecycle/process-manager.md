@@ -52,7 +52,7 @@ interface ChildProcessOptions {
   args?: string[]
   cwd?: string
   detached?: boolean
-  env?: Record<string, string>
+  env?: NodeJS.ProcessEnv
   killTimeoutMs?: number
   stdio?: StdioOptions
   skipOnStop?: boolean
@@ -60,7 +60,7 @@ interface ChildProcessOptions {
 ```
 
 - `id` is unique within `ProcessManager` until the handle is unregistered.
-- `env` is merged over the user's shell environment.
+- `env` is merged over the user's shell environment. An `undefined` value explicitly removes that variable from the spawned environment.
 - `detached` enables process-tree termination and calls `unref()` after spawn.
 - `killTimeoutMs` is the total graceful-plus-forced termination budget. The default is 4 seconds so shutdown remains inside the lifecycle service ceiling.
 - `skipOnStop` excludes a handle from the manager's application-shutdown sweep. The owning service must provide another reliable owner before using it.

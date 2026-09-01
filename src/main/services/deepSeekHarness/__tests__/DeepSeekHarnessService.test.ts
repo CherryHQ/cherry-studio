@@ -47,7 +47,12 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => ({
   crossPlatformSpawn: mocks.spawn
 }))
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: vi.fn(async () => ({})),
+  getShellEnv: vi.fn(async () => ({
+    PATH: '/system/bin',
+    CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY: 'stale-inherited-key',
+    CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY: 'stale-gateway-key',
+    CHERRY_STUDIO_CODEMATE_USER_API_KEY: 'unrelated'
+  })),
   getRawShellEnv: vi.fn(async () => ({
     PATH: '/system/bin',
     CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY: 'stale-inherited-key',

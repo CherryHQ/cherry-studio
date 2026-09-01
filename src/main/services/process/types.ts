@@ -24,7 +24,7 @@ export interface ChildProcessOptions {
   args?: string[]
   cwd?: string
   detached?: boolean
-  env?: Record<string, string>
+  env?: NodeJS.ProcessEnv
   killTimeoutMs?: number
   stdio?: StdioOptions
   skipOnStop?: boolean

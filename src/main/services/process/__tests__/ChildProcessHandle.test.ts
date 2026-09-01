@@ -152,6 +152,21 @@ describe('ChildProcessHandle', () => {
       expect(mockSpawn).not.toHaveBeenCalled()
       expect(handle.state).toBe('stopped')
     })
+
+    it('removes shell environment variables explicitly unset by the caller', async () => {
+      mockGetShellEnv.mockResolvedValueOnce({ PATH: '/usr/bin', MANAGED_SECRET: 'stale-secret' })
+      const mockCp = createMockChildProcess()
+      mockSpawn.mockReturnValue(mockCp)
+      const handle = new ChildProcessHandle({
+        id: 'unset-env',
+        command: 'node',
+        env: { MANAGED_SECRET: undefined }
+      })
+
+      await handle.start()
+
+      expect(mockSpawn.mock.calls[0][2].env).not.toHaveProperty('MANAGED_SECRET')
+    })
   })
 
   describe('process exit', () => {

@@ -276,13 +276,13 @@ export class DeepSeekHarnessService extends BaseService {
     permissionMode: DeepSeekHarnessPermissionMode,
     signal: AbortSignal
   ): Promise<string> {
-    const env = {
+    const env: NodeJS.ProcessEnv = {
       ...runtime.env,
       DSH_HOME: application.getPath('external.deepseek_harness.config'),
       DSH_PERMISSION_MODE: permissionMode
     }
     for (const name of Object.keys(env)) {
-      if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
+      if (MANAGED_CREDENTIAL_ENV.test(name)) env[name] = undefined
     }
 
     const pm = application.get('ProcessManager')

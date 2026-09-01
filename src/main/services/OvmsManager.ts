@@ -125,10 +125,7 @@ export class OvmsManager extends BaseService {
       const handle = pm.get('ovms-server')
 
       const managedWasActive =
-        handle !== undefined &&
-        (handle.state === ProcessState.Starting ||
-          handle.state === ProcessState.Running ||
-          handle.state === ProcessState.Stopping)
+        handle !== undefined && (handle.state === ProcessState.Running || handle.state === ProcessState.Stopping)
 
       if (handle) {
         await handle.stop()
