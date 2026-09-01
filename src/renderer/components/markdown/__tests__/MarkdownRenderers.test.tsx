@@ -12,9 +12,9 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
-  CodeBlockView: ({ children, showToolbar }: PropsWithChildren<{ showToolbar?: boolean }>) => (
+  CodeBlockView: ({ children, showToolbar = true }: PropsWithChildren<{ showToolbar?: boolean }>) => (
     <div>
-      {showToolbar ? <button type="button">Diagram actions</button> : null}
+      {showToolbar ? <button type="button">Code actions</button> : null}
       <code>{children}</code>
     </div>
   )
@@ -126,13 +126,23 @@ describe('MarkdownRenderers', () => {
     expect(fallback).toHaveStyle({ width: '240px', height: '120px' })
   })
 
-  it('keeps diagram actions available for Mermaid previews', () => {
+  it('keeps code actions available for ordinary fenced code blocks', () => {
+    render(
+      <Renderer name="code" className="language-javascript">
+        {'const value = 1\n'}
+      </Renderer>
+    )
+
+    expect(screen.getByRole('button', { name: 'Code actions' })).toBeInTheDocument()
+  })
+
+  it('keeps code actions available for Mermaid previews', () => {
     render(
       <Renderer name="code" className="language-mermaid">
         {'graph TD; A-->B\n'}
       </Renderer>
     )
 
-    expect(screen.getByRole('button', { name: 'Diagram actions' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Code actions' })).toBeInTheDocument()
   })
 })

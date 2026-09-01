@@ -776,12 +776,8 @@
 .markdown mjx-container[display='true'] {
   display: block;
   margin: 1em 0;
-  padding: 0.8em 1em;
   overflow-x: auto;
   overflow-y: hidden;
-  background: var(--markdown-content-background);
-  border: 0.5px solid var(--markdown-border-color);
-  border-radius: var(--radius-lg);
   text-align: center;
 }
 

@@ -1,6 +1,5 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
-import { SPECIAL_VIEWS } from '@renderer/components/CodeBlockView/constants'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
 import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
@@ -170,11 +169,7 @@ function MarkdownCodeRenderer({ children: rawChildren, className, node: _node }:
   }
 
   return (
-    <CodeBlockView
-      language={language}
-      editable={false}
-      isStreaming={isIncomplete}
-      showToolbar={SPECIAL_VIEWS.includes(language)}>
+    <CodeBlockView language={language} editable={false} isStreaming={isIncomplete}>
       {children}
     </CodeBlockView>
   )
