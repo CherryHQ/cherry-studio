@@ -10,9 +10,6 @@
  *
  */
 
-import officeParser from 'officeparser'
-import WordExtractor from 'word-extractor'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { decodeTextBufferIfText } from '@main/utils/file'

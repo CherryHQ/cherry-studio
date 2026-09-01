@@ -2,8 +2,6 @@ import { openAsBlob } from 'node:fs'
 
 import { net } from 'electron'
 
-import { MB } from '@shared/utils/constants'
-
 import type { PreparedOpenMineruContext } from './types'
 
 export async function executeTask(context: PreparedOpenMineruContext): Promise<Response> {

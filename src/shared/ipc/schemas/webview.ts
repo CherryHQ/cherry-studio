@@ -1,7 +1,5 @@
 import * as z from 'zod'
 
-import type { WebviewKeyEvent } from '@shared/types/webview'
-
 import { defineRoute } from '../define'
 
 /**
