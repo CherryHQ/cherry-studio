@@ -1,19 +1,24 @@
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
 import {
   cancelMock,
+  copyFileIntoKnowledgeBaseAtMock,
   createCtx,
   createDirectoryItem,
   createFileItem,
   createJobSnapshot,
   createNoteItem,
   createReindexSubtreeJobHandler,
+  createUrlItem,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
+  fetchKnowledgeWebPageMock,
   FILE_ITEM_ID,
+  FILE_RELATIVE_PATH,
   ingestionService,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
@@ -22,7 +27,8 @@ import {
   listMock,
   loggerWarnMock,
   probeKnowledgeSourcePathMock,
-  scheduleItemMock
+  scheduleItemMock,
+  writeFileIntoKnowledgeBaseAtMock
 } from './jobHandlerTestUtils'
 
 describe('reindex-subtree job handler', () => {
@@ -44,7 +50,7 @@ describe('reindex-subtree job handler', () => {
     expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
-    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job', { forceFileReprocess: true })
     // A clean rebuild with nothing skipped omits skippedMissingSource entirely (exact-object match).
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 1 })
   })
@@ -176,7 +182,7 @@ describe('reindex-subtree job handler', () => {
       }
     )
     probeKnowledgeSourcePathMock.mockImplementation(async (absolutePath: string) =>
-      absolutePath === 'dir-1' ? 'readable' : 'missing'
+      absolutePath === '/dir-1' ? 'readable' : 'missing'
     )
 
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1', 'dir-2'] }, 'reindex-job')
@@ -188,8 +194,8 @@ describe('reindex-subtree job handler', () => {
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-2', 'preparing')
-    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
-    expect(scheduleItemMock).not.toHaveBeenCalledWith('kb-1', 'dir-2', 'reindex-job')
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job', { forceFileReprocess: true })
+    expect(scheduleItemMock).not.toHaveBeenCalledWith('kb-1', 'dir-2', 'reindex-job', { forceFileReprocess: true })
     expect(loggerWarnMock).toHaveBeenCalledWith(
       'Skipping reindex for roots whose source could not be read before the mutation lock',
       expect.objectContaining({ baseId: 'kb-1', missingSourceRootIds: ['dir-2'], jobId: 'reindex-job' })
@@ -213,7 +219,84 @@ describe('reindex-subtree job handler', () => {
 
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
-    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job')
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job', { forceFileReprocess: true })
+  })
+
+  it('re-copies a file root from the user’s original before its index is torn down', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createFileItem(FILE_ITEM_ID)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }, 'reindex-job'))
+
+    // Overwrites the pinned relativePath rather than reserving a new name — otherwise every
+    // refresh would mint a `source_1.pdf` twin and orphan the previous copy.
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
+      'kb-1',
+      '/docs/source.pdf',
+      FILE_RELATIVE_PATH,
+      expect.objectContaining({ overwrite: true })
+    )
+    expect(copyFileIntoKnowledgeBaseAtMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteMaterialsMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('re-fetches a url root and overwrites its captured snapshot with the new page', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createUrlItem('url-1', 'example-page.md' as PosixRelativeFilePath)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
+    fetchKnowledgeWebPageMock.mockResolvedValue({ title: 'Updated', markdown: '# Updated\n\nfresh body' })
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['url-1'] }, 'reindex-job'))
+
+    expect(fetchKnowledgeWebPageMock).toHaveBeenCalledWith('https://example.com', expect.anything())
+    const [baseId, relativePath, fileText, options] = writeFileIntoKnowledgeBaseAtMock.mock.calls[0]
+    expect([baseId, relativePath, options]).toEqual(['kb-1', 'example-page.md', { overwrite: true }])
+    expect(fileText).toContain('fresh body')
+  })
+
+  it('rewrites a note root’s snapshot from data.content, the note’s source of truth', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createNoteItem('note-1')
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'))
+
+    const [baseId, relativePath, fileText, options] = writeFileIntoKnowledgeBaseAtMock.mock.calls[0]
+    expect([baseId, relativePath, options]).toEqual(['kb-1', 'note-1.md', { overwrite: true }])
+    expect(fileText).toContain('hello note-1')
+  })
+
+  it('leaves a never-captured url to the index job’s first-index capture instead of re-acquiring', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createUrlItem('url-1')
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['url-1'] }, 'reindex-job'))
+
+    expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
+    expect(writeFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'url-1', 'reindex-job', { forceFileReprocess: true })
+  })
+
+  it('fails a url root loudly when its page can no longer be fetched, before anything is reset', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createUrlItem('url-1', 'example-page.md' as PosixRelativeFilePath)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([root])
+    fetchKnowledgeWebPageMock.mockRejectedValue(new Error('404 Not Found'))
+
+    await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['url-1'] }, 'reindex-job'))).rejects.toThrow(
+      '404 Not Found'
+    )
+
+    // The root is still `completed` at this point, so the reset-side onSettled recovery would never
+    // pick it up — without this explicit flip the user's refresh click would look like a no-op.
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-1'], 'failed', {
+      error: '404 Not Found'
+    })
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+    expect(scheduleItemMock).not.toHaveBeenCalled()
   })
 
   it('marks only unscheduled reset roots failed when rescheduling fails', async () => {
@@ -256,7 +339,7 @@ describe('reindex-subtree job handler', () => {
       }
     )
     probeKnowledgeSourcePathMock.mockImplementation(async (absolutePath: string) =>
-      absolutePath === 'dir-1' ? 'readable' : 'missing'
+      absolutePath === '/dir-1' ? 'readable' : 'missing'
     )
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
 

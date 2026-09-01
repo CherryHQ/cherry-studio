@@ -267,7 +267,7 @@ function createDirectoryItem(
     baseId: 'kb-1',
     groupId,
     type: 'directory',
-    data: { source: id },
+    data: { source: `/${id}` },
     ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -1137,7 +1137,7 @@ describe('KnowledgeService', () => {
     it('rejects a backfill when a root item source no longer exists, without committing the model', async () => {
       const service = new KnowledgeService()
       const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
-      probeKnowledgeFileMock.mockResolvedValue('missing')
+      probeKnowledgeSourcePathMock.mockResolvedValue('missing')
       knowledgeItemGetRootItemsByBaseIdMock.mockReturnValue([root])
       knowledgeItemGetByIdMock.mockReturnValue(root)
       knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -1847,10 +1847,13 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
   })
 
-  it('rejects reindex of a file whose source file no longer exists on disk', async () => {
+  it('rejects reindex of a file whose original file no longer exists on disk', async () => {
     const service = new KnowledgeService()
+    // Reindex re-copies the user's original over this base's copy, so the original is what must
+    // still be there — a readable copy is not enough to re-acquire from.
     const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
-    probeKnowledgeFileMock.mockResolvedValue('missing')
+    probeKnowledgeSourcePathMock.mockResolvedValue('missing')
+    probeKnowledgeFileMock.mockResolvedValue('readable')
     knowledgeItemGetByIdMock.mockReturnValue(root)
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>

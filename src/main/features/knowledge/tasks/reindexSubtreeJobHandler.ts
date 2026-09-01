@@ -5,13 +5,22 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
-import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
+import type { JobContext, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { ACTIVE_JOB_STATUSES, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED, type KnowledgeItemStatus } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
+  type KnowledgeItem,
+  type KnowledgeItemStatus
+} from '@shared/data/types/knowledge'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
-import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../items'
+import { canKnowledgeItemReacquireSource, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
+import {
+  type KnowledgeReacquireProducer,
+  type KnowledgeReacquireWrite,
+  resolveKnowledgeReacquireProducer
+} from '../pipeline/sources/reacquire'
 import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
@@ -48,10 +57,17 @@ export function createReindexSubtreeJobHandler(
 
       // Reindex is admitted only for completed/failed subtrees, but delete may win
       // after enqueue. Keep this fast path so delete remains the only preemptive action.
-      if (shouldSkipDeletingSubtreeReindex(baseId, rootItemIds, ctx.jobId)) {
+      const liveRoots = resolveReindexableRoots(baseId, rootItemIds, ctx.jobId)
+      if (!liveRoots) {
         reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
         return
       }
+
+      // Re-acquire each leaf root from its real source (a file re-copies the user's original, a url
+      // re-fetches, a note rewrites its snapshot from data.content) before the reset touches
+      // anything. The slow half runs here, off the base lock; the writes it hands back overwrite the
+      // items' pinned raw/ paths inside the lock below.
+      const reacquireWrites = await produceReacquireWrites(ctx, baseId, liveRoots)
 
       // Reset vectors, expanded children, and root statuses as one base-level mutation.
       const resetResult = await knowledgeLockManager.runExclusive(baseId, async () => {
@@ -73,7 +89,7 @@ export function createReindexSubtreeJobHandler(
         const rebuildableRoots: typeof selectedRoots = []
         const missingSourceRootIds: string[] = []
         for (const root of selectedRoots) {
-          if (await canKnowledgeItemRebuildSource(baseId, root)) {
+          if (await canKnowledgeItemReacquireSource(root)) {
             rebuildableRoots.push(root)
           } else {
             missingSourceRootIds.push(root.id)
@@ -88,6 +104,12 @@ export function createReindexSubtreeJobHandler(
         }
         if (rebuildableRoots.length === 0) {
           return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
+        }
+
+        // Land the re-acquired bytes on the pinned raw/ paths before the index is torn down, so a
+        // write failure aborts the whole reset with the old index still intact.
+        for (const root of rebuildableRoots) {
+          await reacquireWrites.get(root.id)?.(ctx.signal)
         }
 
         const rebuildableRootIds = rebuildableRoots.map((item) => item.id)
@@ -133,7 +155,11 @@ export function createReindexSubtreeJobHandler(
       try {
         for (const item of resetResult.roots) {
           ctx.signal.throwIfAborted()
-          await ingestionService.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(item.id), ctx.jobId)
+          // The re-acquired bytes made any pinned processed artifact stale, so a file that runs
+          // through the processor must run through it again rather than index the old .md.
+          await ingestionService.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(item.id), ctx.jobId, {
+            forceFileReprocess: true
+          })
           completedSchedulingRootIds.add(item.id)
         }
       } catch (error) {
@@ -173,13 +199,49 @@ export function createReindexSubtreeJobHandler(
   }
 }
 
-function shouldSkipDeletingSubtreeReindex(baseId: string, rootItemIds: string[], jobId: string): boolean {
+/** The selected root items, or null when the subtree is being deleted and reindex must stand down. */
+function resolveReindexableRoots(baseId: string, rootItemIds: string[], jobId: string): KnowledgeItem[] | null {
   const result = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
-  const isSkipped = 'skip' in result
-  if (isSkipped) {
+  if ('skip' in result) {
     logger.info('Skipping reindex-subtree for deleting subtree', { baseId, rootItemIds, jobId })
+    return null
   }
-  return isSkipped
+  return result.items.filter((item) => rootItemIds.includes(item.id))
+}
+
+/**
+ * Run every selected leaf root's re-acquisition producer (url fetch, note content check) off the
+ * base mutation lock, keyed by item id for the writes to be applied under it. A producer failure
+ * fails the job loudly — but first flips the affected roots to `failed`, because they are still
+ * `completed`/`failed` at this point and `markReindexSubtreeFailedOnSettled` only picks up roots the
+ * reset already activated; without this the user's refresh click would appear to do nothing.
+ */
+async function produceReacquireWrites(
+  ctx: JobContext<KnowledgeReindexSubtreePayload>,
+  baseId: string,
+  roots: KnowledgeItem[]
+): Promise<Map<string, KnowledgeReacquireWrite>> {
+  const producers = roots
+    .filter(isIndexableKnowledgeItem)
+    .map((item) => ({ itemId: item.id, produce: resolveKnowledgeReacquireProducer(item) }))
+    .filter((entry): entry is { itemId: string; produce: KnowledgeReacquireProducer } => entry.produce !== null)
+
+  const writes = new Map<string, KnowledgeReacquireWrite>()
+  for (const { itemId, produce } of producers) {
+    ctx.signal.throwIfAborted()
+    try {
+      writes.set(itemId, await produce(ctx.signal))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      // Mirrors the scheduling-failure path below: a shutdown abort stores the localized
+      // `indexing_interrupted` code instead of a raw `…: JobManager shutdown` string.
+      knowledgeItemService.setSubtreeStatus(baseId, [itemId], 'failed', {
+        error: ctx.signal.aborted ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED : message
+      })
+      throw error
+    }
+  }
+  return writes
 }
 
 async function markReindexSubtreeFailedOnSettled(
