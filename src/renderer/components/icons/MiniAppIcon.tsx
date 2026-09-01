@@ -97,8 +97,6 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
       )
     }
     if (appearance === 'sidebar') {
-      const imageSize = size * 0.8
-
       return (
         <span
           className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-transparent bg-white/90 dark:border-border dark:bg-transparent"
@@ -111,8 +109,8 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
           }}>
           <img
             src={src}
-            className="shrink-0 select-none object-contain"
-            style={{ width: `${imageSize}px`, height: `${imageSize}px` }}
+            className="max-w-none shrink-0 select-none object-contain"
+            style={{ width: `${size}px`, height: `${size}px` }}
             draggable={false}
             alt={app.name || 'MiniApp Icon'}
           />

@@ -69,6 +69,17 @@ describe('MiniAppIcon', () => {
     })
   })
 
+  it.each([24, 18])('fills a %dpx sidebar icon with the uploaded logo', (size) => {
+    const { container } = render(
+      <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} appearance="sidebar" size={size} />
+    )
+
+    expect(container.firstElementChild).toHaveStyle({ width: `${size}px`, height: `${size}px` })
+    const image = container.querySelector('img')
+    expect(image).toHaveStyle({ width: `${size}px`, height: `${size}px` })
+    expect(image).toHaveClass('max-w-none')
+  })
+
   it('renders image logos as contained icons without a duplicate border in plain mode', () => {
     const { container } = render(
       <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} appearance="plain" size={56} />
