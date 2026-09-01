@@ -6,13 +6,14 @@ import SettingsSearchBox from '../SettingsSearchBox'
 import { SettingsSearchDomIdsProvider, useSettingsSearchDomIds } from '../SettingsSearchDomIds'
 import { publishResults, setLiveQuery, useSettingsSearchKeyboard } from '../store'
 
-const { locationMock, navigateMock, routerMock, searchMock } = vi.hoisted(() => ({
+const { locationMock, navigateMock, routerMock, searchMock, onCollapseMock } = vi.hoisted(() => ({
   locationMock: { pathname: '/settings/general' },
   navigateMock: vi.fn(),
   routerMock: {
     history: { canGoBack: vi.fn(() => true), back: vi.fn() }
   },
-  searchMock: {} as Record<string, unknown>
+  searchMock: {} as Record<string, unknown>,
+  onCollapseMock: vi.fn()
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -63,46 +64,41 @@ describe('SettingsSearchBox', () => {
     routerMock.history.canGoBack.mockReturnValue(true)
     setLiveQuery(undefined)
     publishResults(0)
+    onCollapseMock.mockReset()
   })
 
-  // Off the search page the box renders as a collapsed icon — expand first
-  const openBox = () => {
-    fireEvent.click(screen.getByRole('button', { name: 'settings.search.placeholder' }))
-    return screen.getByTestId('search-input')
-  }
-
-  it('renders as a quiet icon until invoked, expanding on click', () => {
-    render(<SettingsSearchBox />)
-
-    // Collapsed: no combobox in the DOM, just the labeled icon button
-    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.search.placeholder' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.search.placeholder' }))
-    expect(screen.getByTestId('search-input')).toBeInTheDocument()
-  })
-
-  it('collapses on empty Escape/blur off the search page without walking history', () => {
-    render(<SettingsSearchBox />)
-    const input = openBox()
+  it('reports collapse on empty Escape/blur off the search page without walking history', () => {
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId('search-input')
 
     fireEvent.keyDown(input, { key: 'Escape' })
-    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
+    expect(onCollapseMock).toHaveBeenCalledTimes(1)
     expect(routerMock.history.back).not.toHaveBeenCalled()
 
-    openBox()
-    fireEvent.blur(screen.getByTestId('search-input'))
-    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
+    fireEvent.blur(input)
+    expect(onCollapseMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports collapse when navigation leaves the search page', () => {
+    locationMock.pathname = '/settings/search'
+    searchMock.q = 'proxy'
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+
+    locationMock.pathname = '/settings/general'
+    searchMock.q = undefined
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
+
+    expect(onCollapseMock).toHaveBeenCalledTimes(1)
   })
 
   it('does not walk history back when a deep-link dispatch lands on the search page', async () => {
-    const view = render(<SettingsSearchBox />)
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     // External dispatch navigates to /settings/search?q= while the input is
     // still empty — the seed setValue is in flight for one effect pass
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    view.rerender(<SettingsSearchBox />)
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     expect(routerMock.history.back).not.toHaveBeenCalled()
 
@@ -116,7 +112,7 @@ describe('SettingsSearchBox', () => {
   it('goes back when the user clears the box while on the search page', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    render(<SettingsSearchBox />)
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     const input = screen.getByTestId('search-input')
     expect((input as HTMLInputElement).value).toBe('proxy')
@@ -129,21 +125,21 @@ describe('SettingsSearchBox', () => {
   it('follows external ?q= updates within the same search tab', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    const view = render(<SettingsSearchBox />)
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId('search-input')
     expect((input as HTMLInputElement).value).toBe('proxy')
 
     // Same pathname, only the query param changes (history back/forward,
     // another deep link) — the input must track the URL
     searchMock.q = 'theme'
-    view.rerender(<SettingsSearchBox />)
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     expect((input as HTMLInputElement).value).toBe('theme')
   })
 
   it('publishes keystrokes to the live query store immediately (pre-debounce)', () => {
-    render(<SettingsSearchBox />)
-    const input = openBox()
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId('search-input')
     const { result } = renderHook(() => useSettingsSearchKeyboard())
 
     fireEvent.change(input, { target: { value: 'pro' } })
@@ -157,7 +153,7 @@ describe('SettingsSearchBox', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
     const { result } = renderHook(() => useSettingsSearchKeyboard())
-    const { unmount } = render(<SettingsSearchBox />)
+    const { unmount } = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     fireEvent.change(screen.getByTestId('search-input'), { target: { value: 'pro' } })
     expect(result.current.liveQuery).toBe('pro')
@@ -168,8 +164,7 @@ describe('SettingsSearchBox', () => {
   })
 
   it('does nothing when the box is empty off the search page', () => {
-    render(<SettingsSearchBox />)
-    openBox()
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     expect(routerMock.history.back).not.toHaveBeenCalled()
     expect(navigateMock).not.toHaveBeenCalled()
   })
@@ -177,7 +172,7 @@ describe('SettingsSearchBox', () => {
   it('pushes a fresh history entry for the first search after an empty-value exit', async () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    const view = render(<SettingsSearchBox />)
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
     const input = screen.getByTestId('search-input')
 
     // Clearing on the search page walks history back off it; the box is empty
@@ -188,9 +183,9 @@ describe('SettingsSearchBox', () => {
     // next search re-expands it, and that fresh session must push (not replace)
     locationMock.pathname = '/settings/general'
     searchMock.q = undefined
-    view.rerender(<SettingsSearchBox />)
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
-    fireEvent.change(openBox(), { target: { value: 'theme' } })
+    fireEvent.change(screen.getByTestId('search-input'), { target: { value: 'theme' } })
     // replace:false is the contract: back must return to the origin section
     await waitFor(
       () =>
@@ -202,8 +197,8 @@ describe('SettingsSearchBox', () => {
   })
 
   it('replaces, not pushes, the mirrored navigate after a back/forward re-entry', async () => {
-    const view = render(<SettingsSearchBox />)
-    const input = openBox()
+    const view = render(<SettingsSearchBox onCollapse={onCollapseMock} />)
+    const input = screen.getByTestId('search-input')
 
     // First session on general pushes the search entry
     fireEvent.change(input, { target: { value: 'proxy' } })
@@ -212,13 +207,13 @@ describe('SettingsSearchBox', () => {
     // The push lands; jumping to a result leaves, then browser-forward returns
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    view.rerender(<SettingsSearchBox />)
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
     locationMock.pathname = '/settings/provider'
     searchMock.q = undefined
-    view.rerender(<SettingsSearchBox />)
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    view.rerender(<SettingsSearchBox />)
+    view.rerender(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     // The URL seed re-fires the debounced mirror — landing on an existing
     // entry again must replace it, not push a duplicate behind it
@@ -229,7 +224,7 @@ describe('SettingsSearchBox', () => {
   it('leaves exactly once on Escape (the empty-pass must not navigate again)', () => {
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    render(<SettingsSearchBox />)
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     fireEvent.keyDown(screen.getByTestId('search-input'), { key: 'Escape' })
 
@@ -242,7 +237,7 @@ describe('SettingsSearchBox', () => {
     routerMock.history.canGoBack.mockReturnValue(false)
     locationMock.pathname = '/settings/search'
     searchMock.q = 'proxy'
-    render(<SettingsSearchBox />)
+    render(<SettingsSearchBox onCollapse={onCollapseMock} />)
 
     fireEvent.keyDown(screen.getByTestId('search-input'), { key: 'Escape' })
 
@@ -256,7 +251,7 @@ describe('SettingsSearchBox', () => {
     const { result } = renderHook(() => useSettingsSearchKeyboard())
     const view = render(
       <Activity mode="visible">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
     const input = screen.getByTestId('search-input')
@@ -265,12 +260,12 @@ describe('SettingsSearchBox', () => {
     fireEvent.change(input, { target: { value: 'theme' } })
     view.rerender(
       <Activity mode="hidden">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
     view.rerender(
       <Activity mode="visible">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
 
@@ -285,17 +280,17 @@ describe('SettingsSearchBox', () => {
     searchMock.q = 'proxy'
     const view = render(
       <Activity mode="visible">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
     view.rerender(
       <Activity mode="hidden">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
     view.rerender(
       <Activity mode="visible">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
 
@@ -304,7 +299,7 @@ describe('SettingsSearchBox', () => {
     searchMock.q = 'theme'
     view.rerender(
       <Activity mode="visible">
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </Activity>
     )
 
@@ -317,7 +312,7 @@ describe('SettingsSearchBox', () => {
     publishResults(3)
     render(
       <SettingsSearchDomIdsProvider>
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </SettingsSearchDomIdsProvider>
     )
     const listboxId = screen.getByTestId('search-input').getAttribute('aria-controls')
@@ -331,7 +326,7 @@ describe('SettingsSearchBox', () => {
     searchMock.q = 'proxy'
     const view = render(
       <SettingsSearchDomIdsProvider>
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </SettingsSearchDomIdsProvider>
     )
     // Zero results: the results page renders no listbox — the reference must
@@ -341,7 +336,7 @@ describe('SettingsSearchBox', () => {
     publishResults(3)
     view.rerender(
       <SettingsSearchDomIdsProvider>
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
       </SettingsSearchDomIdsProvider>
     )
     expect(screen.getByTestId('search-input').getAttribute('aria-controls')).toMatch(/^settings-search-listbox-/)
@@ -357,7 +352,7 @@ describe('SettingsSearchBox', () => {
     }
     render(
       <SettingsSearchDomIdsProvider>
-        <SettingsSearchBox />
+        <SettingsSearchBox onCollapse={onCollapseMock} />
         <ListboxProbe />
       </SettingsSearchDomIdsProvider>
     )

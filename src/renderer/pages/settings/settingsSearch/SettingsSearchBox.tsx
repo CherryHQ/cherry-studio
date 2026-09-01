@@ -1,7 +1,6 @@
 import { SearchInput } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { useLocation, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
-import { Search } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,12 +10,15 @@ import { moveActiveIndex, requestJump, setLiveQuery, useSettingsSearchKeyboard }
 const SEARCH_DEBOUNCE_MS = 150
 
 /**
- * Sidebar search input. Local state echoes keystrokes instantly; the URL is a
+ * Sidebar search field. Local state echoes keystrokes instantly; the URL is a
  * debounced mirror (per-keystroke navigation would re-persist the whole tab
  * list through the TabRouter sync loop). First debounced entry pushes onto
  * history, subsequent ones replace, so back returns to the origin section.
+ * Mounted only while a search session is active — the collapse decision (icon
+ * state) lives in the settings page; this component reports closing moments
+ * through onCollapse.
  */
-const SettingsSearchBox = () => {
+const SettingsSearchBox = ({ onCollapse }: { onCollapse: () => void }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const router = useRouter()
@@ -29,9 +31,6 @@ const SettingsSearchBox = () => {
   const { listboxId, optionDomId } = useSettingsSearchDomIds()
   const hasResults = isSearchPage && resultCount > 0
   const [value, setValue] = useState(urlQuery)
-  // Collapsed icon ↔ expanded field: the affordance sits in the header action
-  // slot; opening is user-opted-in, staying open tracks the search flow
-  const [open, setOpen] = useState(isSearchPage)
   // Tracks the previous input value across effect passes — distinguishes a
   // user-initiated clear from a deep-link seed still in flight
   const prevValueRef = useRef(value)
@@ -57,7 +56,6 @@ const SettingsSearchBox = () => {
       // already: the mirrored debounced navigate must replace, not duplicate
       hasPushedRef.current = true
       leaveInFlightRef.current = false
-      setOpen(true)
       return
     }
     // Reset even on empty-value exits (the back path skips the value check):
@@ -65,12 +63,12 @@ const SettingsSearchBox = () => {
     hasPushedRef.current = false
     leaveInFlightRef.current = false
     // Leaving the search page ends the search flow — collapse back to icon
-    setOpen(false)
+    onCollapse()
     if (value) {
       setValue('')
       setLiveQuery('')
     }
-  }, [location.pathname, isSearchPage, value])
+  }, [location.pathname, isSearchPage, value, onCollapse])
 
   // External URL updates (history back/forward, deep links in the same tab)
   // sync back into the box. Our own debounced mirrors land as urlQuery ===
@@ -139,21 +137,9 @@ const SettingsSearchBox = () => {
     return () => clearTimeout(handle)
   }, [value, navigate, isSearchPage, router, performLeave])
 
-  // Header action slot: a quiet search icon until invoked, then the field
-  if (!open) {
-    return (
-      <button
-        type="button"
-        aria-label={t('settings.search.placeholder')}
-        onClick={() => setOpen(true)}
-        className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground">
-        <Search className="size-4" />
-      </button>
-    )
-  }
-
+  // Full sidebar width under the header while a search session is active
   return (
-    <div className="fade-in slide-in-from-right-2 w-36 animate-in duration-150">
+    <div className="fade-in slide-in-from-top-1 animate-in px-2.5 pb-1 duration-150">
       <SearchInput
         autoFocus
         size="sm"
@@ -177,7 +163,7 @@ const SettingsSearchBox = () => {
         onClear={exitSearch}
         clearLabel={t('common.clear')}
         onBlur={() => {
-          if (!value && !isSearchPage) setOpen(false)
+          if (!value && !isSearchPage) onCollapse()
         }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown') {
@@ -192,7 +178,7 @@ const SettingsSearchBox = () => {
           } else if (e.key === 'Escape') {
             e.preventDefault()
             exitSearch()
-            if (!value && !isSearchPage) setOpen(false)
+            if (!value && !isSearchPage) onCollapse()
           }
         }}
       />
