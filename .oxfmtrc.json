@@ -46,6 +46,7 @@
       "@application",
       "@logger",
       "@main/",
+      "@data/",
       "@renderer/",
       "@shared/",
       "@types/",
