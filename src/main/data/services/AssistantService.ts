@@ -620,7 +620,7 @@ export class AssistantDataService {
     if (!deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
-    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership')
+    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
     pinService.notifyPurged()
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
