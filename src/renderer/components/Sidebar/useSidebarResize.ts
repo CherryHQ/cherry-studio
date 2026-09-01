@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 
 import {
-  getSidebarDisplayWidth,
   isIntermediateSidebarWidth,
   SIDEBAR_FULL_THRESHOLD,
   SIDEBAR_HIDDEN_THRESHOLD,
@@ -10,7 +9,6 @@ import {
 } from './constants'
 
 export function useSidebarResize(
-  width: number,
   setWidth: (width: number) => void,
   onResizePreview?: (width: number | null) => void,
   onResizingChange?: (resizing: boolean) => void
@@ -32,7 +30,7 @@ export function useSidebarResize(
       document.body.style.userSelect = 'none'
 
       const containerLeft = sidebarRef.current?.parentElement?.getBoundingClientRect().left ?? 0
-      const startWidth = getSidebarDisplayWidth(width)
+      const startWidth = event.clientX - containerLeft
       let lastWidth: number | null = null
 
       const commitDragWidth = (nextWidth: number) => {
@@ -82,7 +80,7 @@ export function useSidebarResize(
       document.addEventListener('mouseup', onMouseUp)
       resizeCleanupRef.current = cleanup
     },
-    [onResizePreview, onResizingChange, setWidth, width]
+    [onResizePreview, onResizingChange, setWidth]
   )
 
   return { sidebarRef, startResizing }

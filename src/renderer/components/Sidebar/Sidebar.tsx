@@ -54,7 +54,7 @@ export function Sidebar({
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview, onResizingChange)
+  const { sidebarRef, startResizing } = useSidebarResize(setWidth, onResizePreview, onResizingChange)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const contextMenuOpenRef = useRef(false)

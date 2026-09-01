@@ -119,7 +119,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 onClick={guardClick(entry.key, entry.onOpen)}
                 onMouseDown={preventMiddleClickAutoscroll}
                 onAuxClick={createAuxClickHandler(entry, guardClick)}
-                className="!text-sidebar-foreground hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground data-[active=true]:!bg-sidebar-accent data-[active=true]:!text-sidebar-accent-foreground rounded-xl"
+                className="!text-sidebar-foreground hover:!bg-sidebar-accent hover:!text-sidebar-accent-foreground focus-visible:!bg-sidebar-accent focus-visible:!text-sidebar-accent-foreground data-[active=true]:!bg-sidebar-accent data-[active=true]:!text-sidebar-accent-foreground rounded-xl"
               />
             </EntryContextMenu>
           </div>

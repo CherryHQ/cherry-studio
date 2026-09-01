@@ -387,6 +387,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
+          onResizePreview={setPreviewSidebarWidth}
           onResizingChange={setFloatingResizeActive}
           onDismiss={() => setHoverVisible(false)}
           {...sidebarProps}

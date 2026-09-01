@@ -54,6 +54,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
   const { t } = useTranslation()
   const normalizedValue = normalizeHexColor(value) ?? '#000000'
   const [draftValue, setDraftValue] = useState(normalizedValue)
+  const pickerValue = normalizeHexColor(draftValue) ?? normalizedValue
 
   useEffect(() => {
     setDraftValue(normalizedValue)
@@ -117,12 +118,12 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
           <button
             type="button"
             aria-label={ariaLabel}
-            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none hover:bg-accent focus-visible:bg-accent">
             <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-3">
-          <ColorPicker value={normalizedValue} onChange={handlePickerChange} className="gap-3">
+          <ColorPicker value={pickerValue} onChange={handlePickerChange} className="gap-3">
             <ColorPickerSelection
               aria-label={t('settings.theme.color_picker.selection')}
               className="h-40 w-full rounded-lg"

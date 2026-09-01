@@ -271,11 +271,13 @@ vi.mock('../../Sidebar', async () => {
       return isFloating ? (
         <div
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
+          data-width={width}
           data-testid="floating-sidebar">
           {typeof actions === 'function' ? actions('full') : actions}
           <button type="button" onClick={onDismiss}>
             dismiss
           </button>
+          <button type="button" data-testid="floating-preview-80" onClick={() => onResizePreview?.(80)} />
           <button type="button" data-testid="floating-resize-start" onClick={() => onResizingChange?.(true)} />
           <button type="button" data-testid="floating-resize-stop" onClick={() => onResizingChange?.(false)} />
         </div>
@@ -1022,8 +1024,25 @@ describe('app Sidebar', () => {
     fireEvent.click(screen.getByTestId('floating-resize-start'))
     expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
+    expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
+
     fireEvent.click(screen.getByTestId('floating-resize-stop'))
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
+  })
+
+  it('previews a floating resize in both sidebars without persisting it', () => {
+    mocks.sidebarWidth = 0
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'reveal' }))
+    fireEvent.click(screen.getByTestId('floating-resize-start'))
+    fireEvent.click(screen.getByTestId('floating-preview-80'))
+
+    expect(screen.getByTestId('floating-sidebar')).toHaveAttribute('data-width', '80')
+    expect(screen.getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
+    expect(mocks.setSidebarWidth).not.toHaveBeenCalled()
   })
 
   it('opens a new tab on middle-click (auxclick with button 1) on an app item', () => {

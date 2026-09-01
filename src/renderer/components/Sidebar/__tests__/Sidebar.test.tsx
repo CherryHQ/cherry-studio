@@ -234,6 +234,27 @@ describe('Sidebar resize handle', () => {
     expect(onResizingChange).toHaveBeenLastCalledWith(false)
   })
 
+  it('snaps a leftward floating resize to the icon width', () => {
+    const setWidth = vi.fn()
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={setWidth}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        isFloating
+        onResizePreview={vi.fn()}
+      />
+    )
+
+    const resizeHandle = container.querySelector('.slide-in-from-left-2 .cursor-col-resize') as HTMLElement
+    fireEvent.mouseDown(resizeHandle, { clientX: 174 })
+    fireEvent.mouseMove(document, { clientX: INTERMEDIATE_WIDTH })
+    fireEvent.mouseUp(document)
+
+    expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_ICON_WIDTH)
+  })
+
   it('previews intermediate widths and snaps release by drag direction', () => {
     const cases: Array<[number, number, number]> = [
       [SIDEBAR_ICON_WIDTH, INTERMEDIATE_WIDTH, SIDEBAR_FULL_THRESHOLD],
@@ -511,8 +532,12 @@ describe('Sidebar resize handle', () => {
     )
 
     const fullButton = screen.getByRole('button', { name: 'Chat' })
-    expect(fullButton.className).toContain('bg-sidebar-accent')
-    expect(fullButton.className).toContain('text-sidebar-accent-foreground')
+    expect(fullButton).toHaveClass(
+      'data-[active=true]:!bg-sidebar-accent',
+      'data-[active=true]:!text-sidebar-accent-foreground',
+      'focus-visible:!bg-sidebar-accent',
+      'focus-visible:!text-sidebar-accent-foreground'
+    )
     expect(fullButton.className).not.toContain('sidebar-active-bg')
   })
 

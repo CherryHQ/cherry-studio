@@ -53,6 +53,14 @@ describe('ThemeColorPicker', () => {
     expect(screen.getByRole('button', { name: 'Localized eyedropper' })).toBeInTheDocument()
   })
 
+  it('uses the swatch hover surface for keyboard focus without an outer ring', () => {
+    render(<ThemeColorPicker value="#112233" presets={[]} onChange={vi.fn()} ariaLabel="Theme color" />)
+
+    const trigger = screen.getByRole('button', { name: 'Theme color' })
+    expect(trigger).toHaveClass('hover:bg-accent', 'focus-visible:bg-accent')
+    expect(trigger).not.toHaveClass('focus-visible:ring-2')
+  })
+
   it('reverts an invalid draft color on blur', () => {
     const onChange = vi.fn()
 
@@ -117,5 +125,19 @@ describe('ThemeColorPicker', () => {
 
     expect(input).toHaveValue('#112233')
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('keeps consecutive picker adjustments relative to the latest draft', () => {
+    const onChange = vi.fn()
+
+    render(<ThemeColorPicker value="#112233" presets={[]} onChange={onChange} ariaLabel="Theme color" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Theme color' }))
+
+    const hue = screen.getByRole('slider', { name: 'Localized hue' })
+    fireEvent.keyDown(hue, { key: 'ArrowRight', shiftKey: true })
+    fireEvent.keyDown(hue, { key: 'ArrowRight', shiftKey: true })
+
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(onChange.mock.calls[1][0]).not.toBe(onChange.mock.calls[0][0])
   })
 })
