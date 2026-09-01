@@ -18,7 +18,12 @@ import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
+import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
+import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
+import { FILE_TYPE } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import {
   appendAgentAttachmentPaths,
   buildAgentUserContent,
@@ -1187,17 +1192,72 @@ async function materializeUserContent(
     preparedParts = prepared.parts
   }
 
-  const text = preparedParts
+  // Non-image first-party files (PDF, office, text) were previously sent only as
+  // absolute paths, so a model that does not call the file tool sees no content
+  // (issue #19803). Inline extracted text so visibility never depends on tool use,
+  // matching the chat pipeline's `prepareChatMessages` fallback.
+  const inlineDocumentTexts: string[] = []
+  const remainingPathParts: FileUIPart[] = []
+  for (const part of firstPartyPathParts) {
+    if (!isDocumentLikeFilePart(part)) {
+      remainingPathParts.push(part)
+      continue
+    }
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    if (!fileEntryId) {
+      remainingPathParts.push(part)
+      continue
+    }
+    const handle = part.filename ?? 'file'
+    try {
+      const extracted = await extractDocumentText(fileEntryId)
+      if (extracted === null) {
+        logger.info('Document attachment requires binary handling, falling back to path', {
+          filename: handle,
+          fileEntryId,
+          mode: 'path-fallback'
+        })
+        remainingPathParts.push(part)
+        continue
+      }
+      const trimmed = extracted.trim()
+      const body = trimmed || noExtractableTextNote(handle)
+      const cap = READ_FILE_PAGE_SIZE
+      const capped =
+        body.length > cap
+          ? `${body.slice(0, surrogateSafeEnd(body, cap))}\n\n[Truncated ${cap}/${body.length} chars — call read_file("${handle}", offset=${cap}) for the rest.]`
+          : body
+      inlineDocumentTexts.push(`Attached file "${handle}":\n${capped}`)
+      logger.info('Document attachment inlined as text', {
+        filename: handle,
+        fileEntryId,
+        mode: 'extracted-text',
+        chars: body.length
+      })
+      if (!trimmed) remainingPathParts.push(part)
+    } catch (error) {
+      logger.warn('Document extraction failed, falling back to path', error as Error, {
+        filename: handle,
+        fileEntryId,
+        mode: 'extraction-failed'
+      })
+      remainingPathParts.push(part)
+    }
+  }
+
+  const text = [preparedParts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
-    .join('\n')
+    .join('\n'), ...inlineDocumentTexts]
+    .filter(Boolean)
+    .join('\n\n')
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []
 
   for (const part of [
     ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
-    ...firstPartyPathParts,
+    ...remainingPathParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
@@ -1308,6 +1368,14 @@ async function extractAttachmentPaths(
     }
   }
   return { files, unavailable }
+}
+
+function isDocumentLikeFilePart(part: FileUIPart): boolean {
+  const filename = part.filename?.toLowerCase() ?? ''
+  const ext = filename.includes('.') ? (filename.split('.').pop() ?? '') : ''
+  if (!ext) return false
+  const fileType = getFileTypeByExt(ext)
+  return fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || ext === 'pdf'
 }
 
 function isImageFilePart(part: FileUIPart): boolean {
