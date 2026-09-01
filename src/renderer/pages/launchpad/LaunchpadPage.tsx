@@ -33,8 +33,8 @@ const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const APP_ICON_TILE_CLASS =
   'flex size-14 items-center justify-center rounded-2xl border border-border-subtle bg-transparent'
-const APP_ICON_MESH_TILE_CLASS =
-  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl bg-card bg-linear-[140deg] shadow-sm'
+const APP_ICON_SURFACE_CLASS =
+  'relative flex size-14 items-center justify-center overflow-hidden rounded-2xl border border-border-subtle bg-card'
 const APP_ICON_FRAME_CLASS =
   'relative flex size-[50px] shrink-0 items-center justify-center overflow-hidden rounded-xl select-none'
 const APP_ICON_CLASS = 'size-[50px] object-contain'
@@ -51,21 +51,6 @@ const APP_ICON_SOURCES: Record<SidebarAppId, string> = {
   code_tools: codeToolsIcon,
   notes: notesIcon
 }
-
-const APP_ICON_BACKGROUND_CLASSES: Record<SidebarAppId, string> = {
-  assistants: 'from-chart-1/20 via-chart-2/10 to-chart-3/20',
-  agents: 'from-chart-2/20 via-chart-3/10 to-chart-4/20',
-  paintings: 'from-chart-3/20 via-chart-4/10 to-chart-5/20',
-  translate: 'from-chart-4/20 via-chart-5/10 to-chart-1/20',
-  mini_app: 'from-chart-5/20 via-chart-1/10 to-chart-2/20',
-  knowledge: 'from-chart-1/20 via-chart-3/10 to-chart-5/20',
-  files: 'from-chart-2/20 via-chart-4/10 to-chart-1/20',
-  code_tools: 'from-chart-3/20 via-chart-5/10 to-chart-2/20',
-  notes: 'from-chart-4/20 via-chart-1/10 to-chart-3/20'
-}
-
-const LAUNCHPAD_ICON_GRAIN =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
 
 export default function LaunchpadPage() {
   const { t } = useTranslation()
@@ -179,7 +164,6 @@ export default function LaunchpadPage() {
             id: favorite,
             iconSrc: APP_ICON_SOURCES[favorite],
             text: t(getSidebarIconLabelKey(favorite)),
-            backgroundClassName: APP_ICON_BACKGROUND_CLASSES[favorite],
             menuItems: getAppContextMenuItems(favorite)
           }
         ]
@@ -235,13 +219,8 @@ export default function LaunchpadPage() {
         onClick={() => openLaunchpadItem(item.id)}
         className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
         <span className="relative flex size-14 items-center justify-center">
-          <span className={`${APP_ICON_MESH_TILE_CLASS} ${item.backgroundClassName}`}>
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-10 mix-blend-overlay"
-              style={{ backgroundImage: LAUNCHPAD_ICON_GRAIN }}
-            />
-            <span className={`${APP_ICON_FRAME_CLASS} z-10`}>
+          <span className={APP_ICON_SURFACE_CLASS}>
+            <span className={APP_ICON_FRAME_CLASS}>
               <img src={item.iconSrc} alt="" className={APP_ICON_CLASS} draggable={false} />
             </span>
           </span>
