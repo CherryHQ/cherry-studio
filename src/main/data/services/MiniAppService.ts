@@ -222,6 +222,13 @@ export class MiniAppService {
             )
           }
 
+          if (dto.order !== undefined && existing.status === dto.status) {
+            throw DataApiErrorFactory.validation(
+              { order: ['order requires a status change'] },
+              'Use the order endpoint when status is unchanged'
+            )
+          }
+
           const updates: Partial<InsertMiniAppRow> = {}
 
           if (dto.name !== undefined) updates.name = dto.name

@@ -343,6 +343,19 @@ describe('MiniAppService', () => {
       expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'mover', 'anchor'])
     })
 
+    it('should reject target placement when status does not change', async () => {
+      await seedCustom({ appId: 'first', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'stay', status: 'enabled', orderKey: 'a2' })
+
+      expect(() =>
+        miniAppService.update('stay', {
+          status: 'enabled',
+          order: { before: 'first' }
+        })
+      ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'stay'])
+    })
+
     it('should roll back the status change when the target placement is invalid', async () => {
       await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
       await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a5' })

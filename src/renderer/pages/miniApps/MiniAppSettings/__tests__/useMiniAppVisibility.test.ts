@@ -18,6 +18,7 @@ const stubApp = (id: string): MiniApp => ({
 const mocks = vi.hoisted(() => ({
   miniApps: [] as MiniApp[],
   disabled: [] as MiniApp[],
+  effectiveRegion: 'Global' as 'CN' | 'Global',
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   setAppStatusBulk: vi.fn().mockResolvedValue(undefined),
   reorderMiniAppsByStatus: vi.fn().mockResolvedValue(undefined)
@@ -27,6 +28,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     miniApps: mocks.miniApps,
     disabled: mocks.disabled,
+    effectiveRegion: mocks.effectiveRegion,
     updateAppStatus: mocks.updateAppStatus,
     setAppStatusBulk: mocks.setAppStatusBulk,
     reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
@@ -37,6 +39,7 @@ describe('useMiniAppVisibility', () => {
   beforeEach(() => {
     mocks.miniApps = [stubApp('a'), stubApp('b')]
     mocks.disabled = [stubApp('c')]
+    mocks.effectiveRegion = 'Global'
     mocks.updateAppStatus.mockClear()
     mocks.setAppStatusBulk.mockClear()
     mocks.reorderMiniAppsByStatus.mockClear()
@@ -123,6 +126,16 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
 
+  it('reset restores the original visible order after swap promotes a hidden app', () => {
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.swap())
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['c'])
+
+    act(() => result.current.reset())
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b', 'c'])
+  })
+
   it('swap explicitly names every row in the move and keeps pinned rows visible', () => {
     // visible includes a pinned row that must stay in the visible column AND
     // must not appear in the bulk update.
@@ -193,6 +206,19 @@ describe('useMiniAppVisibility', () => {
     act(() => result.current.show(stubApp('b')))
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('uses the current region order when restoring an app introduced by a region change', () => {
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    mocks.effectiveRegion = 'CN'
+    mocks.miniApps = [stubApp('cn-only'), ...mocks.miniApps]
+    rerender()
+
+    act(() => result.current.hide(result.current.visible[0]))
+    act(() => result.current.show(result.current.hidden.at(-1)!))
+
+    expect(result.current.visible.map((app) => app.appId)).toEqual(['cn-only', 'a', 'b'])
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {

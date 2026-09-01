@@ -72,18 +72,14 @@ function restoreHiddenMiniApps(
   hidden: MiniApp[],
   originalVisibleIds: readonly string[]
 ): MiniApp[] {
-  const known: MiniApp[] = []
-  const unknown: MiniApp[] = []
-  for (const app of hidden) {
-    if (originalVisibleIds.includes(app.appId)) known.push(withEnabledStatus(app))
-    else unknown.push(withEnabledStatus(app))
-  }
-  known.sort((a, b) => originalVisibleIds.indexOf(a.appId) - originalVisibleIds.indexOf(b.appId))
-  let next = visible
-  for (const app of known) {
-    next = insertMiniAppInOriginalOrder(next, app, originalVisibleIds)
-  }
-  return unknown.length === 0 ? next : [...next, ...unknown]
+  const originalRanks = new Map(originalVisibleIds.map((appId, index) => [appId, index]))
+  const known = [
+    ...visible.filter((app) => originalRanks.has(app.appId)),
+    ...hidden.filter((app) => originalRanks.has(app.appId)).map(withEnabledStatus)
+  ].sort((a, b) => originalRanks.get(a.appId)! - originalRanks.get(b.appId)!)
+  const introducedVisible = visible.filter((app) => !originalRanks.has(app.appId))
+  const introducedHidden = hidden.filter((app) => !originalRanks.has(app.appId)).map(withEnabledStatus)
+  return [...known, ...introducedVisible, ...introducedHidden]
 }
 
 function restoredOrderAnchor(
@@ -109,18 +105,23 @@ function restoredOrderAnchor(
  */
 export function useMiniAppVisibility() {
   const { t } = useTranslation()
-  const { miniApps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } = useMiniApps()
+  const { miniApps, disabled, effectiveRegion, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } =
+    useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniApps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
   // Snapshot the first visible ranking so hide/show is not a reorder.
   const originalVisibleIdsRef = useRef<string[]>([])
+  const originalVisibleRegionRef = useRef(effectiveRegion)
 
   useEffect(() => {
-    if (originalVisibleIdsRef.current.length === 0 && miniApps.length > 0) {
+    if (originalVisibleRegionRef.current !== effectiveRegion) {
+      originalVisibleRegionRef.current = effectiveRegion
+      originalVisibleIdsRef.current = miniApps.map((app) => app.appId)
+    } else if (originalVisibleIdsRef.current.length === 0 && miniApps.length > 0) {
       originalVisibleIdsRef.current = miniApps.map((app) => app.appId)
     }
-  }, [miniApps])
+  }, [effectiveRegion, miniApps])
 
   // Resync local optimistic state with the upstream cache, but skip the resync
   // when the membership / order / status of every row is unchanged. Reordering

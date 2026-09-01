@@ -527,6 +527,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     miniApps,
     disabled: disabledApps,
     pinned: pinnedApps,
+    effectiveRegion,
     openedKeepAliveMiniApps,
     currentMiniAppId,
     splitOpen,
