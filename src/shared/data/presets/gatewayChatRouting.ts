@@ -105,7 +105,12 @@ export type CherryinChatFamily = 'anthropic' | 'gemini' | 'openai-responses' | '
 export function resolveCherryinChatFamily(modelId: string): CherryinChatFamily {
   const baseId = modelId.toLowerCase().split('/').pop() ?? modelId.toLowerCase()
   if (baseId.startsWith('claude')) return 'anthropic'
-  if (baseId.startsWith('imagen') && !baseId.endsWith('no-think') && !baseId.endsWith('-search') && !baseId.includes('embedding')) {
+  if (
+    baseId.startsWith('imagen') &&
+    !baseId.endsWith('no-think') &&
+    !baseId.endsWith('-search') &&
+    !baseId.includes('embedding')
+  ) {
     return 'gemini'
   }
   if (
