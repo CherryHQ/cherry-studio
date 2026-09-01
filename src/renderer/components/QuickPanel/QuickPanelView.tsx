@@ -845,6 +845,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     syncPlacementMetrics()
+    const raf = requestAnimationFrame(syncPlacementMetrics)
 
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncPlacementMetrics)
     resizeObserver?.observe(dockEl)
@@ -853,6 +854,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     window.addEventListener('resize', syncPlacementMetrics)
 
     return () => {
+      cancelAnimationFrame(raf)
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncPlacementMetrics)
     }
