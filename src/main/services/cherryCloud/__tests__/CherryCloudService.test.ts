@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  appEdition: 'global' as 'cn' | 'global',
   appIsPackaged: false,
   broadcast: vi.fn(),
   gatewayStart: vi.fn(),
@@ -48,6 +49,10 @@ vi.mock('@application', () => ({
       throw new Error(`Unexpected service: ${name}`)
     }
   }
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: () => mocks.appEdition
 }))
 
 vi.mock('electron', () => ({
@@ -211,6 +216,7 @@ describe('CherryCloudService', () => {
     vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
+    mocks.appEdition = 'global'
     mocks.appIsPackaged = false
     mocks.savedSession = null
     mocks.modelList.mockReturnValue([])
@@ -340,7 +346,7 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).toBeNull()
   })
 
-  it('uses the HTTPS production origin and loopback callback in packaged builds', async () => {
+  it('uses the global production origin in global packaged builds', async () => {
     mocks.appIsPackaged = true
     mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
     const service = new CherryCloudService()
@@ -348,8 +354,20 @@ describe('CherryCloudService', () => {
 
     await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
     expect(mocks.loopbackOpen).toHaveBeenCalledOnce()
-    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com.cn/api/v1/desktop/authorizations')
+    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com/api/v1/desktop/authorizations')
     expect(JSON.parse(mocks.netFetch.mock.calls[0][1].body as string).callback_port).toBe(49152)
+  })
+
+  it('uses the CN production origin in CN packaged builds', async () => {
+    mocks.appEdition = 'cn'
+    mocks.appIsPackaged = true
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const service = new CherryCloudService()
+    await service._doInit()
+
+    await service.startLogin()
+
+    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com.cn/api/v1/desktop/authorizations')
   })
 
   it('uses the configured Cloud origin for login requests', async () => {

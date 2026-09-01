@@ -3,6 +3,7 @@ import { cherryCloudSessionService } from '@data/services/CherryCloudSessionServ
 import { createManagedModelWriter, modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
@@ -26,7 +27,10 @@ import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature,
 
 const logger = loggerService.withContext('CherryCloudService')
 const DEVELOPMENT_API_ORIGIN = 'http://127.0.0.1:8084'
-const PRODUCTION_API_ORIGIN = 'https://cloud.cherryai.com.cn'
+const PRODUCTION_API_ORIGINS = {
+  cn: 'https://cloud.cherryai.com.cn',
+  global: 'https://cloud.cherryai.com'
+} as const
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
@@ -72,7 +76,7 @@ function emptyState(): CherryCloudState {
 function resolveApiOrigin(): string {
   const configuredOrigin = import.meta.env.MAIN_VITE_CHERRY_CLOUD_API_ORIGIN?.trim()
   if (configuredOrigin) return new URL(configuredOrigin).origin
-  return app.isPackaged ? PRODUCTION_API_ORIGIN : DEVELOPMENT_API_ORIGIN
+  return app.isPackaged ? PRODUCTION_API_ORIGINS[getAppEdition()] : DEVELOPMENT_API_ORIGIN
 }
 
 function platformName(): 'darwin' | 'windows' | 'linux' {
