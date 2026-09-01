@@ -9,8 +9,31 @@ import {
   ColorPickerEyeDropper,
   ColorPickerFormat,
   ColorPickerHue,
+  ColorPickerOutput,
   ColorPickerSelection
 } from '../color-picker'
+
+const formatLabels = {
+  alphaPercentage: 'Opacity',
+  css: 'CSS value',
+  hex: 'Hex value',
+  hsl: ['Hue', 'Saturation', 'Lightness'] as const,
+  rgb: ['Red', 'Green', 'Blue'] as const
+}
+
+const mockSelectionRect = (selection: HTMLElement) => {
+  vi.spyOn(selection, 'getBoundingClientRect').mockReturnValue({
+    bottom: 100,
+    height: 100,
+    left: 0,
+    right: 100,
+    top: 0,
+    width: 100,
+    x: 0,
+    y: 0,
+    toJSON: () => ({})
+  })
+}
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -28,11 +51,24 @@ describe('ColorPicker', () => {
   it('renders the fallback color when the supplied value is invalid', () => {
     render(
       <ColorPicker value="#zzz">
-        <ColorPickerFormat />
+        <ColorPickerFormat labels={formatLabels} />
       </ColorPicker>
     )
 
-    expect(screen.getByLabelText<HTMLInputElement>('Hex color value').value).toBe('#000000')
+    expect(screen.getByLabelText<HTMLInputElement>('Hex value').value).toBe('#000000')
+  })
+
+  it('uses caller-provided labels for the format selector and readout', () => {
+    render(
+      <ColorPicker>
+        <ColorPickerOutput aria-label="Color format" />
+        <ColorPickerFormat labels={formatLabels} />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('combobox', { name: 'Color format' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Hex value' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Opacity' })).toBeTruthy()
   })
 
   it('does not fire onChange on mount when controlled', () => {
@@ -109,6 +145,24 @@ describe('ColorPicker', () => {
     expect(Number(selection.getAttribute('aria-valuenow'))).toBeLessThan(initialSaturation)
   })
 
+  it('preserves caller event handlers while the color surface handles interactions', () => {
+    const onKeyDown = vi.fn()
+    const onPointerDown = vi.fn()
+    render(
+      <ColorPicker defaultValue="#3366ff">
+        <ColorPickerSelection onKeyDown={onKeyDown} onPointerDown={onPointerDown} />
+      </ColorPicker>
+    )
+    const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
+    mockSelectionRect(selection)
+
+    fireEvent.keyDown(selection, { key: 'ArrowLeft' })
+    fireEvent.pointerDown(selection, { clientX: 50, clientY: 50 })
+
+    expect(onKeyDown).toHaveBeenCalledTimes(1)
+    expect(onPointerDown).toHaveBeenCalledTimes(1)
+  })
+
   it('maps the visible HSV plane to the emitted color', async () => {
     const onChange = vi.fn()
     render(
@@ -117,17 +171,7 @@ describe('ColorPicker', () => {
       </ColorPicker>
     )
     const selection = screen.getByRole('slider', { name: 'Color saturation and brightness' })
-    vi.spyOn(selection, 'getBoundingClientRect').mockReturnValue({
-      bottom: 100,
-      height: 100,
-      left: 0,
-      right: 100,
-      top: 0,
-      width: 100,
-      x: 0,
-      y: 0,
-      toJSON: () => ({})
-    })
+    mockSelectionRect(selection)
 
     fireEvent(
       selection,
