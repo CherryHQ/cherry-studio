@@ -6,4 +6,5 @@
  */
 
 export { MarkdownHostProvider } from './MarkdownHostProvider'
+export { MarkdownImageRenderer, shouldShowMarkdownLinkFavicon } from './MarkdownRenderers'
 export { StaticMarkdown } from './StaticMarkdown'

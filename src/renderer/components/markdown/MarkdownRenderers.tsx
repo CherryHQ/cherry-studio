@@ -22,12 +22,16 @@ const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
 const INLINE_CODE_CLASS = 'whitespace-pre-wrap! break-words! rounded-[5px] px-1! py-0.5! text-[0.95em]! leading-normal'
 
-function shouldShowLinkFavicon(node: ExtraProps['node']): boolean {
+export function shouldShowMarkdownLinkFavicon(node: ExtraProps['node']): boolean {
   if (!node) return true
   if (node.children.some((child) => child.type === 'element')) return false
 
   const onlyChild = node.children.length === 1 ? node.children[0] : null
-  return !(onlyChild?.type === 'text' && /^https?:\/\/\S+$/i.test(onlyChild.value.trim()))
+  return !(
+    onlyChild?.type === 'text' &&
+    typeof onlyChild.value === 'string' &&
+    /^https?:\/\/\S+$/i.test(onlyChild.value.trim())
+  )
 }
 
 function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
@@ -72,7 +76,7 @@ function MarkdownLinkRenderer(props: MarkdownRendererProps<'a'>) {
     }
   })()
   const linkContent =
-    hostname && shouldShowLinkFavicon(props.node) ? (
+    hostname && shouldShowMarkdownLinkFavicon(props.node) ? (
       <>
         <span
           className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
@@ -145,23 +149,13 @@ function MarkdownTableRenderer({ children }: MarkdownRendererProps<'table'>) {
   return (
     <div className="table-wrapper relative my-2 w-full min-w-0 max-w-full">
       <div className="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto">
-        <table
-          className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-full [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-subtle [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-subtle [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
-          style={{
-            border: '0.5px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
-            borderSpacing: 0,
-            margin: 0,
-            overflow: 'hidden'
-          }}>
-          {children}
-        </table>
+        <table>{children}</table>
       </div>
     </div>
   )
 }
 
-function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
+export function MarkdownImageRenderer(props: MarkdownRendererProps<'img'>) {
   const { alt, node: _node, onError, src, style, ...imageProps } = props
   const [failedSource, setFailedSource] = useState<string | null>(null)
   void _node

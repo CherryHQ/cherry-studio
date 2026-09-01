@@ -168,11 +168,34 @@
   position: absolute;
   top: 0.34em;
   inset-inline-start: 0.1em;
+  display: grid;
+  place-content: center;
   width: 1em;
   height: 1em;
   margin: 0;
-  accent-color: var(--primary);
+  appearance: none;
+  background: var(--background);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 3px;
   opacity: 1;
+}
+
+.markdown .task-list-item > input[type='checkbox']::before {
+  width: 0.28em;
+  height: 0.52em;
+  content: '';
+  border: solid var(--primary-foreground);
+  border-width: 0 0.12em 0.12em 0;
+  transform: translateY(-0.04em) rotate(45deg) scale(0);
+}
+
+.markdown .task-list-item > input[type='checkbox']:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.markdown .task-list-item > input[type='checkbox']:checked::before {
+  transform: translateY(-0.04em) rotate(45deg) scale(1);
 }
 
 .markdown hr {
@@ -403,6 +426,21 @@
   border-collapse: separate;
   border: 0.5px solid var(--markdown-border-color);
   border-spacing: 0;
+}
+
+.markdown .table-wrapper table {
+  margin: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  border-collapse: collapse;
+}
+
+.markdown .table-wrapper th,
+.markdown .table-wrapper td {
+  padding: 0.5em;
+  background: transparent;
+  border-right: 0;
 }
 
 .markdown th,

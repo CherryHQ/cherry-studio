@@ -1,6 +1,7 @@
 import type { Citation } from '@renderer/types/message'
 import { createEvent, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Element } from 'hast'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,6 +44,27 @@ const citation: Citation = {
   url: 'https://example.com',
   title: 'Example'
 }
+
+const imageLinkNode = {
+  type: 'element',
+  tagName: 'a',
+  properties: { href: 'https://domain.com' },
+  children: [
+    {
+      type: 'element',
+      tagName: 'img',
+      properties: { alt: 'Badge', src: 'https://domain.com/badge.svg' },
+      children: []
+    }
+  ]
+} as Element
+
+const bareUrlNode = {
+  type: 'element',
+  tagName: 'a',
+  properties: { href: 'https://domain.com/a/very/long/path' },
+  children: [{ type: 'text', value: 'https://domain.com/a/very/long/path' }]
+} as Element
 
 describe('Link', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -147,6 +169,28 @@ describe('Link', () => {
     )
 
     expect(screen.getAllByTestId('favicon')).toHaveLength(1)
+  })
+
+  it('keeps image links free of orphaned favicons', () => {
+    render(
+      <Link href="https://domain.com" node={imageLinkNode}>
+        <img alt="Badge" src="https://domain.com/badge.svg" />
+      </Link>
+    )
+
+    expect(screen.getByRole('link', { name: 'Badge' })).toBeInTheDocument()
+    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
+  })
+
+  it('lets a bare URL wrap without a leading favicon', () => {
+    render(
+      <Link href="https://domain.com/a/very/long/path" node={bareUrlNode}>
+        https://domain.com/a/very/long/path
+      </Link>
+    )
+
+    expect(screen.getByRole('link', { name: 'https://domain.com/a/very/long/path' })).toBeInTheDocument()
+    expect(screen.queryByTestId('favicon')).not.toBeInTheDocument()
   })
 })
 

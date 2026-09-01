@@ -1,18 +1,19 @@
 import { isKnownNavigationPath, NavigateToolInline } from '@renderer/components/chat/messages/tools/agent'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
+import { shouldShowMarkdownLinkFavicon } from '@renderer/components/markdown'
 import type { Citation } from '@renderer/types/message'
 import { parseFileLinkHref } from '@renderer/utils/filePath'
 import { findCitationInChildren } from '@renderer/utils/markdownLight'
 import { cn } from '@renderer/utils/style'
 import { omit } from 'es-toolkit/compat'
+import type { Element } from 'hast'
 import React, { useMemo } from 'react'
-import type { Node } from 'unist'
 
 import CitationTooltip from './CitationTooltip'
 import Hyperlink from './Hyperlink'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  node?: Omit<Node, 'type'>
+  node?: Element
   citationRegistry?: ReadonlyMap<number, Citation>
   /** When set, schemeless hrefs that look like workspace files route here instead of navigating. */
   openFilePath?: (path: string) => void | Promise<void>
@@ -94,7 +95,7 @@ const Link: React.FC<LinkProps> = (props) => {
       (child) => child.tagName === 'sup'
     )
   )
-  const showFavicon = !!hostname && !isCitation && !containsFaviconChild
+  const showFavicon = !!hostname && !isCitation && !containsFaviconChild && shouldShowMarkdownLinkFavicon(props.node)
   const linkClassName = cn('text-link', !props.className && !isCitation && 'hover:underline', props.className)
   const linkContent = showFavicon ? (
     <>
