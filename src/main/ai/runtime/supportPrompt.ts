@@ -19,12 +19,15 @@ function isCherrySupportIdentity(text: string): boolean {
 }
 
 function isConflictingSdkIdentity(text: string): boolean {
-  return containsMarker(text, CONFLICTING_SDK_IDENTITY_MARKERS) && !isCherrySupportIdentity(text)
+  const trimmed = text.trimStart()
+  return CONFLICTING_SDK_IDENTITY_MARKERS.some((marker) => trimmed.startsWith(marker)) && !isCherrySupportIdentity(text)
 }
 
 function leadingStandingIdentityEnd(texts: readonly string[]): number {
   const cherryIndex = texts.findIndex(isCherrySupportIdentity)
-  return cherryIndex === -1 ? texts.length : cherryIndex
+  if (cherryIndex !== -1) return cherryIndex
+  const firstInstructionIndex = texts.findIndex((text) => !isConflictingSdkIdentity(text))
+  return firstInstructionIndex === -1 ? texts.length : firstInstructionIndex
 }
 
 function stripConflictingLeadingLines(section: string): string {
@@ -60,7 +63,11 @@ function stripLeadingConflictingIdentityText(text: string): string | undefined {
 export function normalizeAnthropicSupportSystemPrompt(params: MessageCreateParams): MessageCreateParams {
   if (typeof params.system === 'string') {
     if (params.system.length === 0) return { ...params, system: MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS }
-    const system = stripLeadingConflictingIdentityText(params.system) ?? MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS
+    const stripped = stripLeadingConflictingIdentityText(params.system)
+    const system =
+      stripped && isCherrySupportIdentity(stripped)
+        ? stripped
+        : [MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS, stripped].filter(Boolean).join('\n\n')
     if (system === params.system) return params
     return { ...params, system }
   }
@@ -76,8 +83,8 @@ export function normalizeAnthropicSupportSystemPrompt(params: MessageCreateParam
     if (!stripped) return []
     return stripped === block.text ? [block] : [{ ...block, text: stripped }]
   })
-  if (system.length === 0) {
-    return { ...params, system: [{ type: 'text', text: MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS }] }
+  if (!system.some((block) => block.type === 'text' && isCherrySupportIdentity(block.text))) {
+    system.unshift({ type: 'text', text: MINIMAL_CHERRY_SUPPORT_INSTRUCTIONS })
   }
   return system.length === params.system.length && system.every((block, index) => block === params.system?.[index])
     ? params

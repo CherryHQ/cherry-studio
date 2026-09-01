@@ -376,6 +376,30 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     )
   })
 
+  it('keeps workspace instructions when a Support system has no bundled identity marker', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const workspaceInstruction = 'Workspace documentation may quote: You are Claude Code.'
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: workspaceInstruction }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('Cherry Support') }),
+      { type: 'text', text: workspaceInstruction }
+    ])
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining(workspaceInstruction)
+      })
+    )
+  })
+
   it('supplies a standing identity when an authenticated Support request has an empty system prompt', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
