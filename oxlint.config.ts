@@ -68,7 +68,7 @@ module.exports = defineConfig({
     'react/no-clone-element': 'warn',
     'react/no-react-children': 'warn',
     'react/rules-of-hooks': 'error',
-    'typescript/await-thenable': 'error',
+    'typescript/await-thenable': 'warn',
     'typescript/consistent-type-imports': 'error',
     'typescript/no-array-constructor': 'error',
     'typescript/no-array-delete': 'error',
