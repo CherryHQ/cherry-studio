@@ -1,4 +1,5 @@
 import {
+  Button,
   Input,
   MenuDivider,
   MenuItem,
@@ -8,27 +9,30 @@ import {
   PopoverTrigger,
   Tooltip
 } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { NotesSortType } from '@renderer/types/note'
 import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
 import type { ComponentPropsWithRef, FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface HeaderIconButtonProps extends ComponentPropsWithRef<'button'> {
+interface HeaderIconButtonProps extends ComponentPropsWithRef<typeof Button> {
   label: string
   children: ReactNode
 }
 
-const HeaderIconButton = ({ ref, label, children, ...props }: HeaderIconButtonProps) => (
+const HeaderIconButton = ({ ref, label, children, className, ...props }: HeaderIconButtonProps) => (
   <Tooltip content={label} delay={800}>
-    <button
+    <Button
       ref={ref}
       type="button"
+      variant="ghost"
+      size="icon-sm"
       aria-label={label}
-      {...props}
-      className="flex size-6 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground">
+      className={cn('size-6 text-muted-foreground hover:text-foreground', className)}
+      {...props}>
       {children}
-    </button>
+    </Button>
   </Tooltip>
 )
 
@@ -143,13 +147,15 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 autoFocus
               />
               {searchKeyword && (
-                <button
+                <Button
                   type="button"
-                  className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="-translate-y-1/2 absolute top-1/2 right-1 size-5 text-muted-foreground"
                   onClick={() => onSetSearchKeyword('')}
                   aria-label={t('common.clear')}>
                   <X size={13} />
-                </button>
+                </Button>
               )}
             </div>
           </>

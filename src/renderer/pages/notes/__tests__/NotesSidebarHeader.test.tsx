@@ -68,4 +68,19 @@ describe('NotesSidebarHeader accessible names', () => {
     await user.keyboard('{Escape}')
     expect(sortButton).toHaveFocus()
   })
+
+  it('renders toolbar icons and search clear via shared Button', () => {
+    renderHeader()
+    const newNote = screen.getByRole('button', { name: 'notes.new_note' })
+    expect(newNote).toHaveAttribute('data-slot', 'button')
+    expect(newNote).toHaveAttribute('data-variant', 'ghost')
+
+    const props = renderHeader({ isShowSearch: true, searchKeyword: 'query' })
+    const clear = screen.getByRole('button', { name: 'common.clear' })
+    expect(clear).toHaveAttribute('data-slot', 'button')
+    expect(clear).toHaveAttribute('data-variant', 'ghost')
+
+    fireEvent.click(clear)
+    expect(props.onSetSearchKeyword).toHaveBeenCalledWith('')
+  })
 })
