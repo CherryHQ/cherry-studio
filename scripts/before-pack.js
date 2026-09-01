@@ -84,6 +84,9 @@ const packages = [
   'node-screenshots-win32-arm64-msvc',
   'node-screenshots-win32-ia32-msvc',
   'node-screenshots-win32-x64-msvc',
+  // Native Vision OCR with observation geometry. One source-built N-API package
+  // covers both macOS architectures and is never shipped on Windows/Linux.
+  '@cherrystudio/mac-system-ocr',
   // macOS permission prompts. Unlike everything above, one package covers both arches.
   'node-mac-permissions'
 ]
@@ -95,7 +98,7 @@ const packages = [
  * would ship a darwin-only `.node`.
  */
 const platformOnlyPackages = {
-  darwin: ['node-mac-permissions']
+  darwin: ['node-mac-permissions', '@cherrystudio/mac-system-ocr']
 }
 
 const platformToArch = {

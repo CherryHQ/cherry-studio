@@ -63,6 +63,17 @@ describe('createFileProcessingJobOutput', () => {
     expect(persistResultMock).not.toHaveBeenCalled()
   })
 
+  it('projects spatial OCR to the same inline plain-text artifact', async () => {
+    const result = await createFileProcessingJobOutput(createCtx(), {
+      kind: 'spatial-text',
+      text: 'hello',
+      lines: [[{ text: 'hello', confidence: 0.9, box: { x: 1, y: 2, width: 30, height: 10 } }]]
+    })
+
+    expect(result).toEqual({ artifact: { kind: 'text', format: 'plain', text: 'hello' } })
+    expect(persistResultMock).not.toHaveBeenCalled()
+  })
+
   it('persists a markdown artifact to the path output target', async () => {
     persistResultMock.mockResolvedValue('/tmp/out.md')
 

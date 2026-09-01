@@ -6,12 +6,14 @@ import type { FileProcessingCapabilityHandler, FileProcessingProcessorRegistry }
 
 function lazyHandler<Feature extends FileProcessorFeature>(
   mode: FileProcessingCapabilityHandler['mode'],
-  load: () => Promise<FileProcessingCapabilityHandler<Feature>>
+  load: () => Promise<FileProcessingCapabilityHandler<Feature>>,
+  imageOcrOutput?: FileProcessingCapabilityHandler<Feature>['imageOcrOutput']
 ): FileProcessingCapabilityHandler<Feature> {
   let handlerPromise: Promise<FileProcessingCapabilityHandler<Feature>> | undefined
 
   return {
     mode,
+    ...(imageOcrOutput ? { imageOcrOutput } : {}),
     async prepare(file, config, signal, context) {
       const handler = await (handlerPromise ??= load())
       return handler.prepare(file, config, signal, context)
@@ -24,8 +26,13 @@ export const processorRegistry = {
     runtime: 'local',
     isSupported: () => true,
     capabilities: {
-      image_to_text: lazyHandler('background', async () =>
-        import('./tesseract/imageToText/handler').then(({ tesseractImageToTextHandler }) => tesseractImageToTextHandler)
+      image_to_text: lazyHandler(
+        'background',
+        async () =>
+          import('./tesseract/imageToText/handler').then(
+            ({ tesseractImageToTextHandler }) => tesseractImageToTextHandler
+          ),
+        'plain-text'
       )
     }
   },
@@ -33,8 +40,11 @@ export const processorRegistry = {
     runtime: 'local',
     isSupported: () => isMac || isWin,
     capabilities: {
-      image_to_text: lazyHandler('background', async () =>
-        import('./system/imageToText/handler').then(({ systemImageToTextHandler }) => systemImageToTextHandler)
+      image_to_text: lazyHandler(
+        'background',
+        async () =>
+          import('./system/imageToText/handler').then(({ systemImageToTextHandler }) => systemImageToTextHandler),
+        isMac ? 'spatial-text' : 'plain-text'
       )
     }
   },
@@ -42,8 +52,11 @@ export const processorRegistry = {
     runtime: 'remote',
     isSupported: () => true,
     capabilities: {
-      image_to_text: lazyHandler('background', async () =>
-        import('./paddleocr/imageToText/handler').then(({ paddleImageToTextHandler }) => paddleImageToTextHandler)
+      image_to_text: lazyHandler(
+        'background',
+        async () =>
+          import('./paddleocr/imageToText/handler').then(({ paddleImageToTextHandler }) => paddleImageToTextHandler),
+        'plain-text'
       ),
       document_to_markdown: lazyHandler('remote-poll', async () =>
         import('./paddleocr/documentToMarkdown/handler').then(
@@ -59,10 +72,13 @@ export const processorRegistry = {
     // UI must keep offering — see FILE_PROCESSOR_LOCAL_MODEL.
     isSupported: () => !isDarwinX64,
     capabilities: {
-      image_to_text: lazyHandler('background', async () =>
-        import('./localPaddleocr/imageToText/handler').then(
-          ({ localPaddleocrImageToTextHandler }) => localPaddleocrImageToTextHandler
-        )
+      image_to_text: lazyHandler(
+        'background',
+        async () =>
+          import('./localPaddleocr/imageToText/handler').then(
+            ({ localPaddleocrImageToTextHandler }) => localPaddleocrImageToTextHandler
+          ),
+        'spatial-text'
       )
     }
   },
@@ -83,8 +99,11 @@ export const processorRegistry = {
     runtime: 'local',
     isSupported: isOvOcrAvailable,
     capabilities: {
-      image_to_text: lazyHandler('background', async () =>
-        import('./ovocr/imageToText/handler').then(({ ovocrImageToTextHandler }) => ovocrImageToTextHandler)
+      image_to_text: lazyHandler(
+        'background',
+        async () =>
+          import('./ovocr/imageToText/handler').then(({ ovocrImageToTextHandler }) => ovocrImageToTextHandler),
+        'plain-text'
       )
     }
   },
@@ -119,8 +138,11 @@ export const processorRegistry = {
           ({ mistralDocumentToMarkdownHandler }) => mistralDocumentToMarkdownHandler
         )
       ),
-      image_to_text: lazyHandler('background', async () =>
-        import('./mistral/imageToText/handler').then(({ mistralImageToTextHandler }) => mistralImageToTextHandler)
+      image_to_text: lazyHandler(
+        'background',
+        async () =>
+          import('./mistral/imageToText/handler').then(({ mistralImageToTextHandler }) => mistralImageToTextHandler),
+        'plain-text'
       )
     }
   },

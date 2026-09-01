@@ -11,6 +11,8 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
+import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
 import type { OutputFor } from '@shared/ipc/types'
 import { commandShortcutPreferenceKey } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
@@ -61,6 +63,8 @@ const ScreenshotSettings: FC = () => {
 
   const [screenshotEnabled, setScreenshotEnabled] = usePreference('feature.screenshot.enabled')
   const [autoOcr, setAutoOcr] = usePreference('feature.screenshot.auto_ocr')
+  const [ocrProcessorId] = usePreference('feature.file_processing.default_image_to_text')
+  const [effectiveOcrProcessorId, setEffectiveOcrProcessorId] = useState<FileProcessorId | null>(null)
   const [captureBinding] = usePreference('shortcut.screenshot.capture')
   const ocrModel = useLocalModel('ocr')
 
@@ -99,6 +103,23 @@ const ScreenshotSettings: FC = () => {
     }
   }, [])
 
+  useEffect(() => {
+    let mounted = true
+    setEffectiveOcrProcessorId(null)
+    ipcApi
+      .request('file_processing.configured_processor.get', { feature: 'image_to_text' })
+      .then((processorId) => {
+        if (mounted) setEffectiveOcrProcessorId(processorId)
+      })
+      .catch((error) => {
+        if (mounted) setEffectiveOcrProcessorId(null)
+        logger.warn('Failed to resolve the configured OCR processor', error as Error)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [ocrProcessorId])
+
   const requestPermission = () => {
     ipcApi
       .request('system.mac.request_screen_capture')
@@ -122,7 +143,10 @@ const ScreenshotSettings: FC = () => {
   }
 
   const permissionView = resolvePermissionView(permissionStatus, restartRequired, promptUnavailable)
-  const ocrReady = ocrModel.status === 'ready'
+  const supportsScreenshotGeometry = effectiveOcrProcessorId === 'local-paddleocr'
+  const requiresLocalOcrModel =
+    effectiveOcrProcessorId !== null && FILE_PROCESSOR_LOCAL_MODEL[effectiveOcrProcessorId] === 'ocr'
+  const ocrReady = supportsScreenshotGeometry && (!requiresLocalOcrModel || ocrModel.status === 'ready')
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -221,7 +245,7 @@ const ScreenshotSettings: FC = () => {
         <div className="mt-2 px-2">
           {ocrReady ? (
             <Badge variant="secondary">{t('settings.screenshot.ocr.model.ready')}</Badge>
-          ) : ocrModel.status === 'downloading' ? (
+          ) : requiresLocalOcrModel && ocrModel.status === 'downloading' ? (
             <div className="flex items-center justify-between gap-3 text-muted-foreground text-xs">
               <span>{t('settings.screenshot.ocr.model.downloading')}</span>
               <span>{ocrModel.percent}%</span>

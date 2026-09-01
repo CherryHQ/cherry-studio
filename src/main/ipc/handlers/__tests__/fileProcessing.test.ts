@@ -8,6 +8,7 @@ import { fileProcessingHandlers } from '../fileProcessing'
 const fileProcessingService = {
   startJob: vi.fn(),
   listAvailableProcessors: vi.fn(),
+  getConfiguredProcessorId: vi.fn(),
   checkOpenMineruConnectivity: vi.fn()
 }
 
@@ -49,6 +50,18 @@ describe('fileProcessingHandlers', () => {
 
     expect(fileProcessingService.listAvailableProcessors).toHaveBeenCalledWith()
     expect(result).toBe(list)
+  })
+
+  it('configured_processor.get returns the effective processor selected by main', async () => {
+    fileProcessingService.getConfiguredProcessorId.mockReturnValue('system')
+
+    const result = await fileProcessingHandlers['file_processing.configured_processor.get'](
+      { feature: 'image_to_text' },
+      ctx
+    )
+
+    expect(fileProcessingService.getConfiguredProcessorId).toHaveBeenCalledWith('image_to_text')
+    expect(result).toBe('system')
   })
 
   it('Open MinerU check_connectivity takes no input and returns the verdict', async () => {

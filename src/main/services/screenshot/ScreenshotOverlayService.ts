@@ -2,13 +2,11 @@ import { writeFileSync } from 'node:fs'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { isLocalModelReady } from '@main/services/localModel'
 import { MediaKind } from '@main/services/mediaProtocol'
 import { cropPng } from '@main/utils/image'
 import {
@@ -96,7 +94,7 @@ interface OcrRegion {
  */
 @Injectable('ScreenshotOverlayService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'MediaProtocolService', 'OcrInferenceService'])
+@DependsOn(['WindowManager', 'MediaProtocolService', 'FileProcessingService'])
 export class ScreenshotOverlayService extends BaseService {
   /** Overlay window ids of the live session — one per display that matched a capture. */
   private overlayWindowIds: WindowId[] = []
@@ -260,7 +258,7 @@ export class ScreenshotOverlayService extends BaseService {
         const primaryScaleFactor = screen.getPrimaryDisplay().scaleFactor
 
         const autoOcr = preferenceService.get('feature.screenshot.auto_ocr')
-        const ocrAvailable = isLocalModelReady('ocr')
+        const ocrAvailable = this.isConfiguredOcrAvailable()
 
         // Which overlay covers which display, for the snap-target push below.
         const snapOverlays: { windowId: WindowId; display: Display }[] = []
@@ -437,10 +435,9 @@ export class ScreenshotOverlayService extends BaseService {
   /**
    * Recognize text inside one region of an overlay's frozen capture.
    *
-   * Serialization is `OcrInferenceService`'s own `PQueue({ concurrency: 1 })`; this only
-   * has to make sure a superseded request produces nothing. The token is re-checked right
-   * before the recognition and again after it, so a request overtaken while it waited for
-   * its queue slot is dropped rather than painted over the newer result.
+   * Serialization is owned by `OcrInferenceService`. Only processors that return real
+   * word geometry are enabled for the overlay; plain-text processors must not fabricate
+   * selectable boxes that do not correspond to the captured image.
    */
   public async recognizeText(windowId: WindowId, mediaId: string, region: OcrRegion): Promise<OcrRecognitionResult> {
     const token = Symbol('ocr-request')
@@ -450,9 +447,9 @@ export class ScreenshotOverlayService extends BaseService {
     // otherwise let display A ask for OCR of display B's capture.
     if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
 
-    // Re-checked per request, never cached from initData: the user can delete the
-    // model in settings while the overlay is open.
-    if (!isLocalModelReady('ocr')) return { status: 'unavailable' }
+    // Re-checked per request, never cached from initData: the user can change the
+    // processor or remove its local model while the overlay is open.
+    if (!this.isConfiguredOcrAvailable()) return { status: 'unavailable' }
 
     const capture = this.sessionCaptures.get(mediaId)
     if (!capture) return { status: 'rejected' }
@@ -477,21 +474,30 @@ export class ScreenshotOverlayService extends BaseService {
       // Superseded while the crop ran: skip a recognition whose result nobody will use.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
 
-      const result = await application
-        .get('OcrInferenceService')
-        .recognize(ocrModelPaths(), { kind: 'bytes', imageBytes })
+      const output = await application.get('FileProcessingService').ocrImageBytesWithLayout(imageBytes)
 
       // A pooled overlay's React tree survives into the next session, so a late
       // success would paint the previous capture's text onto the new one.
       if (this.latestOcrToken !== token) return { status: 'rejected' }
       if (this.overlayMediaIds.get(windowId) !== mediaId) return { status: 'rejected' }
+      if (!output) return { status: 'unavailable' }
 
-      return { status: 'ok', lines: result.lines }
+      return { status: 'ok', lines: output.lines }
     } catch (error) {
+      if (this.latestOcrToken !== token) return { status: 'rejected' }
       // Rethrown so the overlay shows its error state; logged here because the IPC
       // transport only serializes the error to the renderer, it never records it.
       logger.error('Region OCR failed', error as Error)
       throw error
+    }
+  }
+
+  private isConfiguredOcrAvailable(): boolean {
+    try {
+      return application.get('FileProcessingService').getConfiguredImageOcrOutputKind() === 'spatial-text'
+    } catch (error) {
+      logger.debug('Configured screenshot OCR processor is unavailable', { error: String(error) })
+      return false
     }
   }
 
@@ -761,7 +767,7 @@ export class ScreenshotOverlayService extends BaseService {
     }
     this.trace = null
 
-    // Invalidates every in-flight OCR result; the recognitions themselves run to completion.
+    // Invalidates every in-flight OCR result; Paddle's serial worker may still finish in the background.
     this.latestOcrToken = null
   }
 

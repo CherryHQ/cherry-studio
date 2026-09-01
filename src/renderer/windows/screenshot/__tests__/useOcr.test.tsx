@@ -153,7 +153,10 @@ describe('useOcr', () => {
     const { result, rerender } = renderOcr()
     await settleRecognition()
 
-    ipc.request.mockResolvedValueOnce({ status: 'ok', lines: [[word('current', 0, 0)]] })
+    ipc.request.mockResolvedValueOnce({
+      status: 'ok',
+      lines: [[word('current', 0, 0)]]
+    })
     rerender({ selection: { ...SELECTION, width: 160 } })
     await settleRecognition()
 
@@ -186,7 +189,10 @@ describe('useOcr', () => {
 
     act(() => result.current.resetOcr())
     await act(async () => {
-      resolvePrevious({ status: 'ok', lines: [[word('previous capture', 0, 0)]] })
+      resolvePrevious({
+        status: 'ok',
+        lines: [[word('previous capture', 0, 0)]]
+      })
     })
 
     // A pooled overlay never unmounts, so a late result would land on the new capture.

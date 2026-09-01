@@ -1,16 +1,26 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { net } from 'electron'
 
-import { getFileProcessorConfigById, resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
-import { ocrImageToText } from './ocrImageToText'
+import {
+  getFileProcessorConfigById,
+  resolveProcessorConfigByFeature,
+  resolveProcessorIdByFeature
+} from './config/resolveProcessorConfig'
+import { ocrImageToText, recognizeImage } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
+import type { ImageOcrOutputKind, SpatialImageToTextHandlerOutput } from './processors/types'
 import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
@@ -109,6 +119,48 @@ export class FileProcessingService extends BaseService {
    */
   ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
     return ocrImageToText(file, signal)
+  }
+
+  /**
+   * Shape exposed by the configured OCR processor. Consumers such as screenshot
+   * selection ask for a capability, never for a concrete provider id.
+   */
+  getConfiguredImageOcrOutputKind(): ImageOcrOutputKind {
+    const config = resolveProcessorConfigByFeature('image_to_text')
+    return getCapabilityHandler(config.id, 'image_to_text').imageOcrOutput ?? 'plain-text'
+  }
+
+  /**
+   * Run configured OCR for in-memory PNG bytes and retain real layout geometry.
+   * Returns null when the selected processor only promises plain text (including
+   * a provider switch between the capability check and execution).
+   */
+  async ocrImageBytesWithLayout(
+    imageBytes: Uint8Array,
+    signal?: AbortSignal
+  ): Promise<SpatialImageToTextHandlerOutput | null> {
+    if (this.getConfiguredImageOcrOutputKind() !== 'spatial-text') return null
+
+    signal?.throwIfAborted()
+    const tempRoot = application.getPath('feature.file_processing.temp')
+    await fs.mkdir(tempRoot, { recursive: true })
+    const tempDir = await fs.mkdtemp(path.join(tempRoot, 'inline-image-ocr-'))
+    const imagePath = AbsoluteFilePathSchema.parse(path.join(tempDir, 'image.png'))
+
+    try {
+      await fs.writeFile(imagePath, imageBytes, { signal })
+      const output = await recognizeImage(createFilePathHandle(imagePath), signal)
+      return output.kind === 'spatial-text' ? output : null
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch((error) => {
+        logger.warn('Failed to remove inline OCR temporary directory', { tempDir, error })
+      })
+    }
+  }
+
+  /** Resolve the active processor without leaking file-processing configuration internals. */
+  getConfiguredProcessorId(feature: FileProcessorFeature): FileProcessorId {
+    return resolveProcessorIdByFeature(feature)
   }
 
   /**

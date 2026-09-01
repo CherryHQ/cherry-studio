@@ -15,6 +15,7 @@ import { loggerService } from '@logger'
 import type { FileHandle } from '@shared/data/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import type { ImageToTextHandlerOutput } from './processors/types'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 
 const logger = loggerService.withContext('FileProcessing:ocrImageToText')
@@ -55,12 +56,13 @@ export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Pr
     if (cached !== undefined) return cached
   }
 
-  const text = await runOcr(file, signal)
+  const text = (await recognizeImage(file, signal)).text
   if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
   return text
 }
 
-async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
+/** Execute the configured image OCR and preserve whether it returned geometry. */
+export async function recognizeImage(file: FileHandle, signal?: AbortSignal): Promise<ImageToTextHandlerOutput> {
   const feature = 'image_to_text' as const
   const config = resolveProcessorConfigByFeature(feature)
   const handler = getCapabilityHandler(config.id, feature)
@@ -72,7 +74,7 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
 
   if (prepared.mode === 'background') {
     const out = await prepared.execute({ signal: signal ?? new AbortController().signal, reportProgress: () => {} })
-    return out.text
+    return out
   }
 
   // Remote processor: start + poll inline until terminal (bounded).
@@ -82,7 +84,7 @@ async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
   while (Date.now() < deadline) {
     await delay(REMOTE_POLL_INTERVAL_MS, signal)
     const res = await prepared.pollRemote(ref, signal)
-    if (res.status === 'completed') return res.output.text
+    if (res.status === 'completed') return res.output
     if (res.status === 'failed') throw new Error(res.error)
     if (res.remoteContext) ref = { ...ref, remoteContext: res.remoteContext }
   }

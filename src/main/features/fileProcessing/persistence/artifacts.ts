@@ -52,6 +52,7 @@ async function createFileProcessingArtifact(
 ): Promise<FileProcessingArtifact> {
   switch (output.kind) {
     case 'text':
+    case 'spatial-text':
       return {
         kind: 'text',
         format: 'plain',

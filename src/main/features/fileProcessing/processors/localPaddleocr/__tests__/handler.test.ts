@@ -76,8 +76,9 @@ describe('localPaddleocrImageToTextHandler', () => {
     const signal = new AbortController().signal
 
     await expect(prepared.execute({ signal, reportProgress: vi.fn() })).resolves.toEqual({
-      kind: 'text',
-      text: 'hello world'
+      kind: 'spatial-text',
+      text: 'hello world',
+      lines: []
     })
     expect(recognizeMock).toHaveBeenCalledWith(MODEL_PATHS, { kind: 'path', imagePath: '/tmp/input.png' }, signal)
   })

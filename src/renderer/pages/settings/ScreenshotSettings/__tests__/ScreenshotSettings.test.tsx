@@ -1,3 +1,4 @@
+import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -10,6 +11,8 @@ type ScreenCaptureStatus = 'authorized' | 'not-determined' | 'denied'
 
 type ConflictListener = (payload: { key: string; hasConflict: boolean }) => void
 let conflictListener: ConflictListener | null = null
+type LocalModelProgressListener = (payload: { model: 'ocr'; status: 'downloading' | 'ready'; percent: number }) => void
+let localModelProgressListener: LocalModelProgressListener | null = null
 
 const { mockRequest, platform } = vi.hoisted(() => ({
   mockRequest: vi.fn(),
@@ -18,7 +21,9 @@ const { mockRequest, platform } = vi.hoisted(() => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
-  useIpcOn: () => {}
+  useIpcOn: (event: string, listener: LocalModelProgressListener) => {
+    if (event === 'local_model.download_progress') localModelProgressListener = listener
+  }
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -52,9 +57,17 @@ interface IpcStub {
   /** Status the OS reports back after prompting. */
   afterRequest?: ScreenCaptureStatus
   ocrStatus?: string
+  defaultOcrProcessorId?: FileProcessorId
+  processorResolutionError?: Error
 }
 
-function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrStatus = 'not_downloaded' }: IpcStub) {
+function stubIpc({
+  permission = 'authorized',
+  afterRequest = 'authorized',
+  ocrStatus = 'not_downloaded',
+  defaultOcrProcessorId,
+  processorResolutionError
+}: IpcStub) {
   mockRequest.mockImplementation((route: string) => {
     switch (route) {
       case 'system.mac.screen_capture_status':
@@ -63,6 +76,14 @@ function stubIpc({ permission = 'authorized', afterRequest = 'authorized', ocrSt
         return Promise.resolve(afterRequest)
       case 'local_model.get_status':
         return Promise.resolve({ status: ocrStatus })
+      case 'file_processing.configured_processor.get':
+        return processorResolutionError
+          ? Promise.reject(processorResolutionError)
+          : Promise.resolve(
+              defaultOcrProcessorId ??
+                MockUsePreferenceUtils.getPreferenceValue('feature.file_processing.default_image_to_text') ??
+                'system'
+            )
       default:
         return Promise.resolve()
     }
@@ -81,6 +102,7 @@ describe('ScreenshotSettings', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('feature.screenshot.auto_ocr', true)
+    MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'local-paddleocr')
     MockUsePreferenceUtils.setPreferenceValue('shortcut.screenshot.capture', {
       binding: ['CommandOrControl', 'Shift', 'A'],
       enabled: true
@@ -89,6 +111,7 @@ describe('ScreenshotSettings', () => {
 
     // The row subscribes on mount; tests that need a conflict call the captured listener.
     conflictListener = null
+    localModelProgressListener = null
     window.api = {
       shortcut: {
         onRegistrationConflict: (callback: ConflictListener) => {
@@ -115,6 +138,54 @@ describe('ScreenshotSettings', () => {
 
     await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
     expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+  })
+
+  it('recovers when the selected local OCR model becomes ready without a preference change', async () => {
+    stubIpc({ ocrStatus: 'downloading' })
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+    expect(screen.getByText('settings.screenshot.ocr.model.downloading')).toBeInTheDocument()
+
+    act(() => localModelProgressListener?.({ model: 'ocr', status: 'ready', percent: 100 }))
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeEnabled())
+    expect(screen.getByText('settings.screenshot.ocr.model.ready')).toBeInTheDocument()
+  })
+
+  it.each(['system', 'tesseract', 'mistral'] as const)(
+    'disables screenshot text overlay for configured %s because it has no word geometry',
+    async (processorId) => {
+      MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', processorId)
+      stubIpc({ ocrStatus: 'not_downloaded' })
+
+      render(<ScreenshotSettings />)
+
+      await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+      expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
+    }
+  )
+
+  it('uses the effective default processor when the preference is unset', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', null)
+    stubIpc({ defaultOcrProcessorId: 'system', ocrStatus: 'not_downloaded' })
+
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+    expect(requestedRoutes()).toContain('file_processing.configured_processor.get')
+    expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
+  })
+
+  it('keeps auto OCR disabled when main rejects the configured processor capability', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'local-document')
+    stubIpc({ processorResolutionError: new Error('processor does not support image_to_text') })
+
+    render(<ScreenshotSettings />)
+
+    await waitFor(() => expect(autoOcrSwitch()).toBeDisabled())
+    expect(requestedRoutes()).toContain('file_processing.configured_processor.get')
+    expect(screen.getByText('settings.screenshot.ocr.model.unavailable')).toBeInTheDocument()
   })
 
   it('offers System Settings rather than an authorize button once the permission is denied', async () => {

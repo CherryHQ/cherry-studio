@@ -10,6 +10,7 @@ import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/M
 
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
+  isMac: false,
   isWin: true
 }))
 

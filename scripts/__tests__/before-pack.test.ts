@@ -61,9 +61,11 @@ describe('keepPackages', () => {
   // and a Windows or Linux build cross-made on a Mac would ship its darwin-only `.node`.
   it.each(['arm64', 'x64'])('keeps the arch-agnostic macOS permission module on darwin %s', (arch) => {
     expect(keepPackages('darwin', arch)).toContain('node-mac-permissions')
+    expect(keepPackages('darwin', arch)).toContain('@cherrystudio/mac-system-ocr')
   })
 
   it.each(['win32', 'linux'])('drops it on %s, which is what excludes it from the package', (platform) => {
     expect(keepPackages(platform, 'x64')).not.toContain('node-mac-permissions')
+    expect(keepPackages(platform, 'x64')).not.toContain('@cherrystudio/mac-system-ocr')
   })
 })
