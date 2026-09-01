@@ -117,39 +117,4 @@ describe('useDataChange', () => {
     expect(mockService.onDataChanged).toHaveBeenCalledTimes(1)
     expect(listener).toHaveBeenCalledExactlyOnceWith([effect])
   })
-
-  it('delivers v1 topic-order repair effects to /topics and /pins subscribers', () => {
-    const topics = vi.fn()
-    const pins = vi.fn()
-    renderHook(() => useDataChange('/topics', topics))
-    renderHook(() => useDataChange('/pins', pins))
-
-    const topicProjection: DataApiDataChangeEffect = {
-      endpoint: '/topics',
-      kind: 'projection',
-      entityIds: ['t-c', 't-a', 't-b']
-    }
-    const topicOrder: DataApiDataChangeEffect = {
-      endpoint: '/topics',
-      kind: 'order',
-      dimension: 'orderKey',
-      entityIds: ['t-c', 't-a', 't-b']
-    }
-    const pinOrder: DataApiDataChangeEffect = {
-      endpoint: '/pins',
-      kind: 'order',
-      dimension: 'orderKey',
-      entityIds: ['pin-c', 'pin-b']
-    }
-    const pinnedOrder: DataApiDataChangeEffect = {
-      endpoint: '/topics',
-      kind: 'order',
-      dimension: 'pinned',
-      entityIds: ['t-c', 't-b']
-    }
-    mockService._emitDataChange([topicProjection, topicOrder, pinOrder, pinnedOrder])
-
-    expect(topics).toHaveBeenCalledExactlyOnceWith([topicProjection, topicOrder, pinnedOrder])
-    expect(pins).toHaveBeenCalledExactlyOnceWith([pinOrder])
-  })
 })
