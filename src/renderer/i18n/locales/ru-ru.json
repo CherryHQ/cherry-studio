@@ -4577,6 +4577,7 @@
   "settings.provider.create_custom.request_preview": "Путь запроса: {{path}}",
   "settings.provider.create_custom.title": "Добавить пользовательского провайдера",
   "settings.provider.delete.content": "Вы уверены, что хотите удалить этот провайдер?",
+  "settings.provider.delete.header": "Удалить {{key}}",
   "settings.provider.delete.title": "Удалить провайдера",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Корпоративный)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (Международный)",

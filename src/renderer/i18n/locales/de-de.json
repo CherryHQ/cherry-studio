@@ -4577,6 +4577,7 @@
   "settings.provider.create_custom.request_preview": "Anfragepfad: {{path}}",
   "settings.provider.create_custom.title": "Benutzerdefinierten Anbieter hinzufügen",
   "settings.provider.delete.content": "Diesen Modellanbieter wirklich löschen?",
+  "settings.provider.delete.header": "{{key}} löschen",
   "settings.provider.delete.title": "Anbieter löschen",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Unternehmen)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (International)",

@@ -4577,6 +4577,7 @@
   "settings.provider.create_custom.request_preview": "Request path: {{path}}",
   "settings.provider.create_custom.title": "Add Custom Provider",
   "settings.provider.delete.content": "Are you sure you want to delete this provider?",
+  "settings.provider.delete.header": "Delete {{key}}",
   "settings.provider.delete.title": "Delete Provider",
   "settings.provider.dmxapi.platform_enterprise": "ssvip.DMXAPI.com (Enterprise)",
   "settings.provider.dmxapi.platform_international": "www.DMXAPI.com (International)",
