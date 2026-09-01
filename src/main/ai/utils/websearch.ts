@@ -27,6 +27,11 @@ export interface CherryWebSearchConfig {
  * `config.ts` still routes it through the preset's transform (both use `matchesPreset`). Comparing
  * `model.providerId` there routed those copies to the server side and then injected nothing.
  */
+// DeepSeek-V4 / GLM-5.2 on QwenCloud serve web search through the Responses `web_search` tool only;
+// the supported-models table marks both lines "Responses API only". Dots and hyphens both appear
+// depending on id origin (wire apiModelId vs catalog modelId).
+const qwencloudResponsesOnlySearch = /deepseek-v4|glm-5[.-]2/
+
 export function getWebSearchParams(model: Model, provider: Provider | undefined): Record<string, any> {
   if (provider && matchesPreset(provider, 'zhipu')) {
     // BigModel's web search rides the tools array, which providerOptions cannot
@@ -59,6 +64,11 @@ export function getWebSearchParams(model: Model, provider: Provider | undefined)
     // Chat `enable_search` follows the QwenCloud web-search supported-models table; eligible lines
     // take the `agent` strategy (docs.qwencloud.com/developer-guides/text-generation/web-search).
     const apiModelId = getRawModelId(model)
+    // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only ("Responses API only"
+    // in the table) — Chat's enable_search is not served for them, so inject nothing on this path.
+    if (qwencloudResponsesOnlySearch.test(apiModelId)) {
+      return {}
+    }
     const searchStrategy =
       /qwen3[.-]8-(?:max|2)|qwen3[.-]7-(?:max|plus|flash)|qwen3[.-]6-(?:plus|flash)|qwen3[.-]5-(?:plus|flash)|qwen3-max/.test(
         apiModelId
@@ -160,7 +170,7 @@ export function buildProviderBuiltinWebSearchConfig(
       if (model && provider && matchesPreset(provider, 'qwencloud')) {
         // Only the DeepSeek-V4/GLM-5.2 lines take the Responses web_search tool (docs.qwencloud.com
         // web-search); Qwen lines search via Chat's enable_search — `undefined` keeps the tool off.
-        return /deepseek-v4|glm-5\.2/.test(getRawModelId(model)) ? { openai: {} } : undefined
+        return qwencloudResponsesOnlySearch.test(getRawModelId(model)) ? { openai: {} } : undefined
       }
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)
