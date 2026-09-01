@@ -393,10 +393,23 @@ describe('withToolCitationTags', () => {
     expect(content).toContain('[cite: ]')
   })
 
-  it('leaves unknown ids literal', () => {
+  it('drops an unknown id instead of printing it, taking its separating space with it', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
-    const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9]', mc)
-    expect(content).toContain('[cite:zzz-9]')
+    const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9] Next.', mc)
+    expect(content).toBe('Fact. Next.')
+    expect(cited).toHaveLength(0)
+  })
+
+  // #19771: a model that reuses an id minted by an earlier turn leaves this message with markers
+  // nothing can resolve. Printing them puts an internal id on screen; the export path already
+  // drops such markers, so rendering has to agree.
+  it('drops every marker when the message carries no citation at all', () => {
+    const mc = resolveMessageCitations([textPart('no tool ran in this message')])
+    const { content, cited } = withToolCitationTags(
+      '1. 工程立项审计；[cite:2598d0ab-1]\n2. 工程采购审计；[cite:2598d0ab-1]',
+      mc
+    )
+    expect(content).toBe('1. 工程立项审计；\n2. 工程采购审计；')
     expect(cited).toHaveLength(0)
   })
 

@@ -54,6 +54,7 @@ const dialogContentSizeClass: Record<DialogContentSize, string> = {
 }
 
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
+  closeLabel?: string
   closeOnOverlayClick?: boolean
   motion?: DialogContentMotion
   overlayClassName?: string
@@ -73,6 +74,7 @@ export { DIALOG_CLOSE_DURATION_MS }
 function DialogContent({
   className,
   children,
+  closeLabel = 'Close',
   closeOnOverlayClick = true,
   showCloseButton = true,
   motion = 'directional',
@@ -141,7 +143,7 @@ function DialogContent({
               data-slot="dialog-close"
               className="data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
               <XIcon />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{closeLabel}</span>
             </DialogPrimitive.Close>
           )}
         </PortalContainerProvider>

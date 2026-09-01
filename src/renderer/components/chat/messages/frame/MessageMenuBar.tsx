@@ -155,7 +155,7 @@ const MessageMenuBar: FC<Props> = (props) => {
       <div
         data-ui="part:message-actions"
         className={classNames(
-          'menubar flex flex-row items-center justify-end gap-1.5',
+          'menubar flex select-none flex-row items-center justify-end gap-1.5',
           isUserBubbleStyleMessage && 'user-bubble-style mt-[5px]',
           (isLastMessage || forceVisible) && 'show'
         )}>

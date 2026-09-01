@@ -90,17 +90,20 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverTrigger: ({ children, asChild }: any) =>
       asChild && React.isValidElement(children) ? children : React.createElement('div', null, children),
     RowFlex: passthrough('div'),
-    SegmentedControl: ({ options = [], value, onValueChange }: any) =>
+    // Mirrors the real control's radiogroup/radio semantics so tests address it the way
+    // assistive technology does, rather than through whatever DOM the mock happens to emit.
+    SegmentedControl: ({ options = [], value, onValueChange, ...props }: any) =>
       React.createElement(
         'div',
-        null,
+        { 'aria-label': props['aria-label'], role: 'radiogroup' },
         options.map((option: any) =>
           React.createElement(
             'button',
             {
-              'aria-pressed': value === option.value,
+              'aria-checked': value === option.value,
               key: option.value,
               onClick: () => onValueChange?.(option.value),
+              role: 'radio',
               type: 'button'
             },
             option.label
@@ -362,16 +365,16 @@ describe('AppearanceSettings selectors', () => {
 
     render(<AppearanceSettings />)
 
-    const chatRow = screen.getByText('settings.display.list_position.chat').parentElement as HTMLElement
-    fireEvent.click(within(chatRow).getByRole('button', { name: 'settings.topic.position.right' }))
+    const chatGroup = screen.getByRole('radiogroup', { name: 'settings.display.list_position.chat' })
+    fireEvent.click(within(chatGroup).getByRole('radio', { name: 'settings.topic.position.right' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.position')).toBe('right')
     })
     expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('left')
 
-    const workRow = screen.getByText('settings.display.list_position.work').parentElement as HTMLElement
-    fireEvent.click(within(workRow).getByRole('button', { name: 'settings.topic.position.right' }))
+    const workGroup = screen.getByRole('radiogroup', { name: 'settings.display.list_position.work' })
+    fireEvent.click(within(workGroup).getByRole('radio', { name: 'settings.topic.position.right' }))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('agent.session.position')).toBe('right')

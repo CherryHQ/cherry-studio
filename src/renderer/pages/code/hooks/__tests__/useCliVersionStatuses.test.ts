@@ -1,7 +1,7 @@
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { CodeCli } from '@shared/types/codeCli'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCliVersionStatuses } from '../useCliVersionStatuses'
 
@@ -54,6 +54,10 @@ describe('useCliVersionStatuses', () => {
     ipcMocks.latestVersions.mockResolvedValue({})
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('uses BinaryManager latest versions to mark mise CLI tools upgradeable', async () => {
     setSnapshots({
       claude: miseSnapshot('claude', 'claude', '1.0.0'),
@@ -63,15 +67,15 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE, CodeCli.OPENAI_CODEX]))
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
-    expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
       installed: true,
       source: 'mise',
       current: '1.0.0',
       latest: '1.1.0',
       canUpgrade: true
     })
-    expect(result.current[CodeCli.OPENAI_CODEX]).toMatchObject({
+    expect(result.current.statuses[CodeCli.OPENAI_CODEX]).toMatchObject({
       installed: true,
       source: 'mise',
       current: '2.0.0',
@@ -87,7 +91,7 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(1, false)
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
   })
@@ -97,8 +101,8 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
-    expect(result.current[CodeCli.CLAUDE_CODE]).toEqual({
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toEqual({
       installed: true,
       source: 'system',
       systemPath: '/usr/local/bin/claude',
@@ -115,8 +119,8 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
-    expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
       source: 'mise',
       applicationStatus: 'applied',
       canUpgrade: false
@@ -131,8 +135,8 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.OPENCLAW]))
 
-    await waitFor(() => expect(result.current[CodeCli.OPENCLAW]?.installed).toBe(true))
-    expect(result.current[CodeCli.OPENCLAW]).toEqual({
+    await waitFor(() => expect(result.current.statuses[CodeCli.OPENCLAW]?.installed).toBe(true))
+    expect(result.current.statuses[CodeCli.OPENCLAW]).toEqual({
       installed: true,
       source: 'system',
       systemPath: '/usr/local/bin/openclaw',
@@ -146,13 +150,13 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
-    expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({ latest: 'nightly', canUpgrade: false })
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({ latest: 'nightly', canUpgrade: false })
   })
 
   it('fetches latest versions when an availability event introduces a newly installed CLI', async () => {
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(false))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(false))
 
     setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
     ipcMocks.latestVersions.mockResolvedValueOnce({}).mockResolvedValueOnce({ claude: '1.1.0' })
@@ -160,7 +164,7 @@ describe('useCliVersionStatuses', () => {
       ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(1, false)
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
   })
@@ -169,13 +173,13 @@ describe('useCliVersionStatuses', () => {
     setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.0.0') })
     ipcMocks.latestVersions.mockResolvedValue({ claude: '1.1.0' })
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.latest).toBe('1.1.0'))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.latest).toBe('1.1.0'))
 
     setSnapshots({})
     act(() => {
       ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.installed).toBe(false))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(false))
 
     setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.2.0') })
     ipcMocks.latestVersions.mockReset().mockResolvedValueOnce({}).mockResolvedValueOnce({ claude: '1.3.0' })
@@ -183,7 +187,7 @@ describe('useCliVersionStatuses', () => {
       ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.latest).toBe('1.3.0'))
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.latest).toBe('1.3.0'))
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(1, false)
     expect(ipcMocks.latestVersions).toHaveBeenNthCalledWith(2, true)
   })
@@ -194,16 +198,74 @@ describe('useCliVersionStatuses', () => {
 
     const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE, CodeCli.OPENAI_CODEX]))
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
-    expect(result.current[CodeCli.OPENAI_CODEX]?.canUpgrade).toBe(true)
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.canUpgrade).toBe(true))
+    expect(result.current.statuses[CodeCli.OPENAI_CODEX]?.canUpgrade).toBe(true)
 
     setSnapshots({ claude: miseSnapshot('claude', 'claude', '1.1.0'), codex: miseSnapshot('codex', 'codex', '2.0.0') })
     act(() => {
       ipcEventHandlers.get('binary.availability_changed')?.(undefined)
     })
 
-    await waitFor(() => expect(result.current[CodeCli.CLAUDE_CODE]?.current).toBe('1.1.0'))
-    expect(result.current[CodeCli.CLAUDE_CODE]).toMatchObject({ current: '1.1.0', latest: '1.1.0', canUpgrade: false })
-    expect(result.current[CodeCli.OPENAI_CODEX]).toMatchObject({ current: '2.0.0', latest: '2.1.0', canUpgrade: true })
+    await waitFor(() => expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.current).toBe('1.1.0'))
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]).toMatchObject({
+      current: '1.1.0',
+      latest: '1.1.0',
+      canUpgrade: false
+    })
+    expect(result.current.statuses[CodeCli.OPENAI_CODEX]).toMatchObject({
+      current: '2.0.0',
+      latest: '2.1.0',
+      canUpgrade: true
+    })
+  })
+
+  // The only retrigger is `binary.availability_changed`, which fires on install/remove — never
+  // because a read failed. Without a retry, one rejection strands every tool for the session.
+  it('retries a rejected snapshot read so a transient failure still yields statuses', async () => {
+    vi.useFakeTimers()
+    setSnapshots({ claude: miseSnapshot('claude') })
+    const succeed = ipcMocks.snapshots.getMockImplementation()!
+    ipcMocks.snapshots.mockRejectedValueOnce(new Error('main not ready')).mockImplementation(succeed)
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(result.current.statuses).toEqual({})
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(result.current.statuses[CodeCli.CLAUDE_CODE]?.installed).toBe(true)
+  })
+
+  it('settles as resolved once the retries are exhausted, instead of retrying forever', async () => {
+    vi.useFakeTimers()
+    ipcMocks.snapshots.mockRejectedValue(new Error('ipc unavailable'))
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000 * 10)
+    })
+
+    expect(ipcMocks.snapshots).toHaveBeenCalledTimes(5)
+    // Consumers gate their "tool is genuinely absent" fallback on this; never flipping it
+    // leaves a selected-but-hidden tool with no way out.
+    expect(result.current.resolved).toBe(true)
+  })
+
+  it('stays unresolved while the first read is still in flight', async () => {
+    let release!: (value: Record<string, BinaryToolSnapshot>) => void
+    ipcMocks.snapshots.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)))
+
+    const { result } = renderHook(() => useCliVersionStatuses([CodeCli.CLAUDE_CODE]))
+    await act(async () => {})
+    // Resolving early would let a consumer treat an in-flight read as a confirmed absence.
+    expect(result.current.resolved).toBe(false)
+
+    await act(async () => {
+      release({ claude: miseSnapshot('claude') })
+    })
+    await waitFor(() => expect(result.current.resolved).toBe(true))
   })
 })
