@@ -114,7 +114,11 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     refresh: [sessionMessagesCachePath]
   })
   const inFlightDeleteIdsRef = useRef(new Set<string>())
-  const locallyRemovedIdsRef = useRef(new Set<string>())
+  const locallyRemovedIdsRef = useRef({ ids: new Set<string>(), sessionId })
+  if (locallyRemovedIdsRef.current.sessionId !== sessionId) {
+    locallyRemovedIdsRef.current = { ids: new Set<string>(), sessionId }
+  }
+  const locallyRemovedIds = locallyRemovedIdsRef.current.ids
   useDataChange(
     '/agent-sessions/:sessionId/messages',
     () => {
@@ -251,7 +255,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const deleteMessage = useCallback(
     async (messageId: string): Promise<void> => {
       const deleteKey = `${sessionId}:${messageId}`
-      if (locallyRemovedIdsRef.current.has(deleteKey)) {
+      if (locallyRemovedIds.has(messageId)) {
         await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
         return
       }
@@ -261,13 +265,13 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       inFlightDeleteIdsRef.current.add(deleteKey)
       try {
         await deleteMessageTrigger({ params: { sessionId, messageId } })
-        locallyRemovedIdsRef.current.add(deleteKey)
+        locallyRemovedIds.add(messageId)
         await mutate((currentPages) => dropSessionMessageFromPages(currentPages, messageId), { revalidate: false })
       } finally {
         inFlightDeleteIdsRef.current.delete(deleteKey)
       }
     },
-    [deleteMessageTrigger, mutate, pages, sessionId]
+    [deleteMessageTrigger, locallyRemovedIds, mutate, pages, sessionId]
   )
 
   return {

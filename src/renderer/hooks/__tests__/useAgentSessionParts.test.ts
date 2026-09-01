@@ -2,6 +2,7 @@ import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, renderHook } from '@testing-library/react'
+import { useCallback, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const dataApiMocks = vi.hoisted(() => ({
@@ -53,32 +54,47 @@ function mockAgentSessionPartsDataApi(pages: Array<{ items: AgentSessionMessageE
 }
 
 function mockLiveAgentSessionParts(initialItems: AgentSessionMessageEntity[]) {
-  let pages = [{ items: initialItems, nextCursor: undefined as string | undefined }]
-  const mutate = vi.fn(async (updater?: unknown) => {
-    if (typeof updater === 'function') {
-      const next = await (
-        updater as (current: typeof pages) => typeof pages | Promise<typeof pages | undefined> | undefined
-      )(pages)
-      if (next !== undefined) pages = next
-    }
-    return pages
-  })
+  type Pages = Array<{ items: AgentSessionMessageEntity[]; nextCursor?: string }>
+  const visiblePagesBySession = new Map<string, Pages>([
+    ['session-1', [{ items: initialItems, nextCursor: undefined }]]
+  ])
   const trigger = vi.fn(async () => undefined)
-  dataApiMocks.useInfiniteQuery.mockImplementation(() => ({
-    pages,
-    isLoading: false,
-    isRefreshing: false,
-    hasNext: false,
-    loadNext: vi.fn(),
-    mutate
-  }))
+  dataApiMocks.useInfiniteQuery.mockImplementation(function useLiveAgentSessionQuery(
+    _path: string,
+    config: { params: { sessionId: string } }
+  ) {
+    const sessionId = config.params.sessionId
+    const [, setVersion] = useState(0)
+    const pages = visiblePagesBySession.get(sessionId) ?? []
+    const mutate = useCallback(
+      async (updater?: unknown) => {
+        const current = visiblePagesBySession.get(sessionId) ?? []
+        const next = typeof updater === 'function' ? (updater as (value: Pages) => Pages | undefined)(current) : current
+        visiblePagesBySession.set(sessionId, next ?? current)
+        setVersion((version) => version + 1)
+        return visiblePagesBySession.get(sessionId)
+      },
+      [sessionId]
+    )
+    return {
+      pages,
+      isLoading: false,
+      isRefreshing: false,
+      hasNext: false,
+      loadNext: vi.fn(),
+      mutate
+    }
+  })
   dataApiMocks.useInfiniteFlatItems.mockImplementation((currentPages: Array<{ items: AgentSessionMessageEntity[] }>) =>
     currentPages.flatMap((page) => page.items)
   )
   dataApiMocks.useMutation.mockReturnValue({ trigger })
   return {
-    getIds: () => pages.flatMap((page) => page.items.map((item) => item.id)),
-    mutate,
+    getIds: (sessionId = 'session-1') =>
+      (visiblePagesBySession.get(sessionId) ?? []).flatMap((page) => page.items.map((item) => item.id)),
+    setItems: (sessionId: string, items: AgentSessionMessageEntity[]) => {
+      visiblePagesBySession.set(sessionId, [{ items, nextCursor: undefined }])
+    },
     trigger
   }
 }
@@ -403,20 +419,18 @@ describe('useAgentSessionParts', () => {
 
   it('drops a successfully deleted message from the visible infinite list without remounting', async () => {
     const live = mockLiveAgentSessionParts([sessionMessageRow('message-keep'), sessionMessageRow('message-delete')])
-    const { result, rerender } = renderHook(() => useAgentSessionParts('session-1'))
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
 
     expect(result.current.messages.map((message) => message.id)).toEqual(['message-keep', 'message-delete'])
 
     await act(async () => {
       await result.current.deleteMessage('message-delete')
     })
-    rerender()
 
     expect(live.trigger).toHaveBeenCalledOnce()
     expect(live.trigger).toHaveBeenCalledWith({
       params: { sessionId: 'session-1', messageId: 'message-delete' }
     })
-    expect(live.mutate).toHaveBeenCalledWith(expect.any(Function), { revalidate: false })
     expect(live.getIds()).toEqual(['message-keep'])
     expect(result.current.messages.map((message) => message.id)).toEqual(['message-keep'])
   })
@@ -452,6 +466,29 @@ describe('useAgentSessionParts', () => {
 
     expect(live.trigger).toHaveBeenCalledOnce()
     expect(live.getIds()).toEqual(['message-2'])
+  })
+
+  it('allows a recreated message to be deleted after leaving and returning to its session', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    live.setItems('session-2', [sessionMessageRow('message-2', 'session-2')])
+    const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionParts(sessionId), {
+      initialProps: { sessionId: 'session-1' }
+    })
+
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+    rerender({ sessionId: 'session-2' })
+    live.setItems('session-1', [sessionMessageRow('message-1')])
+    rerender({ sessionId: 'session-1' })
+    await act(async () => {
+      await result.current.deleteMessage('message-1')
+    })
+
+    expect(live.trigger).toHaveBeenCalledTimes(2)
+    expect(live.trigger).toHaveBeenLastCalledWith({
+      params: { sessionId: 'session-1', messageId: 'message-1' }
+    })
   })
 
   it('does not send a second DELETE while the first request is in flight', async () => {
