@@ -18,7 +18,28 @@ const { PersistenceListener, TerminalPersistenceError } = await import(
 const { AgentSessionMessageBackend } = await import('../AgentSessionMessageBackend')
 
 describe('AgentSessionMessageBackend', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.persistExistingAssistantMessage.mockReturnValue({ id: 'assistant-1' })
+  })
+
+  it('does not run the success hook when the cleared placeholder no longer exists', async () => {
+    mocks.persistExistingAssistantMessage.mockReturnValueOnce(null)
+    const afterPersist = vi.fn(async () => undefined)
+    const backend = new AgentSessionMessageBackend({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      afterPersist
+    })
+    const listener = new PersistenceListener({ topicId: 'agent-session:session-1', backend, onPersistFailed: vi.fn() })
+
+    await listener.onDone({
+      status: 'success',
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })
+
+    expect(afterPersist).not.toHaveBeenCalled()
+  })
 
   it('terminalizes its placeholder when the persistence listener catches a write failure', async () => {
     mocks.persistExistingAssistantMessage.mockImplementationOnce(() => {

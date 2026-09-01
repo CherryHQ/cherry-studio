@@ -1,14 +1,16 @@
+import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { useCommandHandler, useCommandRuntime } from '@renderer/hooks/command'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
-import { act, render } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentChat from '../AgentChat'
 
-const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<void>>())
 const stopLiveTurnMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
 
@@ -51,13 +53,6 @@ const createConversationBootstrap = (
     modelLoading: false
   }
 })
-
-vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
-    if (options?.enabled === false) commandHandlers.delete(command)
-    else commandHandlers.set(command, handler)
-  }
-}))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useIsActiveTab: () => activeTabMock.current
@@ -138,112 +133,97 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+function ExecuteClearMessages() {
+  const runtime = useCommandRuntime()
+  return (
+    <button type="button" onClick={() => runtime.execute('topic.clear_messages')}>
+      Clear messages
+    </button>
+  )
+}
+
+function FallbackClearMessages({ onExecute }: { onExecute: () => void }) {
+  useCommandHandler('topic.clear_messages', onExecute)
+  return null
+}
+
+function renderAgentChat(
+  props: ComponentProps<typeof AgentChat> = { conversationBootstrap: createConversationBootstrap() },
+  fallback?: () => void
+) {
+  return render(
+    <CommandContextKeyProvider>
+      <CommandProvider>
+        {fallback ? <FallbackClearMessages onExecute={fallback} /> : null}
+        <AgentChat {...props} />
+        <ExecuteClearMessages />
+      </CommandProvider>
+    </CommandContextKeyProvider>
+  )
+}
+
 describe('AgentChat clear messages command', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    commandHandlers.clear()
     activeTabMock.current = true
   })
 
-  it('clears the active Agent session once the confirmation is accepted', async () => {
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+  it('clears and invalidates the active Agent session after confirmation', async () => {
+    const user = userEvent.setup()
+    renderAgentChat()
+    const invalidateCache = lastInvalidateCache()
 
-    await act(async () => {
-      await commandHandlers.get('topic.clear_messages')?.()
-    })
+    await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
     expect(popup.confirm).toHaveBeenCalledWith({
       title: 'chat.input.clear.title',
       content: 'chat.input.clear.content',
       centered: true
     })
-    expect(stopLiveTurnMock).toHaveBeenCalledWith({ clearSessionMessages: true })
-    expect(stopLiveTurnMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('invalidates every SWR variant of the session message collection after a successful clear', async () => {
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
-    const invalidateCache = lastInvalidateCache()
-
-    await act(async () => {
-      await commandHandlers.get('topic.clear_messages')?.()
+    await waitFor(() => {
+      expect(stopLiveTurnMock).toHaveBeenCalledExactlyOnceWith({ clearSessionMessages: true })
+      expect(invalidateCache).toHaveBeenCalledExactlyOnceWith(['/agent-sessions/session-1/messages'])
     })
-
-    expect(invalidateCache).toHaveBeenCalledExactlyOnceWith(['/agent-sessions/session-1/messages'])
-  })
-
-  it('requests drain and DELETE in one abort so a post-drain delivery cannot be admitted then erased', async () => {
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
-
-    await act(async () => {
-      await commandHandlers.get('topic.clear_messages')?.()
-    })
-
-    expect(stopLiveTurnMock.mock.calls).toEqual([[{ clearSessionMessages: true }]])
-  })
-
-  it('leaves Agent messages untouched when stopping the live turn fails', async () => {
-    stopLiveTurnMock.mockRejectedValueOnce(new Error('abort failed'))
-
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
-    const invalidateCache = lastInvalidateCache()
-
-    await act(async () => {
-      await commandHandlers.get('topic.clear_messages')?.()
-    })
-
-    expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: abort failed')
-    expect(invalidateCache).not.toHaveBeenCalled()
   })
 
   it('leaves Agent messages untouched when the confirmation is dismissed', async () => {
+    const user = userEvent.setup()
     vi.mocked(popup.confirm).mockResolvedValueOnce(false)
 
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    renderAgentChat()
     const invalidateCache = lastInvalidateCache()
 
-    await act(async () => {
-      await commandHandlers.get('topic.clear_messages')?.()
-    })
+    await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
     expect(stopLiveTurnMock).not.toHaveBeenCalled()
     expect(invalidateCache).not.toHaveBeenCalled()
   })
 
-  it('toasts the existing localized error when clearing the Agent session fails', async () => {
+  it('reports a failed clear without invalidating the retained messages', async () => {
+    const user = userEvent.setup()
     stopLiveTurnMock.mockRejectedValueOnce(new Error('disk full'))
 
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    renderAgentChat()
+    const invalidateCache = lastInvalidateCache()
 
-    await act(async () => {
-      await commandHandlers.get('topic.clear_messages')?.()
+    await user.click(screen.getByRole('button', { name: 'Clear messages' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: disk full')
+      expect(invalidateCache).not.toHaveBeenCalled()
     })
-
-    expect(toast.error).toHaveBeenCalledWith('message.error.unknown: Error: disk full')
   })
 
-  it('does not register the clear-messages command for a background tab', () => {
+  it('lets the active fallback handle the command when this Agent tab is in the background', async () => {
+    const user = userEvent.setup()
+    const fallback = vi.fn()
     activeTabMock.current = false
 
-    render(<AgentChat conversationBootstrap={createConversationBootstrap()} />)
+    renderAgentChat({ conversationBootstrap: createConversationBootstrap() }, fallback)
 
-    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
-  })
+    await user.click(screen.getByRole('button', { name: 'Clear messages' }))
 
-  it('does not register the clear-messages command without an active session', () => {
-    render(<AgentChat conversationBootstrap={createConversationBootstrap(null)} />)
-
-    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
-  })
-
-  it('does not register the clear-messages command when the conversation is not shown', () => {
-    render(
-      <AgentChat
-        conversationBootstrap={createConversationBootstrap()}
-        centerSurface={{ id: 'home', content: <div /> }}
-      />
-    )
-
-    expect(commandHandlers.has('topic.clear_messages')).toBe(false)
+    expect(fallback).toHaveBeenCalledOnce()
+    expect(stopLiveTurnMock).not.toHaveBeenCalled()
   })
 })

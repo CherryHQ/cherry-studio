@@ -777,7 +777,7 @@ chunks-only prompt stream with no message target. See
 | `ai.stream.open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
 | `ai.stream.attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `ai.stream.detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
-| `ai.stream.abort` | `{ topicId, clearSessionMessages? }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle. When `clearSessionMessages` is true on an Agent Session topic, message DELETE runs before the dispatch lock is released |
+| `ai.stream.abort` | `{ topicId, clearSessionMessages? }` | void | Stop current generation; resolves after terminal persistence and Agent runtime close settle. When `clearSessionMessages` is true on an Agent Session topic, message DELETE runs before the dispatch lock is released; other topic kinds ignore the flag |
 
 > Topic status snapshots need no dedicated IPC: a new window pulls every
 > `topic.stream.statuses.${topicId}` entry via `Cache_GetAllShared` on

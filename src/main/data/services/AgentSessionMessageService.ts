@@ -620,7 +620,7 @@ export class AgentSessionMessageService {
         .where(eq(sessionTable.id, sessionId))
         .limit(1)
         .all()
-      if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+      if (!session) return { deletedIds: [], inboundResults: [], outboundFailed: [] }
 
       const inboundResults = this.prepareSessionDeletionTx(tx, [sessionId], {
         code: AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_CLEARED,
@@ -980,14 +980,11 @@ export class AgentSessionMessageService {
     return result
   }
 
-  saveMessage(
+  private publishSavedMessage(
     params: SaveAgentSessionMessageParams,
-    options: SaveAgentSessionMessageOptions = {}
-  ): AgentSessionMessageEntity {
-    const { db, publishDataChange } = options
-    const timestampMs = Date.now()
-    if (db) return this.saveMessageTx(db, params, timestampMs).entity
-    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    result: SavedAgentSessionMessage,
+    publishDataChange: boolean | undefined
+  ): void {
     if (result.entity.role === 'assistant') {
       aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
     }
@@ -1005,6 +1002,17 @@ export class AgentSessionMessageService {
         }
       ])
     }
+  }
+
+  saveMessage(
+    params: SaveAgentSessionMessageParams,
+    options: SaveAgentSessionMessageOptions = {}
+  ): AgentSessionMessageEntity {
+    const { db, publishDataChange } = options
+    const timestampMs = Date.now()
+    if (db) return this.saveMessageTx(db, params, timestampMs).entity
+    const result = application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
+    this.publishSavedMessage(params, result, publishDataChange)
     return result.entity
   }
 
@@ -1023,23 +1031,7 @@ export class AgentSessionMessageService {
       return this.saveMessageTx(tx, params, timestampMs)
     })
     if (!result) return null
-    if (result.entity.role === 'assistant') {
-      aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: result.entity.id })
-    }
-    if (result.activityTimestamp !== null && !publishDataChange) {
-      agentSessionService.notifyReadModelChange([params.sessionId], 'projection')
-    }
-    if (publishDataChange) {
-      notifyDataApiDataChange([
-        ...agentSessionReadModelEffects(result.activityTimestamp !== null ? [params.sessionId] : [], 'projection'),
-        {
-          endpoint: '/agent-sessions/:sessionId/messages',
-          kind: result.dataChange,
-          routeParams: { sessionId: params.sessionId },
-          entityIds: [result.entity.id]
-        }
-      ])
-    }
+    this.publishSavedMessage(params, result, publishDataChange)
     return result.entity
   }
 

@@ -1131,12 +1131,11 @@ describe('AgentSessionMessageService', () => {
     ])
   })
 
-  it('is a no-op for an empty session and rejects a missing session', () => {
+  it('is idempotent when the session is empty or already gone', () => {
     expect(agentSessionMessageService.clearSessionMessages(SESSION_ID)).toEqual({ deletedIds: [] })
     expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
-    expect(() => agentSessionMessageService.clearSessionMessages('missing-session')).toThrow(
-      "Session with id 'missing-session' not found"
-    )
+    expect(agentSessionMessageService.clearSessionMessages('missing-session')).toEqual({ deletedIds: [] })
+    expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
   it('updates an existing assistant placeholder and does not recreate it after clear', () => {
