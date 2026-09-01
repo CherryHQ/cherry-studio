@@ -52,14 +52,15 @@ const SettingsPage: FC = () => {
             className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
             {searchOpen ? (
               // Expanded: the field covers the whole header row at the standing
-              // box's width (same mt/h/mb rhythm so the menu never shifts)
-              <div className="mt-2 mb-1 flex h-8 shrink-0 items-center px-2.5">
+              // box's width; mt-2.5 top-aligns it with the provider column's
+              // own search field (its searchRow rhythm)
+              <div className="mt-2.5 mb-1 flex h-8 shrink-0 items-center px-2.5">
                 <SettingsSearchBox onCollapse={() => setSearchOpen(false)} />
               </div>
             ) : (
               <PageHeader
                 title={t('title.settings')}
-                className="mb-1"
+                className="mt-2.5 mb-1"
                 action={
                   <button
                     type="button"
