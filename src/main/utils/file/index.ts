@@ -4,8 +4,9 @@
  * ## Layout
  *
  * This topic holds the main-process FS/path primitives, each reached through
- * this single barrel (naming-conventions.md §6.4 / architecture/main-process.md
- * §2.1) — consumers import `from '@main/utils/file'`, never a sub-path:
+ * this single barrel (docs/references/architecture/naming-conventions.md §6.4 /
+ * docs/references/architecture/main-process.md §2.1) — consumers import
+ * `from '@main/utils/file'`, never a sub-path:
  *
  * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
  *   `move`, `remove`, `hash`, `download`, …).

@@ -157,7 +157,7 @@ function repairTailNodes(nodes: PhrasingContent[], tailSource: string, budget = 
   return repaired
 }
 
-// An extractor instead of an assertion: tsgo and typescript-eslint resolve the mdast/unist
+// An extractor instead of an assertion: the compiler and type-aware linter resolve the mdast/unist
 // union differently, so a direct `as Text` at the call site trips one toolchain or the other.
 function toTextNode(node: unknown): Text | undefined {
   if (typeof node === 'object' && node !== null && 'type' in node && (node as { type: string }).type === 'text') {

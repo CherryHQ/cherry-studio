@@ -188,7 +188,7 @@ jobs:
           # Share one checkout/install while keeping independent checks parallel.
           # Do not kill sibling checks on failure so every failure is reported.
           # `--max-processes 1` lands on the typecheck script's trailing concurrently call and
-          # serializes it: eslint plus two concurrent tsgo runs OOM the runner mid-job.
+          # serializes its TypeScript checks; running them beside Oxlint otherwise OOMs the runner.
           pnpm exec concurrently \
             --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \
             --prefix-colors "blue,yellow,cyan,green" \

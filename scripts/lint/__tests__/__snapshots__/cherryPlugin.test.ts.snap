@@ -61,14 +61,14 @@ exports[`Cherry Studio Oxlint plugin fixtures > accepts positive fixtures and sn
   {
     "file": "negative/src/renderer/components/ReverseEdge.tsx",
     "line": 1,
-    "message": "Shared buckets must not import pages/windows (reverse layer edge). renderer-architecture.md §7.",
+    "message": "Shared buckets must not import pages/windows (reverse layer edge). docs/references/architecture/renderer.md §7.",
     "rule": "cherry(renderer-boundaries)",
     "severity": "error",
   },
   {
     "file": "negative/src/renderer/pages/settings/CrossPage.tsx",
     "line": 1,
-    "message": "A page must not import another page (cross-page coupling). renderer-architecture.md §7.",
+    "message": "A page must not import another page (cross-page coupling). docs/references/architecture/renderer.md §7.",
     "rule": "cherry(page-boundaries)",
     "severity": "error",
   },
@@ -96,7 +96,7 @@ exports[`Cherry Studio Oxlint plugin fixtures > accepts positive fixtures and sn
   {
     "file": "negative/src/shared/exportStar.ts",
     "line": 1,
-    "message": "No \`export *\` — use explicit named re-exports (naming-conventions.md §6.4).",
+    "message": "No \`export *\` — use explicit named re-exports (docs/references/architecture/naming-conventions.md §6.4).",
     "rule": "cherry(no-export-star)",
     "severity": "error",
   },

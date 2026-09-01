@@ -79,12 +79,14 @@ const rendererBoundaries = {
     type: 'problem',
     schema: [],
     messages: {
-      sharedReverse: 'Shared buckets must not import pages/windows (reverse layer edge). renderer-architecture.md §7.',
+      sharedReverse:
+        'Shared buckets must not import pages/windows (reverse layer edge). docs/references/architecture/renderer.md §7.',
       utilsComponent:
-        'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.',
-      utilsService: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.',
+        'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. docs/references/architecture/renderer.md §3.',
+      utilsService:
+        'utils/ must not import renderer services (except @logger). docs/references/architecture/renderer.md §3.',
       serviceBarrel:
-        'Renderer service topics are closed barrels — import the topic index, not an internal module. renderer-architecture.md §3.1/§5.'
+        'Renderer service topics are closed barrels — import the topic index, not an internal module. docs/references/architecture/renderer.md §3.1/§5.'
     }
   },
   create(context) {
@@ -132,8 +134,9 @@ const pageBoundaries = {
     type: 'problem',
     schema: [],
     messages: {
-      pageWindow: 'A page must not import a window (reverse edge). renderer-architecture.md §2/§7.',
-      pageSibling: 'A page must not import another page (cross-page coupling). renderer-architecture.md §7.'
+      pageWindow: 'A page must not import a window (reverse edge). docs/references/architecture/renderer.md §2/§7.',
+      pageSibling:
+        'A page must not import another page (cross-page coupling). docs/references/architecture/renderer.md §7.'
     }
   },
   create(context) {
@@ -255,7 +258,10 @@ const noExportStar = {
   meta: {
     type: 'problem',
     schema: [],
-    messages: { forbidden: 'No `export *` — use explicit named re-exports (naming-conventions.md §6.4).' }
+    messages: {
+      forbidden:
+        'No `export *` — use explicit named re-exports (docs/references/architecture/naming-conventions.md §6.4).'
+    }
   },
   create(context) {
     return {

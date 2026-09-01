@@ -202,7 +202,7 @@ module.exports = defineConfig({
               {
                 group: ['@renderer', '@renderer/**', '**/renderer/**'],
                 message:
-                  'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+                  'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/architecture/shared-layer.md.'
               },
               {
                 group: ['drizzle-orm/*/migrator'],
