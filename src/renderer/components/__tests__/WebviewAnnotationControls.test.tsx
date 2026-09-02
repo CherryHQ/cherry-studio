@@ -117,6 +117,35 @@ describe('WebviewAnnotationControls', () => {
     expect(screen.getByRole('button', { name: '退出标注' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('updates target presentation metadata without resetting annotation mode', async () => {
+    const webview = createWebview()
+    const webviewRef = { current: webview }
+    const { rerender } = render(
+      <WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '标注页面' }))
+    vi.mocked(webview.send).mockClear()
+    request.mockClear()
+
+    const localizedTarget = { ...target, label: '演示' }
+    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={localizedTarget} />)
+
+    expect(webview.send).not.toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+      type: 'set_enabled',
+      enabled: false
+    })
+
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+        webviewId: 42,
+        target: localizedTarget,
+        annotations: [annotation]
+      })
+    )
+  })
+
   it('keeps annotations while deactivating a host tab and resets them on navigation', async () => {
     const webview = createWebview()
     const { rerender } = render(

@@ -35,6 +35,8 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   const [state, setState] = useState<WebviewAnnotationState>(EMPTY_STATE)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const targetRef = useRef(target)
+  targetRef.current = target
 
   const locale = useMemo(
     () => ({
@@ -75,17 +77,18 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   const replaceMainSnapshot = useCallback(
     async (annotations: WebviewAnnotation[], webview = webviewRef.current) => {
       if (!webview) return false
+      const currentTarget = targetRef.current
       try {
         const webviewId = webview.getWebContentsId()
         if (!webviewId) return false
-        await ipcApi.request('webview.replace_annotations', { webviewId, target, annotations })
+        await ipcApi.request('webview.replace_annotations', { webviewId, target: currentTarget, annotations })
         return true
       } catch (error) {
-        logger.debug('Failed to synchronize webview annotations', { targetId: target.id, error })
+        logger.debug('Failed to synchronize webview annotations', { targetId: currentTarget.id, error })
         return false
       }
     },
-    [target, webviewRef]
+    [webviewRef]
   )
 
   useEffect(() => {
