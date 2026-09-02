@@ -20,8 +20,8 @@ export const ContextSettingsCompressOverrideSchema = z.object({
   // min(1): '' would read as an explicit pick and silently kill compression
   // (resolveCompressionModel('') → null) — clearing must be expressed as null.
   modelId: z.string().min(1).nullable().optional(),
-  /** Compact once the prompt passes this percent of the model context window. */
-  thresholdPercent: z.number().int().min(10).max(100).optional()
+  /** Compact once the prompt passes this percent of the available input context. */
+  thresholdPercent: z.number().int().min(20).max(100).optional()
 })
 export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsCompressOverrideSchema>
 
@@ -50,7 +50,7 @@ export const EffectiveContextSettingsSchema = z.object({
   compress: z.object({
     enabled: z.boolean(),
     modelId: z.string().nullable(),
-    thresholdPercent: z.number().int().min(10).max(100)
+    thresholdPercent: z.number().int().min(20).max(100)
   })
 })
 export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSchema>
@@ -76,7 +76,7 @@ export const MIN_TRUNCATE_THRESHOLD = 2000
  * the trigger can never fire; the floor keeps it clear of the keep budget,
  * which is sized as a fraction of the trigger itself.
  */
-export const MIN_COMPRESS_THRESHOLD_PERCENT = 10
+export const MIN_COMPRESS_THRESHOLD_PERCENT = 20
 export const MAX_COMPRESS_THRESHOLD_PERCENT = 100
 
 /** Hardcoded floor. compress.enabled defaults TRUE (P2-B decision); the

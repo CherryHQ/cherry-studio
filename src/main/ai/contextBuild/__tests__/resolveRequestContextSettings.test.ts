@@ -143,7 +143,7 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
   // can park the trigger at 0 — which would fold on every step — or at NaN,
   // which compares false against every estimate and folds forever.
   it.each([
-    ['zero', 0, 10],
+    ['zero', 0, 20],
     ['above 100', 250, 100],
     ['not a number', Number.NaN, 80]
   ])('clamps an out-of-range global trigger (%s)', async (_label, stored, expected) => {
@@ -156,7 +156,7 @@ describe('resolveRequestContextSettings — assistant override layer (P2-D)', ()
   // `.parse()`s, so a migration artifact or a direct DB edit reaches the
   // trigger unchecked — clamping the globals alone leaves this path open.
   it.each([
-    ['zero', 0, 10],
+    ['zero', 0, 20],
     ['above 100', 250, 100],
     ['not a number', Number.NaN, 80]
   ])('clamps an out-of-range assistant trigger (%s)', async (_label, stored, expected) => {

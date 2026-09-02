@@ -227,15 +227,16 @@ describe('inLoopCompactionFeature', () => {
     compactModelMessages.mockClear()
     compactModelMessages.mockResolvedValue([userMessage(10)])
     const prepareStep = getPrepareStep(
-      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 10 })
+      scope({ chatId: 'topic-1', contextWindow: CONTEXT_WINDOW, thresholdPercent: 20 })
     )
-    // Trigger = 10% of 100k = 10k; 20 turns x ~1k = ~20k is over it.
-    const messages = Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? userMessage(1000) : assistantMessage(1000)))
+    // Trigger = 20% of 100k = 20k; 30 turns x ~1k = ~30k is over it.
+    const messages = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? userMessage(1000) : assistantMessage(1000)))
     await prepareStep({ messages } as any)
     expect(compactModelMessages).toHaveBeenCalledOnce()
-    // ~1k per kept turn, so staying under the 10k trigger means fewer than 10
-    // turns. A window-relative keep budget (30k > the whole prompt) kept all 20.
-    expect(compactModelMessages.mock.calls[0][2].keepRecentTurns).toBeLessThan(10)
+    // Keep budget = 0.375 x 20k = 7.5k, so ~8 of the ~1k turns survive — well
+    // under the trigger. A window-relative budget (0.3 x 100k = 30k) would have
+    // swallowed all 30 and handed back a prompt still over budget.
+    expect(compactModelMessages.mock.calls[0][2].keepRecentTurns).toBeLessThan(20)
   })
 
   it('honors a configured threshold below the default', async () => {
