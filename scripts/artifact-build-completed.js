@@ -43,28 +43,24 @@ function normalizeArtifactFilePath(file, productName, version, platform, release
 }
 
 function artifactBuildCompleted(buildResult) {
-  try {
-    const oldFilePath = buildResult.file
-    const edition = buildResult.packager.config.extraMetadata?.cherryEdition ?? 'global'
-    const newFilePath = normalizeArtifactFilePath(
-      oldFilePath,
-      buildResult.packager.appInfo.productName,
-      buildResult.packager.appInfo.version,
-      buildResult.packager.platform.name,
-      getReleaseProductName(buildResult.packager.appInfo.productName, edition)
-    )
+  const oldFilePath = buildResult.file
+  const edition = buildResult.packager.config.extraMetadata?.cherryEdition ?? 'global'
+  const newFilePath = normalizeArtifactFilePath(
+    oldFilePath,
+    buildResult.packager.appInfo.productName,
+    buildResult.packager.appInfo.version,
+    buildResult.packager.platform.name,
+    getReleaseProductName(buildResult.packager.appInfo.productName, edition)
+  )
 
-    if (oldFilePath === newFilePath) return
+  if (oldFilePath === newFilePath) return
 
-    fs.renameSync(oldFilePath, newFilePath)
-    buildResult.file = newFilePath
-    if (buildResult.safeArtifactName != null) {
-      buildResult.safeArtifactName = path.basename(newFilePath)
-    }
-    console.log(`[artifact build completed] renamed ${oldFilePath} to ${newFilePath}`)
-  } catch (error) {
-    console.error('Error renaming file:', error)
+  fs.renameSync(oldFilePath, newFilePath)
+  buildResult.file = newFilePath
+  if (buildResult.safeArtifactName != null) {
+    buildResult.safeArtifactName = path.basename(newFilePath)
   }
+  console.log(`[artifact build completed] renamed ${oldFilePath} to ${newFilePath}`)
 }
 
 exports.ARCH_ALIASES = ARCH_ALIASES

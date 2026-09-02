@@ -88,4 +88,20 @@ describe('artifactBuildCompleted', () => {
     expect(fs.existsSync(source)).toBe(false)
     expect(fs.readFileSync(expected, 'utf8')).toBe('artifact')
   })
+
+  it('propagates rename failures so packaging cannot continue with a stale path', () => {
+    const source = path.join(temporaryDirectory(), 'Cherry Studio-2.0.9-x86_64.AppImage')
+    const buildResult = {
+      file: source,
+      safeArtifactName: 'Cherry-Studio-2.0.9-x86_64.AppImage',
+      packager: {
+        appInfo: { productName: PRODUCT_NAME, version: VERSION },
+        config: {},
+        platform: { name: 'linux' }
+      }
+    }
+
+    expect(() => artifactBuildCompleted(buildResult)).toThrow()
+    expect(buildResult.file).toBe(source)
+  })
 })
