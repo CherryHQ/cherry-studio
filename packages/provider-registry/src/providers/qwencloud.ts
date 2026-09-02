@@ -357,9 +357,17 @@ export default defineProvider({
     {
       apiModelId: 'wan2.7-image-pro',
       imageGeneration: wan27ProImageGeneration,
+      // The base creator lists wan2.7 as text-only; editing takes 0-9 reference
+      // images, so the painting UI must offer attachments on this preset too.
+      inputModalities: ['text', 'image'],
       modelId: 'wan2-7-image-pro'
     },
-    { apiModelId: 'wan2.7-image', imageGeneration: wan27ImageGeneration, modelId: 'wan2-7-image' },
+    {
+      apiModelId: 'wan2.7-image',
+      imageGeneration: wan27ImageGeneration,
+      inputModalities: ['text', 'image'],
+      modelId: 'wan2-7-image'
+    },
     {
       apiModelId: 'wan2.6-image',
       imageGeneration: {
