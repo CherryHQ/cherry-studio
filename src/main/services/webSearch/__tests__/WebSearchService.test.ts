@@ -293,7 +293,7 @@ describe('WebSearchService', () => {
       providerId: 'tavily',
       capability: 'searchKeywords',
       input: 'first',
-      error: 'Web search failed after fallback'
+      error: 'Web search failed after fallback: network failed; ExaMCP failed'
     })
   })
 
@@ -479,7 +479,11 @@ describe('WebSearchService', () => {
       webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['first', 'second'] })
     ).rejects.toSatisfy(
       (error: unknown) =>
-        error instanceof AggregateError && error.errors.includes(primaryError) && error.errors.includes(fallbackError)
+        error instanceof AggregateError &&
+        error.message.includes('network failed') &&
+        error.message.includes('ExaMCP failed') &&
+        error.errors.includes(primaryError) &&
+        error.errors.includes(fallbackError)
     )
 
     expect(loggerErrorMock).toHaveBeenCalledWith('Web search failed', expect.any(AggregateError), {

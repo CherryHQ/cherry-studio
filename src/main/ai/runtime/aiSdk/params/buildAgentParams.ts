@@ -15,10 +15,7 @@ import {
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import {
-  resolveReadyWebSearchProvider,
-  WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY
-} from '@shared/data/presets/webSearchProviders'
+import { WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY } from '@shared/data/presets/webSearchProviders'
 import {
   type Assistant,
   DEFAULT_ASSISTANT_SETTINGS,
@@ -29,6 +26,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'

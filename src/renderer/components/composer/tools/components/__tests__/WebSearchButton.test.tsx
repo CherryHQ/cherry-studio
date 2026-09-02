@@ -6,7 +6,7 @@ import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,6 +61,14 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   )
 }))
+
+vi.mock('@cherrystudio/ui/icons', () => {
+  const ProviderIcon = () => <svg data-testid="web-search-provider-icon" />
+
+  return {
+    useIcon: (iconRef: unknown) => (iconRef ? ProviderIcon : undefined)
+  }
+})
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
@@ -306,17 +314,21 @@ describe('WebSearchButton', () => {
     expect(popup.confirm).not.toHaveBeenCalled()
   })
 
-  it('shows the effective ExaMCP provider icon while a keyless primary is selected', () => {
+  it('renders the effective ExaMCP provider icon while a keyless primary is selected', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'zhipu')
     mocks.assistant.settings.enableWebSearch = true
     mocks.model = {
       ...mocks.model!,
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     }
+    mocks.getWebSearchProviderIconRef.mockImplementation((providerId) =>
+      providerId === 'exa-mcp' ? { kind: 'provider', key: 'exa' } : undefined
+    )
 
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
-    expect(mocks.getWebSearchProviderIconRef).toHaveBeenCalledWith('exa-mcp')
+    const button = screen.getByRole('button', { name: 'common.close' })
+    expect(within(button).getByTestId('web-search-provider-icon')).toBeInTheDocument()
   })
 
   it('disables Zhipu web search while model provider API keys are loading', async () => {

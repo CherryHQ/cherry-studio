@@ -23,6 +23,11 @@ import { WebSearchConfigError } from './WebSearchConfigError'
 
 const logger = loggerService.withContext('MainWebSearchService')
 
+function createWebSearchAggregateError(errors: unknown[], message: string): AggregateError {
+  const details = errors.map((error) => (error instanceof Error ? error.message : String(error))).join('; ')
+  return new AggregateError(errors, `${message}: ${details}`, { cause: errors[0] })
+}
+
 type RunCapabilityRequest = {
   providerId?: WebSearchProvider['id']
   capability: WebSearchCapability
@@ -214,9 +219,7 @@ export class WebSearchService extends BaseService {
 
       mergedResults[candidate.index] = {
         status: 'rejected',
-        reason: new AggregateError([primaryResult.reason, result.reason], failureMessage, {
-          cause: primaryResult.reason
-        })
+        reason: createWebSearchAggregateError([primaryResult.reason, result.reason], failureMessage)
       }
     })
 
@@ -241,7 +244,7 @@ export class WebSearchService extends BaseService {
       if (configurationError && errors.every(isPermanentWebSearchConfigError)) {
         throw configurationError
       }
-      throw new AggregateError(errors, failureMessage, { cause: errors[0] })
+      throw createWebSearchAggregateError(errors, failureMessage)
     }
 
     return mergedResults
