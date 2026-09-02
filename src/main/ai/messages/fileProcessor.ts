@@ -93,7 +93,7 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
       logger.warn('Refusing to inline oversized native file; degrading to note', {
         fileEntryId,
         size,
-        cap: NATIVE_INLINE_FILE_CAP_BYTES,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES
       })
       return null
     }
@@ -102,7 +102,7 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
   } catch (error) {
     logger.warn('Failed to inline file from fileEntryId', {
       fileEntryId,
-      error: error instanceof Error ? error.message : error,
+      error: error instanceof Error ? error.message : error
     })
     return null
   }
@@ -130,7 +130,7 @@ async function fileUrlToDataUrl(fileUrl: string) {
       logger.warn('Refusing to inline oversized file:// URL; degrading to note', {
         fileUrl,
         size,
-        cap: NATIVE_INLINE_FILE_CAP_BYTES,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES
       })
       return null
     }

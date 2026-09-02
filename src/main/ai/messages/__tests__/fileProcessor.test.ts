@@ -11,13 +11,13 @@ vi.mock('@logger', () => ({
 
 const { readMock, fileManagerGetMetadataMock } = vi.hoisted(() => ({
   readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>(),
-  fileManagerGetMetadataMock: vi.fn<(id: string) => Promise<{ size: number }>>(),
+  fileManagerGetMetadataMock: vi.fn<(id: string) => Promise<{ size: number }>>()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const overrides = {
-    FileManager: { read: readMock, getMetadata: fileManagerGetMetadataMock },
+    FileManager: { read: readMock, getMetadata: fileManagerGetMetadataMock }
   } as Parameters<typeof mockApplicationFactory>[0]
   return mockApplicationFactory(overrides)
 })
