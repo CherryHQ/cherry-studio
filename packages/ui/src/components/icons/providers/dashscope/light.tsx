@@ -5,7 +5,7 @@ const DashscopeLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28.003" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="-14 -14 56 56" {...props}>
       <defs>
         <linearGradient id={`${iconId}-dashscopelight__a`} x1={-0.948} x2={1.292} y1={-1.093} y2={0.905}>
           <stop offset="0%" stopColor="#082DFF" />
