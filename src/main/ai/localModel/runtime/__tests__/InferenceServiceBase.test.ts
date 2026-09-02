@@ -84,6 +84,10 @@ class TestInferenceService extends InferenceServiceBase<EchoContract> {
   boom() {
     return this.run('fail', undefined)
   }
+
+  nothing() {
+    return this.run('noop', undefined)
+  }
 }
 
 async function createService(): Promise<{
@@ -161,6 +165,14 @@ describe('InferenceServiceBase dispatch', () => {
 
     await expect(blocking).resolves.toBe('released')
     expect(await queued).toEqual(new Error('caller gave up'))
+  })
+
+  it('resolves a method whose output is void instead of reading it as a failure', async () => {
+    const { service } = await createService()
+
+    // `load` (the embedding download) returns void; a sentinel on the queue's own
+    // `T | void` result type would reject every completed download.
+    await expect(service.nothing()).resolves.toBeUndefined()
   })
 
   it('surfaces the error the child threw, not the transport wrapper around it', async () => {

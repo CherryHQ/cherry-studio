@@ -35,12 +35,14 @@ export default {
         external: isMainExternalModule,
         output: {
           entryFileNames: '[name].js',
+          chunkFileNames: '[name]-[hash].js',
           format: 'cjs',
-          hoistTransitiveImports: false,
-          // Without it Rolldown may fold one entry into the other's chunk, so requiring
-          // entry A would execute entry B's `serveUtilityProcess()` too.
-          preserveModules: true,
-          preserveModulesRoot: resolve(__dirname, 'src')
+          hoistTransitiveImports: false
+          // No `preserveModules`: it mirrors the source tree, which puts bundled
+          // devDependencies under `out/utility-process/node_modules/**` — a path
+          // electron-builder strips, so the child died with MODULE_NOT_FOUND in the
+          // packaged app. Flat chunks keep every emitted file inside the output dir;
+          // `utilityProcessEntryGuard` fails the build if that ever stops holding.
         }
       },
       sourcemap: true

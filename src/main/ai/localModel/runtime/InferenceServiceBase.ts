@@ -55,12 +55,13 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
       )
     }
     if (options.signal?.aborted) throw options.signal.reason
-    const result = await this.queue.add(async () => {
+    // The cast is p-queue's `T | void`: it resolves to void only when an AbortSignal is
+    // passed to `add`, which this never does. Treating undefined as a failure would reject
+    // every method whose output is void, `load` included.
+    return (await this.queue.add(async () => {
       await this.restartIfRuntimeChanged()
       return this.request(method, input, options)
-    })
-    if (result === undefined) throw new Error('inference request queue did not return a result')
-    return result as Contract['methods'][M]['output']
+    })) as Contract['methods'][M]['output']
   }
 
   private async request<M extends keyof Contract['methods'] & string>(
