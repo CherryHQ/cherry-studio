@@ -1,7 +1,7 @@
 /**
  * Anthropic Prompt Caching Middleware
  *
- * Adds `providerOptions.anthropic.cacheControl = { type: 'ephemeral' }` markers
+ * Adds `providerOptions.anthropic.cacheControl` markers
  * on qualifying system / tool / trailing-message breakpoints so Anthropic-compatible
  * providers re-use stable prompt prefixes.
  *
@@ -13,7 +13,7 @@ import { definePlugin } from '@cherrystudio/ai-core'
 import { resolveAnthropicCacheSettings } from '@shared/ai/anthropicCache'
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { AnthropicCacheTtl, Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
@@ -21,9 +21,10 @@ import { VOLATILE_PROMPT_VARIABLES } from '../../../../../utils/prompt'
 import type { RequestFeature } from '../feature'
 
 const MAX_CACHE_BREAKPOINTS = 4
-const cacheProviderOptions = {
-  anthropic: { cacheControl: { type: 'ephemeral' } }
-} as const
+
+function getCacheControl(ttl: AnthropicCacheTtl) {
+  return ttl === '1h' ? ({ type: 'ephemeral', ttl } as const) : ({ type: 'ephemeral' } as const)
+}
 
 function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   const prompt = assistant?.prompt
@@ -68,14 +69,17 @@ function isFunctionTool(
   return tool.type === 'function'
 }
 
-function withCacheProviderOptions<T extends { providerOptions?: unknown }>(value: T): T {
+function withCacheProviderOptions<T extends { providerOptions?: unknown }>(
+  value: T,
+  cacheControl: ReturnType<typeof getCacheControl>
+): T {
   return {
     ...value,
     providerOptions: {
       ...(value.providerOptions && typeof value.providerOptions === 'object' ? value.providerOptions : {}),
       anthropic: {
         ...(value.providerOptions as { anthropic?: object } | undefined)?.anthropic,
-        cacheControl: cacheProviderOptions.anthropic.cacheControl
+        cacheControl
       }
     }
   }
@@ -131,13 +135,17 @@ function applyToolCacheMarker(
   markerIndex: number,
   toolPrefixTokens: number,
   tokenThreshold: number,
-  budget: CacheBreakpointBudget
+  budget: CacheBreakpointBudget,
+  cacheControl: ReturnType<typeof getCacheControl>
 ): LanguageModelV3CallOptions['tools'] {
   if (!sortedTools?.length || markerIndex === -1 || toolPrefixTokens < tokenThreshold || !budget.use())
     return sortedTools
 
   const markedTools = [...sortedTools]
-  markedTools[markerIndex] = withCacheProviderOptions(markedTools[markerIndex] as LanguageModelV3FunctionTool)
+  markedTools[markerIndex] = withCacheProviderOptions(
+    markedTools[markerIndex] as LanguageModelV3FunctionTool,
+    cacheControl
+  )
   return markedTools
 }
 
@@ -152,6 +160,7 @@ export async function transformAnthropicCacheParams(
 
   const messages = [...params.prompt]
   const budget = createCacheBreakpointBudget()
+  const cacheControl = getCacheControl(settings.ttl)
   const volatileSystemPrompt = hasVolatilePromptVariables(assistant)
   const sortedTools = sortToolsForCache(params.tools)
   const toolPrefix = estimateToolsPrefix(sortedTools)
@@ -162,7 +171,7 @@ export async function transformAnthropicCacheParams(
       const msg = messages[i]
       systemPrefixTokens += estimateContentTokens(msg.content)
       if (msg.role === 'system' && systemPrefixTokens >= settings.tokenThreshold && budget.use()) {
-        messages[i] = withCacheProviderOptions(msg)
+        messages[i] = withCacheProviderOptions(msg, cacheControl)
         break
       }
     }
@@ -173,7 +182,8 @@ export async function transformAnthropicCacheParams(
     toolPrefix.markerIndex,
     toolPrefix.totalTokens,
     settings.tokenThreshold,
-    budget
+    budget,
+    cacheControl
   )
 
   if (settings.cacheLastNMessages > 0 && !volatileSystemPrompt) {
@@ -193,11 +203,11 @@ export async function transformAnthropicCacheParams(
       if (!budget.use()) break
 
       if (typeof msg.content === 'string') {
-        messages[i] = withCacheProviderOptions(msg)
+        messages[i] = withCacheProviderOptions(msg, cacheControl)
       } else {
         const newContent = [...msg.content]
         const lastIndex = newContent.length - 1
-        newContent[lastIndex] = withCacheProviderOptions(newContent[lastIndex])
+        newContent[lastIndex] = withCacheProviderOptions(newContent[lastIndex], cacheControl)
         messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
       }
       cachedCount++

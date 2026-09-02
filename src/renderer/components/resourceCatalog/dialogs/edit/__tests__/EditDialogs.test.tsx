@@ -16,6 +16,7 @@ const {
   createPromptMock,
   createGroupMock,
   fetchGenerateMock,
+  invalidateCacheMock,
   installedSkillsState,
   ipcRequestMock,
   knowledgeBasesState,
@@ -37,6 +38,7 @@ const {
   createPromptMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
+  invalidateCacheMock: vi.fn(),
   installedSkillsState: {
     current: {
       skills: [
@@ -262,6 +264,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useDataChange: vi.fn(),
+  useInvalidateCache: () => invalidateCacheMock,
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],

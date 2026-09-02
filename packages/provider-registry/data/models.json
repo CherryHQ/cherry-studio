@@ -16195,35 +16195,6 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 272000,
-      "id": "gpt-5-4-image-2",
-      "inputModalities": ["image", "text"],
-      "metadata": {},
-      "name": "OpenAI: GPT-5.4 Image 2",
-      "outputModalities": ["image", "text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["none", "low", "medium", "high", "xhigh"]
-          }
-        ],
-        "supportedEfforts": ["none", "low", "medium", "high", "xhigh"]
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 400000,
       "family": "gpt-mini",
@@ -16674,64 +16645,6 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "id": "gpt-5-image",
-      "inputModalities": ["image", "text"],
-      "metadata": {},
-      "name": "OpenAI: GPT-5 Image",
-      "outputModalities": ["image", "text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
-      }
-    },
-    {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
-      "contextWindow": 400000,
-      "id": "gpt-5-image-mini",
-      "inputModalities": ["image", "text"],
-      "metadata": {},
-      "name": "OpenAI: GPT-5 Image Mini",
-      "outputModalities": ["image", "text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["minimal", "low", "medium", "high"]
-          }
-        ],
-        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -21747,5 +21660,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "545ef0604e276213"
+  "version": "2f0039fd6893970f"
 }
