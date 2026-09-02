@@ -39104,6 +39104,407 @@
       }
     },
     {
+      "apiModelId": "qwen-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-2.0",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-2-0",
+      "name": "Qwen Image 2.0",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-2.0-pro",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-2-0-pro",
+      "name": "Qwen Image 2.0 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-3.0",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-3-0",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-3.0-pro",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-3-0-pro",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-edit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-edit",
+      "providerId": "qwencloud"
+    },
+    {
       "modelId": "qwen-omni-turbo",
       "providerId": "qwencloud"
     },
@@ -40077,7 +40478,279 @@
     {
       "modelId": "qwq-plus",
       "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.5-i2i-preview",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1280x1280",
+                "options": ["1280x1280", "1024x1024", "1664x928", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wan2-5-i2i-preview",
+      "name": "Wan 2.5 i2i Preview",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.6-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "enableInterleave": {
+                "default": true,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-6-image",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.7-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-7-image",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.7-image-pro",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-7-image-pro",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "z-image-turbo",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "promptExtend": {
+                "default": false,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1536",
+                "options": ["1024x1536", "1536x1024", "1024x1024", "1152x768", "768x1152"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
     }
   ],
-  "version": "12c02c138ffbba23"
+  "version": "77b821407aaae1ab"
 }
