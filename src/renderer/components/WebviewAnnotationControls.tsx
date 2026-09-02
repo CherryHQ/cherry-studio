@@ -29,12 +29,19 @@ interface Props {
   target: WebviewAnnotationTarget
 }
 
+interface AnnotationSource {
+  webview: WebviewTag
+  webviewId: number
+  navigationRevision: number
+}
+
 export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostActive, target }: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [state, setState] = useState<WebviewAnnotationState>(EMPTY_STATE)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const annotationSourceRef = useRef<AnnotationSource | null>(null)
   const targetRef = useRef(target)
   useLayoutEffect(() => {
     targetRef.current = target
@@ -77,13 +84,21 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   )
 
   const replaceMainSnapshot = useCallback(
-    async (annotations: WebviewAnnotation[], webview = webviewRef.current) => {
+    async (annotations: WebviewAnnotation[], webview = webviewRef.current, navigationRevision?: number) => {
       if (!webview) return false
       const currentTarget = targetRef.current
       try {
         const webviewId = webview.getWebContentsId()
         if (!webviewId) return false
-        await ipcApi.request('webview.replace_annotations', { webviewId, target: currentTarget, annotations })
+        const source = annotationSourceRef.current
+        const currentRevision =
+          source?.webview === webview && source.webviewId === webviewId ? source.navigationRevision : 0
+        await ipcApi.request('webview.replace_annotations', {
+          webviewId,
+          navigationRevision: navigationRevision ?? currentRevision,
+          target: currentTarget,
+          annotations
+        })
         return true
       } catch (error) {
         logger.debug('Failed to synchronize webview annotations', { targetId: currentTarget.id, error })
@@ -103,13 +118,28 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
     let disposed = false
     let attachAttempts = 0
 
+    const synchronizeAnnotationSource = (webview: WebviewTag) => {
+      const webviewId = webview.getWebContentsId()
+      const current = annotationSourceRef.current
+      if (current?.webview === webview && current.webviewId === webviewId) return current
+
+      const next = { webview, webviewId, navigationRevision: 0 }
+      annotationSourceRef.current = next
+      setState(EMPTY_STATE)
+      return next
+    }
+
     const handleGuestMessage = (event: Electron.IpcMessageEvent) => {
       if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
       const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
       if (!parsed.success) return
+      if (!attachedWebview) return
+      const source = synchronizeAnnotationSource(attachedWebview)
+      if (parsed.data.navigationRevision < source.navigationRevision) return
+      annotationSourceRef.current = { ...source, navigationRevision: parsed.data.navigationRevision }
       const nextState = isHostActive ? parsed.data.state : { ...parsed.data.state, enabled: false }
       setState(nextState)
-      void replaceMainSnapshot(nextState.annotations, attachedWebview)
+      void replaceMainSnapshot(nextState.annotations, attachedWebview, parsed.data.navigationRevision)
       if (!isHostActive && parsed.data.state.enabled) {
         sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
       }
@@ -159,6 +189,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
 
       detach()
       attachedWebview = webview
+      synchronizeAnnotationSource(webview)
       webview.addEventListener('ipc-message', handleGuestMessage)
       webview.addEventListener('did-start-loading', resetForNavigation)
       webview.addEventListener('did-navigate', resetForNavigation)

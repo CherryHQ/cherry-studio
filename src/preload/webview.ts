@@ -13,8 +13,8 @@ import { ipcRenderer } from 'electron'
 
 import { WebviewAnnotationController } from './WebviewAnnotationController'
 
-const controller = new WebviewAnnotationController((state) => {
-  const event: WebviewAnnotationGuestEvent = { type: 'state_changed', state }
+const controller = new WebviewAnnotationController((state, navigationRevision) => {
+  const event: WebviewAnnotationGuestEvent = { type: 'state_changed', navigationRevision, state }
   ipcRenderer.sendToHost(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, event)
 })
 

@@ -350,7 +350,7 @@ const findCommonAncestor = (elements: readonly Element[]): Element | null => {
   return chain.values().next().value ?? null
 }
 
-type StateListener = (state: WebviewAnnotationState) => void
+type StateListener = (state: WebviewAnnotationState, navigationRevision: number) => void
 
 export class WebviewAnnotationController {
   private annotations: WebviewAnnotation[] = []
@@ -370,6 +370,7 @@ export class WebviewAnnotationController {
   private suppressNextClick = false
   private locale: WebviewAnnotationLocale | null = null
   private mutationObserver: MutationObserver | null = null
+  private navigationRevision = 0
   private observedRoots = new Set<Document | ShadowRoot>()
   private overlayHost: HTMLDivElement | null = null
   private highlight: HTMLDivElement | null = null
@@ -399,6 +400,10 @@ export class WebviewAnnotationController {
         this.clearAnnotations()
         break
       case 'reset':
+        this.reset()
+        break
+      case 'reset_for_navigation':
+        this.navigationRevision = command.navigationRevision
         this.reset()
         break
       case 'request_state':
@@ -482,7 +487,7 @@ export class WebviewAnnotationController {
   }
 
   private emitState() {
-    this.onStateChange(this.getState())
+    this.onStateChange(this.getState(), this.navigationRevision)
   }
 
   private ensureOverlay() {

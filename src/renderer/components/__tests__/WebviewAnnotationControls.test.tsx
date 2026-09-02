@@ -62,21 +62,21 @@ const annotation = {
   }
 }
 
-function createWebview() {
+function createWebview(webviewId = 42) {
   const element = document.createElement('webview') as unknown as WebviewTag
   Object.assign(element, {
     send: vi.fn().mockResolvedValue(undefined),
-    getWebContentsId: vi.fn(() => 42),
+    getWebContentsId: vi.fn(() => webviewId),
     getTitle: vi.fn(() => 'Demo page'),
     getURL: vi.fn(() => 'https://example.com/page?secret=yes#part')
   })
   return element
 }
 
-function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationGuestEvent['state']) {
+function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationGuestEvent['state'], navigationRevision = 0) {
   const event = Object.assign(new Event('ipc-message'), {
     channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
-    args: [{ type: 'state_changed', state } satisfies WebviewAnnotationGuestEvent]
+    args: [{ type: 'state_changed', navigationRevision, state } satisfies WebviewAnnotationGuestEvent]
   })
   webview.dispatchEvent(event)
 }
@@ -136,10 +136,11 @@ describe('WebviewAnnotationControls', () => {
       enabled: false
     })
 
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }, 4))
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
         webviewId: 42,
+        navigationRevision: 4,
         target: localizedTarget,
         annotations: [annotation]
       })
@@ -179,6 +180,7 @@ describe('WebviewAnnotationControls', () => {
     await waitFor(() => expect(screen.queryByText('1')).not.toBeInTheDocument())
     expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
       webviewId: 42,
+      navigationRevision: 0,
       target,
       annotations: []
     })
@@ -187,17 +189,25 @@ describe('WebviewAnnotationControls', () => {
   it('synchronizes counts, copies Markdown, and clears after confirmation', async () => {
     const webview = createWebview()
     render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }))
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
 
     await waitFor(() =>
       expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
         webviewId: 42,
+        navigationRevision: 4,
         target,
         annotations: [annotation]
       })
     )
+    request.mockClear()
     fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalled())
+    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+      webviewId: 42,
+      navigationRevision: 4,
+      target,
+      annotations: [annotation]
+    })
     const copied = vi.mocked(navigator.clipboard.writeText).mock.calls[0][0]
     expect(copied).toContain('Fix this button')
     expect(copied).toContain('https://example.com/page')
@@ -209,6 +219,54 @@ describe('WebviewAnnotationControls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
     expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'clear' })
     await waitFor(() => expect(screen.queryByText('1')).not.toBeInTheDocument())
+    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+      webviewId: 42,
+      navigationRevision: 4,
+      target,
+      annotations: []
+    })
+  })
+
+  it('ignores stale revisions for one webview while accepting revision zero from its replacement', async () => {
+    const webview = createWebview()
+    const webviewRef = { current: webview }
+    const { rerender } = render(
+      <WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />
+    )
+
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
+    expect(await screen.findByText('1')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+        webviewId: 42,
+        navigationRevision: 4,
+        target,
+        annotations: [annotation]
+      })
+    )
+
+    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive={false} target={target} />)
+    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />)
+    request.mockClear()
+
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }, 3))
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(request).not.toHaveBeenCalledWith('webview.replace_annotations', expect.anything())
+
+    const replacementWebview = createWebview(43)
+    webviewRef.current = replacementWebview
+    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady={false} isHostActive target={target} />)
+    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />)
+
+    act(() => dispatchGuestState(replacementWebview, { enabled: false, annotations: [annotation] }, 0))
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+        webviewId: 43,
+        navigationRevision: 0,
+        target,
+        annotations: [annotation]
+      })
+    )
   })
 
   it('disables repeated copies while main resolves accessibility context', async () => {

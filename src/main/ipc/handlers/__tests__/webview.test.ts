@@ -1,3 +1,4 @@
+import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, setOpenLinkExternalMock, fromIdMock } = vi.hoisted(() => ({
@@ -66,14 +67,30 @@ describe('webviewHandlers', () => {
   it('replace_annotations forwards the complete snapshot and caller identity', async () => {
     const input = {
       webviewId: 7,
+      navigationRevision: 4,
       target: { id: 'mini-app:demo', label: 'Demo' },
       annotations: []
     }
 
-    await webviewHandlers['webview.replace_annotations'](input, ctx)
+    const parsedInput = webviewRequestSchemas['webview.replace_annotations'].input.parse(input)
+    await webviewHandlers['webview.replace_annotations'](parsedInput, ctx)
 
     expect(replaceAnnotations).toHaveBeenCalledWith(input, 'w1')
   })
+
+  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'replace_annotations rejects invalid navigation revision %s',
+    (navigationRevision) => {
+      const parsed = webviewRequestSchemas['webview.replace_annotations'].input.safeParse({
+        webviewId: 7,
+        navigationRevision,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: []
+      })
+
+      expect(parsed.success).toBe(false)
+    }
+  )
 
   it('save_as_html delegates and returns null on cancel', async () => {
     webviewService.saveWebviewAsHTML.mockResolvedValue(null)

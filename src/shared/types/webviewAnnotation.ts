@@ -82,6 +82,8 @@ export const WebviewAnnotationStateSchema = z
   })
   .strict()
 
+export const WebviewAnnotationNavigationRevisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
+
 export const WebviewAnnotationPageSchema = z
   .object({
     title: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.pageTitle),
@@ -187,6 +189,12 @@ export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_enabled'), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('clear') }).strict(),
   z.object({ type: z.literal('reset') }).strict(),
+  z
+    .object({
+      type: z.literal('reset_for_navigation'),
+      navigationRevision: WebviewAnnotationNavigationRevisionSchema
+    })
+    .strict(),
   z.object({ type: z.literal('request_state') }).strict()
 ])
 
@@ -194,6 +202,7 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('state_changed'),
+      navigationRevision: WebviewAnnotationNavigationRevisionSchema,
       state: WebviewAnnotationStateSchema
     })
     .strict()
