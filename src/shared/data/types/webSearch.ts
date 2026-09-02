@@ -22,6 +22,8 @@ export type WebSearchResult = {
 export type WebSearchResponse = {
   query?: string
   providerId: WebSearchProviderId
+  /** All providers that contributed results when per-input fallback produced a mixed response. */
+  providerIds?: WebSearchProviderId[]
   capability: WebSearchCapability
   inputs: string[]
   results: WebSearchResult[]

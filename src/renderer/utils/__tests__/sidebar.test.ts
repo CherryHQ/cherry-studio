@@ -28,7 +28,7 @@ const assistantFavorite = (id: string): SidebarFavoriteItem => ({ type: 'assista
 
 describe('sidebar config helpers', () => {
   it('keeps the fixed sidebar app order available', () => {
-    expect(SIDEBAR_FAVORITE_ORDER.slice(0, 5)).toEqual(['assistants', 'agents', 'paintings', 'translate', 'mini_app'])
+    expect(SIDEBAR_FAVORITE_ORDER.slice(0, 5)).toEqual(['agents', 'assistants', 'paintings', 'translate', 'mini_app'])
   })
 
   it('preserves the preference order when reading ordered visible sidebar favorites', () => {
