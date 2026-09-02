@@ -230,7 +230,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.availableInEditions).toEqual(['global', 'cn'])
   })
 
-  it('classifies historical presets while keeping custom providers edition-neutral', async () => {
+  it('keeps providers absent from the current registry edition-neutral', async () => {
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'hyperbolic',
@@ -246,7 +246,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
       }
     ])
 
-    expect(providerService.getByProviderId('hyperbolic').availableInEditions).toEqual(['global'])
+    expect(providerService.getByProviderId('hyperbolic').availableInEditions).toBeUndefined()
     expect(providerService.getByProviderId('custom-provider').availableInEditions).toBeUndefined()
   })
 

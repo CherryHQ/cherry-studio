@@ -33,7 +33,6 @@ import {
   configureOpenAIResponsesSummary,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
-  findLegacyProviderAvailableInEditions,
   inferAdapterFamily,
   inferReasoningControls,
   inferReasoningMembership,
@@ -784,9 +783,7 @@ class ProviderRegistryService {
       return {
         description: provider?.description,
         websites: provider?.metadata?.website,
-        availableInEditions:
-          provider?.availableInEditions ??
-          (presetProviderId ? findLegacyProviderAvailableInEditions(presetProviderId) : undefined),
+        availableInEditions: provider?.availableInEditions,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,

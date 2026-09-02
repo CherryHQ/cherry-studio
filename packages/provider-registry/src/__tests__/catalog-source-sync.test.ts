@@ -27,10 +27,6 @@ import {
 } from '../patterns/server-tool-constraints.gen'
 import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
-import {
-  findLegacyProviderAvailableInEditions,
-  LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS
-} from '../providers/legacyProviderEditions'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
@@ -84,14 +80,6 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     for (const provider of PROVIDERS) {
       expect(provider.availableInEditions).toContain('global')
     }
-  })
-
-  it('classifies historical presets without treating unknown custom providers as presets', () => {
-    for (const [providerId, availableInEditions] of Object.entries(LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS)) {
-      expect(findLegacyProviderAvailableInEditions(providerId)).toEqual(availableInEditions)
-    }
-
-    expect(findLegacyProviderAvailableInEditions('custom-provider')).toBeUndefined()
   })
 
   it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {
