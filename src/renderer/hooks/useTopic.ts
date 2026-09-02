@@ -396,10 +396,9 @@ export function useTopicMutations() {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: moveTrigger } = useMutation('POST', '/topics/:id/move')
-  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
-    // After delete, only invalidate the list — refreshing `/topics/:id` would
-    // trigger a fetch that 404s and caches an error in SWR.
-    refresh: ['/topics']
+  const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id')
+  const { trigger: restoreTrigger } = useMutation('POST', '/topics/:id/restore', {
+    refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
     refresh: ['/topics', '/pins']
@@ -429,15 +428,39 @@ export function useTopicMutations() {
   )
 
   const deleteTopic = useCallback(
-    async (topicId: string, options?: { permanent?: boolean }): Promise<void> => {
-      await deleteTrigger({
-        params: { id: topicId },
-        query: options?.permanent ? { permanent: true } : undefined
-      })
+    async (topicId: string, options?: { permanent?: boolean; refresh?: boolean }): Promise<void> => {
+      const shouldRefresh = options?.refresh !== false
+      try {
+        await deleteTrigger({
+          params: { id: topicId },
+          query: options?.permanent ? { permanent: true } : undefined
+        })
+      } catch (error) {
+        if (shouldRefresh) {
+          await invalidate('/topics').catch((refreshError) => {
+            logger.warn('Failed to refresh topics after delete failed', refreshError as Error, { topicId })
+          })
+        }
+        throw error
+      }
+      if (shouldRefresh) {
+        await invalidate('/topics').catch((refreshError) => {
+          logger.warn('Failed to refresh topics after delete succeeded', refreshError as Error, { topicId })
+        })
+      }
       closeConversationTabs('assistants', [topicId])
       logger.info(options?.permanent ? 'Permanently deleted topic' : 'Archived topic', { id: topicId })
     },
-    [closeConversationTabs, deleteTrigger]
+    [closeConversationTabs, deleteTrigger, invalidate]
+  )
+
+  const restoreTopic = useCallback(
+    async (topicId: string): Promise<Topic> => {
+      const topic = await restoreTrigger({ params: { id: topicId } })
+      logger.info('Restored topic', { id: topicId })
+      return topic
+    },
+    [restoreTrigger]
   )
 
   const deleteTopics = useCallback(
@@ -525,6 +548,7 @@ export function useTopicMutations() {
     createTopic,
     updateTopic,
     deleteTopic,
+    restoreTopic,
     deleteTopics,
     deleteTopicsByAssistantId,
     moveTopic,

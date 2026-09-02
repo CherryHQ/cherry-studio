@@ -170,15 +170,17 @@ describe('session item actions', () => {
     expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
-  it('labels and confirms as an archive — the row goes to the trash, not away', () => {
+  it('labels the recoverable action as Delete and uses the Recycle Bin confirmation', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
     const deleteAction = actions.find((action) => action.id === 'session.delete')
 
-    // Label, confirm and operation all have to agree: this path never sends `permanent`.
-    expect(deleteAction?.label).toBe('common.archive')
-    expect(deleteAction?.confirm?.confirmText).toBe('common.archive')
-    expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
-    expect(deleteAction?.confirm?.destructive).toBeFalsy()
+    expect(deleteAction?.label).toBe('common.delete')
+    expect(deleteAction?.confirm).toEqual({
+      title: 'recycle_bin.move.confirm_title',
+      confirmText: 'recycle_bin.move.confirm_action',
+      cancelText: 'common.cancel',
+      destructive: true
+    })
   })
 
   it('keeps Save to Notes independent from export and copy preferences', () => {

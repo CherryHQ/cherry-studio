@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type {
   TopicActionContext,
-  TopicDeleteMode,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
@@ -25,10 +24,13 @@ import {
   startTopicRenaming,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
+import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
+import { getErrorMessage } from '@renderer/utils/error'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
@@ -38,7 +40,7 @@ import { useTranslation } from 'react-i18next'
 import { HistoryRecordsContent } from './components/HistoryRecordsContent'
 import { HistorySourceFilterField } from './components/HistorySourceFilter'
 import { HistoryActionContextMenu } from './components/HistoryTableParts'
-import type { HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
+import type { HistoryBulkDeleteResult, HistoryRecordDescriptor, HistoryRowActions } from './historyRecordsDescriptor'
 import {
   ALL_SOURCE_ID,
   buildAssistantSources,
@@ -70,13 +72,13 @@ const AssistantHistoryRecords = ({
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
-  const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading } = useAssistantTopicsSource()
+  const { topics: rawTopics, rendererTopics, isLoadingAll: isTopicsLoading, refetch } = useAssistantTopicsSource()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
-  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics, batchUpdateTopics } = useTopicMutations()
+  const { updateTopic: patchTopic, deleteTopic: deleteTopicById, restoreTopic, batchUpdateTopics } = useTopicMutations()
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -203,15 +205,15 @@ const AssistantHistoryRecords = ({
   )
 
   const handleDeleteTopicFromMenu = useCallback(
-    async (topic: RendererTopic, mode: TopicDeleteMode = 'archive') => {
+    async (topic: RendererTopic) => {
       if (topic.pinned) return
 
       try {
-        await deleteTopicById(topic.id, { permanent: mode === 'permanent' })
+        await deleteTopicById(topic.id)
       } catch (err) {
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
-        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        toast.error(message)
+        if (isDataApiNotFoundError(err)) toast.info(t('recycle_bin.already_moved'))
+        else toast.error(err instanceof Error ? err.message : t('chat.topics.manage.delete.error'))
         return
       }
 
@@ -224,23 +226,68 @@ const AssistantHistoryRecords = ({
         )
         onRecordSelect?.(nextTopic ? getRendererTopic(nextTopic) : null)
       }
+
+      showRecycleBinUndo({
+        itemName: topic.name || t('chat.default.topic.name'),
+        onUndo: async () => {
+          await restoreTopic(topic.id)
+        }
+      })
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, t, timeSortedTopics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, restoreTopic, t, timeSortedTopics]
   )
 
   const handleBulkDeleteTopics = useCallback(
-    async (ids: string[]): Promise<readonly string[] | undefined> => {
-      try {
-        const result = await deleteTopics(ids)
-        return result.deletedIds
-      } catch (err) {
-        logger.error('Failed to bulk delete topics from history records', { ids, err })
-        const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        toast.error(message)
-        return undefined
+    async (ids: string[]): Promise<HistoryBulkDeleteResult> => {
+      const outcomes = await Promise.allSettled(ids.map((id) => deleteTopicById(id, { refresh: false })))
+      const staleIds: string[] = []
+      const result = outcomes.reduce<HistoryBulkDeleteResult>(
+        (summary, outcome, index) => {
+          const id = ids[index]
+          if (outcome.status === 'fulfilled') summary.succeeded.push(id)
+          else {
+            if (isDataApiNotFoundError(outcome.reason)) staleIds.push(id)
+            summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
+          }
+          return summary
+        },
+        { succeeded: [], failed: [] }
+      )
+
+      if (result.failed.length > 0) {
+        logger.error('Failed to bulk delete topics from history records', { ids, failed: result.failed })
       }
+      await refetch().catch((error) => {
+        logger.warn('Failed to refresh topics after bulk delete', error as Error, { ids })
+      })
+
+      if (result.succeeded.length === 0) {
+        if (staleIds.length === ids.length) toast.info(t('recycle_bin.already_moved'))
+        else toast.error(t('recycle_bin.move_failed'))
+      }
+
+      if (result.succeeded.length > 0) {
+        const deletedIds = [...result.succeeded]
+        showRecycleBinBatchUndo({
+          itemCount: deletedIds.length,
+          onUndo: async () => {
+            const restoreOutcomes = await Promise.allSettled(deletedIds.map((id) => restoreTopic(id)))
+            return restoreOutcomes.reduce(
+              (summary, outcome, index) => {
+                const id = deletedIds[index]
+                if (outcome.status === 'fulfilled') summary.restored.push(id)
+                else summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
+                return summary
+              },
+              { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
+            )
+          }
+        })
+      }
+
+      return result
     },
-    [deleteTopics, t]
+    [deleteTopicById, refetch, restoreTopic, t]
   )
 
   const handleBulkMoveTopics = useCallback(
@@ -496,7 +543,7 @@ const AssistantHistoryRecords = ({
       loadingDescription: t('history.records.loading.description'),
       pinLabel: t('chat.topics.pin'),
       unpinLabel: t('chat.topics.unpin'),
-      deleteLabel: t('common.archive'),
+      deleteLabel: t('common.delete'),
       renameDialogTitle: t('chat.topics.edit.title')
     }
   }

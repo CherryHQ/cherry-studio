@@ -5,7 +5,6 @@ import type { Topic } from '@renderer/types/topic'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import {
-  Archive,
   BrushCleaning,
   Copy,
   Database,
@@ -47,9 +46,7 @@ export interface TopicMoveAssistantTarget {
   icon?: ReactNode
 }
 
-/** 'archive' soft-deletes to the trash (recoverable); 'permanent' hard-deletes. */
-export type TopicDeleteMode = 'archive' | 'permanent'
-type TopicDeleteHandler = (topic: Topic, mode: TopicDeleteMode) => void | Promise<void>
+type TopicDeleteHandler = (topic: Topic) => void | Promise<void>
 
 export interface TopicActionContext {
   exportMenuOptions: TopicExportMenuOptions
@@ -256,13 +253,8 @@ topicActionRegistry.registerCommand({
 })
 
 topicActionRegistry.registerCommand({
-  id: 'topic.archive',
-  run: ({ onDelete, topic }) => onDelete(topic, 'archive')
-})
-
-topicActionRegistry.registerCommand({
   id: 'topic.delete',
-  run: ({ onDelete, topic }) => onDelete(topic, 'permanent')
+  run: ({ onDelete, topic }) => onDelete(topic)
 })
 
 topicActionRegistry.registerAction({
@@ -511,23 +503,9 @@ topicActionRegistry.registerAction({
 })
 
 topicActionRegistry.registerAction({
-  id: 'topic.archive',
-  commandId: 'topic.archive',
-  label: ({ t }) => t('common.archive'),
-  icon: () => <Archive size={14} />,
-  group: 'danger',
-  order: 89,
-  surface: 'menu',
-  // Matches `topic.delete` and the row affordance: removing the last topic just clears the
-  // active selection, and archiving is recoverable on top of that.
-  availability: ({ topic }) => ({ visible: !topic.pinned })
-})
-
-topicActionRegistry.registerAction({
   id: 'topic.delete',
   commandId: 'topic.delete',
-  // Sits next to `topic.archive`, which is the recoverable one — the label has to say so.
-  label: ({ t }) => t('common.delete_permanently'),
+  label: ({ t }) => t('common.delete'),
   icon: () => <Trash2 size={14} />,
   group: 'danger',
   order: 90,
@@ -537,9 +515,8 @@ topicActionRegistry.registerAction({
   // otherwise clears the active topic. Pinned topics must be unpinned before they can be deleted.
   availability: ({ topic }) => ({ visible: !topic.pinned }),
   confirm: ({ t }) => ({
-    title: t('chat.topics.manage.delete.confirm.title'),
-    description: t('chat.topics.manage.delete.confirm.content', { count: 1 }),
-    confirmText: t('common.delete_permanently'),
+    title: t('recycle_bin.move.confirm_title'),
+    confirmText: t('recycle_bin.move.confirm_action'),
     cancelText: t('common.cancel'),
     destructive: true
   })

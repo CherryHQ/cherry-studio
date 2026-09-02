@@ -8,6 +8,7 @@ import {
   mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
+  mockUseMutation,
   mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
@@ -341,6 +342,71 @@ describe('useTopicMutations', () => {
 
     expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
+  it('refreshes the topic list and keeps the tab open when deletion finds stale data', async () => {
+    const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    const deleteTrigger = vi.fn().mockRejectedValue(staleError)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a')
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBe(staleError)
+    expect(invalidate).toHaveBeenCalledWith('/topics')
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('leaves failed-delete refresh to the batch owner when requested', async () => {
+    const staleError = DataApiErrorFactory.notFound('Topic', 'topic-a')
+    const deleteTrigger = vi.fn().mockRejectedValue(staleError)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value as Mock
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.deleteTopic('topic-a', { refresh: false })
+      } catch (error) {
+        caught = error
+      }
+    })
+
+    expect(caught).toBe(staleError)
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(mockCloseConversationTabs).not.toHaveBeenCalled()
+  })
+
+  it('restores a topic and refreshes its list and by-id projection', async () => {
+    const restoredTopic = createApiTopic({ id: 'topic-a' })
+    const restoreTrigger = vi.fn().mockResolvedValue(restoredTopic)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/topics/:id/restore', restoreTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const restored = await act(async () => result.current.restoreTopic('topic-a'))
+
+    expect(restoreTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
+    expect(restored).toBe(restoredTopic)
+    const restoreMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'POST' && path === '/topics/:id/restore'
+    )
+    const refresh = restoreMutationCall?.[2]?.refresh as (context: {
+      args: { params: { id: string } }
+      result: ApiTopic
+    }) => string[]
+    expect(refresh({ args: { params: { id: 'topic-a' } }, result: restoredTopic })).toEqual([
+      '/topics',
+      '/topics/topic-a'
+    ])
   })
 
   it('deletes selected topics through comma-separated query ids', async () => {

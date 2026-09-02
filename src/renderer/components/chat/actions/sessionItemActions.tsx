@@ -41,7 +41,7 @@ export interface SessionActionContext {
   onCopyImage?: () => void | Promise<void>
   onCopyMarkdown?: () => void | Promise<void>
   onCopyPlainText?: () => void | Promise<void>
-  onDelete: () => void
+  onDelete: () => void | Promise<void>
   onExportImage?: () => void | Promise<void>
   onExportJoplin?: () => void | Promise<void>
   onExportMarkdown?: () => void | Promise<void>
@@ -479,19 +479,17 @@ sessionActionRegistry.registerAction({
 sessionActionRegistry.registerAction({
   id: 'session.delete',
   commandId: 'session.delete',
-  // Archives to the trash — `permanent` is never sent on this path — so the label and
-  // the confirm both have to say archive, not delete.
-  label: ({ t }) => t('common.archive'),
+  label: ({ t }) => t('common.delete'),
   icon: () => <DeleteIcon size={14} className="lucide-custom" />,
   group: 'danger',
   order: 90,
   surface: 'menu',
   availability: ({ pinned }) => ({ visible: !pinned }),
   confirm: ({ t }) => ({
-    title: t('agent.session.archive.title'),
-    description: t('agent.session.archive.content'),
-    confirmText: t('common.archive'),
-    cancelText: t('common.cancel')
+    title: t('recycle_bin.move.confirm_title'),
+    confirmText: t('recycle_bin.move.confirm_action'),
+    cancelText: t('common.cancel'),
+    destructive: true
   })
 })
 

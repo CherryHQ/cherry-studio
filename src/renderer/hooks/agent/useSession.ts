@@ -45,6 +45,12 @@ type UseSessionsOptions = {
   enabled?: boolean
 }
 
+export type SessionDeleteOutcome = { status: 'succeeded' } | { status: 'stale' } | { status: 'failed'; error: string }
+
+type DeleteSessionOutcomeOptions = {
+  showFeedback?: boolean
+}
+
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
 export type UpdateSessionForm = UpdateAgentSessionDto & { id: string }
 
@@ -291,6 +297,9 @@ export const useSessions = (
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
     refresh: ['/agent-sessions', '/agent-workspaces']
   })
+  const { trigger: restoreTrigger } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`, '/agents/*']
+  })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) {
@@ -321,23 +330,42 @@ export const useSessions = (
     [agentId, createTrigger, refresh, t]
   )
 
-  const deleteSession = useCallback(
-    async (id: string): Promise<boolean> => {
+  const deleteSessionWithOutcome = useCallback(
+    async (id: string, { showFeedback = true }: DeleteSessionOutcomeOptions = {}): Promise<SessionDeleteOutcome> => {
       try {
         const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
-        closeConversationTabs('agents', result.deletedIds)
+        const deleted = result.deletedIds.includes(id)
+        if (deleted) closeConversationTabs('agents', result.deletedIds)
         try {
           await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         } catch (error) {
           logger.warn('Failed to refresh after deleting Agent Session', error as Error, { sessionId: id })
         }
-        return true
+        if (!deleted) {
+          if (showFeedback) toast.info(t('recycle_bin.already_moved'))
+          return { status: 'stale' }
+        }
+        return { status: 'succeeded' }
       } catch (error) {
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-        return false
+        if (showFeedback) toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        return { status: 'failed', error: getErrorMessage(error) }
       }
     },
     [closeConversationTabs, invalidate, t]
+  )
+
+  const deleteSession = useCallback(
+    async (id: string): Promise<boolean> => (await deleteSessionWithOutcome(id)).status === 'succeeded',
+    [deleteSessionWithOutcome]
+  )
+
+  const restoreSession = useCallback(
+    async (id: string): Promise<AgentSessionEntity> => {
+      const session = await restoreTrigger({ params: { sessionId: id } })
+      logger.info('Restored Agent Session', { sessionId: id })
+      return session
+    },
+    [restoreTrigger]
   )
 
   const deleteSessions = useCallback(
@@ -425,7 +453,9 @@ export const useSessions = (
     loadMore,
     createSession,
     deleteSession,
+    deleteSessionWithOutcome,
     deleteSessions,
+    restoreSession,
     reorderSession,
     reorderSessions,
     togglePin,

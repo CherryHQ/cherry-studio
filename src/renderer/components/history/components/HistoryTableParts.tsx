@@ -359,17 +359,8 @@ export function HistoryActionsCell<TContext = unknown>({
   )
 }
 
-/**
- * Row trash button: prefer the recoverable action when the domain has one
- * (topics archive to the trash), so it never hard-deletes behind a plain
- * "Delete" icon. Callers label the button to match.
- */
 function findRowDeleteAction<TContext>(actions: readonly ResolvedAction<TContext>[]) {
-  return actions.find(isArchiveAction) ?? actions.find(isDeleteAction)
-}
-
-function isArchiveAction<TContext>(action: ResolvedAction<TContext>) {
-  return action.id.endsWith('.archive') || action.commandId?.endsWith('.archive')
+  return actions.find(isDeleteAction)
 }
 
 function isDeleteAction<TContext>(action: ResolvedAction<TContext>) {
