@@ -1,6 +1,7 @@
 /**
  * Build-time backstop for the child-safe zone: eslint only sees direct imports, so a
- * main-only singleton could still reach an entry through a chain of innocent modules.
+ * main-only singleton could still reach a utility-process entry through a chain of
+ * innocent modules. Used by the production entries build and the smoke harness alike.
  */
 
 const FORBIDDEN = [

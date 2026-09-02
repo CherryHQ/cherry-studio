@@ -17,21 +17,16 @@ export type WorkerProxyConfiguration =
  * resolved by ProxyService — the single proxy authority; this function only applies the
  * snapshot it is handed and re-derives no policy of its own.
  *
- * Two consumption modes:
- * 1. Baked into an eval'd `worker_threads` source string via `${configureWorkerProxy.toString()}`
- *    (see `ai/localModel/runtime/worker/workerCore.ts`) — today's only consumer.
- * 2. Imported directly by a future Electron `utilityProcess` entry bundle and called with the
- *    snapshot from its init message.
+ * Called by the inference utility-process entries with the snapshot from their connect frame
+ * (see `ai/localModel/runtime/utilityEntries/inferenceRuntime.ts`).
  *
- * SELF-CONTAINMENT CONSTRAINT (because of mode 1): the body must not reference module scope at
- * runtime — module-level imports stay `import type` only, runtime dependencies are `require`d
- * in-body via `createRequire` off `appPath` (the host app root; falls back to `process.cwd()`),
- * and cross-module helpers travel as parameters (`createBypassMatcher`) since a free reference
- * to another module's symbol would not survive `.toString()`.
+ * Runtime dependencies are `require`d in-body via `createRequire` off `appPath` (the host app
+ * root; falls back to `process.cwd()`) rather than statically imported, so a bundled child
+ * resolves undici and its transitive proxy agents exactly where the packaged app has them.
  *
  * Update contract: snapshots are immutable. A consumer records `snapshot.version`, re-fetches
  * via `ProxyService.getRoutingSnapshot()` before reusing its runtime, and restarts the runtime
- * when the version changed (see `InferenceServiceBase.ensureWorker()`).
+ * when the version changed (see `InferenceServiceBase.restartIfRuntimeChanged()`).
  *
  * The bypass check runs per dispatch rather than against a table of known origins, because
  * undici re-enters `dispatch()` with the new origin on every redirect hop — and model

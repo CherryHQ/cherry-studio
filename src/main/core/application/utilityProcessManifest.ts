@@ -1,7 +1,11 @@
+import { embeddingInferenceProcess, ocrInferenceProcess } from '@main/ai/localModel/runtime/inferenceProcess'
 import type { UtilityProcessManifest } from '@main/core/utilityProcess/types'
 
 /**
  * Every utility process the app can run, installed once at boot (before `registerAll`).
- * Consumers add their `defineUtilityProcess()` result here; V1 ships no consumers.
+ * Consumers add their `defineUtilityProcess()` result here.
  */
-export const utilityProcessManifest: UtilityProcessManifest = Object.freeze([])
+export const utilityProcessManifest: UtilityProcessManifest = Object.freeze([
+  embeddingInferenceProcess,
+  ocrInferenceProcess
+])

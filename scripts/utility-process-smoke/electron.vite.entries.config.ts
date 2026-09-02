@@ -1,8 +1,8 @@
 import path from 'node:path'
 
 import { isMainExternalModule } from '../../electron.vite.config'
+import { hermeticEntryGuardPlugin } from '../utilityProcessEntryGuard'
 import { smokeAppDir } from './appDir'
-import { hermeticEntryGuardPlugin } from './hermeticEntryGuardPlugin'
 
 const repoRoot = path.resolve(__dirname, '../..')
 

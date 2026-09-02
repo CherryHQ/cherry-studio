@@ -2,9 +2,6 @@ import http from 'node:http'
 import net from 'node:net'
 import { Worker } from 'node:worker_threads'
 
-import { embeddingWorkerSource } from '@main/ai/localModel/capabilities/embedding/worker'
-import { buildInferenceWorkerSource } from '@main/ai/localModel/runtime/worker/buildWorkerSource'
-import { onnxRuntimeWorkerSource } from '@main/ai/localModel/runtime/worker/onnxRuntime'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { createProxyBypassMatcher } from '../bypassRules'
@@ -13,7 +10,6 @@ import { configureWorkerProxy } from '../workerProxy'
 
 const servers: Array<http.Server | net.Server> = []
 const workers: Worker[] = []
-const inferenceWorkerSource = buildInferenceWorkerSource(onnxRuntimeWorkerSource, embeddingWorkerSource)
 
 async function listen(server: http.Server | net.Server): Promise<number> {
   servers.push(server)
@@ -84,14 +80,6 @@ afterEach(async () => {
 })
 
 describe('configureWorkerProxy', () => {
-  it('is embedded and invoked by the production inference worker', () => {
-    expect(inferenceWorkerSource).toContain(configureWorkerProxy.toString())
-    // The matcher must travel with it: the worker evaluates bypass rules itself, and a free
-    // reference to another module's symbol would not survive `.toString()`.
-    expect(inferenceWorkerSource).toContain(createProxyBypassMatcher.toString())
-    expect(inferenceWorkerSource).toContain('configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)')
-  })
-
   it('uses a direct snapshot even when the worker environment contains proxy variables', async () => {
     let directRequests = 0
     const target = http.createServer((_request, response) => {
