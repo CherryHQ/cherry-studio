@@ -106,8 +106,18 @@ export function createReindexSubtreeJobHandler(
           return { roots: [], skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
         }
 
-        // Land the re-acquired bytes on the pinned raw/ paths before the index is torn down, so a
-        // write failure aborts the whole reset with the old index still intact.
+        // Activate every root before anything destructive runs. `completed` is the one status no
+        // recovery path revisits — not `onSettled`, not the boot sweep — so a root left there while
+        // its bytes are replaced or its vectors deleted would keep claiming an index it no longer has.
+        for (const root of rebuildableRoots) {
+          if (root.type === 'directory') {
+            cacheService.deleteShared(directoryCopyProgressCacheKey(root.id))
+          }
+          knowledgeItemService.updateStatus(root.id, root.type === 'directory' ? 'preparing' : 'processing')
+        }
+
+        // Land the re-acquired bytes on the pinned raw/ paths before the index is torn down. Both
+        // writes commit via tmp+rename, so a failure here leaves the previous bytes and index intact.
         for (const root of rebuildableRoots) {
           await reacquireWrites.get(root.id)?.(ctx.signal)
         }
@@ -133,12 +143,6 @@ export function createReindexSubtreeJobHandler(
           )
         }
 
-        for (const item of rebuildableRoots) {
-          if (item.type === 'directory') {
-            cacheService.deleteShared(directoryCopyProgressCacheKey(item.id))
-          }
-          knowledgeItemService.updateStatus(item.id, item.type === 'directory' ? 'preparing' : 'processing')
-        }
         return { roots: rebuildableRoots, skippedDeleting: false, skippedMissingSource: missingSourceRootIds.length }
       })
       if (resetResult.roots.length === 0) {
@@ -211,10 +215,16 @@ function resolveReindexableRoots(baseId: string, rootItemIds: string[], jobId: s
 
 /**
  * Run every selected leaf root's re-acquisition producer (url fetch, note content check) off the
- * base mutation lock, keyed by item id for the writes to be applied under it. A producer failure
- * fails the job loudly — but first flips the affected roots to `failed`, because they are still
- * `completed`/`failed` at this point and `markReindexSubtreeFailedOnSettled` only picks up roots the
- * reset already activated; without this the user's refresh click would appear to do nothing.
+ * base mutation lock, keyed by item id for the writes to be applied under it. Producers run
+ * concurrently: serialized, a bulk refresh costs the sum of every page's fetch latency against a
+ * retryable job timeout, and `fetchKnowledgeWebPage`'s own queue bounds the request rate either way.
+ *
+ * A genuine failure fails the job loudly — but first flips that root to `failed`, because it is
+ * still `completed`/`failed` here and `markReindexSubtreeFailedOnSettled` only picks up roots the
+ * reset already activated; without this a refresh click would appear to do nothing. Each root is
+ * recorded as its own producer settles, so a dead page keeps its diagnosis instead of inheriting
+ * whatever a sibling did, and an abort — which touches nothing — leaves every root `completed` on
+ * its intact index rather than dropping it out of search (`query/visibility.ts`).
  */
 async function produceReacquireWrites(
   ctx: JobContext<KnowledgeReindexSubtreePayload>,
@@ -226,20 +236,44 @@ async function produceReacquireWrites(
     .map((item) => ({ itemId: item.id, produce: resolveKnowledgeReacquireProducer(item) }))
     .filter((entry): entry is { itemId: string; produce: KnowledgeReacquireProducer } => entry.produce !== null)
 
+  ctx.signal.throwIfAborted()
+  const settled = await Promise.allSettled(
+    producers.map(async ({ itemId, produce }) => {
+      try {
+        return { itemId, write: await produce(ctx.signal) }
+      } catch (error) {
+        if (!ctx.signal.aborted) {
+          knowledgeItemService.setSubtreeStatus(baseId, [itemId], 'failed', {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+        throw error
+      }
+    })
+  )
+
   const writes = new Map<string, KnowledgeReacquireWrite>()
-  for (const { itemId, produce } of producers) {
-    ctx.signal.throwIfAborted()
-    try {
-      writes.set(itemId, await produce(ctx.signal))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      // Mirrors the scheduling-failure path below: a shutdown abort stores the localized
-      // `indexing_interrupted` code instead of a raw `…: JobManager shutdown` string.
-      knowledgeItemService.setSubtreeStatus(baseId, [itemId], 'failed', {
-        error: ctx.signal.aborted ? KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED : message
-      })
-      throw error
+  const failures: unknown[] = []
+  for (const result of settled) {
+    if (result.status === 'fulfilled') {
+      writes.set(result.value.itemId, result.value.write)
+    } else {
+      failures.push(result.reason)
     }
+  }
+  if (failures.length > 0) {
+    // Only one reason reaches the job record, so log the whole batch: a single dead link and an
+    // expired provider key are indistinguishable from that one message alone.
+    logger.error(
+      `Knowledge re-acquisition failed for ${failures.length}/${producers.length} roots`,
+      failures[0] instanceof Error ? failures[0] : new Error(String(failures[0])),
+      {
+        baseId,
+        jobId: ctx.jobId,
+        reasons: failures.map((reason) => (reason instanceof Error ? reason.message : String(reason)))
+      }
+    )
+    throw failures[0]
   }
   return writes
 }

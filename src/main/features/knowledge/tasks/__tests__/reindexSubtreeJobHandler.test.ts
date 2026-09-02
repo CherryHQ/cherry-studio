@@ -299,6 +299,98 @@ describe('reindex-subtree job handler', () => {
     expect(scheduleItemMock).not.toHaveBeenCalled()
   })
 
+  it('activates every root before replacing any bytes, so a mid-write failure leaves none completed', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createNoteItem('note-1'), createNoteItem('note-2')])
+    writeFileIntoKnowledgeBaseAtMock.mockResolvedValueOnce('note-1.md').mockRejectedValueOnce(new Error('ENOSPC'))
+
+    await expect(
+      handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1', 'note-2'] }, 'reindex-job'))
+    ).rejects.toThrow('ENOSPC')
+
+    // `completed` is the one status no recovery path revisits, so both roots must leave it before
+    // the first byte is replaced: note-1's snapshot is already overwritten and note-2 is the write
+    // that threw — either one left green would keep claiming an index it no longer matches.
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'processing')
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+  })
+
+  it('re-acquires selected roots concurrently instead of serializing their fetches', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const first = createUrlItem('url-1', 'first.md' as PosixRelativeFilePath)
+    const second = createUrlItem('url-2', 'second.md' as PosixRelativeFilePath)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([first, second])
+    const events: string[] = []
+    fetchKnowledgeWebPageMock.mockImplementation(async () => {
+      events.push('start')
+      await Promise.resolve()
+      events.push('end')
+      return { title: 'Updated', markdown: '# Updated' }
+    })
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['url-1', 'url-2'] }, 'reindex-job'))
+
+    // Serialized producers interleave as start/end/start/end, multiplying a bulk refresh by the
+    // per-page fetch latency until it exceeds the job timeout — and the timeout is retryable.
+    expect(events).toEqual(['start', 'start', 'end', 'end'])
+  })
+
+  it('records every failed producer, so one dead page does not hide the others', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const first = createUrlItem('url-1', 'first.md' as PosixRelativeFilePath)
+    const second = createUrlItem('url-2', 'second.md' as PosixRelativeFilePath)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([first, second])
+    fetchKnowledgeWebPageMock
+      .mockRejectedValueOnce(new Error('404 Not Found'))
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+
+    await expect(
+      handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['url-1', 'url-2'] }, 'reindex-job'))
+    ).rejects.toThrow('404 Not Found')
+
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-1'], 'failed', {
+      error: '404 Not Found'
+    })
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-2'], 'failed', {
+      error: '503 Service Unavailable'
+    })
+  })
+
+  it('leaves a root aborted mid-fetch untouched, and keeps the diagnosis of one that genuinely failed', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const dead = createUrlItem('url-1', 'dead.md' as PosixRelativeFilePath)
+    const aborted = createUrlItem('url-2', 'aborted.md' as PosixRelativeFilePath)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([dead, aborted])
+    const controller = new AbortController()
+    const ctx = {
+      ...createCtx({ baseId: 'kb-1', rootItemIds: ['url-1', 'url-2'] }, 'reindex-job'),
+      signal: controller.signal
+    }
+    let onDeadRecorded: () => void = () => {}
+    const deadRecorded = new Promise<void>((resolve) => {
+      onDeadRecorded = resolve
+    })
+    knowledgeItemSetSubtreeStatusMock.mockImplementation(() => {
+      onDeadRecorded()
+      return []
+    })
+    fetchKnowledgeWebPageMock.mockRejectedValueOnce(new Error('404 Not Found')).mockImplementationOnce(async () => {
+      await deadRecorded
+      controller.abort(new Error('JobManager shutdown'))
+      throw new Error('JobManager shutdown')
+    })
+
+    await expect(handler.execute(ctx)).rejects.toThrow('404 Not Found')
+
+    // url-2 was never touched: its snapshot and vectors are intact, and `failed` would drop it out
+    // of search (query/visibility.ts keeps only completed items) for a refresh that did nothing.
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['url-1'], 'failed', {
+      error: '404 Not Found'
+    })
+  })
+
   it('marks only unscheduled reset roots failed when rescheduling fails', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const firstRoot = createDirectoryItem('dir-1')
