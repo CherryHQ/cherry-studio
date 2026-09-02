@@ -946,7 +946,7 @@ const TranslatePage: FC = () => {
   return (
     <div
       data-ui="translate.view"
-      className="relative flex h-full flex-col overflow-hidden bg-background"
+      className="relative flex h-full flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -956,7 +956,7 @@ const TranslatePage: FC = () => {
       )}
       <Navbar />
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-3 border-border-subtle border-b p-3">
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
