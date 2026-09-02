@@ -43,10 +43,12 @@ jobs:
               .protection_rules[];
               .type == "required_reviewers" and
               .prevent_self_review == true and
-              any(.reviewers[]; .type == "Team" and .reviewer.id == $teamId)
+              (.reviewers | length) == 1 and
+              .reviewers[0].type == "Team" and
+              .reviewers[0].reviewer.id == $teamId
             )
           ' <<< "$ENVIRONMENT" >/dev/null; then
-            echo "The release environment must require Cherry Studio Core approval and prevent self-review" >&2
+            echo "The release environment must allow only Cherry Studio Core approval and prevent self-review" >&2
             exit 1
           fi
 
@@ -77,12 +79,12 @@ jobs:
       group: release-state
       cancel-in-progress: false
     steps:
-      - name: Check out exact release commit without credentials
+      - name: Check out trusted publication code without credentials
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.workflow_sha }}
 
       - name: Validate and publish current draft
         shell: bash
@@ -172,8 +174,7 @@ jobs:
           PUBLISHED="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
             --input "$RUNNER_TEMP/publish-release.json")"
           if [ "$(jq -r '.draft' <<< "$PUBLISHED")" != "false" ] || \
-             [ "$(jq -r '.tag_name' <<< "$PUBLISHED")" != "$TAG" ] || \
-             [ "$(jq -r '.target_commitish' <<< "$PUBLISHED")" != "$BUILD_SHA" ]; then
+             [ "$(jq -r '.tag_name' <<< "$PUBLISHED")" != "$TAG" ]; then
             echo "Release $TAG was not published from $BUILD_SHA" >&2
             exit 1
           fi

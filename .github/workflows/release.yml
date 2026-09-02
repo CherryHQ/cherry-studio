@@ -14,6 +14,10 @@ on:
           - windows
           - mac
           - linux
+      expected_sha:
+        description: "Expected commit for automatic dispatches; leave empty for manual runs"
+        required: false
+        type: string
 
 concurrency:
   group: release-state
@@ -33,6 +37,17 @@ jobs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
     steps:
+      - name: Verify automatically selected release commit
+        if: inputs.expected_sha != ''
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          if [ "$GITHUB_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Release branch moved from automatic selection $EXPECTED_SHA to $GITHUB_SHA" >&2
+            exit 1
+          fi
+
       - name: Check out release commit
         uses: actions/checkout@v7
         with:

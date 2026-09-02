@@ -61,5 +61,7 @@ jobs:
             exit 0
           fi
 
-          gh workflow run release.yml --repo "$REPO" --ref "$BRANCH" -f platform=all
+          gh workflow run release.yml --repo "$REPO" --ref "$BRANCH" \
+            -f platform=all \
+            -f expected_sha="$CI_SHA"
           echo "Dispatched all-platform release build for $BRANCH at $CI_SHA"

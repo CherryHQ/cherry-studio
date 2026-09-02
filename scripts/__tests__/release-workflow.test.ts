@@ -702,6 +702,16 @@ describe('release publication state', () => {
       'Tag, release branch, and selected workflow commit must be identical'
     ],
     [
+      'a mismatched release target',
+      { ...draftRelease, target_commitish: 'b'.repeat(40) },
+      workflowSha,
+      workflowSha,
+      '',
+      '',
+      successfulBuild,
+      'does not target'
+    ],
+    [
       'a mismatched branch',
       draftRelease,
       workflowSha,
@@ -793,7 +803,7 @@ describe('release publication state', () => {
     ],
     [
       'a draft without artifacts',
-      { assets: [], draft: true },
+      { ...draftRelease, assets: [] },
       workflowSha,
       workflowSha,
       '',
@@ -970,12 +980,14 @@ describe('release workflow gates', () => {
     expect(releaseWorkflow.jobs).not.toHaveProperty('publish-release')
     expect(workflow.jobs.preflight.steps[0].run).toContain('APPROVER_TEAM_ID')
     expect(workflow.jobs.preflight.steps[0].run).toContain('.prevent_self_review == true')
+    expect(workflow.jobs.preflight.steps[0].run).toContain('(.reviewers | length) == 1')
     expect(workflow.jobs.preflight.steps[0].run).toContain('.name == "main"')
     expect(workflow.jobs.approve.needs).toBe('preflight')
     expect(workflow.jobs.approve.environment).toBe('release')
     expect(workflow.jobs.publish.needs).toBe('approve')
     expect(workflow.jobs.publish.concurrency.group).toBe('release-state')
     expect(workflow.jobs.approve).not.toHaveProperty('concurrency')
+    expect(workflow.jobs.publish.steps[0].with.ref).toBe('${{ github.workflow_sha }}')
     expect(publishStep.run.match(/validate-release-state\.js publish/g)).toHaveLength(1)
     expect(publishStep.run.indexOf('HOTFIX_CUTOFF_SHA=')).toBeLessThan(
       publishStep.run.indexOf('validate-release-state.js publish')
@@ -993,6 +1005,10 @@ describe('release workflow gates', () => {
     const dispatchStep = workflow.jobs.dispatch.steps.find(
       (step: { name?: string }) => step.name === 'Revalidate and dispatch release build'
     )
+    const releaseWorkflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const expectedShaStep = releaseWorkflow.jobs.prepare.steps.find(
+      (step: { name?: string }) => step.name === 'Verify automatically selected release commit'
+    )
 
     expect(workflow.on.workflow_run.workflows).toEqual(['CI'])
     expect(workflow.jobs.dispatch.if).toContain("github.event.workflow_run.event == 'push'")
@@ -1003,6 +1019,11 @@ describe('release workflow gates', () => {
     expect(dispatchStep.run).toContain('Release build all $BRANCH @ $CI_SHA')
     expect(dispatchStep.run).toContain('gh workflow run release.yml')
     expect(dispatchStep.run).toContain('-f platform=all')
+    expect(dispatchStep.run).toContain('-f expected_sha="$CI_SHA"')
+    expect(releaseWorkflow.on.workflow_dispatch.inputs.expected_sha.required).toBe(false)
+    expect(expectedShaStep.if).toBe("inputs.expected_sha != ''")
+    expect(expectedShaStep.run).toContain('if [ "$GITHUB_SHA" != "$EXPECTED_SHA" ]')
+    expect(releaseWorkflow.jobs.prepare.steps.indexOf(expectedShaStep)).toBe(0)
   })
 
   it('reports a merged hotfix contract failure before release resolution', () => {

@@ -58,6 +58,9 @@ function validatePublishState({
   if (!release || release.draft !== true) {
     throw new Error(`Release ${tag} must exist and still be a draft before publication`)
   }
+  if (release.target_commitish !== workflowSha) {
+    throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
+  }
   if (tagSha !== workflowSha || branchSha !== workflowSha) {
     throw new Error('Tag, release branch, and selected workflow commit must be identical before publication')
   }
