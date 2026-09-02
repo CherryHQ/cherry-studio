@@ -20,12 +20,12 @@ const EMPTY_CHERRY_CLOUD_AVAILABILITY = {
 export type CherryCloudModelPredicate = (model: Model, provider?: Provider) => boolean
 export type CherryCloudModelFeaturePredicate = (model: Model, feature: CherryCloudModelFeature) => boolean
 
-export function useCherryCloudModelAvailability(): {
+export function useCherryCloudModelAvailability(enabled = true): {
   isModelAvailableForFeature: CherryCloudModelFeaturePredicate
   isModelDisabled: CherryCloudModelPredicate
 } {
   const { data: cloudAvailability, mutate } = useSWR(
-    CHERRY_CLOUD_AVAILABILITY_KEY,
+    enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
     () => ipcApi.request('cherry_cloud.models.sync'),
     {
       dedupingInterval: 5_000,
@@ -36,6 +36,7 @@ export function useCherryCloudModelAvailability(): {
   )
 
   useIpcOn('cherry_cloud.status_changed', (status) => {
+    if (!enabled) return
     void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: status.phase === 'signed-in' }).catch(() => undefined)
   })
 

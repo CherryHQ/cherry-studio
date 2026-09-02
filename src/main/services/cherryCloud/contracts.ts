@@ -1,5 +1,6 @@
 import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
-import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_MODEL_FEATURE, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { createUniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
 
 const base64Url32BytesSchema = z.string().regex(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
@@ -76,11 +77,25 @@ const cloudModelFeaturesSchema = z
   .refine((features) => new Set(features).size === features.length, {
     message: 'model features must be unique'
   })
+const cloudModelIdSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (modelId) => {
+      try {
+        createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, modelId)
+        return true
+      } catch {
+        return false
+      }
+    },
+    { message: 'model ID cannot contain reserved route characters' }
+  )
 
 export const cloudModelListSchema = z.looseObject({
   data: z.array(
     z.looseObject({
-      id: z.string().min(1),
+      id: cloudModelIdSchema,
       display_name: z.string().min(1),
       endpoint_type: z.enum(objectValues(ENDPOINT_TYPE)),
       context_window: z.number().int().positive(),

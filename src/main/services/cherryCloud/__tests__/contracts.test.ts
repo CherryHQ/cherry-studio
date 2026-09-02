@@ -96,4 +96,17 @@ describe('Cherry Cloud response contracts', () => {
       false
     )
   })
+
+  it('rejects model IDs that cannot be encoded as a UniqueModelId', () => {
+    const model = {
+      display_name: 'Claude Test',
+      endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      context_window: 200_000,
+      max_output_tokens: 8_192,
+      available_features: ['agent']
+    }
+
+    expect(cloudModelListSchema.safeParse({ data: [{ ...model, id: 'claude?test' }] }).success).toBe(false)
+    expect(cloudModelListSchema.safeParse({ data: [{ ...model, id: 'claude#test' }] }).success).toBe(false)
+  })
 })

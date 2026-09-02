@@ -1,6 +1,7 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { getProviderAgentGatewayPolicy } from '@main/ai/provider/agentGatewayPolicy'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -133,6 +134,10 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
+      const routePolicy = getProviderAgentGatewayPolicy(model.providerId)
+      if (routePolicy && !routePolicy.authorizeRequest({ isInternalAgentRequest: false })) {
+        continue
+      }
       // External-CLI providers (e.g. claude-code) authenticate via their own CLI login, not an
       // app-side key, so the proxy's AI-SDK path cannot call them — never advertise their models
       // even though they pass the routable-model predicate (matches the renderer picker's exclusion).

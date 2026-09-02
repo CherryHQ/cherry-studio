@@ -137,8 +137,8 @@ export function ResourceCreateWizard({
   const { t } = useTranslation()
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
   const agentType = form.watch('agentType')
-  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
-  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
+  const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined, open && kind === 'agent')
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability(open)
   const assistantModelFilter = useCallback<ModelSelectorFilter>(
     (model, provider) =>
       isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && (modelFilter?.(model, provider) ?? true),

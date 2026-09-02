@@ -80,7 +80,7 @@ function AssistantEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { assistant, error } = useAssistantApiById(target.id)
-  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability(open)
   const assistantModelFilter = useCallback<ModelSelectorFilter>(
     (model) => isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && !isNonChatModel(model),
     [isModelAvailableForFeature]
@@ -115,8 +115,8 @@ function AgentEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
-  const modelFilter = useAgentModelFilter(agent?.type)
-  const isModelDisabled = useAgentModelDisabled()
+  const modelFilter = useAgentModelFilter(agent?.type, open)
+  const isModelDisabled = useAgentModelDisabled(open)
 
   useEffect(() => {
     if (!error) return

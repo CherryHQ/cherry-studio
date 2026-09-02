@@ -125,6 +125,14 @@ describe('useAgentModelFilter', () => {
     expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE)).toBe(false)
   })
 
+  it('does not synchronize Cloud model availability while disabled', async () => {
+    renderHook(() => useCherryCloudModelAvailability(false), { wrapper: createSWRWrapper() })
+
+    await act(async () => Promise.resolve())
+
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
   it('accepts only Cloud models enabled for Agent by the latest sync result', async () => {
     const cloudModel = {
       ...model(),

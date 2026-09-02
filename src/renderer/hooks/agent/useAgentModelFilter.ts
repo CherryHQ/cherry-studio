@@ -34,8 +34,8 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: ModelPredicate): 
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
-  const { isModelAvailableForFeature } = useCherryCloudModelAvailability()
+export function useAgentModelFilter(agentType: AgentType | undefined, enabled = true): AgentModelFilter {
+  const { isModelAvailableForFeature } = useCherryCloudModelAvailability(enabled)
   return useMemo<AgentModelFilter>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
     const predicate: AgentModelFilter = (model, provider) => {
@@ -49,6 +49,6 @@ export function useAgentModelFilter(agentType: AgentType | undefined): AgentMode
 }
 
 /** Returns the Agent selector rule for models that stay visible but cannot be selected. */
-export function useAgentModelDisabled(): ModelPredicate {
-  return useCherryCloudModelAvailability().isModelDisabled
+export function useAgentModelDisabled(enabled = true): ModelPredicate {
+  return useCherryCloudModelAvailability(enabled).isModelDisabled
 }
