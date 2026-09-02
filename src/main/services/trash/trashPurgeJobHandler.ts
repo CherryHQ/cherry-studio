@@ -30,7 +30,7 @@ const DAY_MS = 86_400_000
 /**
  * RFC §6 purge order — containers before independent rows: topic (messages
  * cascade via purge path) → session (session messages FK-cascade) → agent →
- * assistant → painting → file entry. Messages are never archived on their own,
+ * assistant → painting → file entry. Messages are never moved to the Recycle Bin on their own,
  * so they have no domain here. Each domain's `purgeExpiredTx` is DB-only; disk
  * reclamation happens in the post-commit sweeps.
  */
@@ -57,8 +57,8 @@ const PURGE_DOMAINS: ReadonlyArray<{
   {
     name: 'agent',
     purgeExpiredTx: (tx, cutoffMs, limit) => agentService.purgeExpiredTx(tx, cutoffMs, limit),
-    // Retention is the first and only moment an archived agent's prompt bindings are
-    // dropped — they deliberately survive the archive — so this is the only chance to say so.
+    // Retention is the first and only moment a trashed agent's prompt bindings are
+    // dropped — they deliberately survive Delete — so this is the only chance to say so.
     notifyPurged: (ids) => {
       agentService.notifyReadModelChange(ids, 'membership')
       promptService.notifyTargetBindingsChanged()
@@ -107,7 +107,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     const retentionDisabled = !emptyAll && retentionDays === 0
     if (retentionDisabled) logger.info('Trash auto-purge disabled (retention_days = 0) — sweeping residue only')
 
-    // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows archived "now".
+    // MAX_SAFE_INTEGER + strict `deletedAt < cutoff` captures rows moved to the Recycle Bin "now".
     const cutoffMs = emptyAll ? Number.MAX_SAFE_INTEGER : Date.now() - retentionDays * DAY_MS
     const dbService = application.get('DbService')
     const totalSteps = PURGE_DOMAINS.length + 3 // + task schedule, file, and agent-dir sweeps

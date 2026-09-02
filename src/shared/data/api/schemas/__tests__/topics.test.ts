@@ -78,7 +78,7 @@ describe('DuplicateTopicSchema', () => {
 })
 
 describe('deletedAt is read-only', () => {
-  // deletedAt is set via DELETE (archive) and cleared via the restore endpoints;
+  // deletedAt is set via Delete (move to Recycle Bin) and cleared via the Restore endpoints;
   // it must never be writable through the Create/Update DTOs.
   it('CreateTopicSchema rejects deletedAt', () => {
     expect(() => CreateTopicSchema.parse({ name: 'n', deletedAt: '2026-07-04T00:00:00.000Z' })).toThrow(/unrecognized/i)

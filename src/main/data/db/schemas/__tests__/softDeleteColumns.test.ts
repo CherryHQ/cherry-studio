@@ -1,10 +1,10 @@
 /**
  * DB-level tests for the soft-delete (`deleted_at`) columns added to
- * `painting` and `agent_session` (archive-instead-of-delete, RFC §4.2/§4.6).
+ * `painting` and `agent_session` (Recycle Bin-only deletion, RFC §4.2/§4.6).
  *
  * These verify the generated migration wired the column through: it defaults
  * to NULL, persists an UPDATE, and `isNull(deletedAt)` read filters hide the
- * archived row — the exact filter every list/get query applies.
+ * trashed row — the exact filter every list/get query applies.
  */
 
 import { randomUUID } from 'node:crypto'

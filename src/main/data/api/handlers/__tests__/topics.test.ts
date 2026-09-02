@@ -101,7 +101,7 @@ describe('topicHandlers', () => {
   })
 
   describe('trash routing', () => {
-    it('purges only when permanent=true, and archives otherwise', async () => {
+    it('purges only when permanent=true, and moves to the Recycle Bin otherwise', async () => {
       await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' }, query: { permanent: true } } as never)
       expect(deleteMock).toHaveBeenCalledWith('topic-a', { permanent: true })
 
@@ -127,7 +127,7 @@ describe('topicHandlers', () => {
       expect(restoreMock).toHaveBeenCalledWith('topic-a')
     })
 
-    it('forwards inTrash to the list query so the trash page sees archived rows', async () => {
+    it('forwards inTrash to the list query so the Recycle Bin page sees trashed rows', async () => {
       listByCursorMock.mockResolvedValueOnce({ items: [], nextCursor: null })
 
       await topicHandlers['/topics'].GET({ query: { inTrash: true } } as never)

@@ -473,7 +473,7 @@ describe('TopicService', () => {
   })
 
   describe('delete', () => {
-    it('archives the topic (row survives with deletedAt), keeps messages, and purges entity tags', async () => {
+    it('moves the topic to the Recycle Bin (row survives with deletedAt), keeps messages, and purges entity tags', async () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-1', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -503,10 +503,10 @@ describe('TopicService', () => {
       notifyDataApiDataChangeMock.mockClear()
       topicService.delete('topic-1')
 
-      // Archive: row still present, marked deleted.
+      // Recycle Bin: row still present, marked deleted.
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
       expect(topicRow.deletedAt).not.toBeNull()
-      // Messages untouched — hidden via the archived container, restore stays lossless.
+      // Messages untouched — hidden via the trashed container, restore stays lossless.
       const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
       expect(messages).toHaveLength(2)
       expect(messages.every((m) => m.deletedAt === null)).toBe(true)
@@ -573,8 +573,8 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
     })
 
-    it('purges the pin row when an underlying topic is archived', async () => {
-      // Without purgeForEntitiesTx in the archive tx, the pin row would survive
+    it('purges the pin row when an underlying topic moves to the Recycle Bin', async () => {
+      // Without purgeForEntitiesTx in the Delete transaction, the pin row would survive
       // and listByCursor's JOIN would silently hide the topic from both sections.
       await dbh.db
         .insert(topicTable)
@@ -624,7 +624,7 @@ describe('TopicService', () => {
         .from(topicTable)
         .orderBy(asc(topicTable.id))
       expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
-      // Rolled back: neither topic was archived.
+      // Rolled back: neither topic was moved to the Recycle Bin.
       expect(topics.every((topic) => topic.deletedAt === null)).toBe(true)
       // virtual root + message-1 both survive the rejected delete
       expect(await dbh.db.select().from(messageTable)).toHaveLength(2)
@@ -676,7 +676,7 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(chatMessageFileRefTable)).toHaveLength(0)
     })
 
-    it('permanent=true purges an already-archived topic from the trash', async () => {
+    it('permanent=true purges an already-trashed topic from the Recycle Bin', async () => {
       await dbh.db.insert(topicTable).values({
         id: 'topic-trashed',
         name: 'Trashed',
@@ -727,7 +727,7 @@ describe('TopicService', () => {
       expect(row).toMatchObject({ id: 'topic-restored', deletedAt: null })
     })
 
-    it('archiving an already-archived topic throws NOT_FOUND', async () => {
+    it('moving an already-trashed topic to the Recycle Bin throws NOT_FOUND', async () => {
       await dbh.db.insert(topicTable).values({
         id: 'topic-gone',
         name: 'Gone',
@@ -748,7 +748,7 @@ describe('TopicService', () => {
   })
 
   describe('trash listing (inTrash)', () => {
-    it('hides archived topics from the default list and shows them with inTrash', async () => {
+    it('hides trashed topics from the default list and shows them with inTrash', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 't-live', name: 'Live', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 't-trash', name: 'Trash', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
@@ -765,9 +765,9 @@ describe('TopicService', () => {
       expect(trash.items[0].deletedAt).toEqual(expect.any(String))
     })
 
-    it('archiving a pinned topic keeps it out of the default list and visible in the trash (pin-JOIN regression)', async () => {
+    it('moving a pinned topic to the Recycle Bin keeps it out of the default list and visible in trash mode', async () => {
       // A surviving pin row would make listByCursor's JOIN hide the topic from
-      // both sections — archive must purge the pin so trash mode can list it.
+      // both sections — Delete must purge the pin so trash mode can list it.
       await dbh.db.insert(topicTable).values([
         { id: 't-pinned', name: 'Pinned', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 't-other', name: 'Other', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
@@ -803,7 +803,7 @@ describe('TopicService', () => {
   })
 
   describe('restore', () => {
-    it('makes an archived topic visible again with messages intact', async () => {
+    it('makes a trashed topic visible again with messages intact', async () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 't-restore', name: 'Restore me', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -829,13 +829,13 @@ describe('TopicService', () => {
       expect(restored.id).toBe('t-restore')
       expect(restored.deletedAt).toBeUndefined()
       expect(topicService.listByCursor().items.map((t) => t.id)).toEqual(['t-restore'])
-      // Messages were never touched by archive/restore.
+      // Messages were never touched by Delete/Restore.
       const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 't-restore'))
       expect(messages).toHaveLength(2)
       expect(messages.every((m) => m.deletedAt === null)).toBe(true)
     })
 
-    it('does not resurrect pins purged at archive time', async () => {
+    it('does not resurrect pins purged at Delete time', async () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 't-pin-restore', name: 'P', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
@@ -872,7 +872,7 @@ describe('TopicService', () => {
   })
 
   describe('purgeExpiredTx', () => {
-    it('hard-deletes only archived topics past the cutoff, respecting the limit', async () => {
+    it('hard-deletes only trashed topics past the cutoff, respecting the limit', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 't-old-1', name: 'Old 1', orderKey: 'a0', deletedAt: 100, createdAt: 1, updatedAt: 1 },
         { id: 't-old-2', name: 'Old 2', orderKey: 'a1', deletedAt: 200, createdAt: 1, updatedAt: 1 },
@@ -918,7 +918,7 @@ describe('TopicService', () => {
       })
     }
 
-    it('archives only the assistant non-deleted topics, keeps messages, and purges tags/pins', async () => {
+    it('moves only the assistant non-deleted topics to the Recycle Bin, keeps messages, and purges tags/pins', async () => {
       await seedAssistant('asst-1', 'a0')
       await dbh.db.insert(topicTable).values([
         { id: 'topic-1', name: 'Topic 1', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
@@ -955,7 +955,7 @@ describe('TopicService', () => {
 
       expect(result.deletedIds.sort()).toEqual(['topic-1', 'topic-2'])
       expect(result.deletedCount).toBe(2)
-      // Archived, not purged: rows survive with deletedAt set.
+      // Trashed, not purged: rows survive with deletedAt set.
       const topics = await dbh.db.select().from(topicTable).orderBy(asc(topicTable.id))
       expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
       expect(topics.every((topic) => topic.deletedAt !== null)).toBe(true)
@@ -965,7 +965,7 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
 
-    it('only archives topics scoped to the target assistant', async () => {
+    it('only trashes topics scoped to the target assistant', async () => {
       await seedAssistant('asst-1', 'a0')
       await seedAssistant('asst-2', 'a1')
       await dbh.db.insert(topicTable).values([
@@ -1002,7 +1002,7 @@ describe('TopicService', () => {
       const result = topicService.deleteByAssistantId('asst-1')
 
       expect(result).toEqual({ deletedIds: ['topic-live'], deletedCount: 1 })
-      // The already-archived row keeps its original deletedAt (untouched by re-archive).
+      // The already-trashed row keeps its original deletedAt (untouched by another Delete).
       const rows = await dbh.db
         .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
         .from(topicTable)

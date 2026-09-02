@@ -423,7 +423,6 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.topics.export.obsidian') return 'Export to Obsidian'
         if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
         if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
-        if (key === 'common.archive') return 'Archive'
         if (key === 'common.delete') return 'Delete'
         if (key === 'common.delete_permanently') return 'Delete Permanently'
         if (key === 'common.delete_success') return 'Deleted'

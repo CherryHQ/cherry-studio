@@ -449,7 +449,7 @@ export function useTopicMutations() {
         })
       }
       closeConversationTabs('assistants', [topicId])
-      logger.info(options?.permanent ? 'Permanently deleted topic' : 'Archived topic', { id: topicId })
+      logger.info(options?.permanent ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id: topicId })
     },
     [closeConversationTabs, deleteTrigger, invalidate]
   )

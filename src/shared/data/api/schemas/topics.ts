@@ -59,7 +59,7 @@ export const ListTopicsQuerySchema = z.strictObject({
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
   q: z.string().optional(),
-  /** `true` lists only archived topics; omitted/false lists active topics. */
+  /** `true` lists only trashed topics; omitted/false lists active topics. */
   inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
@@ -155,7 +155,7 @@ export const DeleteTopicsQuerySchema = z.strictObject({
 export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 
 export const DeleteTopicQuerySchema = z.strictObject({
-  /** `true` permanently deletes instead of archiving to the trash. */
+  /** `true` permanently deletes a topic already in the Recycle Bin; omitted/false moves an active topic there. */
   permanent: z.boolean().optional()
 })
 export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
@@ -199,8 +199,8 @@ export type TopicSchemas = {
       response: Topic
     }
     /**
-     * Archive an explicit set of topics to the trash. Bulk purging has no caller,
-     * so this route is archive-only — purge one at a time via `DELETE /topics/:id`.
+     * Move an explicit set of topics to the Recycle Bin. Bulk purging has no caller,
+     * so this route is soft-delete-only — purge one at a time via `DELETE /topics/:id`.
      *
      * Used by multi-select table flows where the selection can span assistants.
      * This operation is all-or-nothing: if any supplied ID does not resolve to
@@ -260,7 +260,7 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Archive a topic by default; permanently delete it when requested. */
+    /** Omitted/false moves an active topic to the Recycle Bin; `true` permanently deletes one already there. */
     DELETE: {
       params: { id: string }
       query?: DeleteTopicQuery
@@ -268,7 +268,7 @@ export type TopicSchemas = {
     }
   }
 
-  /** Restore one archived topic. Pins and tags are not restored. */
+  /** Restore one trashed topic. Pins and tags are not restored. */
   '/topics/:id/restore': {
     POST: {
       params: { id: string }

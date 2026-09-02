@@ -1427,7 +1427,7 @@ describe('AssistantDataService', () => {
       const assistantRows = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       expect(assistantRows[0].deletedAt).toBeTruthy()
       // Semantics-agnostic on purpose: today deleteByAssistantIdTx hard-deletes,
-      // with topic soft delete it archives — either way topic-1 must leave the
+      // with topic soft delete it moves to the Recycle Bin — either way topic-1 must leave the
       // active set while topic-2 stays untouched.
       const topicRows = await dbh.db.select().from(topicTable)
       expect(topicRows.filter((row) => row.deletedAt === null).map((row) => row.id)).toEqual(['topic-2'])
@@ -1551,7 +1551,7 @@ describe('AssistantDataService', () => {
         }
 
         // Assistant row is gone; topic-1 left the active set (hard-deleted today,
-        // archived once topic soft delete lands — permanent affects only the
+        // trashed once topic soft delete lands — permanent affects only the
         // assistant row itself).
         expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
         const topicRows = await dbh.db.select().from(topicTable)
@@ -1605,7 +1605,7 @@ describe('AssistantDataService', () => {
   })
 
   describe('restore', () => {
-    it('should round-trip archive → hidden → restore → visible with junction rows and settings intact', async () => {
+    it('should round-trip Delete → hidden → Restore → visible with junction rows and settings intact', async () => {
       const settings = { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.3, enableTemperature: true }
       await seedAssistantRow({ id: 'ast-1', name: 'test', settings, modelId: 'openai::gpt-4' })
       await seedMcpServer()
@@ -1639,7 +1639,7 @@ describe('AssistantDataService', () => {
       expect(assistantDataService.list(listQuery({ inTrash: true })).items).toHaveLength(0)
     })
 
-    it('should not resurrect pins purged at archive time', async () => {
+    it('should not resurrect pins purged at Delete time', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
       await dbh.db.insert(pinTable).values({
         id: '11111111-1111-4111-8111-111111111111',
@@ -1692,7 +1692,7 @@ describe('AssistantDataService', () => {
       assistantDataService.delete('ast-2')
       assistantDataService.restore('ast-2')
 
-      // Restored row keeps its pre-archive orderKey → original position.
+      // Restored row keeps its pre-Delete orderKey → original position.
       expect(assistantDataService.list(listQuery()).items.map((a) => a.id)).toEqual(['ast-1', 'ast-2', 'ast-3'])
 
       // And it is a full member of the active order scope again.

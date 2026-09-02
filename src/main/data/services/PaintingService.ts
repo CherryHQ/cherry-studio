@@ -7,10 +7,11 @@
  *
  * Output / input files are stored in `painting_file_ref` (not on the painting
  * row). `create` writes the refs; `get` / `list` hydrate them via a single
- * `IN (...)` query, then group by sourceId + role. `delete` archives by
+ * `IN (...)` query, then group by sourceId + role. `delete` moves to the Recycle Bin by
  * default (soft delete — refs untouched, so the orphan sweep keeps the disk
- * images); `permanent: true` and `purgeExpiredTx` hard-delete the row and rely
- * on the DB-level cascade from `painting_file_ref.sourceId`.
+ * images); `permanent: true` hard-deletes only an already-trashed row, while
+ * `purgeExpiredTx` hard-deletes expired rows. Both rely on the DB-level cascade
+ * from `painting_file_ref.sourceId`.
  */
 
 import { application } from '@application'
@@ -228,7 +229,7 @@ class PaintingService {
   update(id: string, dto: UpdatePaintingDto): Painting {
     const dbService = application.get('DbService')
     const db = dbService.getDb()
-    // Archived paintings are not updatable — restore first.
+    // Trashed paintings are not updatable — restore first.
     const [existing] = db
       .select()
       .from(paintingTable)
@@ -299,12 +300,12 @@ class PaintingService {
   /**
    * Delete a painting.
    *
-   * Default (archive): soft-delete — set `deletedAt` on the painting row only.
+   * Default (Delete): move to the Recycle Bin by setting `deletedAt` on the painting row only.
    * `painting_file_ref` rows are untouched (no row delete → no FK cascade), so
    * the file orphan sweep still sees the generated images as owned and the
    * disk files stay safe while the painting sits in the trash.
    *
-   * `permanent: true`: hard-delete the DB row only while it remains archived.
+   * `permanent: true`: hard-delete the DB row only while it remains in the Recycle Bin.
    * The FK cascade clears `painting_file_ref`; disk images are reclaimed later
    * by the file orphan sweep. DB-only — no filesystem work in DataApi.
    */
@@ -337,11 +338,11 @@ class PaintingService {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
     this.notifyReadModelChange([id], 'membership')
-    logger.info('Archived painting', { id })
+    logger.info('Moved painting to Recycle Bin', { id })
   }
 
   /**
-   * Restore an archived painting (clear `deletedAt`). Archive never touched
+   * Restore a trashed painting (clear `deletedAt`). Moving it to the Recycle Bin never touched
    * the `painting_file_ref` rows, so the returned entity's files are intact.
    * NOT_FOUND when the painting doesn't exist or is not in the trash.
    */
@@ -365,7 +366,7 @@ class PaintingService {
   }
 
   /**
-   * Hard-delete archived paintings whose `deletedAt` is older than `cutoffMs`,
+   * Hard-delete trashed paintings whose `deletedAt` is older than `cutoffMs`,
    * up to `limit` rows. Called by the trash purge job inside its own
    * `withWriteTx` — the callback stays synchronous per better-sqlite3.
    *

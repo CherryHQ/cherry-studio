@@ -254,7 +254,7 @@ export class AgentJobsService extends BaseService {
     return deletedIds.length
   }
 
-  /** Reconcile schedules whose owning agent was archived or removed before event cleanup completed. */
+  /** Reconcile schedules whose owning agent was trashed or removed before event cleanup completed. */
   async deleteOrphanedSchedules(): Promise<number> {
     const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
       const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)

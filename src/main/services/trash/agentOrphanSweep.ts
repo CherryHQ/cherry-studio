@@ -27,7 +27,7 @@ export interface AgentSweepReport {
 
 /**
  * Orphan sweep for the app-managed agent disk state. DB rows are the single
- * source of truth (RFC archive §4.2): an artifact survives iff a row still
+ * source of truth (Recycle Bin RFC §4.2): an artifact survives iff a row still
  * claims it, so purging a session/agent row reclaims its residue on the next
  * run — same contract as the file orphan sweep.
  *
@@ -37,11 +37,11 @@ export interface AgentSweepReport {
  *    only uuid-named children are ever candidates.
  *  - `{agents.system_workspaces}/{date}/{sessionId}` — app-owned session
  *    workspaces, claimed by `agent_workspace.path`. Workspace rows survive
- *    archive and are deleted at session purge.
+ *    Delete and are removed at session purge.
  *  - each runtime driver's own session persistence, claimed by the resume
  *    tokens on surviving `agent_session_message` rows.
  *
- * Archived agents/sessions keep everything: their rows (and tokens) are still
+ * Trashed agents/sessions keep everything: their rows (and tokens) are still
  * there, so restore stays lossless. Removal failures are logged for the next run.
  *
  * Every pass is freshness-gated: the keep-sets are one snapshot, so a dir created

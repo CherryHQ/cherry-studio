@@ -614,7 +614,7 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
     })
 
-    it('reconciles schedules left behind for archived agents', async () => {
+    it('reconciles schedules left behind for trashed agents', async () => {
       seedAgent(OTHER_AGENT_ID)
       const orphaned = service.createTask(AGENT_ID, form)
       const foreign = service.createTask(OTHER_AGENT_ID, { ...form, name: 'foreign-task' })

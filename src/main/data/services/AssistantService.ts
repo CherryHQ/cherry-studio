@@ -607,7 +607,7 @@ export class AssistantDataService {
     }
   }
 
-  /** Archive an assistant by default; permanently remove it when requested. */
+  /** Move an active assistant to the Recycle Bin by default; permanently remove only one already there. */
   delete(
     id: string,
     options: { deleteTopics?: boolean; permanent?: boolean } = {}
@@ -638,7 +638,7 @@ export class AssistantDataService {
     this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
 
-    logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Archived assistant', {
+    logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
       id,
       deleteTopics: options.deleteTopics === true
     })
@@ -670,7 +670,7 @@ export class AssistantDataService {
     return true
   }
 
-  /** Restore one archived assistant. Tags and pins removed on archive stay removed. */
+  /** Restore one trashed assistant. Tags and pins removed on Delete stay removed. */
   restore(id: string): Assistant {
     const [row] = this.db
       .update(assistantTable)
@@ -686,7 +686,7 @@ export class AssistantDataService {
     return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))
   }
 
-  /** Hard-delete archived assistants older than the retention cutoff. */
+  /** Hard-delete trashed assistants older than the retention cutoff. */
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
     const rows = tx
       .select({ id: assistantTable.id })
@@ -698,7 +698,7 @@ export class AssistantDataService {
     if (ids.length === 0) return ids
 
     pinService.purgeForEntitiesTx(tx, 'assistant', ids)
-    // Rows archived before this release were soft-deleted without a binding purge.
+    // Rows moved to the Recycle Bin before this release were soft-deleted without a binding purge.
     promptService.purgeForTargetsTx(tx, 'assistant', ids)
     tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
     return ids

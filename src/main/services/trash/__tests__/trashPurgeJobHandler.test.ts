@@ -119,7 +119,7 @@ describe('trashPurgeJobHandler', () => {
         status: 'success'
       },
       rootRow('topic-active'),
-      // Messages are never archived on their own — a live topic's messages must
+      // Messages are never moved to the Recycle Bin on their own — a live topic's messages must
       // survive the purge untouched.
       {
         id: 'msg-of-active-topic',

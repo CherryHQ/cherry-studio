@@ -42,8 +42,8 @@ export const TopicSchema = z.strictObject({
   /** Last update timestamp (ISO string) */
   updatedAt: z.iso.datetime(),
   /**
-   * Archive timestamp (ISO string) — present iff the topic is in the trash.
-   * Read-only: set via DELETE (archive) and cleared via the restore endpoints,
+   * Recycle Bin timestamp (ISO string) — present iff the topic is trashed.
+   * Read-only: set via Delete and cleared via the Restore endpoints,
    * never writable through Create/Update DTOs.
    */
   deletedAt: z.iso.datetime().optional()

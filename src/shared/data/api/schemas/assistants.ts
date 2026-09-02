@@ -155,12 +155,12 @@ export const DeleteAssistantQuerySchema = z.strictObject({
    */
   deleteTopics: z.boolean().optional(),
   /**
-   * `true` skips the trash: the assistant row is hard-deleted (DB only —
+   * `true` hard-deletes an assistant already in the Recycle Bin (DB only —
    * junction rows cascade, `topic.assistantId` FK SET NULLs). Omitted/false
-   * archives (soft-deletes) so the assistant is restorable from the trash.
+   * moves an active assistant to the Recycle Bin so it can be restored.
    * `permanent` affects only the assistant row itself: with
-   * `deleteTopics: true` the topics are still archived (not hard-deleted) and
-   * restore independently from the trash.
+   * `deleteTopics: true` the topics are still moved to the Recycle Bin (not hard-deleted) and
+   * restored independently from the Recycle Bin.
    */
   permanent: z.boolean().optional()
 })
@@ -246,7 +246,7 @@ export type AssistantSchemas = {
   /**
    * Restore a trashed assistant (resource-action pattern).
    * Clears `deletedAt` so the assistant reappears in active listings.
-   * Tags/pins purged at archive time are NOT restored.
+   * Tags/pins purged at Delete time are NOT restored.
    * @example POST /assistants/abc123/restore
    */
   '/assistants/:id/restore': {

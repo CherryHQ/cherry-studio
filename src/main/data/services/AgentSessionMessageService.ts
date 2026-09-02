@@ -785,7 +785,7 @@ export class AgentSessionMessageService {
 
   /**
    * Every resume token still claimed by a session row — the keep-set for the
-   * agent orphan sweep. Archived sessions are included (their message rows
+   * agent orphan sweep. Trashed sessions are included (their message rows
    * survive), so a trashed session's runtime state is only reclaimed once the
    * session is purged and the FK cascade drops its tokens.
    */

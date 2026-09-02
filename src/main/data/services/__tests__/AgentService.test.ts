@@ -1077,15 +1077,15 @@ describe('AgentService', () => {
       expect(rows.find((r) => r.id === id)).toBeUndefined()
     })
 
-    it('archives by default and restores exactly the sessions archived with the agent', async () => {
-      const { id } = await insertAgent({ id: 'agent_archive_restore_001' })
+    it('moves to the Recycle Bin by default and restores exactly the sessions moved with the agent', async () => {
+      const { id } = await insertAgent({ id: 'agent_trash_restore_001' })
       await dbh.db.insert(agentWorkspaceTable).values([
-        { id: 'workspace-archive-1', name: 'W1', path: '/tmp/agent-archive-1', orderKey: 'a0' },
-        { id: 'workspace-archive-2', name: 'W2', path: '/tmp/agent-archive-2', orderKey: 'a1' }
+        { id: 'workspace-trash-1', name: 'W1', path: '/tmp/agent-trash-1', orderKey: 'a0' },
+        { id: 'workspace-trash-2', name: 'W2', path: '/tmp/agent-trash-2', orderKey: 'a1' }
       ])
       await dbh.db.insert(agentSessionTable).values([
-        { id: 'session-with-agent', agentId: id, name: '', workspaceId: 'workspace-archive-1', orderKey: 'a0' },
-        { id: 'session-trashed-earlier', agentId: id, name: '', workspaceId: 'workspace-archive-2', orderKey: 'a1' }
+        { id: 'session-with-agent', agentId: id, name: '', workspaceId: 'workspace-trash-1', orderKey: 'a0' },
+        { id: 'session-trashed-earlier', agentId: id, name: '', workspaceId: 'workspace-trash-2', orderKey: 'a1' }
       ])
       // Trashed on its own a day earlier — must stay in the trash after the agent comes back.
       agentSessionService.deleteByIds(['session-trashed-earlier'])
@@ -1145,7 +1145,7 @@ describe('AgentService', () => {
       expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
-    it('keeps prompt bindings when archiving, so restore returns the agent fully bound', async () => {
+    it('keeps prompt bindings when moving to the Recycle Bin, so restore returns the agent fully bound', async () => {
       const { id } = await insertAgent({ id: 'agent_with_prompt_002' })
       const promptId = '550e8400-e29b-41d4-a716-446655440022'
       await dbh.db
@@ -1155,7 +1155,7 @@ describe('AgentService', () => {
 
       agentService.deleteAgent(id)
 
-      // Unlike pins, bindings survive the archive — only a purge drops them.
+      // Unlike pins, bindings survive Delete — only a purge drops them.
       expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(1)
 
       agentService.restoreAgent(id)

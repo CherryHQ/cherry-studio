@@ -69,7 +69,7 @@ describe('topic context menu actions', () => {
     const actions = resolveTopicMenuActions(context)
     const deleteAction = actions.find((action) => action.id === 'topic.delete')
 
-    expect(actions.map((action) => action.id)).not.toContain('topic.archive')
+    expect(actions.filter((action) => action.danger).map((action) => action.id)).toEqual(['topic.delete'])
     expect(deleteAction?.label).toBe('common.delete')
     expect(deleteAction?.confirm).toEqual({
       title: 'recycle_bin.move.confirm_title',

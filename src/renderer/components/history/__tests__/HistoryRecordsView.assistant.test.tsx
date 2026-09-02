@@ -293,7 +293,6 @@ vi.mock('react-i18next', () => ({
         'chat.topics.pin': 'Pin Conversation',
         'chat.topics.unpin': 'Unpin Conversation',
         'common.all': 'All',
-        'common.archive': 'Archive',
         'common.assistant': 'Assistant',
         'common.back': 'Back',
         'common.cancel': 'Cancel',

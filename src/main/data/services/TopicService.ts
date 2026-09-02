@@ -451,18 +451,18 @@ export class TopicService {
     return topic
   }
 
-  /** Archive by default; permanently remove the topic and messages on request. */
+  /** Move an active topic to the Recycle Bin by default; permanently remove only a topic already there. */
   delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) =>
       options.permanent === true
         ? this.purgeManyByIdsTx(tx, [id], { requireAll: true })
-        : this.archiveManyByIdsTx(tx, [id], { requireAll: true })
+        : this.trashManyByIdsTx(tx, [id], { requireAll: true })
     )
     this.notifyReadModelChange(deletedIds, 'membership')
     pinService.notifyPurged()
 
-    logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Archived topic', { id })
+    logger.info(options.permanent === true ? 'Permanently deleted topic' : 'Moved topic to Recycle Bin', { id })
   }
 
   deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteTopicsResult {
@@ -470,19 +470,19 @@ export class TopicService {
     const deletedIds = dbService.withWriteTx((tx) =>
       options.permanent === true
         ? this.purgeManyByIdsTx(tx, ids, { requireAll: true })
-        : this.archiveManyByIdsTx(tx, ids, { requireAll: true })
+        : this.trashManyByIdsTx(tx, ids, { requireAll: true })
     )
     this.notifyReadModelChange(deletedIds, 'membership')
     if (deletedIds.length > 0) pinService.notifyPurged()
 
-    logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Archived topics', {
+    logger.info(options.permanent === true ? 'Permanently deleted topics' : 'Moved topics to Recycle Bin', {
       count: deletedIds.length
     })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private archiveManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+  private trashManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
@@ -491,26 +491,26 @@ export class TopicService {
       .from(topicTable)
       .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
       .all()
-    const archivedIds = rows.map((row) => row.id)
+    const trashedIds = rows.map((row) => row.id)
 
-    if (options.requireAll && archivedIds.length !== uniqueIds.length) {
-      const foundIds = new Set(archivedIds)
+    if (options.requireAll && trashedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(trashedIds)
       const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
       throw DataApiErrorFactory.notFound('Topic', missingId)
     }
-    if (archivedIds.length === 0) return []
+    if (trashedIds.length === 0) return []
 
     const now = Date.now()
-    for (let i = 0; i < archivedIds.length; i += SQLITE_INARRAY_CHUNK) {
+    for (let i = 0; i < trashedIds.length; i += SQLITE_INARRAY_CHUNK) {
       tx.update(topicTable)
         .set({ deletedAt: now })
-        .where(inArray(topicTable.id, archivedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
+        .where(inArray(topicTable.id, trashedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
         .run()
     }
-    tagService.purgeForEntitiesTx(tx, 'topic', archivedIds)
-    pinService.purgeForEntitiesTx(tx, 'topic', archivedIds)
+    tagService.purgeForEntitiesTx(tx, 'topic', trashedIds)
+    pinService.purgeForEntitiesTx(tx, 'topic', trashedIds)
 
-    return archivedIds
+    return trashedIds
   }
 
   private purgeManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
@@ -829,7 +829,7 @@ export class TopicService {
       .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
       .all()
 
-    return this.archiveManyByIdsTx(
+    return this.trashManyByIdsTx(
       tx,
       rows.map((row) => row.id)
     )

@@ -29,8 +29,8 @@ export const PaintingSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   /**
-   * Read-only trash marker — present only on archived paintings. Set via
-   * `DELETE /paintings/:id` (archive) and cleared via
+   * Read-only trash marker — present only on trashed paintings. Set via
+   * `DELETE /paintings/:id` (move to Recycle Bin) and cleared via
    * `POST /paintings/:id/restore`; never writable through create/update DTOs.
    */
   deletedAt: z.iso.datetime().optional()

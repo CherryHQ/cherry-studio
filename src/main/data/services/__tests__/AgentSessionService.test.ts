@@ -253,21 +253,21 @@ describe('AgentSessionService', () => {
     ).toEqual([])
   })
 
-  it('hides retained sessions while their agent is archived without hiding true orphans', async () => {
-    const workspace = await createWorkspace('archived-owner-visibility')
+  it('hides retained sessions while their agent is trashed without hiding true orphans', async () => {
+    const workspace = await createWorkspace('trashed-owner-visibility')
     await dbh.db.insert(agentTable).values({
-      id: 'agent-archived-owner',
+      id: 'agent-trashed-owner',
       type: 'claude-code',
-      name: 'Archived Owner',
+      name: 'Trashed Owner',
       instructions: '',
-      orderKey: 'archived-owner',
+      orderKey: 'trashed-owner',
       deletedAt: 100
     })
     await dbh.db.insert(agentSessionTable).values([
       {
-        id: 'session-archived-owner',
-        agentId: 'agent-archived-owner',
-        name: 'Archived owner evidence',
+        id: 'session-trashed-owner',
+        agentId: 'agent-trashed-owner',
+        name: 'Trashed owner evidence',
         workspaceId: workspace.id,
         orderKey: 'a0',
         lastActivityAt: 300
@@ -285,17 +285,17 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.search({ q: 'owner evidence', limit: 5 })).toEqual([])
     expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual(['session-true-orphan'])
     expect(agentSessionService.getLatestActive()?.id).toBe('session-true-orphan')
-    expect(captureError(() => agentSessionService.getById('session-archived-owner'))).toMatchObject({
+    expect(captureError(() => agentSessionService.getById('session-trashed-owner'))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
     expect(agentSessionService.getById('session-true-orphan').id).toBe('session-true-orphan')
 
-    await dbh.db.update(agentTable).set({ deletedAt: null }).where(eq(agentTable.id, 'agent-archived-owner'))
+    await dbh.db.update(agentTable).set({ deletedAt: null }).where(eq(agentTable.id, 'agent-trashed-owner'))
 
     expect(agentSessionService.search({ q: 'owner evidence', limit: 5 }).map((item) => item.id)).toEqual([
-      'session-archived-owner'
+      'session-trashed-owner'
     ])
-    expect(agentSessionService.getById('session-archived-owner').id).toBe('session-archived-owner')
+    expect(agentSessionService.getById('session-trashed-owner').id).toBe('session-trashed-owner')
   })
 
   it('pages only Sessions whose active Agent can receive a delivery', async () => {
@@ -819,10 +819,10 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(session.id).traceId).toBe(traceId)
   })
 
-  it('refuses to mutate an archived session through the write paths that outlive it', async () => {
-    // Archive closes the runtime, but an in-flight turn or a stale order request can
+  it('refuses to mutate a trashed session through the write paths that outlive it', async () => {
+    // Delete closes the runtime, but an in-flight turn or a stale order request can
     // still arrive afterwards; those writes must not land on a trashed row.
-    const session = await createSession('Archived writer')
+    const session = await createSession('Trashed writer')
     const sibling = await createSession('Sibling')
     agentSessionService.delete(session.id)
 
@@ -1226,7 +1226,7 @@ describe('AgentSessionService', () => {
     ])
   })
 
-  it('does not clear a task relation when updating an archived session fails', async () => {
+  it('does not clear a task relation when updating a trashed session fails', async () => {
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-reassigned',
       type: 'claude-code',
@@ -1235,7 +1235,7 @@ describe('AgentSessionService', () => {
       orderKey: 'z0'
     })
     const task = createTaskSchedule()
-    const session = await createSession('Archived bound session')
+    const session = await createSession('Trashed bound session')
     bindTaskSession(session.id, task.id)
     await dbh.db.update(agentSessionTable).set({ deletedAt: Date.now() }).where(eq(agentSessionTable.id, session.id))
     notifyDataApiDataChangeMock.mockClear()
@@ -1320,10 +1320,10 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('archives by default, keeping messages and the workspace so restore is lossless', async () => {
-    const session = await createSession('Archive me')
-    await insertSessionMessage(session.id, 'msg-archive-1')
-    await insertSessionMessage(session.id, 'msg-archive-2')
+  it('moves to the Recycle Bin by default, keeping messages and the workspace so restore is lossless', async () => {
+    const session = await createSession('Move me to the Recycle Bin')
+    await insertSessionMessage(session.id, 'msg-trash-1')
+    await insertSessionMessage(session.id, 'msg-trash-2')
 
     agentSessionService.delete(session.id)
 
@@ -1337,7 +1337,7 @@ describe('AgentSessionService', () => {
       (await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id)))
         .map((row) => row.id)
         .sort()
-    ).toEqual(['msg-archive-1', 'msg-archive-2'])
+    ).toEqual(['msg-trash-1', 'msg-trash-2'])
   })
 
   it('rejects permanent deletion of an active session and keeps it active', async () => {
@@ -1364,7 +1364,7 @@ describe('AgentSessionService', () => {
     expect(row).toMatchObject({ id: session.id, deletedAt: null })
   })
 
-  it('detaches a bound task schedule when a session is archived', async () => {
+  it('detaches a bound task schedule when a session moves to the Recycle Bin', async () => {
     const session = await createSession('Scheduled')
     const task = createTaskSchedule()
     bindTaskSession(session.id, task.id)

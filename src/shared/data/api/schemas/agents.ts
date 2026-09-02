@@ -291,7 +291,7 @@ export type AgentSchemas = {
     }
   }
 
-  /** Restore one trashed agent. Pins purged at archive time are not restored. */
+  /** Restore one trashed agent. Pins purged at Delete time are not restored. */
   '/agents/:agentId/restore': {
     POST: {
       params: { agentId: string }

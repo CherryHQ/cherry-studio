@@ -247,8 +247,8 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
   onSessionIdle?(sessionId: string): void
   /**
    * Reclaim on-disk session state that no surviving session row claims, keyed by
-   * the resume tokens the driver itself hands out. The keep-set covers archived
-   * sessions too — their rows and tokens outlive the archive so restore stays
+   * the resume tokens the driver itself hands out. The keep-set covers trashed
+   * sessions too — their rows and tokens remain until purge so Restore stays
    * lossless, and only a purge drops them. Called by the trash purge's agent
    * orphan sweep after every DB transaction has committed, so it is authoritative. Must be idempotent, must no-op when its root
    * does not exist, and must leave anything younger than `freshnessGateMs`

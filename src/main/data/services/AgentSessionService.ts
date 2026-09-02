@@ -892,14 +892,14 @@ export class AgentSessionService {
 
   deleteForDelivery(id: string, options: { permanent?: boolean } = {}): AgentSessionDeletionOutcome {
     if (options.permanent !== true) {
-      const { archivedIds, taskScheduleIds, deliveryResults } = application
+      const { trashedIds, taskScheduleIds, deliveryResults } = application
         .get('DbService')
-        .withWriteTx((tx) => this.archiveByIdsTx(tx, [id], { requireAll: true }))
+        .withWriteTx((tx) => this.trashByIdsTx(tx, [id], { requireAll: true }))
       publishTaskReadModelChanges(taskScheduleIds)
       getDataService('AgentSessionMessageService').publishDeliveryChanges(deliveryResults)
-      this.notifyReadModelChange(archivedIds, 'membership')
-      if (archivedIds.length > 0) pinService.notifyPurged()
-      return { deletedIds: archivedIds, taskScheduleIds, deliveryResults }
+      this.notifyReadModelChange(trashedIds, 'membership')
+      if (trashedIds.length > 0) pinService.notifyPurged()
+      return { deletedIds: trashedIds, taskScheduleIds, deliveryResults }
     }
 
     const result = application.get('DbService').withWriteTx((tx) => {
@@ -944,8 +944,8 @@ export class AgentSessionService {
 
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
-        const { archivedIds, taskScheduleIds, deliveryResults } = this.archiveByIdsTx(tx, uniqueIds)
-        return { deletedIds: archivedIds, taskScheduleIds, deliveryResults }
+        const { trashedIds, taskScheduleIds, deliveryResults } = this.trashByIdsTx(tx, uniqueIds)
+        return { deletedIds: trashedIds, taskScheduleIds, deliveryResults }
       }
 
       const rows = tx
@@ -962,61 +962,61 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
-    logger.info(options.permanent === true ? 'Permanently deleted sessions' : 'Archived sessions', {
+    logger.info(options.permanent === true ? 'Permanently deleted sessions' : 'Moved sessions to Recycle Bin', {
       count: result.deletedIds.length
     })
     return result
   }
 
   /**
-   * Archive sessions: write `deletedAt`, purge pins, detach any bound task
+   * Move sessions to the Recycle Bin: write `deletedAt`, purge pins, detach any bound task
    * schedule, and fail pending cross-session deliveries — a trashed session is
    * as unreachable as a deleted one, so senders must not wait forever. Own
    * messages are left untouched, so restore is lossless.
    */
-  archiveByIdsTx(
+  trashByIdsTx(
     tx: DbOrTx,
     ids: string[],
     options: { requireAll?: boolean; deletedAt?: number } = {}
-  ): { archivedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
+  ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return { archivedIds: [], taskScheduleIds: [], deliveryResults: [] }
+    if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
     const rows = tx
       .select({ id: sessionsTable.id, taskScheduleId: sessionsTable.taskScheduleId })
       .from(sessionsTable)
       .where(and(inArray(sessionsTable.id, uniqueIds), isNull(sessionsTable.deletedAt)))
       .all()
-    const archivedIds = rows.map((row) => row.id)
-    if (options.requireAll && archivedIds.length !== uniqueIds.length) {
-      const foundIds = new Set(archivedIds)
+    const trashedIds = rows.map((row) => row.id)
+    if (options.requireAll && trashedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(trashedIds)
       const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
       throw DataApiErrorFactory.notFound('Session', missingId)
     }
-    if (archivedIds.length === 0) return { archivedIds, taskScheduleIds: [], deliveryResults: [] }
+    if (trashedIds.length === 0) return { trashedIds, taskScheduleIds: [], deliveryResults: [] }
 
-    const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, archivedIds)
+    const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, trashedIds)
     const taskScheduleIds = rows.flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
     if (taskScheduleIds.length > 0) {
       this.updateTaskScheduleRelationTx(
         tx,
         null,
-        and(inArray(sessionsTable.id, archivedIds), isNotNull(sessionsTable.taskScheduleId))!
+        and(inArray(sessionsTable.id, trashedIds), isNotNull(sessionsTable.taskScheduleId))!
       )
     }
     tx.update(sessionsTable)
       .set({ deletedAt: options.deletedAt ?? Date.now() })
-      .where(inArray(sessionsTable.id, archivedIds))
+      .where(inArray(sessionsTable.id, trashedIds))
       .run()
-    pinService.purgeForEntitiesTx(tx, 'session', archivedIds)
-    return { archivedIds, taskScheduleIds, deliveryResults }
+    pinService.purgeForEntitiesTx(tx, 'session', trashedIds)
+    return { trashedIds, taskScheduleIds, deliveryResults }
   }
 
-  archiveByAgentIdTx(
+  trashByAgentIdTx(
     tx: DbOrTx,
     agentId: string,
     options: { validateAgent?: boolean; deletedAt?: number } = {}
-  ): { archivedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
+  ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
     const ids = tx
       .select({ id: sessionsTable.id })
@@ -1024,21 +1024,21 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
       .all()
       .map((row) => row.id)
-    return this.archiveByIdsTx(tx, ids, { deletedAt: options.deletedAt })
+    return this.trashByIdsTx(tx, ids, { deletedAt: options.deletedAt })
   }
 
   /**
-   * Restore the sessions archived in the same operation as their agent —
-   * matched on the shared archive timestamp, so sessions the user trashed
+   * Restore the sessions moved to the Recycle Bin in the same operation as their agent —
+   * matched on the shared deletion timestamp, so sessions the user trashed
    * separately stay in the trash. A session trashed in the very same
    * millisecond as its agent would be restored too; harmless and unreachable
    * through the UI's two round-trips.
    */
-  restoreArchivedWithAgentTx(tx: DbOrTx, agentId: string, archivedAt: number): string[] {
+  restoreTrashedWithAgentTx(tx: DbOrTx, agentId: string, trashedAt: number): string[] {
     return tx
       .update(sessionsTable)
       .set({ deletedAt: null })
-      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, archivedAt)))
+      .where(and(eq(sessionsTable.agentId, agentId), eq(sessionsTable.deletedAt, trashedAt)))
       .returning({ id: sessionsTable.id })
       .all()
       .map((row) => row.id)
@@ -1047,7 +1047,7 @@ export class AgentSessionService {
   restore(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
 
-    // A session under an archived agent restores into an unusable state: it shows up
+    // A session under a trashed agent restores into an unusable state: it shows up
     // in the list but cannot run. Refuse it — restoring the agent brings its sessions
     // back anyway, so that is the operation the caller actually wants.
     const [orphaned] = db
@@ -1060,7 +1060,7 @@ export class AgentSessionService {
     if (orphaned) {
       throw DataApiErrorFactory.invalidOperation(
         'restore session',
-        'its agent is archived — restore the agent instead, which restores its sessions'
+        'its agent is in the Recycle Bin — restore the agent instead, which restores its sessions'
       )
     }
 
@@ -1156,9 +1156,9 @@ export class AgentSessionService {
     const deliveryResults: AgentSessionMessageEntity[] = []
     const result = application.get('DbService').withWriteTx((tx) => {
       if (options.permanent !== true) {
-        const archived = this.archiveByAgentIdTx(tx, agentId)
-        deliveryResults.push(...archived.deliveryResults)
-        return { deletedIds: archived.archivedIds, taskScheduleIds: archived.taskScheduleIds, deliveryResults }
+        const trashed = this.trashByAgentIdTx(tx, agentId)
+        deliveryResults.push(...trashed.deliveryResults)
+        return { deletedIds: trashed.trashedIds, taskScheduleIds: trashed.taskScheduleIds, deliveryResults }
       }
       const taskScheduleIds = this.getTaskScheduleIdsForAgentTx(tx, agentId)
       const deletedIds = this.deleteByAgentIdTx(tx, agentId, { deliveryResults })
@@ -1169,10 +1169,13 @@ export class AgentSessionService {
     getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     this.notifyReadModelChange(result.deletedIds, 'membership')
     if (result.deletedIds.length > 0) pinService.notifyPurged()
-    logger.info(options.permanent === true ? 'Permanently deleted agent sessions' : 'Archived agent sessions', {
-      agentId,
-      count: result.deletedIds.length
-    })
+    logger.info(
+      options.permanent === true ? 'Permanently deleted agent sessions' : 'Moved agent sessions to Recycle Bin',
+      {
+        agentId,
+        count: result.deletedIds.length
+      }
+    )
     return result
   }
 

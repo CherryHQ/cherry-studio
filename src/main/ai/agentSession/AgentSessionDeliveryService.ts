@@ -278,7 +278,7 @@ export class AgentSessionDeliveryService extends BaseService {
         manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
       )
     }
-    // Sessions that outlive the agent (archived or permanently deleted) keep
+    // Sessions that outlive the agent (trashed or permanently deleted) keep
     // their queue — kick it so pending deliveries re-evaluate against the gone agent.
     await this.finishDeletion(
       result.affectedSessionIds,
@@ -293,7 +293,7 @@ export class AgentSessionDeliveryService extends BaseService {
 
   private async deleteAgentSessionsInternal(agentId: string): Promise<{ deletedIds: string[] }> {
     this.assertWritesAvailable()
-    // Archives: the only caller is the "clear this agent's sessions" command, which is undoable.
+    // Recycle Bin moves: the only caller is the "clear this agent's sessions" command, which is undoable.
     const result = agentSessionService.deleteByAgentIdForDelivery(agentId, { permanent: false })
     await this.finishDeletion(result.deletedIds, result.deliveryResults)
     return { deletedIds: result.deletedIds }

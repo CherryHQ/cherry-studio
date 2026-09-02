@@ -158,7 +158,7 @@ export type AgentSessionSchemas = {
     }
   }
 
-  /** Restore one trashed session. Pins purged at archive time are not restored. */
+  /** Restore one trashed session. Pins purged at Delete time are not restored. */
   '/agent-sessions/:sessionId/restore': {
     POST: {
       params: { sessionId: string }

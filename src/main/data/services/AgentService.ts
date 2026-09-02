@@ -821,17 +821,17 @@ export class AgentService {
             return { ...this.deleteAgentTx(tx, id), sessionImpact }
           }
 
-          // One timestamp for the agent and the sessions archived with it, so
+          // One timestamp for the agent and the sessions moved with it, so
           // `restoreAgent` can bring back exactly that set.
-          const archivedAt = Date.now()
+          const trashedAt = Date.now()
           const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
-          const archived =
+          const trashed =
             options.deleteSessions === true
-              ? agentSessionService.archiveByAgentIdTx(tx, id, { validateAgent: false, deletedAt: archivedAt })
+              ? agentSessionService.trashByAgentIdTx(tx, id, { validateAgent: false, deletedAt: trashedAt })
               : {
-                  archivedIds: [],
+                  trashedIds: [],
                   taskScheduleIds: [],
-                  // Sessions outlive the archived agent, but deliveries targeting
+                  // Sessions outlive the trashed agent, but deliveries targeting
                   // them can no longer complete — interrupt them like a hard delete.
                   deliveryResults: getDataService('AgentSessionMessageService').prepareRetainedSessionAgentDeletionTx(
                     tx,
@@ -840,7 +840,7 @@ export class AgentService {
                 }
           const result = tx
             .update(agentsTable)
-            .set({ deletedAt: archivedAt })
+            .set({ deletedAt: trashedAt })
             .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
             .run()
           pinService.purgeForEntityTx(tx, 'agent', id)
@@ -848,9 +848,9 @@ export class AgentService {
             rowsAffected: result.changes,
             sessionImpact: {
               sessionIds,
-              taskScheduleIds: archived.taskScheduleIds,
-              changeKind: archived.archivedIds.length > 0 ? ('membership' as const) : ('projection' as const),
-              deliveryResults: archived.deliveryResults
+              taskScheduleIds: trashed.taskScheduleIds,
+              changeKind: trashed.trashedIds.length > 0 ? ('membership' as const) : ('projection' as const),
+              deliveryResults: trashed.deliveryResults
             }
           }
         }),
@@ -885,21 +885,21 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
-  /** Restore an archived agent, together with the sessions archived with it. */
+  /** Restore a trashed agent, together with the sessions moved to the Recycle Bin with it. */
   restoreAgent(id: string): AgentEntity {
     const { row, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
-      const [archived] = tx
+      const [trashed] = tx
         .select({ deletedAt: agentsTable.deletedAt })
         .from(agentsTable)
         .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
         .limit(1)
         .all()
-      if (archived?.deletedAt == null) throw DataApiErrorFactory.notFound('Agent', id)
+      if (trashed?.deletedAt == null) throw DataApiErrorFactory.notFound('Agent', id)
 
       const [restored] = tx.update(agentsTable).set({ deletedAt: null }).where(eq(agentsTable.id, id)).returning().all()
       return {
         row: restored,
-        restoredSessionIds: agentSessionService.restoreArchivedWithAgentTx(tx, id, archived.deletedAt)
+        restoredSessionIds: agentSessionService.restoreTrashedWithAgentTx(tx, id, trashed.deletedAt)
       }
     })
     if (restoredSessionIds.length > 0) agentSessionService.notifyReadModelChange(restoredSessionIds, 'membership')

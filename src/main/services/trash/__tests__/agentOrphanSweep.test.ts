@@ -31,7 +31,7 @@ function makeStale(target: string) {
 }
 
 const AGENT_LIVE = '11111111-1111-4111-8111-111111111111'
-const AGENT_ARCHIVED = '22222222-2222-4222-8222-222222222222'
+const AGENT_TRASHED = '22222222-2222-4222-8222-222222222222'
 const AGENT_GONE = '33333333-3333-4333-8333-333333333333'
 
 describe('sweepAgentOrphans', () => {
@@ -103,11 +103,11 @@ describe('sweepAgentOrphans', () => {
     }
   })
 
-  it('keeps agent-id dirs (live and archived) and removes ones whose agent row is gone', async () => {
+  it('keeps agent-id dirs (live and trashed) and removes ones whose agent row is gone', async () => {
     await seedAgent(AGENT_LIVE)
-    await seedAgent(AGENT_ARCHIVED, Date.now())
+    await seedAgent(AGENT_TRASHED, Date.now())
     mkdirSync(path.join(root, AGENT_LIVE))
-    mkdirSync(path.join(root, AGENT_ARCHIVED))
+    mkdirSync(path.join(root, AGENT_TRASHED))
     const orphan = path.join(root, AGENT_GONE)
     mkdirSync(orphan)
     writeFileSync(path.join(orphan, 'residue.txt'), 'x')
@@ -118,7 +118,7 @@ describe('sweepAgentOrphans', () => {
     expect(removed).toEqual([orphan])
     expect(existsSync(orphan)).toBe(false)
     expect(existsSync(path.join(root, AGENT_LIVE))).toBe(true)
-    expect(existsSync(path.join(root, AGENT_ARCHIVED))).toBe(true)
+    expect(existsSync(path.join(root, AGENT_TRASHED))).toBe(true)
   })
 
   it('keeps a warm agent dir — its agent row may not have committed when the keep-set was read', async () => {
@@ -226,7 +226,7 @@ describe('sweepAgentOrphans', () => {
       expect(removed).toContain('/tmp/reclaimed.jsonl')
     })
 
-    it('keeps an archived session’s runtime state and reclaims it once the session row is purged', async () => {
+    it('keeps a trashed session’s runtime state and reclaims it once the session row is purged', async () => {
       const piSessions = path.join(root, 'pi-sessions')
       mkdirSync(piSessions, { recursive: true })
       const transcript = path.join(piSessions, '2026-08-19T00-00-00-000Z_token-live.jsonl')
@@ -240,18 +240,18 @@ describe('sweepAgentOrphans', () => {
       })
       runtimeDriverRegistry.register(new PiRuntimeDriver())
 
-      // Archived (soft-deleted) session: its message rows — and so its token — survive.
-      await seedSessionWithToken('session-archived', 'token-live')
+      // Trashed (soft-deleted) session: its message rows — and so its token — survive.
+      await seedSessionWithToken('session-trashed', 'token-live')
       await dbh.db
         .update(agentSessionTable)
         .set({ deletedAt: Date.now() })
-        .where(eq(agentSessionTable.id, 'session-archived'))
+        .where(eq(agentSessionTable.id, 'session-trashed'))
 
       await sweepAgentOrphans()
       expect(existsSync(transcript)).toBe(true)
 
       // Purge drops the session row; the FK cascade takes its token with it.
-      await dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, 'session-archived'))
+      await dbh.db.delete(agentSessionTable).where(eq(agentSessionTable.id, 'session-trashed'))
       const { removed } = await sweepAgentOrphans()
 
       expect(removed).toContain(transcript)
