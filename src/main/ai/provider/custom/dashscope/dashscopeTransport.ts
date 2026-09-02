@@ -124,6 +124,8 @@ export interface DashScopeTransportSettings {
   imageBaseURL?: string
   /** Proxy-aware fetch from provider settings; falls back to global `fetch` when unset. */
   fetch?: FetchFunction
+  /** Provider-level extra headers merged into every image request. */
+  headers?: Record<string, string>
 }
 
 type ResponseFamily = 'choices' | 'results' | 'image_url'
@@ -397,12 +399,14 @@ class DashScopeTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
   private fetch?: FetchFunction
+  private extraHeaders: Record<string, string> | undefined
   private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
 
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
     this.fetch = settings.fetch
+    this.extraHeaders = settings.headers
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -552,6 +556,7 @@ class DashScopeTransport implements ImageGenerationTransport {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         ...(method === 'POST' && { 'Content-Type': 'application/json' }),
+        ...this.extraHeaders,
         ...options.extraHeaders
       },
       signal: controller.signal
