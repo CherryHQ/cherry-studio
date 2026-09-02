@@ -529,6 +529,43 @@ describe('useMiniApps', () => {
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
     })
+
+    it('hides an app and closes a split pane that was showing it', async () => {
+      const hidden = createMiniApp('app1', { status: 'disabled' })
+      const other = createMiniApp('app2')
+      const mockTrigger = vi.fn().mockResolvedValue(hidden)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', mockTrigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [hidden, other])
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'app1')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.hideMiniApp('app1')
+      })
+
+      expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    })
+
+    it('keeps a split pane showing another app when hiding', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue(createMiniApp('app1', { status: 'disabled' }))
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', mockTrigger)
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'app2')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.hideMiniApp('app1')
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('app2')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
+    })
   })
 
   // === reorderMiniApps ===

@@ -24,13 +24,17 @@ const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | '
 })
 
 const mocks = vi.hoisted(() => ({
+  useMiniApps: vi.fn(),
   apps: [] as MiniApp[],
   allApps: [] as MiniApp[],
   pinned: [] as MiniApp[],
   openedKeepAliveMiniApps: [] as MiniApp[],
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
+  hideMiniApp: vi.fn().mockResolvedValue(undefined),
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
+  toggleMiniApp: vi.fn(),
   openTab: vi.fn(),
+  renderMiniAppIcon: vi.fn(),
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
   useMiniAppVisibility: vi.fn(() => ({
@@ -46,24 +50,33 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({
-    allApps: mocks.allApps,
-    miniApps: mocks.apps,
-    pinned: mocks.pinned,
-    openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
-    currentMiniAppId: '',
-    miniAppShow: false,
-    setOpenedKeepAliveMiniApps: vi.fn(),
-    updateAppStatus: mocks.updateAppStatus,
-    removeCustomMiniApp: mocks.removeCustomMiniApp,
-    isLoading: false,
-    error: null
-  })
+  useMiniApps: () => {
+    mocks.useMiniApps()
+    return {
+      allApps: mocks.allApps,
+      miniApps: mocks.apps,
+      pinned: mocks.pinned,
+      openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
+      currentMiniAppId: '',
+      miniAppShow: false,
+      setOpenedKeepAliveMiniApps: vi.fn(),
+      updateAppStatus: mocks.updateAppStatus,
+      hideMiniApp: mocks.hideMiniApp,
+      removeCustomMiniApp: mocks.removeCustomMiniApp,
+      isLoading: false,
+      error: null
+    }
+  }
+}))
+
+vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
+  useSidebarFavorites: () => ({ miniAppFavoriteIds: [], toggleMiniApp: mocks.toggleMiniApp })
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
-    openTab: mocks.openTab
+    // TabsProvider recreates openTab when its tab list changes.
+    openTab: (url: string, options: unknown) => mocks.openTab(url, options)
   })
 }))
 
@@ -164,9 +177,10 @@ vi.mock('@renderer/components/Navbar', () => ({
 }))
 
 vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
-  default: ({ app, size }: { app: MiniApp; size: number }) => (
-    <img alt={app.name} data-testid={`mini-app-icon-${app.appId}`} height={size} src={app.logo} width={size} />
-  )
+  default: ({ app, size }: { app: MiniApp; size: number }) => {
+    mocks.renderMiniAppIcon(app.appId)
+    return <img alt={app.name} data-testid={`mini-app-icon-${app.appId}`} height={size} src={app.logo} width={size} />
+  }
 }))
 
 vi.mock('@renderer/components/MarqueeText', () => ({
@@ -222,9 +236,12 @@ describe('MiniAppsPage', () => {
     mocks.allApps = []
     mocks.pinned = []
     mocks.openedKeepAliveMiniApps = []
+    mocks.useMiniApps.mockClear()
     mocks.updateAppStatus.mockClear()
+    mocks.hideMiniApp.mockReset().mockImplementation((appId: string) => mocks.updateAppStatus(appId, 'disabled'))
     mocks.removeCustomMiniApp.mockClear()
     mocks.openTab.mockClear()
+    mocks.renderMiniAppIcon.mockClear()
     mocks.request.mockReset().mockResolvedValue(null)
     mocks.toastError.mockClear()
     mocks.useMiniAppVisibility.mockClear()
@@ -245,6 +262,26 @@ describe('MiniAppsPage', () => {
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+  })
+
+  it('owns one full mini app subscription for the card grid', () => {
+    render(<MiniAppsPage />)
+
+    // The page owns the list. Adding cards must not add another full list,
+    // region, cache, favorites, and tabs subscription for every app.
+    expect(mocks.useMiniApps).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not rerender an unchanged card when another app changes', () => {
+    const view = render(<MiniAppsPage />)
+    expect(mocks.renderMiniAppIcon).toHaveBeenCalledTimes(2)
+
+    mocks.apps = mocks.apps.map((app) => (app.appId === 'gemini' ? { ...app, name: 'Gemini Updated' } : { ...app }))
+    view.rerender(<MiniAppsPage />)
+
+    // DataApi refreshes reserialize the list. The changed Gemini card rerenders,
+    // while the structurally unchanged ChatGPT snapshot keeps its first render.
+    expect(mocks.renderMiniAppIcon.mock.calls.map(([appId]) => appId)).toEqual(['chatgpt', 'gemini', 'gemini'])
   })
 
   it('opens the selected mini app without changing the tab contract', () => {

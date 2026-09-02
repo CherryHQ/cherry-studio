@@ -232,12 +232,20 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const currentMiniAppIdRef = useRef(currentMiniAppId)
+  currentMiniAppIdRef.current = currentMiniAppId
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const splitMiniAppIdRef = useRef(splitMiniAppId)
+  splitMiniAppIdRef.current = splitMiniAppId
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const openedOneOffMiniAppRef = useRef(openedOneOffMiniApp)
+  openedOneOffMiniAppRef.current = openedOneOffMiniApp
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
+  const tabsContextRef = useRef(tabsContext)
+  tabsContextRef.current = tabsContext
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -298,6 +306,19 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       }
     },
     [patchAppTrigger]
+  )
+
+  const hideMiniApp = useCallback(
+    async (appId: string) => {
+      const updated = await updateAppStatus(appId, 'disabled')
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== appId))
+      if (splitMiniAppIdRef.current === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+      return updated
+    },
+    [setOpenedKeepAliveMiniApps, setSplitMiniAppId, setSplitOpen, updateAppStatus]
   )
 
   /**
@@ -376,44 +397,40 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // no-op the cache short-circuits via isEqual.
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
 
-      if (openedOneOffMiniApp?.appId === appId) {
+      if (openedOneOffMiniAppRef.current?.appId === appId) {
         setOpenedOneOffMiniApp(null)
       }
 
-      if (currentMiniAppId === appId) {
+      if (currentMiniAppIdRef.current === appId) {
         setCurrentMiniAppId('')
         setMiniAppShow(false)
       }
 
       // The split pane's app is gone; leaving the pane open would replace it
       // with a picker the user never asked for.
-      if (splitMiniAppId === appId) {
+      if (splitMiniAppIdRef.current === appId) {
         setSplitMiniAppId('')
         setSplitOpen(false)
       }
 
       clearWebviewState(appId)
 
-      for (const tab of tabsContext?.tabs ?? []) {
+      for (const tab of tabsContextRef.current?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === appId) {
-          tabsContext?.closeTab(tab.id)
+          tabsContextRef.current?.closeTab(tab.id)
         }
       }
 
       removeSidebarFavoriteMiniApp(appId)
     },
     [
-      currentMiniAppId,
-      splitMiniAppId,
-      openedOneOffMiniApp,
       setCurrentMiniAppId,
       setSplitMiniAppId,
       setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
-      removeSidebarFavoriteMiniApp,
-      tabsContext
+      removeSidebarFavoriteMiniApp
     ]
   )
 
@@ -540,6 +557,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     error,
     refetch,
     updateAppStatus,
+    hideMiniApp,
     setAppStatusBulk,
     createCustomMiniApp,
     updateCustomMiniApp,
