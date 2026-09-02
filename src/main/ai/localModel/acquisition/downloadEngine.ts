@@ -1,11 +1,12 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import { loggerService } from '@logger'
+import { atomicWriteFile, createPreparedAtomicWriteStream, ensureDir } from '@main/utils/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('localModelDownloadEngine')
@@ -65,7 +66,7 @@ export async function streamToFileVerified(
 
   const total = Number(response.headers.get('content-length')) || 0
   const hash = crypto.createHash('sha256')
-  const tmp = `${dest}.tmp`
+  const target = AbsoluteFilePathSchema.parse(dest)
   let received = 0
   const meter = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
@@ -76,21 +77,20 @@ export async function streamToFileVerified(
     }
   })
 
-  await fs.promises.mkdir(path.dirname(dest), { recursive: true })
-  try {
-    // net.fetch's body is the DOM ReadableStream; Readable.fromWeb wants the
-    // node:stream/web flavour — same runtime object, divergent lib types.
-    const webStream = response.body as unknown as NodeWebReadableStream<Uint8Array>
-    await pipeline(Readable.fromWeb(webStream), meter, fs.createWriteStream(tmp), { signal })
+  await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(dest)))
+  const writer = createPreparedAtomicWriteStream(target, async (prepared) => {
     const digest = hash.digest('hex')
     if (digest !== sha256) {
+      await prepared.abort()
       throw new Error(`sha256 mismatch for ${url}: expected ${sha256}, got ${digest}`)
     }
-    await fs.promises.rename(tmp, dest)
-  } catch (error) {
-    await fs.promises.rm(tmp, { force: true })
-    throw error
-  }
+    await prepared.commit()
+  })
+
+  // net.fetch's body is the DOM ReadableStream; Readable.fromWeb wants the
+  // node:stream/web flavour — same runtime object, divergent lib types.
+  const webStream = response.body as unknown as NodeWebReadableStream<Uint8Array>
+  await pipeline(Readable.fromWeb(webStream), meter, writer, { signal })
   onProgress?.(1)
 }
 
@@ -116,8 +116,6 @@ export async function fetchTextVerified(
 /** Write `text` to `dest` through a temp file, so a crash mid-write cannot leave a
  * half-written file that looks installed. */
 export async function writeFileAtomic(dest: string, text: string): Promise<void> {
-  const tmp = `${dest}.tmp`
-  await fs.promises.mkdir(path.dirname(dest), { recursive: true })
-  await fs.promises.writeFile(tmp, text)
-  await fs.promises.rename(tmp, dest)
+  await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(dest)))
+  await atomicWriteFile(AbsoluteFilePathSchema.parse(dest), text)
 }

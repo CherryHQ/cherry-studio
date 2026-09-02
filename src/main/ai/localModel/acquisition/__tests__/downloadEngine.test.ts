@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -36,6 +36,10 @@ function textResponse(content: Buffer) {
 async function payloadSha256(): Promise<string> {
   const { createHash } = await import('node:crypto')
   return createHash('sha256').update(PAYLOAD).digest('hex')
+}
+
+function atomicTempFilesFor(dest: string): string[] {
+  return readdirSync(path.dirname(dest)).filter((entry) => entry.startsWith(`${path.basename(dest)}.tmp-`))
 }
 
 describe('withMirrorFallback', () => {
@@ -99,7 +103,21 @@ describe('streamToFileVerified', () => {
     })
 
     expect(readFileSync(dest)).toEqual(PAYLOAD)
-    expect(existsSync(`${dest}.tmp`)).toBe(false)
+    expect(atomicTempFilesFor(dest)).toEqual([])
+  })
+
+  it('replaces an existing target with the verified bytes', async () => {
+    vi.mocked(net.fetch).mockImplementation((async () => streamResponse(PAYLOAD)) as unknown as typeof net.fetch)
+    const dest = path.join(workDir, 'weights.onnx')
+    writeFileSync(dest, 'undersized')
+
+    await streamToFileVerified('https://mirror/weights.onnx', dest, {
+      sha256: await payloadSha256(),
+      signal: new AbortController().signal
+    })
+
+    expect(readFileSync(dest)).toEqual(PAYLOAD)
+    expect(atomicTempFilesFor(dest)).toEqual([])
   })
 
   it('rejects a body whose digest does not match and leaves nothing behind', async () => {
@@ -117,7 +135,7 @@ describe('streamToFileVerified', () => {
     // Neither the final file nor the staging file may survive: a leftover would read as
     // an installed model on the next scan.
     expect(existsSync(dest)).toBe(false)
-    expect(existsSync(`${dest}.tmp`)).toBe(false)
+    expect(atomicTempFilesFor(dest)).toEqual([])
   })
 
   it('rejects a non-OK response without writing anything', async () => {
@@ -194,6 +212,6 @@ describe('writeFileAtomic', () => {
     await writeFileAtomic(dest, 'entries')
 
     expect(readFileSync(dest, 'utf8')).toBe('entries')
-    expect(existsSync(`${dest}.tmp`)).toBe(false)
+    expect(atomicTempFilesFor(dest)).toEqual([])
   })
 })
