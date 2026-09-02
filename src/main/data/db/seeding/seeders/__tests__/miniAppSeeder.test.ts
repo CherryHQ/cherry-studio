@@ -26,12 +26,13 @@ describe('MiniAppSeeder', () => {
   })
 
   it('should refresh preset display fields on re-run', async () => {
-    const preset = PRESETS_MINI_APPS[0]
+    const preset = PRESETS_MINI_APPS.find(({ id }) => id === 'openai')!
     await dbh.db.insert(miniAppTable).values({
       appId: preset.id,
       presetMiniAppId: preset.id,
       name: 'Stale Name',
       url: preset.url,
+      supportedRegions: ['CN', 'Global'],
       status: 'enabled',
       orderKey: 'a0'
     })
@@ -41,6 +42,7 @@ describe('MiniAppSeeder', () => {
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.name).toBe(preset.name)
+    expect(row.supportedRegions).toEqual(['Global'])
   })
 
   it('should not overwrite user-modified status or orderKey on re-run', async () => {

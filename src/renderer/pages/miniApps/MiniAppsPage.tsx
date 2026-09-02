@@ -216,7 +216,7 @@ const MiniAppsPage: FC = () => {
                       <span className="mini-app-icon-frame flex size-[58px] items-center justify-center rounded-[14px] border border-border-subtle border-dashed bg-background-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
                         <Plus className="size-6" strokeWidth={1.5} />
                       </span>
-                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] leading-[18px]">
+                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px]">
                         {t('miniApp.add.title')}
                       </span>
                     </Button>

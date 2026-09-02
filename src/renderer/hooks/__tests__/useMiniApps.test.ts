@@ -62,6 +62,7 @@ describe('useMiniApps', () => {
 
     mocks.request.mockReset()
     mockIpCountry('CN')
+    vi.stubGlobal('__APP_EDITION__', 'global')
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
@@ -156,6 +157,40 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
+    it('forces the CN-only catalog in the CN edition without overwriting the shared preference', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+      const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
+      expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region')).toBe('Global')
+    })
+
+    it('hides Global-only pinned apps from CN edition launcher surfaces', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      const apps = [createGlobalApp('g', { status: 'pinned' }), createCnOnlyApp('c', { status: 'pinned' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.pinned.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
+    })
+
+    it('does not detect the IP region in the CN edition', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'auto')
+      MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
+
+      renderHook(() => useMiniApps())
+
+      expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')
+    })
+
     it('should show all apps when region is CN (default)', () => {
       const { mixedRegion } = appFixtures
       const apps = Object.values(mixedRegion).map((a) => ({ ...a, status: 'enabled' as const }))
