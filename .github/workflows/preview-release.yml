@@ -28,6 +28,7 @@ jobs:
     if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     outputs:
+      asset_sha: ${{ steps.source.outputs.asset_sha }}
       branch_slug: ${{ steps.source.outputs.branch_slug }}
       preview_tag: ${{ steps.source.outputs.preview_tag }}
       short_sha: ${{ steps.source.outputs.short_sha }}
@@ -55,6 +56,7 @@ jobs:
 
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
           echo "preview_tag=preview-$BRANCH_SLUG-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
@@ -114,7 +116,7 @@ jobs:
         shell: bash
         run: |
           BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
-          PREVIEW_VERSION="$BASE_VERSION-preview.g${{ needs.resolve.outputs.short_sha }}"
+          PREVIEW_VERSION="$BASE_VERSION-preview-${{ needs.resolve.outputs.asset_sha }}"
           npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
 
@@ -134,6 +136,50 @@ jobs:
         env:
           CSC_FOR_PULL_REQUEST: true
           NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Prepare macOS signing payload
+        if: matrix.os == 'macos-latest'
+        id: mac-signing
+        shell: bash
+        env:
+          PREVIEW_TAG: ${{ needs.resolve.outputs.preview_tag }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+        run: |
+          mkdir -p preview-mac-signing
+          PAYLOAD_BUNDLE_ID=""
+
+          for entry in "x64:dist/mac/Cherry Studio.app" "arm64:dist/mac-arm64/Cherry Studio.app"; do
+            ARCH="${entry%%:*}"
+            APP_PATH="${entry#*:}"
+            ARCHIVE="preview-mac-$ARCH.zip"
+
+            if [ ! -d "$APP_PATH" ]; then
+              echo "Missing unsigned macOS application: $APP_PATH" >&2
+              exit 1
+            fi
+
+            BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")"
+            if [ -n "$PAYLOAD_BUNDLE_ID" ] && [ "$PAYLOAD_BUNDLE_ID" != "$BUNDLE_ID" ]; then
+              echo "macOS applications in one build have different bundle IDs" >&2
+              exit 1
+            fi
+            PAYLOAD_BUNDLE_ID="$BUNDLE_ID"
+            ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "preview-mac-signing/$ARCHIVE"
+            ARCHIVE_SHA256="$(shasum -a 256 "preview-mac-signing/$ARCHIVE" | awk '{print $1}')"
+
+            jq -n \
+              --arg arch "$ARCH" \
+              --arg archive "$ARCHIVE" \
+              --arg archive_sha256 "$ARCHIVE_SHA256" \
+              --arg bundle_id "$BUNDLE_ID" \
+              --arg preview_tag "$PREVIEW_TAG" \
+              --arg source_sha "$SOURCE_SHA" \
+              --arg version "$(node -p "require('./package.json').version")" \
+              '{arch: $arch, archive: $archive, archiveSha256: $archive_sha256, bundleId: $bundle_id, previewTag: $preview_tag, sourceSha: $source_sha, version: $version}' \
+              > "preview-mac-signing/$ARCH.json"
+          done
+
+          echo "bundle_id=$PAYLOAD_BUNDLE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
@@ -158,7 +204,18 @@ jobs:
             dist/latest*.yml
             dist/rc*.yml
             dist/beta*.yml
+            dist/preview*.yml
             dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+      - name: Upload macOS signing payload
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v7
+        with:
+          name: cherry-studio-preview-mac-signing-${{ needs.resolve.outputs.source_sha }}-${{ steps.mac-signing.outputs.bundle_id }}
+          path: preview-mac-signing/*
           if-no-files-found: error
           retention-days: 3
           compression-level: 0
@@ -178,11 +235,18 @@ jobs:
           path: preview-artifacts
           merge-multiple: true
 
+      - name: Exclude unsigned macOS packages
+        shell: bash
+        run: |
+          find preview-artifacts -maxdepth 1 -type f \
+            \( -name '*-mac-*.dmg' -o -name '*-mac-*.zip' -o -name '*-mac-*.zip.blockmap' -o -name '*-mac.yml' \) \
+            -delete
+
       - name: Create or update draft release
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
-          artifactErrorsFailBuild: true
+          artifactErrorsFailBuild: false
           artifacts: "preview-artifacts/*"
           body: |
             Internal preview build for `${{ inputs.branch }}` at `${{ needs.resolve.outputs.source_sha }}`.

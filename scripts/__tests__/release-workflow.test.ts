@@ -941,6 +941,7 @@ describe('release publication state', () => {
 })
 
 describe('release workflow gates', () => {
+  const repoRoot = path.resolve(import.meta.dirname, '../..')
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
   it('revalidates the selected release branch head before draft mutation and tag movement', () => {
@@ -1077,6 +1078,31 @@ describe('release workflow gates', () => {
     }
   })
 
+  it('signs preview macOS apps only in the protected trusted workflow', () => {
+    const previewWorkflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const signingWorkflow = parse(fs.readFileSync(path.join(workflowRoot, 'sign-preview-macos.yml'), 'utf8'))
+    const macBuildStep = previewWorkflow.jobs.build.steps.find((step: { name?: string }) => step.name === 'Build Mac')
+    const checkoutStep = signingWorkflow.jobs.sign.steps.find(
+      (step: { name?: string }) => step.name === 'Check out trusted signing code'
+    )
+    const signingStep = signingWorkflow.jobs.sign.steps.find(
+      (step: { name?: string }) => step.name === 'Sign, notarize, and package macOS applications'
+    )
+
+    expect(macBuildStep.env).not.toHaveProperty('CSC_LINK')
+    expect(macBuildStep.env).not.toHaveProperty('APPLE_ID')
+    expect(signingWorkflow.on.workflow_run.workflows).toEqual(['Preview Release'])
+    expect(signingWorkflow.jobs.sign.environment).toBe('release')
+    expect(checkoutStep.with.ref).toBe('${{ github.workflow_sha }}')
+    expect(checkoutStep.with['persist-credentials']).toBe(false)
+    expect(signingStep.env).toHaveProperty('APPLE_ID')
+
+    const signingScript = fs.readFileSync(path.join(repoRoot, 'scripts/release/sign-preview-macos.js'), 'utf8')
+    expect(signingScript).toContain("['--verify', '--deep', '--strict', '--verbose=2', appPath]")
+    expect(signingScript).toContain("['--assess', '--type', 'execute', '--verbose=4', appPath]")
+    expect(signingScript).toContain("['stapler', 'validate', appPath]")
+  })
+
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
     const metadataStep = workflow.jobs['sync-release-metadata'].steps.find(
@@ -1166,7 +1192,8 @@ describe('release workflow gates', () => {
       'prepare-release.yml',
       'preview-release.yml',
       'publish-release.yml',
-      'release.yml'
+      'release.yml',
+      'sign-preview-macos.yml'
     ]) {
       expect(workflow).toContain(`- '.github/workflows/${workflowName}'`)
     }

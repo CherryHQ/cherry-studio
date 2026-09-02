@@ -392,6 +392,9 @@ importers:
       '@electron/notarize':
         specifier: ^2.5.0
         version: 2.5.0
+      '@electron/osx-sign':
+        specifier: 1.3.3
+        version: 1.3.3
       '@electron/rebuild':
         specifier: ^4.0.4
         version: 4.0.4
