@@ -250,11 +250,12 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       try {
         return await patchAppTrigger({ params: { appId }, body: { status, order } })
       } catch (error) {
+        await invalidate('/mini-apps')
         logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [patchAppTrigger]
+    [invalidate, patchAppTrigger]
   )
 
   /**
@@ -275,11 +276,12 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       try {
         await patchMiniAppStatusBatchTrigger({ body: { updates: [...updates] } })
       } catch (error) {
+        await invalidate('/mini-apps')
         logger.error('Failed to update mini app statuses', { error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [patchMiniAppStatusBatchTrigger]
+    [invalidate, patchMiniAppStatusBatchTrigger]
   )
 
   const createCustomMiniApp = useCallback(

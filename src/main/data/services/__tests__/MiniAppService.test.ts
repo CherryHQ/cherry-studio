@@ -356,17 +356,16 @@ describe('MiniAppService', () => {
       expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'mover', 'anchor'])
     })
 
-    it('should reject target placement when status does not change', async () => {
-      await seedCustom({ appId: 'first', status: 'enabled', orderKey: 'a0' })
-      await seedCustom({ appId: 'stay', status: 'enabled', orderKey: 'a2' })
+    it('should replay an ordered status update after the first request committed', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a5' })
+      const update = { status: 'enabled' as const, order: { before: 'anchor' as const } }
 
-      expect(() =>
-        miniAppService.update('stay', {
-          status: 'enabled',
-          order: { before: 'first' }
-        })
-      ).toThrow(expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR }))
-      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'stay'])
+      miniAppService.update('mover', update)
+      const replayed = miniAppService.update('mover', update)
+
+      expect(replayed.status).toBe('enabled')
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['mover', 'anchor'])
     })
 
     it('should roll back the status change when the target placement is invalid', async () => {
@@ -421,6 +420,21 @@ describe('MiniAppService', () => {
 
       expect(miniAppService.getByAppId('first')).toMatchObject({ status: 'disabled', orderKey: 'b0' })
       expect(miniAppService.getByAppId('second')).toMatchObject({ status: 'disabled', orderKey: 'b1' })
+    })
+
+    it('replays an ordered status batch after the first request committed', async () => {
+      await seedCustom({ appId: 'anchor', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'first', status: 'disabled', orderKey: 'b0' })
+      await seedCustom({ appId: 'second', status: 'disabled', orderKey: 'b1' })
+      const updates = [
+        { appId: 'first', status: 'enabled' as const, order: { before: 'anchor' as const } },
+        { appId: 'second', status: 'enabled' as const, order: { before: 'anchor' as const } }
+      ]
+
+      miniAppService.updateStatusBatch(updates)
+      miniAppService.updateStatusBatch(updates)
+
+      expect(miniAppService.list().map((app) => app.appId)).toEqual(['first', 'second', 'anchor'])
     })
   })
 

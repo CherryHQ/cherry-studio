@@ -78,17 +78,27 @@ export const UpdateMiniAppSchema = z
   })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 
-export const MiniAppStatusBatchSchema = z.strictObject({
-  updates: z
-    .array(
-      z.strictObject({
-        appId: z.string().min(1),
-        status: MiniAppStatusSchema,
-        order: OrderRequestSchema.optional()
-      })
-    )
-    .min(1)
-})
+export const MiniAppStatusBatchSchema = z
+  .strictObject({
+    updates: z
+      .array(
+        z.strictObject({
+          appId: z.string().min(1),
+          status: MiniAppStatusSchema,
+          order: OrderRequestSchema.optional()
+        })
+      )
+      .min(1)
+  })
+  .superRefine(({ updates }, ctx) => {
+    const seen = new Set<string>()
+    for (const [index, update] of updates.entries()) {
+      if (seen.has(update.appId)) {
+        ctx.addIssue({ code: 'custom', path: ['updates', index, 'appId'], message: 'appId must be unique' })
+      }
+      seen.add(update.appId)
+    }
+  })
 export type MiniAppStatusBatch = z.infer<typeof MiniAppStatusBatchSchema>
 
 /**

@@ -503,6 +503,20 @@ describe('useMiniApps', () => {
 
       expect(trigger).not.toHaveBeenCalled()
     })
+
+    it('refreshes the mini-app list after a rejected batch', async () => {
+      const trigger = vi.fn().mockRejectedValue(new Error('batch failed'))
+      const invalidate = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/status:batch', trigger)
+      MockUseDataApi.useInvalidateCache.mockReturnValueOnce(invalidate)
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await expect(result.current.setAppStatusBulk([{ appId: 'app1', status: 'enabled' }])).rejects.toThrow()
+      })
+
+      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
+    })
   })
 
   // === updateAppStatus ===
@@ -548,6 +562,20 @@ describe('useMiniApps', () => {
         params: { appId: 'app1' },
         body: { status: 'enabled', order: { before: 'anchor' } }
       })
+    })
+
+    it('refreshes the mini-app list after a rejected status update', async () => {
+      const trigger = vi.fn().mockRejectedValue(new Error('update failed'))
+      const invalidate = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      MockUseDataApi.useInvalidateCache.mockReturnValueOnce(invalidate)
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await expect(result.current.updateAppStatus('app1', 'disabled')).rejects.toThrow()
+      })
+
+      expect(invalidate).toHaveBeenCalledWith('/mini-apps')
     })
   })
 

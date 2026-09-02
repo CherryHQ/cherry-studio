@@ -338,13 +338,6 @@ export class MiniAppService {
             )
           }
 
-          if (dto.order !== undefined && existing.status === dto.status) {
-            throw DataApiErrorFactory.validation(
-              { order: ['order requires a status change'] },
-              'Use the order endpoint when status is unchanged'
-            )
-          }
-
           // The model choices live on the installation row, which only an installed app has.
           if (hasAiModelUpdate) {
             if (existing.kind !== 'app') {
@@ -412,13 +405,6 @@ export class MiniAppService {
               .limit(1)
               .all()
             if (!existing) throw DataApiErrorFactory.notFound('MiniApp', update.appId)
-            if (update.order !== undefined && existing.status === update.status) {
-              throw DataApiErrorFactory.validation(
-                { order: ['order requires a status change'] },
-                'Use the order endpoint when status is unchanged'
-              )
-            }
-
             const orderKey =
               existing.status !== update.status && update.order === undefined
                 ? statusOrderKeyForTransition(tx, update.appId, existing, update.status)

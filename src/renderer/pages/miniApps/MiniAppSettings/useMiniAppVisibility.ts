@@ -34,6 +34,10 @@ function withEnabledStatus(app: MiniApp): MiniApp {
   return app.status === 'enabled' ? app : { ...app, status: 'enabled' }
 }
 
+function isVisibleMiniApp(app: MiniApp): boolean {
+  return app.status === 'enabled' || app.status === 'pinned'
+}
+
 /** Insert `app` before its first original successor or a row introduced after the snapshot. */
 function insertMiniAppInOriginalOrder(
   visible: MiniApp[],
@@ -87,12 +91,23 @@ function restoreHiddenMiniApps(
 
 function restoredOrderAnchor(
   appId: string,
-  orderedApps: readonly MiniApp[],
+  originalVisibleIds: readonly string[],
+  allApps: readonly MiniApp[],
   restoringIds: ReadonlySet<string>
 ): OrderRequest {
-  const appIndex = orderedApps.findIndex((app) => app.appId === appId)
-  const stableSuccessor = orderedApps.slice(appIndex + 1).find((app) => !restoringIds.has(app.appId))
-  return stableSuccessor ? { before: stableSuccessor.appId } : { position: 'last' }
+  const originalIndex = originalVisibleIds.indexOf(appId)
+  if (originalIndex < 0) return { position: 'last' }
+
+  const destinationIds = allApps
+    .filter((app) => app.appId !== appId && !restoringIds.has(app.appId) && isVisibleMiniApp(app))
+    .map((app) => app.appId)
+  const destinationIdSet = new Set(destinationIds)
+  const originalSuccessor = originalVisibleIds.slice(originalIndex + 1).find((id) => destinationIdSet.has(id))
+  if (originalSuccessor) return { before: originalSuccessor }
+
+  const originalIdSet = new Set(originalVisibleIds)
+  const introducedSuccessor = destinationIds.find((id) => !originalIdSet.has(id))
+  return introducedSuccessor ? { before: introducedSuccessor } : { position: 'last' }
 }
 
 /**
@@ -108,7 +123,7 @@ function restoredOrderAnchor(
  */
 export function useMiniAppVisibility() {
   const { t } = useTranslation()
-  const { miniApps, disabled, effectiveRegion, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } =
+  const { allApps, miniApps, disabled, effectiveRegion, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } =
     useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniApps)
@@ -116,15 +131,17 @@ export function useMiniAppVisibility() {
   // Snapshot the first visible ranking so hide/show is not a reorder.
   const originalVisibleIdsRef = useRef<string[]>([])
   const originalVisibleRegionRef = useRef(effectiveRegion)
+  const visibleReorderQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
+    const visibleIds = allApps.filter(isVisibleMiniApp).map((app) => app.appId)
     if (originalVisibleRegionRef.current !== effectiveRegion) {
       originalVisibleRegionRef.current = effectiveRegion
-      originalVisibleIdsRef.current = miniApps.map((app) => app.appId)
-    } else if (originalVisibleIdsRef.current.length === 0 && miniApps.length > 0) {
-      originalVisibleIdsRef.current = miniApps.map((app) => app.appId)
+      originalVisibleIdsRef.current = visibleIds
+    } else if (originalVisibleIdsRef.current.length === 0 && visibleIds.length > 0) {
+      originalVisibleIdsRef.current = visibleIds
     }
-  }, [effectiveRegion, miniApps])
+  }, [allApps, effectiveRegion])
 
   // Resync local optimistic state with the upstream cache, but skip the resync
   // when the membership / order / status of every row is unchanged. Reordering
@@ -174,10 +191,10 @@ export function useMiniAppVisibility() {
         .map((app) => ({
           appId: app.appId,
           status: 'enabled' as const,
-          order: restoredOrderAnchor(app.appId, newVisible, restoringIds)
+          order: restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, allApps, restoringIds)
         }))
     ).catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
-  }, [visible, hidden, setAppStatusBulk, t])
+  }, [allApps, visible, hidden, setAppStatusBulk, t])
 
   const hide = useCallback(
     (app: MiniApp) => {
@@ -193,11 +210,13 @@ export function useMiniAppVisibility() {
       const nextVisible = insertMiniAppInOriginalOrder(visible, withEnabledStatus(app), originalVisibleIdsRef.current)
       setHidden((h) => h.filter((a) => a.appId !== app.appId))
       setVisible(nextVisible)
-      updateAppStatus(app.appId, 'enabled', restoredOrderAnchor(app.appId, nextVisible, new Set([app.appId]))).catch(
-        reportFailure(t, 'miniApp.show_failed')
-      )
+      updateAppStatus(
+        app.appId,
+        'enabled',
+        restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, allApps, new Set([app.appId]))
+      ).catch(reportFailure(t, 'miniApp.show_failed'))
     },
-    [visible, updateAppStatus, t]
+    [allApps, visible, updateAppStatus, t]
   )
 
   const reorderVisible = useCallback(
@@ -213,7 +232,11 @@ export function useMiniAppVisibility() {
       )
       originalVisibleIdsRef.current = nextOriginalOrder
       setVisible(next)
-      reorderMiniAppsByStatus('visible', next).catch((error) => {
+      const persisted = visibleReorderQueueRef.current
+        .catch(() => undefined)
+        .then(() => reorderMiniAppsByStatus('visible', next))
+      visibleReorderQueueRef.current = persisted
+      persisted.catch((error) => {
         if (originalVisibleIdsRef.current === nextOriginalOrder) {
           originalVisibleIdsRef.current = previousOriginalOrder
         }

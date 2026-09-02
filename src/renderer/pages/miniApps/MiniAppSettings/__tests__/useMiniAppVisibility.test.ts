@@ -17,6 +17,7 @@ const stubApp = (id: string): MiniApp => ({
 })
 
 const mocks = vi.hoisted(() => ({
+  allApps: [] as MiniApp[],
   miniApps: [] as MiniApp[],
   disabled: [] as MiniApp[],
   effectiveRegion: 'Global' as 'CN' | 'Global',
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
+    allApps: mocks.allApps,
     miniApps: mocks.miniApps,
     disabled: mocks.disabled,
     effectiveRegion: mocks.effectiveRegion,
@@ -39,7 +41,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 describe('useMiniAppVisibility', () => {
   beforeEach(() => {
     mocks.miniApps = [stubApp('a'), stubApp('b')]
-    mocks.disabled = [stubApp('c')]
+    mocks.disabled = [{ ...stubApp('c'), status: 'disabled' }]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
     mocks.effectiveRegion = 'Global'
     mocks.updateAppStatus.mockClear()
     mocks.setAppStatusBulk.mockClear()
@@ -99,6 +102,7 @@ describe('useMiniAppVisibility', () => {
   it('restores two hidden apps to original order even when shown in reverse', () => {
     mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
     mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
     const { result } = renderHook(() => useMiniAppVisibility())
 
     act(() => result.current.hide(mocks.miniApps[0]))
@@ -142,7 +146,8 @@ describe('useMiniAppVisibility', () => {
     // must not appear in the bulk update.
     const pinnedApp = { ...stubApp('p'), status: 'pinned' as const }
     mocks.miniApps = [stubApp('a'), pinnedApp]
-    mocks.disabled = [stubApp('c')]
+    mocks.disabled = [{ ...stubApp('c'), status: 'disabled' }]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
 
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.swap())
@@ -173,18 +178,20 @@ describe('useMiniAppVisibility', () => {
     expect(updates).toEqual([{ appId: 'c', status: 'enabled', order: { position: 'last' } }])
   })
 
-  it('reorderVisible reorders within the combined visible list', () => {
+  it('reorderVisible reorders within the combined visible list', async () => {
     mocks.miniApps = [stubApp('a'), { ...stubApp('p'), status: 'pinned' }, stubApp('b')]
+    mocks.allApps = [...mocks.miniApps]
 
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 1))
     expect(result.current.visible.map((a) => a.appId)).toEqual(['p', 'a', 'b'])
-    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible))
   })
 
   it('restores the latest dragged visible order after hide then show', () => {
     mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
     mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
     const { result } = renderHook(() => useMiniAppVisibility())
 
     act(() => result.current.reorderVisible(2, 0))
@@ -200,6 +207,7 @@ describe('useMiniAppVisibility', () => {
   it('keeps a still-hidden app in its remembered slot when the visible list is dragged', () => {
     mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
     mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
     const { result } = renderHook(() => useMiniAppVisibility())
 
     act(() => result.current.hide(stubApp('b')))
@@ -214,6 +222,7 @@ describe('useMiniAppVisibility', () => {
 
     mocks.effectiveRegion = 'CN'
     mocks.miniApps = [stubApp('cn-only'), ...mocks.miniApps]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
     rerender()
 
     act(() => result.current.hide(result.current.visible[0]))
@@ -222,13 +231,27 @@ describe('useMiniAppVisibility', () => {
     expect(result.current.visible.map((app) => app.appId)).toEqual(['cn-only', 'a', 'b'])
   })
 
+  it('restores before a region-hidden successor without changing their persisted order', () => {
+    const regionHidden = { ...stubApp('cn-only'), supportedRegions: ['CN'] as const }
+    mocks.miniApps = [stubApp('a'), stubApp('b')]
+    mocks.disabled = []
+    mocks.allApps = [mocks.miniApps[0], regionHidden, mocks.miniApps[1]]
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.show(result.current.hidden[0]))
+
+    expect(mocks.updateAppStatus).toHaveBeenLastCalledWith('a', 'enabled', { before: 'cn-only' })
+  })
+
   it('restores an original tail row before a newly created row', () => {
     const { result, rerender } = renderHook(() => useMiniAppVisibility())
     const originalTail = mocks.miniApps[1]
 
     act(() => result.current.hide(originalTail))
     mocks.miniApps = [mocks.miniApps[0], stubApp('new-app')]
-    mocks.disabled = [originalTail]
+    mocks.disabled = [{ ...originalTail, status: 'disabled' }]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
     rerender()
 
     act(() => result.current.show(originalTail))
@@ -246,11 +269,33 @@ describe('useMiniAppVisibility', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
 
     mocks.miniApps = [...original]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
     rerender()
     act(() => result.current.hide(original[0]))
     act(() => result.current.show(original[0]))
 
     expect(result.current.visible.map((app) => app.appId)).toEqual(['a', 'b'])
+  })
+
+  it('persists overlapping visible reorders in user-action order', async () => {
+    const first = Promise.withResolvers<void>()
+    const second = Promise.withResolvers<void>()
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.allApps = [...mocks.miniApps]
+    mocks.disabled = []
+    mocks.reorderMiniAppsByStatus
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.reorderVisible(2, 0))
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1))
+    act(() => result.current.reorderVisible(2, 1))
+
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1)
+    first.resolve()
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(2))
+    second.resolve()
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {
@@ -267,12 +312,14 @@ describe('useMiniAppVisibility', () => {
     // and dragged the now-pinned row into the hidden column.
     mocks.miniApps = [stubApp('a'), stubApp('b')]
     mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
 
     const { result, rerender } = renderHook(() => useMiniAppVisibility())
     expect(result.current.visible.find((x) => x.appId === 'a')?.status).toBe('enabled')
 
     // Simulate upstream PATCH landing: status flip but same membership/order.
     mocks.miniApps = [{ ...stubApp('a'), status: 'pinned' }, stubApp('b')]
+    mocks.allApps = [...mocks.miniApps]
     rerender()
 
     expect(result.current.visible.find((x) => x.appId === 'a')?.status).toBe('pinned')

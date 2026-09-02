@@ -398,6 +398,21 @@ describe('miniAppHandlers', () => {
 
       expect(updateStatusBatchMock).not.toHaveBeenCalled()
     })
+
+    it('rejects duplicate app IDs before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/status:batch'].PATCH({
+          body: {
+            updates: [
+              { appId: 'duplicate', status: 'enabled' },
+              { appId: 'duplicate', status: 'disabled' }
+            ]
+          }
+        })
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateStatusBatchMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('DELETE /mini-apps/:appId', () => {
