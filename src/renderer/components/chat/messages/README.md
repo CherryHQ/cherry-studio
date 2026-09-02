@@ -160,7 +160,7 @@ Public entry files should export shared contracts and shared UI. Avoid exporting
 For changes in this directory, prefer focused tests around the affected component family:
 
 ```bash
-pnpm test src/renderer/components/chat/messages \
+pnpm test:renderer src/renderer/components/chat/messages \
   src/renderer/pages/home/__tests__/ChatContent.test.tsx
 ```
 

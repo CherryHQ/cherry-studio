@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   onSendDraft: vi.fn(),
   runtimeLoads: 0,
   runtimeIntent: undefined as ComposerDeferredIntent | undefined,
+  runtimeTokens: [] as Array<{ id: string; kind: string; label?: string }>,
   toastError: vi.fn()
 }))
 
@@ -40,13 +41,17 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
 vi.mock('../ComposerSurfaceRuntime', () => {
   mocks.runtimeLoads += 1
   return {
-    default: ({ initialTextSelection, text, deferredIntent }: ComposerSurfaceProps) => {
+    default: ({ initialTextSelection, text, deferredIntent, tokens }: ComposerSurfaceProps) => {
       mocks.runtimeIntent = deferredIntent
+      mocks.runtimeTokens = tokens.map((token) => ({ id: token.id, kind: token.kind, label: token.label }))
       return (
         <div
           data-testid="composer-runtime"
           data-selection={`${initialTextSelection?.start}:${initialTextSelection?.end}`}>
           {text}
+          {tokens.map((token) => (
+            <span key={token.id}>{token.label}</span>
+          ))}
         </div>
       )
     }
@@ -107,6 +112,7 @@ describe('deferred ComposerSurface', () => {
   beforeEach(() => {
     vi.stubGlobal('DataTransfer', FakeDataTransfer)
     mocks.runtimeIntent = undefined
+    mocks.runtimeTokens = []
     mocks.onSendDraft.mockClear()
     mocks.toastError.mockClear()
     MockUsePreferenceUtils.resetMocks()
@@ -246,6 +252,53 @@ describe('deferred ComposerSurface', () => {
       />
     )
     expect(await screen.findByTestId('composer-runtime')).toBeInTheDocument()
+  })
+
+  it('loads the runtime for the first picker file token on an empty unused-assistant fallback', async () => {
+    // Catches: switch to a not-yet-used assistant (empty text/draftTokens), click paperclip,
+    // and the managed file token never becomes visible because the deferred textarea cannot
+    // render chips and needsRuntime used to ignore props.tokens until a drag requested the runtime.
+    // Excluded: drag/paste (they already call requestRuntime), later attachments after the
+    // runtime is warm, and send-time FileEntry creation.
+    const fileToken: ComposerDraftToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'report.txt'
+    }
+    let actions: ComposerSurfaceActions | undefined
+
+    function FreshAssistantPickerHarness() {
+      const [tokens, setTokens] = useState<ComposerDraftToken[]>([])
+      return (
+        <>
+          <button type="button" onClick={() => setTokens([fileToken])}>
+            Upload attachment
+          </button>
+          <Harness
+            tokens={tokens}
+            onActionsChange={(next) => {
+              actions = next
+            }}
+          />
+        </>
+      )
+    }
+
+    render(<FreshAssistantPickerHarness />)
+
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeInTheDocument()
+    expect(screen.queryByTestId('composer-runtime')).not.toBeInTheDocument()
+    await waitFor(() => expect(actions).toBeDefined())
+    expect(actions!.getDraft().tokens).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload attachment' }))
+
+    expect(actions!.getDraft().tokens).toEqual([
+      expect.objectContaining({ id: 'file:source-1', kind: 'file', label: 'report.txt' })
+    ])
+    const runtime = await screen.findByTestId('composer-runtime')
+    expect(runtime).toHaveTextContent('report.txt')
+    expect(mocks.runtimeTokens).toEqual([{ id: 'file:source-1', kind: 'file', label: 'report.txt' }])
   })
 
   it('loads the runtime for a restored multi-line draft the fixed-height fallback cannot hold', async () => {

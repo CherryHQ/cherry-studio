@@ -84,7 +84,11 @@ Variants registered today (declared in each provider extension's
 
 `ollama` has no registered variant, so an `ollama-chat` endpoint resolves
 to the base `ollama`. Likewise there is **no `openai-responses` variant**
-(the base already is). `azure-anthropic` is not reached through the suffix
+(the base already is) — and the standalone `open-responses` extension
+(`@ai-sdk/open-responses`, the minimal dialect for subset Responses servers —
+see [Adapter Family](./adapter-family.md)) is deliberately NOT named
+`openai-responses`, or this suffix probe would silently reroute every
+`adapterFamily: 'openai'` responses endpoint onto it. `azure-anthropic` is not reached through the suffix
 rule — it is selected inside `buildAzureConfig` when the model is a Claude
 model (see below). `resolveProviderVariant(baseId, endpointType)` is
 idempotent when the base id is already a variant.

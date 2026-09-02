@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.8",
+    "version": "2.0.10",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -72,6 +72,7 @@
       "/settings/model",
       "/settings/notifications",
       "/settings/ocr",
+      "/settings/prompts",
       "/settings/provider",
       "/settings/quick-assistant",
       "/settings/scheduled-tasks",
@@ -106,7 +107,8 @@
         "defaultBinding": [
           "Escape"
         ],
-        "editable": false
+        "editable": false,
+        "when": "!webview.focused"
       }
     },
     {
@@ -446,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "7dd1ae83c85245f9",
-    "count": 62,
+    "version": "92900b8ee894edee",
+    "count": 61,
     "entries": [
       {
         "id": "cherryin",
@@ -572,10 +574,6 @@
       {
         "id": "vertexai",
         "name": "VertexAI"
-      },
-      {
-        "id": "github",
-        "name": "Github Models"
       },
       {
         "id": "copilot",
@@ -784,11 +782,69 @@
         "openclaw",
         "deepseek-harness",
         "gemini-cli",
+        "antigravity-cli",
         "qwen-code",
         "kimi-code",
         "qoder-cli",
         "github-copilot-cli",
-        "pi"
+        "pi",
+        "hermes"
+      ]
+    }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
       ]
     }
   }

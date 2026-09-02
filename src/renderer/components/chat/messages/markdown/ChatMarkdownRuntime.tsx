@@ -3,7 +3,6 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 import { defaultMarkdownPlugins, Markdown, StreamingMarkdown, withMath } from '@cherrystudio/ui'
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { processLatexBrackets } from '@renderer/utils/markdownLight'
 import { isEmpty } from 'es-toolkit/compat'
 import { type FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,10 +12,13 @@ import type { Pluggable } from 'unified'
 import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
+import { remarkLatexMath } from './plugins/remarkLatexMath'
+import { remarkLiteralAutolinkFix } from './plugins/remarkLiteralAutolinkFix'
 import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
-const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkHtmlArtifact]
+const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath]
+const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath, remarkHtmlArtifact]
 const EMPTY_CITATION_REGISTRY = new Map()
 const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
 const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
@@ -128,7 +130,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
     if (block.status === 'streaming' && block.content.length > MAX_STREAMING_TRANSFORM_LENGTH) return block.content
 
     const transform = (source: string) => {
-      let text = removeSvgEmptyLines(processLatexBrackets(source))
+      let text = removeSvgEmptyLines(source)
       if (postProcess) text = postProcess(text)
       return text
     }
@@ -152,7 +154,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
     [chatComponents, components]
   )
   const footnoteLabel = t('common.footnotes')
-  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
+  const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : REMARK_PLUGINS
 
   if (usePlainText) {
     return (

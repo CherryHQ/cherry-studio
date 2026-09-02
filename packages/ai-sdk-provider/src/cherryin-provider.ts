@@ -24,6 +24,7 @@ import {
 import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
 import { OpenAICompatibleRerankingModel } from './openai-compatible-reranking-model'
+import { applyReasoningModelMaxTokensConversion } from './reasoningModelTransform'
 
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
@@ -139,11 +140,13 @@ const createCustomFetch = (originalFetch?: any) => {
     return originalFetch ? originalFetch(url, options) : fetch(url, options)
   }
 }
+
 class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel {
   constructor(modelId: string, settings: any) {
     super(modelId, {
       ...settings,
-      fetch: createCustomFetch(settings.fetch)
+      fetch: createCustomFetch(settings.fetch),
+      transformRequestBody: applyReasoningModelMaxTokensConversion
     })
   }
 }

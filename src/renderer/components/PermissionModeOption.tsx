@@ -31,7 +31,12 @@ const PERMISSION_MODE_ICONS: Record<PermissionMode, typeof Hand> = {
 
 export function PermissionModeIcon({ mode, size = 18 }: { mode: PermissionMode; size?: number }): ReactNode {
   const Icon = PERMISSION_MODE_ICONS[mode] ?? Hand
-  return <Icon size={size} className={mode === 'bypassPermissions' ? 'text-destructive' : 'text-muted-foreground'} />
+  return (
+    <Icon
+      size={size}
+      className={mode === 'bypassPermissions' ? 'lucide-custom text-destructive' : 'text-muted-foreground'}
+    />
+  )
 }
 
 function getPermissionModeWarning(card: PermissionModeCard, t: TFunction) {
@@ -146,7 +151,12 @@ export function PermissionModeSelect({
   const selectedCard = cards.find((card) => card.mode === value)
 
   return (
-    <Select value={value} onValueChange={(next) => onValueChange(next as PermissionMode)}>
+    <Select
+      value={value}
+      onValueChange={(next) => {
+        // Radix's hidden native select can briefly emit an empty value while its dynamic options change.
+        if (next) onValueChange(next as PermissionMode)
+      }}>
       <FormControl>
         <SelectTrigger className="h-9 w-full rounded-md" aria-label={ariaLabel}>
           <SelectValue>

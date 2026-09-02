@@ -12,6 +12,7 @@ export type {
   AgentEntity,
   AgentType,
   ScheduledTaskEntity,
+  ScheduledTaskListItem,
   TaskRunLogEntity
 } from '../api/schemas/agents'
 export type { AgentSessionMessageEntity } from '../api/schemas/agentSessionMessages'

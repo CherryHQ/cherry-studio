@@ -26,7 +26,7 @@ export function ShellTabBarActions() {
   }
 
   const handleSettingsClick = () => {
-    openSettingsTab('/settings/general')
+    openSettingsTab()
   }
 
   const handleUpdateClick = () => {

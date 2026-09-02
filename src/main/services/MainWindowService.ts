@@ -65,6 +65,7 @@ export class MainWindowService extends BaseService {
   protected async onInit() {
     const windowManager = application.get('WindowManager')
     this.setupHtmlArtifactPreviewSession()
+    this.setupSpellCheck()
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -245,7 +246,6 @@ export class MainWindowService extends BaseService {
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupHtmlArtifactWebviews(mainWindow)
-    this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
@@ -254,17 +254,29 @@ export class MainWindowService extends BaseService {
     // Content loading is handled by WindowManager via the registry's htmlPath.
   }
 
-  private setupSpellCheck(mainWindow: BrowserWindow) {
+  /**
+   * Spell check is preference-driven and not window-scoped: `defaultSession` is shared by
+   * every app window, so it converges once here and on every subsequent preference change.
+   * Miniapp webviews live in their own partition and reconcile themselves.
+   */
+  private setupSpellCheck() {
     const preferenceService = application.get('PreferenceService')
-    const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
-    if (enableSpellCheck) {
+    const apply = () => {
       try {
-        const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
-        spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
+        const enabled = preferenceService.get('app.spell_check.enabled')
+        const languages = preferenceService.get('app.spell_check.languages')
+        session.defaultSession.setSpellCheckerEnabled(enabled)
+        if (enabled && languages.length > 0) {
+          session.defaultSession.setSpellCheckerLanguages(languages)
+        }
       } catch (error) {
-        logger.error('Failed to set spell check languages:', error as Error)
+        logger.error('Failed to apply spell check settings:', error as Error)
       }
     }
+    apply()
+    this.registerDisposable(
+      preferenceService.subscribeMultipleChanges(['app.spell_check.enabled', 'app.spell_check.languages'], apply)
+    )
   }
 
   private setupMainWindowMonitor(mainWindow: BrowserWindow) {

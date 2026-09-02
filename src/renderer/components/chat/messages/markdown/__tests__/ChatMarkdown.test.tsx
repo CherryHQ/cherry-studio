@@ -3,7 +3,10 @@ import { processLatexBrackets } from '@renderer/utils/markdown'
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ChatMarkdown from '../ChatMarkdown'
+import ChatMarkdown from '../ChatMarkdownRuntime'
+import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'
+import { remarkLatexMath } from '../plugins/remarkLatexMath'
+import { remarkLiteralAutolinkFix } from '../plugins/remarkLiteralAutolinkFix'
 
 function processContent(text: string): string {
   return removeSvgEmptyLines(processLatexBrackets(text))
@@ -60,6 +63,9 @@ describe('ChatMarkdown', () => {
 
     expect(streamingNode).toHaveAttribute('data-animated', 'undefined')
     expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'true')
+    expect(mocks.streamingMarkdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remarkPlugins: [remarkLiteralAutolinkFix, remarkLatexMath] })
+    )
 
     rerender(<ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status }} />)
 
@@ -67,6 +73,41 @@ describe('ChatMarkdown', () => {
     expect(streamingNode).toHaveAttribute('data-animated', 'false')
     expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'false')
     expect(mocks.markdown).not.toHaveBeenCalled()
+  })
+
+  it('registers LaTeX math after autolink repair and before optional HTML artifacts', () => {
+    const block = { id: 'message-part', content: 'Before\n\n<div>Preview</div>', status: 'success' as const }
+    const { rerender } = render(<ChatMarkdown block={block} />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remarkPlugins: [remarkLiteralAutolinkFix, remarkLatexMath] })
+    )
+
+    rerender(<ChatMarkdown block={block} inlineHtmlPreviewMode="ready" />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remarkPlugins: [remarkLiteralAutolinkFix, remarkLatexMath, remarkHtmlArtifact] })
+    )
+  })
+
+  it('keeps LaTeX and raw or fenced HTML source unchanged during preprocessing', () => {
+    const rawHtml = String.raw`<script>const re = /\(x\)/</script>`
+    const fencedHtml = `\`\`\`html
+${rawHtml}
+\`\`\``
+    const block = {
+      id: 'message-part',
+      content: String.raw`Outside \(y\)
+${fencedHtml}`
+    }
+    render(<ChatMarkdown block={block} />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        children: `Processed \\(y\\)
+${fencedHtml}`
+      })
+    )
   })
 
   it('renders plain text instead of markdown while streaming a very long response', () => {

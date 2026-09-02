@@ -163,6 +163,7 @@ export function useAgentChatRuntimeState({
       topicId: conversation.topicId,
       userMessageParts: getAgentTurnParts(input),
       reasoningEffort: input.options?.body?.reasoningEffort,
+      serviceTier: input.options?.body?.serviceTier,
       ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
     }),
     []

@@ -176,7 +176,8 @@ const useKnowledgeBaseToolController = ({
         symbol: ComposerPanelSymbol.KnowledgeBase,
         parentPanel,
         queryAnchor: inputQueryCleared ? undefined : queryAnchor,
-        triggerInfo: inputQueryCleared ? { type: 'button' } : (triggerInfo ?? { type: 'button' }),
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         multiple: true,
         onClose: disposeCloseOnInputAfterSelection
       })

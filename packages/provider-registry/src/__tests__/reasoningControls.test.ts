@@ -87,7 +87,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
       ]
     ],
     ['grok-4.3', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high'] }]],
-    ['deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    ['deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     ['deepseek-v3.1', [{ kind: 'toggle' }]],
     ['qwen3-32b', [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }]],
     // always-think SKU: budget only, no toggle
@@ -111,7 +111,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     ['gemma-4-31b-it', [{ kind: 'toggle' }]],
     ['mistral-small-2603', [{ kind: 'effort', values: ['none', 'high'] }]],
     // provider-namespaced ids are normalized before matching
-    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'high', 'max'] }]],
+    ['deepseek/deepseek-v4', [{ kind: 'effort', values: ['none', 'low', 'high', 'max'] }]],
     // ── new-generation forward coverage (both canonical-hyphen and API-dot ids) ──
     ['gpt-5.6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
     ['gpt-5-6', [{ kind: 'effort', values: ['none', 'low', 'medium', 'high', 'xhigh'] }]],
@@ -133,6 +133,7 @@ describe('inferReasoningControls (ingest-time heuristics)', () => {
     'acme-reasoner-v1', // unknown family
     'deepseek-r1', // fixed reasoning — no knob
     'grok-4-fast', // the on/off knob is OpenRouter-only, not a model property
+    'ling-3.0-flash', // the on/off wire is serving-provider specific
     'minimax-m2.1' // no documented knob
   ])('returns undefined for %s', (id) => {
     expect(inferReasoningControls(id)).toBeUndefined()
