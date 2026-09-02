@@ -9,12 +9,12 @@
   "routes": {
     "primary": [
       {
-        "id": "assistants",
-        "path": "/app/chat"
-      },
-      {
         "id": "agents",
         "path": "/app/agents"
+      },
+      {
+        "id": "assistants",
+        "path": "/app/chat"
       },
       {
         "id": "paintings",
