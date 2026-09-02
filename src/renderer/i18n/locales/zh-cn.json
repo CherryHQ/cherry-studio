@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "删除",
   "webview.annotation.disable_mode": "退出标注",
   "webview.annotation.edit": "编辑标注",
+  "webview.annotation.element_unavailable": "无法标注此元素，请选择附近的元素。",
   "webview.annotation.enable_mode": "标注页面",
   "webview.annotation.placeholder": "描述需要修改的内容或你注意到的问题…",
   "webview.annotation.save": "保存",

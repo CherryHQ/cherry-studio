@@ -1,6 +1,10 @@
 import { EventEmitter } from 'node:events'
 
-import type { WebviewAnnotation } from '@shared/types/webviewAnnotation'
+import type {
+  WebviewAnnotation,
+  WebviewAnnotationDocument,
+  WebviewResolvedAnnotationDocument
+} from '@shared/types/webviewAnnotation'
 import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -77,6 +81,22 @@ vi.mock('electron', () => ({
 }))
 
 import { WebviewService } from '../WebviewService'
+
+const annotationInternals = (service: WebviewService) =>
+  service as unknown as {
+    listAnnotations: () => WebviewAnnotationDocument[]
+    resolveStoredAnnotationDocuments: (
+      documents: WebviewAnnotationDocument[]
+    ) => Promise<WebviewResolvedAnnotationDocument[]>
+  }
+
+const listAnnotations = (service: WebviewService, targetId?: string) =>
+  annotationInternals(service)
+    .listAnnotations()
+    .filter((document) => !targetId || document.target.id === targetId)
+
+const resolveAnnotationsWithAccessibility = (service: WebviewService, targetId?: string) =>
+  annotationInternals(service).resolveStoredAnnotationDocuments(listAnnotations(service, targetId))
 
 interface MockContents extends EventEmitter {
   id: number
@@ -200,6 +220,18 @@ describe('WebviewService annotation security and lifecycle', () => {
     expect(host.listenerCount('will-attach-webview')).toBe(1)
   })
 
+  it('can reinitialize guest listeners after lifecycle cleanup', () => {
+    const guest = createContents(7, {})
+    ;(service as any).initializeWebview(guest)
+    expect(guest.listenerCount('did-start-navigation')).toBe(1)
+
+    ;(service as any).disposeRegistered()
+    expect(guest.listenerCount('did-start-navigation')).toBe(0)
+
+    ;(service as any).initializeWebview(guest)
+    expect(guest.listenerCount('did-start-navigation')).toBe(1)
+  })
+
   it('accepts snapshots only from the window that owns the webview and sanitizes page metadata', () => {
     const hostWebContents = {}
     const guest = createContents(7, hostWebContents, {
@@ -214,7 +246,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    expect(service.listAnnotations()).toEqual([
+    expect(listAnnotations(service)).toEqual([
       expect.objectContaining({
         webviewId: 7,
         page: { title: 'Private dashboard', url: 'https://example.com/account' },
@@ -261,11 +293,11 @@ describe('WebviewService annotation security and lifecycle', () => {
       'window-two'
     )
 
-    expect(service.listAnnotations()).toHaveLength(2)
-    expect(service.listAnnotations('mini-app:one').map((item) => item.webviewId)).toEqual([7])
+    expect(listAnnotations(service)).toHaveLength(2)
+    expect(listAnnotations(service, 'mini-app:one').map((item) => item.webviewId)).toEqual([7])
 
     service.clearAnnotations(7)
-    expect(service.listAnnotations().map((item) => item.webviewId)).toEqual([8])
+    expect(listAnnotations(service).map((item) => item.webviewId)).toEqual([8])
   })
 
   it('clears annotations on main-frame navigation and destroyed guests', () => {
@@ -280,9 +312,9 @@ describe('WebviewService annotation security and lifecycle', () => {
 
     ;(service as any).initializeWebview(guest)
     guest.emit('did-start-navigation', { isMainFrame: false })
-    expect(service.listAnnotations()).toHaveLength(1)
+    expect(listAnnotations(service)).toHaveLength(1)
     guest.emit('did-start-navigation', { isMainFrame: true })
-    expect(service.listAnnotations()).toHaveLength(0)
+    expect(listAnnotations(service)).toHaveLength(0)
 
     const destroyedGuest = createContents(8, host, { destroyed: true })
     guestById.set(8, destroyedGuest)
@@ -295,7 +327,7 @@ describe('WebviewService annotation security and lifecycle', () => {
         updatedAt: 1
       }
     })
-    expect(service.listAnnotations()).toEqual([])
+    expect(listAnnotations(service)).toEqual([])
   })
 
   it('captures the computed AX path and subtree while excluding values and collapsing ignored nodes', async () => {
@@ -389,7 +421,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [resolved] = await service.resolveAnnotationsWithAccessibility('mini-app:demo')
+    const [resolved] = await resolveAnnotationsWithAccessibility(service, 'mini-app:demo')
     const context = resolved.annotations[0].accessibility
 
     expect(context).toMatchObject({
@@ -484,7 +516,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [resolved] = await service.resolveAnnotationsWithAccessibility()
+    const [resolved] = await resolveAnnotationsWithAccessibility(service)
     const context = resolved.annotations[0].accessibility
 
     expect(context.tree).toMatchObject({
@@ -509,7 +541,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [resolved] = await service.resolveAnnotationsWithAccessibility()
+    const [resolved] = await resolveAnnotationsWithAccessibility(service)
 
     expect(resolved.annotations[0].accessibility).toEqual({
       status: 'debugger_unavailable',
@@ -533,7 +565,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [resolved] = await service.resolveAnnotationsWithAccessibility()
+    const [resolved] = await resolveAnnotationsWithAccessibility(service)
 
     expect(resolved.annotations[0].accessibility.status).toBe('debugger_unavailable')
     expect(guest.debugger.sendCommand).not.toHaveBeenCalled()
@@ -553,7 +585,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [missingSelectorResult] = await service.resolveAnnotationsWithAccessibility('mini-app:missing')
+    const [missingSelectorResult] = await resolveAnnotationsWithAccessibility(service, 'mini-app:missing')
 
     expect(missingSelectorResult.annotations[0].accessibility.status).toBe('selector_not_found')
     expect(missingSelectorCommand).not.toHaveBeenCalledWith('DOM.describeNode', expect.anything())
@@ -569,7 +601,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [protocolResult] = await service.resolveAnnotationsWithAccessibility('mini-app:protocol')
+    const [protocolResult] = await resolveAnnotationsWithAccessibility(service, 'mini-app:protocol')
 
     expect(protocolResult.annotations[0].accessibility.status).toBe('capture_failed')
     expect(protocolGuest.debugger.detach).toHaveBeenCalledOnce()
@@ -613,9 +645,9 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const firstRead = service.resolveAnnotationsWithAccessibility()
+    const firstRead = resolveAnnotationsWithAccessibility(service)
     await vi.waitFor(() => expect(guest.debugger.attach).toHaveBeenCalledOnce())
-    const secondRead = service.resolveAnnotationsWithAccessibility()
+    const secondRead = resolveAnnotationsWithAccessibility(service)
     await Promise.resolve()
     expect(guest.debugger.attach).toHaveBeenCalledOnce()
 
@@ -697,7 +729,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    const [resolved] = await service.resolveAnnotationsWithAccessibility()
+    const [resolved] = await resolveAnnotationsWithAccessibility(service)
 
     expect(resolved.annotations[0].accessibility.tree?.children).toEqual([])
     expect(resolved.annotations[1].accessibility.tree?.children).toEqual([
@@ -746,7 +778,7 @@ describe('WebviewService annotation security and lifecycle', () => {
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations({ webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations }, 'owner')
 
-    const [resolved] = await service.resolveAnnotationsWithAccessibility()
+    const [resolved] = await resolveAnnotationsWithAccessibility(service)
 
     expect(resolved.annotations.slice(0, 5).every((item) => item.accessibility.status === 'available')).toBe(true)
     expect(resolved.annotations.slice(0, 5).every((item) => item.accessibility.truncated)).toBe(true)
@@ -769,7 +801,7 @@ describe('WebviewService annotation security and lifecycle', () => {
         'owner'
       )
 
-      const timeoutResult = service.resolveAnnotationsWithAccessibility()
+      const timeoutResult = resolveAnnotationsWithAccessibility(service)
       await vi.advanceTimersByTimeAsync(ACCESSIBILITY_CAPTURE_TIMEOUT_MS_FOR_TEST)
       const [resolved] = await timeoutResult
       expect(resolved.annotations[0].accessibility.status).toBe('timeout')
@@ -809,7 +841,7 @@ describe('WebviewService annotation security and lifecycle', () => {
       'owner'
     )
 
-    await expect(service.resolveAnnotationsWithAccessibility()).resolves.toEqual([])
+    await expect(resolveAnnotationsWithAccessibility(service)).resolves.toEqual([])
   })
 
   it('validates ownership before exporting resolved Markdown', async () => {

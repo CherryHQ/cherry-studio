@@ -42,7 +42,8 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       save: t('webview.annotation.save'),
       cancel: t('webview.annotation.cancel'),
       delete: t('webview.annotation.delete'),
-      edit: t('webview.annotation.edit')
+      edit: t('webview.annotation.edit'),
+      elementUnavailable: t('webview.annotation.element_unavailable')
     }),
     [t]
   )

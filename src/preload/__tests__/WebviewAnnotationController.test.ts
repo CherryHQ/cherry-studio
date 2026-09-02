@@ -13,7 +13,8 @@ const locale = {
   save: 'Save',
   cancel: 'Cancel',
   delete: 'Delete',
-  edit: 'Edit'
+  edit: 'Edit',
+  elementUnavailable: "This element can't be annotated. Select a nearby element."
 }
 
 const configure = (controller: WebviewAnnotationController) => {
@@ -26,6 +27,7 @@ const privateController = (controller: WebviewAnnotationController) =>
     annotationElements: Map<string, Element>
     editorAnnotationId: string | null
     editorElement: Element | null
+    editorError: HTMLDivElement | null
     marqueeRect: unknown
     pendingRegion: unknown
     openEditor: (element: Element, annotationId?: string | null) => void
@@ -49,8 +51,10 @@ const mockRect = (element: Element, left: number, top: number, width: number, he
   } as DOMRect)
 }
 
-const pointerEvent = (type: string, clientX: number, clientY: number) =>
-  new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, clientX, clientY })
+const pointerEvent = (type: string, clientX: number, clientY: number, pointerId = 1) =>
+  Object.assign(new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, clientX, clientY }), {
+    pointerId
+  })
 
 describe('WebviewAnnotationController selectors', () => {
   it('prefers a unique id and resolves it', () => {
@@ -183,6 +187,40 @@ describe('WebviewAnnotationController interactions', () => {
     expect(internals.annotationElements.get(annotationId)).toBe(replacement)
   })
 
+  it('releases a disconnected annotated element when it cannot be resolved again', () => {
+    const button = document.createElement('button')
+    button.id = 'removed-target'
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    internals.openEditor(button)
+    internals.textarea.value = 'Do not retain this element'
+    internals.saveEditor()
+    const annotationId = controller.getState().annotations[0].id
+
+    button.remove()
+    internals.updatePositions()
+
+    expect(internals.annotationElements.has(annotationId)).toBe(false)
+  })
+
+  it('keeps the comment and explains when the selected element cannot be located', () => {
+    const button = document.createElement('button')
+    button.id = 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.selector)
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    internals.openEditor(button)
+    internals.textarea.value = 'Keep this draft'
+
+    internals.saveEditor()
+
+    expect(controller.getState().annotations).toEqual([])
+    expect(internals.editorElement).toBe(button)
+    expect(internals.textarea.value).toBe('Keep this draft')
+    expect(internals.editorError?.getAttribute('role')).toBe('alert')
+    expect(internals.editorError?.textContent).toBe(locale.elementUnavailable)
+    expect(internals.editorError?.style.display).toBe('block')
+  })
+
   it('marquee-selects overlapping elements into a region annotation', () => {
     const container = document.createElement('div')
     container.id = 'canvas'
@@ -232,6 +270,12 @@ describe('WebviewAnnotationController interactions', () => {
   it('keeps sub-threshold drags on the single-element click flow', () => {
     const button = document.createElement('button')
     button.id = 'tiny-drag'
+    const releasePointerCapture = vi.fn()
+    Object.assign(button, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: vi.fn(() => true),
+      releasePointerCapture
+    })
     document.body.appendChild(button)
 
     button.dispatchEvent(pointerEvent('pointerdown', 10, 10))
@@ -246,6 +290,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.textarea.value = 'Element note'
     internals.saveEditor()
     expect(controller.getState().annotations[0].region).toBeUndefined()
+    expect(releasePointerCapture).toHaveBeenCalledWith(1)
   })
 
   it('cancels an in-progress marquee with Escape and stays enabled', () => {
@@ -263,6 +308,56 @@ describe('WebviewAnnotationController interactions', () => {
 
     container.dispatchEvent(pointerEvent('pointerup', 120, 120))
     expect(internals.pendingRegion).toBeNull()
+  })
+
+  it('cancels an in-progress marquee when the pointer is cancelled', () => {
+    const container = document.createElement('div')
+    container.id = 'cancel-zone'
+    document.body.appendChild(container)
+
+    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 120, 120))
+    document.dispatchEvent(pointerEvent('pointercancel', 120, 120))
+    container.dispatchEvent(pointerEvent('pointerup', 120, 120))
+
+    const internals = privateController(controller)
+    expect(internals.marqueeRect).toBeNull()
+    expect(internals.pendingRegion).toBeNull()
+  })
+
+  it('does not resume a marquee that reset interrupted', () => {
+    const container = document.createElement('div')
+    container.id = 'reset-zone'
+    document.body.appendChild(container)
+
+    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 120, 120))
+    controller.handleCommand({ type: 'reset' })
+    controller.handleCommand({ type: 'set_enabled', enabled: true })
+    container.dispatchEvent(pointerEvent('pointerup', 120, 120))
+
+    const internals = privateController(controller)
+    expect(internals.marqueeRect).toBeNull()
+    expect(internals.pendingRegion).toBeNull()
+  })
+
+  it('releases pointer capture when reset interrupts a marquee', () => {
+    const container = document.createElement('div')
+    container.id = 'captured-zone'
+    const setPointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn()
+    Object.assign(container, {
+      setPointerCapture,
+      hasPointerCapture: vi.fn(() => true),
+      releasePointerCapture
+    })
+    document.body.appendChild(container)
+
+    container.dispatchEvent(pointerEvent('pointerdown', 10, 10, 7))
+    controller.handleCommand({ type: 'reset' })
+
+    expect(setPointerCapture).toHaveBeenCalledWith(7)
+    expect(releasePointerCapture).toHaveBeenCalledWith(7)
   })
 
   it('enforces annotation and comment limits', () => {

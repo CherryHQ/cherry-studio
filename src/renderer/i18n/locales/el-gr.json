@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "Διαγραφή",
   "webview.annotation.disable_mode": "Διακοπή σχολιασμού",
   "webview.annotation.edit": "Επεξεργασία σχολίου",
+  "webview.annotation.element_unavailable": "Αυτό το στοιχείο δεν μπορεί να επισημανθεί. Επιλέξτε ένα κοντινό στοιχείο.",
   "webview.annotation.enable_mode": "Σχολιασμός σελίδας",
   "webview.annotation.placeholder": "Περιγράψτε τι πρέπει να αλλάξει ή τι παρατηρήσατε…",
   "webview.annotation.save": "Αποθήκευση",

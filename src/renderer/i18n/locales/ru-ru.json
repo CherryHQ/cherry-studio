@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "Удалить",
   "webview.annotation.disable_mode": "Завершить аннотирование",
   "webview.annotation.edit": "Редактировать аннотацию",
+  "webview.annotation.element_unavailable": "Этот элемент нельзя аннотировать. Выберите соседний элемент.",
   "webview.annotation.enable_mode": "Аннотировать страницу",
   "webview.annotation.placeholder": "Опишите, что нужно изменить или что вы заметили…",
   "webview.annotation.save": "Сохранить",

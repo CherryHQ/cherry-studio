@@ -105,6 +105,13 @@ const OVERLAY_CSS = `
     outline-offset: 1px;
   }
 
+  .editor-error {
+    display: none;
+    margin: 8px 2px 0;
+    color: var(--annotation-danger);
+    font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
   .actions {
     display: flex;
     justify-content: flex-end;
@@ -356,6 +363,7 @@ export class WebviewAnnotationController {
   private enabled = false
   private highlightElement: Element | null = null
   private marquee: HTMLDivElement | null = null
+  private marqueePointerCapture: { target: Element; pointerId: number } | null = null
   private marqueeOrigin: { x: number; y: number } | null = null
   private marqueeRect: ViewportRect | null = null
   private pendingRegion: WebviewAnnotationRegion | null = null
@@ -367,6 +375,7 @@ export class WebviewAnnotationController {
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
   private editor: HTMLDivElement | null = null
+  private editorError: HTMLDivElement | null = null
   private textarea: HTMLTextAreaElement | null = null
   private saveButton: HTMLButtonElement | null = null
   private theme: WebviewAnnotationTheme = 'light'
@@ -454,6 +463,7 @@ export class WebviewAnnotationController {
     this.clearAnnotations(false)
     this.enabled = false
     this.removeSelectionListeners()
+    this.cancelMarquee()
     this.stopPositionTracking()
     this.removeOverlay()
     this.emitState()
@@ -546,6 +556,7 @@ export class WebviewAnnotationController {
     this.marquee = null
     this.pinLayer = null
     this.editor = null
+    this.editorError = null
     this.textarea = null
     this.saveButton = null
   }
@@ -574,6 +585,10 @@ export class WebviewAnnotationController {
     const actions = document.createElement('div')
     actions.className = 'actions'
 
+    const editorError = document.createElement('div')
+    editorError.className = 'editor-error'
+    editorError.setAttribute('role', 'alert')
+
     const deleteButton = document.createElement('button')
     deleteButton.type = 'button'
     deleteButton.className = 'action danger'
@@ -593,7 +608,8 @@ export class WebviewAnnotationController {
     saveButton.addEventListener('click', () => this.saveEditor())
 
     actions.append(deleteButton, cancelButton, saveButton)
-    editor.append(textarea, actions)
+    editor.append(textarea, editorError, actions)
+    this.editorError = editorError
     this.textarea = textarea
     this.saveButton = saveButton
     this.updateEditorLabels(editor)
@@ -606,6 +622,7 @@ export class WebviewAnnotationController {
       this.textarea.placeholder = this.locale.placeholder
       this.textarea.setAttribute('aria-label', this.locale.placeholder)
     }
+    if (this.editorError) this.editorError.textContent = this.locale.elementUnavailable
     const deleteButton = editor.querySelector<HTMLButtonElement>('[data-action="delete"]')
     const cancelButton = editor.querySelector<HTMLButtonElement>('[data-action="cancel"]')
     const saveButton = editor.querySelector<HTMLButtonElement>('[data-action="save"]')
@@ -618,6 +635,8 @@ export class WebviewAnnotationController {
     document.addEventListener('pointermove', this.handlePointerMove, true)
     document.addEventListener('pointerdown', this.handlePointerDown, true)
     document.addEventListener('pointerup', this.handlePointerUp, true)
+    document.addEventListener('pointercancel', this.handlePointerCancel, true)
+    document.addEventListener('lostpointercapture', this.handlePointerCancel, true)
     document.addEventListener('mousedown', this.blockSelectionEvent, true)
     document.addEventListener('mouseup', this.blockSelectionEvent, true)
     document.addEventListener('click', this.handleClick, true)
@@ -628,6 +647,8 @@ export class WebviewAnnotationController {
     document.removeEventListener('pointermove', this.handlePointerMove, true)
     document.removeEventListener('pointerdown', this.handlePointerDown, true)
     document.removeEventListener('pointerup', this.handlePointerUp, true)
+    document.removeEventListener('pointercancel', this.handlePointerCancel, true)
+    document.removeEventListener('lostpointercapture', this.handlePointerCancel, true)
     document.removeEventListener('mousedown', this.blockSelectionEvent, true)
     document.removeEventListener('mouseup', this.blockSelectionEvent, true)
     document.removeEventListener('click', this.handleClick, true)
@@ -676,18 +697,26 @@ export class WebviewAnnotationController {
   }
 
   private handlePointerDown = (event: PointerEvent) => {
-    if (!this.enabled || this.isOverlayEvent(event) || !this.eventElement(event)) return
+    const element = this.eventElement(event)
+    if (!this.enabled || this.isOverlayEvent(event) || !element) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (event.button === 0) this.marqueeOrigin = { x: event.clientX, y: event.clientY }
+    if (event.button === 0) {
+      this.marqueeOrigin = { x: event.clientX, y: event.clientY }
+      try {
+        element.setPointerCapture(event.pointerId)
+        this.marqueePointerCapture = { target: element, pointerId: event.pointerId }
+      } catch {
+        // Document-level listeners still handle runtimes without pointer capture.
+      }
+    }
   }
 
   private handlePointerUp = (event: PointerEvent) => {
     if (!this.enabled) return
     const rect = this.marqueeRect
-    this.marqueeOrigin = null
+    this.cancelMarquee()
     if (rect) {
-      this.cancelMarquee()
       this.suppressNextClick = true
       event.preventDefault()
       event.stopImmediatePropagation()
@@ -695,6 +724,14 @@ export class WebviewAnnotationController {
       return
     }
     this.blockSelectionEvent(event)
+  }
+
+  private handlePointerCancel = (event: PointerEvent) => {
+    if (!this.enabled || (!this.marqueeOrigin && !this.marqueeRect && !this.marqueePointerCapture)) return
+    if (this.marqueePointerCapture && event.pointerId !== this.marqueePointerCapture.pointerId) return
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    this.cancelMarquee()
   }
 
   private handleClick = (event: MouseEvent) => {
@@ -736,9 +773,20 @@ export class WebviewAnnotationController {
   }
 
   private cancelMarquee() {
+    const pointerCapture = this.marqueePointerCapture
+    this.marqueePointerCapture = null
     this.marqueeOrigin = null
     this.marqueeRect = null
     if (this.marquee) this.marquee.style.display = 'none'
+    if (pointerCapture) {
+      try {
+        if (pointerCapture.target.hasPointerCapture(pointerCapture.pointerId)) {
+          pointerCapture.target.releasePointerCapture(pointerCapture.pointerId)
+        }
+      } catch {
+        // The element or pointer may already have been detached by the guest page.
+      }
+    }
   }
 
   /** Elements mostly inside the marquee, deduped so a contained container hides its descendants. */
@@ -812,6 +860,7 @@ export class WebviewAnnotationController {
     const annotation = annotationId ? this.annotations.find((item) => item.id === annotationId) : undefined
     this.editorElement = element
     this.editorAnnotationId = annotationId
+    if (this.editorError) this.editorError.style.display = 'none'
     this.textarea.value = annotation?.comment ?? ''
     this.textarea.placeholder = this.locale.placeholder
     this.saveButton.disabled = this.textarea.value.trim().length === 0
@@ -828,6 +877,7 @@ export class WebviewAnnotationController {
     this.editorElement = null
     this.editorRegion = null
     this.pendingRegion = null
+    if (this.editorError) this.editorError.style.display = 'none'
     if (this.editor) this.editor.style.display = 'none'
     this.schedulePositionUpdate()
   }
@@ -850,7 +900,10 @@ export class WebviewAnnotationController {
       }
     } else {
       const locator = createWebviewElementLocator(this.editorElement)
-      if (!locator) return
+      if (!locator) {
+        if (this.editorError) this.editorError.style.display = 'block'
+        return
+      }
       const annotation: WebviewAnnotation = {
         id: crypto.randomUUID(),
         comment,
@@ -951,6 +1004,7 @@ export class WebviewAnnotationController {
   private resolveAnnotationElement(annotation: WebviewAnnotation) {
     const knownElement = this.annotationElements.get(annotation.id)
     if (knownElement?.isConnected) return knownElement
+    this.annotationElements.delete(annotation.id)
     const resolved = resolveWebviewElementSelector(annotation.element.selector)
     if (resolved) {
       this.annotationElements.set(annotation.id, resolved)

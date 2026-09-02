@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "刪除",
   "webview.annotation.disable_mode": "結束標註",
   "webview.annotation.edit": "編輯標註",
+  "webview.annotation.element_unavailable": "無法標註此元素，請選擇附近的元素。",
   "webview.annotation.enable_mode": "標註頁面",
   "webview.annotation.placeholder": "描述需要變更的內容或你注意到的問題…",
   "webview.annotation.save": "儲存",

@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "Xóa",
   "webview.annotation.disable_mode": "Dừng chú thích",
   "webview.annotation.edit": "Chỉnh sửa chú thích",
+  "webview.annotation.element_unavailable": "Không thể chú thích phần tử này. Hãy chọn một phần tử gần đó.",
   "webview.annotation.enable_mode": "Chú thích trang",
   "webview.annotation.placeholder": "Mô tả nội dung cần thay đổi hoặc điều bạn nhận thấy…",
   "webview.annotation.save": "Lưu",

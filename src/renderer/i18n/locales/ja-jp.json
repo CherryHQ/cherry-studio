@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "削除",
   "webview.annotation.disable_mode": "注釈モードを終了",
   "webview.annotation.edit": "注釈を編集",
+  "webview.annotation.element_unavailable": "この要素には注釈を付けられません。近くの要素を選択してください。",
   "webview.annotation.enable_mode": "ページに注釈を付ける",
   "webview.annotation.placeholder": "変更すべき点や気付いた点を入力してください…",
   "webview.annotation.save": "保存",

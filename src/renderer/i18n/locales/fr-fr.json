@@ -5189,6 +5189,7 @@
   "webview.annotation.delete": "Supprimer",
   "webview.annotation.disable_mode": "Arrêter l’annotation",
   "webview.annotation.edit": "Modifier l’annotation",
+  "webview.annotation.element_unavailable": "Cet élément ne peut pas être annoté. Sélectionnez un élément à proximité.",
   "webview.annotation.enable_mode": "Annoter la page",
   "webview.annotation.placeholder": "Décrivez ce qui devrait changer ou ce que vous avez remarqué…",
   "webview.annotation.save": "Enregistrer",

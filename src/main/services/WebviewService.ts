@@ -389,7 +389,7 @@ export class WebviewService extends BaseService {
     this.setAnnotationRegistry(registry)
   }
 
-  listAnnotations(targetId?: string): WebviewAnnotationDocument[] {
+  private listAnnotations(): WebviewAnnotationDocument[] {
     const registry = { ...this.getAnnotationRegistry() }
     let changed = false
 
@@ -402,9 +402,7 @@ export class WebviewService extends BaseService {
     }
     if (changed) this.setAnnotationRegistry(registry)
 
-    return Object.values(registry)
-      .filter((document) => !targetId || document.target.id === targetId)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+    return Object.values(registry).sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   private enqueueAccessibilityCapture<T>(webviewId: number, task: () => Promise<T>): Promise<T> {
@@ -713,10 +711,6 @@ export class WebviewService extends BaseService {
     }
 
     return resolvedDocuments
-  }
-
-  async resolveAnnotationsWithAccessibility(targetId?: string): Promise<WebviewResolvedAnnotationDocument[]> {
-    return this.resolveStoredAnnotationDocuments(this.listAnnotations(targetId))
   }
 
   async getAnnotationsMarkdown(webviewId: number, senderId: WindowId | null): Promise<string> {
