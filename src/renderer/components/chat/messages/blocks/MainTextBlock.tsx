@@ -1,5 +1,5 @@
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
-import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
+import type { ChatInputTokenKind, ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
@@ -42,6 +42,7 @@ interface Props {
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
   userContentExpanded?: boolean
   onPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onUserContentExpandedChange?: (expanded: boolean) => void
@@ -54,6 +55,10 @@ const composerTokenIcon: Partial<
 }
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
+type ReadOnlyFilePreviewActivate = (
+  preview: ReadOnlyComposerFileTokenPreview,
+  token: ChatTokenView
+) => void | Promise<void>
 
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
@@ -85,16 +90,25 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
 
 function ComposerMessageTokenChip({
   token,
+  onReadOnlyFilePreviewActivate,
   readOnlyFilePreviews
 }: {
   token: ComposerMessageToken
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
 }) {
   if (isComposerTokenBackedMessageToken(token)) {
     const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
     const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
 
-    return <ComposerToken token={token} readOnly readOnlyFilePreview={readOnlyFilePreview} />
+    return (
+      <ComposerToken
+        token={token}
+        readOnly
+        readOnlyFilePreview={readOnlyFilePreview}
+        onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
+      />
+    )
   }
 
   return <LegacyComposerMessageTokenChip token={token} />
@@ -103,7 +117,8 @@ function ComposerMessageTokenChip({
 function renderComposerMessageContent(
   content: string,
   composer: ComposerMessageSnapshot,
-  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>,
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
 ) {
   const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
@@ -124,6 +139,7 @@ function renderComposerMessageContent(
       <ComposerMessageTokenChip
         key={`${token.id}:${token.index}`}
         token={token}
+        onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
         readOnlyFilePreviews={readOnlyFilePreviews}
       />
     )
@@ -321,6 +337,7 @@ const MainTextBlock: React.FC<Props> = ({
   mentions = [],
   composer,
   readOnlyFilePreviews,
+  onReadOnlyFilePreviewActivate,
   userContentExpanded,
   onPlayoutSettledChange,
   onUserContentExpandedChange
@@ -422,12 +439,20 @@ const MainTextBlock: React.FC<Props> = ({
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
         const token =
           rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
-        if (token) return <ComposerMessageTokenChip token={token} readOnlyFilePreviews={readOnlyFilePreviews} />
+        if (token) {
+          return (
+            <ComposerMessageTokenChip
+              token={token}
+              onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
+              readOnlyFilePreviews={readOnlyFilePreviews}
+            />
+          )
+        }
 
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, id, readOnlyFilePreviews]
+    [composerMarkdownContent?.tokens, id, onReadOnlyFilePreviewActivate, readOnlyFilePreviews]
   )
 
   return (
@@ -457,7 +482,12 @@ const MainTextBlock: React.FC<Props> = ({
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
-                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
+                ? renderComposerMessageContent(
+                    userDisplayContent,
+                    composer,
+                    readOnlyFilePreviews,
+                    onReadOnlyFilePreviewActivate
+                  )
                 : userDisplayContent}
             </p>
           ) : (

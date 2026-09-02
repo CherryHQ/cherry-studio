@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   type ArtifactPaneFileSelection,
+  getArtifactPaneSelectionDisplayPath,
   getArtifactPaneSelectionPath,
   getCopyableAbsolutePath,
   WORKSPACE_ROOT_ID
@@ -47,6 +48,7 @@ import {
 // `ArtifactPane` keep working.
 export type { ArtifactPaneFileSelection } from './artifactPanePath'
 export {
+  getArtifactPaneSelectionDisplayPath,
   getArtifactPaneSelectionPath,
   normalizeArtifactPaneFilePath,
   resolveArtifactPaneFileSelection
@@ -92,6 +94,10 @@ function getPreviewFileTitle(filePath: string): string {
     .split(/[/\\]+/)
     .filter(Boolean)
   return segments.at(-1) ?? filePath
+}
+
+function getPreviewSelectionTitle(selection: ArtifactPaneFileSelection): string {
+  return selection.displayName ?? getPreviewFileTitle(selection.filePath)
 }
 
 function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
@@ -208,6 +214,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
   const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
+    !overlaySelection?.readOnly &&
     Boolean(fileSession && overlaySelection) &&
     isText === 'text' &&
     (hasActiveEditSession || (fileSize.status === 'ok' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
@@ -558,8 +565,8 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   'min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm',
                   overlaySelection && 'cursor-context-menu'
                 )}
-                title={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : undefined}>
-                {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
+                title={overlaySelection ? getArtifactPaneSelectionDisplayPath(overlaySelection) : undefined}>
+                {overlaySelection ? getPreviewSelectionTitle(overlaySelection) : props.paneTitle}
               </div>
             </CommandContextMenu>
             {overlaySelection && isEditDirty ? (
@@ -608,7 +615,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     <FilePreview
       filePath={getArtifactPaneSelectionPath(overlaySelection)}
       refreshKey={contentRefreshToken}
-      type="artifact"
+      type={overlaySelection.previewType ?? 'artifact'}
     />
   ) : null
 
@@ -649,8 +656,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                 disabled={!overlaySelection}
                 pendingExtraItems={tabActionItems}
                 getExtraItems={getOverlayMenuItems}>
-                <span className="cursor-context-menu truncate" title={getArtifactPaneSelectionPath(overlaySelection)}>
-                  {getPreviewFileTitle(overlaySelection.filePath)}
+                <span
+                  className="cursor-context-menu truncate"
+                  title={getArtifactPaneSelectionDisplayPath(overlaySelection)}>
+                  {getPreviewSelectionTitle(overlaySelection)}
                 </span>
               </CommandContextMenu>
               {isEditDirty && (

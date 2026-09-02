@@ -14,6 +14,10 @@ export const WORKSPACE_ROOT_ID = '__workspace_root__'
 export interface ArtifactPaneFileSelection {
   workspacePath: string
   filePath: string
+  displayName?: string
+  displayPath?: AbsoluteFilePath
+  previewType?: 'artifact' | 'file'
+  readOnly?: boolean
 }
 
 /** The canonical absolute path a selection edits — the `useFileEditSession` key. */
@@ -30,6 +34,9 @@ export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelectio
  */
 export const getCopyableAbsolutePath = (path: string, isWindows: boolean): string =>
   isWindows ? path.replace(/\//g, '\\') : path
+
+export const getArtifactPaneSelectionDisplayPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
+  selection.displayPath ?? getArtifactPaneSelectionPath(selection)
 
 export const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')

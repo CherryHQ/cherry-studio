@@ -789,6 +789,87 @@ describe('ComposerToken', () => {
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps sent pasted-text hover preview while click opens the external preview target', async () => {
+    const user = userEvent.setup()
+    const onActivate = vi.fn()
+    const { container } = render(
+      <FileComposerToken
+        readOnly
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{
+          url: 'file:///tmp/pasted_text.txt',
+          mediaType: 'text/plain',
+          composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+        }}
+        token={{
+          id: 'file:pasted-text',
+          kind: 'file',
+          label: '已粘贴的文本.txt',
+          payload: createFileMetadata({
+            name: 'pasted_text.txt',
+            origin_name: '已粘贴的文本.txt',
+            path: '/tmp/pasted_text.txt',
+            size: 23552,
+            ext: '.txt',
+            type: FILE_TYPE.TEXT,
+            composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+          })
+        }}
+      />
+    )
+
+    const trigger = getFileTokenTrigger(container)
+    await user.hover(trigger)
+    await waitFor(() => expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true'))
+    await waitFor(() =>
+      expect(screen.getByTestId('composer-token-popover-content')).toHaveTextContent('第一段粘贴文本')
+    )
+
+    fireEvent.click(trigger)
+
+    expect(onActivate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'file:///tmp/pasted_text.txt',
+        mediaType: 'text/plain',
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+      }),
+      expect.objectContaining({ id: 'file:pasted-text', label: '已粘贴的文本.txt' })
+    )
+  })
+
+  it('activates sent generic file previews with click and keyboard without adding a hover card', () => {
+    const onActivate = vi.fn()
+
+    render(
+      <FileComposerToken
+        readOnly
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{
+          url: 'file:///tmp/report.pdf',
+          mediaType: 'application/pdf'
+        }}
+        token={{
+          id: 'file:report',
+          kind: 'file',
+          label: 'report.pdf'
+        }}
+      />
+    )
+
+    const trigger = screen.getByRole('button', { name: 'report.pdf' })
+    expect(screen.queryByTestId('composer-token-popover')).toBeNull()
+
+    fireEvent.click(trigger)
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+    fireEvent.keyDown(trigger, { key: ' ' })
+
+    expect(onActivate).toHaveBeenCalledTimes(3)
+    expect(onActivate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ url: 'file:///tmp/report.pdf', mediaType: 'application/pdf' }),
+      expect.objectContaining({ id: 'file:report', label: 'report.pdf' })
+    )
+  })
+
   it('delays file token popover hover transitions so adjacent tokens do not steal the preview immediately', async () => {
     vi.useFakeTimers()
 

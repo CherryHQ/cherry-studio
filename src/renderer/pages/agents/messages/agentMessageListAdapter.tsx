@@ -100,6 +100,7 @@ interface AgentMessageListParams {
   openArtifactFile?: MessageListActions['openArtifactFile']
   openDiagnosticReport?: MessageListActions['openDiagnosticReport']
   diagnosticReport?: DiagnosticReportConfig
+  previewInputFileInRightPane?: MessageListActions['previewInputFileInRightPane']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
   imageActionConsumer?: 'capture'
@@ -157,6 +158,7 @@ export function useAgentMessageListProviderValue({
   openArtifactFile,
   openDiagnosticReport,
   diagnosticReport,
+  previewInputFileInRightPane,
   deleteMessage,
   respondToolApproval,
   imageActionConsumer,
@@ -411,6 +413,7 @@ export function useAgentMessageListProviderValue({
       openPath,
       openArtifactFile,
       openDiagnosticReport: normalInteractionsEnabled ? openDiagnosticReport : undefined,
+      previewInputFileInRightPane,
       openCitationsPanel,
       openAgentToolFlow,
       abortTool,
@@ -440,6 +443,7 @@ export function useAgentMessageListProviderValue({
       openArtifactFile,
       openDiagnosticReport,
       openAgentToolFlow,
+      previewInputFileInRightPane,
       openPath,
       respondToolApproval,
       resolvePath,

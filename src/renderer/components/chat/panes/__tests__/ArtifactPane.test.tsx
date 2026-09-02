@@ -5,6 +5,7 @@ import type { CommandContextMenuExtraItem, MaybePromise } from '@renderer/compon
 import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -1038,6 +1039,57 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(within(overlay).getByRole('button', { name: 'Open in Finder' }))
     await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/Users/suyao/Desktop/记忆商人.md'))
+  })
+
+  it('renders user-input preview selections as read-only file previews with the original path in the title', async () => {
+    const model = {
+      isLoading: false,
+      filteredTree: [],
+      effectiveExpandedIds: new Set<string>(),
+      setExpandedIds: vi.fn(),
+      nodeById: new Map(),
+      refresh: vi.fn(),
+      reloadExpandedDirectories: vi.fn()
+    } as unknown as React.ComponentProps<typeof ArtifactPaneView>['model']
+    const fileSession = {
+      status: 'ready',
+      draft: '# Cached',
+      isDirty: false,
+      isSaving: false,
+      setDraft: vi.fn()
+    } as unknown as React.ComponentProps<typeof ArtifactPaneView>['fileSession']
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/workspace"
+        previewFileSelection={{
+          workspacePath: '/internal/message-files',
+          filePath: 'report.md',
+          displayName: 'report.md',
+          displayPath: '/Users/alice/report.md' as AbsoluteFilePath,
+          previewType: 'file',
+          readOnly: true
+        }}
+        model={model}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+        fileSession={fileSession}
+        editMode="preview"
+        onEditModeChange={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('artifact-file-preview-overlay')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveAttribute('title', '/Users/alice/report.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/internal/message-files/report.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'file')
+    expect(screen.queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
   })
 
   it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {

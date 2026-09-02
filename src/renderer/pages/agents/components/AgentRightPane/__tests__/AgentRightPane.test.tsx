@@ -8,7 +8,7 @@ import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { PhysicalFileMetadata } from '@shared/types/file'
+import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -253,10 +253,26 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     onSelectedFileChange: (file: string | null) => void
     paneActions?: ReactNode
     paneTitle?: ReactNode
-    previewFileSelection?: { workspacePath: string; filePath: string } | null
+    previewFileSelection?: {
+      workspacePath: string
+      filePath: string
+      displayName?: string
+      displayPath?: string
+      previewType?: string
+      readOnly?: boolean
+    } | null
     selectedFile: string | null
   }) => (
-    <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
+    <div
+      data-testid="artifact-pane"
+      data-display-path={previewFileSelection?.displayPath ?? ''}
+      data-edit-mode={editMode}
+      data-preview-path={
+        previewFileSelection ? `${previewFileSelection.workspacePath}/${previewFileSelection.filePath}` : ''
+      }
+      data-preview-type={previewFileSelection?.previewType ?? ''}
+      data-read-only={String(previewFileSelection?.readOnly ?? false)}
+      data-selected-file={selectedFile ?? ''}>
       {headerVariant === 'pane' ? (
         <div data-testid="artifact-pane-header">
           {previewFileSelection ? (
@@ -264,7 +280,9 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
               back
             </button>
           ) : null}
-          <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+          <span data-testid="artifact-pane-header-title">
+            {previewFileSelection?.displayName ?? previewFileSelection?.filePath ?? paneTitle}
+          </span>
           {paneActions}
         </div>
       ) : null}
@@ -282,7 +300,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
       </button>
       {previewFileSelection && (
         <div data-testid="artifact-file-preview-overlay">
-          {previewFileSelection.filePath}
+          {previewFileSelection.displayName ?? previewFileSelection.filePath}
           {headerVariant === 'pane' ? null : (
             <button type="button" onClick={onPreviewClose}>
               close
@@ -506,6 +524,24 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   return (
     <button type="button" onClick={() => openArtifactFile(path)}>
       open artifact
+    </button>
+  )
+}
+
+function OpenInputFilePreviewButton() {
+  const { previewInputFileInRightPane } = useAgentRightPaneActions()
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        previewInputFileInRightPane({
+          displayName: 'report.md',
+          previewPath: '/internal/message-files/report.md' as AbsoluteFilePath,
+          originalPath: '/Users/alice/report.md' as AbsoluteFilePath,
+          mediaType: 'text/markdown'
+        })
+      }>
+      open input preview
     </button>
   )
 }
@@ -1026,6 +1062,52 @@ describe('AgentRightPane', () => {
     expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
       kind: 'path',
       path: '/workspace/report.md'
+    })
+  })
+
+  it('opens sent input files as read-only previews while displaying the original path', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      kind: 'file',
+      type: 'text',
+      size: 1,
+      createdAt: 1,
+      modifiedAt: 1,
+      mime: 'text/markdown'
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-read-only', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-preview-type', 'file')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-edit-mode', 'preview')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-display-path', '/Users/alice/report.md')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+      'data-preview-path',
+      '/internal/message-files/report.md'
+    )
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+    expect(ipcRequestMock).toHaveBeenNthCalledWith(1, 'file.get_metadata', {
+      kind: 'path',
+      path: '/Users/alice/report.md'
+    })
+    expect(ipcRequestMock).toHaveBeenNthCalledWith(2, 'file.get_metadata', {
+      kind: 'path',
+      path: '/internal/message-files/report.md'
     })
   })
 

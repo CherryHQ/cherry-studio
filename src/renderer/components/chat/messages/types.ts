@@ -1,6 +1,6 @@
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
-import type { FileMetadata } from '@renderer/types/file'
+import type { ComposerFileKind, FileMetadata } from '@renderer/types/file'
 import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
@@ -23,7 +23,7 @@ import type {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { FileUrlString } from '@shared/types/file'
+import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
 export type { MessageUiState } from '@renderer/types/message'
@@ -173,6 +173,14 @@ export interface OpenAgentToolFlowInput {
   toolCallId: string
   toolName?: string
   title?: string
+}
+
+export interface MessageInputFilePreview {
+  displayName: string
+  previewPath: AbsoluteFilePath
+  originalPath?: AbsoluteFilePath
+  mediaType?: string
+  composerFileKind?: ComposerFileKind
 }
 
 export interface RemoveMessageErrorPartInput {
@@ -352,6 +360,7 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
+  previewInputFileInRightPane?: (input: MessageInputFilePreview) => void | Promise<void>
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void

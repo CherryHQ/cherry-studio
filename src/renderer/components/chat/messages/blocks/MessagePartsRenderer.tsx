@@ -15,6 +15,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { ChatTokenView } from '@renderer/components/composer/chatTokenView'
 import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
@@ -39,9 +40,11 @@ import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
+import { fileUrlToPath } from '@shared/utils/file'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
@@ -219,6 +222,10 @@ interface RenderGroupedEntryOptions {
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onReadOnlyFilePreviewActivate?: (
+    preview: ReadOnlyComposerFileTokenPreview,
+    token: ChatTokenView
+  ) => void | Promise<void>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
@@ -348,15 +355,30 @@ function getReadOnlyFileTokenPreviews(
     const cherryMeta = getCherryMeta(part)
     const sourceId = cherryMeta?.fileTokenSourceId
     if (!sourceId) continue
+    const originalPath = cherryMeta.originalPath
+      ? AbsoluteFilePathSchema.safeParse(cherryMeta.originalPath).data
+      : undefined
 
     previews.set(sourceId, {
       url: part.url,
       mediaType: part.mediaType,
+      ...(originalPath && { originalPath }),
       ...(cherryMeta.composerFileKind && { composerFileKind: cherryMeta.composerFileKind })
     })
   }
 
   return previews
+}
+
+function getPreviewPathFromFileUrl(url: string | undefined) {
+  if (!url) return null
+
+  try {
+    const parsed = fileUrlToPath(url as FileUrlString)
+    return AbsoluteFilePathSchema.safeParse(parsed).data ?? null
+  } catch {
+    return null
+  }
 }
 
 function findUniqueVisibleFileTokenIndex(
@@ -589,6 +611,7 @@ function renderPart(
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
+          onReadOnlyFilePreviewActivate={options?.onReadOnlyFilePreviewActivate}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
@@ -1354,7 +1377,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { removeMessageTranslation, notifySuccess, previewInputFileInRightPane } = useMessageListActions()
   const { t } = useTranslation()
   const canRemoveTranslation = !!removeMessageTranslation
   const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
@@ -1419,6 +1442,22 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
+  const handleReadOnlyFilePreviewActivate = useCallback(
+    (preview: ReadOnlyComposerFileTokenPreview, token: ChatTokenView) => {
+      if (!previewInputFileInRightPane) return
+      const previewPath = getPreviewPathFromFileUrl(preview.url)
+      if (!previewPath) return
+
+      return previewInputFileInRightPane({
+        displayName: token.label,
+        previewPath,
+        ...(preview.originalPath && { originalPath: preview.originalPath }),
+        ...(preview.mediaType && { mediaType: preview.mediaType }),
+        ...(preview.composerFileKind && { composerFileKind: preview.composerFileKind })
+      })
+    },
+    [previewInputFileInRightPane]
+  )
   const visibleComposerFileTokens = useMemo(
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
@@ -1454,6 +1493,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
+      onReadOnlyFilePreviewActivate: previewInputFileInRightPane ? handleReadOnlyFilePreviewActivate : undefined,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
       onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
@@ -1465,8 +1505,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
       handleRemoveTranslation,
+      handleReadOnlyFilePreviewActivate,
       messageCitations,
-      readOnlyFilePreviews
+      readOnlyFilePreviews,
+      previewInputFileInRightPane
     ]
   )
   const canRenderReportArtifacts =

@@ -756,6 +756,7 @@ describe('MessagePartsRenderer', () => {
               cherry: {
                 fileEntryId: 'entry-pasted-text',
                 fileTokenSourceId: 'source-pasted-text',
+                originalPath: '/Users/alice/Notes/Pasted text.txt',
                 composerFileKind: 'pasted-text'
               }
             }
@@ -767,10 +768,69 @@ describe('MessagePartsRenderer', () => {
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-pasted-text')).toEqual({
         url: 'file:///internal/message-files/pasted-text.txt',
         mediaType: 'text/plain',
+        originalPath: '/Users/alice/Notes/Pasted text.txt',
         composerFileKind: 'pasted-text'
       })
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
+    })
+
+    it('maps a sent composer file token preview to the agent right pane action', () => {
+      const previewInputFileInRightPane = vi.fn()
+
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'Review ',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'file:source-report',
+                      kind: 'file',
+                      label: 'report.md',
+                      index: 0,
+                      textOffset: 7
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///internal/message-files/report.md',
+            mediaType: 'text/markdown',
+            filename: 'report.md',
+            providerMetadata: {
+              cherry: {
+                fileEntryId: 'entry-report',
+                fileTokenSourceId: 'source-report',
+                originalPath: '/Users/alice/report.md'
+              }
+            }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        { previewInputFileInRightPane }
+      )
+
+      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
+      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
+        id: 'file:source-report',
+        kind: 'file',
+        label: 'report.md'
+      })
+
+      expect(previewInputFileInRightPane).toHaveBeenCalledWith({
+        displayName: 'report.md',
+        previewPath: '/internal/message-files/report.md',
+        originalPath: '/Users/alice/report.md',
+        mediaType: 'text/markdown'
+      })
     })
 
     it('keeps a user image when no composer file token is visible', () => {

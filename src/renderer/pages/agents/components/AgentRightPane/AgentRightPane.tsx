@@ -11,6 +11,7 @@ import { loggerService } from '@logger'
 import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import type { MessageInputFilePreview } from '@renderer/components/chat/messages/types'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -156,7 +157,14 @@ function isSameFileSelection(
   next: ArtifactPaneFileSelection | null
 ): boolean {
   if (!current || !next) return current === next
-  return current.workspacePath === next.workspacePath && current.filePath === next.filePath
+  return (
+    current.workspacePath === next.workspacePath &&
+    current.filePath === next.filePath &&
+    current.displayName === next.displayName &&
+    current.displayPath === next.displayPath &&
+    current.previewType === next.previewType &&
+    current.readOnly === next.readOnly
+  )
 }
 
 interface AgentFlowTab {
@@ -202,8 +210,10 @@ export type AgentFileNavigationRequest = (transition: () => void) => void
 interface AgentRightPaneActions {
   canOpenAgentToolFlow: boolean
   canOpenArtifactFile: boolean
+  canPreviewInputFileInRightPane: boolean
   openAgentToolFlow: (input: AgentToolFlowOpenInput) => void
   openArtifactFile: (path: string) => void
+  previewInputFileInRightPane: (input: MessageInputFilePreview) => void
   closeFilePreview: () => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
   setSelectedFile: (file: string | null) => void
@@ -314,6 +324,7 @@ function AgentRightPaneActionsProvider({
   }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
+  const canPreviewInputFileInRightPane = conversationState === 'ready' && panelActions.canOpen('files')
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
@@ -349,12 +360,63 @@ function AgentRightPaneActionsProvider({
     },
     [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
   )
+  const previewInputFileInRightPane = useCallback(
+    (input: MessageInputFilePreview) => {
+      if (!canPreviewInputFileInRightPane) return
+      const requestId = artifactOpenRequestRef.current + 1
+      artifactOpenRequestRef.current = requestId
+      panelActions.tryOpen('files', { userInitiated: true })
+
+      void (async () => {
+        let previewPath = input.previewPath
+
+        if (input.originalPath && input.originalPath !== input.previewPath) {
+          try {
+            const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
+            if (artifactOpenRequestRef.current !== requestId) return
+            if (originalMetadata?.kind === 'file') previewPath = input.originalPath
+          } catch {
+            if (artifactOpenRequestRef.current !== requestId) return
+          }
+        }
+
+        const selection = resolveArtifactPaneFileSelection(workspacePath, previewPath)
+        if (!selection) {
+          requestFileSelection(null)
+          return
+        }
+
+        const inputSelection: ArtifactPaneFileSelection = {
+          ...selection,
+          displayName: input.displayName,
+          displayPath: input.originalPath ?? previewPath,
+          previewType: 'file',
+          readOnly: true
+        }
+
+        try {
+          const metadata = await ipcApi.request(
+            'file.get_metadata',
+            createFilePathHandle(getArtifactPaneSelectionPath(selection))
+          )
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(metadata?.kind === 'directory' ? null : inputSelection)
+        } catch {
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(inputSelection)
+        }
+      })()
+    },
+    [canPreviewInputFileInRightPane, panelActions, requestFileSelection, workspacePath]
+  )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
       canOpenAgentToolFlow,
       canOpenArtifactFile,
+      canPreviewInputFileInRightPane,
       openAgentToolFlow,
       openArtifactFile,
+      previewInputFileInRightPane,
       closeFilePreview,
       setFileEditMode,
       setSelectedFile: selectFile,
@@ -364,9 +426,11 @@ function AgentRightPaneActionsProvider({
     [
       canOpenAgentToolFlow,
       canOpenArtifactFile,
+      canPreviewInputFileInRightPane,
       closeFilePreview,
       openAgentToolFlow,
       openArtifactFile,
+      previewInputFileInRightPane,
       selectFile,
       setFileEditMode,
       setFileTreeExpandedIds,
@@ -421,7 +485,9 @@ function AgentRightPaneStateProvider({
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
   const editPath =
-    editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
+    editMode === 'edit' && previewFileSelection && !previewFileSelection.readOnly
+      ? getArtifactPaneSelectionPath(previewFileSelection)
+      : undefined
   const editHandle = useMemo(() => (editPath ? createFilePathHandle(editPath) : undefined), [editPath])
   const fileSession = useFileEditSession(editHandle)
   const discardFileDraft = fileSession.discard
@@ -697,7 +763,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       onPreviewClose={actions.closeFilePreview}
       enableFileSearch
       fileSession={state.fileSession}
-      editMode={state.editMode}
+      editMode={state.previewFileSelection?.readOnly ? 'preview' : state.editMode}
       onEditModeChange={actions.setFileEditMode}
       model={model}
       selectedFile={state.selectedFile}
@@ -746,6 +812,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
     openArtifactFile: actions.openArtifactFile,
+    previewInputFileInRightPane: actions.previewInputFileInRightPane,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.
