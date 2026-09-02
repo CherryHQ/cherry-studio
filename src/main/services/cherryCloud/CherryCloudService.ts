@@ -38,6 +38,7 @@ const PRODUCTION_API_ORIGINS = {
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
+const CLOUD_MODEL_FEATURES_CACHE_KEY = 'feature.cherry_cloud.model_features'
 const cherryCloudModelWriter = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
@@ -541,6 +542,7 @@ export class CherryCloudService extends BaseService {
   public isModelAvailableForFeature(modelId: UniqueModelId, feature: CherryCloudModelFeature): boolean {
     const cached = this.modelSyncCache
     return (
+      Boolean(this.cloudState.session) &&
       cached?.generation === this.sessionGeneration &&
       (cached.result.featuresByModelId[modelId]?.includes(feature) ?? false)
     )
@@ -551,11 +553,10 @@ export class CherryCloudService extends BaseService {
     signal: AbortSignal
   ): Promise<CherryCloudModelSyncResult> {
     if (!this.cloudState.session) {
-      this.reconcileEntitledModels([])
       return {
         entitledModelIds: [],
         quotaExhaustedModelIds: [],
-        featuresByModelId: {}
+        featuresByModelId: application.get('CacheService').getPersist(CLOUD_MODEL_FEATURES_CACHE_KEY)
       }
     }
 
@@ -597,6 +598,7 @@ export class CherryCloudService extends BaseService {
       featuresByModelId[uniqueModelId] = model.available_features
     }
     this.reconcileEntitledModels(models)
+    application.get('CacheService').setPersist(CLOUD_MODEL_FEATURES_CACHE_KEY, featuresByModelId)
     return {
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
       quotaExhaustedModelIds,
@@ -821,13 +823,6 @@ export class CherryCloudService extends BaseService {
   }
 
   private finishSessionCleanup(): void {
-    try {
-      this.reconcileEntitledModels([])
-    } catch (error) {
-      logger.warn('Cherry Cloud managed model cleanup failed after Session removal', {
-        reason: error instanceof Error ? error.message : String(error)
-      })
-    }
     try {
       this.emitStatus()
     } catch (error) {

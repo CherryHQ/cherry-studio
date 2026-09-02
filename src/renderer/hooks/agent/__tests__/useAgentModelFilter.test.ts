@@ -197,6 +197,34 @@ describe('useAgentModelFilter', () => {
     await waitFor(() => expect(result.current(cloudModel)).toBe(false))
   })
 
+  it('keeps signed-out Cloud models in their previous feature lists but disables selection', async () => {
+    const cloudModel = {
+      ...model(),
+      id: 'cherryai-subscription::deepseek-go',
+      providerId: 'cherryai-subscription'
+    } as Model
+    mocks.cloudAvailability = {
+      entitledModelIds: [cloudModel.id],
+      quotaExhaustedModelIds: [],
+      featuresByModelId: { [cloudModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT, CHERRY_CLOUD_MODEL_FEATURE.CHAT] }
+    }
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: createSWRWrapper() })
+
+    await waitFor(() => expect(result.current.isModelDisabled(cloudModel)).toBe(false))
+    mocks.cloudAvailability = {
+      entitledModelIds: [],
+      quotaExhaustedModelIds: [],
+      featuresByModelId: { [cloudModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT, CHERRY_CLOUD_MODEL_FEATURE.CHAT] }
+    }
+
+    act(() => emitCloudStatus('signed-out'))
+
+    await waitFor(() => expect(result.current.isModelDisabled(cloudModel)).toBe(true))
+    expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.AGENT)).toBe(true)
+    expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.CHAT)).toBe(true)
+    expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE)).toBe(false)
+  })
+
   it('keeps Cloud models disabled when a previous sign-in refresh finishes after sign out', async () => {
     const cloudModel = {
       ...model(),

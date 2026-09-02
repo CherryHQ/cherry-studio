@@ -35,9 +35,15 @@ export function useCherryCloudModelAvailability(enabled = true): {
     }
   )
 
-  useIpcOn('cherry_cloud.status_changed', (status) => {
+  useIpcOn('cherry_cloud.status_changed', () => {
     if (!enabled) return
-    void mutate(EMPTY_CHERRY_CLOUD_AVAILABILITY, { revalidate: status.phase === 'signed-in' }).catch(() => undefined)
+    void mutate(
+      (current) => ({
+        ...EMPTY_CHERRY_CLOUD_AVAILABILITY,
+        featuresByModelId: current?.featuresByModelId ?? {}
+      }),
+      { revalidate: true }
+    ).catch(() => undefined)
   })
 
   return useMemo(() => {

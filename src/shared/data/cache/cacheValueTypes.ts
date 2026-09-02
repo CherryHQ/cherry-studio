@@ -8,6 +8,7 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
+import type { CherryCloudModelFeature } from '../presets/cherryai'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
@@ -27,6 +28,8 @@ export type CacheAppUpdateState = {
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>
+
+export type CherryCloudModelFeatures = Record<UniqueModelId, CherryCloudModelFeature[]>
 
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
