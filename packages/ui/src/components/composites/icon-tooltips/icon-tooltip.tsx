@@ -23,27 +23,35 @@ export const IconTooltip = ({
   defaultAriaLabel = 'Icon',
   defaultColor,
   content,
+  onClick,
   ...tooltipProps
 }: BaseIconTooltipProps) => {
   const accessibleLabel =
     ariaLabel ?? iconProps?.['aria-label'] ?? (typeof content === 'string' ? content : defaultAriaLabel)
+  const icon = (
+    <Icon
+      size={iconProps?.size ?? 14}
+      color={iconProps?.color ?? defaultColor}
+      {...iconProps}
+      aria-hidden="true"
+      focusable="false"
+      tabIndex={-1}
+    />
+  )
+  const triggerClassName =
+    'inline-flex shrink-0 items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none focus-visible:bg-accent'
 
   return (
-    <Tooltip content={content} {...tooltipProps}>
-      <span
-        role="img"
-        aria-label={accessibleLabel}
-        tabIndex={0}
-        className="inline-flex shrink-0 items-center justify-center rounded-sm outline-none focus-visible:bg-accent">
-        <Icon
-          size={iconProps?.size ?? 14}
-          color={iconProps?.color ?? defaultColor}
-          {...iconProps}
-          aria-hidden="true"
-          focusable="false"
-          tabIndex={-1}
-        />
-      </span>
+    <Tooltip content={content} {...tooltipProps} asChild>
+      {onClick ? (
+        <button type="button" aria-label={accessibleLabel} className={triggerClassName} onClick={onClick}>
+          {icon}
+        </button>
+      ) : (
+        <span role="img" aria-label={accessibleLabel} tabIndex={0} className={triggerClassName}>
+          {icon}
+        </span>
+      )}
     </Tooltip>
   )
 }

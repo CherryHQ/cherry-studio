@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { InfoTooltip } from '../info-tooltip'
 
@@ -29,8 +29,24 @@ describe('InfoTooltip', () => {
     await user.tab()
 
     expect(trigger).toHaveFocus()
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Localized explanation')
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent('Localized explanation')
+    expect(trigger).toHaveAttribute('aria-describedby', tooltip.id)
     expect(trigger.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('uses a button and activates the click contract with Enter and Space', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+    render(<InfoTooltip content="Open documentation" ariaLabel="Documentation help" onClick={onClick} />)
+
+    const trigger = screen.getByRole('button', { name: 'Documentation help' })
+    await user.tab()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+
+    expect(trigger).toHaveFocus()
+    expect(onClick).toHaveBeenCalledTimes(2)
   })
 
   it('uses plain-text content as the localized accessible name by default', () => {
