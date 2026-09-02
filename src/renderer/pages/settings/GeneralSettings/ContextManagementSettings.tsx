@@ -12,8 +12,13 @@ import {
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
+import {
+  MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_THRESHOLD_PERCENT,
+  MIN_TRUNCATE_THRESHOLD
+} from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +49,7 @@ export const ContextManagementSettings = () => {
   const [truncateThreshold, setTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [compressEnabled, setCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [compressModelId, setCompressModelId] = usePreference('chat.context_settings.compress.model_id')
+  const [compressThreshold, setCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
 
   const { model: compressModel } = useModelById(compressModelId as UniqueModelId | null)
   const { providers } = useProviders({ enabled: true })
@@ -149,6 +155,31 @@ export const ContextManagementSettings = () => {
           </SettingRow>
           {compressEnabled && (
             <>
+              <SettingDivider />
+              <SettingRow>
+                <div className="min-w-0 flex-1">
+                  <SettingRowTitleWithTooltip
+                    title={t('settings.models.context_management.compress_threshold')}
+                    description={t('settings.models.context_management.compress_threshold_description')}
+                  />
+                </div>
+                <div className="w-[220px] shrink-0">
+                  <EditableNumber
+                    block
+                    min={MIN_COMPRESS_THRESHOLD_PERCENT}
+                    max={MAX_COMPRESS_THRESHOLD_PERCENT}
+                    step={5}
+                    precision={0}
+                    suffix="%"
+                    align="start"
+                    changeOnBlur
+                    aria-label={t('settings.models.context_management.compress_threshold')}
+                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    value={compressThreshold}
+                    onChange={(value) => void setCompressThreshold(clampThresholdPercent(value))}
+                  />
+                </div>
+              </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.models.context_management.compress_model')}</SettingRowTitle>
