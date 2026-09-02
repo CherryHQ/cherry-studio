@@ -72,7 +72,6 @@ jobs:
               - '.github/workflows/post-release.yml'
               - '.github/workflows/prepare-release.yml'
               - '.github/workflows/preview-release.yml'
-              - '.github/workflows/sign-preview-macos.yml'
               - '.github/workflows/publish-release.yml'
               - '.github/workflows/release.yml'
             extension-table-plus:

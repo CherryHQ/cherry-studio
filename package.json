@@ -201,7 +201,6 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
-    "@electron/osx-sign": "1.3.3",
     "@electron/rebuild": "^4.0.4",
     "@elysia/bearer": "^1.4.4",
     "@elysia/cors": "^1.4.2",

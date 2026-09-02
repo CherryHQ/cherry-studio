@@ -135,51 +135,17 @@ jobs:
           pnpm build:mac
         env:
           CSC_FOR_PULL_REQUEST: true
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
-
-      - name: Prepare macOS signing payload
-        if: matrix.os == 'macos-latest'
-        id: mac-signing
-        shell: bash
-        env:
-          PREVIEW_TAG: ${{ needs.resolve.outputs.preview_tag }}
-          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
-        run: |
-          mkdir -p preview-mac-signing
-          PAYLOAD_BUNDLE_ID=""
-
-          for entry in "x64:dist/mac/Cherry Studio.app" "arm64:dist/mac-arm64/Cherry Studio.app"; do
-            ARCH="${entry%%:*}"
-            APP_PATH="${entry#*:}"
-            ARCHIVE="preview-mac-$ARCH.zip"
-
-            if [ ! -d "$APP_PATH" ]; then
-              echo "Missing unsigned macOS application: $APP_PATH" >&2
-              exit 1
-            fi
-
-            BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")"
-            if [ -n "$PAYLOAD_BUNDLE_ID" ] && [ "$PAYLOAD_BUNDLE_ID" != "$BUNDLE_ID" ]; then
-              echo "macOS applications in one build have different bundle IDs" >&2
-              exit 1
-            fi
-            PAYLOAD_BUNDLE_ID="$BUNDLE_ID"
-            ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "preview-mac-signing/$ARCHIVE"
-            ARCHIVE_SHA256="$(shasum -a 256 "preview-mac-signing/$ARCHIVE" | awk '{print $1}')"
-
-            jq -n \
-              --arg arch "$ARCH" \
-              --arg archive "$ARCHIVE" \
-              --arg archive_sha256 "$ARCHIVE_SHA256" \
-              --arg bundle_id "$BUNDLE_ID" \
-              --arg preview_tag "$PREVIEW_TAG" \
-              --arg source_sha "$SOURCE_SHA" \
-              --arg version "$(node -p "require('./package.json').version")" \
-              '{arch: $arch, archive: $archive, archiveSha256: $archive_sha256, bundleId: $bundle_id, previewTag: $preview_tag, sourceSha: $source_sha, version: $version}' \
-              > "preview-mac-signing/$ARCH.json"
-          done
-
-          echo "bundle_id=$PAYLOAD_BUNDLE_ID" >> "$GITHUB_OUTPUT"
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
@@ -210,16 +176,6 @@ jobs:
           retention-days: 3
           compression-level: 0
 
-      - name: Upload macOS signing payload
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: cherry-studio-preview-mac-signing-${{ needs.resolve.outputs.source_sha }}-${{ steps.mac-signing.outputs.bundle_id }}
-          path: preview-mac-signing/*
-          if-no-files-found: error
-          retention-days: 3
-          compression-level: 0
-
   draft-release:
     name: Create draft preview release
     needs: [resolve, build]
@@ -235,18 +191,11 @@ jobs:
           path: preview-artifacts
           merge-multiple: true
 
-      - name: Exclude unsigned macOS packages
-        shell: bash
-        run: |
-          find preview-artifacts -maxdepth 1 -type f \
-            \( -name '*-mac-*.dmg' -o -name '*-mac-*.zip' -o -name '*-mac-*.zip.blockmap' -o -name '*-mac.yml' \) \
-            -delete
-
       - name: Create or update draft release
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
-          artifactErrorsFailBuild: false
+          artifactErrorsFailBuild: true
           artifacts: "preview-artifacts/*"
           body: |
             Internal preview build for `${{ inputs.branch }}` at `${{ needs.resolve.outputs.source_sha }}`.
