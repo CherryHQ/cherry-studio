@@ -320,10 +320,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
     useImeAwareDebouncedValue(query.trim())
   const deferredQuery = useDeferredValue(debouncedQuery)
-  // While the debounce window is still collapsing keystrokes, the rendered
-  // list (and the highlighted item) belongs to the previous committed query;
-  // activating it would open a result the input no longer shows.
-  const isSelectionStale = query.trim() !== debouncedQuery
+  // Selection is stale until the query driving the rendered list catches up
+  // with the input. Two handoffs must settle: raw input → debounce commit,
+  // and commit → deferred render (React first repaints with the previous
+  // deferred value, so results still lag the commit by a frame). Activating
+  // a row before both settle would open a result the input no longer shows.
+  const isSelectionStale = query.trim() !== debouncedQuery || debouncedQuery !== deferredQuery
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
@@ -823,8 +825,9 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       }
 
       if (event.key === 'Enter') {
-        // Results still belong to the previous query during the debounce
-        // window; swallow Enter instead of opening the stale active item.
+        // Results still belong to the previous query until the debounce
+        // commit and the deferred render both catch up; swallow Enter
+        // instead of opening the stale active item.
         if (isSelectionStale) {
           event.preventDefault()
           return
