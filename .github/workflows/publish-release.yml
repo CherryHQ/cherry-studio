@@ -9,12 +9,11 @@ on:
 permissions:
   actions: read
   contents: read
-  deployments: read
   pull-requests: read
 
 jobs:
-  preflight:
-    name: Verify release protection
+  approve:
+    name: Approve production release
     if: >-
       github.repository == 'CherryHQ/cherry-studio' &&
       github.event.workflow_run.conclusion == 'success' &&
@@ -26,45 +25,6 @@ jobs:
         github.event.workflow_run.head_branch,
         github.event.workflow_run.head_sha
       )
-    runs-on: ubuntu-latest
-    steps:
-      - name: Require protected release environment
-        shell: bash
-        env:
-          APPROVER_TEAM_ID: "12646259"
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          ENVIRONMENT="$(gh api "repos/$REPO/environments/release")"
-          if ! jq -e --argjson teamId "$APPROVER_TEAM_ID" '
-            .deployment_branch_policy.protected_branches == false and
-            .deployment_branch_policy.custom_branch_policies == true and
-            any(
-              .protection_rules[];
-              .type == "required_reviewers" and
-              .prevent_self_review == true and
-              (.reviewers | length) == 1 and
-              .reviewers[0].type == "Team" and
-              .reviewers[0].reviewer.id == $teamId
-            )
-          ' <<< "$ENVIRONMENT" >/dev/null; then
-            echo "The release environment must allow only Cherry Studio Core approval and prevent self-review" >&2
-            exit 1
-          fi
-
-          BRANCH_POLICIES="$(gh api --paginate --slurp \
-            "repos/$REPO/environments/release/deployment-branch-policies?per_page=100")"
-          if ! jq -e '
-            ([.[] | .branch_policies[] | select(.name == "main" and .type == "branch")] | length) == 1 and
-            ([.[] | .branch_policies[]] | length) == 1
-          ' <<< "$BRANCH_POLICIES" >/dev/null; then
-            echo "The release environment must allow only the main branch" >&2
-            exit 1
-          fi
-
-  approve:
-    name: Approve production release
-    needs: preflight
     runs-on: ubuntu-latest
     environment: release
     steps:

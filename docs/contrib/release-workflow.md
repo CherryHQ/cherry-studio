@@ -42,9 +42,9 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 4. Select `all`, `windows`, `mac`, or `linux`, then run the workflow.
 5. Open the resulting draft under **Releases** and download its installers.
 
-Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview.g<commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
+Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
 
-Preview source code runs without repository credentials, application service secrets, signing certificates, or notarization credentials, so these internal packages are unsigned and may omit secret-backed integrations. Their non-semantic-version tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
+Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. Access to **Preview Release** is therefore limited through repository permissions. Preview tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
 
 ## Before Starting
 
@@ -58,7 +58,7 @@ Confirm all of the following:
 
 Do not create the release branch, release tag, or metadata synchronization pull request by hand during the normal flow. Do not publish from the GitHub Releases page. The workflows own those operations and serialize them with the repository-wide `release-state` concurrency group.
 
-An administrator must create the `release` Environment before this flow is enabled. Configure `Cherry Studio Core` as a required reviewer, enable **Prevent self-review**, and allow deployments only from the `main` branch. **Publish Release** verifies this exact protection policy before requesting approval and fails closed if the environment is absent or weaker.
+An administrator must create the `release` Environment before this flow is enabled and configure the trusted people or teams who may approve publication. GitHub enforces the Environment's current protection rules before **Publish Release** continues.
 
 ## 1. Prepare the Release Branch
 

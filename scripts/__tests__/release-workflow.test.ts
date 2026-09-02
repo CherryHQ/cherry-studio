@@ -978,11 +978,6 @@ describe('release workflow gates', () => {
 
     expect(releaseWorkflow.on.workflow_dispatch.inputs).not.toHaveProperty('operation')
     expect(releaseWorkflow.jobs).not.toHaveProperty('publish-release')
-    expect(workflow.jobs.preflight.steps[0].run).toContain('APPROVER_TEAM_ID')
-    expect(workflow.jobs.preflight.steps[0].run).toContain('.prevent_self_review == true')
-    expect(workflow.jobs.preflight.steps[0].run).toContain('(.reviewers | length) == 1')
-    expect(workflow.jobs.preflight.steps[0].run).toContain('.name == "main"')
-    expect(workflow.jobs.approve.needs).toBe('preflight')
     expect(workflow.jobs.approve.environment).toBe('release')
     expect(workflow.jobs.publish.needs).toBe('approve')
     expect(workflow.jobs.publish.concurrency.group).toBe('release-state')
