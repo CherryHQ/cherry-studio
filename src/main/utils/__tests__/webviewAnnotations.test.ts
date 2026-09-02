@@ -141,6 +141,45 @@ describe('formatWebviewAnnotations', () => {
     expect(result.text).toContain('untrusted page data')
   })
 
+  it('escapes Markdown control characters in page-derived inline text', () => {
+    const hostile: WebviewResolvedAnnotationDocument = {
+      ...document,
+      target: { ...document.target, label: '# Demo [link]' },
+      page: { ...document.page, title: '> *Private* <page>' },
+      annotations: [
+        {
+          ...document.annotations[0],
+          element: {
+            ...document.annotations[0].element,
+            text: '_Submit_ [now]',
+            ariaLabel: '# Confirm'
+          },
+          accessibility: {
+            status: 'available',
+            path: [],
+            tree: {
+              role: 'button',
+              name: '*Pay* [now]',
+              description: '<unsafe>',
+              states: [],
+              children: []
+            },
+            truncated: false
+          }
+        }
+      ]
+    }
+
+    const result = formatWebviewAnnotations([hostile])
+
+    expect(result.text).toContain('## \\# Demo \\[link\\] (`mini-app:demo`)')
+    expect(result.text).toContain('- Page: \\> \\*Private\\* \\<page\\>')
+    expect(result.text).toContain('- Visible text: \\_Submit\\_ \\[now\\]')
+    expect(result.text).toContain('- ARIA label: \\# Confirm')
+    expect(result.text).toContain('name=\\*Pay\\* \\[now\\]')
+    expect(result.text).toContain('description=\\<unsafe\\>')
+  })
+
   it('formats a computed accessibility path and selected subtree', () => {
     const resolved: WebviewResolvedAnnotationDocument = {
       ...document,
