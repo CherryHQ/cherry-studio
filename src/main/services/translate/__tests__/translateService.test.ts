@@ -153,9 +153,7 @@ describe('translateService.open', () => {
     getByLangCodeMock.mockReturnValue(TARGET)
     MockMainPreferenceServiceUtils.setMultiplePreferenceValues({
       'feature.translate.enable_temperature': true,
-      'feature.translate.temperature': 0.3,
-      'feature.translate.enable_max_tokens': true,
-      'feature.translate.max_tokens': 512
+      'feature.translate.temperature': 0.3
     })
   })
 
@@ -191,7 +189,7 @@ describe('translateService.open', () => {
     expect(arg.reasoningEffort).toBe('none')
     // The whole feature hangs off this one argument: drop it and every other
     // assertion in this file still passes while nothing reaches the model.
-    expect(arg.callOverrides).toEqual({ temperature: 0.3, maxOutputTokens: 512 })
+    expect(arg.callOverrides).toEqual({ temperature: 0.3 })
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)
@@ -239,9 +237,7 @@ describe('translateService.resolveRequestParameters', () => {
       'feature.translate.enable_temperature': true,
       'feature.translate.temperature': 0.3,
       'feature.translate.enable_top_p': true,
-      'feature.translate.top_p': 0.8,
-      'feature.translate.enable_max_tokens': true,
-      'feature.translate.max_tokens': 2048
+      'feature.translate.top_p': 0.8
     })
   }
 
@@ -257,7 +253,7 @@ describe('translateService.resolveRequestParameters', () => {
 
     const params = translateService.resolveRequestParameters(makeModel())
 
-    expect(params.callOverrides).toEqual({ temperature: 0.3, topP: 0.8, maxOutputTokens: 2048 })
+    expect(params.callOverrides).toEqual({ temperature: 0.3, topP: 0.8 })
   })
 
   it('drops a sampling parameter the model rejects and keeps the rest', () => {
@@ -267,7 +263,7 @@ describe('translateService.resolveRequestParameters', () => {
 
     const params = translateService.resolveRequestParameters(model)
 
-    expect(params.callOverrides).toEqual({ temperature: 0.3, maxOutputTokens: 2048 })
+    expect(params.callOverrides).toEqual({ temperature: 0.3 })
   })
 
   it('drops temperature once the stored effort turns Claude thinking on', () => {

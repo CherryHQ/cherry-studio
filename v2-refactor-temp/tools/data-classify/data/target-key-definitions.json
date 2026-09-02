@@ -787,20 +787,6 @@
       "description": "Nucleus sampling topP for the translate model, sent only when enable_top_p is on (v2 new feature, no v1 source)"
     },
     {
-      "targetKey": "feature.translate.enable_max_tokens",
-      "type": "boolean",
-      "defaultValue": false,
-      "status": "classified",
-      "description": "Whether the translate request declares a max output token limit (v2 new feature, no v1 source)"
-    },
-    {
-      "targetKey": "feature.translate.max_tokens",
-      "type": "number",
-      "defaultValue": 4096,
-      "status": "classified",
-      "description": "Max output tokens for the translate model, sent only when enable_max_tokens is on (v2 new feature, no v1 source)"
-    },
-    {
       "targetKey": "feature.translate.reasoning_effort",
       "type": "PreferenceTypes.ReasoningEffortOption",
       "defaultValue": "none",

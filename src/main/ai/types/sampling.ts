@@ -4,10 +4,9 @@
  *
  * Deliberately standalone: an assistant carries these among its settings and a
  * feature that keeps its own model configuration (translate) supplies them
- * directly, so neither owns the shape. Both bind to it structurally —
- * `buildAgentParams` passes `assistant.settings`, `translateService` builds a
- * literal with `satisfies SamplingSettings` — and those two bindings are what
- * keep the shapes from drifting apart.
+ * directly, so neither owns the shape. `buildAgentParams` passes
+ * `assistant.settings` whole; `translateService` has no output cap to offer and
+ * binds to the `GatedSampling` subset the gates actually read.
  *
  * Each value is paired with an `enable*` flag. When the flag is off the value is
  * not sent and the model's own default applies.

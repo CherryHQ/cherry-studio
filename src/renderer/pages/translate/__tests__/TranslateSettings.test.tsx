@@ -511,8 +511,6 @@ describe('translate model parameters', () => {
       'feature.translate.temperature': 1,
       'feature.translate.enable_top_p': false,
       'feature.translate.top_p': 1,
-      'feature.translate.enable_max_tokens': false,
-      'feature.translate.max_tokens': 4096,
       'feature.translate.reasoning_effort': 'none'
     })
     mockUsePreference.mockImplementation((key: string) => [

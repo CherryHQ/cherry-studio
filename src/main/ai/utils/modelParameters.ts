@@ -25,7 +25,7 @@ import type { ResolvedReasoningInvocation } from './reasoningSerializers'
 const logger = loggerService.withContext('modelParameters')
 
 /** The two sampling fields these gates read; `maxTokens` has no gate of its own. */
-type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
+export type GatedSampling = Pick<SamplingSettings, 'temperature' | 'enableTemperature' | 'topP' | 'enableTopP'>
 
 /** `undefined` falls back to the provider default. */
 export function getTemperature(

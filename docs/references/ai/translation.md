@@ -76,8 +76,8 @@ ipcApi.request('translate.open', {
 The route has no `messageId` or `sourceLangCode`. Main therefore has no message
 target and cannot persist chat data from this route.
 
-Model parameters do not cross the wire either. Temperature, top-p, max tokens
-and reasoning effort live in Preference under `feature.translate.*`, so Main
+Model parameters do not cross the wire either. Temperature, top-p and reasoning
+effort live in Preference under `feature.translate.*`, so Main
 reads them itself — every caller of `translate.open` gets the same settings
 without having to pass them, and a renderer cannot ask for a value the user did
 not configure. (Layout-preserving PDF translation does not go through this

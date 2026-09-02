@@ -18,8 +18,8 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { CallOverrides, SamplingSettings } from '@main/ai/types'
-import { getTemperature, getTopP } from '@main/ai/utils/modelParameters'
+import type { CallOverrides } from '@main/ai/types'
+import { type GatedSampling, getTemperature, getTopP } from '@main/ai/utils/modelParameters'
 import { type ResolvedReasoningKind, resolveSelection } from '@main/ai/utils/reasoningSerializers'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -135,16 +135,16 @@ export class TranslateService {
    * Sampling rides `callOverrides` because `streamPrompt` offers no other
    * channel for a caller without an assistant — the field exists for exactly
    * that (`CallOverrides`, used by the API gateway). Downstream re-gating drops
-   * only `topK` (`filterStandardParams`), so temperature, topP and
-   * maxOutputTokens reach the wire as given and translate has to gate them here.
+   * only `topK` (`filterStandardParams`), so temperature and topP reach the wire
+   * as given and translate has to gate them here.
    *
    * That forces the gate to run before the pipeline resolves reasoning, which an
    * assistant's settings never do — `buildAgentParams` gates them after. Sharing
    * `resolveSelection` closes the model half of that gap. The wire half stays
-   * open: a profile with no mode for the selection, or a thinking budget the
-   * output cap cannot satisfy, still reads as active here and omits downstream,
-   * so a translation can lose a temperature it should have kept. #19693 is the
-   * exit — it moves this gate inside the pipeline, where both halves are known.
+   * open: a profile with no mode for the selection still reads as active here
+   * and omits downstream, so a translation could lose a temperature it should
+   * have kept. #19693 is the exit — it moves this gate inside the pipeline,
+   * where both halves are known.
    */
   resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
     const preferenceService = application.get('PreferenceService')
@@ -153,10 +153,8 @@ export class TranslateService {
       temperature: preferenceService.get('feature.translate.temperature'),
       enableTemperature: preferenceService.get('feature.translate.enable_temperature'),
       topP: preferenceService.get('feature.translate.top_p'),
-      enableTopP: preferenceService.get('feature.translate.enable_top_p'),
-      maxTokens: preferenceService.get('feature.translate.max_tokens'),
-      enableMaxTokens: preferenceService.get('feature.translate.enable_max_tokens')
-    } satisfies SamplingSettings
+      enableTopP: preferenceService.get('feature.translate.enable_top_p')
+    } satisfies GatedSampling
 
     const reasoning = { kind: reasoningKindFor(reasoningEffort, model) }
     const temperature = getTemperature(settings, model, reasoning)
@@ -166,8 +164,7 @@ export class TranslateService {
       reasoningEffort,
       callOverrides: {
         ...(temperature !== undefined && { temperature }),
-        ...(topP !== undefined && { topP }),
-        ...(settings.enableMaxTokens && { maxOutputTokens: settings.maxTokens })
+        ...(topP !== undefined && { topP })
       }
     }
   }

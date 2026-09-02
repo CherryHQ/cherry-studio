@@ -1,7 +1,6 @@
 import {
   Button,
   ConfirmDialog,
-  EditableNumber,
   Field,
   FieldDescription,
   FieldLabel,
@@ -242,8 +241,6 @@ const TranslateModelParameters: FC = () => {
   const [temperature, setTemperature] = usePreference('feature.translate.temperature')
   const [enableTopP, setEnableTopP] = usePreference('feature.translate.enable_top_p')
   const [topP, setTopP] = usePreference('feature.translate.top_p')
-  const [enableMaxTokens, setEnableMaxTokens] = usePreference('feature.translate.enable_max_tokens')
-  const [maxTokens, setMaxTokens] = usePreference('feature.translate.max_tokens')
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -302,39 +299,6 @@ const TranslateModelParameters: FC = () => {
             { value: 1, label: '1' }
           ]}
         />
-
-        <PageSidePanelItem
-          title={t('library.config.basic.max_tokens')}
-          description={t('library.config.basic.field.max_tokens.hint')}
-          action={
-            <div className="flex items-center gap-2">
-              {!enableMaxTokens && (
-                <span className="text-muted-foreground text-xs">{t('library.config.basic.default_value')}</span>
-              )}
-              <Switch
-                size="sm"
-                aria-label={t('library.config.basic.max_tokens')}
-                checked={enableMaxTokens}
-                onCheckedChange={(next) => void safePersist(setEnableMaxTokens(next), 'translate max tokens toggle')}
-              />
-            </div>
-          }>
-          {enableMaxTokens && (
-            <EditableNumber
-              block
-              min={1}
-              step={1}
-              precision={0}
-              align="start"
-              changeOnBlur
-              className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
-              value={maxTokens}
-              onChange={(next) => {
-                if (typeof next === 'number' && next > 0) void safePersist(setMaxTokens(next), 'translate max tokens')
-              }}
-            />
-          )}
-        </PageSidePanelItem>
       </div>
     </PageSidePanelSection>
   )
