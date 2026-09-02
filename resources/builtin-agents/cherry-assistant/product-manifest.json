@@ -800,7 +800,8 @@
         "maxMessages": null,
         "compress": {
           "enabled": true,
-          "modelId": null
+          "modelId": null,
+          "thresholdPercent": 80
         }
       },
       "limits": {
