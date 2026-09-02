@@ -15,6 +15,7 @@ import '@main/data/bootConfig'
 
 import { application } from '@application'
 import { serviceList } from '@main/core/application/serviceRegistry'
+import { utilityProcessManifest } from '@main/core/application/utilityProcessManifest'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
@@ -22,6 +23,7 @@ import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { installUtilityProcessManifest } from '@main/core/utilityProcess/installedManifest'
 import { MINI_APP_SCHEME_DECLARATION } from '@main/features/miniApp/runtime/protocol'
 import { runDataReset } from '@main/services/dataReset'
 import { CHERRY_MEDIA_SCHEME_DECLARATION } from '@main/services/mediaProtocol'
@@ -74,6 +76,7 @@ const startApp = async () => {
   electronApp.setAppUserModelId(getApplicationId())
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
+  installUtilityProcessManifest(utilityProcessManifest)
   application.registerAll(serviceList)
   const bootstrapPromise = application.bootstrap()
 

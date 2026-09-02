@@ -23,6 +23,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
+import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
@@ -92,6 +93,7 @@ import { WebviewService } from '@main/services/WebviewService'
 export const services = {
   MainNetworkDevtoolsService,
   WindowManager,
+  UtilityProcessManager,
   DbService,
   CacheService,
   DataApiService,
