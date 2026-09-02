@@ -473,7 +473,8 @@ jobs:
             electron-builder.yml \
             "$RUNNER_TEMP/generated-release-notes.md" \
             "$RUNNER_TEMP/release-body.md"
-          jq -Rs '{body: .}' < "$RUNNER_TEMP/release-body.md" > "$RUNNER_TEMP/release-body.json"
+          # PATCH without tag_name resets a draft to untagged-<sha>
+          jq -Rs --arg tag "$TAG" '{tag_name: $tag, body: .}' < "$RUNNER_TEMP/release-body.md" > "$RUNNER_TEMP/release-body.json"
           RELEASE="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
             --input "$RUNNER_TEMP/release-body.json")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
