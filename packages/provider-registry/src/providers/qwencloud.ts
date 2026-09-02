@@ -1,4 +1,4 @@
-import type { ImageModeDef } from '../schemas/model'
+import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import {
   effortChatWire,
@@ -11,6 +11,7 @@ import {
   qwenChatWire
 } from './qwenFamily'
 import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
 /**
  * Hybrid-thinking Qwen lines whose Chat Completions contract is the family-wide toggle + budget wire.
@@ -34,7 +35,48 @@ const qwenChatModels = [
 ]
 
 /** GLM hosted lines take a `high`/`max` effort on Chat Completions. */
-const highMaxModels = ['glm-5', 'glm-5.1']
+const highMaxModels = ['glm-5']
+
+/**
+ * glm-5.1 tops out at `xhigh` on Chat — `max` returns `invalid_parameter_error`
+ * (docs.qwencloud.com third-party-models/glm). No documented default tier, so
+ * none is pinned and the server default applies when the user leaves it unset.
+ */
+const glm51ChatSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] }],
+  supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh']
+}
+
+/** glm-5.2 exposes the full seven-tier Chat ladder; default tier is not documented. */
+const glm52ChatSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }],
+  supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+}
+
+/** DeepSeek-V4 Chat lines take five effort tiers, documented to default to `high`. */
+const deepseekV4ChatSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'high' }],
+  defaultEffort: 'high',
+  supportedEfforts: ['low', 'medium', 'high', 'xhigh', 'max']
+}
+
+/**
+ * QwenCloud's Responses API exposes ONE endpoint-wide `reasoning.effort` ladder —
+ * seven tiers documented to default to `xhigh` (api-reference/chat/openai-responses).
+ */
+const qwencloudResponsesSupport: ReasoningSupport = {
+  controls: [
+    { kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], default: 'xhigh' }
+  ],
+  defaultEffort: 'xhigh',
+  supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']
+}
+
+const responsesEffortWire = modeWire(
+  'reasoningEffort',
+  { off: 'none', auto: EFFORT, effort: EFFORT },
+  { autoEffort: 'xhigh' }
+)
 
 /**
  * Hand-curated listing rows (no reasoning contract): hosted third-party lines, open-weight and
@@ -105,27 +147,37 @@ const qwenImage3Mode: ImageModeDef = {
 const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
 
 /**
- * qwen-image-2.0 lines ride the same sync multimodal transport with a fixed 2048x2048 default
- * (no `auto`); on editing the upstream default is the input image's resolution instead.
+ * qwen-image-2.0 lines ride the same sync multimodal transport with a fixed 2048x2048
+ * generate default (no `auto`). Editing differs upstream: an omitted size makes the
+ * server follow the last input image's resolution (docs image-editing page), so the
+ * edit mode carries the size options WITHOUT a default — the request then omits
+ * `size` entirely instead of pinning 2048x2048.
  */
-const qwenImage20Mode: ImageModeDef = {
+const qwenImage20SizeOptions = ['2048x2048', '1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664']
+
+const qwenImage20Supports: ImageModeDef['supports'] = {
+  addWatermark: { default: false, type: 'switch' },
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 6, min: 1, type: 'range' },
+  promptExtend: { default: true, type: 'switch' },
+  seed: { type: 'text' },
+  size: { default: '2048x2048', options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }
+}
+
+const qwenImage20EditMode: ImageModeDef = {
   supports: {
-    addWatermark: { default: false, type: 'switch' },
-    negativePrompt: { multiline: true, type: 'text' },
-    numImages: { default: 1, max: 6, min: 1, type: 'range' },
-    promptExtend: { default: true, type: 'switch' },
-    seed: { type: 'text' },
-    size: {
-      default: '2048x2048',
-      options: ['2048x2048', '1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
-      render: 'chips',
-      type: 'enum'
-    }
+    ...qwenImage20Supports,
+    size: { options: qwenImage20SizeOptions, render: 'chips', type: 'enum' }
   },
   vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
 }
 
-const qwenImage20ImageGeneration = { modes: { edit: qwenImage20Mode, generate: qwenImage20Mode } }
+const qwenImage20GenerateMode: ImageModeDef = {
+  supports: qwenImage20Supports,
+  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+}
+
+const qwenImage20ImageGeneration = { modes: { edit: qwenImage20EditMode, generate: qwenImage20GenerateMode } }
 
 /** z-image-turbo is t2i-only on the same sync transport; prompt rewriting defaults off upstream. */
 const zImageTurboMode: ImageModeDef = {
@@ -242,6 +294,12 @@ export default defineProvider({
       })
     ),
     {
+      modelId: 'glm-5.1',
+      reasoningContracts: {
+        'openai-chat-completions': { support: glm51ChatSupport, wire: effortChatWire }
+      }
+    },
+    {
       apiModelId: 'qwen3.8-max',
       modelId: 'qwen3-8-max',
       name: 'Qwen3.8 Max',
@@ -264,16 +322,26 @@ export default defineProvider({
       }
     },
     // DeepSeek-V4 / GLM-5.2 search through the Responses `web_search` tool only — Responses stays the
-    // default endpoint so their search is reachable, Chat remains selectable for plain requests.
-    ...(['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5.2'] as const).map(
+    // default endpoint so their search is reachable, Chat remains selectable for plain requests. Both
+    // endpoints carry their documented Chat/Responses effort ladders (see the constants above).
+    ...(['deepseek-v4-pro', 'deepseek-v4-flash'] as const).map(
       (modelId): Partial<ProviderModelOverride> => ({
         modelId,
         endpointTypes: ['openai-responses', 'openai-chat-completions'],
         reasoningContracts: {
-          'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
+          'openai-chat-completions': { support: deepseekV4ChatSupport, wire: effortChatWire },
+          'openai-responses': { support: qwencloudResponsesSupport, wire: responsesEffortWire }
         }
       })
     ),
+    {
+      modelId: 'glm-5.2',
+      endpointTypes: ['openai-responses', 'openai-chat-completions'],
+      reasoningContracts: {
+        'openai-chat-completions': { support: glm52ChatSupport, wire: effortChatWire },
+        'openai-responses': { support: qwencloudResponsesSupport, wire: responsesEffortWire }
+      }
+    },
     ...listedModels.map((modelId): Partial<ProviderModelOverride> => ({ modelId })),
     /**
      * Image SKUs per the QwenCloud image-models catalog (docs.qwencloud.com): sync multimodal
