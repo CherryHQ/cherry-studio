@@ -142,8 +142,9 @@ function defaultGroup(modelId: string, providerId: string): string {
 
 /** Build a partial v2 Model from API response */
 function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>): Partial<Model> {
+  const safeModelId = apiModelId.replace(/[?#]/g, '')
   return {
-    id: createUniqueModelId(provider.id, apiModelId),
+    id: createUniqueModelId(provider.id, safeModelId),
     providerId: provider.id,
     apiModelId,
     name: extra?.name || apiModelId,

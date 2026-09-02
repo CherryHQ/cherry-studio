@@ -34,7 +34,7 @@ jobs:
       tag: ${{ steps.release-ref.outputs.tag }}
     steps:
       - name: Check out release commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -138,7 +138,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ github.sha }}
@@ -283,7 +283,7 @@ jobs:
       contents: write
     steps:
       - name: Check out release commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
