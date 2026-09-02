@@ -1,8 +1,8 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, withFullMarkdown } from '@cherrystudio/ui'
+import { remarkLatexMath } from '@renderer/components/chat/messages/markdown/plugins/remarkLatexMath'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { processLatexBrackets } from '@renderer/utils/markdownLight'
 import { type FC, useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
@@ -35,7 +35,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className, components 
   const { openFilePath } = useMarkdownHost()
 
   const plugins = useMemo(() => withFullMarkdown({ singleDollarMath: true }), [])
-  const content = useMemo(() => removeSvgEmptyLines(processLatexBrackets(children)), [children])
+  const content = useMemo(() => removeSvgEmptyLines(children), [children])
   const hasStyleElement = /<style\b[^>]*>/i.test(content)
   const markdownComponents = useMarkdownComponents({ components, hasStyleElement })
 
@@ -43,6 +43,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className, components 
     <Markdown
       id={blockId}
       plugins={plugins}
+      remarkPlugins={[remarkLatexMath]}
       components={markdownComponents}
       className={['static-markdown', className].filter(Boolean).join(' ')}
       footnoteLabel={t('common.footnotes')}

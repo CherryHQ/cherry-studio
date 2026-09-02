@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -74,6 +74,40 @@ const RANKED_SESSION_SEARCH_MAX_FALLBACK_TERMS = 128
 const MESSAGE_CURSOR_CONFIG = {
   fieldMessage: 'must be a valid message cursor',
   errorMessage: 'Invalid message cursor'
+}
+
+export interface AgentSessionMessageRangeMetadata {
+  readonly createdAt: string
+  readonly entityJsonBytes: number
+  readonly id: string
+  readonly sessionId: string
+}
+
+function agentSessionMessageEntityJsonBytes(): SQL<number> {
+  return sql<number>`length(cast(json_object(
+    'id', ${sessionMessagesTable.id},
+    'sessionId', ${sessionMessagesTable.sessionId},
+    'role', ${sessionMessagesTable.role},
+    'data', json(${sessionMessagesTable.data}),
+    'searchableText', ${sessionMessagesTable.searchableText},
+    'status', ${sessionMessagesTable.status},
+    'modelId', ${sessionMessagesTable.modelId},
+    'messageSnapshot', json(${sessionMessagesTable.messageSnapshot}),
+    'stats', json(${sessionMessagesTable.stats}),
+    'runtimeResumeToken', ${sessionMessagesTable.runtimeResumeToken},
+    'delivery', json(case
+      when ${sessionMessagesTable.delivery} is not null and ${sessionMessagesTable.deliveryStatus} is not null
+      then json_set(
+        json(${sessionMessagesTable.delivery}),
+        '$.status', ${sessionMessagesTable.deliveryStatus},
+        '$.inReplyTo', ${sessionMessagesTable.deliveryInReplyTo},
+        '$.turnRef', ${sessionMessagesTable.deliveryTurnRef}
+      )
+      else null
+    end),
+    'createdAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${sessionMessagesTable.createdAt} / 1000.0, 'unixepoch'),
+    'updatedAt', strftime('%Y-%m-%dT%H:%M:%fZ', ${sessionMessagesTable.updatedAt} / 1000.0, 'unixepoch')
+  ) as blob))`
 }
 
 type SessionMessageSearchRow = {
@@ -428,6 +462,52 @@ export class AgentSessionMessageService {
 
   hasSessionMessage(sessionId: string, messageId: string): boolean {
     return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
+  }
+
+  listCreatedInRangeMetadataPage({
+    fromMs,
+    toMs,
+    cursor: rawCursor,
+    limit
+  }: {
+    fromMs: number
+    toMs: number
+    cursor?: string
+    limit: number
+  }): CursorPaginationResponse<AgentSessionMessageRangeMetadata> {
+    const ordering = keysetOrdering(sessionMessagesTable.createdAt, sessionMessagesTable.id, {
+      major: 'desc',
+      tie: 'asc'
+    })
+    const cursor = decodeListCursor(rawCursor, asNumericKey, 'agent-session-message-range-metadata')
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({
+        createdAt: sessionMessagesTable.createdAt,
+        entityJsonBytes: agentSessionMessageEntityJsonBytes(),
+        id: sessionMessagesTable.id,
+        sessionId: sessionMessagesTable.sessionId
+      })
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          gte(sessionMessagesTable.createdAt, fromMs),
+          lte(sessionMessagesTable.createdAt, toMs),
+          cursor ? ordering.where(cursor) : undefined
+        )
+      )
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+
+    const hasNext = rows.length > limit
+    const pageRows = hasNext ? rows.slice(0, limit) : rows
+    const tail = pageRows[pageRows.length - 1]
+    return {
+      items: pageRows.map((row) => ({ ...row, createdAt: timestampToISO(row.createdAt) })),
+      nextCursor: hasNext && tail ? encodeCursor(tail.createdAt, tail.id) : undefined
+    }
   }
 
   /**

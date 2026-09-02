@@ -9,7 +9,7 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
-import { defaultAppHeaders } from '@main/utils/http'
+import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
@@ -49,6 +49,7 @@ import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtr
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiImageRouting'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { transformLmStudioRequestBody } from './lmstudio'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 import { transformZhipuRequestBody } from './zhipuWebSearch'
 
@@ -123,7 +124,8 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.ppio,
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
-  SystemProviderIds.dmxapi
+  SystemProviderIds.dmxapi,
+  SystemProviderIds.tokenhub
 ] as const
 
 // ── SDK Config Building ──
@@ -251,6 +253,17 @@ export async function resolveProviderAiSdkConfig(
         return config
       })
     },
+    // LM Studio's OpenAI-compatible endpoint expects bare base64 for images when
+    // a message contains multiple image blocks. Keep single-image requests on
+    // the unchanged OpenAI data-URI format (lmstudio.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, SystemProviderIds.lmstudio),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.transformRequestBody = transformLmStudioRequestBody
+        return config
+      })
+    },
     // Moonshot chat routes to its extension so the `$web_search` echo-tool factory
     // resolves under providerId 'moonshot'; the provider's transformRequestBody
     // rewrites the declaration to Kimi's builtin_function shape (moonshotProvider.ts).
@@ -303,7 +316,7 @@ export async function resolveProviderAiSdkConfig(
     // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
     // minimal body only, no OpenAI-only extras they would reject.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
-    // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // modelscope / ppio / doubao / dmxapi / tokenhub: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
     // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
@@ -385,7 +398,7 @@ export async function resolveProviderAiSdkConfig(
 
 async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'github-copilot-openai-compatible'>> {
   const storedHeaders = {} // TODO: read from PreferenceService if copilot headers are persisted
-  const headers = { ...COPILOT_DEFAULT_HEADERS, ...storedHeaders }
+  const headers = mergeHeaders(COPILOT_DEFAULT_HEADERS, storedHeaders)
   const { token } = await copilotService.getToken(null as any, headers)
 
   return {
@@ -394,7 +407,7 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
     providerSettings: {
       ...ctx.baseConfig,
       apiKey: token,
-      headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
+      headers: mergeHeaders(headers, getExtraHeaders(ctx.actualProvider)),
       name: ctx.actualProvider.id
     }
   }

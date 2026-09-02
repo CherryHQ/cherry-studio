@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "@ai-sdk/google": "^3.0.64",
+    "@ai-sdk/google": "^3.0.113",
     "@ai-sdk/openai": "^3.0.53",
     "ai": "^6.0.116"
   },
@@ -39,10 +39,10 @@
     "@ai-sdk/anthropic": "^3.0.103",
     "@ai-sdk/azure": "^3.0.54",
     "@ai-sdk/deepseek": "^2.0.57",
-    "@ai-sdk/openai-compatible": "^2.0.62",
-    "@ai-sdk/provider": "^3.0.14",
-    "@ai-sdk/provider-utils": "^4.0.40",
-    "@ai-sdk/xai": "^3.0.111",
+    "@ai-sdk/openai-compatible": "^2.0.72",
+    "@ai-sdk/provider": "^3.0.15",
+    "@ai-sdk/provider-utils": "^4.0.48",
+    "@ai-sdk/xai": "^3.0.126",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.10.0",
     "quick-lru": "^5.1.1",

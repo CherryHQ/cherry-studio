@@ -255,7 +255,8 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   if (!link) {
     return renderActiveComposerTokenElement({
       ...props,
-      icon: tokenIconByKind.link
+      icon: tokenIconByKind.link,
+      colorClassName: 'text-link'
     })
   }
 
@@ -276,6 +277,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
   const chipElement = renderActiveComposerTokenElement({
     ...props,
+    colorClassName: 'text-link',
     className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
     icon: props.readOnly ? (
       <span

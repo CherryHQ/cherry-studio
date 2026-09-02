@@ -6,7 +6,6 @@ import {
   useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { processLatexBrackets } from '@renderer/utils/markdownLight'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
@@ -18,11 +17,12 @@ import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
+import { remarkLatexMath } from './plugins/remarkLatexMath'
 import { remarkLiteralAutolinkFix } from './plugins/remarkLiteralAutolinkFix'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i
-const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix]
-const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkHtmlArtifact]
+const REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath]
+const HTML_ARTIFACT_REMARK_PLUGINS: Pluggable[] = [remarkLiteralAutolinkFix, remarkLatexMath, remarkHtmlArtifact]
 const EMPTY_CITATION_REGISTRY = new Map()
 const MAX_ANIMATED_CONTENT_LENGTH = 64 * 1024
 const MAX_STREAMING_TRANSFORM_LENGTH = 256 * 1024
@@ -59,7 +59,7 @@ const ChatMarkdownRuntime: FC<ChatMarkdownRuntimeProps> = ({
     if (block.status === 'streaming' && block.content.length > MAX_STREAMING_TRANSFORM_LENGTH) return block.content
 
     const transform = (source: string) => {
-      let text = removeSvgEmptyLines(processLatexBrackets(source))
+      let text = removeSvgEmptyLines(source)
       if (postProcess) text = postProcess(text)
       return text
     }

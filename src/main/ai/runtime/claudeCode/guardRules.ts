@@ -12,6 +12,8 @@
  * denial declares no `bypassBehavior`; there is no effect for bypass to skip.
  */
 
+import path from 'node:path'
+
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import {
   findBuiltinToolPolicy,
@@ -23,6 +25,7 @@ import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
+import { imageExts } from '@shared/utils/file'
 
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
@@ -73,6 +76,13 @@ const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
   return HEADLESS_CONFIG_MUTATION_ACTIONS.has(action) ? {} : null
 }
 
+const unsupportedImageRead = (ctx: ToolGuardContext): GuardHit | null => {
+  if (ctx.supportsImages !== false) return null
+  const requestedPath = ctx.input?.file_path
+  if (typeof requestedPath !== 'string' || !imageExts.includes(path.extname(requestedPath).toLowerCase())) return null
+  return { evidence: requestedPath }
+}
+
 const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
   const pathField = WORKSPACE_PATH_FIELDS[ctx.toolName as keyof typeof WORKSPACE_PATH_FIELDS]
   if (!pathField) return null
@@ -103,6 +113,14 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     match: { when: (ctx) => (ctx.toolName && ctx.isDisabled(ctx.toolName) ? {} : null) },
     effect: 'deny',
     reason: (_hit, ctx) => `The ${ctx.toolName} tool is disabled for this agent.`
+  },
+  {
+    id: 'unsupported-image-read',
+    bypassBehavior: 'enforce',
+    match: { tool: 'Read', when: unsupportedImageRead },
+    effect: 'deny',
+    reason: (hit) =>
+      `The selected model does not support image input, so Read cannot open ${hit.evidence}. Use a vision-capable model or inspect the file through a text-only alternative.`
   },
   {
     // Global/shared installs leak into ~/.bun, ~/.local/share/uv, … shared by every agent, so this

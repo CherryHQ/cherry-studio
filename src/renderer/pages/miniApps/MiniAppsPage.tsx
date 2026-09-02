@@ -1,38 +1,56 @@
-import { Button, EmptyState, SearchInput } from '@cherrystudio/ui'
+import { Button, EmptyState, SearchInput, Tooltip, useDropzone } from '@cherrystudio/ui'
+import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsentDialog'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { toast } from '@renderer/services/toast'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { Menu, Plus } from 'lucide-react'
+import { Menu, PackagePlus, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
+import InstallMiniAppPanel from './InstallMiniAppPanel'
 import MiniAppDisplaySettings from './MiniAppSettings/MiniAppDisplaySettings'
 import MiniAppListPair from './MiniAppSettings/MiniAppListPair'
 import MiniAppSettingsPanel from './MiniAppSettings/MiniAppSettingsPanel'
 import { useMiniAppVisibility } from './MiniAppSettings/useMiniAppVisibility'
 import NewMiniAppPanel from './NewMiniAppPanel'
+import { useBuiltinMiniApps } from './useBuiltinMiniApps'
+import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
 const MINI_APPS_LOADING_COLOR = 'var(--muted-foreground)'
 
 const MiniAppsPage: FC = () => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [search, setSearch] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newAppOpen, setNewAppOpen] = useState(false)
+  // Non-null mounts the consent dialog for that builtin app; the toolbar has no install entry.
+  const [install, setInstall] = useState<{ builtinAppId: string } | null>(null)
   const [editingApp, setEditingApp] = useState<MiniApp | null>(null)
-  const { miniApps, isLoading, error } = useMiniApps()
+  const { allApps, miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
+  const droppedInstall = useMiniAppInstallPreview(() => undefined)
+  const packageDropzone = useMiniAppPackageDrop(droppedInstall.settle)
+  const hasOpenDialog =
+    settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
+  const pageDropDisabled = hasOpenDialog || droppedInstall.busy
+  // EVERY row, not `miniApps`: a disabled official app is still installed.
+  const builtinApps = useBuiltinMiniApps(allApps, i18n.language)
 
   const filteredApps = search
     ? miniApps.filter(
         (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
       )
     : miniApps
+  const filteredBuiltins = search
+    ? builtinApps.filter((entry) => entry.name.toLowerCase().includes(search.toLowerCase()))
+    : builtinApps
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -43,11 +61,43 @@ const MiniAppsPage: FC = () => {
     setEditingApp(null)
   }
 
+  const openCreateAppPanel = () => {
+    setEditingApp(null)
+    setNewAppOpen(true)
+  }
+
+  const { getRootProps, isDragActive } = useDropzone({
+    ...packageDropzone,
+    disabled: pageDropDisabled
+  })
+
+  useEffect(() => {
+    if (droppedInstall.error) {
+      toast.error(t(droppedInstall.error.key, droppedInstall.error.params))
+    }
+  }, [droppedInstall.error, t])
+
   return (
     <div
+      {...getRootProps()}
       data-ui="mini-apps.view"
-      className="flex h-full min-h-0 flex-1 flex-col text-foreground"
+      className="relative flex h-full min-h-0 flex-1 flex-col text-foreground"
       onContextMenu={handleContextMenu}>
+      {isDragActive && !pageDropDisabled && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-ui="mini-apps.drop-overlay"
+          className="pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-border-strong border-dashed bg-card">
+          <div className="flex max-w-sm flex-col items-center gap-3 px-6 text-center">
+            <span className="flex size-12 items-center justify-center rounded-full bg-accent">
+              <PackagePlus className="size-6 text-foreground-secondary" strokeWidth={1.5} />
+            </span>
+            <p className="font-medium text-foreground text-sm">{t('miniApp.install.drop_here')}</p>
+            <p className="text-muted-foreground text-xs">{t('miniApp.install.pick_hint')}</p>
+          </div>
+        </div>
+      )}
       <Navbar>
         <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>
@@ -56,16 +106,11 @@ const MiniAppsPage: FC = () => {
         {/* Top-right action buttons */}
         <div className="flex shrink-0 items-start justify-end p-3">
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('settings.miniApps.custom.title')}
-              onClick={() => {
-                setEditingApp(null)
-                setNewAppOpen(true)
-              }}>
-              <Plus size={14} />
-            </Button>
+            <Tooltip content={t('miniApp.add.title')}>
+              <Button variant="ghost" size="icon-sm" aria-label={t('miniApp.add.title')} onClick={openCreateAppPanel}>
+                <Plus size={14} />
+              </Button>
+            </Tooltip>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -100,7 +145,7 @@ const MiniAppsPage: FC = () => {
               <div className="flex flex-1 items-center justify-center text-muted-foreground text-xs">
                 {isDataApiError(error) ? error.message : t('common.error')}
               </div>
-            ) : filteredApps.length === 0 ? (
+            ) : filteredApps.length === 0 && filteredBuiltins.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
                 <EmptyState
                   preset={search ? 'no-result' : 'no-miniapp'}
@@ -108,11 +153,52 @@ const MiniAppsPage: FC = () => {
                 />
               </div>
             ) : (
-              <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(84px,92px))] justify-center gap-x-4 gap-y-8 px-2 pt-12 pb-8 sm:gap-x-5 md:gap-x-6">
-                {filteredApps.map((app) => (
-                  <App key={app.appId} app={app} size={56} variant="launchpad" onEditCustom={setEditingApp} />
-                ))}
-              </div>
+              <>
+                {filteredApps.length > 0 && (
+                  <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(84px,92px))] justify-center gap-x-4 gap-y-8 px-2 pt-12 pb-8 sm:gap-x-5 md:gap-x-6">
+                    {filteredApps.map((app) => (
+                      <App key={app.appId} app={app} size={56} variant="launchpad" onEditCustom={setEditingApp} />
+                    ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-label={t('miniApp.add.title')}
+                      className="group h-auto min-h-[104px] w-[92px] flex-col justify-start gap-0 bg-transparent px-0 pt-1 text-muted-foreground shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent"
+                      onClick={openCreateAppPanel}>
+                      <span className="mini-app-icon-frame flex size-[58px] items-center justify-center rounded-[14px] border border-border-subtle border-dashed bg-background-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out group-hover:bg-accent group-focus-visible:border-ring group-focus-visible:bg-accent motion-reduce:transition-none">
+                        <Plus className="size-6" strokeWidth={1.5} />
+                      </span>
+                      <span className="mt-2 min-h-9 max-w-[92px] whitespace-normal text-center text-[13px] leading-[18px]">
+                        {t('miniApp.add.title')}
+                      </span>
+                    </Button>
+                  </div>
+                )}
+                {/* Shipped but not installed: a click opens consent, never a tab (no files on disk yet). */}
+                {filteredBuiltins.length > 0 && (
+                  <section className="flex flex-col gap-6 px-2 pt-8 pb-8">
+                    <h2 className="text-center font-medium text-muted-foreground text-xs">
+                      {t('miniApp.builtin.not_installed')}
+                    </h2>
+                    <div className="grid w-full grid-cols-[repeat(auto-fill,minmax(84px,92px))] justify-center gap-x-4 gap-y-8 sm:gap-x-5 md:gap-x-6">
+                      {filteredBuiltins.map((entry) => (
+                        <button
+                          key={entry.appId}
+                          type="button"
+                          className="flex min-h-[104px] w-[92px] cursor-pointer flex-col items-center pt-1 outline-none hover:[&_.mini-app-icon-frame]:bg-accent focus-visible:[&_.mini-app-icon-frame]:border-ring focus-visible:[&_.mini-app-icon-frame]:bg-accent"
+                          onClick={() => setInstall({ builtinAppId: entry.appId })}>
+                          <span className="mini-app-icon-frame flex size-[58px] items-center justify-center overflow-hidden rounded-[14px] border border-border-subtle transition-[border-color,background-color] duration-[160ms] ease-in-out motion-reduce:transition-none">
+                            <img src={entry.iconUrl} alt="" className="size-14 rounded-[inherit]" />
+                          </span>
+                          <span className="mt-2 min-h-9 max-w-[92px] select-none overflow-hidden whitespace-normal text-center text-[13px] text-muted-foreground leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]">
+                            {entry.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
             )}
           </div>
         </Scrollbar>
@@ -125,6 +211,16 @@ const MiniAppsPage: FC = () => {
           </div>
         </MiniAppSettingsPanel>
         <NewMiniAppPanel open={newAppOpen || editingApp != null} app={editingApp} onClose={closeCustomAppPanel} />
+        {/* Mounted only while open: unmounting is one of the panel's cancel paths. */}
+        {install && <InstallMiniAppPanel builtinAppId={install.builtinAppId} onClose={() => setInstall(null)} />}
+        {droppedInstall.preview && (
+          <InstallConsentDialog
+            preview={droppedInstall.preview}
+            busy={droppedInstall.busy}
+            onCancel={droppedInstall.cancelPreview}
+            onConfirm={droppedInstall.confirm}
+          />
+        )}
       </div>
     </div>
   )
