@@ -805,7 +805,11 @@ export class AgentService {
           const [agent] = tx
             .select({ id: agentsTable.id })
             .from(agentsTable)
-            .where(permanent ? eq(agentsTable.id, id) : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .where(
+              permanent
+                ? and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt))
+                : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
+            )
             .limit(1)
             .all()
           if (!agent) return { rowsAffected: 0, sessionImpact: undefined }

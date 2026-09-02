@@ -517,7 +517,11 @@ export class TopicService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
-    const rows = tx.select({ id: topicTable.id }).from(topicTable).where(inArray(topicTable.id, uniqueIds)).all()
+    const rows = tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(inArray(topicTable.id, uniqueIds), isNotNull(topicTable.deletedAt)))
+      .all()
     const deletedIds = rows.map((row) => row.id)
 
     if (options.requireAll && deletedIds.length !== uniqueIds.length) {

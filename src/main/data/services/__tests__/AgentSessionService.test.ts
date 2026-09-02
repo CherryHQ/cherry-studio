@@ -1340,6 +1340,30 @@ describe('AgentSessionService', () => {
     ).toEqual(['msg-archive-1', 'msg-archive-2'])
   })
 
+  it('rejects permanent deletion of an active session and keeps it active', async () => {
+    const session = await createSession('Active permanent delete')
+
+    expect(captureError(() => agentSessionService.delete(session.id, { permanent: true }))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row).toMatchObject({ id: session.id, deletedAt: null })
+  })
+
+  it('rejects a stale permanent delete after the session has been restored', async () => {
+    const session = await createSession('Restored permanent delete')
+    agentSessionService.delete(session.id)
+    agentSessionService.restore(session.id)
+
+    expect(captureError(() => agentSessionService.delete(session.id, { permanent: true }))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row).toMatchObject({ id: session.id, deletedAt: null })
+  })
+
   it('detaches a bound task schedule when a session is archived', async () => {
     const session = await createSession('Scheduled')
     const task = createTaskSchedule()
@@ -1361,6 +1385,7 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
 
+    agentSessionService.delete(session.id)
     agentSessionService.delete(session.id, { permanent: true })
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
@@ -1392,6 +1417,8 @@ describe('AgentSessionService', () => {
       createdAt: 1,
       updatedAt: 1
     })
+
+    agentSessionService.deleteByAgentId('agent-session-test')
 
     const result = agentSessionService.deleteByAgentId('agent-session-test', { permanent: true })
 
@@ -1485,6 +1512,7 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
     const normalSession = await createSession('Normal session')
+    agentSessionService.delete(systemSession.id)
 
     const result = agentSessionService.deleteByIds([systemSession.id], { permanent: true })
 
@@ -1496,12 +1524,27 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
   })
 
+  it('permanently deletes only trashed sessions from a mixed batch', async () => {
+    const trashed = await createSession('Trashed batch session')
+    const active = await createSession('Active batch session')
+    agentSessionService.delete(trashed.id)
+
+    const result = agentSessionService.deleteByIds([trashed.id, active.id], { permanent: true })
+
+    expect(result).toEqual({ deletedIds: [trashed.id] })
+    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, trashed.id))).toEqual([])
+    const [activeRow] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, active.id))
+    expect(activeRow).toMatchObject({ id: active.id, deletedAt: null })
+  })
+
   it('deletes system workspace rows when deleting agent sessions', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Agent system workspace',
       workspace: { type: 'system' }
     })
+
+    agentSessionService.deleteByAgentId('agent-session-test')
 
     const result = agentSessionService.deleteByAgentId('agent-session-test', { permanent: true })
 
@@ -1666,6 +1709,7 @@ describe('AgentSessionService', () => {
       workspace: { type: 'system' }
     })
 
+    agentSessionService.delete(session.id)
     agentSessionService.delete(session.id, { permanent: true })
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)

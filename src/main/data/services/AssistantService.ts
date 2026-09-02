@@ -616,7 +616,7 @@ export class AssistantDataService {
     const deleted = application.get('DbService').withWriteTx((tx) => {
       const predicate =
         options.permanent === true
-          ? eq(assistantTable.id, id)
+          ? and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt))
           : and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
       const [existing] = tx.select({ id: assistantTable.id }).from(assistantTable).where(predicate).limit(1).all()
       if (!existing) throw DataApiErrorFactory.notFound('Assistant', id)
@@ -666,7 +666,6 @@ export class AssistantDataService {
     const [row] = tx.delete(assistantTable).where(eq(assistantTable.id, id)).returning({ id: assistantTable.id }).all()
     if (!row) return false
     pinService.purgeForEntityTx(tx, 'assistant', id)
-    // Purging a live assistant skips the archive path, so its bindings are still here.
     promptService.purgeForTargetTx(tx, 'assistant', id)
     return true
   }

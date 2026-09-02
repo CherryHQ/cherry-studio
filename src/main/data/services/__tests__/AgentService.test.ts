@@ -1067,6 +1067,7 @@ describe('AgentService', () => {
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
+      agentService.deleteAgent(id)
 
       const result = agentService.deleteAgent(id, { permanent: true })
 
@@ -1137,6 +1138,7 @@ describe('AgentService', () => {
         .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
       await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
 
+      agentService.deleteAgent(id)
       agentService.deleteAgent(id, { permanent: true })
 
       expect(await dbh.db.select().from(promptBindingTable)).toHaveLength(0)
@@ -1164,6 +1166,7 @@ describe('AgentService', () => {
       await insertKnowledgeBase('kb_agent_delete')
       const { id } = await insertAgent({ id: 'agent_with_kb_001', knowledgeBaseIds: ['kb_agent_delete'] })
 
+      agentService.deleteAgent(id)
       agentService.deleteAgent(id, { permanent: true })
 
       const rows = await dbh.db.select().from(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id))
@@ -1193,6 +1196,7 @@ describe('AgentService', () => {
           orderKey: 'a1'
         }
       ])
+      agentService.deleteAgent(id)
       notifyDataApiDataChangeMock.mockClear()
 
       const result = agentService.deleteAgent(id, { deleteSessions: true, permanent: true })
@@ -1241,6 +1245,7 @@ describe('AgentService', () => {
         taskScheduleId: task.id,
         orderKey: 'a0'
       })
+      agentService.deleteAgent(id)
       notifyDataApiDataChangeMock.mockClear()
 
       expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: true })
@@ -1275,6 +1280,7 @@ describe('AgentService', () => {
         workspaceId: 'workspace-rollback-1',
         orderKey: 'a0'
       })
+      agentService.deleteAgent(id)
 
       // Run the delete inside a real transaction so a mid-transaction failure rolls back;
       // the default DbService mock just passes the callback through without one.
@@ -1302,6 +1308,26 @@ describe('AgentService', () => {
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-rollback-1'))
       expect(sessionRows).toHaveLength(1)
+    })
+
+    it('rejects permanent deletion of an active agent and keeps it active', async () => {
+      const { id } = await insertAgent({ id: 'agent_active_permanent_001' })
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: false })
+
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toMatchObject({ id, deletedAt: null })
+    })
+
+    it('rejects a stale permanent delete after the agent has been restored', async () => {
+      const { id } = await insertAgent({ id: 'agent_restored_permanent_001' })
+      agentService.deleteAgent(id)
+      agentService.restoreAgent(id)
+
+      expect(agentService.deleteAgent(id, { permanent: true })).toMatchObject({ deleted: false })
+
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toMatchObject({ id, deletedAt: null })
     })
   })
 

@@ -907,7 +907,7 @@ export class AgentSessionService {
         .select({ session: sessionsTable, workspace: agentWorkspaceTable })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(eq(sessionsTable.id, id))
+        .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
         .limit(1)
         .all()
       if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -952,7 +952,7 @@ export class AgentSessionService {
         .select({ session: sessionsTable, workspace: agentWorkspaceTable })
         .from(sessionsTable)
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(inArray(sessionsTable.id, uniqueIds))
+        .where(and(inArray(sessionsTable.id, uniqueIds), isNotNull(sessionsTable.deletedAt)))
         .all()
 
       return this.cascadeDeleteSessionRowsTx(tx, rows)

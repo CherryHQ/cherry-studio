@@ -304,17 +304,20 @@ class PaintingService {
    * the file orphan sweep still sees the generated images as owned and the
    * disk files stay safe while the painting sits in the trash.
    *
-   * `permanent: true`: hard-delete the DB row (existence intentionally NOT
-   * scoped to active rows — trashed paintings must be hard-deletable). The FK
-   * cascade clears `painting_file_ref`; disk images are reclaimed later by the
-   * file orphan sweep. DB-only — no filesystem work in DataApi.
+   * `permanent: true`: hard-delete the DB row only while it remains archived.
+   * The FK cascade clears `painting_file_ref`; disk images are reclaimed later
+   * by the file orphan sweep. DB-only — no filesystem work in DataApi.
    */
   delete(id: string, options: { permanent?: boolean } = {}): void {
     const db = application.get('DbService').getDb()
 
     if (options.permanent === true) {
       const result = withSqliteErrors(
-        () => db.delete(paintingTable).where(eq(paintingTable.id, id)).run(),
+        () =>
+          db
+            .delete(paintingTable)
+            .where(and(eq(paintingTable.id, id), isNotNull(paintingTable.deletedAt)))
+            .run(),
         defaultHandlersFor('Painting', id)
       )
       if (result.changes === 0) {

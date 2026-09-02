@@ -1496,6 +1496,7 @@ describe('AssistantDataService', () => {
         await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
         await dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'kept', assistantId: 'ast-1', orderKey: 'a0' })
 
+        assistantDataService.delete('ast-1')
         assistantDataService.delete('ast-1', { permanent: true })
 
         const assistantRows = await dbh.db.select().from(assistantTable)
@@ -1508,7 +1509,7 @@ describe('AssistantDataService', () => {
         expect(topicRow.assistantId).toBeNull()
       })
 
-      it('should permanently delete an already-trashed assistant (no isNull gate)', async () => {
+      it('should permanently delete an already-trashed assistant', async () => {
         await seedAssistantRow({ id: 'ast-1', name: 'trashed', deletedAt: Date.now() })
 
         assistantDataService.delete('ast-1', { permanent: true })
@@ -1519,6 +1520,7 @@ describe('AssistantDataService', () => {
 
       it('should purge pin rows on permanent delete', async () => {
         await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        assistantDataService.delete('ast-1')
         await dbh.db.insert(pinTable).values({
           id: '11111111-1111-4111-8111-111111111111',
           entityType: 'assistant',
@@ -1539,6 +1541,7 @@ describe('AssistantDataService', () => {
         const deleteTopicsSpy = vi.spyOn(topicService, 'deleteByAssistantIdTx')
 
         try {
+          assistantDataService.delete('ast-1')
           assistantDataService.delete('ast-1', { deleteTopics: true, permanent: true })
 
           expect(deleteTopicsSpy).toHaveBeenCalledTimes(1)
@@ -1553,6 +1556,38 @@ describe('AssistantDataService', () => {
         expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
         const topicRows = await dbh.db.select().from(topicTable)
         expect(topicRows.filter((row) => row.deletedAt === null)).toHaveLength(0)
+      })
+
+      it('should reject permanent deletion of an active assistant and keep it active', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'active' })
+
+        let err: unknown
+        try {
+          assistantDataService.delete('ast-1', { permanent: true })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+        const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+        expect(row).toMatchObject({ id: 'ast-1', deletedAt: null })
+      })
+
+      it('should reject a stale permanent delete after the assistant has been restored', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'restored' })
+        assistantDataService.delete('ast-1')
+        assistantDataService.restore('ast-1')
+
+        let err: unknown
+        try {
+          assistantDataService.delete('ast-1', { permanent: true })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+        const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+        expect(row).toMatchObject({ id: 'ast-1', deletedAt: null })
       })
 
       it('should throw NOT_FOUND when permanent-deleting a non-existent assistant', async () => {

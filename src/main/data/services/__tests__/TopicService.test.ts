@@ -566,6 +566,7 @@ describe('TopicService', () => {
         ])
       )
 
+      topicService.delete('topic-mm')
       topicService.delete('topic-mm', { permanent: true })
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
@@ -667,6 +668,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
+      topicService.delete('topic-purge')
       topicService.delete('topic-purge', { permanent: true })
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
@@ -687,6 +689,42 @@ describe('TopicService', () => {
       topicService.delete('topic-trashed', { permanent: true })
 
       expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
+    })
+
+    it('rejects permanent deletion of an active topic and keeps it active', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-active', name: 'Active', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      let err: unknown
+      try {
+        topicService.delete('topic-active', { permanent: true })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-active'))
+      expect(row).toMatchObject({ id: 'topic-active', deletedAt: null })
+    })
+
+    it('rejects a stale permanent delete after the topic has been restored', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-restored', name: 'Restored', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      topicService.delete('topic-restored')
+      topicService.restore('topic-restored')
+
+      let err: unknown
+      try {
+        topicService.delete('topic-restored', { permanent: true })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-restored'))
+      expect(row).toMatchObject({ id: 'topic-restored', deletedAt: null })
     })
 
     it('archiving an already-archived topic throws NOT_FOUND', async () => {

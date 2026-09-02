@@ -346,6 +346,7 @@ describe('PaintingService', () => {
         { fileEntryId, sourceId: painting.id, role: 'input', createdAt: now, updatedAt: now }
       ])
 
+      paintingService.delete(painting.id)
       paintingService.delete(painting.id, { permanent: true })
 
       expect(await paintingExists(painting.id)).toBe(false)
@@ -354,6 +355,7 @@ describe('PaintingService', () => {
 
     it('permanent=true succeeds when the painting has no file refs (today’s real path)', async () => {
       const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'd3' }))
+      paintingService.delete(painting.id)
 
       expect(paintingService.delete(painting.id, { permanent: true })).toBeUndefined()
       expect(await paintingExists(painting.id)).toBe(false)
@@ -416,6 +418,26 @@ describe('PaintingService', () => {
       expect(await paintingExists(painting.id)).toBe(false)
       expect(await listPaintingRefs(painting.id)).toEqual([])
       expectNotFound(() => paintingService.delete('missing-id', { permanent: true }))
+    })
+
+    it('rejects permanent deletion of an active painting and keeps it active', async () => {
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'active permanent delete' }))
+
+      expectNotFound(() => paintingService.delete(painting.id, { permanent: true }))
+
+      const [row] = await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, painting.id))
+      expect(row).toMatchObject({ id: painting.id, deletedAt: null })
+    })
+
+    it('rejects a stale permanent delete after the painting has been restored', async () => {
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'restored permanent delete' }))
+      paintingService.delete(painting.id)
+      paintingService.restore(painting.id)
+
+      expectNotFound(() => paintingService.delete(painting.id, { permanent: true }))
+
+      const [row] = await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, painting.id))
+      expect(row).toMatchObject({ id: painting.id, deletedAt: null })
     })
   })
 

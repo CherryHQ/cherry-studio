@@ -2083,6 +2083,7 @@ describe('MessageService', () => {
     it('purges the whole chain when its topic is deleted', async () => {
       await seedChain('topic-deep-purge')
 
+      topicService.delete('topic-deep-purge')
       topicService.delete('topic-deep-purge', { permanent: true })
 
       expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
