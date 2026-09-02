@@ -44,7 +44,7 @@ Use **Preview Release** when a maintainer needs installable packages from an unr
 
 Every selected platform builds the same resolved source commit. The package version is changed only inside the runner to `<base-version>-preview-<7-character-commit>`. After every selected platform succeeds, the workflow creates or updates `preview-<branch>-<commit>` as a draft prerelease and uploads the installers there.
 
-Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. Access to **Preview Release** is therefore limited through repository permissions. Preview tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
+Preview macOS builds use the same signing, notarization, and application environment variables as formal releases. The build job therefore requires approval through the `release` Environment before any source-branch code runs. Preview tags do not match `v<version>` or have a corresponding `release/v<version>` branch, so they are excluded from formal release preparation, hotfix backports, and Post Release. They do not acquire the `release-state` lock and cannot be published by the formal **Release** workflow.
 
 ## Before Starting
 

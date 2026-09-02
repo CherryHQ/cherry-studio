@@ -65,6 +65,7 @@ jobs:
     name: Build preview (${{ matrix.os }})
     needs: resolve
     runs-on: ${{ matrix.os }}
+    environment: release
     strategy:
       fail-fast: false
       matrix:
