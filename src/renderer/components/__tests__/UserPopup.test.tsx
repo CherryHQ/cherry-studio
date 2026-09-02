@@ -9,6 +9,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  appEdition: 'cn' as 'cn' | 'global',
   ipcRequest: vi.fn(
     async (route: string): Promise<unknown> =>
       route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
@@ -141,6 +142,10 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+vi.mock('@renderer/hooks/useAppEdition', () => ({
+  useAppEdition: () => mocks.appEdition
+}))
+
 vi.mock('@renderer/utils/naming', () => ({
   isEmoji: (value: string) => value === '🙂'
 }))
@@ -181,6 +186,7 @@ describe('UserPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    mocks.appEdition = 'cn'
     mocks.statusListener = null
     mocks.ipcRequest.mockImplementation(async (route: string) =>
       route === 'cherry_cloud.status.get' ? { phase: 'signed-out', displayName: null } : undefined
@@ -295,6 +301,15 @@ describe('UserPopup', () => {
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.login.cancel')
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
+  })
+
+  it('hides the Cherry Cloud login action in the global edition', async () => {
+    mocks.appEdition = 'global'
+    showUserPopup()
+
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.status.get'))
+
+    expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
   })
 
   it('reports when the Cherry Cloud login service is unavailable', async () => {

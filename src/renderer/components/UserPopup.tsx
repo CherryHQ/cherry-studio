@@ -16,6 +16,7 @@ import {
   RowFlex
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
@@ -49,6 +50,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const cloudStatusRequestRef = useRef(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
+  const isCnEdition = useAppEdition() === 'cn'
 
   useIpcOn('cherry_cloud.status_changed', (status) => {
     cloudStatusRequestRef.current += 1
@@ -250,56 +252,58 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             maxLength={30}
           />
         </RowFlex>
-        <RowFlex className="border-border-subtle border-t px-5 py-4">
-          {cloudStatusLoadState === 'error' ? (
-            <ColFlex className="w-full gap-2">
-              <div
-                role="alert"
-                className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-center text-error-subtle-foreground text-xs">
-                {t('error.http.503')}
-              </div>
-              <Button className="w-full" onClick={() => void loadCloudStatus()} variant="outline">
-                {t('common.retry')}
-              </Button>
-            </ColFlex>
-          ) : cloudStatus?.phase === 'signed-in' ? (
-            <ColFlex className="w-full items-center gap-1.5">
-              <Button
-                className="w-full"
-                loading={isRevokingSession}
-                onClick={() => void handleCloudLogout()}
-                variant="outline">
-                {t('settings.provider.cherry_cloud.logout')}
-              </Button>
-              {cloudStatus.displayName ? (
-                <div role="status" className="max-w-full truncate text-foreground-tertiary text-xs leading-tight">
-                  {cloudStatus.displayName}
+        {isCnEdition || cloudStatus?.phase === 'signed-in' ? (
+          <RowFlex className="border-border-subtle border-t px-5 py-4">
+            {cloudStatusLoadState === 'error' ? (
+              <ColFlex className="w-full gap-2">
+                <div
+                  role="alert"
+                  className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-center text-error-subtle-foreground text-xs">
+                  {t('error.http.503')}
                 </div>
-              ) : null}
-            </ColFlex>
-          ) : (
-            <ColFlex className="w-full gap-2">
-              <Button
-                className="w-full"
-                loading={cloudStatusLoadState === 'loading' || isAuthorizing}
-                onClick={() => void handleCloudLogin()}
-                variant="emphasis">
-                {isAuthorizing
-                  ? t('settings.provider.cherry_cloud.signing_in')
-                  : t('settings.provider.cherry_cloud.login')}
-              </Button>
-              {isAuthorizing ? (
+                <Button className="w-full" onClick={() => void loadCloudStatus()} variant="outline">
+                  {t('common.retry')}
+                </Button>
+              </ColFlex>
+            ) : cloudStatus?.phase === 'signed-in' ? (
+              <ColFlex className="w-full items-center gap-1.5">
                 <Button
                   className="w-full"
-                  loading={isCancellingLogin}
-                  onClick={() => void handleCloudLoginCancel()}
+                  loading={isRevokingSession}
+                  onClick={() => void handleCloudLogout()}
                   variant="outline">
-                  {t('common.cancel')}
+                  {t('settings.provider.cherry_cloud.logout')}
                 </Button>
-              ) : null}
-            </ColFlex>
-          )}
-        </RowFlex>
+                {cloudStatus.displayName ? (
+                  <div role="status" className="max-w-full truncate text-foreground-tertiary text-xs leading-tight">
+                    {cloudStatus.displayName}
+                  </div>
+                ) : null}
+              </ColFlex>
+            ) : (
+              <ColFlex className="w-full gap-2">
+                <Button
+                  className="w-full"
+                  loading={cloudStatusLoadState === 'loading' || isAuthorizing}
+                  onClick={() => void handleCloudLogin()}
+                  variant="emphasis">
+                  {isAuthorizing
+                    ? t('settings.provider.cherry_cloud.signing_in')
+                    : t('settings.provider.cherry_cloud.login')}
+                </Button>
+                {isAuthorizing ? (
+                  <Button
+                    className="w-full"
+                    loading={isCancellingLogin}
+                    onClick={() => void handleCloudLoginCancel()}
+                    variant="outline">
+                    {t('common.cancel')}
+                  </Button>
+                ) : null}
+              </ColFlex>
+            )}
+          </RowFlex>
+        ) : null}
       </DialogContent>
     </Dialog>
   )
