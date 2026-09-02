@@ -1,3 +1,4 @@
+import { remarkLatexMath } from '@renderer/components/markdown'
 import type { Root } from 'mdast'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
@@ -5,8 +6,10 @@ import { describe, expect, it } from 'vitest'
 
 import { classifyHtmlArtifactSource, remarkHtmlArtifact } from '../remarkHtmlArtifact'
 
-function parse(source: string): Root {
-  const processor = unified().use(remarkParse).use(remarkHtmlArtifact)
+function parse(source: string, withLatexMath = false): Root {
+  const processor = unified().use(remarkParse)
+  if (withLatexMath) processor.use(remarkLatexMath)
+  processor.use(remarkHtmlArtifact)
   return processor.runSync(processor.parse(source), { value: source })
 }
 
@@ -77,6 +80,19 @@ Hello
 
 </body></html>`
     const tree = parse(source)
+
+    expect(tree.children).toEqual([
+      expect.objectContaining({
+        type: 'code',
+        lang: 'html',
+        value: source
+      })
+    ])
+  })
+
+  it('keeps LaTeX delimiters inside HTML artifacts as source text', () => {
+    const source = '<div>\\(html\\)</div>'
+    const tree = parse(source, true)
 
     expect(tree.children).toEqual([
       expect.objectContaining({

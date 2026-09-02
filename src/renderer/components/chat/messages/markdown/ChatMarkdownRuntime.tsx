@@ -5,6 +5,7 @@ import {
   useMessageRenderConfig,
   useOptionalMessageListActions
 } from '@renderer/components/chat/messages/MessageListProvider'
+import { remarkLatexMath } from '@renderer/components/markdown'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isEmpty } from 'es-toolkit/compat'
@@ -17,7 +18,6 @@ import type { ChatMarkdownProps } from './ChatMarkdown'
 import { ChatMarkdownRenderProvider } from './ChatMarkdownRenderContext'
 import { CHAT_MARKDOWN_COMPONENTS, CHAT_MARKDOWN_COMPONENTS_WITH_STYLE } from './ChatMarkdownRenderers'
 import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
-import { remarkLatexMath } from './plugins/remarkLatexMath'
 import { remarkLiteralAutolinkFix } from './plugins/remarkLiteralAutolinkFix'
 
 const STYLE_ELEMENT_REGEX = /<style\b[^>]*>/i

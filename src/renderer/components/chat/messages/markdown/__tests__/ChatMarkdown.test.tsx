@@ -1,10 +1,10 @@
+import { remarkLatexMath } from '@renderer/components/markdown'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatMarkdown from '../ChatMarkdownRuntime'
 import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'
-import { remarkLatexMath } from '../plugins/remarkLatexMath'
 import { remarkLiteralAutolinkFix } from '../plugins/remarkLiteralAutolinkFix'
 
 const mocks = vi.hoisted(() => ({

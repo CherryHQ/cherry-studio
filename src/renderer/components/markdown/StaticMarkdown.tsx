@@ -1,13 +1,13 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, withFullMarkdown } from '@cherrystudio/ui'
-import { remarkLatexMath } from '@renderer/components/chat/messages/markdown/plugins/remarkLatexMath'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { type FC, useId, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
 import { useMarkdownComponents } from './MarkdownRenderers'
+import { remarkLatexMath } from './remarkLatexMath'
 import { useMarkdownHost } from './useMarkdownHost'
 
 interface Props {

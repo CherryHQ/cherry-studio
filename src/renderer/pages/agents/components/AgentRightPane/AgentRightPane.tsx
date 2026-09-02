@@ -345,9 +345,11 @@ function AgentRightPaneActionsProvider({
           if (artifactOpenRequestRef.current !== requestId) return
           requestFileSelection(selection)
         },
-        openPath: (path) => {
+        openPath: async (path) => {
           if (artifactOpenRequestRef.current !== requestId) return
-          return window.api.file.openPath(path)
+          await window.api.file.openPath(path)
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(null)
         },
         isDirectory: async () => {
           try {

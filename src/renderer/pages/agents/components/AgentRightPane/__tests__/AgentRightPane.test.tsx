@@ -1196,7 +1196,8 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
   })
 
-  it('opens Markdown preview directory links in the system file manager without clearing the current preview', async () => {
+  it('opens Markdown preview directory links in the system file manager and clears the current preview', async () => {
+    const user = userEvent.setup()
     ipcRequestMock.mockResolvedValue({
       kind: 'directory',
       size: 0,
@@ -1219,12 +1220,12 @@ describe('AgentRightPane', () => {
       </TestAgentRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fireEvent.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
 
     await waitFor(() => expect(openPathMock).toHaveBeenCalledWith('/workspace/DESIGN.md'))
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
   it('replaces the retained flow when another flow is opened', () => {
