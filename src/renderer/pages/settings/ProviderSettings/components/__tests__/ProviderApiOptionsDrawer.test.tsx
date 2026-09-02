@@ -44,8 +44,13 @@ vi.mock('@shared/utils/provider', async (importOriginal) => ({
   isSystemProvider: (...args: unknown[]) => isSystemProviderMock(...args)
 }))
 
-vi.mock('@cherrystudio/ui', () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<object>()
+  const React = await import('react')
+  const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
+
   return {
+    ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button type="button" onClick={onClick} {...props}>
         {children}
@@ -61,7 +66,19 @@ vi.mock('@cherrystudio/ui', () => {
     Switch: ({ checked, onCheckedChange, ...props }: any) => (
       <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} {...props} />
     ),
-    Tooltip: ({ children }: any) => <>{children}</>
+    Tooltip: ({ children }: any) => <>{children}</>,
+    Select: ({ children, onValueChange }: any) => <SelectContext value={{ onValueChange }}>{children}</SelectContext>,
+    SelectTrigger: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    SelectValue: () => null,
+    SelectContent: ({ children }: any) => <div>{children}</div>,
+    SelectItem: ({ children, value }: any) => {
+      const { onValueChange } = React.use(SelectContext)
+      return (
+        <button type="button" aria-label={`cache-ttl-${value}`} onClick={() => onValueChange?.(value)}>
+          {children}
+        </button>
+      )
+    }
   }
 })
 
@@ -177,6 +194,25 @@ describe('ProviderApiOptionsDrawer', () => {
 
     expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
     expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
+  })
+
+  it('persists a one-hour Anthropic cache lifetime without dropping sibling settings', () => {
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByLabelText('cache-ttl-1h'))
+
+    expect(updateProviderMock).toHaveBeenCalledWith({
+      providerSettings: {
+        ...provider.settings,
+        cacheControl: {
+          enabled: true,
+          tokenThreshold: 1024,
+          cacheSystemMessage: true,
+          cacheLastNMessages: 2,
+          ttl: '1h'
+        }
+      }
+    })
   })
 
   it('renders nothing for a non-OpenAI provider without anthropic cache support', () => {
