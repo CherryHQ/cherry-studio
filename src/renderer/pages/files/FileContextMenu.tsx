@@ -29,17 +29,19 @@ export function FileContextMenu({
   file,
   actions,
   children,
-  showRename = true
+  showRename = true,
+  deleteDisabled = false
 }: {
   file: FileItem
   actions: FileContextMenuActions
   children: React.ReactNode
   showRename?: boolean
+  deleteDisabled?: boolean
 }) {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <FileContextMenuContent file={file} actions={actions} showRename={showRename} />
+      <FileContextMenuContent file={file} actions={actions} showRename={showRename} deleteDisabled={deleteDisabled} />
     </ContextMenu>
   )
 }
@@ -47,11 +49,13 @@ export function FileContextMenu({
 function FileContextMenuContent({
   file,
   actions,
-  showRename
+  showRename,
+  deleteDisabled
 }: {
   file: FileItem
   actions: FileContextMenuActions
   showRename: boolean
+  deleteDisabled: boolean
 }) {
   const { t } = useTranslation()
   const canUseFileActions = !file.isMissing
@@ -72,9 +76,9 @@ function FileContextMenuContent({
         </ContextMenuItem>
       )}
       {hasPrimaryAction && <ContextMenuSeparator />}
-      <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
+      <ContextMenuItem disabled={deleteDisabled} variant="destructive" onSelect={() => actions.onDelete(file.id)}>
         <ContextMenuItemContent icon={<Trash2 size={12} />}>
-          {file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')}
+          {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
         </ContextMenuItemContent>
       </ContextMenuItem>
     </ContextMenuContent>

@@ -108,7 +108,8 @@ export const FileList = memo(function FileList({
   scrollRef,
   renamingId,
   onRenameConfirm,
-  onRenameCancel
+  onRenameCancel,
+  deleteDisabled = false
 }: {
   files: FileItem[]
   selectedIds: Set<string>
@@ -122,6 +123,7 @@ export const FileList = memo(function FileList({
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
+  deleteDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const getItemKey = useCallback((index: number) => files[index]?.id ?? index, [files])
@@ -151,11 +153,11 @@ export const FileList = memo(function FileList({
         const canOpen = canUseFileActions
         const canRename = canUseFileActions
         const canShowInFolder = canUseFileActions
-        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')
+        const deleteLabel = file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
         const renderActionPlaceholder = (key: string) => <div key={key} className="size-6" aria-hidden="true" />
 
         return (
-          <FileContextMenu key={file.id} file={file} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
             <div
               onClick={() => {
                 if (!isRenaming && !file.isMissing) onOpen(file)
@@ -256,6 +258,7 @@ export const FileList = memo(function FileList({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  disabled={deleteDisabled}
                   aria-label={deleteLabel}
                   title={deleteLabel}
                   className="!text-muted-foreground hover:!text-destructive size-6 hover:bg-transparent"

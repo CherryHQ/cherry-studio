@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { loggerService } from '@logger'
+import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
@@ -26,6 +27,12 @@ const filePreviewMocks = vi.hoisted(() => ({
 const imagePreviewMocks = vi.hoisted(() => ({
   show: vi.fn().mockResolvedValue(undefined)
 }))
+
+const recycleBinFeedbackMocks = vi.hoisted(() => ({
+  showRecycleBinBatchUndo: vi.fn()
+}))
+
+vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
 
 vi.mock('@renderer/components/FilePreview', () => ({
   FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
@@ -74,7 +81,17 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string, options?: { count?: number }) => options?.count ?? key })
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) => {
+      if (key === 'files.delete_or_remove_confirm.internal_count') {
+        return `Move ${options?.count} internal files to Recycle Bin`
+      }
+      if (key === 'files.delete_or_remove_confirm.external_count') {
+        return `Remove ${options?.count} external files from Library; files on disk are unaffected`
+      }
+      return options?.count ?? key
+    }
+  })
 }))
 
 import FilesPage from '../FilesPage'
@@ -190,9 +207,18 @@ function selectFileAt(index: number) {
   fireEvent.click(screen.getAllByRole('checkbox', { name: 'files.select_file' })[index])
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
+  vi.mocked(popup.confirm).mockResolvedValue(true)
   mockFiles([entry])
 })
 
@@ -574,6 +600,19 @@ describe('FilesPage file operations', () => {
   })
 
   it('routes mixed active delete to trash internal files and remove external entries', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') return Promise.resolve({ succeeded: [entry.id], failed: [] })
+      if (route === 'file.batch_remove_from_library') {
+        return Promise.resolve({ succeeded: [externalEntry.id], failed: [] })
+      }
+      if (route === 'file.batch_restore') {
+        return Promise.resolve({ succeeded: (input as { ids: string[] }).ids, failed: [] })
+      }
+      return Promise.resolve(input)
+    })
     const refetchStats = vi.fn().mockResolvedValue(undefined)
     mockFiles([entry, externalEntry])
     mockFileStats(statsForEntries([entry, externalEntry]), refetchStats)
@@ -583,10 +622,90 @@ describe('FilesPage file operations', () => {
     selectFileAt(1)
     fireEvent.keyDown(document, { key: 'Delete' })
 
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_remove_from_library', { ids: [externalEntry.id] })
     await waitFor(() => {
+      expect(popup.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cancelText: 'common.cancel',
+          okText: 'files.delete_or_remove',
+          title: 'files.delete_or_remove_confirm.title'
+        })
+      )
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_remove_from_library', { ids: [externalEntry.id] })
       expect(refetchStats).toHaveBeenCalled()
+    })
+
+    const content = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0].content
+    render(<>{content}</>)
+    expect(screen.getByText('Move 1 internal files to Recycle Bin')).toBeInTheDocument()
+    expect(screen.getByText('Remove 1 external files from Library; files on disk are unaffected')).toBeInTheDocument()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [entry.id] })
+  })
+
+  it('does not mutate files when the user cancels the confirmation', async () => {
+    vi.mocked(popup.confirm).mockResolvedValueOnce(false)
+    renderFilesPage()
+
+    selectFileAt(0)
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_trash', expect.anything())
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+  })
+
+  it('disables every visible delete entry while confirmation and mutation are pending, then allows another delete', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    const confirmation = deferred<boolean>()
+    const firstTrash = deferred<{ succeeded: string[]; failed: [] }>()
+    vi.mocked(popup.confirm).mockReturnValueOnce(confirmation.promise).mockResolvedValueOnce(true)
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        const ids = (input as { ids: string[] }).ids
+        return ids[0] === entry.id ? firstTrash.promise : Promise.resolve({ succeeded: ids, failed: [] })
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage([entry, secondEntry])
+    selectFileAt(0)
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(popup.confirm).toHaveBeenCalledTimes(1)
+      expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
+      for (const button of screen.getAllByRole('button', { name: 'files.delete.label' })) {
+        expect(button).toBeDisabled()
+      }
+    })
+    fireEvent.keyDown(document, { key: 'Delete' })
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_trash', expect.anything())
+
+    confirmation.resolve(true)
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] }))
+    expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
+    fireEvent.click(screen.getAllByRole('button', { name: 'files.delete.label' })[1])
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
+
+    firstTrash.resolve({ succeeded: [entry.id], failed: [] })
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: 'files.delete.label' })[1]).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'files.delete.label' })[1])
+    await waitFor(() => {
+      expect(popup.confirm).toHaveBeenCalledTimes(2)
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [secondEntry.id] })
     })
   })
 
@@ -631,13 +750,32 @@ describe('FilesPage file operations', () => {
 
   it('selects all visible files from the header checkbox and exposes batch delete', async () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        return Promise.resolve({ succeeded: (input as { ids: string[] }).ids, failed: [] })
+      }
+      return Promise.resolve(input)
+    })
     renderFilesPage([entry, secondEntry])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
-    fireEvent.click(screen.getByText(/common.archive/))
+    fireEvent.click(screen.getByText(/files.delete.label/))
 
     await waitFor(() => {
+      expect(popup.confirm).toHaveBeenCalledWith({
+        cancelText: 'common.cancel',
+        okButtonProps: { danger: true },
+        okText: 'recycle_bin.move.confirm_action',
+        title: 'recycle_bin.move.confirm_title'
+      })
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id, secondEntry.id] })
+    })
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
     })
   })
 
@@ -696,7 +834,7 @@ describe('FilesPage file operations', () => {
     const actionsButton = screen.getByRole('button', { name: 'files.actions' })
 
     expect(actionsButton).toBeInTheDocument()
-    expect(screen.getByText(/common.archive/)).toBeInTheDocument()
+    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
   })
 
   it('starts rename from the visible row action button', () => {
@@ -755,6 +893,43 @@ describe('FilesPage file operations', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
     })
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+  })
+
+  it('offers Undo only for the internal file IDs actually moved to the Recycle Bin', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        return Promise.resolve({ succeeded: [entry.id], failed: [{ id: secondEntry.id, error: 'stale' }] })
+      }
+      if (route === 'file.batch_restore') {
+        return Promise.resolve({ succeeded: (input as { ids: string[] }).ids, failed: [] })
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage([entry, secondEntry])
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+        itemCount: 1,
+        onUndo: expect.any(Function)
+      })
+    })
+    await waitFor(() => {
+      const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+      expect(checkboxes[0]).not.toBeChecked()
+      expect(checkboxes[1]).toBeChecked()
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [entry.id] })
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_restore', { ids: [entry.id, secondEntry.id] })
   })
 
   it('shows one partial-failure toast for mixed-origin delete failures', async () => {
@@ -779,6 +954,7 @@ describe('FilesPage file operations', () => {
       expect(toast.error).toHaveBeenCalledTimes(1)
       expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
     })
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
 
   it('shows a toast when delete rejects', async () => {
@@ -796,6 +972,7 @@ describe('FilesPage file operations', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('files.error.delete_failed')
     })
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
 
   it('strips the current extension when renaming inline', async () => {
@@ -951,8 +1128,16 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.remove_from_library'))
 
     await waitFor(() => {
+      expect(popup.confirm).toHaveBeenCalledWith({
+        cancelText: 'common.cancel',
+        content: 'files.remove_from_library_confirm.description',
+        okButtonProps: { danger: true },
+        okText: 'files.remove_from_library',
+        title: 'files.remove_from_library_confirm.title'
+      })
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_remove_from_library', { ids: [externalEntry.id] })
     })
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
 
   it('keeps image files visible while preview path enrichment is pending', () => {

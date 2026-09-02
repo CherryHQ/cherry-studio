@@ -13,7 +13,10 @@ import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { popup } from '@renderer/services/popup'
+import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { getErrorMessage } from '@renderer/utils/error'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -43,8 +46,9 @@ type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
+type FileBatchMutationOutcome = FileBatchMutationResult & { requestFailed: boolean }
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
-type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_remove_from_library'
+type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_remove_from_library' | 'file.batch_restore'
 
 interface EmbeddedFilePreview {
   fileName: string
@@ -91,29 +95,41 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
 async function requestBatchedFileMutation(
   route: FileBatchMutationRoute,
   ids: readonly string[]
-): Promise<FileBatchMutationResult> {
-  if (ids.length === 0) return { succeeded: [], failed: [] }
+): Promise<FileBatchMutationOutcome> {
+  if (ids.length === 0) return { succeeded: [], failed: [], requestFailed: false }
 
   const chunks: string[][] = []
   for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
     chunks.push(ids.slice(i, i + FILE_IPC_BATCH_SIZE))
   }
 
-  const results = await Promise.all(
+  const results = await Promise.allSettled(
     chunks.map((chunk) => {
       switch (route) {
         case 'file.batch_trash':
           return ipcApi.request('file.batch_trash', { ids: chunk })
         case 'file.batch_remove_from_library':
           return ipcApi.request('file.batch_remove_from_library', { ids: chunk })
+        case 'file.batch_restore':
+          return ipcApi.request('file.batch_restore', { ids: chunk })
       }
     })
   )
 
-  return {
-    succeeded: results.flatMap((result) => result.succeeded),
-    failed: results.flatMap((result) => result.failed)
+  const outcome: FileBatchMutationOutcome = { succeeded: [], failed: [], requestFailed: false }
+  for (let index = 0; index < results.length; index += 1) {
+    const settled = results[index]
+    if (settled.status === 'fulfilled') {
+      outcome.succeeded.push(...settled.value.succeeded)
+      outcome.failed.push(...settled.value.failed)
+      continue
+    }
+
+    outcome.requestFailed = true
+    outcome.failed.push(...chunks[index].map((id) => ({ id, error: getErrorMessage(settled.reason) })))
   }
+
+  return outcome
 }
 
 async function requestBatchedInternalEntryCreates(
@@ -252,11 +268,13 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
 const FileToolbar = memo(function FileToolbar({
   selectedCount,
   batchDeleteLabel,
-  onBatchDelete
+  onBatchDelete,
+  deleteDisabled
 }: {
   selectedCount: number
   batchDeleteLabel: string
   onBatchDelete: () => void
+  deleteDisabled: boolean
 }) {
   const { t } = useTranslation()
 
@@ -270,13 +288,14 @@ const FileToolbar = memo(function FileToolbar({
           <Button
             variant="ghost"
             size="icon-sm"
+            disabled={deleteDisabled}
             className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
             aria-label={t('files.actions')}>
             <MoreHorizontal size={14} />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="min-w-36">
-          <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
+          <DropdownMenuItem disabled={deleteDisabled} variant="destructive" onSelect={onBatchDelete}>
             {batchDeleteLabel} ({selectedCount})
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -300,6 +319,8 @@ function FilesPage() {
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const selectionAnchorIdRef = useRef<string | null>(null)
+  const deleteRequestPendingRef = useRef(false)
+  const [deleteRequestPending, setDeleteRequestPending] = useState(false)
 
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
@@ -568,8 +589,7 @@ function FilesPage() {
       return t('files.remove_from_library')
     }
     if (selectedFiles.some((file) => file.origin === 'external')) return t('files.delete_or_remove')
-    // Internal files are archived to the trash, so the irreversible wording would be a lie.
-    return t('common.archive')
+    return t('files.delete.label')
   }, [selectedFiles, t])
 
   const handleSelect = useCallback(
@@ -626,26 +646,50 @@ function FilesPage() {
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
-      try {
-        const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
-        const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
-        const [trashResult, removeResult] = await Promise.all([
-          trashIds.length > 0 ? requestBatchedFileMutation('file.batch_trash', trashIds) : Promise.resolve(null),
-          removeIds.length > 0
-            ? requestBatchedFileMutation('file.batch_remove_from_library', removeIds)
-            : Promise.resolve(null)
-        ])
-        const trashFailed = warnMutationFailures('file trash', trashResult)
-        const removeFailed = warnMutationFailures('file remove external entries', removeResult)
-        if (trashFailed || removeFailed) {
-          toast.error(t('files.error.delete_partial_failed'))
-        }
+      const trashIds = targets.filter((file) => file.origin === 'internal').map((file) => file.id)
+      const removeIds = targets.filter((file) => file.origin === 'external').map((file) => file.id)
+      const [trashResult, removeResult] = await Promise.all([
+        requestBatchedFileMutation('file.batch_trash', trashIds),
+        requestBatchedFileMutation('file.batch_remove_from_library', removeIds)
+      ])
+      const trashFailed = warnMutationFailures('file trash', trashResult)
+      const removeFailed = warnMutationFailures('file remove external entries', removeResult)
+      const succeededIds = new Set([...trashResult.succeeded, ...removeResult.succeeded])
+      const requestFailed = trashResult.requestFailed || removeResult.requestFailed
 
-        setSelectedIds(new Set())
+      if (trashFailed || removeFailed) {
+        toast.error(
+          t(
+            requestFailed && succeededIds.size === 0 ? 'files.error.delete_failed' : 'files.error.delete_partial_failed'
+          )
+        )
+      }
+      if (requestFailed) {
+        logger.error('Failed to delete files', new Error('One or more file mutation requests failed'))
+      }
+
+      setSelectedIds((current) => new Set([...current].filter((id) => !succeededIds.has(id))))
+      try {
         await refetchFiles()
       } catch (error) {
-        logger.error('Failed to delete files', error as Error)
-        toast.error(t('files.error.delete_failed'))
+        logger.warn('Failed to refresh files after deletion', error as Error)
+      }
+
+      if (trashResult.succeeded.length > 0) {
+        const trashedIds = [...trashResult.succeeded]
+        showRecycleBinBatchUndo({
+          itemCount: trashedIds.length,
+          onUndo: async () => {
+            const restoreResult = await requestBatchedFileMutation('file.batch_restore', trashedIds)
+            warnMutationFailures('file restore', restoreResult)
+            try {
+              await refetchFiles()
+            } catch (error) {
+              logger.warn('Failed to refresh files after restore', error as Error)
+            }
+            return { restored: restoreResult.succeeded, failed: restoreResult.failed }
+          }
+        })
       }
     },
     [files, refetchFiles, t]
@@ -653,12 +697,56 @@ function FilesPage() {
 
   const requestDelete = useCallback(
     (targetIds: Set<string>) => {
+      if (deleteRequestPendingRef.current) return
       const targets = files.filter((file) => targetIds.has(file.id))
       if (targets.length === 0) return
 
-      void performDelete(new Set(targets.map((file) => file.id)))
+      deleteRequestPendingRef.current = true
+      setDeleteRequestPending(true)
+      void (async () => {
+        try {
+          const internalCount = targets.filter((file) => file.origin === 'internal').length
+          const externalCount = targets.length - internalCount
+          const confirmed = await popup.confirm(
+            internalCount > 0 && externalCount > 0
+              ? {
+                  title: t('files.delete_or_remove_confirm.title'),
+                  content: (
+                    <div className="space-y-1">
+                      <p>{t('files.delete_or_remove_confirm.internal_count', { count: internalCount })}</p>
+                      <p>{t('files.delete_or_remove_confirm.external_count', { count: externalCount })}</p>
+                    </div>
+                  ),
+                  okText: t('files.delete_or_remove'),
+                  cancelText: t('common.cancel'),
+                  okButtonProps: { danger: true }
+                }
+              : externalCount > 0
+                ? {
+                    title: t('files.remove_from_library_confirm.title'),
+                    content: t('files.remove_from_library_confirm.description'),
+                    okText: t('files.remove_from_library'),
+                    cancelText: t('common.cancel'),
+                    okButtonProps: { danger: true }
+                  }
+                : {
+                    title: t('recycle_bin.move.confirm_title'),
+                    okText: t('recycle_bin.move.confirm_action'),
+                    cancelText: t('common.cancel'),
+                    okButtonProps: { danger: true }
+                  }
+          )
+          if (confirmed) await performDelete(new Set(targets.map((file) => file.id)))
+        } catch (error) {
+          logger.error('Failed to confirm file deletion', error as Error)
+          toast.error(t('files.error.delete_failed'))
+        } finally {
+          deleteRequestPendingRef.current = false
+          setDeleteRequestPending(false)
+        }
+      })()
     },
-    [files, performDelete]
+    [files, performDelete, t]
   )
 
   const handleDelete = useCallback(
@@ -729,6 +817,7 @@ function FilesPage() {
       if (embeddedPreview || renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         e.preventDefault()
+        if (deleteRequestPending) return
         handleDelete()
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
@@ -742,7 +831,7 @@ function FilesPage() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
+  }, [deleteRequestPending, embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
 
   return (
     <div data-ui="files.view" className="relative flex min-h-0 flex-1 overflow-hidden">
@@ -782,6 +871,7 @@ function FilesPage() {
                   <FileToolbar
                     selectedCount={selectedIds.size}
                     batchDeleteLabel={batchDeleteLabel}
+                    deleteDisabled={deleteRequestPending}
                     onBatchDelete={() => handleDelete()}
                   />
                 )}
@@ -855,6 +945,7 @@ function FilesPage() {
                     renamingId={renamingId}
                     onRenameConfirm={handleRenameConfirm}
                     onRenameCancel={handleRenameCancel}
+                    deleteDisabled={deleteRequestPending}
                   />
                 ) : (
                   <FileList
@@ -870,6 +961,7 @@ function FilesPage() {
                     renamingId={renamingId}
                     onRenameConfirm={handleRenameConfirm}
                     onRenameCancel={handleRenameCancel}
+                    deleteDisabled={deleteRequestPending}
                   />
                 )}
               </>

@@ -7,6 +7,7 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -15,9 +16,11 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
+import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
@@ -110,6 +113,12 @@ export function AgentResourceList({
   const closeConversationTabs = useCloseConversationTabs()
   const invalidate = useInvalidateCache()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
+  const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
+    refresh: ({ args }) => ['/agents', `/agents/${args!.params.agentId}`, '/agent-sessions']
+  })
+  const { trigger: restoreSession } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
+    refresh: ['/agent-sessions']
+  })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
@@ -226,6 +235,17 @@ export function AgentResourceList({
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
   )
 
+  const refreshAfterRestore = useCallback(async () => {
+    const outcomes = await Promise.allSettled([refetchAgents(), reload()])
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        logger.warn('Failed to refresh Agent resources after restore from classic-layout rail', {
+          err: outcome.reason
+        })
+      }
+    }
+  }, [refetchAgents, reload])
+
   const handleDeleteAgent = useCallback(
     async (agentId: string) => {
       if (deletingAgentId) return
@@ -233,13 +253,13 @@ export function AgentResourceList({
       const deleteTasksOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
       )
+      const agentName = agents.find((agent) => agent.id === agentId)?.name ?? t('common.unnamed')
 
       setDeletingAgentId(agentId)
       try {
         const confirmed = await popup.confirm({
-          title: t(deleteTasksOnly ? 'agent.session.agent.delete.title' : 'agent.delete.title'),
-          content: t(deleteTasksOnly ? 'agent.session.agent.delete.content' : 'agent.delete.content'),
-          okText: t('common.delete'),
+          title: t('recycle_bin.move.confirm_title'),
+          okText: t('recycle_bin.move.confirm_action'),
           cancelText: t('common.cancel'),
           centered: true,
           okButtonProps: {
@@ -248,12 +268,18 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
+        let deletedSessionIds: string[] = []
+        let deletionChangedState = false
         if (deleteTasksOnly) {
           const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-          closeConversationTabs('agents', result.deletedIds)
+          deletedSessionIds = result.deletedIds
+          deletionChangedState = deletedSessionIds.length > 0
+          if (deletionChangedState) closeConversationTabs('agents', deletedSessionIds)
         } else {
           const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          closeConversationTabs('agents', result.deletedSessionIds ?? [])
+          deletionChangedState = result.deleted
+          deletedSessionIds = result.deletedSessionIds ?? []
+          if (deletionChangedState) closeConversationTabs('agents', deletedSessionIds)
         }
         try {
           await Promise.all(
@@ -264,6 +290,19 @@ export function AgentResourceList({
         } catch (err) {
           logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
         }
+        const reloadResources = async () => {
+          try {
+            await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
+          } catch (err) {
+            logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
+          }
+        }
+        if (!deletionChangedState) {
+          await reloadResources()
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
         if (activeAgentId === agentId) {
           try {
             await onActiveAgentDeleted?.(agentId)
@@ -272,12 +311,57 @@ export function AgentResourceList({
           }
         }
 
-        try {
-          await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
-        } catch (err) {
-          logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
+        await reloadResources()
+        if (deleteTasksOnly) {
+          showRecycleBinBatchUndo({
+            itemCount: deletedSessionIds.length,
+            onUndo: async () => {
+              const outcomes = await Promise.allSettled(
+                deletedSessionIds.map((sessionId) => restoreSession({ params: { sessionId } }))
+              )
+              await refreshAfterRestore()
+              const activeAfterNotFound = await Promise.all(
+                outcomes.map(async (outcome, index) => {
+                  if (outcome.status === 'fulfilled' || !isDataApiNotFoundError(outcome.reason)) return false
+                  try {
+                    await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
+                    return true
+                  } catch {
+                    return false
+                  }
+                })
+              )
+              return outcomes.reduce(
+                (result, outcome, index) => {
+                  const sessionId = deletedSessionIds[index]
+                  if (outcome.status === 'fulfilled' || activeAfterNotFound[index]) result.restored.push(sessionId)
+                  else result.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
+                  return result
+                },
+                { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
+              )
+            }
+          })
+        } else {
+          showRecycleBinUndo({
+            itemName: agentName,
+            onUndo: async () => {
+              try {
+                await restoreAgent({ params: { agentId } })
+              } catch (err) {
+                if (!isDataApiNotFoundError(err)) throw err
+                await refreshAfterRestore()
+                try {
+                  await dataApiService.get(`/agents/${agentId}`)
+                  return
+                } catch {
+                  throw err
+                }
+              }
+              await refreshAfterRestore()
+            }
+          })
         }
-        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
@@ -292,8 +376,11 @@ export function AgentResourceList({
       deletingAgentId,
       invalidate,
       onActiveAgentDeleted,
+      refreshAfterRestore,
       refetchAgents,
       reload,
+      restoreAgent,
+      restoreSession,
       t
     ]
   )

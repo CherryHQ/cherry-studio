@@ -3,6 +3,7 @@ import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceL
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -15,6 +16,7 @@ import { AssistantResourceList } from '../AssistantResourceList'
 const assistantDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn(),
   deleteAssistant: vi.fn(),
+  restoreAssistant: vi.fn(),
   refreshTopics: vi.fn(),
   refetchAssistants: vi.fn(),
   topics: [
@@ -24,6 +26,7 @@ const assistantDataMocks = vi.hoisted(() => ({
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
+  getActiveResource: vi.fn(),
   agents: [
     {
       id: 'agent-1',
@@ -39,7 +42,14 @@ const agentDataMocks = vi.hoisted(() => ({
   invalidate: vi.fn(),
   ipcRequest: vi.fn(),
   refetchAgents: vi.fn(),
+  restoreAgent: vi.fn(),
+  restoreSession: vi.fn(),
   toggleAgentPin: vi.fn()
+}))
+
+const recycleBinFeedbackMocks = vi.hoisted(() => ({
+  showRecycleBinBatchUndo: vi.fn(),
+  showRecycleBinUndo: vi.fn()
 }))
 
 const loggerMocks = vi.hoisted(() => ({
@@ -242,7 +252,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({
-    deleteAssistant: assistantDataMocks.deleteAssistant
+    deleteAssistant: assistantDataMocks.deleteAssistant,
+    restoreAssistant: assistantDataMocks.restoreAssistant
   }),
   useAssistantsApi: () => ({
     assistants: [
@@ -268,6 +279,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isLoading: false,
     refetch: assistantDataMocks.refetchAssistants
   })
+}))
+
+vi.mock('@renderer/data/DataApiService', () => ({
+  dataApiService: { get: agentDataMocks.getActiveResource }
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
@@ -376,8 +391,17 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => agentDataMocks.invalidate,
-  useMutation: () => ({ trigger: vi.fn() })
+  useMutation: (method: string, path: string) => ({
+    trigger:
+      method === 'POST' && path === '/agents/:agentId/restore'
+        ? agentDataMocks.restoreAgent
+        : method === 'POST' && path === '/agent-sessions/:sessionId/restore'
+          ? agentDataMocks.restoreSession
+          : vi.fn()
+  })
 }))
+
+vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: agentDataMocks.ipcRequest, on: vi.fn(() => () => undefined) }
@@ -396,7 +420,8 @@ vi.mock('@renderer/utils/agent', () => ({
 }))
 
 vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
+  formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix,
+  getErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
 describe('classic layout entity resource list actions', () => {
@@ -424,6 +449,8 @@ describe('classic layout entity resource list actions', () => {
     assistantDataMocks.deleteTopicsByAssistantId.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
     assistantDataMocks.deleteAssistant.mockClear()
+    assistantDataMocks.restoreAssistant.mockResolvedValue(undefined)
+    assistantDataMocks.restoreAssistant.mockClear()
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
     assistantDataMocks.refreshTopics.mockClear()
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
@@ -445,12 +472,21 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.ipcRequest.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
+    agentDataMocks.restoreAgent.mockResolvedValue(undefined)
+    agentDataMocks.restoreAgent.mockClear()
+    agentDataMocks.restoreSession.mockResolvedValue(undefined)
+    agentDataMocks.restoreSession.mockClear()
+    agentDataMocks.getActiveResource.mockResolvedValue({ id: 'active-resource' })
+    agentDataMocks.getActiveResource.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)
     agentDataMocks.toggleAgentPin.mockClear()
     tabsContextMocks.closeConversationTabs.mockClear()
     loggerMocks.error.mockClear()
     loggerMocks.info.mockClear()
     loggerMocks.warn.mockClear()
+    vi.mocked(toast.error).mockClear()
+    recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
+    recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
   })
 
   it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
@@ -474,8 +510,14 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'assistants.delete.title' }))
+      expect(popup.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'recycle_bin.move.confirm_title',
+          okText: 'recycle_bin.move.confirm_action'
+        })
+      )
     )
+    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
     )
@@ -483,6 +525,81 @@ describe('classic layout entity resource list actions', () => {
     // remaining topic) and must NOT open the modern layout draft compose.
     await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
     expect(onCreateTopic).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'Assistant 1',
+      onUndo: expect.any(Function)
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
+    expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+  })
+
+  it.each(['selection reconciliation', 'Assistant refresh', 'Topic refresh'] as const)(
+    'offers Assistant Undo when post-delete %s fails',
+    async (failureStage) => {
+      const onActiveAssistantDeleted = vi.fn().mockResolvedValue(undefined)
+      if (failureStage === 'selection reconciliation') {
+        onActiveAssistantDeleted.mockRejectedValueOnce(new Error('selection failed'))
+      } else if (failureStage === 'Assistant refresh') {
+        assistantDataMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
+      } else {
+        assistantDataMocks.refreshTopics.mockRejectedValueOnce(new Error('Topic refresh failed'))
+      }
+
+      render(
+        <TestAssistantResourceList
+          activeAssistantId="assistant-1"
+          onSelectTopic={vi.fn()}
+          onCreateTopic={vi.fn()}
+          onActiveAssistantDeleted={onActiveAssistantDeleted}
+        />
+      )
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+
+      await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+      expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+      expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
+      expect(loggerMocks.warn).toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not fail Assistant Undo when restore succeeds but follow-up refreshes reject', async () => {
+    assistantDataMocks.refetchAssistants
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('restore Assistant refresh failed'))
+    assistantDataMocks.refreshTopics
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('restore Topic refresh failed'))
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(assistantDataMocks.restoreAssistant).toHaveBeenCalledWith('assistant-1')
+    expect(loggerMocks.warn).toHaveBeenCalled()
+  })
+
+  it('treats Assistant restore NOT_FOUND as complete only after refresh confirms the Assistant is active', async () => {
+    assistantDataMocks.restoreAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(agentDataMocks.getActiveResource).toHaveBeenCalledWith('/assistants/assistant-1')
   })
 
   it('creates a new topic for the hovered assistant row', () => {
@@ -866,8 +983,14 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'agent.delete.title' }))
+      expect(popup.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'recycle_bin.move.confirm_title',
+          okText: 'recycle_bin.move.confirm_action'
+        })
+      )
     )
+    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
@@ -877,6 +1000,59 @@ describe('classic layout entity resource list actions', () => {
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'Agent 1',
+      onUndo: expect.any(Function)
+    })
+
+    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(agentDataMocks.refetchAgents).toHaveBeenCalled()
+  })
+
+  it('does not fail Agent Undo when restore succeeds but follow-up refreshes reject', async () => {
+    const reload = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('session refresh failed'))
+    agentDataMocks.refetchAgents
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Agent refresh failed'))
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource({ reload })}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(loggerMocks.warn).toHaveBeenCalled()
+  })
+
+  it('treats Agent restore NOT_FOUND as complete only after refresh confirms the Agent is active', async () => {
+    agentDataMocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-1'))
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(agentDataMocks.getActiveResource).toHaveBeenCalledWith('/agents/agent-1')
   })
 
   it('deletes only tasks for the built-in Cherry Assistant in the classic layout', async () => {
@@ -912,8 +1088,8 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() =>
       expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'agent.session.agent.delete.title',
-          content: 'agent.session.agent.delete.content'
+          title: 'recycle_bin.move.confirm_title',
+          okText: 'recycle_bin.move.confirm_action'
         })
       )
     )
@@ -923,6 +1099,103 @@ describe('classic layout entity resource list actions', () => {
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
+    })
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-1', 'session-not-loaded'],
+      failed: []
+    })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-1' } })
+    expect(agentDataMocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-not-loaded' } })
+  })
+
+  it('counts active protected Sessions as restored after restore NOT_FOUND and missing Sessions as failed', async () => {
+    agentDataMocks.agents = [
+      {
+        id: 'agent-1',
+        name: 'Cherry Assistant',
+        orderKey: 'a',
+        configuration: { builtin_role: 'assistant' },
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
+      }
+    ]
+    agentDataMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-active', 'session-purged'] })
+    const activeError = DataApiErrorFactory.notFound('Session', 'session-active')
+    const purgedError = DataApiErrorFactory.notFound('Session', 'session-purged')
+    agentDataMocks.restoreSession.mockRejectedValueOnce(activeError).mockRejectedValueOnce(purgedError)
+    agentDataMocks.getActiveResource.mockImplementation((path: string) =>
+      path === '/agent-sessions/session-active'
+        ? Promise.resolve({ id: 'session-active' })
+        : Promise.reject(DataApiErrorFactory.notFound('Session', 'session-purged'))
+    )
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.session.agent.delete.trigger' })[0])
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalled())
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-active'],
+      failed: [{ id: 'session-purged', error: purgedError.message }]
+    })
+  })
+
+  it('refreshes a stale Agent delete without closing tabs, reconciling selection, or offering Undo', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({ deleted: false, deletedSessionIds: [] })
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(agentDataMocks.refetchAgents).toHaveBeenCalled()
+  })
+
+  it('refreshes an already-moved Assistant without closing tabs, reconciling selection, or offering Undo', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    assistantDataMocks.deleteAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refetchAssistants).toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
   })
 
   it('creates a new session for the hovered agent row', () => {

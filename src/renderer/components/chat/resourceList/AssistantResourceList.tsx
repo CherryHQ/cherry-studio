@@ -8,6 +8,7 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -17,9 +18,11 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
+import { showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -121,7 +124,7 @@ export function AssistantResourceList({
     togglePin: toggleAssistantPin
   } = usePins('assistant', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
-  const { deleteAssistant } = useAssistantMutations()
+  const { deleteAssistant, restoreAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
@@ -383,16 +386,27 @@ export function AssistantResourceList({
     ]
   )
 
+  const refreshAfterRestore = useCallback(async () => {
+    const outcomes = await Promise.allSettled([refreshAssistants(), refreshTopics()])
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        logger.warn('Failed to refresh Assistant resources after restore from classic-layout rail', {
+          err: outcome.reason
+        })
+      }
+    }
+  }, [refreshAssistants, refreshTopics])
+
   const handleDeleteAssistant = useCallback(
     async (assistantId: string) => {
       if (deletingAssistantId) return
 
       setDeletingAssistantId(assistantId)
       try {
+        const assistantName = assistants.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
         const confirmed = await popup.confirm({
-          title: t('assistants.delete.title'),
-          content: t('assistants.delete.content'),
-          okText: t('common.delete'),
+          title: t('recycle_bin.move.confirm_title'),
+          okText: t('recycle_bin.move.confirm_action'),
           cancelText: t('common.cancel'),
           centered: true,
           okButtonProps: {
@@ -401,15 +415,63 @@ export function AssistantResourceList({
         })
         if (!confirmed) return
 
-        const result = await deleteAssistant(assistantId, { deleteTopics: true })
+        let result
+        try {
+          result = await deleteAssistant(assistantId, { deleteTopics: true })
+        } catch (err) {
+          if (!isDataApiNotFoundError(err)) throw err
+          await Promise.allSettled([refreshAssistants(), refreshTopics()])
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+        if (!result.deleted) {
+          await Promise.allSettled([refreshAssistants(), refreshTopics()])
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
         closeConversationTabs('assistants', result.deletedTopicIds ?? [])
         if (activeAssistantId === assistantId) {
-          await onActiveAssistantDeleted?.(assistantId)
+          try {
+            await onActiveAssistantDeleted?.(assistantId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Assistant after deletion from classic-layout rail', {
+              assistantId,
+              err
+            })
+          }
         }
 
-        await refreshAssistants()
-        await refreshTopics()
-        toast.success(t('common.delete_success'))
+        try {
+          await refreshAssistants()
+        } catch (err) {
+          logger.warn('Failed to refresh Assistants after deletion from classic-layout rail', { assistantId, err })
+        }
+        try {
+          await refreshTopics()
+        } catch (err) {
+          logger.warn('Failed to refresh Topics after Assistant deletion from classic-layout rail', {
+            assistantId,
+            err
+          })
+        }
+        showRecycleBinUndo({
+          itemName: assistantName,
+          onUndo: async () => {
+            try {
+              await restoreAssistant(assistantId)
+            } catch (err) {
+              if (!isDataApiNotFoundError(err)) throw err
+              await refreshAfterRestore()
+              try {
+                await dataApiService.get(`/assistants/${assistantId}`)
+                return
+              } catch {
+                throw err
+              }
+            }
+            await refreshAfterRestore()
+          }
+        })
       } catch (err) {
         logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
@@ -419,12 +481,15 @@ export function AssistantResourceList({
     },
     [
       activeAssistantId,
+      assistants,
       closeConversationTabs,
       deleteAssistant,
       deletingAssistantId,
       onActiveAssistantDeleted,
+      refreshAfterRestore,
       refreshAssistants,
       refreshTopics,
+      restoreAssistant,
       t
     ]
   )

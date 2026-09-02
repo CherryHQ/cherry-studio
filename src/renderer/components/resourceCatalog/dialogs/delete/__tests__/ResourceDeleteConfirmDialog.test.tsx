@@ -1,32 +1,43 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceDeleteConfirmDialog } from '../ResourceDeleteConfirmDialog'
 
 const mocks = vi.hoisted(() => ({
-  deleteAgent: vi.fn(),
   deleteAssistant: vi.fn(),
+  getActiveResource: vi.fn(),
   deletePrompt: vi.fn(),
+  closeConversationTabs: vi.fn(),
+  invalidate: vi.fn(),
+  ipcRequest: vi.fn(),
+  restoreAgent: vi.fn(),
+  restoreAssistant: vi.fn(),
+  restoreSession: vi.fn(),
+  showRecycleBinBatchUndo: vi.fn(),
+  showRecycleBinUndo: vi.fn(),
+  toastInfo: vi.fn(),
   uninstallSkill: vi.fn()
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       (
         ({
-          'assistants.delete.content': 'Delete assistant content',
-          'assistants.delete.title': 'Delete assistant',
           'common.cancel': 'Cancel',
           'common.delete': 'Delete',
           'library.action.uninstall': 'Uninstall',
-          'library.delete.agent.content': 'Delete agent content',
-          'library.delete.agent.title': 'Delete agent',
           'library.delete.skill.content': 'Uninstall skill content',
           'library.delete.skill.title': 'Uninstall skill',
+          'recycle_bin.already_moved': 'Already in Recycle Bin',
+          'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
+          'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
           'settings.prompts.delete': 'Delete prompt',
           'settings.prompts.deleteConfirm': 'Delete prompt content'
         }) satisfies Record<string, string>
@@ -34,60 +45,49 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  ConfirmDialog: ({
-    cancelText,
-    confirmLoading,
-    confirmText,
-    description,
-    onConfirm,
-    onOpenChange,
-    open,
-    title
-  }: {
-    cancelText?: string
-    confirmLoading?: boolean
-    confirmText?: string
-    description?: ReactNode
-    onConfirm?: () => Promise<void> | void
-    onOpenChange?: (open: boolean) => void
-    open?: boolean
-    title?: ReactNode
-  }) =>
-    open ? (
-      <div role="dialog" data-loading={confirmLoading ? 'true' : 'false'}>
-        <h2>{title}</h2>
-        <div>{description}</div>
-        <button type="button" onClick={() => onOpenChange?.(false)}>
-          {cancelText}
-        </button>
-        <button type="button" onClick={() => void onConfirm?.()}>
-          {confirmText}
-        </button>
-      </div>
-    ) : null
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAssistantMutationsById: () => ({ deleteAssistant: mocks.deleteAssistant }),
+  usePromptMutationsById: () => ({ deletePrompt: mocks.deletePrompt }),
+  useSkillMutationsById: () => ({ uninstallSkill: mocks.uninstallSkill })
 }))
 
-vi.mock('@renderer/hooks/resourceCatalog', () => ({
-  useAgentMutationsById: () => ({
-    deleteAgent: mocks.deleteAgent
-  }),
-  useAssistantMutationsById: () => ({
-    deleteAssistant: mocks.deleteAssistant
-  }),
-  usePromptMutationsById: () => ({
-    deletePrompt: mocks.deletePrompt
-  }),
-  useSkillMutationsById: () => ({
-    uninstallSkill: mocks.uninstallSkill
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => mocks.invalidate,
+  useMutation: (method: string, path: string) => ({
+    trigger:
+      method === 'POST' && path === '/agents/:agentId/restore'
+        ? mocks.restoreAgent
+        : method === 'POST' && path === '/agent-sessions/:sessionId/restore'
+          ? mocks.restoreSession
+          : mocks.restoreAssistant
   })
+}))
+
+vi.mock('@renderer/data/DataApiService', () => ({
+  dataApiService: { get: mocks.getActiveResource }
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => mocks.closeConversationTabs
+}))
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.ipcRequest } }))
+vi.mock('@renderer/services/recycleBinFeedback', () => ({
+  showRecycleBinBatchUndo: mocks.showRecycleBinBatchUndo,
+  showRecycleBinUndo: mocks.showRecycleBinUndo
+}))
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: vi.fn(),
+    info: mocks.toastInfo
+  }
 }))
 
 function createResource(type: ResourceItem['type']): ResourceItem {
   return {
     id: `${type}-1`,
     type,
-    name: type,
+    name: `${type} name`,
     description: '',
     avatar: type[0],
     createdAt: '2026-06-01T00:00:00.000Z',
@@ -96,15 +96,29 @@ function createResource(type: ResourceItem['type']): ResourceItem {
   } as ResourceItem
 }
 
+function createProtectedAgentResource(): Extract<ResourceItem, { type: 'agent' }> {
+  const resource = createResource('agent') as Extract<ResourceItem, { type: 'agent' }>
+  return {
+    ...resource,
+    raw: {
+      ...resource.raw,
+      configuration: { ...resource.raw.configuration, builtin_role: 'assistant' }
+    }
+  }
+}
+
 describe('ResourceDeleteConfirmDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: {
-        error: vi.fn()
-      }
-    })
+    mocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
+    mocks.getActiveResource.mockResolvedValue({ id: 'active-resource' })
+    mocks.deletePrompt.mockResolvedValue(undefined)
+    mocks.invalidate.mockResolvedValue(undefined)
+    mocks.ipcRequest.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
+    mocks.restoreAgent.mockResolvedValue(undefined)
+    mocks.restoreAssistant.mockResolvedValue(undefined)
+    mocks.restoreSession.mockResolvedValue(undefined)
+    mocks.uninstallSkill.mockResolvedValue(undefined)
   })
 
   it('renders nothing without a selected resource', () => {
@@ -113,14 +127,197 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('moves an Agent with Sessions to the Recycle Bin and offers a refreshing Undo', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={onClose} />)
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('library.delete.agent.content')
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
+        agentId: 'agent-1',
+        deleteSessions: true
+      })
+    )
+    expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'agent name',
+      onUndo: expect.any(Function)
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agents')
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
+  })
+
+  it('treats an Agent restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
+    const user = userEvent.setup()
+    mocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-1'))
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
+    mocks.invalidate.mockClear()
+
+    await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agents')
+    expect(mocks.getActiveResource).toHaveBeenCalledWith('/agents/agent-1')
+  })
+
+  it('moves only protected Agent Sessions and restores the exact deleted Session IDs', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-1', 'session-2'] })
+
+    render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
+    )
+    expect(mocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-2'])
+    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(mocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 2,
+      onUndo: expect.any(Function)
+    })
+
+    await expect(mocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-1', 'session-2'],
+      failed: []
+    })
+
+    expect(mocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-1' } })
+    expect(mocks.restoreSession).toHaveBeenCalledWith({ params: { sessionId: 'session-2' } })
+    expect(mocks.restoreAgent).not.toHaveBeenCalled()
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
+  })
+
+  it('refreshes an empty protected Agent Session delete without offering Undo', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: [] })
+
+    render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
+    expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
+    expect(mocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(mocks.restoreAgent).not.toHaveBeenCalled()
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
+  })
+
+  it('moves an Assistant with Topics to the Recycle Bin and offers a refreshing Undo', async () => {
+    const user = userEvent.setup()
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))
+    expect(mocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
+    expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
+      itemName: 'assistant name',
+      onUndo: expect.any(Function)
+    })
+
+    await mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(mocks.restoreAssistant).toHaveBeenCalledWith({ params: { id: 'assistant-1' } })
+    expect(mocks.invalidate).toHaveBeenCalledWith('/assistants')
+    expect(mocks.invalidate).toHaveBeenCalledWith('/topics')
+  })
+
+  it('treats an Assistant restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
+    const user = userEvent.setup()
+    mocks.restoreAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
+    mocks.invalidate.mockClear()
+
+    await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
+
+    expect(mocks.invalidate).toHaveBeenCalledWith('/assistants')
+    expect(mocks.getActiveResource).toHaveBeenCalledWith('/assistants/assistant-1')
+  })
+
+  it('keeps an Assistant restore NOT_FOUND failed when refresh cannot find an active row', async () => {
+    const user = userEvent.setup()
+    const restoreError = DataApiErrorFactory.notFound('Assistant', 'assistant-1')
+    mocks.restoreAssistant.mockRejectedValueOnce(restoreError)
+    mocks.getActiveResource.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await waitFor(() => expect(mocks.showRecycleBinUndo).toHaveBeenCalled())
+
+    await expect(mocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).rejects.toBe(restoreError)
+  })
+
+  it('counts active protected Sessions as restored after restore NOT_FOUND and keeps missing Sessions failed', async () => {
+    const user = userEvent.setup()
+    const firstError = DataApiErrorFactory.notFound('Session', 'session-active')
+    const secondError = DataApiErrorFactory.notFound('Session', 'session-purged')
+    mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-active', 'session-purged'] })
+    mocks.restoreSession.mockRejectedValueOnce(firstError).mockRejectedValueOnce(secondError)
+    mocks.getActiveResource.mockImplementation((path: string) =>
+      path === '/agent-sessions/session-active'
+        ? Promise.resolve({ id: 'session-active' })
+        : Promise.reject(DataApiErrorFactory.notFound('Session', 'session-purged'))
+    )
+
+    render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await waitFor(() => expect(mocks.showRecycleBinBatchUndo).toHaveBeenCalled())
+
+    await expect(mocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-active'],
+      failed: [{ id: 'session-purged', error: secondError.message }]
+    })
+    expect(mocks.getActiveResource).toHaveBeenCalledWith('/agent-sessions/session-active')
+    expect(mocks.getActiveResource).toHaveBeenCalledWith('/agent-sessions/session-purged')
+  })
+
+  it('refreshes a stale Agent result without offering Undo', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValueOnce({ deleted: false, deletedSessionIds: [] })
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
+    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agents')
+    expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
+  })
+
+  it('refreshes a stale Assistant error without offering Undo', async () => {
+    const user = userEvent.setup()
+    mocks.deleteAssistant.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'assistant-1'))
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
+    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(mocks.invalidate).toHaveBeenCalledWith('/assistants')
+    expect(mocks.invalidate).toHaveBeenCalledWith('/topics')
+  })
+
   it.each([
-    ['assistant', 'Delete assistant', 'Delete', mocks.deleteAssistant],
-    ['agent', 'Delete agent', 'Delete', mocks.deleteAgent],
     ['skill', 'Uninstall skill', 'Uninstall', mocks.uninstallSkill],
     ['prompt', 'Delete prompt', 'Delete', mocks.deletePrompt]
-  ] as const)('dispatches %s deletion through the matching mutation', async (type, title, confirmText, mutation) => {
+  ] as const)('preserves the existing %s removal contract', async (type, title, confirmText, mutation) => {
     const user = userEvent.setup()
-    mutation.mockResolvedValueOnce(undefined)
 
     render(<ResourceDeleteConfirmDialog resource={createResource(type)} onClose={vi.fn()} />)
 
@@ -128,6 +325,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     await user.click(screen.getByRole('button', { name: confirmText }))
 
     await waitFor(() => expect(mutation).toHaveBeenCalledTimes(1))
+    expect(mocks.showRecycleBinUndo).not.toHaveBeenCalled()
   })
 
   it('closes when the confirm dialog is dismissed', async () => {

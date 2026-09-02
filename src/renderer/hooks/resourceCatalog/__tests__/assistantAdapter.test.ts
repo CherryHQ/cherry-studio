@@ -2,7 +2,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useImportAssistantMutation } from '../assistantAdapter'
+import { useAssistantMutationsById, useImportAssistantMutation } from '../assistantAdapter'
 
 const importTriggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
@@ -83,6 +83,30 @@ describe('useImportAssistantMutation', () => {
     })
     expect(importTriggerMock).toHaveBeenCalledWith({
       body: { name: 'Imported', prompt: 'prompt', groupName: 'work' }
+    })
+  })
+})
+
+describe('useAssistantMutationsById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMutationMock.mockReturnValue({
+      trigger: importTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+  })
+
+  it('passes the parent cascade option to the Assistant delete endpoint', async () => {
+    importTriggerMock.mockResolvedValue({ deleted: true, deletedTopicIds: ['topic-1'] })
+    const { result } = renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    await act(async () => {
+      await result.current.deleteAssistant({ deleteTopics: true })
+    })
+
+    expect(importTriggerMock).toHaveBeenCalledWith({
+      query: { deleteTopics: true }
     })
   })
 })

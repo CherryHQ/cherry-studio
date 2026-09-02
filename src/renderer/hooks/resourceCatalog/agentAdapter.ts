@@ -60,11 +60,7 @@ export function useAgentMutations() {
   return { createAgent, isCreatingAgent }
 }
 
-/**
- * Mutation hook scoped to a single agent id. PATCH accepts any `AgentBase`
- * subset (typed as `UpdateAgentDto`); the backend merges at the row level.
- * Plain DELETE removes the agent only; sessions remain as history.
- */
+/** Mutation hook scoped to a single agent id. */
 export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
 
@@ -74,15 +70,10 @@ export function useAgentMutationsById(id: string) {
     refresh: ({ args }) =>
       args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
   })
-  const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/agents', '/agents/*', '/pins']
-  })
-
   const updateAgent = useCallback(
     (dto: UpdateAgentDto): Promise<AgentDetail> => updateTrigger({ body: dto }),
     [updateTrigger]
   )
-  const deleteAgent = useCallback((): Promise<void> => deleteTrigger().then(() => undefined), [deleteTrigger])
 
-  return { updateAgent, deleteAgent }
+  return { updateAgent }
 }

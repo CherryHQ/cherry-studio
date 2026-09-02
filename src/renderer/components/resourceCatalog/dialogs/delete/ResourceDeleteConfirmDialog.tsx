@@ -1,12 +1,19 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { dataApiService } from '@renderer/data/DataApiService'
+import { useInvalidateCache, useMutation } from '@renderer/data/hooks/useDataApi'
 import {
-  useAgentMutationsById,
   useAssistantMutationsById,
   usePromptMutationsById,
   useSkillMutationsById
 } from '@renderer/hooks/resourceCatalog'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
+import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { getErrorMessage } from '@renderer/utils/error'
+import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,9 +26,7 @@ interface Props {
 /**
  * Delete confirmation for library resources. Dispatches the destructive
  * action by `resource.type` — assistants and agents go through their
- * DataApi `useXxxMutationsById.deleteXxx`, skills go through the IPC-backed
- * `useSkillMutationsById.uninstallSkill` (skills can't ride DataApi for
- * write operations because uninstall touches filesystem symlinks).
+ * domain owner, while skills retain their IPC-backed uninstall behavior.
  */
 export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
   if (!resource) return null
@@ -39,16 +44,161 @@ const AssistantDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'assis
   resource,
   onClose
 }) => {
+  const { t } = useTranslation()
   const { deleteAssistant } = useAssistantMutationsById(resource.id)
-  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deleteAssistant} />
+  const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
+  const { trigger: restoreAssistant } = useMutation('POST', '/assistants/:id/restore', {
+    refresh: ['/assistants', '/assistants/*', '/topics']
+  })
+  const refreshAffected = useCallback(
+    () =>
+      Promise.allSettled(['/assistants', '/assistants/*', '/topics'].map((key) => invalidate(key))).then(
+        () => undefined
+      ),
+    [invalidate]
+  )
+  const onDelete = useCallback(async () => {
+    try {
+      const result = await deleteAssistant({ deleteTopics: true })
+      await refreshAffected()
+      if (!result.deleted) {
+        toast.info(t('recycle_bin.already_moved'))
+        return
+      }
+      closeConversationTabs('assistants', result.deletedTopicIds ?? [])
+    } catch (error) {
+      if (!isDataApiNotFoundError(error)) throw error
+      await refreshAffected()
+      toast.info(t('recycle_bin.already_moved'))
+      return
+    }
+
+    showRecycleBinUndo({
+      itemName: resource.name,
+      onUndo: async () => {
+        try {
+          await restoreAssistant({ params: { id: resource.id } })
+        } catch (error) {
+          if (!isDataApiNotFoundError(error)) throw error
+          await refreshAffected()
+          try {
+            await dataApiService.get(`/assistants/${resource.id}`)
+            return
+          } catch {
+            throw error
+          }
+        }
+        await refreshAffected()
+      }
+    })
+  }, [closeConversationTabs, deleteAssistant, refreshAffected, resource.id, resource.name, restoreAssistant, t])
+
+  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
 }
 
 const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>; onClose: () => void }> = ({
   resource,
   onClose
 }) => {
-  const { deleteAgent } = useAgentMutationsById(resource.id)
-  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deleteAgent} />
+  const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
+  const deleteTasksOnly = isProtectedBuiltinAgentRole(resource.raw.configuration?.builtin_role)
+  const { trigger: restoreAgent } = useMutation('POST', '/agents/:agentId/restore', {
+    refresh: ['/agents', '/agents/*', '/agent-sessions']
+  })
+  const { trigger: restoreSession } = useMutation('POST', '/agent-sessions/:sessionId/restore', {
+    refresh: ['/agent-sessions']
+  })
+  const refreshAffected = useCallback(
+    () =>
+      Promise.allSettled(['/agents', '/agents/*', '/agent-sessions'].map((key) => invalidate(key))).then(
+        () => undefined
+      ),
+    [invalidate]
+  )
+  const onDelete = useCallback(async () => {
+    if (deleteTasksOnly) {
+      const result = await ipcApi.request('ai.agent.sessions.delete', { agentId: resource.id })
+      const deletedSessionIds = [...result.deletedIds]
+      await refreshAffected()
+      if (deletedSessionIds.length === 0) {
+        toast.info(t('recycle_bin.already_moved'))
+        return
+      }
+
+      closeConversationTabs('agents', deletedSessionIds)
+      showRecycleBinBatchUndo({
+        itemCount: deletedSessionIds.length,
+        onUndo: async () => {
+          const outcomes = await Promise.allSettled(
+            deletedSessionIds.map((sessionId) => restoreSession({ params: { sessionId } }))
+          )
+          await refreshAffected()
+          const activeAfterNotFound = await Promise.all(
+            outcomes.map(async (outcome, index) => {
+              if (outcome.status === 'fulfilled' || !isDataApiNotFoundError(outcome.reason)) return false
+              try {
+                await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
+                return true
+              } catch {
+                return false
+              }
+            })
+          )
+          return outcomes.reduce(
+            (summary, outcome, index) => {
+              const sessionId = deletedSessionIds[index]
+              if (outcome.status === 'fulfilled' || activeAfterNotFound[index]) summary.restored.push(sessionId)
+              else summary.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
+              return summary
+            },
+            { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
+          )
+        }
+      })
+      return
+    }
+
+    const result = await ipcApi.request('ai.agent.delete', { agentId: resource.id, deleteSessions: true })
+    await refreshAffected()
+    if (!result.deleted) {
+      toast.info(t('recycle_bin.already_moved'))
+      return
+    }
+
+    closeConversationTabs('agents', result.deletedSessionIds ?? [])
+    showRecycleBinUndo({
+      itemName: resource.name,
+      onUndo: async () => {
+        try {
+          await restoreAgent({ params: { agentId: resource.id } })
+        } catch (error) {
+          if (!isDataApiNotFoundError(error)) throw error
+          await refreshAffected()
+          try {
+            await dataApiService.get(`/agents/${resource.id}`)
+            return
+          } catch {
+            throw error
+          }
+        }
+        await refreshAffected()
+      }
+    })
+  }, [
+    closeConversationTabs,
+    deleteTasksOnly,
+    refreshAffected,
+    resource.id,
+    resource.name,
+    restoreAgent,
+    restoreSession,
+    t
+  ])
+
+  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
 }
 
 const SkillDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'skill' }>; onClose: () => void }> = ({
@@ -88,11 +238,11 @@ const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onD
   }, [onDelete, t])
 
   const { title, description, confirmText } = useMemo(() => {
-    if (resource.type === 'agent') {
+    if (resource.type === 'agent' || resource.type === 'assistant') {
       return {
-        title: t('library.delete.agent.title'),
-        description: t('library.delete.agent.content'),
-        confirmText: t('common.delete')
+        title: t('recycle_bin.move.confirm_title'),
+        description: undefined,
+        confirmText: t('recycle_bin.move.confirm_action')
       }
     }
     if (resource.type === 'skill') {
@@ -109,11 +259,7 @@ const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onD
         confirmText: t('common.delete')
       }
     }
-    return {
-      title: t('assistants.delete.title'),
-      description: t('assistants.delete.content'),
-      confirmText: t('common.delete')
-    }
+    return { title: '', description: undefined, confirmText: '' }
   }, [resource.type, t])
 
   return (

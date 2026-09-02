@@ -51,7 +51,8 @@ export const FileGrid = memo(function FileGrid({
   onLayoutChange,
   renamingId,
   onRenameConfirm,
-  onRenameCancel
+  onRenameCancel,
+  deleteDisabled = false
 }: {
   files: FileItem[]
   onOpen: (file: FileItem) => void
@@ -62,6 +63,7 @@ export const FileGrid = memo(function FileGrid({
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
   onRenameCancel: () => void
+  deleteDisabled?: boolean
 }) {
   const { t } = useTranslation()
   const columnCount = useGridColumnCount(scrollRef)
@@ -107,7 +109,7 @@ export const FileGrid = memo(function FileGrid({
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
               const shapeClass = isImage ? 'aspect-square' : 'h-24'
               return (
-                <FileContextMenu key={file.id} file={file} actions={menuActions}>
+                <FileContextMenu key={file.id} file={file} actions={menuActions} deleteDisabled={deleteDisabled}>
                   <div
                     onClick={() => {
                       if (isRenaming || file.isMissing) return
@@ -140,12 +142,15 @@ export const FileGrid = memo(function FileGrid({
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          disabled={deleteDisabled}
                           onClick={(e) => {
                             e.stopPropagation()
                             onDelete(file.id)
                           }}
-                          aria-label={file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')}
-                          title={file.origin === 'external' ? t('files.remove_from_library') : t('common.archive')}
+                          aria-label={
+                            file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
+                          }
+                          title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
                           className="!text-muted-foreground hover:!text-destructive size-6 min-h-0 rounded bg-background/80 p-0 shadow-xs backdrop-blur-sm transition-colors">
                           <Trash2 className="size-3" />
                         </Button>
