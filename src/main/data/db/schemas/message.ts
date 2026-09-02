@@ -64,6 +64,10 @@ export const messageTable = sqliteTable(
     // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),
+    // Backs the model_id FK's ON DELETE SET NULL. SQLite scans the whole child table once per
+    // deleted parent row when the child key is unindexed, so "remove all models" (hundreds of
+    // rows) would otherwise block the main process for seconds on a large history.
+    index('message_model_id_idx').on(t.modelId),
     // Single-root invariant: at most one live virtual-root (parentId IS NULL) row per topic.
     // Guarantees one root and backs O(1) root lookup (WHERE topic_id=? AND parent_id IS NULL).
     // Scoped to deleted_at IS NULL so a future soft-delete of a root can't collide with a
