@@ -3,7 +3,14 @@ import { loggerService } from '@logger'
 import { renderAsync } from 'docx-preview'
 import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { FilePreviewLayout } from '../../FilePreviewLayout'
@@ -23,6 +30,20 @@ const SAFE_HYPERLINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const formatDocxZoom = (zoom: number): string => `${Math.round(zoom * 100)}%`
+
+interface DocxViewportAnchor {
+  x: number
+  y: number
+  lockTop: boolean
+}
+
+interface DocxPanState {
+  pointerId: number
+  startX: number
+  startY: number
+  scrollLeft: number
+  scrollTop: number
+}
 
 function toUint8Array(data: Uint8Array | ArrayBuffer | ArrayBufferView): Uint8Array {
   if (data instanceof Uint8Array) return data
@@ -57,6 +78,13 @@ function sanitizeHyperlinks(body: HTMLElement): void {
       anchor.removeAttribute('href')
     }
     anchor.setAttribute('rel', 'noopener noreferrer')
+  })
+}
+
+function removePreviewWrapperBackground(body: HTMLElement): void {
+  body.querySelectorAll<HTMLElement>('.docx-preview-wrapper,.docx-wrapper').forEach((wrapper) => {
+    wrapper.style.background = 'transparent'
+    wrapper.style.backgroundColor = 'transparent'
   })
 }
 
@@ -101,34 +129,49 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
   const styleRef = useRef<HTMLDivElement>(null)
   const renderTokenRef = useRef(0)
   const manualZoomRef = useRef(false)
+  const panStateRef = useRef<DocxPanState | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [fitZoom, setFitZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
   const [manualZoom, setManualZoom] = useState(false)
+  const [panning, setPanning] = useState(false)
   const [zoom, setZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
 
   const focusContainer = useCallback(() => {
     containerRef.current?.focus({ preventScroll: true })
   }, [])
 
-  const captureHorizontalCenter = useCallback(() => {
+  const captureViewportAnchor = useCallback((): DocxViewportAnchor => {
     const scrollRoot = containerRef.current
-    if (!scrollRoot || scrollRoot.clientWidth <= 0 || scrollRoot.scrollWidth <= 0) return 0.5
+    if (!scrollRoot) return { x: 0.5, y: 0.5, lockTop: true }
 
-    return clamp((scrollRoot.scrollLeft + scrollRoot.clientWidth / 2) / scrollRoot.scrollWidth, 0, 1)
+    return {
+      x:
+        scrollRoot.clientWidth > 0 && scrollRoot.scrollWidth > 0
+          ? clamp((scrollRoot.scrollLeft + scrollRoot.clientWidth / 2) / scrollRoot.scrollWidth, 0, 1)
+          : 0.5,
+      y:
+        scrollRoot.clientHeight > 0 && scrollRoot.scrollHeight > 0
+          ? clamp((scrollRoot.scrollTop + scrollRoot.clientHeight / 2) / scrollRoot.scrollHeight, 0, 1)
+          : 0.5,
+      lockTop: scrollRoot.scrollTop <= 0
+    }
   }, [])
 
-  const restoreHorizontalCenter = useCallback((centerRatio = 0.5) => {
+  const restoreViewportAnchor = useCallback((anchor: DocxViewportAnchor = { x: 0.5, y: 0.5, lockTop: true }) => {
     afterLayout(() => {
       const scrollRoot = containerRef.current
       if (!scrollRoot) return
 
       const maxScrollLeft = Math.max(0, scrollRoot.scrollWidth - scrollRoot.clientWidth)
+      const maxScrollTop = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight)
       scrollRoot.scrollLeft =
-        maxScrollLeft > 0
-          ? clamp(scrollRoot.scrollWidth * centerRatio - scrollRoot.clientWidth / 2, 0, maxScrollLeft)
+        maxScrollLeft > 0 ? clamp(scrollRoot.scrollWidth * anchor.x - scrollRoot.clientWidth / 2, 0, maxScrollLeft) : 0
+      scrollRoot.scrollTop =
+        maxScrollTop > 0 && !anchor.lockTop
+          ? clamp(scrollRoot.scrollHeight * anchor.y - scrollRoot.clientHeight / 2, 0, maxScrollTop)
           : 0
     })
   }, [])
@@ -138,9 +181,9 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     setFitZoom(nextFitZoom)
     if (!manualZoomRef.current) {
       setZoom(nextFitZoom)
-      restoreHorizontalCenter()
+      restoreViewportAnchor()
     }
-  }, [restoreHorizontalCenter])
+  }, [restoreViewportAnchor])
 
   const jumpToPage = useCallback(
     (pageNumber: number) => {
@@ -158,7 +201,7 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
 
   const zoomBy = useCallback(
     (direction: 'in' | 'out') => {
-      const centerRatio = captureHorizontalCenter()
+      const viewportAnchor = captureViewportAnchor()
       manualZoomRef.current = true
       setManualZoom(true)
       setZoom((value) =>
@@ -168,10 +211,10 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
           DOCX_PREVIEW_MAX_ZOOM
         )
       )
-      restoreHorizontalCenter(centerRatio)
+      restoreViewportAnchor(viewportAnchor)
       focusContainer()
     },
-    [captureHorizontalCenter, focusContainer, restoreHorizontalCenter]
+    [captureViewportAnchor, focusContainer, restoreViewportAnchor]
   )
 
   const resetZoom = useCallback(() => {
@@ -180,6 +223,50 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     applyFitZoom()
     focusContainer()
   }, [applyFitZoom, focusContainer])
+
+  const startPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button > 0) return
+
+    const scrollRoot = containerRef.current
+    if (!scrollRoot) return
+    if (scrollRoot.scrollWidth <= scrollRoot.clientWidth && scrollRoot.scrollHeight <= scrollRoot.clientHeight) return
+
+    const target = event.target instanceof Element ? event.target : null
+    if (target?.closest('a,button,input,textarea,select,[contenteditable="true"]')) return
+
+    panStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: scrollRoot.scrollLeft,
+      scrollTop: scrollRoot.scrollTop
+    }
+    setPanning(true)
+    scrollRoot.setPointerCapture?.(event.pointerId)
+    event.preventDefault()
+  }, [])
+
+  const pan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const panState = panStateRef.current
+    const scrollRoot = containerRef.current
+    if (!panState || !scrollRoot || panState.pointerId !== event.pointerId) return
+
+    scrollRoot.scrollLeft = panState.scrollLeft - (event.clientX - panState.startX)
+    scrollRoot.scrollTop = panState.scrollTop - (event.clientY - panState.startY)
+    event.preventDefault()
+  }, [])
+
+  const stopPan = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const panState = panStateRef.current
+    if (!panState || panState.pointerId !== event.pointerId) return
+
+    panStateRef.current = null
+    setPanning(false)
+    const scrollRoot = containerRef.current
+    if (scrollRoot?.hasPointerCapture?.(event.pointerId)) {
+      scrollRoot.releasePointerCapture(event.pointerId)
+    }
+  }, [])
 
   const hasPages = !error && pageCount > 0
 
@@ -196,6 +283,8 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     setPageCount(0)
     setFitZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
     setManualZoom(false)
+    setPanning(false)
+    panStateRef.current = null
     manualZoomRef.current = false
     setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
 
@@ -238,6 +327,7 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
           page.classList.add('docx-preview-page')
         })
         sanitizeHyperlinks(stagingBody)
+        removePreviewWrapperBackground(stagingBody)
         bodyContainer.replaceChildren(...stagingBody.childNodes)
         styleContainer.replaceChildren(...stagingStyle.childNodes)
 
@@ -335,15 +425,23 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
             ref={containerRef}
             role="region"
             aria-label={fileName}
-            className="absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
-            tabIndex={0}>
+            className={`absolute inset-0 overflow-auto bg-background outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset ${hasPages ? 'cursor-grab' : ''} ${panning ? 'cursor-grabbing select-none' : ''}`}
+            tabIndex={0}
+            onPointerDown={startPan}
+            onPointerMove={pan}
+            onPointerUp={stopPan}
+            onPointerCancel={stopPan}
+            onLostPointerCapture={() => {
+              panStateRef.current = null
+              setPanning(false)
+            }}>
             <div ref={styleRef} />
             <div
               ref={bodyRef}
               data-testid="docx-preview-content"
               data-zoom={zoom}
               style={contentStyle}
-              className="mx-auto w-fit min-w-0 [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
+              className="[&_.docx-preview-wrapper]:!bg-transparent [&_.docx-wrapper]:!bg-transparent mx-auto w-fit min-w-0 [&_.docx-preview-wrapper]:mx-auto [&_.docx-preview]:box-border [&_.docx-preview]:max-w-full [&_section]:overflow-hidden [&_section]:rounded-sm [&_section]:shadow-md"
             />
           </div>
           {loading ? (

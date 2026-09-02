@@ -529,20 +529,24 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
 }
 
 function OpenInputFilePreviewButton() {
-  const { previewInputFileInRightPane } = useAgentRightPaneActions()
+  const { canPreviewInputFileInRightPane, previewInputFileInRightPane } = useAgentRightPaneActions()
   return (
-    <button
-      type="button"
-      onClick={() =>
-        previewInputFileInRightPane({
-          displayName: 'report.md',
-          previewPath: '/internal/message-files/report.md' as AbsoluteFilePath,
-          originalPath: '/Users/alice/report.md' as AbsoluteFilePath,
-          mediaType: 'text/markdown'
-        })
-      }>
-      open input preview
-    </button>
+    <>
+      <output data-testid="can-preview-input-file">{String(canPreviewInputFileInRightPane)}</output>
+      <button
+        type="button"
+        disabled={!canPreviewInputFileInRightPane}
+        onClick={() =>
+          previewInputFileInRightPane({
+            displayName: 'report.md',
+            previewPath: '/internal/message-files/report.md' as AbsoluteFilePath,
+            originalPath: '/Users/alice/report.md' as AbsoluteFilePath,
+            mediaType: 'text/markdown'
+          })
+        }>
+        open input preview
+      </button>
+    </>
   )
 }
 
@@ -1080,12 +1084,13 @@ describe('AgentRightPane', () => {
     })
 
     render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
         <OpenInputFilePreviewButton />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
 
+    expect(screen.getByTestId('can-preview-input-file')).toHaveTextContent('true')
     fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')

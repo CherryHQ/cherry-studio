@@ -81,6 +81,7 @@ beforeEach(() => {
   })
   HTMLElement.prototype.scrollIntoView = vi.fn()
   vi.stubGlobal('IntersectionObserver', mocks.MockIntersectionObserver)
+  vi.stubGlobal('PointerEvent', MouseEvent)
 })
 
 afterEach(() => {
@@ -112,6 +113,8 @@ describe('WordFilePreview', () => {
     expect(toolbar).toHaveClass('h-11', 'min-h-11')
     expect(toolbar).not.toHaveClass('bg-background')
     expect(toolbar.firstElementChild).toHaveClass('mx-auto', 'justify-center')
+    expect(screen.getByTestId('docx-preview-content').className).toContain('[&_.docx-preview-wrapper]:!bg-transparent')
+    expect(screen.getByTestId('docx-preview-content').className).toContain('[&_.docx-wrapper]:!bg-transparent')
     await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
@@ -159,6 +162,78 @@ describe('WordFilePreview', () => {
     } finally {
       clientWidthSpy.mockRestore()
       scrollWidthSpy.mockRestore()
+    }
+  })
+
+  it('removes the default DOCX wrapper background', async () => {
+    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML =
+        '<div class="docx-wrapper" style="background: gray;"><section>Page 1</section></div><div class="docx-preview-wrapper" style="background: gray;"><section>Page 2</section></div>'
+    })
+
+    render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+    const content = screen.getByTestId('docx-preview-content')
+    expect(content.querySelector<HTMLElement>('.docx-wrapper')?.style.backgroundColor).toBe('transparent')
+    expect(content.querySelector<HTMLElement>('.docx-preview-wrapper')?.style.backgroundColor).toBe('transparent')
+  })
+
+  it('pans zoomed DOCX pages by dragging the preview canvas', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.getAttribute('aria-label') === 'report.docx' ? 300 : 0
+    })
+    const clientHeightSpy = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.getAttribute('aria-label') === 'report.docx' ? 220 : 0
+    })
+    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.getAttribute('aria-label') === 'report.docx') {
+        const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
+        return Math.max(300, Math.round(800 * zoom))
+      }
+      if (this.classList.contains('docx-preview-wrapper')) return 800
+      if (this.classList.contains('docx-preview-page')) return 760
+      return 0
+    })
+    const scrollHeightSpy = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.getAttribute('aria-label') === 'report.docx') {
+        const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
+        return Math.max(220, Math.round(900 * zoom))
+      }
+      return 0
+    })
+    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<div class="docx-preview-wrapper"><section>Page 1</section></div>'
+    })
+
+    try {
+      render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+
+      const region = await screen.findByRole('region', { name: 'report.docx' })
+      await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('50%'))
+
+      region.scrollLeft = 20
+      region.scrollTop = 30
+      fireEvent.pointerDown(region, { button: 0, buttons: 1, pointerId: 7, clientX: 100, clientY: 100 })
+      fireEvent.pointerMove(region, { pointerId: 7, clientX: 80, clientY: 70 })
+
+      expect(region.scrollLeft).toBe(40)
+      expect(region.scrollTop).toBe(60)
+
+      fireEvent.pointerUp(region, { pointerId: 7 })
+    } finally {
+      clientWidthSpy.mockRestore()
+      clientHeightSpy.mockRestore()
+      scrollWidthSpy.mockRestore()
+      scrollHeightSpy.mockRestore()
     }
   })
 

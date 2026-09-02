@@ -114,6 +114,7 @@ const logger = loggerService.withContext('AgentRightPane')
 
 const FLOW_TAB_PREFIX = 'flow:'
 const STATUS_PANE_ID = 'status'
+const FILES_PANE_ID = 'files'
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 const TracePane = lazy(() =>
@@ -165,6 +166,23 @@ function isSameFileSelection(
     current.previewType === next.previewType &&
     current.readOnly === next.readOnly
   )
+}
+
+function createInputFileSelection(
+  input: MessageInputFilePreview,
+  workspacePath: string | undefined,
+  previewPath: MessageInputFilePreview['previewPath']
+): ArtifactPaneFileSelection | null {
+  const selection = resolveArtifactPaneFileSelection(workspacePath, previewPath)
+  if (!selection) return null
+
+  return {
+    ...selection,
+    displayName: input.displayName,
+    displayPath: input.originalPath ?? previewPath,
+    previewType: 'file',
+    readOnly: true
+  }
 }
 
 interface AgentFlowTab {
@@ -223,6 +241,7 @@ interface AgentRightPaneActions {
 
 interface AgentRightPanelScope {
   developerMode: boolean
+  filePreviewSelection: ArtifactPaneFileSelection | null
   hasSystemWorkspaceFiles: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
@@ -327,8 +346,8 @@ function AgentRightPaneActionsProvider({
     }
   }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
-  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen('files')
-  const canPreviewInputFileInRightPane = conversationState === 'ready' && panelActions.canOpen('files')
+  const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
+  const canPreviewInputFileInRightPane = conversationState === 'ready'
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
@@ -343,7 +362,7 @@ function AgentRightPaneActionsProvider({
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      panelActions.tryOpen('files', { userInitiated: true })
+      panelActions.tryOpen(FILES_PANE_ID, { userInitiated: true })
 
       if (!selection) {
         requestFileSelection(null)
@@ -369,7 +388,15 @@ function AgentRightPaneActionsProvider({
       if (!canPreviewInputFileInRightPane) return
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
-      panelActions.tryOpen('files', { userInitiated: true })
+
+      const initialSelection = createInputFileSelection(input, workspacePath, input.previewPath)
+      if (!initialSelection) {
+        requestFileSelection(null)
+        return
+      }
+
+      requestFileSelection(initialSelection)
+      panelActions.requestOpen(FILES_PANE_ID, { userInitiated: true })
 
       void (async () => {
         let previewPath = input.previewPath
@@ -384,18 +411,10 @@ function AgentRightPaneActionsProvider({
           }
         }
 
-        const selection = resolveArtifactPaneFileSelection(workspacePath, previewPath)
+        const selection = createInputFileSelection(input, workspacePath, previewPath)
         if (!selection) {
           requestFileSelection(null)
           return
-        }
-
-        const inputSelection: ArtifactPaneFileSelection = {
-          ...selection,
-          displayName: input.displayName,
-          displayPath: input.originalPath ?? previewPath,
-          previewType: 'file',
-          readOnly: true
         }
 
         try {
@@ -404,10 +423,10 @@ function AgentRightPaneActionsProvider({
             createFilePathHandle(getArtifactPaneSelectionPath(selection))
           )
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : inputSelection)
+          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
         } catch {
           if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(inputSelection)
+          requestFileSelection(selection)
         }
       })()
     },
@@ -660,6 +679,7 @@ function AgentRightPaneStateProvider({
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
       developerMode: enableDeveloperMode,
+      filePreviewSelection: previewFileSelection,
       hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
@@ -668,7 +688,7 @@ function AgentRightPaneStateProvider({
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, previewFileSelection, resourcePane, t]
   )
 
   return (
@@ -1249,6 +1269,7 @@ function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentR
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
   if (scope.meta.conversationState !== 'ready') return scope.meta.conversationState
+  if (scope.filePreviewSelection) return 'ready'
   if (scope.meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && !scope.hasSystemWorkspaceFiles) {
     return 'unavailable'
   }
@@ -1280,7 +1301,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
   {
     component: AgentRightPaneFilesPanel,
     resolve: (scope) => ({
-      id: 'files',
+      id: FILES_PANE_ID,
       instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
       title: scope.filesTitle,
       readiness: resolveAgentFilesReadiness(scope),
@@ -1481,7 +1502,7 @@ const AgentRightPaneShortcuts = memo(function AgentRightPaneShortcuts() {
   return (
     <>
       <RightPanelShortcut
-        tab="files"
+        tab={FILES_PANE_ID}
         label={t('agent.right_pane.tabs.files')}
         icon={<FolderOpen className="size-3.5" />}
       />
