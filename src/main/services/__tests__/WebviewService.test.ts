@@ -131,6 +131,7 @@ function createContents(
 ): MockContents {
   const contents = new EventEmitter() as MockContents
   let debuggerAttached = options.debuggerAttached ?? false
+  const delegateSendCommand = options.sendCommand ?? vi.fn().mockResolvedValue({})
   contents.id = id
   contents.hostWebContents = hostWebContents
   contents.session = options.session ?? siteSession
@@ -142,7 +143,11 @@ function createContents(
       debuggerAttached = false
     }),
     isAttached: vi.fn(() => debuggerAttached),
-    sendCommand: options.sendCommand ?? vi.fn().mockResolvedValue({})
+    sendCommand: vi.fn((method: string, params?: Record<string, unknown>) => {
+      if (method === 'Page.getFrameTree') return Promise.resolve({ frameTree: { frame: { id: 'main-frame' } } })
+      if (method === 'Page.createIsolatedWorld') return Promise.resolve({ executionContextId: 73 })
+      return delegateSendCommand(method, params)
+    })
   }
   contents.getType = () => options.type ?? 'webview'
   contents.getTitle = () => options.title ?? 'Example'
@@ -443,6 +448,16 @@ describe('WebviewService annotation security and lifecycle', () => {
       expect.objectContaining({
         expression: expect.stringContaining('["#host","[data-testid=\\"submit\\"]"]')
       })
+    )
+    expect(guest.debugger.sendCommand).toHaveBeenCalledWith('Page.getFrameTree', undefined)
+    expect(guest.debugger.sendCommand).toHaveBeenCalledWith('Page.createIsolatedWorld', {
+      frameId: 'main-frame',
+      worldName: 'cherry-webview-annotation-accessibility',
+      grantUniveralAccess: false
+    })
+    expect(guest.debugger.sendCommand).toHaveBeenCalledWith(
+      'Runtime.evaluate',
+      expect.objectContaining({ contextId: 73 })
     )
     expect(sendCommand).toHaveBeenCalledWith('Accessibility.enable', undefined)
     expect(sendCommand).toHaveBeenCalledWith('Accessibility.disable', undefined)
