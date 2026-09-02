@@ -400,6 +400,43 @@ describe('processMessage (internal Agent continuation normalization)', () => {
     )
   })
 
+  it('does not treat an incidental workspace support mention as the standing identity', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const workspaceInstruction = 'Workspace notes describe the official built-in product support workflow.'
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: workspaceInstruction }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([
+      expect.objectContaining({ type: 'text', text: expect.stringContaining('You are Cherry Support') }),
+      { type: 'text', text: workspaceInstruction }
+    ])
+  })
+
+  it.each([
+    "# Cherry Support\n\nYour sole identity is Cherry Support, Cherry Studio's official built-in product support and feedback AI Agent.",
+    '# 产品反馈\n\n你唯一的身份是 Cherry Studio 官方内置的产品支持与反馈 AI Agent。'
+  ])('recognizes the bundled standing identity without adding a fallback: %s', async (supportPrompt) => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    mockIsInternalSupportRequest.mockReturnValue(true)
+    const params = createAnthropicParams('claude-opus-5', [{ role: 'user', content: 'Who are you?' }])
+    params.system = [
+      { type: 'text', text: 'You are Claude Code, Anthropic official CLI for Claude.' },
+      { type: 'text', text: supportPrompt }
+    ] as MessageCreateParams['system']
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages.mock.calls[0][0].system).toEqual([{ type: 'text', text: supportPrompt }])
+  })
+
   it('supplies a standing identity when an authenticated Support request has an empty system prompt', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)
@@ -627,6 +664,11 @@ describe('processMessage (internal Agent continuation normalization)', () => {
         ]
       })
     )
+    expect(
+      mockLoggerInfo.mock.calls.some(
+        ([message]) => message === 'Appended assistant-tail continuation for internal agent request'
+      )
+    ).toBe(false)
   })
 
   it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {

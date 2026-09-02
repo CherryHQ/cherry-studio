@@ -9,13 +9,27 @@ const CONFLICTING_SDK_IDENTITY_MARKERS = [
   "You are a Claude agent, built on Anthropic's Claude Agent SDK."
 ] as const
 const CHERRY_SUPPORT_IDENTITY_MARKERS = ['official built-in product support', '官方内置的产品支持'] as const
+const CHERRY_SUPPORT_IDENTITY_PREFIXES = [
+  'You are Cherry Support',
+  'You are Cherry Studio',
+  'Your sole identity is Cherry Support',
+  '你是 Cherry Support',
+  '你是 Cherry Studio',
+  '你唯一的身份是 Cherry Studio'
+] as const
 
 function containsMarker(text: string, markers: readonly string[]): boolean {
   return markers.some((marker) => text.includes(marker))
 }
 
 function isCherrySupportIdentity(text: string): boolean {
-  return containsMarker(text, CHERRY_SUPPORT_IDENTITY_MARKERS)
+  return text.split('\n').some((line) => {
+    const trimmed = line.trimStart()
+    return (
+      CHERRY_SUPPORT_IDENTITY_PREFIXES.some((prefix) => trimmed.startsWith(prefix)) &&
+      containsMarker(trimmed, CHERRY_SUPPORT_IDENTITY_MARKERS)
+    )
+  })
 }
 
 function isConflictingSdkIdentity(text: string): boolean {
