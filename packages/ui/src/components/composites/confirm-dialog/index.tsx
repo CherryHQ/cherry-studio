@@ -31,6 +31,8 @@ interface ConfirmDialogProps {
   destructive?: boolean
   /** Loading state for confirm button */
   confirmLoading?: boolean
+  /** Disabled state for confirm button */
+  confirmDisabled?: boolean
   /** Optional className for DialogContent */
   contentClassName?: string
   /** Optional className for DialogOverlay */
@@ -48,6 +50,7 @@ function ConfirmDialog({
   onConfirm,
   destructive = false,
   confirmLoading = false,
+  confirmDisabled = false,
   contentClassName,
   overlayClassName
 }: ConfirmDialogProps) {
@@ -72,7 +75,11 @@ function ConfirmDialog({
           <DialogClose asChild>
             <Button variant="outline">{cancelText}</Button>
           </DialogClose>
-          <Button variant={destructive ? 'destructive' : 'default'} onClick={handleConfirm} loading={confirmLoading}>
+          <Button
+            variant={destructive ? 'destructive' : 'default'}
+            onClick={handleConfirm}
+            loading={confirmLoading}
+            disabled={confirmDisabled}>
             {confirmText}
           </Button>
         </DialogFooter>

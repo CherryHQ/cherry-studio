@@ -2,13 +2,45 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ConfirmDialog } from '../index'
 
 afterEach(cleanup)
 
 describe('ConfirmDialog', () => {
+  it('guards a disabled confirmation without blocking cancellation', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <ConfirmDialog
+        open
+        confirmDisabled
+        title="Confirm action"
+        confirmText="Confirm"
+        cancelText="Cancel"
+        onConfirm={onConfirm}
+        onOpenChange={onOpenChange}
+      />
+    )
+
+    const confirmButton = screen.getByRole('button', { name: 'Confirm' })
+    expect(confirmButton).toBeDisabled()
+
+    await user.click(confirmButton)
+
+    expect(onConfirm).not.toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onOpenChange).toHaveBeenCalledTimes(1)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('uses fade-scale motion without directional translation', () => {
     render(
       <ConfirmDialog
