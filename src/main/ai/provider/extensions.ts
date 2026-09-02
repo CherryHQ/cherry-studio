@@ -358,6 +358,17 @@ export const DashScopeExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
+ * QwenCloud (international) Extension — same wire family as DashScope (AIGC
+ * image endpoints under the chat host), so it reuses the DashScope provider
+ * factory; the intl origin travels via the config builder's `imageBaseURL`.
+ */
+export const QwencloudExtension = ProviderExtension.create({
+  name: 'qwencloud',
+  supportsImageGeneration: true,
+  create: async (settings) => (await import('./custom/dashscope/dashscopeProvider')).createDashScopeProvider(settings)
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'qwencloud'>)
+
+/**
  * TokenHub (Tencent) Extension - OpenAI-compatible chat + embedding, image via the
  * `/v1/wand/*` endpoints (hunyuan / seedream sync, vidu submit+poll).
  */
@@ -417,6 +428,7 @@ export const extensions = [
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
+  QwencloudExtension,
   TokenhubExtension,
   VoyageExtension,
   TogetherAIExtension,

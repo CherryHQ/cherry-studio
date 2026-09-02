@@ -338,15 +338,27 @@ function buildRequestBody(
   descriptor: DashScopeModelDescriptor
 ): Record<string, unknown> {
   const bag = (input.providerParams ?? {}) as DashScopeProviderParams
+  // Descriptor ids arrive in both shapes: the catalog's canonical `modelId` (no dots,
+  // what built-in listings resolve to) and the vendor `apiModelId` (what manually
+  // added models keep). List both per body family.
   switch (descriptor.id) {
     case 'z-image-turbo':
     case 'qwen-image-3.0':
+    case 'qwen-image-3-0':
     case 'qwen-image-3.0-pro':
+    case 'qwen-image-3-0-pro':
+    case 'qwen-image-2.0':
+    case 'qwen-image-2-0':
+    case 'qwen-image-2.0-pro':
+    case 'qwen-image-2-0-pro':
     case 'qwen-image-edit':
     case 'qwen-image-edit-plus':
     case 'wan2.6-image':
+    case 'wan2-6-image':
     case 'wan2.7-image':
+    case 'wan2-7-image':
     case 'wan2.7-image-pro':
+    case 'wan2-7-image-pro':
       return buildChatLikeBody(input, bag)
     case 'qwen-image':
     case 'qwen-image-plus':
