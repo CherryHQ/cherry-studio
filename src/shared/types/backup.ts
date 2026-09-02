@@ -13,6 +13,8 @@ export type WebDavConfig = {
   maxBackups?: number
   skipBackupFile?: boolean
   disableStream?: boolean
+  /** Opt-in: skip ALL certificate checks for this server (self-signed/private-CA, and also expired or wrong-hostname certificates). Default (unset/false) verifies. */
+  allowSelfSignedTls?: boolean
 }
 
 export type LocalBackupConfig = {
