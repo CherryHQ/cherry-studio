@@ -106,6 +106,47 @@ describe('server-tool model eligibility', () => {
     expect(isBuiltinWebSearchAvailable(dated, provider('model-dependent', 'doubao'))).toBe(true)
   })
 
+  // QwenCloud splits web search across two same-tool declarations: qwen3.x lines ride Chat's
+  // enable_search, the DeepSeek-V4/GLM-5.2 ids the Responses web_search tool ("Responses API only"
+  // in the docs table). Eligibility must land on the SAME declaration as the pinned endpoint —
+  // otherwise Chat on deepseek-v4 routes server-side and silently serves no search.
+  it('matches model and endpoint on the same qwencloud declaration', () => {
+    const qwencloud = {
+      id: 'qwencloud',
+      serverTools: [
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'model-dependent',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        },
+        {
+          id: SERVER_TOOL.WEB_SEARCH,
+          modelScope: 'model-dependent',
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+        }
+      ]
+    } as unknown as Provider
+    const qwen = model('qwen3.7-max', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const deepseek = model('deepseek-v4-pro', { capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] })
+    const route = (m: Model, endpointType: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE]) =>
+      resolveWebToolRoutes(m, qwencloud, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: false,
+        clientToolsPreferred: false,
+        endpointType
+      })
+
+    expect(isBuiltinWebSearchAvailable(qwen, qwencloud, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(true)
+    expect(isBuiltinWebSearchAvailable(qwen, qwencloud, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(false)
+    expect(isBuiltinWebSearchAvailable(deepseek, qwencloud, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe(true)
+    // Chat pinned on a Responses-only line reads unavailable, so routing falls back to client tools.
+    expect(isBuiltinWebSearchAvailable(deepseek, qwencloud, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toBe(false)
+    expect(route(deepseek, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toMatchObject({ webSearch: 'client' })
+    expect(route(deepseek, ENDPOINT_TYPE.OPENAI_RESPONSES)).toMatchObject({ webSearch: 'server' })
+    expect(route(qwen, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)).toMatchObject({ webSearch: 'server' })
+  })
+
   // A gateway whose declaration narrows to `gemini` resolves the same google tool factory through the
   // model's `<host>.google` provider segment, so pre-3 Gemini hits the same native-vs-function-tool
   // conflict there. Keying the guard to the host id let cherryin/aihubmix ship the unsupported combo.

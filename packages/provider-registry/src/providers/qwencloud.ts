@@ -106,12 +106,22 @@ export default defineProvider({
     }
   },
   // Strategy tiers stay per model: `getWebSearchParams` narrows `search_strategy` by the same table.
+  // Two declarations split the serving scope by endpoint: qwen3.x lines search via Chat's
+  // enable_search, the DeepSeek/GLM ids via the Responses `web_search` tool only ("Responses API
+  // only" in the docs table) — pinning Chat on those models drops the server side instead of
+  // silently sending no search.
   serverTools: [
     {
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: webSearchModelPrefixes,
-      modelIds: responsesSearchModelIds
+      endpointTypes: ['openai-chat-completions']
+    },
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIds: responsesSearchModelIds,
+      endpointTypes: ['openai-responses']
     }
   ],
   metadata: {

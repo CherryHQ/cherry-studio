@@ -220,10 +220,6 @@ export function resolveEndpointDialect(
   }
 }
 
-function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
-  return provider.serverTools?.find((tool) => tool.id === id)
-}
-
 /** Whether the host serves this tool for the model's vendor family (declaration `vendors` narrowing). */
 function serverToolServesModelVendor(tool: ServerToolConfig, model: Model): boolean {
   if (!tool.vendors?.length) return true
@@ -252,33 +248,64 @@ function resolveServerToolEndpoint(
 export function isServerToolModelEligible(
   model: Model,
   provider: Pick<Provider, 'id' | 'presetProviderId'>,
-  tool: ServerTool
+  tool: ServerTool,
+  endpointType?: EndpointType
 ): boolean {
   if (isNonChatModel(model)) return false
 
-  return isRegistryServerToolModelEligible(getRawModelId(model), provider.presetProviderId ?? provider.id, tool)
+  return isRegistryServerToolModelEligible(
+    getRawModelId(model),
+    provider.presetProviderId ?? provider.id,
+    tool,
+    endpointType
+  )
 }
 
-/** Effective built-in web-search availability for one provider-model pair. */
+/**
+ * Effective built-in web-search availability for one provider-model pair over one endpoint.
+ * A provider may declare the tool several times to split its serving scope by model line ×
+ * endpoint; eligibility then needs BOTH on the same declaration, so `undefined` (no such tool
+ * declaration) and "declared but not on this endpoint" both read as unavailable.
+ */
 export function isBuiltinWebSearchAvailable(
   model: Model,
   provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
   endpointType?: EndpointType
 ): boolean {
-  const tool = getServerTool(provider, SERVER_TOOL.WEB_SEARCH)
+  return isBuiltinServerToolAvailable(model, provider, SERVER_TOOL.WEB_SEARCH, endpointType)
+}
+
+/** Effective provider-native URL-fetch availability for one provider-model pair. */
+export function isBuiltinWebFetchAvailable(
+  model: Model,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  endpointType?: EndpointType
+): boolean {
+  return isBuiltinServerToolAvailable(model, provider, SERVER_TOOL.URL_CONTEXT, endpointType)
+}
+
+function isBuiltinServerToolAvailable(
+  model: Model,
+  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
+  toolId: ServerTool,
+  endpointType?: EndpointType
+): boolean {
+  const declarations = provider.serverTools?.filter((tool) => tool.id === toolId) ?? []
+  if (declarations.length === 0) return false
+  if (isNonChatModel(model)) return false
+
+  const endpoint = resolveServerToolEndpoint(model, provider, endpointType)
+  // Vendor narrowing stays provider-level: no provider splits it across same-tool declarations.
+  if (!declarations.some((tool) => serverToolServesModelVendor(tool, model))) return false
+
   if (
-    !tool ||
-    !serverToolServesModelVendor(tool, model) ||
-    !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
+    declarations.some(
+      (tool) => tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS && serverToolServesEndpoint(tool, endpoint)
+    )
   ) {
-    return false
+    return true
   }
-
-  if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
-    return !isNonChatModel(model)
-  }
-
-  return isServerToolModelEligible(model, provider, SERVER_TOOL.WEB_SEARCH)
+  return isServerToolModelEligible(model, provider, toolId, endpoint)
 }
 
 export type WebToolRoute = 'client' | 'server' | 'none'
@@ -294,28 +321,6 @@ export interface WebToolRoutes {
   webSearch: WebToolRoute
   webFetch: WebToolRoute
   reasons?: Partial<Record<'webSearch' | 'webFetch', WebToolUnavailableReason>>
-}
-
-/** Effective provider-native URL-fetch availability for one provider-model pair. */
-export function isBuiltinWebFetchAvailable(
-  model: Model,
-  provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint' | 'serverTools'>,
-  endpointType?: EndpointType
-): boolean {
-  const tool = getServerTool(provider, SERVER_TOOL.URL_CONTEXT)
-  if (
-    !tool ||
-    !serverToolServesModelVendor(tool, model) ||
-    !serverToolServesEndpoint(tool, resolveServerToolEndpoint(model, provider, endpointType))
-  ) {
-    return false
-  }
-
-  if (tool.modelScope === SERVER_TOOL_MODEL_SCOPE.ALL_CHAT_MODELS) {
-    return !isNonChatModel(model)
-  }
-
-  return isServerToolModelEligible(model, provider, SERVER_TOOL.URL_CONTEXT)
 }
 
 /**
