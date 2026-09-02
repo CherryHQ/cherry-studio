@@ -40642,6 +40642,7 @@
           }
         }
       },
+      "inputModalities": ["text", "image"],
       "modelId": "wan2-7-image",
       "providerId": "qwencloud"
     },
@@ -40711,6 +40712,7 @@
           }
         }
       },
+      "inputModalities": ["text", "image"],
       "modelId": "wan2-7-image-pro",
       "providerId": "qwencloud"
     },
@@ -40752,5 +40754,5 @@
       "providerId": "qwencloud"
     }
   ],
-  "version": "77b821407aaae1ab"
+  "version": "c872289835b10711"
 }
