@@ -8,6 +8,7 @@
  * never synthesise UIMessages or repeat projection logic.
  */
 
+import { hasRenderableContent as sharedHasRenderableContent } from '@shared/data/messageRenderability'
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -16,8 +17,6 @@ import {
   readCherryMeta,
   withCherryMeta
 } from '@shared/data/types/uiParts'
-
-import { hasRenderableContent as sharedHasRenderableContent } from '@shared/data/messageRenderability'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
 
