@@ -67,7 +67,8 @@ const DEFAULT_AGENT_SESSION_NAMES = new Set([
   'unbenannt',
   'sans nom',
   'sin nombre',
-  'fără nume'
+  'fără nume',
+  'adsız'
 ])
 
 type StructuredMessage = {
