@@ -232,7 +232,7 @@ describe('useMiniAppVisibility', () => {
   })
 
   it('restores before a region-hidden successor without changing their persisted order', () => {
-    const regionHidden = { ...stubApp('cn-only'), supportedRegions: ['CN'] as const }
+    const regionHidden: MiniApp = { ...stubApp('cn-only'), kind: 'site', supportedRegions: ['CN'] }
     mocks.miniApps = [stubApp('a'), stubApp('b')]
     mocks.disabled = []
     mocks.allApps = [mocks.miniApps[0], regionHidden, mocks.miniApps[1]]
