@@ -15,7 +15,7 @@ import {
 } from '@shared/types/webviewAnnotation'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewAnnotationControls')
@@ -36,7 +36,9 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const targetRef = useRef(target)
-  targetRef.current = target
+  useLayoutEffect(() => {
+    targetRef.current = target
+  }, [target])
 
   const locale = useMemo(
     () => ({
