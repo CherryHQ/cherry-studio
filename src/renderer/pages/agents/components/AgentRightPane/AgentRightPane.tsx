@@ -58,7 +58,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
-import { sanitizeWebviewAnnotationUrl } from '@shared/utils/webviewAnnotations'
+import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
 import {
   Activity,
   Bot,
@@ -742,22 +742,18 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   const handleAnnotationSaved = useCallback(
     ({ annotation, page }: WebviewAnnotationSavedPayload) => {
       if (!sessionId) return
-      const url = sanitizeWebviewAnnotationUrl(page.url)
-      const pageLabel = page.title.trim() || url || 'page'
-      const { comment, element, region } = annotation
+      const { comment } = annotation
       const label =
         comment.length > ANNOTATION_TOKEN_LABEL_MAX ? `${comment.slice(0, ANNOTATION_TOKEN_LABEL_MAX)}…` : comment
-      const regionSummary = region
-        ? `; region ${region.rect.width}×${region.rect.height} containing ${region.elements.length} element(s)`
-        : ''
+      const promptText = formatAgentWebviewAnnotationPrompt({ annotation, page })
       void EventEmitter.emit(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, {
         topicId: buildAgentSessionTopicId(sessionId),
         token: {
           id: `webview-annotation:${annotation.id}`,
           kind: 'webviewAnnotation' as const,
           label,
-          description: comment,
-          promptText: `[Webview annotation on ${pageLabel}] ${comment} (selector: ${element.selector}${regionSummary})`
+          description: promptText,
+          promptText
         }
       })
     },
