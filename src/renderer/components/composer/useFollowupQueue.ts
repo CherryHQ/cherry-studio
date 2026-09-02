@@ -199,49 +199,46 @@ export function useFollowupQueue({
     setFailedItemId(null)
   }, [scopeKey])
 
-  const enqueue = useCallback(
-    (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
-      // Fast local reject when clearly over limit.
-      if (stateRef.current.items.length >= QUEUE_LIMIT) return false
-      const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
+  const enqueue = useCallback((draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {
+    // Fast local reject when clearly over limit.
+    if (stateRef.current.items.length >= QUEUE_LIMIT) return false
+    const newItem = { id: crypto.randomUUID(), draft, payload } as unknown as FollowupQueueItem
 
-      // Atomically try to add to the persisted store so cross-window concurrency cannot
-      // later reject the item while we returned `true`. Use a flag captured by the
-      // updater to observe whether the item was actually written.
-      let added = false
-      try {
-        cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
-          const next = { ...(prev as Record<string, unknown>) } as Record<string, unknown>
-          const raw = next[scopeKeyRef.current]
-          // Treat a tombstone/null as an empty queue
-          const entry =
-            raw === null
-              ? { items: [], paused: false }
-              : typeof raw === 'object' && !Array.isArray(raw)
-                ? (raw as any)
-                : { items: [] }
-          const items = Array.isArray(entry.items) ? [...entry.items] : []
-          if (items.length >= QUEUE_LIMIT) return prev
-          items.push(newItem)
-          if (items.length > QUEUE_LIMIT) return prev
-          next[scopeKeyRef.current] = { items, paused: entry.paused === true }
-          added = true
-          return next as typeof prev
-        })
-      } catch {
-        // Fall through to local failure return.
-      }
+    // Atomically try to add to the persisted store so cross-window concurrency cannot
+    // later reject the item while we returned `true`. Do not rely on side-effects from
+    // the updater (updaters must stay pure); instead, write the candidate and then
+    // re-load the authoritative persisted state to observe whether the item landed.
+    try {
+      cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
+        const next = { ...(prev as Record<string, unknown>) } as Record<string, unknown>
+        const raw = next[scopeKeyRef.current]
+        // Treat a tombstone/null as an empty queue
+        const entry =
+          raw === null
+            ? { items: [], paused: false }
+            : typeof raw === 'object' && !Array.isArray(raw)
+              ? (raw as any)
+              : { items: [] }
+        const items = Array.isArray(entry.items) ? [...entry.items] : []
+        if (items.length >= QUEUE_LIMIT) return prev
+        items.push(newItem)
+        if (items.length > QUEUE_LIMIT) return prev
+        next[scopeKeyRef.current] = { items, paused: entry.paused === true }
+        return next as typeof prev
+      })
+    } catch {
+      // Fall through to local failure return.
+    }
 
-      if (!added) return false
+    // Reload authoritative persisted queue and check whether our item was accepted.
+    const synced = loadState(scopeKeyRef.current)
+    const added = synced.items.some((it) => it.id === newItem.id)
+    if (!added) return false
 
-      // Synchronize local state with the authoritative persisted value we just wrote.
-      const synced = loadState(scopeKeyRef.current)
-      stateRef.current = synced
-      setState(synced)
-      return true
-    },
-    [persist]
-  )
+    stateRef.current = synced
+    setState(synced)
+    return true
+  }, [])
 
   const reorder = useCallback(
     (nextItems: FollowupQueueItem[]) => {
@@ -361,7 +358,7 @@ export function useFollowupQueue({
   // If completion arrived while unfocused, re-arm draining when the window regains focus
   // or becomes visible (some platforms fire visibilitychange instead of focus).
   useEffect(() => {
-    const onFocus = () => {
+    const onWindowFocus = () => {
       if (
         !isFulfilledRef.current ||
         stateRef.current.paused ||
@@ -370,20 +367,40 @@ export function useFollowupQueue({
       )
         return
       if (stateRef.current.items.length === 0) return
+      // For actual focus events prefer the more strict hasFocus() check
       if (!isWindowFocused()) return
       const head = stateRef.current.items[0]
       if (!head) return
       markSeenRef.current()
       drainHead(head)
     }
-    window.addEventListener('focus', onFocus)
+
+    const onVisibilityChange = () => {
+      if (
+        !isFulfilledRef.current ||
+        stateRef.current.paused ||
+        failedItemIdRef.current ||
+        drainingIdRef.current !== null
+      )
+        return
+      if (stateRef.current.items.length === 0) return
+      // Some platforms fire visibilitychange instead of focus; treat becoming visible
+      // as a re-arm even if document.hasFocus() may still be false.
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      const head = stateRef.current.items[0]
+      if (!head) return
+      markSeenRef.current()
+      drainHead(head)
+    }
+
+    window.addEventListener('focus', onWindowFocus)
     if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-      document.addEventListener('visibilitychange', onFocus)
+      document.addEventListener('visibilitychange', onVisibilityChange)
     }
     return () => {
-      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('focus', onWindowFocus)
       if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
-        document.removeEventListener('visibilitychange', onFocus)
+        document.removeEventListener('visibilitychange', onVisibilityChange)
       }
     }
   }, [drainHead])
