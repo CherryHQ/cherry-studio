@@ -9,13 +9,16 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { readMock } = vi.hoisted(() => ({
-  readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>()
+const { readMock, fileManagerGetMetadataMock } = vi.hoisted(() => ({
+  readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>(),
+  fileManagerGetMetadataMock: vi.fn<(id: string) => Promise<{ size: number }>>(),
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const overrides = { FileManager: { read: readMock } } as Parameters<typeof mockApplicationFactory>[0]
+  const overrides = {
+    FileManager: { read: readMock, getMetadata: fileManagerGetMetadataMock },
+  } as Parameters<typeof mockApplicationFactory>[0]
   return mockApplicationFactory(overrides)
 })
 
@@ -113,7 +116,8 @@ describe('materializeNativeFilePart — file:// inline', () => {
 describe('materializeNativeFilePart — fileEntryId inline', () => {
   it('reads via FileManager and applies its MIME (overriding a bad hint)', async () => {
     readMock.mockReset()
-    readMock.mockResolvedValueOnce({ content: 'QUJD', mime: 'image/png' })
+    fileManagerGetMetadataMock.mockReset()
+    fileManagerGetMetadataMock.mockResolvedValueOnce({ size: 1024 })
     const out = await materializeNativeFilePart(
       filePart({ mediaType: '.png', providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
     )
@@ -124,10 +128,26 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
 
   it('drops the part when the entry is unreadable and there is no file:// rescue', async () => {
     readMock.mockReset()
-    readMock.mockRejectedValueOnce(new Error('entry not found'))
+    fileManagerGetMetadataMock.mockReset()
+    fileManagerGetMetadataMock.mockRejectedValueOnce(new Error('entry not found'))
     const out = await materializeNativeFilePart(
       filePart({ url: '', providerMetadata: { cherry: { fileEntryId: 'gone' } } })
     )
     expect(out).toBeNull()
+  })
+
+  it('refuses to inline a fileEntryId whose size exceeds the native cap', async () => {
+    // 50 MB cap is defined in fileProcessor.ts (NATIVE_INLINE_FILE_CAP_BYTES).
+    // The size pre-check uses getMetadata so the function refuses to allocate
+    // a base64 buffer for a file that would blow the V8 heap on inflate.
+    readMock.mockReset()
+    fileManagerGetMetadataMock.mockReset()
+    fileManagerGetMetadataMock.mockResolvedValueOnce({ size: 100 * 1_000_000 })
+    readMock.mockResolvedValueOnce({ content: 'oversized', mime: 'image/png' })
+    const out = await materializeNativeFilePart(
+      filePart({ mediaType: 'image/png', providerMetadata: { cherry: { fileEntryId: 'entry-big' } } })
+    )
+    expect(out).toBeNull()
+    expect(readMock).not.toHaveBeenCalled()
   })
 })
