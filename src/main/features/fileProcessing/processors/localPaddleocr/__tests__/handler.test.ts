@@ -2,10 +2,9 @@ import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { recognizeMock, isLocalModelReadyMock, ocrModelPathsMock } = vi.hoisted(() => ({
+const { recognizeMock, isLocalModelReadyMock } = vi.hoisted(() => ({
   recognizeMock: vi.fn(),
-  isLocalModelReadyMock: vi.fn(),
-  ocrModelPathsMock: vi.fn()
+  isLocalModelReadyMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -19,21 +18,11 @@ vi.mock('@application', async () => {
   return result
 })
 
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  ocrModelPaths: ocrModelPathsMock
-}))
-
-vi.mock('@main/services/localModel', () => ({
-  isLocalModelReady: isLocalModelReadyMock
+vi.mock('@main/ai/localModel', () => ({
+  localModelService: { isReady: isLocalModelReadyMock }
 }))
 
 import { localPaddleocrImageToTextHandler } from '../imageToText/handler'
-
-const MODEL_PATHS = {
-  detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',
-  recognition: '/models/paddleocr/PP-OCRv6_medium_rec.onnx',
-  charactersDictionary: '/models/paddleocr/ppocrv6_dict.txt'
-}
 
 const imageFile = FileInfoSchema.parse({
   path: '/tmp/input.png',
@@ -63,7 +52,6 @@ describe('localPaddleocrImageToTextHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isLocalModelReadyMock.mockReturnValue(true)
-    ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
   })
 
   it('recognizes text from an image off the main thread', async () => {
@@ -79,7 +67,7 @@ describe('localPaddleocrImageToTextHandler', () => {
       kind: 'text',
       text: 'hello world'
     })
-    expect(recognizeMock).toHaveBeenCalledWith(MODEL_PATHS, { kind: 'path', imagePath: '/tmp/input.png' }, signal)
+    expect(recognizeMock).toHaveBeenCalledWith({ kind: 'path', imagePath: '/tmp/input.png' }, signal)
   })
 
   it('rejects non-image files', () => {
