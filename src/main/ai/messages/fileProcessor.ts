@@ -15,6 +15,15 @@
  * lands, large PDFs / media fall back to inline base64 here.
  */
 
+import { fileURLToPath } from 'node:url'
+import { application } from '@application'
+import { loggerService } from '@logger'
+import { stat, read as fsRead } from '@main/utils/file'
+import type { FileUIPart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import mime from 'mime'
+
 /**
  * Native inline file size cap: the largest file (bytes) that we will inline
  * as a base64 `data:` URL in a model request. Larger files are not read;
@@ -33,15 +42,6 @@
  * reasonable files through.
  */
 export const NATIVE_INLINE_FILE_CAP_BYTES = 50 * 1_000_000 // 50 MB
-
-import { fileURLToPath } from 'node:url'
-import { application } from '@application'
-import { loggerService } from '@logger'
-import { stat, read as fsRead } from '@main/utils/file'
-import type { FileUIPart } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import mime from 'mime'
 
 const logger = loggerService.withContext('ai:fileProcessor')
 
