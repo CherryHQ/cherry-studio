@@ -1252,6 +1252,7 @@
   "error.lastError": "Dernière erreur",
   "error.maxEmbeddingsPerCall": "Nombre maximal d'embeddings par appel",
   "error.message": "Erreur message",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> a interrompu la réponse sans indiquer de motif de fin. La réponse partielle a été conservée ; réessayez la requête.",
   "error.missing_user_message": "Impossible de changer de modèle de réponse : le message utilisateur d'origine a été supprimé. Veuillez envoyer un nouveau message pour obtenir une réponse de ce modèle.",
   "error.model.exists": "Le modèle existe déjà",
   "error.model.not_exists": "Le modèle n'existe pas",

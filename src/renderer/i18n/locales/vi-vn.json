@@ -1252,6 +1252,7 @@
   "error.lastError": "Lỗi Cuối Cùng",
   "error.maxEmbeddingsPerCall": "Số lượng nhúng tối đa mỗi lần gọi",
   "error.message": "Thông báo lỗi",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> đã kết thúc phản hồi mà không nêu lý do hoàn tất. Phần phản hồi đã nhận được vẫn được giữ lại; hãy thử lại yêu cầu.",
   "error.missing_user_message": "Không thể chuyển đổi phản hồi của mô hình: Tin nhắn gốc của người dùng đã bị xóa. Vui lòng gửi một tin nhắn mới để nhận phản hồi từ mô hình này.",
   "error.model.exists": "Mô hình đã tồn tại",
   "error.model.not_exists": "Mô hình không tồn tại",
