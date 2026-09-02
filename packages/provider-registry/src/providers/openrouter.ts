@@ -30,9 +30,27 @@ export default defineProvider({
       reasoningFormat: {
         type: 'openai-chat',
         wire: {
-          off: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }] },
-          auto: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'medium' } }] },
-          effort: { operations: [{ target: 'reasoning.effort', value: { source: 'effort' } }] }
+          off: {
+            operations: [
+              {
+                target: 'reasoning.effort',
+                value: { source: 'literal', value: 'none' },
+                delivery: 'request-body' as const
+              }
+            ]
+          },
+          auto: {
+            operations: [
+              {
+                target: 'reasoning.effort',
+                value: { source: 'literal', value: 'medium' },
+                delivery: 'request-body' as const
+              }
+            ]
+          },
+          effort: {
+            operations: [{ target: 'reasoning.effort', value: { source: 'effort' }, delivery: 'request-body' as const }]
+          }
         }
       },
       requestControls: {

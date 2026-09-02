@@ -13,7 +13,9 @@ import { encodeReasoningInvocation, resolveReasoningInvocation } from '../reason
 
 const budgetProfile: ReasoningWireProfile = {
   effort: {
-    operations: [{ target: 'thinking.budgetTokens', value: { source: 'budget' } }],
+    operations: [
+      { target: 'thinking.budgetTokens', value: { source: 'budget' }, delivery: 'provider-option' as const }
+    ],
     budget: { min: 1024, missing: { type: 'fallback', value: 13_312 }, clampToMaxTokens: true }
   }
 }
@@ -47,7 +49,7 @@ describe('resolveReasoningInvocation budget constraints', () => {
   it('encodes an audited provider budget target without serializer model branches', () => {
     const profile: ReasoningWireProfile = {
       effort: {
-        operations: [{ target: 'reasoning_budget', value: { source: 'budget' } }],
+        operations: [{ target: 'reasoning_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }],
         budget: { min: 1, missing: { type: 'omit-mode' } }
       }
     }
@@ -59,7 +61,13 @@ describe('resolveReasoningInvocation budget constraints', () => {
   it('encodes an audited nested string toggle target', () => {
     const profile: ReasoningWireProfile = {
       auto: {
-        operations: [{ target: 'chat_template_kwargs.thinking_mode', value: { source: 'literal', value: 'adaptive' } }]
+        operations: [
+          {
+            target: 'chat_template_kwargs.thinking_mode',
+            value: { source: 'literal', value: 'adaptive' },
+            delivery: 'request-body' as const
+          }
+        ]
       }
     }
     const toggleModel = makeModel({

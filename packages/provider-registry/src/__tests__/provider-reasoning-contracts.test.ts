@@ -24,7 +24,7 @@ describe('provider reasoning contracts', () => {
       const contracts = override('deepseek', modelId).reasoningContracts
       const responsesWire = contracts?.['openai-responses']?.wire
       expect(responsesWire?.off?.operations).toEqual([
-        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' }, delivery: 'provider-option' as const }
       ])
       expect(responsesWire?.auto?.effortMap).toEqual({
         auto: 'high',
@@ -34,13 +34,17 @@ describe('provider reasoning contracts', () => {
         xhigh: 'max'
       })
       expect(responsesWire?.effort).toMatchObject({
-        operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }],
         effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
       })
       expect(contracts?.['openai-chat-completions']?.wire?.effort).toMatchObject({
         operations: [
-          { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } },
-          { target: 'reasoningEffort', value: { source: 'effort' } }
+          {
+            target: 'thinking.type',
+            value: { source: 'literal', value: 'enabled' },
+            delivery: 'provider-option' as const
+          },
+          { target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }
         ],
         effortMap: { minimal: 'low', low: 'low', medium: 'high', xhigh: 'max' }
       })
@@ -53,13 +57,13 @@ describe('provider reasoning contracts', () => {
   it('maps the generic DeepSeek auto mode to thinking.type enabled', () => {
     const wire = provider('deepseek').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
     expect(wire?.auto?.operations).toEqual([
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' as const }
     ])
     expect(wire?.off?.operations).toEqual([
-      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' }, delivery: 'provider-option' as const }
     ])
     expect(wire?.effort?.operations).toEqual([
-      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' }, delivery: 'provider-option' as const }
     ])
   })
 
@@ -94,7 +98,9 @@ describe('provider reasoning contracts', () => {
     const contract = override('aws-bedrock', 'claude-opus-4-5').reasoningContracts?.['anthropic-messages']
     expect(contract?.wire?.effort).toMatchObject({
       budget: expect.any(Object),
-      operations: expect.arrayContaining([expect.objectContaining({ value: { source: 'budget' } })])
+      operations: expect.arrayContaining([
+        expect.objectContaining({ value: { source: 'budget' }, delivery: 'provider-option' as const })
+      ])
     })
   })
 
@@ -136,7 +142,7 @@ describe('provider reasoning contracts', () => {
     expect(
       override('nvidia', 'nemotron-3-nano-omni-30b-a3b').reasoningContracts?.['openai-chat-completions']?.wire?.effort
         ?.operations
-    ).toEqual([{ target: 'reasoning_budget', value: { source: 'budget' } }])
+    ).toEqual([{ target: 'reasoning_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }])
     expect(
       override('nvidia', 'seed-oss-36b-instruct').reasoningContracts?.['openai-chat-completions']?.wire?.off?.operations
     ).toEqual([{ target: 'thinking_budget', value: { source: 'literal', value: 0 } }])
@@ -174,7 +180,9 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'extra_body.reasoning_effort', value: { source: 'effort' } }])
     expect(
       override('poe', 'claude-sonnet-4-6').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
-    ).toEqual([{ target: 'extra_body.thinking_budget', value: { source: 'budget' } }])
+    ).toEqual([
+      { target: 'extra_body.thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }
+    ])
   })
 
   it.each(['qwen3-coder', 'qwen3-coder-next'])('does not declare a DashScope reasoning contract for %s', (modelId) => {

@@ -970,10 +970,10 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('self-hosted')
       expect(result.reasoningProfile.wire.auto?.operations).toEqual([
-        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } }
+        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true }, delivery: 'provider-option' }
       ])
       expect(result.reasoningProfile.wire.off?.operations).toEqual([
-        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false } }
+        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false }, delivery: 'provider-option' }
       ])
     })
 
@@ -1007,13 +1007,15 @@ describe('projectRuntimeReasoning summary options', () => {
     const withSummary = projectRuntimeReasoning(effortSupport, {
       effort: {
         operations: [
-          { target: 'reasoningEffort', value: { source: 'effort' } },
-          { target: 'reasoningSummary', value: { source: 'assistant-summary' } }
+          { target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const },
+          { target: 'reasoningSummary', value: { source: 'assistant-summary' }, delivery: 'provider-option' }
         ]
       }
     })
     const withoutSummary = projectRuntimeReasoning(effortSupport, {
-      effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+      effort: {
+        operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }]
+      }
     })
 
     expect(withSummary.summaryOptions).toEqual(['auto', 'concise', 'detailed'])

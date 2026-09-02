@@ -11,7 +11,11 @@ export default defineProvider({
       reasoningFormat: {
         type: 'openai-chat',
         wire: {
-          off: { operations: [{ target: 'disable_reasoning', value: { source: 'literal', value: true } }] }
+          off: {
+            operations: [
+              { target: 'disable_reasoning', value: { source: 'literal', value: true }, delivery: 'provider-option' }
+            ]
+          }
         }
       }
     }

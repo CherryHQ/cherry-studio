@@ -42,18 +42,32 @@ const { lookupModelMock } = vi.hoisted(() => ({
 const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
   format: 'openai-chat' as const,
   wire: {
-    off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
-    auto: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] },
-    effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
+    off: {
+      operations: [
+        { target: 'reasoningEffort', value: { source: 'literal', value: 'none' }, delivery: 'provider-option' as const }
+      ]
+    },
+    auto: {
+      operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }]
+    },
+    effort: {
+      operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' as const }]
+    }
   }
 }
 
 const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
   format: 'ollama' as const,
   wire: {
-    off: { operations: [{ target: 'think', value: { source: 'literal', value: false } }] },
-    auto: { operations: [{ target: 'think', value: { source: 'literal', value: true } }] },
-    effort: { operations: [{ target: 'think', value: { source: 'effort' } }] }
+    off: {
+      operations: [
+        { target: 'think', value: { source: 'literal', value: false }, delivery: 'provider-option' as const }
+      ]
+    },
+    auto: {
+      operations: [{ target: 'think', value: { source: 'literal', value: true }, delivery: 'provider-option' as const }]
+    },
+    effort: { operations: [{ target: 'think', value: { source: 'effort' }, delivery: 'provider-option' as const }] }
   }
 }
 

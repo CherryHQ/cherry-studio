@@ -16,14 +16,16 @@ export default defineProvider({
         type: 'openai-responses',
         wire: {
           off: {
-            operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }]
+            operations: [
+              { target: 'reasoningEffort', value: { source: 'literal', value: 'none' }, delivery: 'provider-option' }
+            ]
           },
           auto: {
-            operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
+            operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' }],
             effortMap: { auto: 'medium' }
           },
           effort: {
-            operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }]
+            operations: [{ target: 'reasoningEffort', value: { source: 'effort' }, delivery: 'provider-option' }]
           }
         }
       }

@@ -261,7 +261,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
       kind: 'effort',
       selection: 'high',
       effort: 'high',
-      emissions: [{ target: 'reasoning_effort', value: 'high' }]
+      emissions: [{ target: 'reasoning_effort', value: 'high', delivery: 'provider-option' }]
     }
     const model = {
       id: `${providerOptionsKey}::reasoner`,
@@ -305,7 +305,7 @@ describe('OpenAI-compatible reasoning normalization', () => {
       kind: effort === 'none' ? 'off' : 'effort',
       selection: effort,
       ...(effort === 'high' ? { effort } : {}),
-      emissions: [{ target: 'reasoningEffort', value: effort }]
+      emissions: [{ target: 'reasoningEffort', value: effort, delivery: 'provider-option' }]
     }
     const providerOptions = buildResolvedReasoningProviderOptions({
       aiSdkProviderId: 'openai',
@@ -385,8 +385,8 @@ describe('buildCapabilityProviderOptions', () => {
           selection: 'medium',
           effort: 'medium',
           emissions: [
-            { target: 'reasoningEffort', value: 'medium' },
-            { target: 'reasoningSummary', value: 'detailed' }
+            { target: 'reasoningEffort', value: 'medium', delivery: 'provider-option' },
+            { target: 'reasoningSummary', value: 'detailed', delivery: 'provider-option' }
           ]
         }
       }
@@ -422,7 +422,7 @@ describe('buildCapabilityProviderOptions', () => {
         reasoning: {
           kind: 'auto',
           selection: 'auto',
-          emissions: [{ target: 'thinking.type', value: 'adaptive' }]
+          emissions: [{ target: 'thinking.type', value: 'adaptive', delivery: 'provider-option' }]
         }
       }
     )
@@ -458,7 +458,7 @@ describe('buildCapabilityProviderOptions', () => {
           kind: 'effort',
           selection: 'high',
           effort: 'xhigh',
-          emissions: [{ target: 'reasoning_effort', value: 'xhigh' }]
+          emissions: [{ target: 'reasoning_effort', value: 'xhigh', delivery: 'provider-option' }]
         }
       }
     )
@@ -488,7 +488,7 @@ describe('buildCapabilityProviderOptions', () => {
           kind: 'effort',
           selection: 'high',
           effort: 'high',
-          emissions: [{ target: 'reasoning_effort', value: 'high' }]
+          emissions: [{ target: 'reasoning_effort', value: 'high', delivery: 'provider-option' }]
         }
       }
     )
@@ -522,7 +522,7 @@ describe('buildCapabilityProviderOptions', () => {
           kind: 'effort',
           selection: 'high',
           effort: 'high',
-          emissions: [{ target: 'reasoning_effort', value: 'high' }]
+          emissions: [{ target: 'reasoning_effort', value: 'high', delivery: 'provider-option' }]
         }
       }
     )
@@ -559,7 +559,7 @@ describe('buildCapabilityProviderOptions', () => {
           kind: 'budget',
           selection: 'high',
           budgetTokens: 26_214,
-          emissions: [{ target: 'reasoning_budget', value: 26_214 }]
+          emissions: [{ target: 'reasoning_budget', value: 26_214, delivery: 'provider-option' }]
         }
       }
     )

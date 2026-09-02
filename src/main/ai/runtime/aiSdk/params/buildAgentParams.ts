@@ -675,10 +675,7 @@ function buildAgentOptions(
   // here keeps `profile < custom < callOverrides` consistent across endpoints.
   // Only the effective provider namespace contributes to the HTTP body; other
   // providers' overrides must not leak across endpoints.
-  const callOverridesBodyParams = extractCallOverridesBodyParams(
-    request.callOverrides,
-    sdkConfig.providerOptionsKey
-  )
+  const callOverridesBodyParams = extractCallOverridesBodyParams(request.callOverrides, sdkConfig.providerOptionsKey)
   if (Object.keys(callOverridesBodyParams).length > 0) rawBodyLayers.push(callOverridesBodyParams)
 
   if (rawBodyLayers.length > 0) {

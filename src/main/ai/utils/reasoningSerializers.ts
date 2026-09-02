@@ -7,11 +7,13 @@
  */
 import type {
   ReasoningEffort,
-  ReasoningWireDelivery,
   ReasoningWireMode,
   ReasoningWireProfile,
   ReasoningWireTarget
 } from '@cherrystudio/provider-registry'
+
+// Local alias: provider-registry no longer exports a delivery type useful here
+export type ReasoningWireDelivery = 'provider-option' | 'request-body'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
@@ -94,7 +96,8 @@ function resolveModeEffort(
 function resolveModeBudget(
   selection: CanonicalReasoningSelection,
   model: Model,
-  policy: Extract<ReasoningWireMode, { budget: unknown }>['budget'],
+  // The provider-registry union typing can be awkward here; treat as any to keep code straightforward
+  policy: any,
   maxTokens: number | undefined
 ): number | undefined | null {
   let budget = selection === 'auto' ? policy.autoValue : undefined
@@ -138,7 +141,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   // whole mode instead of emitting an invalid or partially enabled request.
   if (budgetTokens === null) return { ...OMIT, selection }
 
-  if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
+  if ('budget' in mode && mode.budget?.missing.type === 'omit-mode' && budgetTokens === undefined) {
     return { ...OMIT, selection }
   }
 

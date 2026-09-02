@@ -164,7 +164,13 @@ describe('buildPersistedEndpointConfigs', () => {
           type: 'openai-responses',
           wire: {
             default: {
-              operations: [{ target: 'reasoningSummary', value: { source: 'assistant-summary' } }]
+              operations: [
+                {
+                  target: 'reasoningSummary',
+                  value: { source: 'assistant-summary' },
+                  delivery: 'provider-option' as const
+                }
+              ]
             }
           }
         }
