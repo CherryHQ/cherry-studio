@@ -171,6 +171,7 @@ interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   browserUrl: string | null
+  acceptDetectedBrowserUrl: (url: string | null) => void
 }
 
 interface AgentRightPaneFileState {
@@ -405,6 +406,7 @@ function AgentRightPaneStateProvider({
     sessionId,
     url: null
   }))
+  const detectedBrowserUrlRef = useRef<{ sessionId?: string; url: string | null }>({ sessionId, url: null })
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [editMode, setEditMode] = useState<AgentFileEditorMode>('preview')
@@ -418,12 +420,21 @@ function AgentRightPaneStateProvider({
   // until the transition is accepted so a new tree can never write an old path.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
-  const detectedPreviewUrl = useAgentPreviewUrl(sessionId, messages, partsByMessageId)
   // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
   const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
+  const acceptDetectedBrowserUrl = useCallback(
+    (url: string | null) => {
+      if (!url) return
+      const detected = detectedBrowserUrlRef.current
+      if (detected.sessionId === sessionId && detected.url === url) return
+      detectedBrowserUrlRef.current = { sessionId, url }
+      setBrowserUrlState({ sessionId, url })
+    },
+    [sessionId]
+  )
   const runtime = useMemo<AgentRightPaneRuntime>(
-    () => ({ messages, partsByMessageId, browserUrl }),
-    [browserUrl, messages, partsByMessageId]
+    () => ({ messages, partsByMessageId, browserUrl, acceptDetectedBrowserUrl }),
+    [acceptDetectedBrowserUrl, browserUrl, messages, partsByMessageId]
   )
   const openBrowserUrl = useCallback((url: string) => setBrowserUrlState({ sessionId, url }), [sessionId])
   const editPath =
@@ -448,14 +459,6 @@ function AgentRightPaneStateProvider({
   useEffect(() => {
     setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
   }, [sessionId])
-
-  useEffect(() => {
-    setBrowserUrlState((current) => {
-      if (current.sessionId !== sessionId) return { sessionId, url: detectedPreviewUrl }
-      if (!detectedPreviewUrl || current.url === detectedPreviewUrl) return current
-      return { sessionId, url: detectedPreviewUrl }
-    })
-  }, [detectedPreviewUrl, sessionId])
 
   const requestFileTransition = useCallback(
     (transition: () => void) => {
@@ -726,7 +729,14 @@ const ANNOTATION_TOKEN_LABEL_MAX = 32
 
 function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const runtime = useAgentRightPaneRuntime()
+  const { acceptDetectedBrowserUrl } = runtime
   const sessionId = scope.meta.sessionId
+  const detectedPreviewUrl = useAgentPreviewUrl(active, sessionId, runtime.messages, runtime.partsByMessageId)
+
+  useEffect(() => {
+    if (active) acceptDetectedBrowserUrl(detectedPreviewUrl)
+  }, [acceptDetectedBrowserUrl, active, detectedPreviewUrl])
+
   const target = useMemo(
     () => ({
       id: `agent-browser:${sessionId ?? 'unknown'}`.slice(0, WEBVIEW_ANNOTATION_LIMITS.targetId),

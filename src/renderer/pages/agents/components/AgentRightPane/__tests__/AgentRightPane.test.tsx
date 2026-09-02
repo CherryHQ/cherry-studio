@@ -514,10 +514,12 @@ function createPreviewMessage(id: string, parts: CherryMessagePart[]): CherryUIM
 
 function createDeferredPromise<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
+    reject = rejectPromise
   })
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
 
 describe('AgentRightPane', () => {
@@ -794,6 +796,34 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('resolves deferred preview output only after the browser panel becomes active', async () => {
+    const deferredToolResult = {
+      topicId: 'agent-session:session-lazy',
+      messageId: 'm-lazy',
+      toolCallId: 'bash-lazy'
+    }
+    const part = createPreviewToolPart('bash-lazy', 'Bash', { $deferredToolResult: deferredToolResult })
+    const messages = [createPreviewMessage('m-lazy', [part])]
+    const result = createDeferredPromise<{ found: true; output: string }>()
+    ipcRequestMock.mockReturnValue(result.promise)
+
+    render(
+      <TestAgentRightPane sessionId="session-lazy" messages={messages} partsByMessageId={{ 'm-lazy': [part] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    await act(async () => {})
+
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6125/' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6125/')
+  })
+
   it('uses a preview URL from the deferred excerpt without loading the full result', () => {
     const deferredToolResult = {
       topicId: 'agent-session:session-excerpt',
@@ -922,6 +952,61 @@ describe('AgentRightPane', () => {
     await act(async () => resultA.resolve({ found: true, output: 'Ready at http://localhost:6500/' }))
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
+  })
+
+  it.each([
+    { caseName: 'contains no URL', rejectResult: false, suffix: 'no-url' },
+    { caseName: 'request rejects', rejectResult: true, suffix: 'rejected' }
+  ])('keeps a manually opened artifact when a newer deferred result $caseName', async ({ rejectResult, suffix }) => {
+    const sessionId = `session-sticky-${suffix}`
+    const olderPart = createPreviewToolPart(`bash-sticky-old-${suffix}`, 'Bash', 'Ready at http://localhost:6600/')
+    const olderMessage = createPreviewMessage(`m-sticky-old-${suffix}`, [olderPart])
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+    const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={partsByMessageId}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6600/')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+
+    const deferredRef = {
+      topicId: `agent-session:${sessionId}`,
+      messageId: `m-sticky-new-${suffix}`,
+      toolCallId: `bash-sticky-new-${suffix}`
+    }
+    const newerPart = createPreviewToolPart(deferredRef.toolCallId, 'BashOutput', {
+      $deferredToolResult: deferredRef
+    })
+    const newerMessage = createPreviewMessage(deferredRef.messageId, [newerPart])
+    const result = createDeferredPromise<{ found: true; output: string }>()
+    ipcRequestMock.mockReturnValue(result.promise)
+
+    rerender(
+      renderPane([olderMessage, newerMessage], { [olderMessage.id]: [olderPart], [newerMessage.id]: [newerPart] })
+    )
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredRef))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+
+    await act(async () => {
+      if (rejectResult) result.reject(new Error('result lookup failed'))
+      else result.resolve({ found: true, output: 'Build completed without a preview address' })
+    })
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
 
   it('registers the sidebar command independently and prioritizes the resource pane', () => {

@@ -6,13 +6,14 @@ import { findAgentPreviewUrlCandidates, findAgentPreviewUrlInOutput } from './ag
 
 /** Resolves deferred preview candidates one at a time until the newest available URL is known. */
 export function useAgentPreviewUrl(
+  enabled: boolean,
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): string | null {
   const candidates = useMemo(
-    () => (sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
-    [messages, partsByMessageId, sessionId]
+    () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
+    [enabled, messages, partsByMessageId, sessionId]
   )
   const searchKey = `${sessionId ?? ''}\0${candidates.map((candidate) => candidate.key).join('\0')}`
   const [cursor, setCursor] = useState({ searchKey, index: 0 })
