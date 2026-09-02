@@ -42,7 +42,7 @@ export function modeWire(
     if (value === undefined) continue
     const wireValue: ReasoningWireValue =
       value === EFFORT ? { source: 'effort' } : { source: 'literal', value: value as string | number | boolean }
-    const operations = [{ target, value: wireValue }]
+    const operations = [{ target, value: wireValue, delivery: 'provider-option' as const }]
     profile[key] =
       key === 'auto' && options.autoEffort ? { operations, effortMap: { auto: options.autoEffort } } : { operations }
   }
