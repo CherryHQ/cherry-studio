@@ -2978,7 +2978,7 @@
   "provider.cherryin": "CherryIN",
   "provider.claude-code": "Claude Code",
   "provider.copilot": "GitHub Copilot",
-  "provider.dashscope": "千问AI平台",
+  "provider.dashscope": "千问 AI 平台（原阿里云百炼）",
   "provider.deepseek": "深度求索",
   "provider.dmxapi": "DMXAPI",
   "provider.doc2x": "Doc2X",
