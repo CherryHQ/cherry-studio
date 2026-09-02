@@ -329,6 +329,13 @@ jobs:
       - name: Validate edition release artifacts
         run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
 
+      - name: Resolve update manifest channel
+        id: release-channel
+        shell: bash
+        run: |
+          CHANNEL="$(node -p "require('./scripts/release/edition').getReleaseChannel(require('./package.json').version, '${{ matrix.edition }}')")"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
       - name: Stage Windows release artifacts
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
@@ -337,9 +344,7 @@ jobs:
           path: |
             dist/*.exe
             dist/*.zip
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
+            dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
           compression-level: 0
@@ -352,9 +357,7 @@ jobs:
           path: |
             dist/*.zip
             dist/*.dmg
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
+            dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
           compression-level: 0
@@ -370,9 +373,7 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/*.tar.gz
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
+            dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
           compression-level: 0

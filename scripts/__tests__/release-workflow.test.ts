@@ -890,14 +890,19 @@ describe('release workflow gates', () => {
     const validationStep = releaseJob.steps.find(
       (step: { name?: string }) => step.name === 'Validate edition release artifacts'
     )
+    const channelStep = releaseJob.steps.find(
+      (step: { name?: string }) => step.name === 'Resolve update manifest channel'
+    )
     const stagingSteps = releaseJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Stage '))
     const historyStep = releaseJob.steps.find((step: { name?: string }) => step.name === 'Stage stable release history')
 
     expect(releaseJob.strategy.matrix.edition).toEqual(['global', 'cn'])
     expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(channelStep.run).toContain('getReleaseChannel')
     expect(stagingSteps).toHaveLength(4)
     for (const step of stagingSteps.slice(0, 3)) {
       expect(step.with.name).toContain('${{ matrix.edition }}')
+      expect(step.with.path).toContain('dist/${{ steps.release-channel.outputs.channel }}*.yml')
     }
     expect(historyStep.if).toContain("matrix.edition == 'global'")
   })
