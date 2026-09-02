@@ -688,9 +688,7 @@ it('accepts documentCount=0 for empty knowledge bases (issue #19861)', () => {
       documentCount: 0
     }).success
   ).toBe(true)
-  expect(
-    UpdateKnowledgeBaseSchema.safeParse({ documentCount: 0 }).success
-  ).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ documentCount: 0 }).success).toBe(true)
   expect(
     KnowledgeBaseSchema.safeParse({
       id: KNOWLEDGE_BASE_ID,
@@ -707,7 +705,7 @@ it('accepts documentCount=0 for empty knowledge bases (issue #19861)', () => {
       threshold: 0,
       documentCount: 0,
       createdAt: '2026-04-10T00:00:00.000Z',
-      updatedAt: '2026-04-10T00:00:00.000Z',
+      updatedAt: '2026-04-10T00:00:00.000Z'
     }).success
   ).toBe(true)
 })
