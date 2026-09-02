@@ -10,7 +10,6 @@ import { useMiniAppListSync } from '@renderer/hooks/useMiniApps'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { setDayjsLocale } from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { appInfoService } from '@renderer/services/AppInfoService'
 import { toast } from '@renderer/services/toast'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { isWin } from '@renderer/utils/platform'
@@ -67,8 +66,8 @@ export function useWindowRuntime(): void {
   // Snapshot app paths into the inline file-path base + resources cache. Mount-time,
   // non-blocking; failure logs rather than throwing.
   useEffect(() => {
-    void appInfoService
-      .preload()
+    void ipcApi
+      .request('app.get_info')
       .then((info) => {
         setInlineFilePathHomePath(info.homePath)
         cacheService.set('app.path.resources', info.resourcesPath)

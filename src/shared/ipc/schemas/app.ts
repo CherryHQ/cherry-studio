@@ -1,7 +1,6 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
-import { APP_EDITIONS } from '../../types/appEdition'
 import {
   CACHE_CLEANUP_GROUPS,
   CACHE_CLEANUP_RESULT_STATUSES,
@@ -36,7 +35,6 @@ export const appRequestSchemas = {
     input: z.void(),
     output: z.object({
       version: z.string(),
-      edition: z.enum(APP_EDITIONS),
       isPackaged: z.boolean(),
       appPath: z.string(),
       homePath: z.string(),

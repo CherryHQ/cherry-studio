@@ -7,7 +7,6 @@ const {
   cacheCleanupInspectMock,
   cacheCleanupRunMock,
   inspectTargetMock,
-  getAppEditionMock,
   requestDataResetMock,
   requestV1RemigrationMock,
   requestRelocationMock
@@ -18,7 +17,6 @@ const {
   cacheCleanupInspectMock: vi.fn(),
   cacheCleanupRunMock: vi.fn(),
   inspectTargetMock: vi.fn(),
-  getAppEditionMock: vi.fn(),
   requestDataResetMock: vi.fn(),
   requestV1RemigrationMock: vi.fn(),
   requestRelocationMock: vi.fn()
@@ -41,9 +39,6 @@ vi.mock('@main/services/userDataRelocation', () => ({
 }))
 vi.mock('@main/services/cacheCleanup', () => ({
   cacheCleanupService: { inspect: cacheCleanupInspectMock, run: cacheCleanupRunMock }
-}))
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: getAppEditionMock
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
@@ -68,7 +63,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   ;(app as { isPackaged: boolean }).isPackaged = true
   appGetPathMock.mockReturnValue('/mock/path')
-  getAppEditionMock.mockReturnValue('global')
   inspectTargetMock.mockReturnValue({ valid: true, targetEmpty: true })
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
@@ -80,14 +74,6 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('appHandlers', () => {
-  it('exposes the packaged application edition', async () => {
-    getAppEditionMock.mockReturnValue('cn')
-
-    const result = await appHandlers['app.get_info'](undefined, ctx)
-
-    expect(result.edition).toBe('cn')
-  })
-
   it('inspects relocation targets through the domain validation', async () => {
     const result = await appHandlers['app.user_data_relocation.inspect']({ path: '/new/data' }, ctx)
 

@@ -1,14 +1,11 @@
 import { preferenceService } from '@data/PreferenceService'
 import { DataApiDevtools } from '@data/utils/dataApiDevtools'
 import { initI18n } from '@renderer/i18n/resolver'
-import { appInfoService } from '@renderer/services/AppInfoService'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 
 interface PrepareWindowOptions {
   /** Preference keys the first frame reads — 'all' warms the entire cache. */
   preference: 'all' | UnifiedPreferenceKeyType[]
-  /** Whether the first frame reads application identity or paths. */
-  appInfo?: boolean
 }
 
 /**
@@ -28,5 +25,5 @@ export async function prepareWindow(options: PrepareWindowOptions): Promise<void
   const preferencesWarm =
     options.preference === 'all' ? preferenceService.preloadAll() : preferenceService.preload(options.preference)
 
-  await Promise.all([initI18n(), preferencesWarm, options.appInfo ? appInfoService.preload() : Promise.resolve()])
+  await Promise.all([initI18n(), preferencesWarm])
 }

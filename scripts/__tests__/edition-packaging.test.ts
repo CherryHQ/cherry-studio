@@ -4,6 +4,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 
+import electronViteConfig, { resolveRendererEdition } from '../../electron.vite.config'
 import createChinaEditionConfig from '../../electron-builder.cn.config.cjs'
 import { CHINA_EDITION, getExpectedReleaseArtifacts, getReleaseChannel, GLOBAL_EDITION } from '../release/edition'
 
@@ -11,6 +12,30 @@ const projectRoot = path.join(import.meta.dirname, '..', '..')
 const packageMetadata = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
 
 describe('edition packaging', () => {
+  it('injects the selected edition into the renderer build', () => {
+    const rendererDefine = (
+      electronViteConfig as {
+        renderer: { define: Record<string, string> }
+      }
+    ).renderer.define
+
+    expect(resolveRendererEdition(undefined)).toBe(GLOBAL_EDITION)
+    expect(resolveRendererEdition(' CN ')).toBe(CHINA_EDITION)
+    expect(() => resolveRendererEdition('enterprise')).toThrow('Unsupported renderer edition: enterprise')
+    expect(rendererDefine.__APP_EDITION__).toBe(JSON.stringify(resolveRendererEdition(process.env.CHERRY_EDITION)))
+  })
+
+  it('pins the renderer edition for both build entry points', () => {
+    expect(packageMetadata.scripts.build).toContain('CHERRY_EDITION=global')
+    expect(packageMetadata.scripts['build:cn']).toContain('CHERRY_EDITION=cn')
+  })
+
+  it('uses the China build entry point for every China package', () => {
+    for (const scriptName of ['build:unpack:cn', 'build:win:cn', 'build:mac:cn', 'build:linux:cn']) {
+      expect(packageMetadata.scripts[scriptName]).toContain('pnpm run build:cn')
+    }
+  })
+
   it('keeps the existing global product and update identity', () => {
     const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
 
