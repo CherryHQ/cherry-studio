@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListGroup from './ModelListGroup'
-import { useModelListHealthResults, useModelListHealthRun } from './modelListHealthContext'
+import { useModelHealthStatus, useModelListHealthRun } from './modelListHealthContext'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupSection } from './useProviderModelList'
 
@@ -18,6 +18,13 @@ const MODEL_LIST_GROUP_ROW_ESTIMATE = 38
 const MODEL_LIST_MODEL_ROW_ESTIMATE = 44
 // A stable row keeps group spacing from moving between measured rows when a group collapses.
 const MODEL_LIST_GROUP_SEPARATOR_HEIGHT = 10
+
+type HealthAwareModelListItemProps = Omit<React.ComponentProps<typeof ModelListItem>, 'modelStatus'>
+
+const HealthAwareModelListItem: React.FC<HealthAwareModelListItemProps> = (props) => {
+  const modelStatus = useModelHealthStatus(props.model.id)
+  return <ModelListItem {...props} modelStatus={modelStatus} />
+}
 
 interface ModelListSectionsProps {
   provider?: Provider
@@ -73,7 +80,6 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   onContinueApiSetup
 }) => {
   const { t } = useTranslation()
-  const { modelStatusMap } = useModelListHealthResults()
   const { apiKeyEntries, savingKeyId, toggleApiKey } = useModelListHealthRun()
   const [groupOpenOverrides, setGroupOpenOverrides] = useState<Record<string, boolean>>({})
 
@@ -196,10 +202,9 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
         return (
           <div
             className={cn(modelListClasses.virtualModelRow, row.isLastInGroup && modelListClasses.virtualModelRowLast)}>
-            <ModelListItem
+            <HealthAwareModelListItem
               provider={provider}
               model={row.model}
-              modelStatus={modelStatusMap.get(row.model.id)}
               apiKeyEntries={apiKeyEntries}
               savingKeyId={savingKeyId}
               onToggleApiKey={toggleApiKey}

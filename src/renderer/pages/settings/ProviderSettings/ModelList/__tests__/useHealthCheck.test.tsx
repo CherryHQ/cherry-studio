@@ -148,14 +148,14 @@ describe('useHealthCheck', () => {
     })
 
     expect(result.current.isChecking).toBe(true)
-    expect(result.current.modelStatuses).toEqual([
+    expect(result.current.statusStore.getStatuses()).toEqual([
       expect.objectContaining({ kind: 'checking', model: chatModel }),
       expect.objectContaining({ kind: 'skipped', model: imageModel }),
       expect.objectContaining({ kind: 'checking', model: rerankModel })
     ])
 
     act(() => onChecked?.(okResult(rerankModel), 1))
-    expect(result.current.modelStatuses[2]).toMatchObject({ kind: 'ok', model: rerankModel })
+    expect(result.current.statusStore.getStatus(rerankModel.id)).toMatchObject({ kind: 'ok', model: rerankModel })
 
     await act(async () => {
       finishCheck?.([okResult(chatModel), okResult(rerankModel)])
@@ -163,7 +163,7 @@ describe('useHealthCheck', () => {
     })
 
     expect(result.current.isChecking).toBe(false)
-    expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
+    expect(result.current.statusStore.getStatus(chatModel.id)).toMatchObject({ kind: 'ok', model: chatModel })
     expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
 
@@ -247,7 +247,7 @@ describe('useHealthCheck', () => {
     await act(async () => {
       await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
     })
-    const previousResults = result.current.modelStatuses
+    const previousResults = result.current.statusStore.getStatuses()
 
     prepareCredentialsMock.mockRejectedValueOnce(new ModelCheckCredentialsError('api_key_required'))
     await act(async () => {
@@ -256,7 +256,7 @@ describe('useHealthCheck', () => {
       ).resolves.toBe(false)
     })
 
-    expect(result.current.modelStatuses).toBe(previousResults)
+    expect(result.current.statusStore.getStatuses()).toEqual(previousResults)
     expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
     expect(toastErrorMock).toHaveBeenCalled()
   })
@@ -280,7 +280,7 @@ describe('useHealthCheck', () => {
     rerender({ providerId: 'openai' })
     expect(signal?.aborted).toBe(false)
     expect(result.current.isChecking).toBe(true)
-    expect(result.current.modelStatuses).not.toEqual([])
+    expect(result.current.statusStore.getStatuses()).not.toEqual([])
   })
 
   it('reconciles a completed run against model edits made in flight', async () => {
@@ -313,7 +313,7 @@ describe('useHealthCheck', () => {
     })
 
     await waitFor(() =>
-      expect(result.current.modelStatuses).toEqual([expect.objectContaining({ model: renamedChatModel })])
+      expect(result.current.statusStore.getStatuses()).toEqual([expect.objectContaining({ model: renamedChatModel })])
     )
     expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_passed:{\\"count\\":1}'))
     expect(toastSuccessMock).not.toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
@@ -337,7 +337,7 @@ describe('useHealthCheck', () => {
     rerender()
     expect(signals[0].aborted).toBe(true)
     expect(result.current.isChecking).toBe(false)
-    expect(result.current.modelStatuses).toEqual([])
+    expect(result.current.statusStore.getStatuses()).toEqual([])
 
     await act(async () => {
       await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
@@ -347,7 +347,7 @@ describe('useHealthCheck', () => {
     rerender()
     expect(signals[1].aborted).toBe(true)
     expect(result.current.isChecking).toBe(false)
-    expect(result.current.modelStatuses).toEqual([])
+    expect(result.current.statusStore.getStatuses()).toEqual([])
   })
 
   it('drops late callbacks after a provider switch', async () => {
@@ -368,7 +368,7 @@ describe('useHealthCheck', () => {
 
     rerender({ providerId: 'anthropic' })
     act(() => onChecked?.(okResult(chatModel), 0))
-    expect(result.current.modelStatuses).toEqual([])
+    expect(result.current.statusStore.getStatuses()).toEqual([])
   })
 
   it('prunes only deleted model results after a completed run', async () => {
@@ -381,7 +381,9 @@ describe('useHealthCheck', () => {
     models = [rerankModel]
     rerender()
 
-    await waitFor(() => expect(result.current.modelStatuses.map((status) => status.model.id)).toEqual([rerankModel.id]))
+    await waitFor(() =>
+      expect(result.current.statusStore.getStatuses().map((status) => status.model.id)).toEqual([rerankModel.id])
+    )
   })
 
   it('aborts the background run on unmount', async () => {

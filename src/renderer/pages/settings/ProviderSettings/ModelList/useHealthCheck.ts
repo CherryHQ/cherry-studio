@@ -24,6 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import { checkModelsHealth } from './checkModelsHealth'
+import { ModelHealthStatusStore } from './ModelHealthStatusStore'
 
 const logger = loggerService.withContext('ProviderSettings:ModelCheck')
 
@@ -89,7 +90,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const { credentialChangeVersion, prepareCredentials } = credentialsState
-  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
+  const [statusStore] = useState(() => new ModelHealthStatusStore())
   const [isChecking, setIsChecking] = useState(false)
   const isCheckingRef = useRef(false)
   const modelsRef = useRef(models)
@@ -144,11 +145,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
             const originalIndex = originalIndexes[index]
             if (originalIndex == null) return
 
-            setModelStatuses((current) => {
-              const updated = [...current]
-              updated[originalIndex] = checkResult
-              return updated
-            })
+            statusStore.setStatus(checkResult)
           }
         )
         if (runIdRef.current !== runId || controller.signal.aborted) return
@@ -159,7 +156,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
           if (originalIndex != null) finalStatuses[originalIndex] = result
         })
         finalStatuses = reconcileModelStatuses(finalStatuses, modelsRef.current)
-        setModelStatuses(finalStatuses)
+        statusStore.replaceStatuses(finalStatuses)
         toast.success(summarizeHealthResults(finalStatuses, provider?.name))
       } catch (error) {
         if (runIdRef.current !== runId || controller.signal.aborted) return
@@ -173,7 +170,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
         }
       }
     },
-    [provider?.name, providerId]
+    [provider?.name, providerId, statusStore]
   )
 
   const startHealthCheck = useCallback(
@@ -212,7 +209,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
         const checkableModels = originalIndexes
           .map((index) => runModels[index])
           .filter((model): model is Model => !!model)
-        setModelStatuses(initialStatuses)
+        statusStore.replaceStatuses(initialStatuses)
 
         if (checkableModels.length === 0) {
           abortControllerRef.current = null
@@ -253,29 +250,31 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
         }
       }
     },
-    [abortInFlightCheck, prepareCredentials, provider, providerId, runHealthCheck]
+    [abortInFlightCheck, prepareCredentials, provider, providerId, runHealthCheck, statusStore]
   )
 
   useEffect(() => {
     abortInFlightCheck()
-    setModelStatuses([])
-  }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id, providerId])
+    statusStore.replaceStatuses([])
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id, providerId, statusStore])
 
   useEffect(() => {
     abortInFlightCheck()
-    setModelStatuses([])
-  }, [abortInFlightCheck, credentialChangeVersion])
+    statusStore.replaceStatuses([])
+  }, [abortInFlightCheck, credentialChangeVersion, statusStore])
 
   useEffect(() => {
     if (isChecking) return
-    setModelStatuses((current) => reconcileModelStatuses(current, models))
-  }, [isChecking, models])
+    const currentStatuses = statusStore.getStatuses()
+    const nextStatuses = reconcileModelStatuses(currentStatuses, models)
+    if (nextStatuses !== currentStatuses) statusStore.replaceStatuses(nextStatuses)
+  }, [isChecking, models, statusStore])
 
   useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
 
   return {
     isChecking,
-    modelStatuses,
+    statusStore,
     startHealthCheck
   }
 }
