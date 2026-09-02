@@ -26,6 +26,14 @@ describe('Markdown (static)', () => {
     expect(headings).toEqual(['heading-m1--hello-world', 'heading-m1--hello-world-1', 'heading-m1--section'])
   })
 
+  it('preserves an id-only HTML anchor as an in-page target', () => {
+    const { container } = render(
+      <Markdown id="custom-anchor">{'[Jump](#custom-anchor)\n\n<a id="custom-anchor"></a>Target'}</Markdown>
+    )
+
+    expect(container.querySelector('#user-content-custom-anchor')).not.toBeNull()
+  })
+
   it('renders fenced code blocks', () => {
     const { container } = render(
       <Markdown id="m2" plugins={withChatPlugins()}>

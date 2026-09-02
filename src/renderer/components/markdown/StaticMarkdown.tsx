@@ -44,7 +44,7 @@ export const StaticMarkdown: FC<Props> = ({ children, id, className, components 
       id={blockId}
       plugins={plugins}
       components={markdownComponents}
-      className={className}
+      className={['static-markdown', className].filter(Boolean).join(' ')}
       footnoteLabel={t('common.footnotes')}
       preserveFileLinkHrefs={Boolean(openFilePath)}>
       {content}

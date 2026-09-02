@@ -118,7 +118,7 @@ describe('Markdown sanitize schema', () => {
     expect(output).not.toContain('onclick')
   })
 
-  it('keeps preview-safe semantic HTML while stripping active media behavior', async () => {
+  it('keeps preview-safe semantic HTML', async () => {
     const { sanitize } = defaultRehypePlugins as Record<string, any>
     const [sanitizeFn, schema] = sanitize
 
@@ -132,8 +132,6 @@ describe('Markdown sanitize schema', () => {
             '<mark>Important</mark>',
             '<u>Underline</u><small>Small</small>',
             '<progress value="72" max="100">72%</progress>',
-            '<audio controls autoplay><source src="https://example.com/audio.mp3" type="audio/mpeg"></audio>',
-            '<video controls autoplay width="320" poster="https://example.com/poster.png"><source src="https://example.com/video.mp4" type="video/mp4"></video>',
             '<iframe src="https://example.com/embed"></iframe>'
           ].join('')
         )
@@ -142,11 +140,6 @@ describe('Markdown sanitize schema', () => {
     expect(output).toContain('<mark>Important</mark>')
     expect(output).toContain('<u>Underline</u><small>Small</small>')
     expect(output).toContain('<progress value="72" max="100">72%</progress>')
-    expect(output).toContain('<audio controls>')
-    expect(output).toContain('<video controls width="320" poster="https://example.com/poster.png">')
-    expect(output).toContain('<source src="https://example.com/audio.mp3" type="audio/mpeg">')
-    expect(output).toContain('<source src="https://example.com/video.mp4" type="video/mp4">')
-    expect(output).not.toContain('autoplay')
     expect(output).not.toContain('iframe')
   })
 

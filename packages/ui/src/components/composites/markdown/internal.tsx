@@ -26,7 +26,7 @@ import {
 import type { Pluggable } from 'unified'
 
 import { MarkdownBlockContext } from './context'
-import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
+import { rehypeHeadingIds, rehypePrefixSvgReferences, rehypePreserveAnchorTargets } from './plugins'
 import {
   FILE_LINK_MARKER_PROPERTY,
   rehypePrepareFileLinks,
@@ -153,6 +153,7 @@ export function MarkdownCore({
     const result: Pluggable[] = [raw, ...(preserveFileLinkHrefs ? ([rehypePrepareFileLinks] as Pluggable[]) : [])]
     result.push(
       [sanitizeFn, effectiveSchema] as Pluggable,
+      rehypePreserveAnchorTargets as Pluggable,
       ...(hasSvgElement ? ([rehypeScalableSvg] as Pluggable[]) : []),
       [rehypePrefixSvgReferences, (effectiveSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
       // Harden runs after sanitize, so every URL it rejects was already stripped or vetted there.
