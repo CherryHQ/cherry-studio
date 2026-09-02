@@ -24,7 +24,7 @@ export type WebSearchBasicAuthPatch = {
 
 type WebSearchPreferenceSnapshot = Pick<
   PreferenceDefaultScopeType,
-  | 'chat.web_search.client_tools_preferred'
+  | 'chat.web_search.model_tools_preferred'
   | 'chat.web_search.exclude_domains'
   | 'chat.web_search.max_results'
   | 'chat.web_search.compression.method'
@@ -32,7 +32,7 @@ type WebSearchPreferenceSnapshot = Pick<
 >
 
 const WEB_SEARCH_SETTINGS_PREFERENCE_KEYS = {
-  clientToolsPreferred: 'chat.web_search.client_tools_preferred',
+  modelToolsPreferred: 'chat.web_search.model_tools_preferred',
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   compressionMethod: 'chat.web_search.compression.method',
@@ -44,7 +44,7 @@ type WebSearchPreferenceValues = {
 }
 
 type WebSearchSettingsState = {
-  clientToolsPreferred: boolean
+  modelToolsPreferred: boolean
   maxResults: number
   excludeDomains: string[]
   compressionConfig: {
@@ -55,7 +55,7 @@ type WebSearchSettingsState = {
 
 function buildWebSearchSettingsState(preferences: WebSearchPreferenceValues): WebSearchSettingsState {
   return {
-    clientToolsPreferred: preferences.clientToolsPreferred,
+    modelToolsPreferred: preferences.modelToolsPreferred,
     maxResults: Math.max(1, preferences.maxResults),
     excludeDomains: preferences.excludeDomains,
     compressionConfig: {
@@ -226,7 +226,7 @@ export const useSyncZhipuWebSearchApiKeys = () => {
 }
 
 export const useWebSearchSettings = (): WebSearchSettingsState & {
-  setClientToolsPreferred: (value: boolean) => Promise<void>
+  setModelToolsPreferred: (value: boolean) => Promise<void>
   setExcludeDomains: (value: string[]) => Promise<void>
   setMaxResults: (value: number) => Promise<void>
   setCompressionConfig: (config: WebSearchSettingsState['compressionConfig']) => Promise<void>
@@ -237,8 +237,8 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
 
   return {
     ...state,
-    setClientToolsPreferred: (value) => {
-      return setPreferences({ clientToolsPreferred: value })
+    setModelToolsPreferred: (value) => {
+      return setPreferences({ modelToolsPreferred: value })
     },
     setExcludeDomains: (value) => {
       return setPreferences({ excludeDomains: value })

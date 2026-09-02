@@ -269,6 +269,17 @@ function addMissingToken(
   insertComposerTokenAtCursor(editor, token)
 }
 
+/** Sole write path for `emitUpdate: false` content: keeps the last-serialized-draft ref in step
+ *  with the document, so a torn-down `getDraft()` serves an atomic current pair, not a stale one. */
+function setComposerEditorContent(
+  editor: Editor,
+  lastSerializedDraftRef: { current: ComposerSerializedDraft | null },
+  content: JSONContent
+) {
+  lastSerializedDraftRef.current = serializeComposerDocument(content)
+  editor.commands.setContent(content, { emitUpdate: false })
+}
+
 function hasComposerTokenBeforeSelection(editor: Editor) {
   const selection = editor.state.selection
   const selectedNode = (selection as { node?: { type?: { name?: string } } }).node
@@ -548,6 +559,8 @@ export default function ComposerSurfaceRuntime({
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
   const pendingLocalTextEchoRef = useRef<string | null>(null)
+  // The most recent full document serialization; served by getDraft() once the editor is gone.
+  const lastSerializedDraftRef = useRef<ComposerSerializedDraft | null>(null)
   const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
   const isSyncingTokensRef = useRef(false)
   const trackedTokenSignatureRef = useRef('')
@@ -655,7 +668,8 @@ export default function ComposerSurfaceRuntime({
       textRef.current = limitedText
       pendingLocalTextEchoRef.current = limitedText
       onTextChange(limitedText)
-      editor?.commands.setContent(createPromptVariableContent(limitedText), { emitUpdate: false })
+      const nextContent = createPromptVariableContent(limitedText)
+      if (editor) setComposerEditorContent(editor, lastSerializedDraftRef, nextContent)
     },
     [onTextChange]
   )
@@ -881,7 +895,11 @@ export default function ComposerSurfaceRuntime({
 
   const getDraft = useCallback((): ComposerSerializedDraft => {
     const editor = editorRef.current
-    if (!editor || editor.isDestroyed) return { text: textRef.current, tokens: [] }
+    if (!editor || editor.isDestroyed) {
+      // Callers persist the returned pair verbatim; a fabricated { text, tokens: [] } would strand
+      // managed chips' prompt sentences as visible prose on the next restore.
+      return lastSerializedDraftRef.current ?? { text: textRef.current, tokens: [] }
+    }
 
     return serializeComposerDocument(editor)
   }, [])
@@ -892,7 +910,7 @@ export default function ComposerSurfaceRuntime({
 
     textRef.current = draft.text
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createComposerDraftContent(draft), { emitUpdate: false })
+    setComposerEditorContent(editor, lastSerializedDraftRef, createComposerDraftContent(draft))
     trackedTokenSignatureRef.current = getTrackedTokenSignature(draft.tokens)
   }, [])
 
@@ -1755,6 +1773,7 @@ export default function ComposerSurfaceRuntime({
       if (tokenizePromptVariablesInEditor(updatedEditor)) return
 
       const draft = serializeComposerDocument(updatedEditor)
+      lastSerializedDraftRef.current = draft
       const nextText = draft.text
       textRef.current = nextText
       pendingLocalTextEchoRef.current = nextText
@@ -1774,7 +1793,8 @@ export default function ComposerSurfaceRuntime({
         trackedTokenSignatureRef.current = nextTrackedTokenSignature
       }
     },
-    onCreate: () => {
+    onCreate: ({ editor: createdEditor }) => {
+      lastSerializedDraftRef.current = serializeComposerDocument(createdEditor)
       window.requestAnimationFrame(() => {
         startTransition(() => setEditorReady(true))
       })
@@ -1825,7 +1845,11 @@ export default function ComposerSurfaceRuntime({
       return
     }
     pendingLocalTextEchoRef.current = null
-    editor.commands.setContent(createComposerDraftContent({ text, tokens: draftTokens ?? [] }), { emitUpdate: false })
+    setComposerEditorContent(
+      editor,
+      lastSerializedDraftRef,
+      createComposerDraftContent({ text, tokens: draftTokens ?? [] })
+    )
   }, [draftTokens, editor, text])
 
   useEffect(() => {
