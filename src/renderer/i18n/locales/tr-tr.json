@@ -3027,6 +3027,7 @@
   "provider.poe": "Poe",
   "provider.ppio": "PPIO",
   "provider.qiniu": "Qiniu AI",
+  "provider.qwencloud": "QwenCloud",
   "provider.qwenlm": "QwenLM",
   "provider.radeon-cloud": "AMD GPU Cloud",
   "provider.silicon": "SiliconFlow",
