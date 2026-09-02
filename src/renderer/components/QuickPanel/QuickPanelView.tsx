@@ -252,9 +252,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const panelGeneration = getPanelGeneration()
     const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
     if (isPanelGenerationChanged) {
-      // close('panel_replaced') + immediate open() batches isVisible false→true, so the
-      // isVisible=false dismiss effect never runs. Reclaim the outgoing live filter here.
-      if (prevPanelGenerationRef.current !== undefined && prevConsumeQueryOnDismissRef.current) {
+      // panel_replaced batches isVisible false→true (dismiss never runs) — reclaim outgoing filter.
+      // Skip direct input-suggestion handoffs: ctx is already the new panel; consume would wipe its trigger.
+      const isDirectInputSuggestionHandoff =
+        ctx.trackInputQuery && ctx.triggerInfo?.type === 'input' && !ctx.consumeQueryOnDismiss
+      if (
+        prevPanelGenerationRef.current !== undefined &&
+        prevConsumeQueryOnDismissRef.current &&
+        !isDirectInputSuggestionHandoff
+      ) {
         consumeInputQueryOnce()
       }
       listRef.current?.scrollToOffset?.(0, { align: 'start' })
@@ -306,6 +312,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.readOnly,
     ctx.symbol,
     ctx.trackInputQuery,
+    ctx.triggerInfo?.type,
     getPanelGeneration,
     list
   ])

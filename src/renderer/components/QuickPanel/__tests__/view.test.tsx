@@ -954,6 +954,66 @@ describe('QuickPanelView', () => {
     expect(await screen.findByText('Next panel')).toBeTruthy()
   })
 
+  it('keeps the new trigger when a live-filter panel is replaced by a direct input suggestion', async () => {
+    // Bug: generation-change reclaim used the incoming input-tracked ctx, so direct open()
+    // (no close('panel_replaced')) deleted the new trigger and closed the replacement panel.
+    const action = vi.fn()
+    let text = ''
+    let cursorOffset = 0
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+
+    text = '@'
+    cursorOffset = 1
+    act(() => {
+      quickPanel?.open({
+        list: [{ id: 'mention', label: 'Mention user', icon: 'mention', action: vi.fn() }],
+        symbol: '@',
+        title: 'Mentions',
+        triggerInfo: { type: 'input', position: 0, originalText: '@' },
+        queryAnchor: 0,
+        trackInputQuery: true,
+        manageListExternally: true
+      })
+    })
+
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe('@')
+    expect(await screen.findByText('Mention user')).toBeTruthy()
+    expect(screen.queryByText('Card note')).toBeNull()
+  })
+
   it('consumes only the live-filter prefix when close happens after extra composer input', async () => {
     // Bug: consume used [anchor, cursor], so a keystroke after a KB pick deleted the new char too.
     const action = vi.fn()
