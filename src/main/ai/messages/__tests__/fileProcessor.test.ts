@@ -118,6 +118,7 @@ describe('materializeNativeFilePart — fileEntryId inline', () => {
     readMock.mockReset()
     fileManagerGetMetadataMock.mockReset()
     fileManagerGetMetadataMock.mockResolvedValueOnce({ size: 1024 })
+    readMock.mockResolvedValueOnce({ content: 'QUJD', mime: 'image/png' })
     const out = await materializeNativeFilePart(
       filePart({ mediaType: '.png', providerMetadata: { cherry: { fileEntryId: 'entry-1' } } })
     )
