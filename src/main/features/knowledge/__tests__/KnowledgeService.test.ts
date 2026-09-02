@@ -35,6 +35,7 @@ const {
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
   knowledgeItemFailInterruptedItemsMock,
+  knowledgeItemClearIndexedRelativePathMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
   knowledgeItemGetOutermostSelectedItemIdsMock,
@@ -83,6 +84,7 @@ const {
   knowledgeItemGetRootItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
+  knowledgeItemClearIndexedRelativePathMock: vi.fn(),
   knowledgeItemSetSubtreeStatusTxMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   listMock: vi.fn(),
@@ -172,6 +174,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
+    clearIndexedRelativePath: knowledgeItemClearIndexedRelativePathMock,
     createActive: knowledgeItemCreateActiveMock,
     delete: knowledgeItemDeleteMock,
     getDeletingRootGroups: knowledgeItemGetDeletingRootGroupsMock,
@@ -278,7 +281,8 @@ function createFileItem(
   id = 'file-1',
   baseId = 'kb-1',
   source = '/docs/source.pdf',
-  status: KnowledgeItemOf<'file'>['status'] = 'processing'
+  status: KnowledgeItemOf<'file'>['status'] = 'processing',
+  indexedRelativePath?: PosixRelativeFilePath
 ): KnowledgeItemOf<'file'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -288,7 +292,11 @@ function createFileItem(
     baseId,
     groupId: null,
     type: 'file',
-    data: { source, relativePath: (source.split('/').pop() ?? source) as PosixRelativeFilePath },
+    data: {
+      source,
+      relativePath: (source.split('/').pop() ?? source) as PosixRelativeFilePath,
+      ...(indexedRelativePath ? { indexedRelativePath } : {})
+    },
     ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -1466,6 +1474,72 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(copyFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
+  it('drops the stale processed artifact when a reindexed file will not be reprocessed', async () => {
+    const service = new KnowledgeService()
+    // The base's document processor was removed after this PDF was processed, so nothing will
+    // regenerate source.md — indexing it would rebuild search from the pre-refresh document.
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(
+      createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing', 'source.md' as PosixRelativeFilePath)
+    )
+
+    const ingestionService = (
+      service as unknown as {
+        ingestionService: {
+          scheduleItem(
+            baseId: string,
+            itemId: string,
+            parentJobId?: string | null,
+            options?: { forceFileReprocess?: boolean }
+          ): Promise<void>
+        }
+      }
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job', { forceFileReprocess: true })
+
+    expect(knowledgeItemClearIndexedRelativePathMock).toHaveBeenCalledWith('file-1')
+    // Nothing reserves source.md once the pin is gone, so its bytes must go too or a later
+    // import of that name collides with an orphan.
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith(
+      'kb-1',
+      [{ type: 'file', data: { relativePath: 'source.md' } }],
+      expect.objectContaining({ itemId: 'file-1', staleRelativePath: 'source.md' })
+    )
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the processed-artifact pin when the reindexed file is reprocessed onto the same path', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockReturnValueOnce(
+      createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing', 'source.md' as PosixRelativeFilePath)
+    )
+
+    const ingestionService = (
+      service as unknown as {
+        ingestionService: {
+          scheduleItem(
+            baseId: string,
+            itemId: string,
+            parentJobId?: string | null,
+            options?: { forceFileReprocess?: boolean }
+          ): Promise<void>
+        }
+      }
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job', { forceFileReprocess: true })
+
+    // The processor rewrites source.md in place, so the pin still describes the refreshed file;
+    // clearing it here would strand the check handler's availability guard on a live artifact.
+    expect(knowledgeItemClearIndexedRelativePathMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
+      }),
+      expect.anything()
+    )
   })
 
   it('passes the parent job when starting file processing during reindex', async () => {

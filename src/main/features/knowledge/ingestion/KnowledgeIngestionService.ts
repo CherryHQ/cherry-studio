@@ -298,6 +298,27 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
       return
     }
 
+    // A reindex just replaced this file's bytes. When the plan is not going to regenerate its
+    // processed artifact — the base's processor was removed, or the item arrived from a restore
+    // already carrying one — that artifact describes content the file no longer has, and indexing
+    // it would quietly rebuild search from the pre-refresh document. Unpin it (and reclaim its
+    // bytes, now that nothing reserves the path) so the index reads the refreshed file instead.
+    if (options.forceFileReprocess && plan.kind === 'index-documents' && item.type === 'file') {
+      const staleRelativePath = item.data.indexedRelativePath
+      if (staleRelativePath) {
+        knowledgeItemService.clearIndexedRelativePath(itemId)
+        await deleteKnowledgeItemFilesBestEffort(
+          baseId,
+          [{ type: 'file', data: { relativePath: staleRelativePath } }],
+          {
+            baseId,
+            itemId,
+            staleRelativePath
+          }
+        )
+      }
+    }
+
     const jobManager = application.get('JobManager')
     if (plan.kind === 'prepare-root') {
       jobManager.enqueue(

@@ -391,6 +391,28 @@ describe('reindex-subtree job handler', () => {
     })
   })
 
+  it('stands down without touching anything when the reindex is cancelled before the mutation lock', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([createNoteItem('note-1')])
+    const controller = new AbortController()
+    const ctx = {
+      ...createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'),
+      signal: controller.signal
+    }
+    // Re-acquisition and the wait for the lock are the long stretches; a quit landing in either
+    // must not still spend the reset on a root that is untouched and correctly indexed.
+    knowledgeLockManager.runExclusive.mockImplementationOnce(async (_key: string, task: () => Promise<unknown>) => {
+      controller.abort(new Error('JobManager shutdown'))
+      return await task()
+    })
+
+    await expect(handler.execute(ctx)).rejects.toThrow('JobManager shutdown')
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(writeFileIntoKnowledgeBaseAtMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
+  })
+
   it('marks only unscheduled reset roots failed when rescheduling fails', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const firstRoot = createDirectoryItem('dir-1')

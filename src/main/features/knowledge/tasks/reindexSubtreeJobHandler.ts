@@ -71,6 +71,10 @@ export function createReindexSubtreeJobHandler(
 
       // Reset vectors, expanded children, and root statuses as one base-level mutation.
       const resetResult = await knowledgeLockManager.runExclusive(baseId, async () => {
+        // Re-acquisition and the wait for this lock are the long stretches; a cancel landing in
+        // either must not still spend the reset. Checked only here — mid-reset checks would trade
+        // this for a half-applied one, and once a root is activated recovery already covers it.
+        ctx.signal.throwIfAborted()
         const base = knowledgeBaseService.getById(baseId)
         // Re-check under the mutation lock so reindex cannot turn a just-deleted
         // subtree back into preparing/processing during cleanup/reset.
