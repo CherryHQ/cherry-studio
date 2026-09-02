@@ -22,6 +22,7 @@ const commandHandlers = vi.hoisted(() => new Map<string, () => void | Promise<vo
 const eventEmitMock = vi.hoisted(() => vi.fn())
 const clearTopicMessagesMock = vi.hoisted(() => vi.fn(async () => undefined))
 const activeTabMock = vi.hoisted(() => ({ current: true }))
+const citationsPanelModuleLoads = vi.hoisted(() => ({ value: 0 }))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -54,6 +55,7 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
       <div data-testid="conversation-shell">
         <div data-testid="conversation-top-bar">{props.topBar}</div>
         {props.topRightTool}
+        {props.sidePanel}
         {props.center}
         {props.centerOverlay}
         {props.rightPane}
@@ -62,9 +64,21 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
-  default: () => <div data-testid="citations-panel" />
-}))
+vi.mock('@renderer/components/chat/citations/CitationsPanel', () => {
+  citationsPanelModuleLoads.value += 1
+
+  return {
+    default: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
+      <div data-testid="citations-panel" data-open={String(open)}>
+        {open ? (
+          <button type="button" onClick={onClose}>
+            close citations
+          </button>
+        ) : null}
+      </div>
+    )
+  }
+})
 
 vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
   default: ({ state }: { state: string }) => <div data-testid="conversation-center-state">{state}</div>
@@ -173,6 +187,9 @@ vi.mock('../ChatContent', async () => {
     return (
       <div data-testid="chat-content">
         <output aria-label="rail gutter">{railGutterPx}</output>
+        <button type="button" onClick={() => props.onOpenCitationsPanel({ citations: [{ number: 1 }] })}>
+          open citations
+        </button>
         <button type="button" onClick={() => setRailGutterPx(24)}>
           reserve rail gutter
         </button>
@@ -221,6 +238,23 @@ describe('Chat', () => {
     assistantContextMock.isModelPending = false
     commandHandlers.clear()
     activeTabMock.current = true
+  })
+
+  it('loads citations on first open and keeps the panel mounted while closing', async () => {
+    const user = userEvent.setup()
+    render(<Chat activeTopic={topic} />)
+
+    expect(citationsPanelModuleLoads.value).toBe(0)
+    expect(screen.queryByTestId('citations-panel')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'open citations' }))
+
+    expect(await screen.findByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
+    expect(citationsPanelModuleLoads.value).toBe(1)
+
+    await user.click(screen.getByRole('button', { name: 'close citations' }))
+
+    expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
   })
 
   it('clears the active topic once the confirmation is accepted', async () => {

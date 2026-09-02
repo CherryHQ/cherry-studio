@@ -1,5 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
@@ -33,6 +32,8 @@ import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/TopicRightPane'
 import type { AddNewTopicPayload } from './types'
+
+const CitationsPanel = React.lazy(() => import('@renderer/components/chat/citations/CitationsPanel'))
 
 const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
 const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
@@ -82,6 +83,7 @@ const Chat: FC<Props> = (props) => {
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const [citationPanelState, setCitationPanelState] = useState<CitationPanelState | null>(null)
+  const [shouldMountCitationsPanel, setShouldMountCitationsPanel] = useState(false)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
 
@@ -173,6 +175,7 @@ const Chat: FC<Props> = (props) => {
   const handleOpenCitationsPanel = useCallback(
     ({ citations }: { citations: Citation[] }) => {
       if (!activeTopicId) return
+      setShouldMountCitationsPanel(true)
       setCitationPanelState({ topicId: activeTopicId, citations })
     },
     [activeTopicId]
@@ -299,12 +302,14 @@ const Chat: FC<Props> = (props) => {
       }
       showTopRightToolWhenPaneOpen
       sidePanel={
-        showConversation ? (
-          <CitationsPanel
-            open={citationsPanelOpen}
-            onClose={() => setCitationPanelState(null)}
-            citations={citationPanelCitations ?? []}
-          />
+        showConversation && shouldMountCitationsPanel ? (
+          <React.Suspense fallback={null}>
+            <CitationsPanel
+              open={citationsPanelOpen}
+              onClose={() => setCitationPanelState(null)}
+              citations={citationPanelCitations ?? []}
+            />
+          </React.Suspense>
         ) : undefined
       }
       center={center}
