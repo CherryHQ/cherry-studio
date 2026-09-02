@@ -360,6 +360,7 @@ export interface MessageListActions {
   openArtifactFile?: (path: string) => void | Promise<void>
   openDiagnosticReport?: (description?: string) => void
   resolvePath?: (path: string) => string
+  previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   previewInputFileInRightPane?: (input: MessageInputFilePreview) => void | Promise<void>
   openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>

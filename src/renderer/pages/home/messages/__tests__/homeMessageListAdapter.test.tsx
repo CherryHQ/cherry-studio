@@ -1,6 +1,7 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -54,6 +55,8 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
 })
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 const openRouteMock = vi.hoisted(() => vi.fn())
+const openFilePreviewTabMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const getMessageActivityStateMock = vi.hoisted(() =>
   vi.fn(() => ({ isProcessing: false, isStreamTarget: false, isApprovalAnchor: false }))
 )
@@ -101,6 +104,16 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: (props: { trigger: ReactNode }) => {
     modelSelectorMock.props.push(props)
     return <>{props.trigger}</>
+  }
+}))
+
+vi.mock('@renderer/components/FilePreview', () => ({
+  useOptionalOpenFilePreviewTab: () => openFilePreviewTabMock
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
   }
 }))
 
@@ -409,6 +422,36 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     act(() => void value?.actions.navigateToRoute?.({ path: '/app/paintings', query: { source: 'assistant' } }))
 
     expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
+  })
+
+  it('opens sent input file previews in a file preview tab', async () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    await waitFor(() => expect(value?.actions.previewInputFile).toBeDefined())
+    ipcRequestMock.mockResolvedValueOnce({ kind: 'file' })
+    await value?.actions.previewInputFile?.({
+      displayName: 'report.docx',
+      previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
+      originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
+      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/Users/alice/report.docx'
+    })
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/Users/alice/report.docx', 'report.docx')
+
+    ipcRequestMock.mockRejectedValueOnce(new Error('missing'))
+    openFilePreviewTabMock.mockClear()
+    await value?.actions.previewInputFile?.({
+      displayName: 'report.docx',
+      previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
+      originalPath: '/Users/alice/report.docx' as AbsoluteFilePath
+    })
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/internal/message-files/report.docx', 'report.docx')
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {

@@ -1377,7 +1377,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
-  const { removeMessageTranslation, notifySuccess, previewInputFileInRightPane } = useMessageListActions()
+  const { removeMessageTranslation, notifySuccess, previewInputFile, previewInputFileInRightPane } =
+    useMessageListActions()
   const { t } = useTranslation()
   const canRemoveTranslation = !!removeMessageTranslation
   const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
@@ -1442,13 +1443,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
   const nextReadOnlyFilePreviews = useMemo(() => getReadOnlyFileTokenPreviews(messageParts), [messageParts])
   const readOnlyFilePreviews = useStableReadOnlyFilePreviews(nextReadOnlyFilePreviews)
+  const previewInputFileAction = previewInputFile ?? previewInputFileInRightPane
   const handleReadOnlyFilePreviewActivate = useCallback(
     (preview: ReadOnlyComposerFileTokenPreview, token: ChatTokenView) => {
-      if (!previewInputFileInRightPane) return
+      if (!previewInputFileAction) return
       const previewPath = getPreviewPathFromFileUrl(preview.url)
       if (!previewPath) return
 
-      return previewInputFileInRightPane({
+      return previewInputFileAction({
         displayName: token.label,
         previewPath,
         ...(preview.originalPath && { originalPath: preview.originalPath }),
@@ -1456,7 +1458,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         ...(preview.composerFileKind && { composerFileKind: preview.composerFileKind })
       })
     },
-    [previewInputFileInRightPane]
+    [previewInputFileAction]
   )
   const visibleComposerFileTokens = useMemo(
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
@@ -1493,7 +1495,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
-      onReadOnlyFilePreviewActivate: previewInputFileInRightPane ? handleReadOnlyFilePreviewActivate : undefined,
+      onReadOnlyFilePreviewActivate: previewInputFileAction ? handleReadOnlyFilePreviewActivate : undefined,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
       onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
@@ -1508,7 +1510,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       handleReadOnlyFilePreviewActivate,
       messageCitations,
       readOnlyFilePreviews,
-      previewInputFileInRightPane
+      previewInputFileAction
     ]
   )
   const canRenderReportArtifacts =

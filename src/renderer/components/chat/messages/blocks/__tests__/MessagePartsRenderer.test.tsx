@@ -775,8 +775,8 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
     })
 
-    it('maps a sent composer file token preview to the agent right pane action', () => {
-      const previewInputFileInRightPane = vi.fn()
+    it('maps a sent composer file token preview to the injected preview action', () => {
+      const previewInputFile = vi.fn()
 
       renderParts(
         [
@@ -815,7 +815,7 @@ describe('MessagePartsRenderer', () => {
           }
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
-        { previewInputFileInRightPane }
+        { previewInputFile }
       )
 
       const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('source-report')
@@ -825,7 +825,7 @@ describe('MessagePartsRenderer', () => {
         label: 'report.md'
       })
 
-      expect(previewInputFileInRightPane).toHaveBeenCalledWith({
+      expect(previewInputFile).toHaveBeenCalledWith({
         displayName: 'report.md',
         previewPath: '/internal/message-files/report.md',
         originalPath: '/Users/alice/report.md',

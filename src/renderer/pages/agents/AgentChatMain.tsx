@@ -91,7 +91,7 @@ const AgentSessionMessagesWithAgentRightPaneAction = (props: ComponentProps<type
       {...props}
       openAgentToolFlow={canOpenAgentToolFlow ? openAgentToolFlow : undefined}
       openArtifactFile={canOpenArtifactFile ? openArtifactFile : undefined}
-      previewInputFileInRightPane={canPreviewInputFileInRightPane ? previewInputFileInRightPane : undefined}
+      previewInputFile={canPreviewInputFileInRightPane ? previewInputFileInRightPane : undefined}
     />
   )
 }

@@ -229,6 +229,7 @@ describe('useAgentMessageListProviderValue', () => {
     const deleteMessage = vi.fn()
     const respondToolApproval = vi.fn()
     const openArtifactFile = vi.fn()
+    const previewInputFile = vi.fn()
     let value: MessageListProviderValue | undefined
 
     const Probe = () => {
@@ -239,6 +240,7 @@ describe('useAgentMessageListProviderValue', () => {
         assistantId: 'agent-1',
         isLoading: false,
         openArtifactFile,
+        previewInputFile,
         deleteMessage,
         respondToolApproval,
         messageNavigation: 'anchor',
@@ -311,6 +313,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.meta.userProfile).toBe(headerCapabilitiesMock.userProfile)
     expect(value?.meta.aiUsageMessageKind).toBe('agent-session')
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
+    expect(value?.actions.previewInputFile).toBe(previewInputFile)
     expect(value?.actions.resolvePath?.('dist/report.md')).toBe('/tmp/workspace/dist/report.md')
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))

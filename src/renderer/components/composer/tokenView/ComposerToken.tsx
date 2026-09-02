@@ -639,12 +639,7 @@ function ComposerTokenHoverPopover({
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         event.stopPropagation()
-        if (onActivate) {
-          closePopover()
-          onActivate()
-        } else {
-          openPopover('keyboard')
-        }
+        openPopover('keyboard')
         return
       }
 
@@ -654,7 +649,7 @@ function ComposerTokenHoverPopover({
         closePopover()
       }
     },
-    [closePopover, onActivate, openPopover]
+    [closePopover, openPopover]
   )
 
   const handleTriggerClick = useCallback(
@@ -801,14 +796,12 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const readOnlyFilePreviewPath = getReadOnlyFilePreviewPath(readOnlyFilePreview)
   const pathTooltipPath = readOnly ? readOnlyFilePreviewPath : file?.path
   const filePreviewPath = readOnly ? readOnlyFilePreviewPath : getEditableFilePreviewPath(file)
-  const canOpenFilePreview =
-    !readOnlyFilePreviewActivation &&
-    presentation.variant === 'markdown' &&
-    Boolean(filePreviewPath && openFilePreviewTab)
+  const canOpenFilePreview = !readOnlyFilePreviewActivation && Boolean(filePreviewPath && openFilePreviewTab)
   const openFilePreview = useCallback(() => {
     if (!canOpenFilePreview || !filePreviewPath || !openFilePreviewTab) return
     openFilePreviewTab(filePreviewPath, label)
   }, [canOpenFilePreview, filePreviewPath, label, openFilePreviewTab])
+  const tokenIsDirectPreviewButton = canOpenFilePreview && !shouldShowPopover && !readOnlyFilePreviewActivation
   const handleFilePreviewClick = useCallback(
     (event: ReactMouseEvent<HTMLSpanElement>) => {
       if (!canOpenFilePreview || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
@@ -848,7 +841,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
         'group-focus-visible:border-primary',
         (readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
-        canOpenFilePreview && 'cursor-pointer',
+        (canOpenFilePreview || readOnlyFilePreviewActivation) && 'cursor-pointer',
         presentation.containerClassName,
         props.selected && 'border-primary ring-1 ring-primary/40',
         props.className
@@ -856,11 +849,11 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       title={readOnly || shouldShowPathTooltip ? undefined : title}
       data-composer-token-kind={token.kind}
       data-file-token-variant={presentation.variant}
-      role={canOpenFilePreview ? 'button' : undefined}
-      tabIndex={canOpenFilePreview ? 0 : undefined}
-      aria-label={canOpenFilePreview ? accessibleTitle : undefined}
-      onClick={canOpenFilePreview ? handleFilePreviewClick : undefined}
-      onKeyDown={canOpenFilePreview ? handleFilePreviewKeyDown : undefined}
+      role={tokenIsDirectPreviewButton ? 'button' : undefined}
+      tabIndex={tokenIsDirectPreviewButton ? 0 : undefined}
+      aria-label={tokenIsDirectPreviewButton ? accessibleTitle : undefined}
+      onClick={tokenIsDirectPreviewButton ? handleFilePreviewClick : undefined}
+      onKeyDown={tokenIsDirectPreviewButton ? handleFilePreviewKeyDown : undefined}
       onMouseDown={props.onMouseDown}>
       <span
         className={cn(
@@ -932,7 +925,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       trigger={chipElement}
       ariaLabel={accessibleTitle}
       contentClassName={presentation.previewUrl ? 'rounded-lg border-0 bg-transparent' : undefined}
-      onActivate={readOnlyFilePreviewActivation ?? (presentation.previewUrl ? openImagePreview : undefined)}
+      onActivate={
+        readOnlyFilePreviewActivation ??
+        (presentation.previewUrl ? openImagePreview : canOpenFilePreview ? openFilePreview : undefined)
+      }
       content={
         <FileTokenPreviewCard
           file={file}

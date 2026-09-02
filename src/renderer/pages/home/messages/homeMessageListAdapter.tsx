@@ -29,6 +29,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useOptionalOpenFilePreviewTab } from '@renderer/components/FilePreview'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -50,6 +51,7 @@ import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { createFilePathHandle } from '@shared/utils/file'
 import { isNonChatModel } from '@shared/utils/model'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -470,6 +472,26 @@ export function useHomeMessageListProviderValue({
     return window.api.file.openPath(path)
   }, [])
 
+  const openFilePreviewTab = useOptionalOpenFilePreviewTab()
+  const previewInputFile = useCallback<NonNullable<MessageListActions['previewInputFile']>>(
+    async (input) => {
+      if (!openFilePreviewTab) return
+
+      let filePath = input.previewPath
+      if (input.originalPath && input.originalPath !== input.previewPath) {
+        try {
+          const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
+          if (metadata?.kind === 'file') filePath = input.originalPath
+        } catch {
+          // Fall back to the internal copied file when the user's original path is gone or unreadable.
+        }
+      }
+
+      openFilePreviewTab(filePath, input.displayName)
+    },
+    [openFilePreviewTab]
+  )
+
   const showInFolder = useCallback((path: string) => {
     return window.api.file.showInFolder(path)
   }, [])
@@ -842,6 +864,7 @@ export function useHomeMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       removeMessageErrorPart,
       openPath,
+      previewInputFile: normalInteractionsEnabled && openFilePreviewTab ? previewInputFile : undefined,
       openCitationsPanel,
       showInFolder,
       abortTool,
@@ -888,7 +911,9 @@ export function useHomeMessageListProviderValue({
       messageUiStateCache.updateMessageUiState,
       normalInteractionsEnabled,
       openCitationsPanel,
+      openFilePreviewTab,
       openPath,
+      previewInputFile,
       regenerateMessage,
       requestTranslationLanguages,
       retryTranslationLanguages,

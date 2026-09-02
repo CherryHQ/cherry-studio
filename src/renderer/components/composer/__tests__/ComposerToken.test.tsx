@@ -597,6 +597,30 @@ describe('ComposerToken', () => {
     expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
   })
 
+  it('opens an editable Office attachment in the file preview tab', async () => {
+    const user = userEvent.setup()
+    render(
+      <ComposerToken
+        token={{
+          id: 'file:docx',
+          kind: 'file',
+          label: 'report.docx',
+          payload: createFileMetadata({
+            name: 'report.docx',
+            origin_name: 'report.docx',
+            path: '/tmp/report.docx',
+            ext: '.docx',
+            type: FILE_TYPE.DOCUMENT
+          })
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'report.docx' }))
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/report.docx', 'report.docx')
+  })
+
   it('opens a sent Markdown attachment from its managed file URL', async () => {
     const user = userEvent.setup()
     render(
@@ -621,6 +645,28 @@ describe('ComposerToken', () => {
     await user.click(screen.getByRole('button', { name: 'requirements.md' }))
 
     expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/managed-file.md', 'requirements.md')
+  })
+
+  it('opens a sent Office attachment from its managed file URL', async () => {
+    const user = userEvent.setup()
+    render(
+      <FileComposerToken
+        readOnly
+        readOnlyFilePreview={{
+          url: 'file:///tmp/message-files/report.docx',
+          mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }}
+        token={{
+          id: 'file:sent-docx',
+          kind: 'file',
+          label: 'report.docx'
+        }}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'report.docx' }))
+
+    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/report.docx', 'report.docx')
   })
 
   it('renders office file tokens with dedicated variants', () => {
