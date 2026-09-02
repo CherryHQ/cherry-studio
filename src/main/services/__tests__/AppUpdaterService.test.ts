@@ -173,6 +173,7 @@ describe('AppUpdaterService', () => {
 
       await (appUpdater as any).configureUpdaterForCheck()
 
+      expect(autoUpdater.channel).toBe(UpgradeChannel.LATEST)
       expect(autoUpdater.requestHeaders).toMatchObject({
         'X-Region': 'cn'
       })

@@ -12,6 +12,7 @@
   },
   "scripts": {
     "start": "pnpm rebuild:electron && electron-vite preview",
+    "start:cn": "dotenv -v CHERRY_EDITION=cn -- pnpm start",
     "download:binaries": "node scripts/download-binaries.js",
     "rebuild:electron": "electron-rebuild --force --only better-sqlite3",
     "rebuild:node": "node scripts/invalidate-electron-rebuild-metadata.js && pnpm rebuild better-sqlite3",

@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
-import electronViteConfig, { resolveRendererEdition } from '../../electron.vite.config'
 import createChinaEditionConfig from '../../electron-builder.cn.config.cjs'
 import { CHINA_EDITION, getExpectedReleaseArtifacts, getReleaseChannel, GLOBAL_EDITION } from '../release/edition'
 
@@ -29,7 +28,15 @@ type GitCodeWorkflow = {
 }
 
 describe('edition packaging', () => {
-  it('injects the selected edition into the renderer build', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it('injects the selected edition into the renderer build', async () => {
+    vi.stubEnv('CHERRY_EDITION', CHINA_EDITION)
+    vi.resetModules()
+    const { default: electronViteConfig, resolveRendererEdition } = await import('../../electron.vite.config')
     const rendererDefine = (
       electronViteConfig as {
         renderer: { define: Record<string, string> }
@@ -39,12 +46,14 @@ describe('edition packaging', () => {
     expect(resolveRendererEdition(undefined)).toBe(GLOBAL_EDITION)
     expect(resolveRendererEdition(' CN ')).toBe(CHINA_EDITION)
     expect(() => resolveRendererEdition('enterprise')).toThrow('Unsupported renderer edition: enterprise')
-    expect(rendererDefine.__APP_EDITION__).toBe(JSON.stringify(resolveRendererEdition(process.env.CHERRY_EDITION)))
+    expect(rendererDefine.__APP_EDITION__).toBe(JSON.stringify(CHINA_EDITION))
   })
 
-  it('pins the renderer edition for both build entry points', () => {
+  it('pins the renderer edition for build and preview entry points', () => {
     expect(packageMetadata.scripts.build).toContain('CHERRY_EDITION=global')
     expect(packageMetadata.scripts['build:cn']).toContain('CHERRY_EDITION=cn')
+    expect(packageMetadata.scripts['start:cn']).toContain('CHERRY_EDITION=cn')
+    expect(packageMetadata.scripts['start:cn']).toContain('pnpm start')
   })
 
   it('uses the China build entry point for every China package', () => {

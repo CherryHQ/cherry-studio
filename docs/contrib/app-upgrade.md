@@ -6,6 +6,7 @@ sources:
   - electron-builder.yml
   - electron-builder.cn.config.cjs
   - dev-app-update.yml
+  - package.json
 ---
 
 # App Update Architecture
@@ -21,6 +22,7 @@ The in-app release history follows the same managed path. Stable release prepara
 - Packaged builds use `publish.url` from `electron-builder.yml`. electron-builder writes this value to the packaged `app-update.yml`.
 - Packaged metadata sets `cherryEdition: global` for global packages and `cherryEdition: cn` for China edition packages. Packages built before edition metadata was introduced may omit the marker; the client treats a missing marker as `global` for compatibility.
 - Development builds set `forceDevUpdateConfig = true`, so electron-updater reads `dev-app-update.yml` from the repository root. The default development feed is `http://127.0.0.1:3378`.
+- `CHERRY_EDITION` selects the main-process and renderer edition during development. Use `pnpm dev:cn` for China edition development, or run `pnpm build:cn` followed by `pnpm start:cn` to preview a China renderer build; matching the build and start commands keeps both processes on the same edition.
 - Production base URL changes take effect through the build configuration in newly produced application builds. The client does not override the packaged feed URL at runtime.
 
 ## Channels
