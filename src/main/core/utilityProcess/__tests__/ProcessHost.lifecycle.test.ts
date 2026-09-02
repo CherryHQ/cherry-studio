@@ -84,6 +84,39 @@ describe('ProcessHost lifecycle', () => {
     expect(adapter.spawns).toHaveLength(0)
   })
 
+  it('launches the process while an async createInitData resolves, then connects with its value', async () => {
+    let resolveInitData!: (value: { token: string }) => void
+    const { host, adapter } = createHost({
+      definition: {
+        createInitData: () =>
+          new Promise<{ token: string }>((resolve) => {
+            resolveInitData = resolve
+          })
+      }
+    })
+
+    const pending = host.request('ping', undefined)
+    await flushMicrotasks()
+    expect(adapter.spawns).toHaveLength(1)
+    expect(adapter.spawns[0].child.connectFrame).toBeNull()
+
+    resolveInitData({ token: 'from-proxy-snapshot' })
+
+    await expect(pending).resolves.toBe('pong')
+    expect(adapter.spawns[0].child.connectFrame?.initData).toEqual({ token: 'from-proxy-snapshot' })
+  })
+
+  it('fails the cold start with PROCESS_START_FAILED when createInitData rejects', async () => {
+    const { host, adapter } = createHost({
+      definition: { createInitData: () => Promise.reject(new Error('proxy flush failed')) }
+    })
+
+    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    expect((error.cause as Error).message).toBe('proxy flush failed')
+    expect(error.failureCount).toBe(1)
+    await waitUntil(() => adapter.spawns[0].child.killed, 'child kill')
+  })
+
   it('maps a failed child initialize to PROCESS_START_FAILED carrying the remote error', async () => {
     const { script } = echoScript({
       initialize: () => {

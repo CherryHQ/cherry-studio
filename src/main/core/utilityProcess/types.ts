@@ -32,8 +32,11 @@ export type UtilityProcessDefinition<Contract extends UtilityProcessContract, In
   idleTimeoutMs?: number
   /** Extra environment variables, evaluated per generation; additive only (see host/environment.ts). */
   createEnv?: () => Readonly<Record<string, string>>
-  /** Init data passed to the child's `initialize()`, evaluated per generation; opaque to core. */
-  createInitData?: () => InitData
+  /**
+   * Init data passed to the child's `initialize()`, evaluated per generation; opaque to core.
+   * May be async — it is awaited while the process launches, inside the ready budget.
+   */
+  createInitData?: () => InitData | Promise<InitData>
   /** Phantom brand so definitions of different contracts are distinct types; never present at runtime. */
   readonly __contract?: Contract
 }>

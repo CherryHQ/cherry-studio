@@ -249,6 +249,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     this.generationCounter += 1
     const id = this.generationCounter
     let handle: ProcessHandle
+    // Kicked off before the fork so an async factory resolves while the process launches.
     let initData: unknown
     let entryPath: string
     try {
@@ -290,19 +291,7 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       })
     }, READY_TIMEOUT_MS)
     generation.readyTimer.unref?.()
-    handle.onSpawn(() => {
-      if (generation.settled) return
-      try {
-        handle.connect({ ...this.identity(generation), kind: 'connect', initData })
-      } catch (cause) {
-        this.settleGeneration(generation, {
-          code: 'PROCESS_START_FAILED',
-          message: `generation ${id} init data is not structured-cloneable: ${describe(cause)}`,
-          countFailure: true,
-          details: { cause }
-        })
-      }
-    })
+    handle.onSpawn(() => void this.connectGeneration(generation, initData))
     handle.onMessage((data) => this.handleFrame(generation, data))
     handle.onExit((code) => this.handleExit(generation, code))
     handle.onStdoutLine((line, truncated) =>
@@ -318,6 +307,33 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     )
     this.deps.logger.info(`[${this.tag(generation)}] spawned`, { entryPath })
     return generation
+  }
+
+  /** Awaits the init data (it may be a promise) and hands the child its private port. */
+  private async connectGeneration(generation: Generation, pendingInitData: unknown): Promise<void> {
+    let initData: unknown
+    try {
+      initData = await pendingInitData
+    } catch (cause) {
+      this.settleGeneration(generation, {
+        code: 'PROCESS_START_FAILED',
+        message: `generation ${generation.id} init data failed: ${describe(cause)}`,
+        countFailure: true,
+        details: { cause }
+      })
+      return
+    }
+    if (generation.settled) return
+    try {
+      generation.handle.connect({ ...this.identity(generation), kind: 'connect', initData })
+    } catch (cause) {
+      this.settleGeneration(generation, {
+        code: 'PROCESS_START_FAILED',
+        message: `generation ${generation.id} init data is not structured-cloneable: ${describe(cause)}`,
+        countFailure: true,
+        details: { cause }
+      })
+    }
   }
 
   private handleFrame(generation: Generation, data: unknown): void {

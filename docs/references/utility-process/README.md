@@ -47,7 +47,7 @@ export const embeddingProcess = defineUtilityProcess<EmbeddingContract, { modelP
 - `id` — lowercase dotted identity; also the process's `serviceName` (`CherryStudio.UtilityProcess.<id>`), which is what Activity Monitor and `child-process-gone` report.
 - `entry` — kebab-case build key. Core resolves `app.utility_process` + `<entry>.js`, i.e. `out/utility-process/<entry>.js` inside the app bundle (read-only, never auto-created).
 - `cancellation` — `cooperative` aborts the handler's signal; `terminate` kills the whole generation. Pick `terminate` when the work is a native call that cannot be interrupted.
-- `createEnv` / `createInitData` — evaluated per generation. The environment is additive only (see below).
+- `createEnv` / `createInitData` — evaluated per generation. `createInitData` may be async; it is awaited while the process launches, so a slow factory spends the same 10 s budget the handshake does. The environment is additive only (see below).
 
 Add the definition to `src/main/core/application/utilityProcessManifest.ts`; `main.ts` installs that manifest once, before `registerAll`. `UtilityProcessManager` accepts only manifest objects, so an unregistered definition fails loudly at `client()` rather than silently spawning.
 

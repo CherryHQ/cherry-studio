@@ -13,7 +13,7 @@ How a request becomes a message, how a process becomes a generation, and what ea
 ## Bootstrap
 
 1. The host builds the environment and init data, resolves `out/utility-process/<entry>.js`, and forks with `stdio: 'pipe'`, `args: []`, `execArgv: []`, and `serviceName: CherryStudio.UtilityProcess.<id>`.
-2. On `spawn`, the host sends one `connect` frame over `process.parentPort`, transferring one end of a private `MessageChannelMain`. Init data rides on that frame.
+2. On `spawn`, the host sends one `connect` frame over `process.parentPort`, transferring one end of a private `MessageChannelMain`. Init data rides on that frame; an async `createInitData` is started before the fork and awaited here, so it overlaps the launch instead of delaying it. A rejection fails the generation with `PROCESS_START_FAILED`.
 3. The child validates the frame (protocol, version, its own `id`) — a mismatch exits `70` — attaches its port listeners **without starting the port**, and runs `initialize`.
 4. `initialize` resolving posts `ready` and starts the port; the queued requests then flow. `initialize` throwing posts `startup-error` and self-exits `71` after 1 s.
 
