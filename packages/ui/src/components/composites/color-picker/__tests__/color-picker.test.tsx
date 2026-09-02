@@ -6,12 +6,14 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   ColorPicker,
   ColorPickerAlpha,
+  type ColorPickerAlphaProps,
   ColorPickerEyeDropper,
   ColorPickerFormat,
   ColorPickerHue,
+  type ColorPickerHueProps,
   ColorPickerOutput,
   ColorPickerSelection
-} from '../color-picker'
+} from '../index'
 
 const formatLabels = {
   alphaPercentage: 'Opacity',
@@ -238,6 +240,26 @@ describe('ColorPicker', () => {
     )
 
     expect(screen.getByRole('slider', { name: 'Localized alpha' })).toBeTruthy()
+  })
+
+  it('keeps channel lower bounds owned by the picker', () => {
+    const hueProps: ColorPickerHueProps = {
+      // @ts-expect-error Hue starts at zero by contract.
+      min: 10
+    }
+    const alphaProps: ColorPickerAlphaProps = {
+      // @ts-expect-error Alpha starts at zero by contract.
+      min: 10
+    }
+    render(
+      <ColorPicker>
+        <ColorPickerHue {...hueProps} aria-label="Hue range" />
+        <ColorPickerAlpha {...alphaProps} aria-label="Alpha range" />
+      </ColorPicker>
+    )
+
+    expect(screen.getByRole('slider', { name: 'Hue range' }).getAttribute('aria-valuemin')).toBe('0')
+    expect(screen.getByRole('slider', { name: 'Alpha range' }).getAttribute('aria-valuemin')).toBe('0')
   })
 
   it('emits alpha on the 0-1 scale when the alpha slider changes', () => {

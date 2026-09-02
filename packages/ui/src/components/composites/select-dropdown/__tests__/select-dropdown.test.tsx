@@ -142,6 +142,18 @@ describe('SelectDropdown', () => {
       expect(onSelect).toHaveBeenCalledWith('1')
     })
 
+    it('keeps the public remove action separate from selection', () => {
+      const onRemove = vi.fn()
+      const onSelect = vi.fn()
+      render(<SelectDropdown {...defaultProps} onRemove={onRemove} onSelect={onSelect} removeLabel="Remove item" />)
+      fireEvent.click(screen.getByRole('button'))
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Remove item' })[1])
+
+      expect(onRemove).toHaveBeenCalledWith('2')
+      expect(onSelect).not.toHaveBeenCalled()
+    })
+
     it('handles wheel scrolling for non-virtualized lists rendered inside modal dialogs', () => {
       render(<SelectDropdown {...defaultProps} />)
       fireEvent.click(screen.getByRole('button'))

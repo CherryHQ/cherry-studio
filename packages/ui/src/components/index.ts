@@ -44,7 +44,7 @@ export {
   type ColorPickerProps,
   ColorPickerSelection,
   type ColorPickerSelectionProps
-} from './composites/color-picker/color-picker'
+} from './composites/color-picker'
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/confirm-dialog'
 export {
   type ColumnDef,

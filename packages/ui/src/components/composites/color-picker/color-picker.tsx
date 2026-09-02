@@ -320,7 +320,7 @@ export const ColorPickerSelection = memo(
 
 ColorPickerSelection.displayName = 'ColorPickerSelection'
 
-type ContextOwnedSliderProps = 'defaultValue' | 'max' | 'onValueChange' | 'step' | 'value'
+type ContextOwnedSliderProps = 'defaultValue' | 'max' | 'min' | 'onValueChange' | 'step' | 'value'
 
 export type ColorPickerHueProps = Omit<ComponentProps<typeof SliderPrimitive.Root>, ContextOwnedSliderProps>
 
@@ -334,6 +334,7 @@ export const ColorPickerHue = ({ className, 'aria-label': ariaLabel, ...props }:
       {...props}
       className={cn('relative flex h-4 w-full touch-none', className)}
       max={360}
+      min={0}
       onValueChange={([hue]) => setHue(hue)}
       step={1}
       value={[hue]}>
@@ -365,6 +366,7 @@ export const ColorPickerAlpha = ({ className, 'aria-label': ariaLabel, ...props 
       {...props}
       className={cn('relative flex h-4 w-full touch-none', className)}
       max={100}
+      min={0}
       onValueChange={([alpha]) => setAlpha(alpha)}
       step={1}
       value={[alpha]}>

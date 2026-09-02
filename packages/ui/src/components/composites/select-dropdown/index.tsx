@@ -1,7 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/components/primitives/popover'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 
@@ -12,6 +12,8 @@ export interface SelectDropdownProps<T extends { id: string }> {
   renderSelected: (item: T) => ReactNode
   renderItem: (item: T, isSelected: boolean) => ReactNode
   renderTriggerLeading?: ReactNode
+  onRemove?: (id: string) => void
+  removeLabel?: string
   placeholder?: string
   emptyText?: string
   maxHeight?: number
@@ -172,6 +174,8 @@ export function SelectDropdown<T extends { id: string }>({
   renderSelected,
   renderItem,
   renderTriggerLeading,
+  onRemove,
+  removeLabel,
   placeholder,
   emptyText,
   maxHeight = 240,
@@ -187,6 +191,32 @@ export function SelectDropdown<T extends { id: string }>({
 
   const renderRow = (item: T, index: number, onKeyDown: OptionKeyDownHandler = handleOptionKeyDown) => {
     const isSelected = selectedId === item.id
+    if (onRemove) {
+      return (
+        <div
+          className={cn(
+            'flex items-center gap-1 rounded-md pr-1 transition-colors',
+            isSelected && 'bg-primary/10 text-primary'
+          )}>
+          <button
+            type="button"
+            onClick={() => {
+              onSelect(item.id)
+              setOpen(false)
+            }}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted">
+            {renderItem(item, isSelected)}
+          </button>
+          <button
+            type="button"
+            aria-label={removeLabel}
+            onClick={() => onRemove(item.id)}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <X size={10} />
+          </button>
+        </div>
+      )
+    }
     return (
       <button
         type="button"
@@ -215,7 +245,7 @@ export function SelectDropdown<T extends { id: string }>({
           type="button"
           aria-controls={open ? listboxId : undefined}
           aria-expanded={open}
-          aria-haspopup="listbox"
+          aria-haspopup={onRemove ? 'dialog' : 'listbox'}
           className={cn(
             'flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm transition-colors hover:bg-muted/30',
             open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-subtle',
@@ -237,7 +267,7 @@ export function SelectDropdown<T extends { id: string }>({
       </PopoverTrigger>
       <PopoverContent
         id={listboxId}
-        role="listbox"
+        role={onRemove ? 'dialog' : 'listbox'}
         aria-labelledby={triggerId}
         align="start"
         sideOffset={4}
@@ -253,7 +283,7 @@ export function SelectDropdown<T extends { id: string }>({
             renderRow={renderRow}
           />
         ) : (
-          <ScrollContainer maxHeight={maxHeight}>
+          <ScrollContainer className={cn(onRemove && 'space-y-1')} maxHeight={maxHeight}>
             {items.map((item, index) => (
               <div key={item.id}>{renderRow(item, index)}</div>
             ))}

@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
-import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
+import { PortalContainerProvider, usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { XIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -59,12 +59,17 @@ function PageSidePanel({
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const [panelElement, setPanelElement] = React.useState<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
   const scopedContainer = usePortalContainer()
   const portalContainer = scopedContainer ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
+  const handlePanelRef = useCallback((element: HTMLDivElement | null) => {
+    panelRef.current = element
+    setPanelElement(element)
+  }, [])
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -85,7 +90,7 @@ function PageSidePanel({
 
       const focusable = Array.from(
         panelRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
         )
       ).filter((element) => {
         const isContentEditable =
@@ -159,7 +164,7 @@ function PageSidePanel({
             onClick={handleClose}
           />
           <motion.aside
-            ref={panelRef}
+            ref={handlePanelRef}
             key="panel"
             role="dialog"
             aria-modal="true"
@@ -177,56 +182,58 @@ function PageSidePanel({
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
-            {hasHeader && (
-              <div
-                data-slot="page-side-panel-header"
-                className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
-                <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
-                  {headerContent}
+            <PortalContainerProvider container={panelElement}>
+              {hasHeader && (
+                <div
+                  data-slot="page-side-panel-header"
+                  className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
+                  <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
+                    {headerContent}
+                  </div>
+                  {showCloseButton && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onPointerDown={(event) => {
+                        closedByPointerDownRef.current = true
+                        handleClose(event)
+                      }}
+                      onClick={(event) => {
+                        if (closedByPointerDownRef.current) {
+                          closedByPointerDownRef.current = false
+                          event.preventDefault()
+                          event.stopPropagation()
+                          return
+                        }
+                        handleClose(event)
+                      }}
+                      aria-label={closeLabel}
+                      data-slot="page-side-panel-close"
+                      className={cn(
+                        'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                        closeButtonClassName
+                      )}>
+                      <XIcon size={16} />
+                    </Button>
+                  )}
                 </div>
-                {showCloseButton && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onPointerDown={(event) => {
-                      closedByPointerDownRef.current = true
-                      handleClose(event)
-                    }}
-                    onClick={(event) => {
-                      if (closedByPointerDownRef.current) {
-                        closedByPointerDownRef.current = false
-                        event.preventDefault()
-                        event.stopPropagation()
-                        return
-                      }
-                      handleClose(event)
-                    }}
-                    aria-label={closeLabel}
-                    data-slot="page-side-panel-close"
-                    className={cn(
-                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
-                      closeButtonClassName
-                    )}>
-                    <XIcon size={16} />
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
 
-            <Scrollbar
-              data-slot="page-side-panel-body"
-              className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
-              {children}
-            </Scrollbar>
+              <Scrollbar
+                data-slot="page-side-panel-body"
+                className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
+                {children}
+              </Scrollbar>
 
-            {footer && (
-              <div
-                data-slot="page-side-panel-footer"
-                className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
-                {footer}
-              </div>
-            )}
+              {footer && (
+                <div
+                  data-slot="page-side-panel-footer"
+                  className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
+                  {footer}
+                </div>
+              )}
+            </PortalContainerProvider>
           </motion.aside>
         </>
       )}

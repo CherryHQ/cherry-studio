@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
+import { PortalContainerProvider, usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
@@ -316,6 +317,51 @@ describe('PageSidePanel', () => {
       fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
 
       expect(editor).toHaveFocus()
+    })
+
+    it('includes native summary controls in the modal focus scope', () => {
+      render(
+        <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+          <button type="button">First</button>
+          <details>
+            <summary>More settings</summary>
+          </details>
+        </PageSidePanel>
+      )
+      const first = screen.getByRole('button', { name: 'First' })
+      const summary = screen.getByText('More settings')
+
+      first.focus()
+      fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+
+      expect(summary).toHaveFocus()
+    })
+
+    it('keeps nested portal controls inside the modal focus scope', async () => {
+      function PortalAction() {
+        const container = usePortalContainer()
+        return container ? createPortal(<button type="button">Portal action</button>, container) : null
+      }
+
+      function ScopedPanel() {
+        const [container, setContainer] = React.useState<HTMLDivElement | null>(null)
+        return (
+          <div ref={setContainer}>
+            <PortalContainerProvider container={container}>
+              <PageSidePanel open={true} onClose={vi.fn()} showCloseButton={false}>
+                <button type="button">Panel action</button>
+                <PortalAction />
+              </PageSidePanel>
+            </PortalContainerProvider>
+          </div>
+        )
+      }
+
+      render(<ScopedPanel />)
+      const dialog = await screen.findByRole('dialog')
+      const portalAction = screen.getByRole('button', { name: 'Portal action' })
+
+      expect(dialog).toContainElement(portalAction)
     })
   })
 
