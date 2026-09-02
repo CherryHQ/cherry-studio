@@ -9,12 +9,12 @@
   "routes": {
     "primary": [
       {
-        "id": "assistants",
-        "path": "/app/chat"
-      },
-      {
         "id": "agents",
         "path": "/app/agents"
+      },
+      {
+        "id": "assistants",
+        "path": "/app/chat"
       },
       {
         "id": "paintings",
@@ -448,7 +448,7 @@
     }
   ],
   "providers": {
-    "version": "b3b73ceeb452801e",
+    "version": "fc4a6b28db3e604d",
     "count": 61,
     "entries": [
       {
@@ -757,6 +757,11 @@
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
+    },
+    {
+      "value": "tr-TR",
+      "flag": "🇹🇷",
+      "label": "Türkçe"
     }
   ],
   "agents": {
@@ -789,6 +794,63 @@
         "github-copilot-cli",
         "pi",
         "hermes"
+      ]
+    }
+  },
+  "features": {
+    "context": {
+      "defaults": {
+        "enabled": true,
+        "truncateThreshold": 50000,
+        "maxMessages": null,
+        "compress": {
+          "enabled": true,
+          "modelId": null,
+          "thresholdPercent": 80
+        }
+      },
+      "limits": {
+        "minTruncateThreshold": 2000,
+        "compressionMinOutputTokens": 4096,
+        "compressionMaxOutputTokens": 16384
+      }
+    },
+    "mcp": {
+      "serverTypes": [
+        "stdio",
+        "sse",
+        "streamableHttp",
+        "inMemory"
+      ],
+      "installSources": [
+        "builtin",
+        "manual",
+        "ai_assisted",
+        "protocol",
+        "unknown"
+      ]
+    },
+    "knowledge": {
+      "supportedFileExtensions": [
+        ".txt",
+        ".markdown",
+        ".md",
+        ".mdx",
+        ".pdf",
+        ".html",
+        ".htm",
+        ".xlsx",
+        ".xls",
+        ".docx",
+        ".csv",
+        ".doc",
+        ".pptx",
+        ".ppt",
+        ".epub",
+        ".draftsexport"
+      ],
+      "fileProcessingExtensions": [
+        ".pdf"
       ]
     }
   }

@@ -44,7 +44,7 @@ describe('SizeField', () => {
   // turned into a concrete size by touching the field.
   it.each([
     ['unset', {}],
-    ['a non-numeric leftover', { customSize_width: '1024' }]
+    ['a non-numeric leftover', { customSize_width: 'auto' }]
   ])('shows an empty width field when the size is %s', (_case, painting) => {
     renderSizeField(painting)
 

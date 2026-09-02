@@ -2,6 +2,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCitationPartsRegistry,
+  getPriorCitationParts,
   resolveCitationMarkerParts,
   resolveMessageCitations,
   stripCitationMarkers,
@@ -393,10 +395,23 @@ describe('withToolCitationTags', () => {
     expect(content).toContain('[cite: ]')
   })
 
-  it('leaves unknown ids literal', () => {
+  it('drops an unknown id instead of printing it, taking its separating space with it', () => {
     const mc = resolveMessageCitations([webToolPart(webResults('abc'))])
-    const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9]', mc)
-    expect(content).toContain('[cite:zzz-9]')
+    const { content, cited } = withToolCitationTags('Fact. [cite:zzz-9] Next.', mc)
+    expect(content).toBe('Fact. Next.')
+    expect(cited).toHaveLength(0)
+  })
+
+  // An id from a turn that is not loaded (older page) or that the model invented leaves markers
+  // nothing can resolve. Printing them puts an internal id on screen (#19771); the export path
+  // drops such markers, so rendering has to agree.
+  it('drops every marker when the message carries no citation and no earlier turn is loaded', () => {
+    const mc = resolveMessageCitations([textPart('no tool ran in this message')])
+    const { content, cited } = withToolCitationTags(
+      '1. 工程立项审计；[cite:2598d0ab-1]\n2. 工程采购审计；[cite:2598d0ab-1]',
+      mc
+    )
+    expect(content).toBe('1. 工程立项审计；\n2. 工程采购审计；')
     expect(cited).toHaveLength(0)
   })
 
@@ -482,7 +497,7 @@ describe('toExportableCitations', () => {
     expect(cited).toEqual([])
   })
 
-  it('strips markers even when the message carries no tool results', () => {
+  it('strips markers when neither the message nor an earlier turn carries tool results', () => {
     const { content } = toExportableCitations('Claim [cite:abc-1].', [textPart('hi')])
     expect(content).toBe('Claim.')
   })
@@ -538,5 +553,115 @@ describe('stripCitationMarkers', () => {
   it('preserves canonical markers in inline and fenced code', () => {
     const input = '`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside [cite:abc-1, abc-2]'
     expect(stripCitationMarkers(input)).toBe('`[cite:abc-1]`\n```txt\n[cite:def-2, def-3]\n```\nOutside')
+  })
+})
+
+describe('cross-turn citations', () => {
+  // A follow-up turn cites a result the model already saw in an earlier turn (#19771, #19324).
+  it("resolves a marker against an earlier turn's kb_search result", () => {
+    const mc = resolveMessageCitations([textPart('follow-up')], [kbToolPart(kbResults('2598d0ab'))])
+    const { content, cited } = withToolCitationTags(
+      '1. 工程立项审计；[cite:2598d0ab-1]\n2. 工程采购审计；[cite:2598d0ab-1]',
+      mc
+    )
+    expect(content).toBe(
+      "1. 工程立项审计；<sup data-citation='1'>1</sup>\n2. 工程采购审计；<sup data-citation='1'>1</sup>"
+    )
+    expect(cited.map((citation) => citation.title)).toEqual(['One.md'])
+  })
+
+  it("resolves a marker against an earlier turn's web_search result", () => {
+    const mc = resolveMessageCitations([textPart('follow-up')], [webToolPart(webResults('abc'))])
+    const { content, cited } = withToolCitationTags('Prices rose. [cite:abc-2]', mc)
+    expect(content).toBe("Prices rose. [<sup data-citation='1'>1</sup>](https://b.com/y)")
+    expect(cited.map((citation) => citation.url)).toEqual(['https://b.com/y'])
+  })
+
+  it("aliases an earlier turn's result to this message's own citation of the same document", () => {
+    const own = [kbToolPart([{ ...kbResults('new')[0], content: 'fresh chunk' }])]
+    const mc = resolveMessageCitations(own, [kbToolPart(kbResults('old'))])
+    const { content, cited } = withToolCitationTags('A [cite:old-1] B [cite:new-1]', mc)
+    expect(cited).toHaveLength(1)
+    expect(cited[0].content).toBe('fresh chunk')
+    expect(content.match(/data-citation='1'/g)).toHaveLength(2)
+  })
+
+  it("aliases an earlier turn's web result to the own result with the same URL", () => {
+    const mc = resolveMessageCitations([webToolPart(webResults('new'))], [webToolPart(webResults('old'))])
+    expect(mc.byId.get('old-1')).toBe(mc.byId.get('new-1'))
+    expect(mc.all).toHaveLength(2)
+  })
+
+  it("never lets an earlier turn's call decide bare [N] resolution", () => {
+    const priorCall = webToolPart([{ id: 1, title: 'Old', url: 'https://old.com', content: 'legacy' }])
+    // No own call: a bare number has nothing local to point at.
+    expect(resolveMessageCitations([textPart('x')], [priorCall]).byMarkerNumber.size).toBe(0)
+    // Exactly one own call: promoted regardless of how many calls earlier turns made.
+    const own = webToolPart([{ id: 1, title: 'Now', url: 'https://now.com', content: 'now' }])
+    const mc = resolveMessageCitations([own], [priorCall, kbToolPart(kbResults('bbb'))])
+    expect(mc.byMarkerNumber.get(1)).toMatchObject({ url: 'https://now.com' })
+  })
+
+  it('ignores source-url parts handed in as earlier-turn parts', () => {
+    const mc = resolveMessageCitations([textPart('x')], [sourceUrlPart(0, 'https://native.com')])
+    expect(mc.all).toHaveLength(0)
+  })
+
+  it('still drops an id no loaded turn produced', () => {
+    const mc = resolveMessageCitations([textPart('x')], [webToolPart(webResults('abc'))])
+    const { content, cited } = withToolCitationTags('Claim [cite:zzz-9].', mc)
+    expect(content).toBe('Claim.')
+    expect(cited).toHaveLength(0)
+  })
+
+  it('exports a marker re-cited from an earlier turn as [N] with its source listed', () => {
+    const { content, cited } = toExportableCitations(
+      'Claim [cite:abc-1].',
+      [textPart('x')],
+      [webToolPart(webResults('abc'))]
+    )
+    expect(content).toBe('Claim [1].')
+    expect(cited.map((citation) => citation.url)).toEqual(['https://a.com/x'])
+  })
+})
+
+describe('buildCitationPartsRegistry', () => {
+  const kb = kbToolPart(kbResults('k1'))
+  const web = webToolPart(webResults('w1'))
+  const partsByMessageId = {
+    m1: [textPart('question')],
+    m2: [kb, textPart('answer [cite:k1-1]'), sourceUrlPart(0, 'https://native.com')],
+    m3: [
+      textPart('follow-up'),
+      webToolPart(webResults('pending'), 'input-available'),
+      dynamicMcpPart('web_search', [], 'other-server')
+    ],
+    m4: [web, textPart('x')]
+  }
+  const ids = ['m1', 'm2', 'm3', 'm4']
+
+  it('collects completed citable tool parts in list order and nothing else', () => {
+    expect(buildCitationPartsRegistry(ids, partsByMessageId).parts).toEqual([kb, web])
+  })
+
+  it('gives a message only the parts of messages before it, and everything to an id it does not know', () => {
+    const registry = buildCitationPartsRegistry(ids, partsByMessageId)
+    expect(getPriorCitationParts(registry, 'm2')).toHaveLength(0)
+    expect(getPriorCitationParts(registry, 'm3')).toEqual([kb])
+    expect(getPriorCitationParts(registry, 'm4')).toEqual([kb])
+    expect(getPriorCitationParts(registry, 'live-not-listed-yet')).toEqual([kb, web])
+  })
+
+  it('shares one empty array for every message nothing precedes', () => {
+    const registry = buildCitationPartsRegistry(ids, partsByMessageId)
+    expect(getPriorCitationParts(registry, 'm1')).toBe(getPriorCitationParts(registry, 'm2'))
+  })
+
+  it('keeps the previous registry while only text parts change', () => {
+    const previous = buildCitationPartsRegistry(ids, partsByMessageId)
+    const streamed = { ...partsByMessageId, m4: [web, textPart('x plus a chunk')] }
+    expect(buildCitationPartsRegistry(ids, streamed, previous)).toBe(previous)
+    const searchedAgain = { ...partsByMessageId, m4: [web, kbToolPart(kbResults('k2'))] }
+    expect(buildCitationPartsRegistry(ids, searchedAgain, previous)).not.toBe(previous)
   })
 })

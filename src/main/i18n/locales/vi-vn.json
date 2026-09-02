@@ -63,6 +63,7 @@
   "chat.conversation.new": "Cuộc trò chuyện mới",
   "common.channel_available_commands": "Các lệnh có sẵn:",
   "common.channel_command_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý lệnh. Vui lòng thử lại sau.",
+  "common.channel_message_dropped": "⚠️ Tin nhắn này không được chuyển đến. Vui lòng thử lại hoặc kiểm tra cấu hình kênh.",
   "common.channel_message_processing_error": "⚠️ Đã xảy ra lỗi khi xử lý tin nhắn của bạn. Vui lòng thử lại sau.",
   "common.channel_new_session_created": "Đã tạo phiên mới.",
   "common.channel_no_active_session": "Không có phiên hoạt động.",

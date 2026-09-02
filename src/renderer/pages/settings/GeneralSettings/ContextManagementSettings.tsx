@@ -1,4 +1,12 @@
-import { InfoTooltip, InputNumber, Switch } from '@cherrystudio/ui'
+import {
+  InfoTooltip,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInputNumber,
+  InputGroupText,
+  InputNumber,
+  Switch
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
 import {
@@ -12,8 +20,13 @@ import {
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
+import {
+  MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_THRESHOLD_PERCENT,
+  MIN_TRUNCATE_THRESHOLD
+} from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +38,8 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
     {title}
     <InfoTooltip
       content={description}
-      iconProps={{ className: 'cursor-pointer', 'aria-label': `${title}: ${description}` }}
+      ariaLabel={`${title}: ${description}`}
+      iconProps={{ className: 'cursor-pointer' }}
     />
   </SettingRowTitle>
 )
@@ -43,6 +57,7 @@ export const ContextManagementSettings = () => {
   const [truncateThreshold, setTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [compressEnabled, setCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [compressModelId, setCompressModelId] = usePreference('chat.context_settings.compress.model_id')
+  const [compressThreshold, setCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
 
   const { model: compressModel } = useModelById(compressModelId as UniqueModelId | null)
   const { providers } = useProviders({ enabled: true })
@@ -140,6 +155,31 @@ export const ContextManagementSettings = () => {
           </SettingRow>
           {compressEnabled && (
             <>
+              <SettingDivider />
+              <SettingRow>
+                <div className="min-w-0 flex-1">
+                  <SettingRowTitleWithTooltip
+                    title={t('settings.models.context_management.compress_threshold')}
+                    description={t('settings.models.context_management.compress_threshold_description')}
+                  />
+                </div>
+                <div className="w-[220px] shrink-0">
+                  <InputGroup className="h-8 rounded-lg">
+                    <InputGroupInputNumber
+                      min={MIN_COMPRESS_THRESHOLD_PERCENT}
+                      max={MAX_COMPRESS_THRESHOLD_PERCENT}
+                      step={5}
+                      aria-label={t('settings.models.context_management.compress_threshold')}
+                      className="px-2.5"
+                      value={compressThreshold}
+                      onBlur={(value) => void setCompressThreshold(clampThresholdPercent(value))}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
+              </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.models.context_management.compress_model')}</SettingRowTitle>

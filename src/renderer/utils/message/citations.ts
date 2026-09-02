@@ -1,6 +1,8 @@
 /**
  * Citation registry — resolves a message's inline citations directly from its
- * own parts, with no persisted reference metadata:
+ * own parts plus, via `priorParts`, the citable tool parts of earlier messages
+ * in the same conversation (the model re-cites a result it already saw in a
+ * previous turn, #19771), with no persisted reference metadata:
  *
  * - `tool-web_search` / `tool-web_fetch` / `tool-kb_search` / `tool-kb_read`
  *   results (assistant runtime), including the same tools called through
@@ -24,7 +26,12 @@
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
-import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
+import {
+  CITATION_MARKER_PATTERN,
+  mapCitationMarksToTags,
+  mapMarkdownOutsideCode,
+  normalizeCitationMarks
+} from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
   CITATION_SNIPPET_MAX_CHARS,
@@ -53,8 +60,9 @@ export interface MessageCitations {
   /**
    * Bare `[N]` marker resolution: provider-native `source-url` numbers always;
    * lookup-tool ids by their numeric value/suffix only when the message holds a
-   * single lookup call (old numeric-id messages and weak-model fallback) —
-   * with more calls a bare number is ambiguous and stays literal.
+   * single lookup call of its own (old numeric-id messages and weak-model
+   * fallback; earlier turns' calls do not count) — with more calls a bare
+   * number is ambiguous and stays literal.
    */
   byMarkerNumber: Map<number, Citation>
   /** All citations in part order, display numbers 1..K. */
@@ -62,6 +70,7 @@ export interface MessageCitations {
 }
 
 const EMPTY_MESSAGE_CITATIONS: MessageCitations = { byId: new Map(), byMarkerNumber: new Map(), all: [] }
+const EMPTY_PARTS: readonly CherryMessagePart[] = []
 
 const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
   WEB_SEARCH_TOOL_NAME,
@@ -202,7 +211,15 @@ function markerNumberOfId(id: string | number): number | undefined {
   return suffix ? Number(suffix) : undefined
 }
 
-export function resolveMessageCitations(parts: readonly CherryMessagePart[]): MessageCitations {
+/**
+ * Own parts define the citations; `priorParts` (earlier turns) only answer ids
+ * the message does not mint itself, aliasing by document/URL, and never count
+ * as lookup calls.
+ */
+export function resolveMessageCitations(
+  parts: readonly CherryMessagePart[],
+  priorParts: readonly CherryMessagePart[] = EMPTY_PARTS
+): MessageCitations {
   const byId = new Map<string, Citation>()
   const byMarkerNumber = new Map<number, Citation>()
   const all: Citation[] = []
@@ -229,8 +246,17 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
 
   let nextNumber = all.reduce((max, citation) => Math.max(max, citation.number), 0) + 1
   let lookupCallCount = 0
+  let ownScope = true
   const toolMarkerCandidates = new Map<number, Citation>()
   const byDocument = new Map<string, Citation>()
+
+  const trackMarkerNumber = (id: string | number, citation: Citation) => {
+    if (!ownScope) return
+    const markerNumber = markerNumberOfId(id)
+    if (markerNumber !== undefined && !toolMarkerCandidates.has(markerNumber)) {
+      toolMarkerCandidates.set(markerNumber, citation)
+    }
+  }
 
   const addKnowledgeCitation = (item: {
     id: string | number
@@ -261,24 +287,21 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
     byId.set(key, citation)
     if (document) byDocument.set(document, citation)
     all.push(citation)
-    const markerNumber = markerNumberOfId(item.id)
-    if (markerNumber !== undefined && !toolMarkerCandidates.has(markerNumber)) {
-      toolMarkerCandidates.set(markerNumber, citation)
-    }
+    trackMarkerNumber(item.id, citation)
   }
 
-  for (const part of parts) {
+  const addToolPart = (part: CherryMessagePart) => {
     const toolName = resolveCitableToolName(part)
-    if (!toolName) continue
+    if (!toolName) return
     const rawOutput = unwrapCitableOutput((part as { output?: unknown }).output)
     const output = normalizeToolOutputResponse(rawOutput)
 
     if (toolName === KB_SEARCH_TOOL_NAME) {
       const parsed = kbSearchOutputSchema.safeParse(output)
-      if (!parsed.success || parsed.data.length === 0) continue
-      lookupCallCount += 1
+      if (!parsed.success || parsed.data.length === 0) return
+      if (ownScope) lookupCallCount += 1
       for (const item of parsed.data) addKnowledgeCitation(item)
-      continue
+      return
     }
 
     if (toolName === KB_READ_TOOL_NAME) {
@@ -287,15 +310,15 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
       // text. Try the raw output first (assistant path); the unwrapped form only wins on the agent
       // path, where a real envelope does wrap the payload.
       const item = parseKbReadCitation(rawOutput) ?? parseKbReadCitation(output)
-      if (!item) continue
-      lookupCallCount += 1
+      if (!item) return
+      if (ownScope) lookupCallCount += 1
       addKnowledgeCitation(item)
-      continue
+      return
     }
 
     const parsed = webSearchOutputSchema.safeParse(output)
-    if (!parsed.success || parsed.data.length === 0) continue
-    lookupCallCount += 1
+    if (!parsed.success || parsed.data.length === 0) return
+    if (ownScope) lookupCallCount += 1
     for (const item of parsed.data) {
       const key = String(item.id)
       if (byId.has(key)) continue
@@ -316,12 +339,13 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
       byId.set(key, citation)
       if (item.url) byUrl.set(item.url, citation)
       all.push(citation)
-      const markerNumber = markerNumberOfId(item.id)
-      if (markerNumber !== undefined && !toolMarkerCandidates.has(markerNumber)) {
-        toolMarkerCandidates.set(markerNumber, citation)
-      }
+      trackMarkerNumber(item.id, citation)
     }
   }
+
+  for (const part of parts) addToolPart(part)
+  ownScope = false
+  for (const part of priorParts) addToolPart(part)
 
   if (lookupCallCount === 1) {
     for (const [markerNumber, citation] of toolMarkerCandidates) {
@@ -331,6 +355,73 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
 
   if (all.length === 0) return EMPTY_MESSAGE_CITATIONS
   return { byId, byMarkerNumber, all }
+}
+
+/** `source-url` or a completed citable tool part — exactly the parts `resolveMessageCitations` reads. */
+export function isCitationSourcePart(part: CherryMessagePart): boolean {
+  return part.type === 'source-url' || resolveCitableToolName(part) !== null
+}
+
+/**
+ * Citable tool parts of an ordered message list, so a later message can resolve
+ * an id the model re-cites from an earlier turn. `source-url` parts stay out:
+ * provider-native `[N]` numbering is message-local.
+ */
+export interface CitationPartsRegistry {
+  /** Completed citable tool parts in list order. */
+  parts: readonly CherryMessagePart[]
+  /** Message id → how many of `parts` belong to messages before it. */
+  prefixCountByMessageId: ReadonlyMap<string, number>
+}
+
+export const EMPTY_CITATION_PARTS_REGISTRY: CitationPartsRegistry = {
+  parts: EMPTY_PARTS,
+  prefixCountByMessageId: new Map()
+}
+
+function isSameRegistry(
+  previous: CitationPartsRegistry,
+  parts: readonly CherryMessagePart[],
+  prefixCountByMessageId: ReadonlyMap<string, number>
+): boolean {
+  if (previous.parts.length !== parts.length) return false
+  if (previous.prefixCountByMessageId.size !== prefixCountByMessageId.size) return false
+  if (parts.some((part, index) => previous.parts[index] !== part)) return false
+  for (const [messageId, count] of prefixCountByMessageId) {
+    if (previous.prefixCountByMessageId.get(messageId) !== count) return false
+  }
+  return true
+}
+
+/**
+ * Returns `previous` when nothing citable changed (same part references, same
+ * prefix counts), so a streaming text chunk never invalidates every message's
+ * prior-parts slice.
+ */
+export function buildCitationPartsRegistry(
+  messageIds: readonly string[],
+  partsByMessageId: Readonly<Record<string, readonly CherryMessagePart[] | undefined>>,
+  previous?: CitationPartsRegistry
+): CitationPartsRegistry {
+  const parts: CherryMessagePart[] = []
+  const prefixCountByMessageId = new Map<string, number>()
+  for (const messageId of messageIds) {
+    prefixCountByMessageId.set(messageId, parts.length)
+    for (const part of partsByMessageId[messageId] ?? EMPTY_PARTS) {
+      if (resolveCitableToolName(part) !== null) parts.push(part)
+    }
+  }
+  if (previous && isSameRegistry(previous, parts, prefixCountByMessageId)) return previous
+  return { parts, prefixCountByMessageId }
+}
+
+/** Parts of every message before `messageId`; an id the list does not know sees all of them. */
+export function getPriorCitationParts(
+  registry: CitationPartsRegistry,
+  messageId: string
+): readonly CherryMessagePart[] {
+  const count = registry.prefixCountByMessageId.get(messageId) ?? registry.parts.length
+  return count === 0 ? EMPTY_PARTS : registry.parts.slice(0, count)
 }
 
 /** Resolved markers, ready for a caller to render, rewrite or strip. */
@@ -466,26 +557,24 @@ export function resolveCitationMarkers(content: string, citations: MessageCitati
 }
 
 /**
- * A `[cite:id]` marker together with the space that separates it from the
- * preceding sentence, so a dropped marker takes that space with it instead of
- * leaving `Claim .` behind.
- */
-const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
-
-/**
  * Export / copy view: every resolved `[cite:id]` marker becomes a plain `[N]`,
  * and an id that resolves to nothing is dropped — an internal marker must never
  * escape into exported text or the clipboard. Also returns the cited sources in
  * display order so the caller can render a sources list.
  *
- * Rendering deliberately leaves an unresolved id visible (it is a model mistake
- * worth seeing on screen); an export is a finished document, so it is removed.
+ * Rendering drops unresolved ids too (`mapCitationMarksToTags`), so screen,
+ * export and clipboard agree that the internal id never reaches the user.
  */
 export function toExportableCitations(
   content: string,
-  parts: readonly CherryMessagePart[]
+  parts: readonly CherryMessagePart[],
+  priorParts: readonly CherryMessagePart[] = EMPTY_PARTS
 ): { content: string; cited: Citation[] } {
-  const { content: resolved, byMarker, cited } = resolveCitationMarkers(content, resolveMessageCitations(parts))
+  const {
+    content: resolved,
+    byMarker,
+    cited
+  } = resolveCitationMarkers(content, resolveMessageCitations(parts, priorParts))
   return {
     content: mapMarkdownOutsideCode(resolved, (text) =>
       text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {

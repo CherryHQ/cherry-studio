@@ -6,6 +6,10 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInputNumber,
+  InputGroupText,
   InputNumber,
   SegmentedControl,
   Select,
@@ -35,8 +39,13 @@ import {
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
+import {
+  MAX_COMPRESS_THRESHOLD_PERCENT,
+  MIN_COMPRESS_THRESHOLD_PERCENT,
+  MIN_TRUNCATE_THRESHOLD
+} from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
@@ -94,6 +103,7 @@ type AssistantEditFormValues = {
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
   contextMaxMessages: number | null
+  contextCompressThresholdPercent: number | null
   contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
@@ -134,6 +144,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     contextCompressEnabled: form.contextCompressEnabled,
     contextTruncateThreshold: form.contextTruncateThreshold,
     contextMaxMessages: form.contextMaxMessages,
+    contextCompressThresholdPercent: form.contextCompressThresholdPercent,
     contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
@@ -173,6 +184,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     contextCompressEnabled: values.contextCompressEnabled,
     contextTruncateThreshold: values.contextTruncateThreshold,
     contextMaxMessages: values.contextMaxMessages,
+    contextCompressThresholdPercent: values.contextCompressThresholdPercent,
     contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
@@ -680,6 +692,7 @@ function AssistantAdvancedFields({
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
+  const [globalCompressThreshold] = usePreference('chat.context_settings.compress.threshold_percent')
   const temperatureMarks = [
     { value: 0, label: t('library.config.basic.precise') },
     { value: 1, label: '1' },
@@ -842,6 +855,7 @@ function AssistantAdvancedFields({
           compressEnabled: globalCompressEnabled,
           maxMessages: globalMaxMessages,
           truncateThreshold: globalTruncateThreshold,
+          compressThreshold: clampThresholdPercent(globalCompressThreshold),
           compressModelId: globalCompressModelId || null
         }}
       />
@@ -877,6 +891,7 @@ function ContextManagementFields({
     compressEnabled: boolean
     truncateThreshold: number
     maxMessages: number | null
+    compressThreshold: number
     compressModelId: string | null
   }
 }) {
@@ -981,6 +996,45 @@ function ContextManagementFields({
               </FormItem>
             )}
           />
+
+          {values.contextCompressEnabled ? (
+            <FormField
+              control={form.control}
+              name="contextCompressThresholdPercent"
+              render={({ field }) => (
+                <FormItem>
+                  <FieldLabelWithHelp
+                    label={t('library.config.basic.context_compress_threshold')}
+                    help={t('library.config.basic.field.context_compress_threshold.hint')}
+                  />
+                  <FormControl>
+                    <InputGroup className="h-8 rounded-lg">
+                      <InputGroupInputNumber
+                        min={MIN_COMPRESS_THRESHOLD_PERCENT}
+                        max={MAX_COMPRESS_THRESHOLD_PERCENT}
+                        step={5}
+                        // Empty = inherit; the placeholder names the global in force.
+                        placeholder={t('library.config.basic.context_compress_threshold_follow_global', {
+                          percent: globalDefaults.compressThreshold
+                        })}
+                        className="px-2.5"
+                        value={field.value}
+                        onBlur={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
+                      />
+                      {/* The unit belongs to a value, not to the placeholder prose,
+                          which already ends in "(80%)". */}
+                      {field.value !== null && (
+                        <InputGroupAddon align="inline-end">
+                          <InputGroupText>%</InputGroupText>
+                        </InputGroupAddon>
+                      )}
+                    </InputGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : null}
 
           <FormField
             control={form.control}
