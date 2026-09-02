@@ -100,13 +100,15 @@ describe('WebviewAnnotationController selectors', () => {
 
 describe('WebviewAnnotationController interactions', () => {
   let controller: WebviewAnnotationController
-  let states: WebviewAnnotationState[]
+  let emissions: Array<{ state: WebviewAnnotationState; navigationRevision: number }>
 
   beforeEach(() => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 0))
     vi.stubGlobal('cancelAnimationFrame', (handle: number) => window.clearTimeout(handle))
-    states = []
-    controller = new WebviewAnnotationController((state) => states.push(state))
+    emissions = []
+    controller = new WebviewAnnotationController((state, navigationRevision) =>
+      emissions.push({ state, navigationRevision })
+    )
     configure(controller)
   })
 
@@ -360,6 +362,31 @@ describe('WebviewAnnotationController interactions', () => {
     expect(releasePointerCapture).toHaveBeenCalledWith(7)
   })
 
+  it('clears page state and tags subsequent emissions with the navigation revision', () => {
+    const button = document.createElement('button')
+    button.id = 'stale-page-target'
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    internals.openEditor(button)
+    internals.textarea.value = 'Stale page note'
+    internals.saveEditor()
+    expect(controller.getState().annotations).toHaveLength(1)
+
+    emissions = []
+    controller.handleCommand({ type: 'request_state' })
+    expect(emissions).toEqual([{ navigationRevision: 0, state: controller.getState() }])
+
+    emissions = []
+    controller.handleCommand({ type: 'reset_for_navigation', navigationRevision: 3 })
+    controller.handleCommand({ type: 'request_state' })
+
+    expect(controller.getState()).toEqual({ enabled: false, annotations: [] })
+    expect(emissions).toEqual([
+      { navigationRevision: 3, state: { enabled: false, annotations: [] } },
+      { navigationRevision: 3, state: { enabled: false, annotations: [] } }
+    ])
+  })
+
   it('enforces annotation and comment limits', () => {
     const internals = privateController(controller)
     for (let index = 0; index < WEBVIEW_ANNOTATION_LIMITS.annotations + 1; index++) {
@@ -375,6 +402,6 @@ describe('WebviewAnnotationController interactions', () => {
     const state = controller.getState()
     expect(state.annotations).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.annotations)
     expect(state.annotations[0].comment).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.comment)
-    expect(states.at(-1)?.annotations).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.annotations)
+    expect(emissions.at(-1)?.state.annotations).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.annotations)
   })
 })

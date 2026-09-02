@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
 
-import type {
-  WebviewAnnotation,
-  WebviewAnnotationDocument,
-  WebviewResolvedAnnotationDocument
+import {
+  WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
+  type WebviewAnnotation,
+  type WebviewAnnotationDocument,
+  type WebviewResolvedAnnotationDocument
 } from '@shared/types/webviewAnnotation'
 import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -113,6 +114,7 @@ interface MockContents extends EventEmitter {
   getURL: () => string
   isDevToolsOpened: () => boolean
   isDestroyed: () => boolean
+  send: ReturnType<typeof vi.fn>
 }
 
 function createContents(
@@ -154,6 +156,7 @@ function createContents(
   contents.getURL = () => options.url ?? 'https://example.com/page'
   contents.isDevToolsOpened = () => options.devToolsOpened ?? false
   contents.isDestroyed = () => options.destroyed ?? false
+  contents.send = vi.fn()
   return contents
 }
 
@@ -247,7 +250,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     getWindow.mockImplementation((id: string) => (id === 'owner' ? { webContents: hostWebContents } : undefined))
 
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -260,7 +268,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     ])
     expect(() =>
       service.replaceAnnotations(
-        { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+        {
+          webviewId: 7,
+          navigationRevision: 0,
+          target: { id: 'mini-app:demo', label: 'Demo' },
+          annotations: [annotation]
+        },
         'other'
       )
     ).toThrow('The caller does not own this webview')
@@ -274,7 +287,12 @@ describe('WebviewService annotation security and lifecycle', () => {
 
     expect(() =>
       service.replaceAnnotations(
-        { webviewId: 7, target: { id: 'mini-app:local', label: 'Local' }, annotations: [annotation] },
+        {
+          webviewId: 7,
+          navigationRevision: 0,
+          target: { id: 'mini-app:local', label: 'Local' },
+          annotations: [annotation]
+        },
         'owner'
       )
     ).toThrow('The caller does not own this webview')
@@ -290,11 +308,21 @@ describe('WebviewService annotation security and lifecycle', () => {
     }))
 
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:one', label: 'One' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:one', label: 'One' },
+        annotations: [annotation]
+      },
       'window-one'
     )
     service.replaceAnnotations(
-      { webviewId: 8, target: { id: 'mini-app:two', label: 'Two' }, annotations: [annotation] },
+      {
+        webviewId: 8,
+        navigationRevision: 0,
+        target: { id: 'mini-app:two', label: 'Two' },
+        annotations: [annotation]
+      },
       'window-two'
     )
 
@@ -311,7 +339,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -333,6 +366,127 @@ describe('WebviewService annotation security and lifecycle', () => {
       }
     })
     expect(listAnnotations(service)).toEqual([])
+  })
+
+  it('rejects delayed snapshots invalidated by main-frame navigation', () => {
+    const host = {}
+    const guest = createContents(7, host)
+    const target = { id: 'mini-app:demo', label: 'Demo' }
+    guestById.set(7, guest)
+    getWindow.mockReturnValue({ webContents: host })
+
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [annotation] }, 'owner')
+    ;(service as any).initializeWebview(guest)
+
+    guest.emit('did-start-navigation', { isMainFrame: true })
+    expect(listAnnotations(service)).toEqual([])
+
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [annotation] }, 'owner')
+    expect(listAnnotations(service)).toEqual([])
+
+    const currentAnnotation = {
+      ...annotation,
+      id: '123e4567-e89b-12d3-a456-426614174001'
+    }
+    service.replaceAnnotations(
+      { webviewId: 7, navigationRevision: 1, target, annotations: [currentAnnotation] },
+      'owner'
+    )
+    expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [currentAnnotation] })])
+    expect(guest.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+      type: 'reset_for_navigation',
+      navigationRevision: 1
+    })
+
+    guest.send.mockClear()
+    guest.emit('dom-ready')
+    expect(guest.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+      type: 'reset_for_navigation',
+      navigationRevision: 1
+    })
+
+    guest.send.mockClear()
+    guest.emit('did-start-navigation', { isMainFrame: true })
+    expect(listAnnotations(service)).toEqual([])
+    expect(guest.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+      type: 'reset_for_navigation',
+      navigationRevision: 2
+    })
+
+    service.replaceAnnotations(
+      { webviewId: 7, navigationRevision: 1, target, annotations: [currentAnnotation] },
+      'owner'
+    )
+    expect(listAnnotations(service)).toEqual([])
+
+    const nextAnnotation = {
+      ...annotation,
+      id: '123e4567-e89b-12d3-a456-426614174002'
+    }
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 2, target, annotations: [nextAnnotation] }, 'owner')
+    expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [nextAnnotation] })])
+  })
+
+  it('rejects delayed snapshots invalidated by a renderer crash', () => {
+    const host = {}
+    const guest = createContents(7, host)
+    const target = { id: 'mini-app:demo', label: 'Demo' }
+    guestById.set(7, guest)
+    getWindow.mockReturnValue({ webContents: host })
+
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [annotation] }, 'owner')
+    ;(service as any).initializeWebview(guest)
+
+    guest.emit('render-process-gone')
+    expect(listAnnotations(service)).toEqual([])
+
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [annotation] }, 'owner')
+    expect(listAnnotations(service)).toEqual([])
+
+    const currentAnnotation = {
+      ...annotation,
+      id: '123e4567-e89b-12d3-a456-426614174001'
+    }
+    service.replaceAnnotations(
+      { webviewId: 7, navigationRevision: 1, target, annotations: [currentAnnotation] },
+      'owner'
+    )
+    expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [currentAnnotation] })])
+  })
+
+  it('allows a stale revision to clear the current snapshot', () => {
+    const host = {}
+    const guest = createContents(7, host)
+    const target = { id: 'mini-app:demo', label: 'Demo' }
+    guestById.set(7, guest)
+    getWindow.mockReturnValue({ webContents: host })
+    ;(service as any).initializeWebview(guest)
+
+    guest.emit('did-start-navigation', { isMainFrame: true })
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 1, target, annotations: [annotation] }, 'owner')
+    expect(listAnnotations(service)).toHaveLength(1)
+
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [] }, 'owner')
+    expect(listAnnotations(service)).toEqual([])
+  })
+
+  it('starts a replacement webview instance at revision zero after destruction', () => {
+    const host = {}
+    const originalGuest = createContents(7, host)
+    const target = { id: 'mini-app:demo', label: 'Demo' }
+    guestById.set(7, originalGuest)
+    getWindow.mockReturnValue({ webContents: host })
+    ;(service as any).initializeWebview(originalGuest)
+
+    originalGuest.emit('did-start-navigation', { isMainFrame: true })
+    originalGuest.emit('destroyed')
+
+    const replacementGuest = createContents(7, host)
+    guestById.set(7, replacementGuest)
+    ;(service as any).initializeWebview(replacementGuest)
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [annotation] }, 'owner')
+
+    expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [annotation] })])
   })
 
   it('captures the computed AX path and subtree while excluding values and collapsing ignored nodes', async () => {
@@ -422,7 +576,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [shadowAnnotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [shadowAnnotation]
+      },
       'owner'
     )
 
@@ -527,7 +686,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [formAnnotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [formAnnotation]
+      },
       'owner'
     )
 
@@ -552,7 +716,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -576,7 +745,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -596,7 +770,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, missingSelectorGuest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:missing', label: 'Missing' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:missing', label: 'Missing' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -612,7 +791,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     const protocolGuest = createContents(8, host, { sendCommand: protocolCommand })
     guestById.set(8, protocolGuest)
     service.replaceAnnotations(
-      { webviewId: 8, target: { id: 'mini-app:protocol', label: 'Protocol' }, annotations: [annotation] },
+      {
+        webviewId: 8,
+        navigationRevision: 0,
+        target: { id: 'mini-app:protocol', label: 'Protocol' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -656,7 +840,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -738,6 +927,7 @@ describe('WebviewService annotation security and lifecycle', () => {
     service.replaceAnnotations(
       {
         webviewId: 7,
+        navigationRevision: 0,
         target: { id: 'mini-app:demo', label: 'Demo' },
         annotations: [iframeAnnotation, buttonAnnotation]
       },
@@ -791,7 +981,10 @@ describe('WebviewService annotation security and lifecycle', () => {
     const guest = createContents(7, host, { sendCommand })
     guestById.set(7, guest)
     getWindow.mockReturnValue({ webContents: host })
-    service.replaceAnnotations({ webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations }, 'owner')
+    service.replaceAnnotations(
+      { webviewId: 7, navigationRevision: 0, target: { id: 'mini-app:demo', label: 'Demo' }, annotations },
+      'owner'
+    )
 
     const [resolved] = await resolveAnnotationsWithAccessibility(service)
 
@@ -812,7 +1005,12 @@ describe('WebviewService annotation security and lifecycle', () => {
       guestById.set(7, timeoutGuest)
       getWindow.mockReturnValue({ webContents: host })
       service.replaceAnnotations(
-        { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+        {
+          webviewId: 7,
+          navigationRevision: 0,
+          target: { id: 'mini-app:demo', label: 'Demo' },
+          annotations: [annotation]
+        },
         'owner'
       )
 
@@ -852,7 +1050,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(8, staleGuest)
     getWindow.mockReturnValue({ webContents: host })
     service.replaceAnnotations(
-      { webviewId: 8, target: { id: 'mini-app:stale', label: 'Stale' }, annotations: [annotation] },
+      {
+        webviewId: 8,
+        navigationRevision: 0,
+        target: { id: 'mini-app:stale', label: 'Stale' },
+        annotations: [annotation]
+      },
       'owner'
     )
 
@@ -865,7 +1068,12 @@ describe('WebviewService annotation security and lifecycle', () => {
     guestById.set(7, guest)
     getWindow.mockImplementation((id: string) => (id === 'owner' ? { webContents: host } : undefined))
     service.replaceAnnotations(
-      { webviewId: 7, target: { id: 'mini-app:demo', label: 'Demo' }, annotations: [annotation] },
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations: [annotation]
+      },
       'owner'
     )
 

@@ -1,5 +1,6 @@
 import {
   WEBVIEW_ANNOTATION_LIMITS,
+  WebviewAnnotationNavigationRevisionSchema,
   WebviewAnnotationSchema,
   WebviewAnnotationTargetSchema
 } from '@shared/types/webviewAnnotation'
@@ -28,6 +29,7 @@ export const webviewRequestSchemas = {
     input: z
       .object({
         webviewId: z.number().int().positive(),
+        navigationRevision: WebviewAnnotationNavigationRevisionSchema,
         target: WebviewAnnotationTargetSchema,
         annotations: z.array(WebviewAnnotationSchema).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
       })
