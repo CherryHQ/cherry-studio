@@ -16,11 +16,11 @@ import {
   RowFlex
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
@@ -50,7 +50,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const cloudStatusRequestRef = useRef(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
-  const isCnEdition = useAppEdition() === 'cn'
+  const isCnEdition = getAppEdition() === 'cn'
 
   useIpcOn('cherry_cloud.status_changed', (status) => {
     cloudStatusRequestRef.current += 1

@@ -13,7 +13,6 @@ import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
-import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
@@ -23,6 +22,7 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
@@ -66,7 +66,7 @@ function OnboardingProviderSettings() {
 
 export default function OnboardingPage() {
   const { t } = useTranslation()
-  const appEdition = useAppEdition()
+  const appEdition = getAppEdition()
   const [language, setLanguage] = usePreference('app.language')
   const [{ policyVersion }, updateOnboardingPreferences] = useMultiplePreferences(
     ONBOARDING_PREFERENCE_KEYS,

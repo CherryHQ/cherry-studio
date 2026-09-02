@@ -65,8 +65,8 @@ vi.mock('@renderer/i18n/resolver', () => ({
   default: i18nMock
 }))
 
-vi.mock('@renderer/hooks/useAppEdition', () => ({
-  useAppEdition: () => cloudMocks.appEdition
+vi.mock('@renderer/utils/appEdition', () => ({
+  getAppEdition: () => cloudMocks.appEdition
 }))
 
 vi.mock('@renderer/ipc', () => ({

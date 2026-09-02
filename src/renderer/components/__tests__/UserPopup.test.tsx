@@ -142,8 +142,8 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useAppEdition', () => ({
-  useAppEdition: () => mocks.appEdition
+vi.mock('@renderer/utils/appEdition', () => ({
+  getAppEdition: () => mocks.appEdition
 }))
 
 vi.mock('@renderer/utils/naming', () => ({
