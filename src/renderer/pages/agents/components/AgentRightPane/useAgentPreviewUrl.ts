@@ -2,23 +2,23 @@ import { useToolResult } from '@renderer/hooks/useToolResult'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useEffect, useMemo, useState } from 'react'
 
-import { findAgentPreviewUrlCandidates, findAgentPreviewUrlInOutput } from './agentRightPaneProjection'
+import {
+  findAgentPreviewUrlCandidates,
+  findAgentPreviewUrlInOutput,
+  getAgentPreviewUrlFrontierKey
+} from './agentRightPaneProjection'
 
 function buildSearchKey(sessionId: string | undefined, candidateKeys: string[]): string {
   return `${sessionId ?? ''}\0${candidateKeys.join('\0')}`
 }
 
-/** Identifies the ordered candidate set without materializing deferred outputs. */
-export function getAgentPreviewUrlSearchKey(
+/** Identifies preview-relevant progress at the newest edge without materializing deferred outputs. */
+export function getAgentPreviewUrlGenerationKey(
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): string {
-  const candidates = sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []
-  return buildSearchKey(
-    sessionId,
-    candidates.map((candidate) => candidate.key)
-  )
+  return buildSearchKey(sessionId, sessionId ? [getAgentPreviewUrlFrontierKey(messages, partsByMessageId)] : [])
 }
 
 /** Resolves deferred preview candidates one at a time until the newest available URL is known. */
@@ -27,10 +27,14 @@ export function useAgentPreviewUrl(
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): { searchKey: string; url: string | null } {
+): { generationKey: string; url: string | null } {
   const candidates = useMemo(
     () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
     [enabled, messages, partsByMessageId, sessionId]
+  )
+  const generationKey = useMemo(
+    () => getAgentPreviewUrlGenerationKey(sessionId, messages, partsByMessageId),
+    [messages, partsByMessageId, sessionId]
   )
   const searchKey = buildSearchKey(
     sessionId,
@@ -59,5 +63,8 @@ export function useAgentPreviewUrl(
     )
   }, [candidate, cursor.searchKey, index, isLoading, resolvedUrl, searchKey])
 
-  return { searchKey, url: resolvedUrl }
+  return {
+    generationKey,
+    url: resolvedUrl
+  }
 }

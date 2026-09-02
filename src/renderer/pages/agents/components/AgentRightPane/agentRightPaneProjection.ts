@@ -312,6 +312,21 @@ export function findAgentPreviewUrlCandidates(
   return candidates
 }
 
+/** Identifies preview-relevant changes at the newest edge without treating older pagination as new output. */
+export function getAgentPreviewUrlFrontierKey(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): string {
+  const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
+  if (!entry) return ''
+  const candidates = findAgentPreviewUrlCandidates([entry.message], { [entry.message.id]: entry.parts })
+  return [
+    `message:${entry.message.id}`,
+    `parts:${entry.parts.length}`,
+    ...candidates.map((candidate) => candidate.key)
+  ].join('\0')
+}
+
 /** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
 export function findLatestAgentPreviewUrl(
   messages: CherryUIMessage[],

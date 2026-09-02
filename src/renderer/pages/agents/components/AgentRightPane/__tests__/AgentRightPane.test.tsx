@@ -792,6 +792,91 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6850/')
   })
 
+  it.each([{ kind: 'inline' }, { kind: 'deferred' }])(
+    'keeps a directly opened artifact when older $kind preview history is prepended',
+    async ({ kind }) => {
+      const sessionId = `session-${kind}-history`
+      const currentPart = { type: 'text', text: 'Current conversation' } as unknown as CherryMessagePart
+      const currentMessage = createPreviewMessage(`m-current-${kind}-history`, [currentPart])
+      const deferredToolResult = {
+        topicId: `agent-session:${sessionId}`,
+        messageId: `m-older-${kind}`,
+        toolCallId: `bash-older-${kind}`
+      }
+      const result = createDeferredPromise<{ found: true; output: string }>()
+      if (kind === 'deferred') ipcRequestMock.mockReturnValue(result.promise)
+      resolveArtifactPaneFileSelectionMock.mockReturnValue({
+        workspacePath: '/workspace',
+        filePath: 'artifact.html'
+      })
+      const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+        <TestAgentRightPane
+          sessionId={sessionId}
+          workspacePath="/workspace"
+          messages={messages}
+          partsByMessageId={partsByMessageId}>
+          <OpenArtifactButton path="artifact.html" />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      const { rerender } = render(renderPane([currentMessage], { [currentMessage.id]: [currentPart] }))
+      fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+      const olderPart = createPreviewToolPart(
+        deferredToolResult.toolCallId,
+        kind === 'deferred' ? 'BashOutput' : 'Bash',
+        kind === 'deferred' ? { $deferredToolResult: deferredToolResult } : 'Ready at http://localhost:6900/'
+      )
+      const olderMessage = createPreviewMessage(deferredToolResult.messageId, [olderPart])
+      rerender(
+        renderPane([olderMessage, currentMessage], {
+          [olderMessage.id]: [olderPart],
+          [currentMessage.id]: [currentPart]
+        })
+      )
+      if (kind === 'deferred') {
+        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+        await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6925/' }))
+      }
+
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+    }
+  )
+
+  it('restores a session preview after another session replaces its explicit artifact', async () => {
+    const sessionAPart = createPreviewToolPart('bash-session-a-history', 'Bash', 'Ready at http://localhost:6950/')
+    const sessionAMessage = createPreviewMessage('m-session-a-history', [sessionAPart])
+    const sessionBPart = createPreviewToolPart('bash-session-b-current', 'Bash', 'Ready at http://localhost:6975/')
+    const sessionBMessage = createPreviewMessage('m-session-b-current', [sessionBPart])
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+    const renderPane = (sessionId: string, message: CherryUIMessage, part: CherryMessagePart) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={[message]}
+        partsByMessageId={{ [message.id]: [part] }}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane('session-baseline-a', sessionAMessage, sessionAPart))
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+
+    rerender(renderPane('session-baseline-b', sessionBMessage, sessionBPart))
+    await waitFor(() =>
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6975/')
+    )
+
+    rerender(renderPane('session-baseline-a', sessionAMessage, sessionAPart))
+    await waitFor(() =>
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6950/')
+    )
+  })
+
   it('offers a session-scoped browser after a shell tool reports a local preview URL', () => {
     const parts = [
       {
