@@ -2223,6 +2223,62 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
   })
 
+  it('does not open the active result when the input DOM value runs ahead of the committed query', async () => {
+    const user = userEvent.setup()
+    mocks.queryResult = {
+      query: 'assistant',
+      groups: [
+        {
+          type: 'assistant',
+          items: [
+            {
+              type: 'assistant',
+              id: 'assistant-1',
+              title: 'Writing Assistant',
+              target: { assistantId: 'assistant-1' }
+            }
+          ]
+        }
+      ]
+    }
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    const input = screen.getByLabelText(SEARCH_INPUT_LABEL)
+    await user.type(input, 'assistant')
+    await screen.findByRole('option', { name: /Writing Assistant/ })
+
+    // The engine can write the next query into the input before React
+    // processes the matching change event (the compositionend-before-change
+    // ordering is the common trigger). The guard must read the input's
+    // actual DOM value — not the lagging `query` state — so Enter is
+    // swallowed while the committed query still drives the rendered list.
+    const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    setValue?.call(input, 'assistantx')
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+    expect(mocks.onClose).not.toHaveBeenCalled()
+
+    // Once the change event lands and the committed query catches up, Enter
+    // activates the result again.
+    fireEvent.change(input, { target: { value: 'assistantx' } })
+    await waitFor(() => {
+      expect(mocks.useQuery).toHaveBeenLastCalledWith(
+        '/search/entities',
+        expect.objectContaining({
+          enabled: true,
+          query: expect.objectContaining({ q: 'assistantx' })
+        })
+      )
+    })
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-kind', 'assistant')
+    expect(screen.getByTestId('resource-edit-dialog-host')).toHaveAttribute('data-id', 'assistant-1')
+  })
+
   it('opens the active knowledge base result with Enter', async () => {
     const user = userEvent.setup()
     mocks.queryResult = {

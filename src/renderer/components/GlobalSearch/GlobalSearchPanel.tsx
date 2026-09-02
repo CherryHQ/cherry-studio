@@ -320,12 +320,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { committedValue: debouncedQuery, compositionHandlers: searchInputCompositionHandlers } =
     useImeAwareDebouncedValue(query.trim())
   const deferredQuery = useDeferredValue(debouncedQuery)
-  // Selection is stale until the query driving the rendered list catches up
-  // with the input. Two handoffs must settle: raw input → debounce commit,
-  // and commit → deferred render (React first repaints with the previous
-  // deferred value, so results still lag the commit by a frame). Activating
-  // a row before both settle would open a result the input no longer shows.
-  const isSelectionStale = query.trim() !== debouncedQuery || debouncedQuery !== deferredQuery
   const [filter, setFilter] = useState<GlobalSearchFilter>('all')
   const [timeFilter, setTimeFilter] = useState<GlobalSearchTimeFilter>('any')
   const [messageSourceFilter, setMessageSourceFilter] = useState<GlobalMessageSearchSourceFilter>('all')
@@ -827,8 +821,13 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       if (event.key === 'Enter') {
         // Results still belong to the previous query until the debounce
         // commit and the deferred render both catch up; swallow Enter
-        // instead of opening the stale active item.
-        if (isSelectionStale) {
+        // instead of opening the stale active item. The input's DOM value is
+        // the source of truth here, not the `query` state: some engines emit
+        // compositionend before the final change event, so the state can
+        // still hold the romanization intermediate for a frame after the
+        // commit has already landed.
+        const inputValue = event.currentTarget.value.trim()
+        if (inputValue !== debouncedQuery || debouncedQuery !== deferredQuery) {
           event.preventDefault()
           return
         }
@@ -848,9 +847,10 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     },
     [
       activeItemId,
+      debouncedQuery,
+      deferredQuery,
       handleLoadMoreMessageResults,
       isMessageSearchMode,
-      isSelectionStale,
       keyboardItems,
       moveActiveItem,
       onClose,
