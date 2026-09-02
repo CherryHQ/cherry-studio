@@ -16,6 +16,7 @@
  */
 
 import { fileURLToPath } from 'node:url'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { stat, read as fsRead } from '@main/utils/file'
