@@ -26,21 +26,22 @@ const MessageTranslate: FC<Props> = ({ block, onDelete }) => {
 
   return (
     <Fragment>
-      <div className="relative mb-2.5">
-        <Divider />
-        <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 bg-background px-2">
-          <Languages size={14} className="text-muted-foreground" />
+      <div className="my-2.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+        <Divider className="my-0" aria-hidden />
+        <Languages size={14} className="text-muted-foreground" />
+        <div className="flex items-center">
+          <Divider className="my-0 flex-1" aria-hidden />
+          {onDelete && (
+            <NormalTooltip content={t('translate.close')} side="top">
+              <button
+                type="button"
+                onClick={onDelete}
+                className="flex items-center px-2 text-muted-foreground transition-colors hover:text-foreground">
+                <Trash size={14} />
+              </button>
+            </NormalTooltip>
+          )}
         </div>
-        {onDelete && (
-          <NormalTooltip content={t('translate.close')} side="top">
-            <button
-              type="button"
-              onClick={onDelete}
-              className="-translate-y-1/2 absolute top-1/2 right-0 flex items-center bg-background px-2 text-muted-foreground transition-colors hover:text-foreground">
-              <Trash size={14} />
-            </button>
-          </NormalTooltip>
-        )}
       </div>
       {isAwaitingFirstChunk && (
         <div className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center">
