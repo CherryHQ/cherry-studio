@@ -449,68 +449,200 @@
     }
   ],
   "providers": {
-    "version": "c81369dcccb6c728",
-    "count": 61,
+    "version": "15f24be589c84f55",
+    "count": 62,
     "entries": [
       {
-        "id": "cherryin",
-        "name": "CherryIN"
-      },
-      {
-        "id": "silicon",
-        "name": "Silicon"
+        "id": "302ai",
+        "name": "302.AI"
       },
       {
         "id": "aihubmix",
         "name": "AiHubMix"
       },
       {
-        "id": "ovms",
-        "name": "OpenVINO Model Server"
-      },
-      {
-        "id": "ocoolai",
-        "name": "ocoolAI"
-      },
-      {
-        "id": "zhipu",
-        "name": "ZhiPu"
-      },
-      {
-        "id": "deepseek",
-        "name": "deepseek"
+        "id": "aionly",
+        "name": "AIOnly"
       },
       {
         "id": "alayanew",
         "name": "AlayaNew"
       },
       {
-        "id": "dmxapi",
-        "name": "DMXAPI"
+        "id": "anthropic",
+        "name": "Anthropic"
       },
       {
-        "id": "aionly",
-        "name": "AIOnly"
+        "id": "aws-bedrock",
+        "name": "AWS Bedrock"
+      },
+      {
+        "id": "azure-openai",
+        "name": "Azure OpenAI"
+      },
+      {
+        "id": "baichuan",
+        "name": "BAICHUAN AI"
+      },
+      {
+        "id": "baidu-cloud",
+        "name": "Baidu Cloud"
       },
       {
         "id": "burncloud",
         "name": "BurnCloud"
       },
       {
-        "id": "302ai",
-        "name": "302.AI"
+        "id": "cerebras",
+        "name": "Cerebras AI"
+      },
+      {
+        "id": "cherryin",
+        "name": "CherryIN"
+      },
+      {
+        "id": "claude-code",
+        "name": "Claude Code"
+      },
+      {
+        "id": "copilot",
+        "name": "Github Copilot"
+      },
+      {
+        "id": "dashscope",
+        "name": "Bailian"
+      },
+      {
+        "id": "deepseek",
+        "name": "deepseek"
+      },
+      {
+        "id": "dmxapi",
+        "name": "DMXAPI"
+      },
+      {
+        "id": "doubao",
+        "name": "doubao"
+      },
+      {
+        "id": "fireworks",
+        "name": "Fireworks"
+      },
+      {
+        "id": "gateway",
+        "name": "Vercel AI Gateway"
+      },
+      {
+        "id": "gemini",
+        "name": "Gemini"
+      },
+      {
+        "id": "gpustack",
+        "name": "GPUStack"
+      },
+      {
+        "id": "grok",
+        "name": "Grok"
+      },
+      {
+        "id": "grok-cli",
+        "name": "Grok CLI"
+      },
+      {
+        "id": "groq",
+        "name": "Groq"
+      },
+      {
+        "id": "huggingface",
+        "name": "Hugging Face"
+      },
+      {
+        "id": "jina",
+        "name": "Jina"
       },
       {
         "id": "lanyun",
         "name": "LANYUN"
       },
       {
+        "id": "lmstudio",
+        "name": "LM Studio"
+      },
+      {
+        "id": "longcat",
+        "name": "LongCat"
+      },
+      {
+        "id": "mimo",
+        "name": "Xiaomi MiMo"
+      },
+      {
+        "id": "minimax",
+        "name": "MiniMax"
+      },
+      {
+        "id": "minimax-global",
+        "name": "minimax-global"
+      },
+      {
+        "id": "mistral",
+        "name": "Mistral"
+      },
+      {
+        "id": "modelscope",
+        "name": "ModelScope"
+      },
+      {
+        "id": "moonshot",
+        "name": "Moonshot AI"
+      },
+      {
+        "id": "new-api",
+        "name": "New API"
+      },
+      {
+        "id": "nvidia",
+        "name": "nvidia"
+      },
+      {
+        "id": "ocoolai",
+        "name": "ocoolAI"
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama"
+      },
+      {
+        "id": "openai",
+        "name": "OpenAI"
+      },
+      {
+        "id": "openai-codex",
+        "name": "OpenAI Codex"
+      },
+      {
+        "id": "opencode",
+        "name": "OpenCode Go"
+      },
+      {
+        "id": "openrouter",
+        "name": "OpenRouter"
+      },
+      {
+        "id": "ovms",
+        "name": "OpenVINO Model Server"
+      },
+      {
+        "id": "perplexity",
+        "name": "Perplexity"
+      },
+      {
         "id": "ph8",
         "name": "PH8"
       },
       {
-        "id": "sophnet",
-        "name": "SophNet"
+        "id": "poe",
+        "name": "Poe"
       },
       {
         "id": "ppio",
@@ -521,180 +653,52 @@
         "name": "Qiniu"
       },
       {
-        "id": "openrouter",
-        "name": "OpenRouter"
-      },
-      {
-        "id": "ollama",
-        "name": "Ollama"
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
       },
       {
-        "id": "new-api",
-        "name": "New API"
+        "id": "silicon",
+        "name": "Silicon"
       },
       {
-        "id": "lmstudio",
-        "name": "LM Studio"
-      },
-      {
-        "id": "anthropic",
-        "name": "Anthropic"
-      },
-      {
-        "id": "claude-code",
-        "name": "Claude Code"
-      },
-      {
-        "id": "openai-codex",
-        "name": "OpenAI Codex"
-      },
-      {
-        "id": "grok-cli",
-        "name": "Grok CLI"
-      },
-      {
-        "id": "openai",
-        "name": "OpenAI"
-      },
-      {
-        "id": "opencode",
-        "name": "OpenCode Go"
-      },
-      {
-        "id": "azure-openai",
-        "name": "Azure OpenAI"
-      },
-      {
-        "id": "gemini",
-        "name": "Gemini"
-      },
-      {
-        "id": "vertexai",
-        "name": "VertexAI"
-      },
-      {
-        "id": "copilot",
-        "name": "Github Copilot"
-      },
-      {
-        "id": "moonshot",
-        "name": "Moonshot AI"
-      },
-      {
-        "id": "baichuan",
-        "name": "BAICHUAN AI"
-      },
-      {
-        "id": "dashscope",
-        "name": "Bailian"
+        "id": "sophnet",
+        "name": "SophNet"
       },
       {
         "id": "stepfun",
         "name": "StepFun"
       },
       {
-        "id": "doubao",
-        "name": "doubao"
-      },
-      {
-        "id": "minimax",
-        "name": "MiniMax"
-      },
-      {
-        "id": "groq",
-        "name": "Groq"
-      },
-      {
         "id": "together",
         "name": "Together"
-      },
-      {
-        "id": "fireworks",
-        "name": "Fireworks"
-      },
-      {
-        "id": "nvidia",
-        "name": "nvidia"
-      },
-      {
-        "id": "grok",
-        "name": "Grok"
-      },
-      {
-        "id": "mistral",
-        "name": "Mistral"
-      },
-      {
-        "id": "jina",
-        "name": "Jina"
-      },
-      {
-        "id": "perplexity",
-        "name": "Perplexity"
-      },
-      {
-        "id": "modelscope",
-        "name": "ModelScope"
-      },
-      {
-        "id": "xirang",
-        "name": "Xirang"
       },
       {
         "id": "tokenhub",
         "name": "TokenHub"
       },
       {
-        "id": "baidu-cloud",
-        "name": "Baidu Cloud"
-      },
-      {
-        "id": "gpustack",
-        "name": "GPUStack"
+        "id": "vertexai",
+        "name": "VertexAI"
       },
       {
         "id": "voyageai",
         "name": "VoyageAI"
       },
       {
-        "id": "aws-bedrock",
-        "name": "AWS Bedrock"
-      },
-      {
-        "id": "poe",
-        "name": "Poe"
-      },
-      {
-        "id": "longcat",
-        "name": "LongCat"
-      },
-      {
-        "id": "huggingface",
-        "name": "Hugging Face"
-      },
-      {
-        "id": "gateway",
-        "name": "Vercel AI Gateway"
-      },
-      {
-        "id": "cerebras",
-        "name": "Cerebras AI"
-      },
-      {
-        "id": "mimo",
-        "name": "Xiaomi MiMo"
+        "id": "xirang",
+        "name": "Xirang"
       },
       {
         "id": "zai",
         "name": "zai"
       },
       {
-        "id": "minimax-global",
-        "name": "minimax-global"
+        "id": "zhipu",
+        "name": "ZhiPu"
       }
     ]
   },
