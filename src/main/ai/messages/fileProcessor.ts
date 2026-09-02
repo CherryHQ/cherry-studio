@@ -19,10 +19,10 @@ import { fileURLToPath } from 'node:url'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { stat, read as fsRead } from '@main/utils/file'
-import type { FileUIPart } from '@shared/data/types/message'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import mime from 'mime'
+import type { FileUIPart } from '@shared/data/types/message'
 
 /**
  * Native inline file size cap: the largest file (bytes) that we will inline
