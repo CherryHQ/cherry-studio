@@ -70,7 +70,9 @@ export function MessageContentProvider({
         getMessageActivityState: (message) => ({
           isProcessing: message.status === 'pending',
           isStreamTarget: message.status === 'pending',
-          isApprovalAnchor: false
+          isApprovalAnchor: false,
+          isActiveTurnProcessing: message.status === 'pending',
+          isStreamLive: message.status === 'pending'
         })
       },
       actions: resolvedActions,

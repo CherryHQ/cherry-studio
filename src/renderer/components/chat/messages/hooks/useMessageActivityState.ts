@@ -5,85 +5,125 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { isMessageListItemProcessing } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 
-const INACTIVE_MESSAGE_ACTIVITY_STATE: MessageActivityState = Object.freeze({
-  isProcessing: false,
-  isStreamTarget: false,
-  isApprovalAnchor: false
-})
-const PROCESSING_MESSAGE_ACTIVITY_STATE: MessageActivityState = Object.freeze({
-  isProcessing: true,
-  isStreamTarget: true,
-  isApprovalAnchor: false
-})
-const APPROVAL_MESSAGE_ACTIVITY_STATE: MessageActivityState = Object.freeze({
-  isProcessing: true,
-  isStreamTarget: true,
-  isApprovalAnchor: true
-})
+const MESSAGE_ACTIVITY_STATE_CACHE = new Map<number, MessageActivityState>()
+
+function getStableMessageActivityState(
+  isProcessing: boolean,
+  isApprovalAnchor: boolean,
+  isActiveTurnProcessing: boolean,
+  isStreamLive: boolean
+): MessageActivityState {
+  const key =
+    Number(isProcessing) |
+    (Number(isApprovalAnchor) << 1) |
+    (Number(isActiveTurnProcessing) << 2) |
+    (Number(isStreamLive) << 3)
+  const cached = MESSAGE_ACTIVITY_STATE_CACHE.get(key)
+  if (cached) return cached
+
+  const state = Object.freeze({
+    isProcessing,
+    isStreamTarget: isProcessing,
+    isApprovalAnchor,
+    isActiveTurnProcessing,
+    isStreamLive
+  })
+  MESSAGE_ACTIVITY_STATE_CACHE.set(key, state)
+  return state
+}
+
+function deriveMessageActivityState(
+  message: MessageListItem,
+  isActiveExecutionTarget: boolean,
+  isApprovalAnchor: boolean,
+  topicStreamStatus: TopicStreamStatus | undefined
+): MessageActivityState {
+  const isProcessing = isMessageListItemProcessing(message) || isActiveExecutionTarget || isApprovalAnchor
+  const topicTurnState = classifyTurn(topicStreamStatus)
+  const isActiveTurnProcessing = isProcessing && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
+  const isStreamLive =
+    isActiveTurnProcessing &&
+    (topicStreamStatus === undefined ? message.status === 'pending' : topicTurnState.isStreamLive)
+
+  return getStableMessageActivityState(isProcessing, isApprovalAnchor, isActiveTurnProcessing, isStreamLive)
+}
 
 export class KeyedMessageActivityStore implements MessageActivityStore {
   private activeMessageIds = new Set<string>()
   private approvalMessageIds = new Set<string>()
-  private listeners = new Map<string, Set<() => void>>()
+  private listeners = new Map<string, Map<() => void, MessageListItem>>()
+  private topicStreamStatus: TopicStreamStatus | undefined
   private topicId: string | undefined
 
   getSnapshot = (message: MessageListItem): MessageActivityState => {
     const isApprovalAnchor = this.approvalMessageIds.has(message.id)
-    const isProcessing =
-      isMessageListItemProcessing(message) || this.activeMessageIds.has(message.id) || isApprovalAnchor
-    if (isApprovalAnchor) return APPROVAL_MESSAGE_ACTIVITY_STATE
-    return isProcessing ? PROCESSING_MESSAGE_ACTIVITY_STATE : INACTIVE_MESSAGE_ACTIVITY_STATE
+    return deriveMessageActivityState(
+      message,
+      this.activeMessageIds.has(message.id),
+      isApprovalAnchor,
+      this.topicStreamStatus
+    )
   }
 
-  subscribe = (messageId: string, listener: () => void) => {
-    const listeners = this.listeners.get(messageId) ?? new Set<() => void>()
-    listeners.add(listener)
-    this.listeners.set(messageId, listeners)
+  subscribe = (message: MessageListItem, listener: () => void) => {
+    const listeners = this.listeners.get(message.id) ?? new Map<() => void, MessageListItem>()
+    listeners.set(listener, message)
+    this.listeners.set(message.id, listeners)
 
     return () => {
       listeners.delete(listener)
       if (listeners.size === 0) {
-        this.listeners.delete(messageId)
+        this.listeners.delete(message.id)
       }
     }
   }
 
-  update(activeMessageIds: Iterable<string>, approvalMessageIds: Iterable<string>) {
+  update(
+    activeMessageIds: Iterable<string>,
+    approvalMessageIds: Iterable<string>,
+    topicStreamStatus = this.topicStreamStatus
+  ) {
     const nextActiveMessageIds = new Set(activeMessageIds)
     const nextApprovalMessageIds = new Set(approvalMessageIds)
-    const candidates = new Set([
-      ...this.activeMessageIds,
-      ...this.approvalMessageIds,
-      ...nextActiveMessageIds,
-      ...nextApprovalMessageIds
-    ])
-
-    const changedMessageIds = [...candidates].filter((messageId) => {
-      const wasApprovalAnchor = this.approvalMessageIds.has(messageId)
-      const isApprovalAnchor = nextApprovalMessageIds.has(messageId)
-      const wasProcessing = this.activeMessageIds.has(messageId) || wasApprovalAnchor
-      const isProcessing = nextActiveMessageIds.has(messageId) || isApprovalAnchor
-      return wasProcessing !== isProcessing || wasApprovalAnchor !== isApprovalAnchor
-    })
-    if (changedMessageIds.length === 0) return
+    const previousSnapshots = new Map<string, Map<() => void, MessageActivityState>>()
+    for (const [messageId, listeners] of this.listeners) {
+      const messageSnapshots = new Map<() => void, MessageActivityState>()
+      for (const [listener, message] of listeners) {
+        messageSnapshots.set(listener, this.getSnapshot(message))
+      }
+      previousSnapshots.set(messageId, messageSnapshots)
+    }
 
     this.activeMessageIds = nextActiveMessageIds
     this.approvalMessageIds = nextApprovalMessageIds
-    for (const messageId of changedMessageIds) {
-      this.listeners.get(messageId)?.forEach((listener) => listener())
+    this.topicStreamStatus = topicStreamStatus
+    const changedListeners = new Set<() => void>()
+    for (const [messageId, listeners] of this.listeners) {
+      for (const [listener, message] of listeners) {
+        if (previousSnapshots.get(messageId)?.get(listener) !== this.getSnapshot(message)) {
+          changedListeners.add(listener)
+        }
+      }
     }
+    changedListeners.forEach((listener) => listener())
   }
 
-  syncTopic(topicId: string, activeMessageIds: Iterable<string>, approvalMessageIds: Iterable<string>) {
+  syncTopic(
+    topicId: string,
+    activeMessageIds: Iterable<string>,
+    approvalMessageIds: Iterable<string>,
+    topicStreamStatus: TopicStreamStatus | undefined
+  ) {
     if (this.topicId === topicId) {
-      this.update(activeMessageIds, approvalMessageIds)
+      this.update(activeMessageIds, approvalMessageIds, topicStreamStatus)
       return
     }
     this.topicId = topicId
-    this.update(activeMessageIds, approvalMessageIds)
+    this.update(activeMessageIds, approvalMessageIds, topicStreamStatus)
   }
 }
 
@@ -97,9 +137,11 @@ export function useMessageActivityState(
   partsMap?: Record<string, CherryMessagePart[]> | null
 ): MessageActivityCapability {
   void partsMap
-  const { activeExecutions = [], awaitingApprovalAnchors = [] } = useTopicStreamStatus(topicId)
+  const { status, activeExecutions = [], awaitingApprovalAnchors = [] } = useTopicStreamStatus(topicId)
+  const statusRef = useRef(status)
   const activeExecutionsRef = useRef(activeExecutions)
   const awaitingApprovalAnchorsRef = useRef(awaitingApprovalAnchors)
+  statusRef.current = status
   activeExecutionsRef.current = activeExecutions
   awaitingApprovalAnchorsRef.current = awaitingApprovalAnchors
 
@@ -113,18 +155,17 @@ export function useMessageActivityState(
     const isApprovalAnchor = awaitingApprovalAnchorsRef.current.some(
       (execution) => execution.anchorMessageId === message.id
     )
-    const isProcessing = isMessageListItemProcessing(message) || isActiveExecutionTarget || isApprovalAnchor
-
-    return { isProcessing, isStreamTarget: isProcessing, isApprovalAnchor }
+    return deriveMessageActivityState(message, isActiveExecutionTarget, isApprovalAnchor, statusRef.current)
   }, [])
 
   useLayoutEffect(() => {
     store.syncTopic(
       topicId,
       activeExecutions.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : [])),
-      awaitingApprovalAnchors.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : []))
+      awaitingApprovalAnchors.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : [])),
+      status
     )
-  }, [activeExecutions, awaitingApprovalAnchors, store, topicId])
+  }, [activeExecutions, awaitingApprovalAnchors, status, store, topicId])
 
   return useMemo(() => ({ getMessageActivityState, store }), [getMessageActivityState, store])
 }

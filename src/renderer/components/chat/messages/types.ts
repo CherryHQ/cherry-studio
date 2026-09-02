@@ -59,11 +59,13 @@ export interface MessageActivityState {
   isProcessing: boolean
   isStreamTarget: boolean
   isApprovalAnchor: boolean
+  isActiveTurnProcessing: boolean
+  isStreamLive: boolean
 }
 
 export interface MessageActivityStore {
   getSnapshot: (message: MessageListItem) => MessageActivityState
-  subscribe: (messageId: string, listener: () => void) => () => void
+  subscribe: (message: MessageListItem, listener: () => void) => () => void
 }
 
 export interface MessageFileView {
