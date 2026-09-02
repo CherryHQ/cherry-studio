@@ -152,11 +152,10 @@ export function useProviderEndpointActions({
       }
 
       const patchPromise = patchProvider({ endpointConfigs: nextEndpointConfigs })
-      hostPatchInFlightRef.current = patchPromise
-        .catch(() => undefined)
-        .finally(() => {
-          if (hostPatchInFlightRef.current === patchPromise) hostPatchInFlightRef.current = null
-        }) as Promise<void>
+      const trackedHostPatch = patchPromise.catch(() => undefined).finally(() => {
+        if (hostPatchInFlightRef.current === trackedHostPatch) hostPatchInFlightRef.current = null
+      }) as Promise<void>
+      hostPatchInFlightRef.current = trackedHostPatch
       await patchPromise
       lastPersistedApiHostRef.current = trimmedApiHost
       return true
@@ -389,12 +388,11 @@ export function useProviderEndpointActions({
       }
 
       const patchPromise = doCommit()
-      reasoningPatchInFlightRef.current = patchPromise
-        .catch(() => undefined)
-        .finally(() => {
-          if (reasoningPatchInFlightRef.current === patchPromise) reasoningPatchInFlightRef.current = null
-          pendingReasoningFormatRef.current = undefined
-        }) as Promise<void>
+      const trackedReasoningPatch = patchPromise.catch(() => undefined).finally(() => {
+        if (reasoningPatchInFlightRef.current === trackedReasoningPatch) reasoningPatchInFlightRef.current = null
+        pendingReasoningFormatRef.current = undefined
+      }) as Promise<void>
+      reasoningPatchInFlightRef.current = trackedReasoningPatch
       return patchPromise
     },
     [debouncedPersistApiHost, patchProvider, primaryEndpoint, setApiHost, t]

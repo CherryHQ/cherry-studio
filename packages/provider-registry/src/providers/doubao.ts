@@ -136,9 +136,33 @@ export default defineProvider({
       reasoningFormat: {
         type: 'openai-chat',
         wire: {
-          off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-          auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'auto' } }] },
-          effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }] }
+          off: {
+            operations: [
+              {
+                target: 'thinking.type',
+                value: { source: 'literal', value: 'disabled' },
+                delivery: 'provider-option' as const
+              }
+            ]
+          },
+          auto: {
+            operations: [
+              {
+                target: 'thinking.type',
+                value: { source: 'literal', value: 'auto' },
+                delivery: 'provider-option' as const
+              }
+            ]
+          },
+          effort: {
+            operations: [
+              {
+                target: 'thinking.type',
+                value: { source: 'literal', value: 'enabled' },
+                delivery: 'provider-option' as const
+              }
+            ]
+          }
         }
       }
     },

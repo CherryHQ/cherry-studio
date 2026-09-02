@@ -59,7 +59,7 @@ export type ReasoningWireDelivery = z.infer<typeof ReasoningWireDeliverySchema>
 export const ReasoningWireOperationSchema = z.object({
   target: ReasoningWireTargetSchema,
   value: ReasoningWireValueSchema,
-  delivery: ReasoningWireDeliverySchema.default('provider-option')
+  delivery: ReasoningWireDeliverySchema.optional().default('provider-option')
 })
 export type ReasoningWireOperation = z.infer<typeof ReasoningWireOperationSchema>
 
@@ -72,7 +72,7 @@ const NonBudgetReasoningWireValueSchema = z.discriminatedUnion('source', [
 const NonBudgetReasoningWireOperationSchema = z.object({
   target: ReasoningWireTargetSchema,
   value: NonBudgetReasoningWireValueSchema,
-  delivery: ReasoningWireDeliverySchema.default('provider-option')
+  delivery: ReasoningWireDeliverySchema.optional().default('provider-option')
 })
 
 const ReasoningBudgetPolicySchema = z.object({
@@ -101,7 +101,7 @@ export const ReasoningWireModeSchema = z.union([
         message: 'reasoning budget mode must contain a budget operation'
       }),
     effortMap: ReasoningEffortMapSchema,
-    budget: ReasoningBudgetPolicySchema
+    budget: ReasoningBudgetPolicySchema.optional()
   })
 ])
 export type ReasoningWireMode = z.infer<typeof ReasoningWireModeSchema>
