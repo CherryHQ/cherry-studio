@@ -101,6 +101,23 @@ const CASES: Case[] = [
     })
   },
   {
+    name: 'chat-like (canonical qwen-image-3-0) → same family as the dotted apiModelId',
+    input: {
+      ...base,
+      modelId: 'qwen-image-3.0',
+      prompt: 'a fox',
+      modelDescriptor: descriptor('qwen-image-3-0', 'generate'),
+      providerParams: {}
+    } as ImageGenerationSubmitInput,
+    schema: z.strictObject({
+      model: z.string(),
+      input: z.strictObject({
+        messages: z.array(z.strictObject({ role: z.literal('user'), content: z.array(messagePart) }))
+      }),
+      parameters: z.unknown().optional()
+    })
+  },
+  {
     name: 'wanx-v1 → input.ref_image + parameters.style/ref_*',
     input: {
       ...base,
