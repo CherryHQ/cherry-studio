@@ -92,7 +92,7 @@ describe('Knowledge base schemas', () => {
       embeddingModelId: 'embed-model',
       chunkSize: 0,
       chunkOverlap: -1,
-      documentCount: 0
+      documentCount: -1
     })
 
     expect(result.success).toBe(false)
@@ -281,7 +281,7 @@ describe('Knowledge base schemas', () => {
     const result = UpdateKnowledgeBaseSchema.safeParse({
       chunkSize: -10,
       chunkOverlap: -1,
-      documentCount: 0
+      documentCount: -1
     })
 
     expect(result.success).toBe(false)
@@ -299,7 +299,7 @@ describe('Knowledge base schemas', () => {
       chunkSize: 0,
       chunkOverlap: -1,
       threshold: 2,
-      documentCount: 0,
+      documentCount: -1,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
@@ -675,6 +675,41 @@ it('accepts only null or a non-blank groupId in knowledge patches', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
+})
+
+it('accepts documentCount=0 for empty knowledge bases (issue #19861)', () => {
+  // An empty knowledge base is valid; documentCount must accept 0 in create,
+  // entity, and update schemas so the list refreshes after creation.
+  expect(
+    CreateKnowledgeBaseSchema.safeParse({
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: 'embed-model',
+      documentCount: 0,
+    }).success
+  ).toBe(true)
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({ documentCount: 0 }).success
+  ).toBe(true)
+  expect(
+    KnowledgeBaseSchema.safeParse({
+      id: KNOWLEDGE_BASE_ID,
+      name: 'KB',
+      dimensions: 1024,
+      embeddingModelId: 'embed-model',
+      groupId: null,
+      status: 'completed',
+      error: null,
+      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
+      threshold: 0,
+      documentCount: 0,
+      createdAt: '2026-04-10T00:00:00.000Z',
+      updatedAt: '2026-04-10T00:00:00.000Z',
+    }).success
+  ).toBe(true)
 })
 
 describe('isCompletedKnowledgeBase', () => {

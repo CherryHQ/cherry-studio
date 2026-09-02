@@ -295,9 +295,10 @@ export const ComposerTokenNode = Node.create<ComposerTokenNodeOptions>({
     ]
   },
 
-  renderText({ node }) {
-    const token = normalizeComposerTokenAttrs(node.attrs)
-    return token.promptText ?? ''
+  renderText() {
+    // Atom nodes must not contribute text to the editor's textContent. The prompt
+    // instruction is server-side only; the visual chip conveys the token to the user.
+    return ''
   },
 
   addCommands() {
