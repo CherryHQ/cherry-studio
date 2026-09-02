@@ -1,11 +1,19 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ProviderEdition } from '@cherrystudio/provider-registry'
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { parse } from 'yaml'
 
 import createChinaEditionConfig from '../../electron-builder.cn.config.cjs'
-import { CHINA_EDITION, getExpectedReleaseArtifacts, getReleaseChannel, GLOBAL_EDITION } from '../release/edition'
+import { APP_EDITIONS, type AppEdition } from '../../src/shared/types/appEdition'
+import {
+  CHINA_EDITION,
+  EDITIONS,
+  getExpectedReleaseArtifacts,
+  getReleaseChannel,
+  GLOBAL_EDITION
+} from '../release/edition'
 
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 const packageMetadata = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
@@ -31,6 +39,11 @@ describe('edition packaging', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
     vi.resetModules()
+  })
+
+  it('keeps application and release editions aligned with the registry contract', () => {
+    expectTypeOf<AppEdition>().toEqualTypeOf<ProviderEdition>()
+    expect(EDITIONS).toEqual(APP_EDITIONS)
   })
 
   it('injects the selected edition into the renderer build', async () => {

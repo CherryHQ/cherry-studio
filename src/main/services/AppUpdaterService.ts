@@ -36,7 +36,7 @@ function getEditionUpdateChannel(channel: UpgradeChannel, edition: AppEdition): 
   return edition === 'cn' ? `${channel}-cn` : channel
 }
 
-function getUpdateHeaders(region: ReleaseRegion, edition: AppEdition) {
+function getUpdateHeaders({ region, edition }: { region: ReleaseRegion; edition: AppEdition }) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
@@ -190,7 +190,7 @@ export class AppUpdaterService extends BaseService {
     const edition = getAppEdition()
     const updateChannel = getEditionUpdateChannel(requestedChannel, edition)
 
-    const updateHeaders = getUpdateHeaders(region, edition)
+    const updateHeaders = getUpdateHeaders({ region, edition })
 
     return { currentVersion, edition, ipCountry, region, testPlan, updateChannel, updateHeaders }
   }

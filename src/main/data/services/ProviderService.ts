@@ -15,6 +15,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
@@ -73,14 +74,18 @@ function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'available
   return !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
-function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
-  if (isRetiredProvider(row.providerId, row.presetProviderId)) return false
+function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
+  if (isRetiredProvider(row.providerId, row.presetProviderId)) return null
 
   const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId
   )
-  return isProviderAvailableInCurrentEdition(metadata)
+  return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
+}
+
+function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+  return getAvailableProviderMetadata(row) !== null
 }
 
 /**
@@ -256,9 +261,10 @@ function projectEndpointConfigOverrides(
 /**
  * Convert database row to Provider entity
  */
-function rowToRuntimeProvider(row: UserProviderRow): Provider {
+function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMetadata): Provider {
   const providerRegistryService = getDataService('ProviderRegistryService')
-  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
+  const presetMetadata =
+    metadata ?? providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
@@ -356,7 +362,12 @@ class ProviderService {
             .all()
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
-    return rows.filter(isProviderIdentityAvailable).map(rowToRuntimeProvider)
+    const providers: Provider[] = []
+    for (const row of rows) {
+      const metadata = getAvailableProviderMetadata(row)
+      if (metadata) providers.push(rowToRuntimeProvider(row, metadata))
+    }
+    return providers
   }
 
   /** Return matching provider IDs available to runtime callers in this application edition. */

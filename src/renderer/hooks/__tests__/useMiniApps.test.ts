@@ -166,7 +166,6 @@ describe('useMiniApps', () => {
       const { result } = renderHook(() => useMiniApps())
 
       expect(result.current.miniApps.map((app) => app.appId)).toEqual(['g', 'c'])
-      expect(result.current.appEdition).toBe('cn')
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region')).toBe('Global')
     })
 

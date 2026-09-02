@@ -1,6 +1,6 @@
-import type { ProviderEdition } from '../schemas/provider'
+import { type ProviderEdition, ProviderEditionSchema } from '../schemas/provider'
 
-const ALL_EDITIONS = ['global', 'cn'] as const satisfies readonly ProviderEdition[]
+const ALL_EDITIONS = ProviderEditionSchema.options
 const GLOBAL_ONLY_EDITIONS = ['global'] as const satisfies readonly ProviderEdition[]
 
 // Presets removed from the current catalog can still exist in migrated user data.

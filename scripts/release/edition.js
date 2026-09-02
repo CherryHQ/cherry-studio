@@ -83,6 +83,7 @@ function getExpectedReleaseArtifacts({ edition, platform, productName, version }
 
 module.exports = {
   CHINA_EDITION,
+  EDITIONS,
   GLOBAL_EDITION,
   getExpectedReleaseArtifacts,
   getReleaseChannel,

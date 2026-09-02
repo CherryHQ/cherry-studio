@@ -66,7 +66,10 @@ describe('ProviderService edition availability', () => {
       }
     ])
 
+    const displayMetadataSpy = vi.spyOn(providerRegistryService, 'getProviderDisplayMetadata')
     expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-provider'])
+    expect(displayMetadataSpy).toHaveBeenCalledTimes(2)
+    displayMetadataSpy.mockRestore()
     expect(providerService.listAvailableProviderIds()).toEqual(new Set(['custom-provider']))
     expect(providerService.listAvailableProviderIds(['global-only', 'custom-provider'])).toEqual(
       new Set(['custom-provider'])

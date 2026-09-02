@@ -2,8 +2,8 @@ import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Toolti
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
-import type { AppEdition } from '@shared/types/appEdition'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
@@ -16,8 +16,9 @@ const DEFAULT_MAX_KEEPALIVE = 3
  * open-link external switch, and the max keep-alive slider. Every item follows the same
  * title + description + control structure.
  */
-const MiniAppDisplaySettings: FC<{ appEdition: AppEdition }> = ({ appEdition }) => {
+const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
+  const appEdition = getAppEdition()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [checkUpdatesOnOpen, setCheckUpdatesOnOpen] = usePreference('feature.mini_app.check_updates_on_open')

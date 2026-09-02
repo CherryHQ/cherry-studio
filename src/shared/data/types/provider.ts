@@ -17,9 +17,9 @@ import {
   ENDPOINT_TYPE,
   FastModeTransportSchema,
   objectValues,
+  ProviderEditionSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
-import { APP_EDITIONS } from '@shared/types/appEdition'
 import * as z from 'zod'
 
 export type { ServerTool, ServerToolConfig }
@@ -254,7 +254,7 @@ export const ProviderSchema = z.object({
    * App editions where this provider is available. Omitted means all editions.
    * Other-edition rows remain persisted, but ordinary runtime reads and user mutations treat them as unavailable.
    */
-  availableInEditions: z.array(z.enum(APP_EDITIONS)).min(1).optional(),
+  availableInEditions: z.array(ProviderEditionSchema).min(1).optional(),
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type connection configuration */

@@ -43,12 +43,17 @@ vi.mock('react-i18next', () => ({
 describe('MiniAppDisplaySettings', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
+    vi.stubGlobal('__APP_EDITION__', 'global')
   })
 
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    vi.unstubAllGlobals()
+  })
 
   it('does not offer a region selector in the CN edition', () => {
-    render(<MiniAppDisplaySettings appEdition="cn" />)
+    vi.stubGlobal('__APP_EDITION__', 'cn')
+    render(<MiniAppDisplaySettings />)
 
     expect(screen.queryByText('settings.miniApps.region.title')).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: 'region' })).not.toBeInTheDocument()
@@ -56,7 +61,7 @@ describe('MiniAppDisplaySettings', () => {
   })
 
   it('keeps the region selector available in the global edition', () => {
-    render(<MiniAppDisplaySettings appEdition="global" />)
+    render(<MiniAppDisplaySettings />)
 
     expect(screen.getByText('settings.miniApps.region.title')).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'region' })).toBeInTheDocument()
