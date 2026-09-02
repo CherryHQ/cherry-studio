@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { BaseConfigItem } from '../../baseConfigItem'
+import type { CustomSizeConfigItem } from '../../baseConfigItem'
 import SizeField from '../SizeField'
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -15,11 +15,12 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 // `imageGenerationToFields` always derives the pair keys from the field key.
-const item: BaseConfigItem = {
+const item: CustomSizeConfigItem = {
   type: 'customSize',
   key: 'customSize',
   widthKey: 'customSize_width',
   heightKey: 'customSize_height',
+  sizeKey: 'size',
   validation: { minWidth: 512 }
 }
 
