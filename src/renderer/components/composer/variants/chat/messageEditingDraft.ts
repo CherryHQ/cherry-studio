@@ -1,4 +1,5 @@
 import { FILE_TYPE } from '@renderer/types/file'
+import { parseFilePreviewUrlPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
   composerFileTokenIdFromSourceId,
@@ -9,8 +10,7 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 
 import { type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
@@ -52,20 +52,26 @@ function getFileExtension(value: string | undefined, mediaType: string | undefin
   return ''
 }
 
-function getEditableFilePath(url: string) {
-  try {
-    const path = AbsoluteFilePathSchema.safeParse(fileUrlToPath(new URL(url)))
-    return path.success ? path.data : undefined
-  } catch {
-    return undefined
+async function getEditableFilePath(part: Extract<CherryMessagePart, { type: 'file' }>) {
+  const cherry = readCherryMeta(part)
+  if (!cherry?.composerFileKind) return undefined
+
+  if (cherry.fileEntryId) {
+    try {
+      return await window.api.file.getPhysicalPath({ id: cherry.fileEntryId })
+    } catch {
+      return undefined
+    }
   }
+
+  return parseFilePreviewUrlPath(part.url)
 }
 
-function createEditableAttachment(
+async function createEditableAttachment(
   part: Extract<CherryMessagePart, { type: 'file' }>,
   index: number,
   fileTokenSourceId: string
-): ComposerAttachment | null {
+): Promise<ComposerAttachment | null> {
   const url = part.url
   if (!url) return null
 
@@ -73,7 +79,7 @@ function createEditableAttachment(
   const ext = getFileExtension(name || url, part.mediaType)
   const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext)
   const composerFileKind = readCherryMeta(part)?.composerFileKind
-  const path = composerFileKind ? getEditableFilePath(url) : undefined
+  const path = await getEditableFilePath(part)
 
   return {
     fileTokenSourceId,
@@ -87,7 +93,7 @@ function createEditableAttachment(
   }
 }
 
-export function createEditableMessageDraft(parts: CherryMessagePart[]): EditableMessageDraft {
+export async function createEditableMessageDraft(parts: CherryMessagePart[]): Promise<EditableMessageDraft> {
   const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
   const text = textParts.map((part) => part.text).join('\n\n')
   // Recover the composer snapshot even when the reply was split across multiple text parts
@@ -110,7 +116,7 @@ export function createEditableMessageDraft(parts: CherryMessagePart[]): Editable
   const fileTokens = draftTokens.filter((token) => token.kind === 'file')
   const usedFileTokenIds = new Set<string>()
   const fileTokenSourceByMatchedTokenId = new Map<string, string>()
-  const files = parts.flatMap((part, index) => {
+  const filePromises = parts.flatMap((part, index) => {
     if (part.type !== 'file') return []
     const path = part.url
     const token = path ? findEditableFileToken(part, path, fileTokens, usedFileTokenIds) : undefined
@@ -120,9 +126,9 @@ export function createEditableMessageDraft(parts: CherryMessagePart[]): Editable
       getComposerFileTokenSourceId({ fileTokenSourceId: cherry?.fileTokenSourceId }) ??
       createComposerFileTokenSourceId()
     if (token) fileTokenSourceByMatchedTokenId.set(token.id, fileTokenSourceId)
-    const file = createEditableAttachment(part, index, fileTokenSourceId)
-    return file ? [file] : []
+    return [createEditableAttachment(part, index, fileTokenSourceId)]
   })
+  const files = (await Promise.all(filePromises)).filter((file): file is ComposerAttachment => file !== null)
   const normalizedDraftTokens = draftTokens.map((token) => {
     if (token.kind !== 'file') return token
 

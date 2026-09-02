@@ -1,5 +1,5 @@
-import type { AbsoluteFilePath } from '@shared/types/file'
-import { canonicalizeFilePath, createFilePathHandle } from '@shared/utils/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath, createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 
 export const FILE_PREVIEW_ROUTE = '/app/file-preview'
 export const FILE_PREVIEW_REFRESH_KEY = 'filePreviewRefreshKey'
@@ -22,6 +22,15 @@ export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | und
 export function normalizeFilePreviewPath(filePath: string): AbsoluteFilePath {
   const canonicalPath = canonicalizeFilePath(filePath)
   return createFilePathHandle(canonicalPath).path
+}
+
+export function parseFilePreviewUrlPath(url: string): AbsoluteFilePath | undefined {
+  try {
+    const path = AbsoluteFilePathSchema.safeParse(fileUrlToPath(new URL(url)))
+    return path.success ? path.data : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export function getFilePreviewFileName(filePath: string): string {

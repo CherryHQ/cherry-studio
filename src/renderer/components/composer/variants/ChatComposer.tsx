@@ -1161,8 +1161,9 @@ const ChatComposerInner = ({
     void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + editingMessageId, true)
   }, [editingMessageId])
 
-  const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
-    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts)
+  const restoreEditableMessageDraft = useEffectEvent(async (nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    const editableDraft = await createEditableMessageDraft(nextEditingMessage.parts)
+    if (editingMessageForCurrentTopic?.editingSessionId !== nextEditingMessage.editingSessionId) return
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
       (part): part is ComposerFilePart => part.type === 'file' && !!part.url
@@ -1207,7 +1208,7 @@ const ChatComposerInner = ({
       exitInputHistoryPreview()
     }
 
-    restoreEditableMessageDraft(editingMessageForCurrentTopic)
+    void restoreEditableMessageDraft(editingMessageForCurrentTopic)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest selectable knowledge bases; this effect is keyed by editingSessionId.
   }, [
     actionsRef,

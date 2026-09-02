@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { FILE_TYPE } from '@renderer/types/file'
+import { parseFilePreviewUrlPath } from '@renderer/utils/filePreview'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
+import { toSafeFileUrl } from '@shared/utils/file'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 
@@ -129,15 +130,15 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
     try {
       const url = new URL(previewUrl)
       if (url.protocol !== 'file:') return previewUrl
-      const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
-      if (!parsedPath.success) {
+      const path = parseFilePreviewUrlPath(previewUrl)
+      if (!path) {
         if (!warnedPreviewKeys.has(previewUrl)) {
           warnedPreviewKeys.add(previewUrl)
           logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
         }
         return undefined
       }
-      return toSafeFileUrl(parsedPath.data, extension || null)
+      return toSafeFileUrl(path, extension || null)
     } catch {
       return undefined
     }
