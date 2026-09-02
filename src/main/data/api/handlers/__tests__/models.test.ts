@@ -22,8 +22,7 @@ const {
   reconcileForProviderMock,
   lookupModelMock,
   resolveModelsMock,
-  getImageGenerationSupportMock,
-  getByProviderIdMock
+  getImageGenerationSupportMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
@@ -35,14 +34,7 @@ const {
   reconcileForProviderMock: vi.fn(),
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
-  getImageGenerationSupportMock: vi.fn(),
-  getByProviderIdMock: vi.fn()
-}))
-
-vi.mock('@data/services/ProviderService', () => ({
-  providerService: {
-    getByProviderId: getByProviderIdMock
-  }
+  getImageGenerationSupportMock: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -72,7 +64,6 @@ const DISABLED_REASONING_PROFILE = { format: 'none', wire: { disabled: true } } 
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getByProviderIdMock.mockImplementation((providerId: string) => ({ id: providerId }))
 })
 
 describe('Model handler validation', () => {
@@ -521,34 +512,5 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
     } as never)
 
     expect(result).toBeNull()
-  })
-})
-
-describe('provider-backed registry routes', () => {
-  it.each([
-    [
-      'provider model resolution',
-      () =>
-        modelHandlers['/providers/:providerId/models:resolve'].GET({
-          params: { providerId: 'global-only' },
-          query: { ids: 'model' }
-        } as never),
-      resolveModelsMock
-    ],
-    [
-      'image generation support lookup',
-      () =>
-        modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
-          params: { providerId: 'global-only', modelId: 'model' }
-        } as never),
-      getImageGenerationSupportMock
-    ]
-  ])('does not call %s when the provider service reports it unavailable', async (_label, invoke, serviceMock) => {
-    getByProviderIdMock.mockImplementationOnce(() => {
-      throw DataApiErrorFactory.notFound('Provider', 'global-only')
-    })
-
-    await expect(invoke()).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    expect(serviceMock).not.toHaveBeenCalled()
   })
 })

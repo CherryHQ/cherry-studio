@@ -38,10 +38,9 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { APP_EDITIONS } from '@shared/types/appEdition'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
-import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { isRetiredProvider } from '../retiredProviders'
@@ -71,9 +70,7 @@ type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
 
 function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
   const availableInEditions = provider.availableInEditions
-  if (!availableInEditions || APP_EDITIONS.every((edition) => availableInEditions.includes(edition))) return true
-
-  return availableInEditions.includes(getAppEdition())
+  return !availableInEditions || availableInEditions.includes(getAppEdition())
 }
 
 function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
@@ -362,8 +359,11 @@ class ProviderService {
     return rows.filter(isProviderIdentityAvailable).map(rowToRuntimeProvider)
   }
 
-  /** Return provider IDs available to runtime callers in this application edition. */
-  listAvailableProviderIds(): Set<string> {
+  /** Return matching provider IDs available to runtime callers in this application edition. */
+  listAvailableProviderIds(providerIds?: Iterable<string>): Set<string> {
+    const ids = providerIds ? [...new Set(providerIds)] : undefined
+    if (ids?.length === 0) return new Set()
+
     const rows = application
       .get('DbService')
       .getDb()
@@ -372,6 +372,7 @@ class ProviderService {
         presetProviderId: userProviderTable.presetProviderId
       })
       .from(userProviderTable)
+      .where(ids ? inArray(userProviderTable.providerId, ids) : undefined)
       .all()
 
     return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
@@ -392,6 +393,23 @@ class ProviderService {
       .all()
 
     return row !== undefined && isProviderIdentityAvailable(row)
+  }
+
+  /** Assert that a persisted provider is available to runtime callers in this application edition. */
+  assertAvailable(providerId: string): void {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+      .all()
+
+    assertProviderAvailable(row, providerId)
   }
 
   /**
@@ -951,7 +969,7 @@ class ProviderService {
 
   move(providerId: string, anchor: OrderRequest): void {
     assertManagedCherryAiProviderMutationAllowed(providerId, `move provider ${providerId}`)
-    this.getByProviderId(providerId)
+    this.assertAvailable(providerId)
 
     const db = application.get('DbService').getDb()
 
@@ -970,7 +988,7 @@ class ProviderService {
   reorder(moves: OrderBatchRequest['moves']): void {
     for (const move of moves) {
       assertManagedCherryAiProviderMutationAllowed(move.id, `move provider ${move.id}`)
-      this.getByProviderId(move.id)
+      this.assertAvailable(move.id)
     }
 
     const db = application.get('DbService').getDb()

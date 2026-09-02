@@ -8,7 +8,6 @@
 
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
@@ -175,7 +174,6 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/providers/:providerId/models:resolve': {
     GET: async ({ params, query }) => {
       const parsed = ResolveProviderModelsQuerySchema.parse(query ?? {})
-      providerService.getByProviderId(params.providerId)
       const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
       return providerRegistryService.resolveModels(params.providerId, ids)
     }
@@ -183,7 +181,6 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
 
   '/providers/:providerId/models/:modelId*/image-generation-support': {
     GET: async ({ params }) => {
-      providerService.getByProviderId(params.providerId)
       return providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
     }
   }

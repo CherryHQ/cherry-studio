@@ -1,7 +1,5 @@
-// Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
-import '@data/services/ProviderRegistryService'
-
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AppEdition } from '@shared/types/appEdition'
@@ -51,7 +49,7 @@ describe('ProviderService edition availability', () => {
     applicationEdition.current = 'cn'
   })
 
-  it('makes a persisted global-only provider unavailable to runtime reads and user mutations in China', async () => {
+  it('makes a persisted global-only provider unavailable to every runtime read and mutation in China', async () => {
     await dbh.db.insert(userProviderTable).values([
       {
         providerId: 'global-only',
@@ -70,25 +68,53 @@ describe('ProviderService edition availability', () => {
 
     expect(providerService.list({}).map((provider) => provider.id)).toEqual(['custom-provider'])
     expect(providerService.listAvailableProviderIds()).toEqual(new Set(['custom-provider']))
+    expect(providerService.listAvailableProviderIds(['global-only', 'custom-provider'])).toEqual(
+      new Set(['custom-provider'])
+    )
     expect(providerService.isAvailableByProviderId('global-only')).toBe(false)
-    expect(() => providerService.getByProviderId('global-only')).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
-    expect(() => providerService.resolveApiKey('global-only')).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
-    expect(() => providerService.update('global-only', { name: 'Changed' })).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
-    expect(() => providerService.move('global-only', { position: 'last' })).toThrowError(
-      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
-    )
+
+    const calls: Array<() => unknown> = [
+      () => providerService.assertAvailable('global-only'),
+      () => providerService.getByProviderId('global-only'),
+      () => providerService.resolveApiKey('global-only'),
+      () => providerService.getApiKeys('global-only'),
+      () => providerService.getAuthConfig('global-only'),
+      () => providerService.addApiKey('global-only', 'new-secret'),
+      () => providerService.replaceApiKeys('global-only', []),
+      () => providerService.updateApiKey('global-only', 'key-1', { label: 'Changed' }),
+      () => providerService.deleteApiKey('global-only', 'key-1'),
+      () => providerService.update('global-only', { name: 'Changed' }),
+      () => providerService.move('global-only', { position: 'last' }),
+      () => providerService.reorder([{ id: 'global-only', anchor: { position: 'last' } }]),
+      () => providerService.delete('global-only')
+    ]
+
+    for (const invoke of calls) {
+      expect(invoke).toThrowError(expect.objectContaining({ code: ErrorCode.NOT_FOUND }))
+    }
 
     const [persisted] = await dbh.db
       .select()
       .from(userProviderTable)
       .where(eq(userProviderTable.providerId, 'global-only'))
     expect(persisted.name).toBe('Global only')
+    expect(persisted.apiKeys).toEqual([{ id: 'key-1', key: 'secret', isEnabled: true }])
+  })
+
+  it('enforces edition availability in provider-backed registry reads', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'global-only',
+      presetProviderId: 'global-only',
+      name: 'Global only',
+      orderKey: 'a0'
+    })
+
+    expect(() => providerRegistryService.resolveModels('global-only', ['model'])).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
+    expect(() => providerRegistryService.getImageGenerationSupport('global-only', 'model')).toThrowError(
+      expect.objectContaining({ code: ErrorCode.NOT_FOUND })
+    )
   })
 
   it('rejects creating a provider from a preset unavailable in the current edition', async () => {

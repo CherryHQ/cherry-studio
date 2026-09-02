@@ -1,7 +1,12 @@
 import type * as NodeFs from 'node:fs'
+import path from 'node:path'
 
+import { APP_EDITIONS } from '@shared/types/appEdition'
 import { app } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parse } from 'yaml'
+
+import createChinaEditionConfig from '../../../../electron-builder.cn.config.cjs'
 
 const { readFileSyncMock } = vi.hoisted(() => ({
   readFileSyncMock: vi.fn()
@@ -75,14 +80,27 @@ describe('getAppEdition', () => {
     expect(() => getAppEdition()).toThrow('Unsupported application edition: enterprise')
   })
 
-  it.each([
-    ['global', 'com.kangfenmao.CherryStudio'],
-    ['cn', 'com.cherryai.cherrystudio.cn']
-  ] as const)('maps the %s edition to its packaged application ID', async (edition, expected) => {
-    setPackaged(true)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: edition }))
-    const getApplicationId = await loadGetApplicationId()
+  it('keeps runtime application IDs aligned with both packaging configurations', async () => {
+    const actualFs = await vi.importActual<typeof NodeFs>('node:fs')
+    const projectRoot = path.resolve(import.meta.dirname, '../../../..')
+    const globalConfig = parse(actualFs.readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8')) as {
+      appId: string
+    }
+    const chinaConfig = await createChinaEditionConfig({
+      packageMetadata: { value: Promise.resolve({ version: '2.1.0' }) }
+    })
+    const applicationIds = {
+      global: globalConfig.appId,
+      cn: chinaConfig.appId
+    }
 
-    expect(getApplicationId()).toBe(expected)
+    for (const edition of APP_EDITIONS) {
+      vi.resetModules()
+      setPackaged(true)
+      readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: edition }))
+      const getApplicationId = await loadGetApplicationId()
+
+      expect(getApplicationId()).toBe(applicationIds[edition])
+    }
   })
 })
