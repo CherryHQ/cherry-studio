@@ -161,13 +161,17 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
   const qwencloud = (apiModelId: string) =>
     model({ id: `qwencloud::${apiModelId}`, providerId: 'qwencloud', apiModelId, capabilities: [] })
 
-  // Provider-level declaration only: per-model eligibility this exercises comes from the registry's
-  // generated web-search set, so this suite also pins declaration ↔ delivery agreement.
+  // Provider-level declarations only (mirrors the two-entry registry split: qwen lines → Chat,
+  // DeepSeek/GLM ids → Responses); per-model eligibility comes from the generated set, so this
+  // suite also pins declaration ↔ delivery agreement.
   const qwencloudPreset = {
     id: 'qwencloud',
     presetProviderId: 'qwencloud',
     defaultChatEndpoint: 'openai-chat-completions',
-    serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }]
+    serverTools: [
+      { id: 'web-search', modelScope: 'model-dependent', endpointTypes: ['openai-chat-completions'] },
+      { id: 'web-search', modelScope: 'model-dependent', endpointTypes: ['openai-responses'] }
+    ]
   } as unknown as Provider
 
   // qwen3.7-max-preview is on the docs table but absent from the catalog (the 38-model list only
@@ -217,6 +221,20 @@ describe('qwencloud built-in web search: enable_search + agent strategy subset',
       expect(getWebSearchParams(qwencloud(apiModelId), qwencloudPreset)).toEqual({})
     }
   )
+
+  // Pinning Chat on a Responses-only model (its override orders Responses first but Chat stays
+  // selectable): the chat declaration does not claim these ids, so the chat path injects nothing
+  // and routing drops the server side instead of silently serving no search.
+  it('injects nothing when Chat is pinned on a Responses-only model', () => {
+    const chatPinned = model({
+      id: 'qwencloud::deepseek-v4-pro',
+      providerId: 'qwencloud',
+      apiModelId: 'deepseek-v4-pro',
+      capabilities: [],
+      endpointTypes: ['openai-chat-completions']
+    })
+    expect(getWebSearchParams(chatPinned, qwencloudPreset)).toEqual({})
+  })
 
   it('serves a copied QwenCloud provider identically (preset link, not runtime id)', () => {
     const copy = { ...qwencloudPreset, id: 'user-copy-1' } as unknown as Provider
