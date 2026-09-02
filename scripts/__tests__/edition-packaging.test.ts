@@ -62,6 +62,22 @@ describe('edition packaging', () => {
     }
   })
 
+  it.each([
+    ['win', 'x64'],
+    ['win', 'arm64'],
+    ['mac', 'x64'],
+    ['mac', 'arm64'],
+    ['linux', 'x64'],
+    ['linux', 'arm64']
+  ])('provides a China edition %s %s package entry point', (platform, arch) => {
+    const script = packageMetadata.scripts[`build:${platform}:${arch}:cn`]
+
+    expect(script).toContain('pnpm run build:cn')
+    expect(script).toContain('--config electron-builder.cn.config.cjs')
+    expect(script).toContain(`--${platform}`)
+    expect(script).toContain(`--${arch}`)
+  })
+
   it('keeps the existing global product and update identity', () => {
     const config = parse(readFileSync(path.join(projectRoot, 'electron-builder.yml'), 'utf8'))
 
