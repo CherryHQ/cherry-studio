@@ -58,7 +58,7 @@ const stable = (v: unknown): string =>
 
 // Mirror buildProviders: drop the generation-only fields, template `description` (always overrides any
 // source `description`). The result is the exact source-derived provider payload the generator emits.
-const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'overrides']
+const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'standaloneModelIds', 'overrides']
 const expectedProviderPayload = (p: Record<string, unknown>) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
@@ -144,6 +144,8 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
             ov.reasoningContracts ||
             ov.requestControls ||
             ov.parameterSupport ||
+            ov.name ||
+            ov.ownedBy ||
             Object.hasOwn(ov, 'pricing'))
         ) {
           const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
@@ -156,7 +158,10 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
                 (Object.hasOwn(ov, 'reasoningContracts') &&
                   stable(row.reasoningContracts) !== stable(ov.reasoningContracts)) ||
                 (Object.hasOwn(ov, 'requestControls') && stable(row.requestControls) !== stable(ov.requestControls)) ||
-                (Object.hasOwn(ov, 'parameterSupport') && stable(row.parameterSupport) !== stable(ov.parameterSupport))
+                (Object.hasOwn(ov, 'parameterSupport') &&
+                  stable(row.parameterSupport) !== stable(ov.parameterSupport)) ||
+                (Object.hasOwn(ov, 'name') && stable(row.name) !== stable(ov.name)) ||
+                (Object.hasOwn(ov, 'ownedBy') && stable(row.ownedBy) !== stable(ov.ownedBy))
             )
           ) {
             problems.push(`stale ${p.id}/${ov.modelId}/model-template`)

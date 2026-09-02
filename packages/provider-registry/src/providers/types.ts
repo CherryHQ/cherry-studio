@@ -67,6 +67,8 @@ export interface Provider extends ProviderConnection {
   modelsDevProvider?: string
   /** …or fetch the served list from the provider's own `/models` API (see `../creators/_api.ts`). */
   fetchModels?: () => Promise<{ id: string }[]>
+  /** Upstream routes owned by this provider rather than by the creator named in their API id. */
+  standaloneModelIds?: string[]
   /** Manual overrides — for exact model ids, pricing, transports, reasoning contracts, and status. */
   overrides?: Partial<ProviderModelOverride>[]
 }
@@ -76,7 +78,7 @@ export function defineProvider(p: Provider): Provider {
 }
 
 /** Generation-only fields shared by every provider, kept out of the connection config. */
-type GenFields = Pick<Provider, 'modelsDevProvider' | 'fetchModels' | 'overrides'>
+type GenFields = Pick<Provider, 'modelsDevProvider' | 'fetchModels' | 'standaloneModelIds' | 'overrides'>
 
 /**
  * Helper for the common OpenAI-compatible provider: `openai-chat-completions` over `baseUrl` (and an
@@ -124,6 +126,7 @@ export function openaiCompatible(
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),
+    ...(p.standaloneModelIds ? { standaloneModelIds: p.standaloneModelIds } : {}),
     ...(p.overrides ? { overrides: p.overrides } : {})
   })
 }

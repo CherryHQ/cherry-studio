@@ -106,9 +106,9 @@
     {
       "targetKey": "chat.web_search.client_tools_preferred",
       "type": "boolean",
-      "defaultValue": true,
+      "defaultValue": false,
       "status": "classified",
-      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+      "description": "Prefer configured web search and fetch services over equivalent model-native tools when both are available"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_limit",
@@ -170,8 +170,8 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "agents", "type": "app" },
         { "id": "assistants", "type": "app" },
+        { "id": "agents", "type": "app" },
         { "id": "translate", "type": "app" },
         { "id": "paintings", "type": "app" },
         { "id": "knowledge", "type": "app" }
@@ -743,6 +743,13 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.webdav.allow_self_signed_tls",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow self-signed/unverifiable TLS certificates for WebDAV backup transport (v2 new feature, no v1 source)"
     }
   ]
 }
