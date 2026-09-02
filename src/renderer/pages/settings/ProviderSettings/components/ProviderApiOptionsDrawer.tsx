@@ -1,13 +1,29 @@
-import { Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Input,
+  PageSidePanelItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import {
   ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
-  ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD
+  ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
+  ANTHROPIC_CACHE_DEFAULT_TTL
 } from '@shared/ai/anthropicCache'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { EndpointDialect, Provider } from '@shared/data/types/provider'
+import {
+  ANTHROPIC_CACHE_TTL_OPTIONS,
+  type AnthropicCacheTtl,
+  type EndpointDialect,
+  type Provider
+} from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -33,6 +49,10 @@ interface ApiOption {
 
 const CACHE_TOKEN_THRESHOLD_MAX = 100000
 const CACHE_LAST_N_MAX = 10
+const CACHE_TTL_LABELS = {
+  '5m': 'settings.provider.api.options.anthropic_cache.cache_ttl_5m',
+  '1h': 'settings.provider.api.options.anthropic_cache.cache_ttl_1h'
+} as const satisfies Record<AnthropicCacheTtl, string>
 
 function clampInteger(value: string, min: number, max: number): number {
   const parsed = Number(value)
@@ -76,6 +96,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const cacheTokenThreshold =
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
   const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
+  const cacheTtl = cacheControl?.ttl ?? ANTHROPIC_CACHE_DEFAULT_TTL
   const [tokenThresholdDraft, setTokenThresholdDraft] = useState(String(cacheTokenThreshold))
   const [cacheLastNDraft, setCacheLastNDraft] = useState(String(cacheLastNMessages))
   const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
@@ -271,6 +292,40 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
 
               {showCacheDetailOptions ? (
                 <>
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-ttl')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_ttl')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_ttl_help')}
+                      />
+                    }
+                    action={
+                      <Select
+                        value={cacheTtl}
+                        onValueChange={(ttl) =>
+                          updateCacheSettings({
+                            enabled: effectiveCacheTokenThreshold > 0,
+                            tokenThreshold: effectiveCacheTokenThreshold,
+                            ttl: ttl as AnthropicCacheTtl
+                          })
+                        }>
+                        <SelectTrigger
+                          id={apiOptionId(providerId, 'cache-ttl')}
+                          className={cn(drawerClasses.selectTrigger, 'h-9 w-32 shrink-0 py-1')}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent align="end" className={drawerClasses.selectContent}>
+                          {ANTHROPIC_CACHE_TTL_OPTIONS.map((ttl) => (
+                            <SelectItem key={ttl} value={ttl}>
+                              {t(CACHE_TTL_LABELS[ttl])}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    }
+                  />
+
                   <PageSidePanelItem
                     title={
                       <OptionTitle

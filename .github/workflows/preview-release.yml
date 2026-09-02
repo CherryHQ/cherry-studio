@@ -28,6 +28,7 @@ jobs:
     if: github.repository == 'CherryHQ/cherry-studio'
     runs-on: ubuntu-latest
     outputs:
+      asset_sha: ${{ steps.source.outputs.asset_sha }}
       branch_slug: ${{ steps.source.outputs.branch_slug }}
       preview_tag: ${{ steps.source.outputs.preview_tag }}
       short_sha: ${{ steps.source.outputs.short_sha }}
@@ -55,6 +56,7 @@ jobs:
 
           echo "branch_slug=$BRANCH_SLUG" >> "$GITHUB_OUTPUT"
           echo "preview_tag=preview-$BRANCH_SLUG-${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "asset_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
           echo "Resolved $BRANCH to $SOURCE_SHA"
@@ -63,6 +65,7 @@ jobs:
     name: Build preview ${{ matrix.edition }} (${{ matrix.os }})
     needs: resolve
     runs-on: ${{ matrix.os }}
+    environment: release
     strategy:
       fail-fast: false
       matrix:
@@ -115,7 +118,7 @@ jobs:
         shell: bash
         run: |
           BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
-          PREVIEW_VERSION="$BASE_VERSION-preview.g${{ needs.resolve.outputs.short_sha }}"
+          PREVIEW_VERSION="$BASE_VERSION-preview-${{ needs.resolve.outputs.asset_sha }}"
           npm version "$PREVIEW_VERSION" --no-git-tag-version --allow-same-version --ignore-scripts
           echo "Building preview version $PREVIEW_VERSION from ${{ needs.resolve.outputs.source_sha }}"
 
@@ -134,7 +137,17 @@ jobs:
           pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
         env:
           CSC_FOR_PULL_REQUEST: true
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+          MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+          RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+          RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'

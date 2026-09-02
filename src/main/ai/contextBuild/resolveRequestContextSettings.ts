@@ -1,11 +1,12 @@
 import { application } from '@application'
 import type { ContextSettingsOverride, EffectiveContextSettings } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
+import { clampThresholdPercent } from '@shared/utils/contextSettings'
 
 import { type CompressionModelDescriptor, resolveCompressionModel } from './resolveCompressionModel'
 import { resolveContextSettings } from './resolveContextSettings'
 
-/** The global layer: the four `chat.context_settings.*` preferences. Shared
+/** The global layer: the `chat.context_settings.*` preferences. Shared
  *  with the persist-time trimmer so both lanes resolve identically. */
 export function resolveGlobalContextSettings(): EffectiveContextSettings {
   const prefs = application.get('PreferenceService')
@@ -15,7 +16,10 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
     maxMessages: prefs.get('chat.context_settings.max_messages'),
     compress: {
       enabled: prefs.get('chat.context_settings.compress.enabled'),
-      modelId: prefs.get('chat.context_settings.compress.model_id')
+      modelId: prefs.get('chat.context_settings.compress.model_id'),
+      // The generated preference schema carries no min/max, so a hand-edited
+      // config could park the trigger at 0 and compact on every step.
+      thresholdPercent: clampThresholdPercent(prefs.get('chat.context_settings.compress.threshold_percent'))
     }
   }
 }

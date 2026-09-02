@@ -757,6 +757,11 @@
       "value": "vi-VN",
       "flag": "🇻🇳",
       "label": "Tiếng Việt"
+    },
+    {
+      "value": "tr-TR",
+      "flag": "🇹🇷",
+      "label": "Türkçe"
     }
   ],
   "agents": {
@@ -800,7 +805,8 @@
         "maxMessages": null,
         "compress": {
           "enabled": true,
-          "modelId": null
+          "modelId": null,
+          "thresholdPercent": 80
         }
       },
       "limits": {

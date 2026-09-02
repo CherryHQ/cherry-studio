@@ -1,17 +1,9 @@
 name: Release
-run-name: Release ${{ inputs.operation }} ${{ inputs.platform }} ${{ github.ref_name }} @ ${{ github.sha }}
+run-name: Release build ${{ inputs.platform }} ${{ github.ref_name }} @ ${{ github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
-      operation:
-        description: "Release operation"
-        required: true
-        default: "build"
-        type: choice
-        options:
-          - build
-          - publish
       platform:
         description: "Build platform"
         required: true
@@ -22,6 +14,10 @@ on:
           - windows
           - mac
           - linux
+      expected_sha:
+        description: "Expected commit for automatic dispatches; leave empty for manual runs"
+        required: false
+        type: string
 
 concurrency:
   group: release-state
@@ -41,6 +37,17 @@ jobs:
       remote-tag-sha: ${{ steps.release-state.outputs.remote-tag-sha }}
       tag: ${{ steps.release-ref.outputs.tag }}
     steps:
+      - name: Verify automatically selected release commit
+        if: inputs.expected_sha != ''
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          if [ "$GITHUB_SHA" != "$EXPECTED_SHA" ]; then
+            echo "Release branch moved from automatic selection $EXPECTED_SHA to $GITHUB_SHA" >&2
+            exit 1
+          fi
+
       - name: Check out release commit
         uses: actions/checkout@v7
         with:
@@ -106,15 +113,10 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          OPERATION: ${{ github.event.inputs.operation }}
           REPO: ${{ github.repository }}
           TAG: ${{ steps.release-ref.outputs.tag }}
         run: |
           BRANCH="$GITHUB_REF_NAME"
-          if [ "$OPERATION" = "publish" ]; then
-            exit 0
-          fi
-
           RELEASE_PAGES="$(gh api --paginate --slurp "repos/$REPO/releases?per_page=100")"
           RELEASE="$(jq -c --arg tag "$TAG" '
             [.[][] | select(.tag_name == $tag)] |
@@ -132,102 +134,9 @@ jobs:
           WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-start
 
-  publish-release:
-    name: Publish validated release
-    needs: prepare
-    if: github.event.inputs.operation == 'publish'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Check out release commit without credentials
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: ${{ github.sha }}
-
-      - name: Validate and publish current draft
-        shell: bash
-        env:
-          BRANCH: ${{ github.ref_name }}
-          GH_TOKEN: ${{ secrets.TOKEN_GITHUB_WRITE }}
-          REPO: ${{ github.repository }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          git fetch origin "refs/heads/main:refs/remotes/origin/main"
-
-          collect_pending_hotfixes() {
-            local main_sha="$1" fork_point hotfix_prs pending merge_sha pr_json
-            fork_point="$(git merge-base "$GITHUB_SHA" "$main_sha")"
-            hotfix_prs="$(gh pr list --repo "$REPO" --base main --state merged --limit 1000 --json labels,mergeCommit,title,url)"
-            pending=""
-
-            while IFS= read -r pr_json; do
-              if ! jq -e '
-                (.title | test("^hotfix(\\([a-z0-9]+(-[a-z0-9]+)*\\))?: \\S")) or
-                any(.labels[]; .name == "hotfix")
-              ' <<< "$pr_json" >/dev/null; then
-                continue
-              fi
-              merge_sha="$(jq -r '.mergeCommit.oid // ""' <<< "$pr_json")"
-              if [ -z "$merge_sha" ] || [ "$merge_sha" = "$fork_point" ]; then
-                continue
-              fi
-              if ! git merge-base --is-ancestor "$fork_point" "$merge_sha" || \
-                 ! git merge-base --is-ancestor "$merge_sha" "$main_sha"; then
-                continue
-              fi
-              if ! jq -e --arg label "backported/$TAG" 'any(.labels[]; .name == $label)' <<< "$pr_json" >/dev/null; then
-                pending+="${pending:+$'\n'}$(jq -r '.url' <<< "$pr_json")"
-              fi
-            done < <(jq -c '.[]' <<< "$hotfix_prs")
-
-            printf '%s' "$pending"
-          }
-
-          HOTFIX_CUTOFF_SHA="$(git rev-parse origin/main)"
-          RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
-          RELEASE_ID="$(jq -r '.id' <<< "$RELEASE")"
-          TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
-          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
-          OPEN_RELEASE_PRS="$(gh pr list --repo "$REPO" --base "$BRANCH" --state open --limit 1000 --json url --jq '.[].url')"
-          PENDING_HOTFIXES="$(collect_pending_hotfixes "$HOTFIX_CUTOFF_SHA")"
-          EXPECTED_BUILD="Release build all $BRANCH @ $GITHUB_SHA"
-          RELEASE_RUNS="$(gh api --paginate --slurp "repos/$REPO/actions/workflows/release.yml/runs?head_sha=$GITHUB_SHA&event=workflow_dispatch&status=completed&per_page=100")"
-          BUILD_RUN="$(jq -c --arg title "$EXPECTED_BUILD" '
-            [.[] | .workflow_runs[] | select(
-              .display_title == $title and
-              .head_sha == env.GITHUB_SHA and
-              .event == "workflow_dispatch" and
-              .status == "completed" and
-              .conclusion == "success"
-            )][0] // empty
-          ' <<< "$RELEASE_RUNS")"
-          BRANCH_SHA="$BRANCH_SHA" \
-          BUILD_RUN_JSON="$BUILD_RUN" \
-          EXPECTED_BUILD_TITLE="$EXPECTED_BUILD" \
-          OPEN_RELEASE_PULL_REQUESTS="$OPEN_RELEASE_PRS" \
-          PENDING_HOTFIXES="$PENDING_HOTFIXES" \
-          RELEASE_JSON="$RELEASE" \
-          TAG="$TAG" \
-          TAG_SHA="$TAG_SHA" \
-          WORKFLOW_SHA="$GITHUB_SHA" \
-            node scripts/release/validate-release-state.js publish
-
-          echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"
-          gh release edit "$TAG" --repo "$REPO" --draft=false --verify-tag
-          if [ "$(gh api "repos/$REPO/releases/$RELEASE_ID" --jq '.draft')" != "false" ]; then
-            echo "Release $TAG was not published" >&2
-            exit 1
-          fi
-
   release:
     name: Build ${{ matrix.edition }} (${{ matrix.os }})
     needs: prepare
-    if: github.event.inputs.operation == 'build'
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -389,7 +298,6 @@ jobs:
   finalize-build:
     name: Update draft release
     needs: [prepare, release]
-    if: github.event.inputs.operation == 'build'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -437,12 +345,22 @@ jobs:
           BRANCH_SHA="$BRANCH_SHA" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
+      - name: Prepare bilingual release notes
+        shell: bash
+        run: |
+          node scripts/release/compose-release-body.js \
+            electron-builder.yml \
+            - \
+            "$RUNNER_TEMP/release-body.md"
+
       - name: Create or update draft release
+        id: draft-release
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifactErrorsFailBuild: true
           artifacts: "release-artifacts/*"
+          bodyFile: ${{ runner.temp }}/release-body.md
           commit: ${{ github.sha }}
           draft: true
           makeLatest: false
@@ -458,14 +376,14 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.draft-release.outputs.id }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
-          RELEASE="$(gh api "repos/$REPO/releases/tags/$TAG")"
+          RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
           BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-completion
-          echo "id=$(jq -r '.id' <<< "$RELEASE")" >> "$GITHUB_OUTPUT"
 
       - name: Move draft tag with lease after artifact upload
         shell: bash
@@ -475,7 +393,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PLATFORM: ${{ github.event.inputs.platform }}
           REPO: ${{ github.repository }}
-          RELEASE_ID: ${{ steps.uploaded-draft.outputs.id }}
+          RELEASE_ID: ${{ steps.draft-release.outputs.id }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
@@ -483,11 +401,15 @@ jobs:
           BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
             node scripts/release/validate-release-state.js build-completion
 
-          REMOTE_TAG_SHA="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+          REMOTE_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
           if [ "$PLATFORM" = "all" ]; then
             if [ -z "$EXPECTED_TAG_SHA" ]; then
-              if [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
-                echo "The newly created tag moved away from $GITHUB_SHA during artifact upload" >&2
+              if [ -z "$REMOTE_TAG_SHA" ]; then
+                gh api --method POST "repos/$REPO/git/refs" \
+                  -f ref="refs/tags/$TAG" \
+                  -f sha="$GITHUB_SHA" >/dev/null
+              elif [ "$REMOTE_TAG_SHA" != "$GITHUB_SHA" ]; then
+                echo "Tag $TAG was created at $REMOTE_TAG_SHA during artifact upload" >&2
                 exit 1
               fi
             elif [ "$REMOTE_TAG_SHA" != "$EXPECTED_TAG_SHA" ]; then
@@ -521,11 +443,43 @@ jobs:
             exit 1
           fi
 
-          if [ "$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.sha')" != "$GITHUB_SHA" ]; then
+          FINAL_TAG_SHA="$(git ls-remote origin "refs/tags/$TAG" | awk 'NR == 1 { print $1 }')"
+          if [ "$FINAL_TAG_SHA" != "$GITHUB_SHA" ]; then
             echo "Tag $TAG does not point to $GITHUB_SHA after draft finalization" >&2
             exit 1
           fi
-          if [ "$(gh api "repos/$REPO/releases/$RELEASE_ID" --jq '.draft')" != "true" ]; then
+          FINAL_RELEASE="$(gh api "repos/$REPO/releases/$RELEASE_ID")"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$FINAL_RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
+          if [ "$(jq -r '.draft' <<< "$FINAL_RELEASE")" != "true" ]; then
             echo "Release $TAG was published while the build was finalizing" >&2
+            exit 1
+          fi
+
+      - name: Add generated changes to release notes
+        shell: bash
+        env:
+          BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.draft-release.outputs.id }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh api --method POST "repos/$REPO/releases/generate-notes" \
+            -f tag_name="$TAG" \
+            --jq '.body' > "$RUNNER_TEMP/generated-release-notes.md"
+          node scripts/release/compose-release-body.js \
+            electron-builder.yml \
+            "$RUNNER_TEMP/generated-release-notes.md" \
+            "$RUNNER_TEMP/release-body.md"
+          jq -Rs '{body: .}' < "$RUNNER_TEMP/release-body.md" > "$RUNNER_TEMP/release-body.json"
+          RELEASE="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
+            --input "$RUNNER_TEMP/release-body.json")"
+          BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"
+          BRANCH_SHA="$BRANCH_SHA" RELEASE_JSON="$RELEASE" TAG="$TAG" WORKFLOW_SHA="$GITHUB_SHA" \
+            node scripts/release/validate-release-state.js build-completion
+          if [ -z "$(jq -r '.body // empty' <<< "$RELEASE")" ]; then
+            echo "Draft release $TAG has no release notes" >&2
             exit 1
           fi
