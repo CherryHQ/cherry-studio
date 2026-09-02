@@ -75,6 +75,40 @@ function orderScopeForStatus(status: MiniAppStatus) {
   return isVisibleStatus(status) ? inArray(miniAppTable.status, visibleStatusValues) : eq(miniAppTable.status, status)
 }
 
+function movesPreserveCurrentOrder(
+  tx: DbOrTx,
+  status: MiniAppStatus,
+  moves: ReadonlyArray<{ id: string; anchor: OrderRequest }>
+): boolean {
+  const currentIds = tx
+    .select({ appId: miniAppTable.appId })
+    .from(miniAppTable)
+    .where(orderScopeForStatus(status))
+    .orderBy(asc(miniAppTable.orderKey))
+    .all()
+    .map((row) => row.appId)
+  const nextIds = [...currentIds]
+
+  for (const move of moves) {
+    const currentIndex = nextIds.indexOf(move.id)
+    if (currentIndex < 0) return false
+    nextIds.splice(currentIndex, 1)
+
+    let targetIndex: number
+    if ('position' in move.anchor) {
+      targetIndex = move.anchor.position === 'first' ? 0 : nextIds.length
+    } else {
+      const anchorId = 'before' in move.anchor ? move.anchor.before : move.anchor.after
+      const anchorIndex = nextIds.indexOf(anchorId)
+      if (anchorIndex < 0) return false
+      targetIndex = 'before' in move.anchor ? anchorIndex : anchorIndex + 1
+    }
+    nextIds.splice(targetIndex, 0, move.id)
+  }
+
+  return currentIds.every((id, index) => nextIds[index] === id)
+}
+
 function statusOrderKeyForTransition(
   tx: DbOrTx,
   appId: string,
@@ -324,6 +358,18 @@ export class MiniAppService {
             .all()
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
+          const orderIsReplay =
+            dto.order !== undefined &&
+            dto.status !== undefined &&
+            existing.status === dto.status &&
+            movesPreserveCurrentOrder(tx, dto.status, [{ id: appId, anchor: dto.order }])
+          if (dto.order !== undefined && existing.status === dto.status && !orderIsReplay) {
+            throw DataApiErrorFactory.validation(
+              { order: ['order requires a status change'] },
+              'Use the order endpoint when status is unchanged'
+            )
+          }
+
           if (existing.kind === 'app' && IDENTITY_FIELDS.some((k) => dto[k] !== undefined)) {
             throw DataApiErrorFactory.invalidOperation(
               `update miniapp ${appId}`,
@@ -370,7 +416,7 @@ export class MiniAppService {
           // A model-only PATCH touched the installation row alone; an empty SET is a Drizzle error.
           if (Object.keys(updates).length === 0) return existing
           const [updated] = tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning().all()
-          if (dto.order === undefined || dto.status === undefined) return updated
+          if (dto.order === undefined || dto.status === undefined || orderIsReplay) return updated
 
           applyMoves(tx, miniAppTable, [{ id: appId, anchor: dto.order }], {
             pkColumn: miniAppTable.appId,
@@ -396,6 +442,7 @@ export class MiniAppService {
         application.get('DbService').withWriteTx((tx) => {
           const visibleMoves: Array<{ id: string; anchor: OrderRequest }> = []
           const disabledMoves: Array<{ id: string; anchor: OrderRequest }> = []
+          const existingById = new Map<string, { status: MiniAppStatus; orderKey: string }>()
 
           for (const update of updates) {
             const [existing] = tx
@@ -405,6 +452,38 @@ export class MiniAppService {
               .limit(1)
               .all()
             if (!existing) throw DataApiErrorFactory.notFound('MiniApp', update.appId)
+            existingById.set(update.appId, existing)
+          }
+
+          const hasSameStatusOrder = updates.some(
+            (update) => update.order !== undefined && existingById.get(update.appId)?.status === update.status
+          )
+          if (hasSameStatusOrder) {
+            const isReplay =
+              updates.every((update) => existingById.get(update.appId)?.status === update.status) &&
+              movesPreserveCurrentOrder(
+                tx,
+                'enabled',
+                updates
+                  .filter((update) => update.order !== undefined && isVisibleStatus(update.status))
+                  .map((update) => ({ id: update.appId, anchor: update.order! }))
+              ) &&
+              movesPreserveCurrentOrder(
+                tx,
+                'disabled',
+                updates
+                  .filter((update) => update.order !== undefined && !isVisibleStatus(update.status))
+                  .map((update) => ({ id: update.appId, anchor: update.order! }))
+              )
+            if (isReplay) return
+            throw DataApiErrorFactory.validation(
+              { order: ['order requires a status change'] },
+              'Use the order endpoint when status is unchanged'
+            )
+          }
+
+          for (const update of updates) {
+            const existing = existingById.get(update.appId)!
             const orderKey =
               existing.status !== update.status && update.order === undefined
                 ? statusOrderKeyForTransition(tx, update.appId, existing, update.status)
