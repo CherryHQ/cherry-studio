@@ -1,19 +1,19 @@
 import { application } from '@application'
-import { type CherryCloudSessionRow, cherryCloudSessionTable } from '@data/db/schemas/cherryCloudSession'
+import { type CherryAccountSessionRow, cherryAccountSessionTable } from '@data/db/schemas/cherryAccountSession'
 import { eq } from 'drizzle-orm'
 
 const CURRENT_SESSION_ID = 'current'
 
-export type CherryCloudSession = Omit<CherryCloudSessionRow, 'createdAt' | 'id' | 'updatedAt'>
+export type CherryAccountSession = Omit<CherryAccountSessionRow, 'createdAt' | 'id' | 'updatedAt'>
 
-export class CherryCloudSessionService {
-  get(): CherryCloudSession | null {
+export class CherryAccountSessionService {
+  get(): CherryAccountSession | null {
     const row = application
       .get('DbService')
       .getDb()
       .select()
-      .from(cherryCloudSessionTable)
-      .where(eq(cherryCloudSessionTable.id, CURRENT_SESSION_ID))
+      .from(cherryAccountSessionTable)
+      .where(eq(cherryAccountSessionTable.id, CURRENT_SESSION_ID))
       .get()
 
     if (!row) return null
@@ -31,13 +31,13 @@ export class CherryCloudSessionService {
     }
   }
 
-  replace(session: CherryCloudSession): void {
+  replace(session: CherryAccountSession): void {
     application
       .get('DbService')
       .getDb()
-      .insert(cherryCloudSessionTable)
+      .insert(cherryAccountSessionTable)
       .values({ id: CURRENT_SESSION_ID, ...session })
-      .onConflictDoUpdate({ target: cherryCloudSessionTable.id, set: session })
+      .onConflictDoUpdate({ target: cherryAccountSessionTable.id, set: session })
       .run()
   }
 
@@ -45,10 +45,10 @@ export class CherryCloudSessionService {
     application
       .get('DbService')
       .getDb()
-      .delete(cherryCloudSessionTable)
-      .where(eq(cherryCloudSessionTable.id, CURRENT_SESSION_ID))
+      .delete(cherryAccountSessionTable)
+      .where(eq(cherryAccountSessionTable.id, CURRENT_SESSION_ID))
       .run()
   }
 }
 
-export const cherryCloudSessionService = new CherryCloudSessionService()
+export const cherryAccountSessionService = new CherryAccountSessionService()

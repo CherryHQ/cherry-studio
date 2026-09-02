@@ -27,8 +27,8 @@ vi.mock('@data/services/ModelService', () => ({
   }
 }))
 
-vi.mock('@data/services/CherryCloudSessionService', () => ({
-  cherryCloudSessionService: {
+vi.mock('@data/services/CherryAccountSessionService', () => ({
+  cherryAccountSessionService: {
     get: () => mocks.savedSession,
     replace: (session: Record<string, unknown>) => {
       mocks.sessionReplace(session)

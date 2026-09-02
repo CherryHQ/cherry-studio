@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { cherryCloudSessionService } from '@data/services/CherryCloudSessionService'
+import { cherryAccountSessionService } from '@data/services/CherryAccountSessionService'
 import { createManagedModelWriter, modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -812,7 +812,7 @@ export class CherryCloudService extends BaseService {
     const currentSession = this.cloudState.session
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
 
-    cherryCloudSessionService.clear()
+    cherryAccountSessionService.clear()
     this.invalidateModelSync()
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
@@ -899,7 +899,7 @@ export class CherryCloudService extends BaseService {
   }
 
   private async restoreSession(): Promise<void> {
-    const stored = cherryCloudSessionService.get()
+    const stored = cherryAccountSessionService.get()
     if (!stored) return
 
     this.cloudState = {
@@ -922,7 +922,7 @@ export class CherryCloudService extends BaseService {
   }
 
   private persistSession(device: CherryCloudDevice, session: ProductSession): void {
-    cherryCloudSessionService.replace({
+    cherryAccountSessionService.replace({
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
       accessExpiresAt: session.accessExpiresAt,
