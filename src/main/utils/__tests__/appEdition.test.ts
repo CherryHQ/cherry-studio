@@ -12,14 +12,15 @@ vi.mock('node:fs', async (importOriginal) => ({
   readFileSync: readFileSyncMock
 }))
 
-import { getAppEdition } from '../appEdition'
-
 const setPackaged = (value: boolean) => {
   ;(app as { isPackaged: boolean }).isPackaged = value
 }
 
+const loadGetAppEdition = async () => (await import('../appEdition')).getAppEdition
+
 describe('getAppEdition', () => {
   beforeEach(() => {
+    vi.resetModules()
     readFileSyncMock.mockReset()
     setPackaged(false)
     vi.stubEnv('CHERRY_EDITION', '')
@@ -33,38 +34,53 @@ describe('getAppEdition', () => {
     ['legacy package metadata', {}, 'global'],
     ['global package metadata', { cherryEdition: 'global' }, 'global'],
     ['China package metadata', { cherryEdition: 'cn' }, 'cn']
-  ])('reads %s', (_label, packageMetadata, expected) => {
+  ])('reads %s', async (_label, packageMetadata, expected) => {
     readFileSyncMock.mockReturnValue(JSON.stringify(packageMetadata))
 
+    const getAppEdition = await loadGetAppEdition()
     expect(getAppEdition()).toBe(expected)
   })
 
-  it('uses the development edition override', () => {
+  it('uses the development edition override', async () => {
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'global' }))
     vi.stubEnv('CHERRY_EDITION', 'cn')
 
+    const getAppEdition = await loadGetAppEdition()
     expect(getAppEdition()).toBe('cn')
   })
 
-  it('ignores the development override in packaged builds', () => {
+  it('ignores the development override in packaged builds', async () => {
     setPackaged(true)
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'global' }))
     vi.stubEnv('CHERRY_EDITION', 'cn')
 
+    const getAppEdition = await loadGetAppEdition()
     expect(getAppEdition()).toBe('global')
   })
 
-  it('rejects an unsupported development edition', () => {
+  it('rejects an unsupported development edition', async () => {
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'global' }))
     vi.stubEnv('CHERRY_EDITION', 'enterprise')
 
+    const getAppEdition = await loadGetAppEdition()
     expect(() => getAppEdition()).toThrow('Unsupported application edition: enterprise')
   })
 
-  it('rejects an unsupported package edition', () => {
+  it('rejects an unsupported package edition', async () => {
     setPackaged(true)
     readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'enterprise' }))
 
+    const getAppEdition = await loadGetAppEdition()
     expect(() => getAppEdition()).toThrow('Unsupported application edition: enterprise')
+  })
+
+  it('reads immutable application metadata only once per process', async () => {
+    setPackaged(true)
+    readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn' }))
+    const getAppEdition = await loadGetAppEdition()
+
+    expect(getAppEdition()).toBe('cn')
+    expect(getAppEdition()).toBe('cn')
+    expect(readFileSyncMock).toHaveBeenCalledTimes(1)
   })
 })

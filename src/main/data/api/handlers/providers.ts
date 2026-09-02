@@ -25,18 +25,9 @@ import {
 } from '@shared/data/api/schemas/providers'
 import type { HandlersFor } from '@shared/data/api/types'
 import type { Provider } from '@shared/data/types/provider'
-import type { AppEdition } from '@shared/types/appEdition'
-
-// Main-process consumers keep raw access; DataApi is the renderer availability boundary.
-let cachedAppEdition: AppEdition | undefined
-
-function getCurrentAppEdition(): AppEdition {
-  cachedAppEdition ??= getAppEdition()
-  return cachedAppEdition
-}
 
 function requireAvailableProvider(provider: Provider): Provider {
-  if (!isProviderAvailableInEdition(provider, getCurrentAppEdition())) {
+  if (!isProviderAvailableInEdition(provider, getAppEdition())) {
     throw DataApiErrorFactory.notFound('Provider', provider.id)
   }
   return provider
@@ -46,7 +37,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
       const parsed = ListProvidersQuerySchema.parse(query ?? {})
-      const edition = getCurrentAppEdition()
+      const edition = getAppEdition()
       return providerService.list(parsed).filter((provider) => isProviderAvailableInEdition(provider, edition))
     },
 

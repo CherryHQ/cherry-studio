@@ -14,7 +14,7 @@ function parseAppEdition(value: unknown): AppEdition {
   throw new Error(`Unsupported application edition: ${String(value)}`)
 }
 
-export function getAppEdition(): AppEdition {
+function resolveAppEdition(): AppEdition {
   const developmentEdition = process.env.CHERRY_EDITION?.trim().toLowerCase()
   if (!app.isPackaged && developmentEdition) {
     return parseAppEdition(developmentEdition)
@@ -25,4 +25,11 @@ export function getAppEdition(): AppEdition {
   }
 
   return parseAppEdition(packageMetadata.cherryEdition)
+}
+
+let cachedAppEdition: AppEdition | undefined
+
+export function getAppEdition(): AppEdition {
+  cachedAppEdition ??= resolveAppEdition()
+  return cachedAppEdition
 }
