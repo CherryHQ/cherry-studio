@@ -155,6 +155,18 @@ describe('KeyedMessageActivityStore', () => {
     expect(onUnrelatedMessageChange).not.toHaveBeenCalled()
   })
 
+  it('clears the previous stream status when a new topic has no status', () => {
+    const store = new KeyedMessageActivityStore()
+    const activeMessage = createMessage('message-1')
+
+    store.syncTopic('topic-1', ['message-1'], [], 'done')
+    expect(store.getSnapshot(activeMessage).isActiveTurnProcessing).toBe(false)
+
+    store.syncTopic('topic-2', ['message-1'], [], undefined)
+
+    expect(store.getSnapshot(activeMessage).isActiveTurnProcessing).toBe(true)
+  })
+
   it('re-renders only message subscribers whose derived state changed', () => {
     const store = new KeyedMessageActivityStore()
     const firstMessage = createMessage('message-1')

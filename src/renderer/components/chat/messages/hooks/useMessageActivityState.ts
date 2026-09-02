@@ -85,7 +85,7 @@ export class KeyedMessageActivityStore implements MessageActivityStore {
   update(
     activeMessageIds: Iterable<string>,
     approvalMessageIds: Iterable<string>,
-    topicStreamStatus = this.topicStreamStatus
+    topicStreamStatus?: TopicStreamStatus
   ) {
     const nextActiveMessageIds = new Set(activeMessageIds)
     const nextApprovalMessageIds = new Set(approvalMessageIds)

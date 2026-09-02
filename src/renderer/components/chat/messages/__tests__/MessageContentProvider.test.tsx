@@ -1,11 +1,21 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import MessageContent from '../frame/MessageContent'
 import { MessageContentProvider } from '../MessageContentProvider'
-import { useMessageListActions } from '../MessageListProvider'
+import { useMessageListActions, useMessageListItemActivityState } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
+
+const streamStatus = vi.hoisted(() => ({
+  status: 'awaiting-approval' as const,
+  activeExecutions: [] as Array<{ anchorMessageId: string }>,
+  awaitingApprovalAnchors: [{ anchorMessageId: 'message-1' }]
+}))
+
+vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
+  useTopicStreamStatus: () => streamStatus
+}))
 
 describe('MessageContentProvider', () => {
   const message: MessageListItem = {
@@ -63,5 +73,20 @@ describe('MessageContentProvider', () => {
     )
 
     expect(screen.getByText('platform-actions')).toBeInTheDocument()
+  })
+
+  it('preserves approval-waiting activity for standalone content', () => {
+    const Probe = () => {
+      const activity = useMessageListItemActivityState(message)
+      return <span>{`${activity.isProcessing}:${activity.isApprovalAnchor}:${activity.isActiveTurnProcessing}`}</span>
+    }
+
+    render(
+      <MessageContentProvider messages={[message]} partsByMessageId={partsByMessageId}>
+        <Probe />
+      </MessageContentProvider>
+    )
+
+    expect(screen.getByText('true:true:true')).toBeInTheDocument()
   })
 })
