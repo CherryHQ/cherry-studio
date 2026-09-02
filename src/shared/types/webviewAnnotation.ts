@@ -169,7 +169,8 @@ export const WebviewAnnotationLocaleSchema = z
     save: z.string().max(80),
     cancel: z.string().max(80),
     delete: z.string().max(80),
-    edit: z.string().max(80)
+    edit: z.string().max(80),
+    elementUnavailable: z.string().max(200)
   })
   .strict()
 

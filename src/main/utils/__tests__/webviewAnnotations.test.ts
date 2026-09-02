@@ -2,7 +2,7 @@ import {
   type WebviewAnnotationDocument,
   WebviewAnnotationSchema,
   type WebviewResolvedAnnotationDocument
-} from '@shared/types/webview'
+} from '@shared/types/webviewAnnotation'
 import { describe, expect, it } from 'vitest'
 
 import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../webviewAnnotations'

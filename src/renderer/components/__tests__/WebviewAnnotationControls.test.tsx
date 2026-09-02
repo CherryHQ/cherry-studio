@@ -2,7 +2,7 @@ import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand
-} from '@shared/types/webview'
+} from '@shared/types/webviewAnnotation'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
 import type { ReactNode } from 'react'

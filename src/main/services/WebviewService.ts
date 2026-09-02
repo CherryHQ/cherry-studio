@@ -17,12 +17,12 @@ import {
   type WebviewAnnotationTarget,
   type WebviewResolvedAnnotation,
   type WebviewResolvedAnnotationDocument
-} from '@shared/types/webview'
+} from '@shared/types/webviewAnnotation'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
-import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '@shared/utils/webviewAnnotations'
+import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../utils/webviewAnnotations'
 
 const logger = loggerService.withContext('WebviewService')
 /** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
@@ -388,7 +388,7 @@ export class WebviewService extends BaseService {
     this.setAnnotationRegistry(registry)
   }
 
-  listAnnotations(targetId?: string): WebviewAnnotationDocument[] {
+  private listAnnotations(): WebviewAnnotationDocument[] {
     const registry = { ...this.getAnnotationRegistry() }
     let changed = false
 
@@ -401,9 +401,7 @@ export class WebviewService extends BaseService {
     }
     if (changed) this.setAnnotationRegistry(registry)
 
-    return Object.values(registry)
-      .filter((document) => !targetId || document.target.id === targetId)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+    return Object.values(registry).sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   private enqueueAccessibilityCapture<T>(webviewId: number, task: () => Promise<T>): Promise<T> {
@@ -712,10 +710,6 @@ export class WebviewService extends BaseService {
     }
 
     return resolvedDocuments
-  }
-
-  async resolveAnnotationsWithAccessibility(targetId?: string): Promise<WebviewResolvedAnnotationDocument[]> {
-    return this.resolveStoredAnnotationDocuments(this.listAnnotations(targetId))
   }
 
   async getAnnotationsMarkdown(webviewId: number, senderId: WindowId | null): Promise<string> {

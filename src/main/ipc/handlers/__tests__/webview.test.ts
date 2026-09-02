@@ -12,9 +12,11 @@ vi.mock('electron', () => ({ webContents: { fromId: fromIdMock } }))
 
 import { webviewHandlers } from '../webview'
 
+const replaceAnnotations = vi.fn()
 const webviewService = {
   getAnnotationsMarkdown: vi.fn(),
   printWebviewToPDF: vi.fn(),
+  replaceAnnotations,
   saveWebviewAsHTML: vi.fn()
 }
 const setSpellCheckerEnabled = vi.fn()
@@ -59,6 +61,18 @@ describe('webviewHandlers', () => {
 
     expect(await webviewHandlers['webview.get_annotations_markdown']({ webviewId: 7 }, ctx)).toBe('# Annotations')
     expect(webviewService.getAnnotationsMarkdown).toHaveBeenCalledWith(7, 'w1')
+  })
+
+  it('replace_annotations forwards the complete snapshot and caller identity', async () => {
+    const input = {
+      webviewId: 7,
+      target: { id: 'mini-app:demo', label: 'Demo' },
+      annotations: []
+    }
+
+    await webviewHandlers['webview.replace_annotations'](input, ctx)
+
+    expect(replaceAnnotations).toHaveBeenCalledWith(input, 'w1')
   })
 
   it('save_as_html delegates and returns null on cancel', async () => {

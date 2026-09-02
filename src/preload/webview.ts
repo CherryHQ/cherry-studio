@@ -2,7 +2,7 @@ import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
   WebviewAnnotationHostCommandSchema
-} from '@shared/types/webview'
+} from '@shared/types/webviewAnnotation'
 import {
   isForwardableGuestKey,
   isHostOwnedGuestKey,
