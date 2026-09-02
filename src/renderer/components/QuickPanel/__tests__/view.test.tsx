@@ -798,6 +798,66 @@ describe('QuickPanelView', () => {
     expect(text).toBe(inserted)
   })
 
+  it('consumes a newly typed filter after an earlier keepOpenOnAction selection', async () => {
+    // Bug: editable MCP status panels stay open (keepOpenOnAction). consumeInputQueryOnce marks the
+    // first pick as consumed, so a later typed filter remains in the composer draft.
+    const firstAction = vi.fn()
+    const secondAction = vi.fn()
+    const tracked = createMutableTrackedInput('fs')
+    const items: QuickPanelListItem[] = [
+      {
+        id: 'mcp-status:filesystem',
+        label: 'filesystem',
+        icon: 'mcp',
+        action: firstAction,
+        keepOpenOnAction: true
+      },
+      {
+        id: 'mcp-status:browser',
+        label: 'browser',
+        icon: 'mcp',
+        action: secondAction,
+        keepOpenOnAction: true
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={tracked.inputAdapter}
+          items={items}
+          queryAnchor={0}
+          symbol="mcp-status"
+          title="MCP"
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('filesystem'))
+
+    expect(firstAction).toHaveBeenCalledTimes(1)
+    expect(tracked.deleteTriggerRange).toHaveBeenCalledTimes(1)
+    expect(tracked.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 2 })
+    expect(tracked.getText()).toBe('')
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+
+    act(() => {
+      tracked.setText('br')
+      tracked.emitInput()
+    })
+
+    fireEvent.click(await screen.findByText('browser'))
+
+    expect(secondAction).toHaveBeenCalledTimes(1)
+    expect(tracked.deleteTriggerRange).toHaveBeenCalledTimes(2)
+    expect(tracked.deleteTriggerRange).toHaveBeenLastCalledWith({ from: 0, to: 2 })
+    expect(tracked.getText()).toBe('')
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+  })
+
   it('does not consume composer text when the root tool panel is dismissed', async () => {
     // Bug: keepLiveFilter = trackInputQuery && type:button also matches the "+" root panel,
     // so Esc deleted real message draft typed while the menu was open.

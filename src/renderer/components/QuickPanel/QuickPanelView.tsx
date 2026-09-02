@@ -416,6 +416,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           inputTriggerConsumedRef.current = true
           consumeInputQuery()
         }
+      } else if (item.keepOpenOnAction) {
+        // Editable MCP status toggles stay open. Once would leave a later typed filter in the draft.
+        consumeInputQuery()
+        inputQueryConsumedRef.current = false
+        queryAnchorRef.current = inputAdapter?.getCursorOffset?.() ?? queryAnchor
+        setInputSearchText('')
       } else {
         consumeInputQueryOnce()
       }
