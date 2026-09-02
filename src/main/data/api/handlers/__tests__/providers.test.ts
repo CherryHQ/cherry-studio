@@ -14,7 +14,8 @@ const {
   deleteApiKeyMock,
   getProviderPresetMock,
   moveMock,
-  reorderMock
+  reorderMock,
+  getAppEditionMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
@@ -29,7 +30,12 @@ const {
   deleteApiKeyMock: vi.fn(),
   getProviderPresetMock: vi.fn(),
   moveMock: vi.fn(),
-  reorderMock: vi.fn()
+  reorderMock: vi.fn(),
+  getAppEditionMock: vi.fn(() => 'cn' as const)
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: getAppEditionMock
 }))
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
@@ -64,6 +70,19 @@ describe('providerHandlers', () => {
   })
 
   describe('/providers', () => {
+    it('returns only providers available in the application edition', async () => {
+      listMock.mockReturnValueOnce([
+        { id: 'global-only', supportedEditions: ['global'] },
+        { id: 'all-editions', supportedEditions: ['global', 'cn'] },
+        { id: 'custom' }
+      ])
+
+      const result = await providerHandlers['/providers'].GET({ query: {} } as never)
+
+      expect(result).toEqual([{ id: 'all-editions', supportedEditions: ['global', 'cn'] }, { id: 'custom' }])
+      expect(listMock).toHaveBeenCalledWith({})
+    })
+
     it('accepts a minimal create payload without DB-managed fields', async () => {
       createMock.mockReturnValueOnce({
         id: 'custom-provider',
@@ -107,6 +126,14 @@ describe('providerHandlers', () => {
   })
 
   describe('/providers/:providerId', () => {
+    it('does not expose a provider unavailable in the application edition', async () => {
+      getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', supportedEditions: ['global'] })
+
+      await expect(
+        providerHandlers['/providers/:providerId'].GET({ params: { providerId: 'global-only' } } as never)
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    })
+
     it('delegates PATCH to providerService.update with parsed body', async () => {
       const updated = { id: 'openai', isEnabled: true }
       updateMock.mockReturnValueOnce(updated)

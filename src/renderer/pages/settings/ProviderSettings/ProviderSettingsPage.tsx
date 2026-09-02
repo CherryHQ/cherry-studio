@@ -1,8 +1,7 @@
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
-import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
@@ -30,7 +29,6 @@ interface ProviderSettingsContentProps {
 }
 
 function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps) {
-  const appEdition = useAppEdition()
   const search = useSearch({ strict: false }) as ProviderSettingsSearch
   const navigate = useNavigate()
   const [lastSelectedProviderId, setLastSelectedProviderId] = usePersistCache(
@@ -43,14 +41,7 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
   const setLastSelectedProviderIdRef = useRef(setLastSelectedProviderId)
 
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
-  const visibleProviders = useMemo(
-    () =>
-      providers.filter(
-        (provider) =>
-          isProviderSettingsListVisibleProvider(provider) && isProviderAvailableInEdition(provider, appEdition)
-      ),
-    [appEdition, providers]
-  )
+  const visibleProviders = useMemo(() => providers.filter(isProviderSettingsListVisibleProvider), [providers])
   const filterModeHint = search.filter === 'agent' ? 'agent' : undefined
 
   useEffect(() => {

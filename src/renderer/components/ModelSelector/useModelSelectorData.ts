@@ -1,11 +1,10 @@
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
-import { useAppEdition } from '@renderer/hooks/useAppEdition'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getSearchMatchScore } from '@renderer/utils/model'
-import { isProviderAvailableInEdition, isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isExternalCliProvider } from '@shared/utils/provider'
@@ -98,14 +97,7 @@ export function useModelSelectorData({
     togglePin
   } = usePins('model', { enabled })
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
-  const appEdition = useAppEdition()
-
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
-  const availableProviders = useMemo(
-    () => providers.filter((provider) => isProviderAvailableInEdition(provider, appEdition)),
-    [appEdition, providers]
-  )
-  const availableModels = models
 
   const baseModelFilter = useCallback(
     (model: Model, provider?: Provider) => filter?.(model, provider) ?? true,
@@ -119,13 +111,13 @@ export function useModelSelectorData({
   // A provider whose credentials come from an external CLI login carries no API
   // key and cannot serve a normal chat request — it is agent-only.
   const agentOnlyProviderIds = useMemo(
-    () => new Set(availableProviders.filter(isExternalCliProvider).map((p) => p.id)),
-    [availableProviders]
+    () => new Set(providers.filter(isExternalCliProvider).map((p) => p.id)),
+    [providers]
   )
 
   const sortedProviders = useMemo(
-    () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
-    [availableProviders, prioritizedProviderIds]
+    () => sortProvidersByPriority(providers, prioritizedProviderIds),
+    [prioritizedProviderIds, providers]
   )
 
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
@@ -134,7 +126,7 @@ export function useModelSelectorData({
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const grouped = new Map<string, Model[]>()
 
-    for (const model of availableModels) {
+    for (const model of models) {
       const provider = providerById.get(model.providerId)
       if (!provider || !baseModelFilter(model, provider)) {
         continue
@@ -153,7 +145,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {

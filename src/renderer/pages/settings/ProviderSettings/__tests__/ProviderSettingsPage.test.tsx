@@ -9,14 +9,7 @@ import ProviderSettingsPage from '../ProviderSettingsPage'
 
 const navigateMock = vi.fn()
 const useProvidersMock = vi.fn()
-const { appEditionMocks } = vi.hoisted(() => ({
-  appEditionMocks: { edition: 'global' as 'global' | 'cn' }
-}))
 let searchMock: Record<string, string | undefined> = {}
-
-vi.mock('@renderer/hooks/useAppEdition', () => ({
-  useAppEdition: () => appEditionMocks.edition
-}))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => useProvidersMock(...args)
@@ -90,7 +83,6 @@ describe('ProviderSettingsPage', () => {
       error: undefined,
       refetch: vi.fn().mockResolvedValue(undefined)
     })
-    appEditionMocks.edition = 'global'
   })
 
   it('shows loading state without mounting the provider list', () => {
@@ -213,13 +205,11 @@ describe('ProviderSettingsPage', () => {
     expect(screen.queryByText('provider-setting-cherryai')).not.toBeInTheDocument()
   })
 
-  it('falls back from a provider hidden in the current application edition', async () => {
-    appEditionMocks.edition = 'cn'
+  it('falls back when the remembered provider is no longer returned', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
     useProvidersMock.mockReturnValue({
       providers: [
-        { id: 'openai', name: 'OpenAI', isEnabled: true, supportedEditions: ['global'] },
-        { id: 'zhipu', name: 'ZhiPu', isEnabled: true, supportedEditions: ['global', 'cn'] },
+        { id: 'zhipu', name: 'ZhiPu', isEnabled: true },
         { id: 'custom-provider', name: 'Custom Provider', isEnabled: true }
       ],
       hasLoaded: true,

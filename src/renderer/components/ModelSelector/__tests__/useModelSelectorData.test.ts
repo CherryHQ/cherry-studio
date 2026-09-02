@@ -11,11 +11,6 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
-const appEditionMocks = vi.hoisted(() => ({ edition: 'global' as 'global' | 'cn' }))
-
-vi.mock('@renderer/hooks/useAppEdition', () => ({
-  useAppEdition: () => appEditionMocks.edition
-}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -104,7 +99,6 @@ beforeEach(() => {
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
-  appEditionMocks.edition = 'global'
 })
 
 describe('useModelSelectorData', () => {
@@ -144,31 +138,6 @@ describe('useModelSelectorData', () => {
     ])
     expect(result.current.modelItems.map((item) => item.modelId)).toEqual(['openai::gpt-4', 'anthropic::claude-3'])
     expect(result.current.selectableModelsById.has('google::gemini-pro')).toBe(false)
-  })
-
-  it.each([
-    ['cn', ['zhipu::glm-4', 'custom::local-model']],
-    ['global', ['zhipu::glm-4', 'openai::gpt-4', 'custom::local-model']]
-  ] as const)('shows the providers available in the %s edition', (edition, expectedModelIds) => {
-    appEditionMocks.edition = edition
-    wireDeps({
-      providers: [
-        makeProvider('zhipu', { supportedEditions: ['global', 'cn'] }),
-        makeProvider('openai', { supportedEditions: ['global'] }),
-        makeProvider('custom')
-      ],
-      models: [makeModel('glm-4', 'zhipu'), makeModel('gpt-4', 'openai'), makeModel('local-model', 'custom')]
-    })
-
-    const { result } = renderHook(() =>
-      useModelSelectorData({
-        searchText: '',
-        selectedModelIds: ['zhipu::glm-4', 'openai::gpt-4', 'custom::local-model']
-      })
-    )
-
-    expect(result.current.modelItems.map((item) => item.modelId)).toEqual(expectedModelIds)
-    expect(result.current.resolvedSelectedModelIds).toEqual(expectedModelIds)
   })
 
   it.each(['cherryai', LOCAL_EMBEDDING_PROVIDER_ID])('hides the provider settings action for %s', (providerId) => {

@@ -8,6 +8,9 @@
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
+import { getAppEdition } from '@main/utils/appEdition'
+import { isProviderAvailableInEdition } from '@main/utils/providerEdition'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
@@ -21,12 +24,30 @@ import {
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 import type { HandlersFor } from '@shared/data/api/types'
+import type { Provider } from '@shared/data/types/provider'
+import type { AppEdition } from '@shared/types/appEdition'
+
+// Main-process consumers keep raw access; DataApi is the renderer availability boundary.
+let cachedAppEdition: AppEdition | undefined
+
+function getCurrentAppEdition(): AppEdition {
+  cachedAppEdition ??= getAppEdition()
+  return cachedAppEdition
+}
+
+function requireAvailableProvider(provider: Provider): Provider {
+  if (!isProviderAvailableInEdition(provider, getCurrentAppEdition())) {
+    throw DataApiErrorFactory.notFound('Provider', provider.id)
+  }
+  return provider
+}
 
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
       const parsed = ListProvidersQuerySchema.parse(query ?? {})
-      return providerService.list(parsed)
+      const edition = getCurrentAppEdition()
+      return providerService.list(parsed).filter((provider) => isProviderAvailableInEdition(provider, edition))
     },
 
     POST: async ({ body }) => {
@@ -37,7 +58,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
   '/providers/:providerId': {
     GET: async ({ params }) => {
-      return providerService.getByProviderId(params.providerId)
+      return requireAvailableProvider(providerService.getByProviderId(params.providerId))
     },
 
     PATCH: async ({ params, body }) => {
@@ -88,7 +109,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/preset': {
     GET: async ({ params, query }) => {
       const parsed = ProviderPresetQuerySchema.parse(query ?? {})
-      const provider = providerService.getByProviderId(params.providerId)
+      const provider = requireAvailableProvider(providerService.getByProviderId(params.providerId))
       const fields = Array.isArray(parsed.fields) ? parsed.fields : [parsed.fields]
       return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId ?? null)
     }
