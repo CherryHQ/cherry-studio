@@ -545,7 +545,7 @@ export function useHomeMessageListProviderValue({
 
         const filtered = partsForEdit.filter((_, index) => index !== resolved.index)
         const durableParts = isSyntheticFallback
-          ? [...filtered, { type: 'data-clear', data: { dismissedNoResponse: true } } as CherryMessagePart]
+          ? [...filtered, { type: 'data-clear', data: { dismissedNoResponse: true } } as unknown as CherryMessagePart]
           : filtered
 
         await requireChatWrite('removeMessageErrorPart').editMessage(messageId, durableParts)

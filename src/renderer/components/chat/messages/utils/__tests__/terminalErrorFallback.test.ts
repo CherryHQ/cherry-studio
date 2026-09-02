@@ -104,7 +104,7 @@ describe('withTerminalErrorFallback', () => {
   })
 
   it('does not add fallback when dismissed marker is present', () => {
-    const dismissed = { type: 'data-clear', data: { dismissedNoResponse: true } } as CherryMessagePart
+    const dismissed = { type: 'data-clear', data: { dismissedNoResponse: true } } as unknown as CherryMessagePart
     const messages = [makeMessage('m1', 'success', [dismissed])]
     const partsByMessageId = { m1: [dismissed] }
 

@@ -1,0 +1,1131 @@
+basic-checks	UNKNOWN STEP	﻿2026-09-01T08:47:33.2845256Z Current runner version: '2.337.0'
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2896624Z ##[group]Runner Image Provisioner
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2897647Z Hosted Compute Agent
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2898314Z Version: 20260819.586
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2899082Z Commit: 3cc4a88dfa507ef76119ad1bb3eccc6378bb2b76
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2899961Z Build Date: 2026-08-18T23:20:18Z
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2900990Z Worker ID: {8e05d3af-7cf4-442c-a0ca-f2028d381947}
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2901844Z Azure Region: eastus
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2902506Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2904356Z ##[group]Operating System
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2905184Z Ubuntu
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2905776Z 24.04.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2906353Z LTS
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2906911Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2907501Z ##[group]Runner Image
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2908241Z Image: ubuntu-24.04
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2908881Z Version: 20260823.283.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2910253Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260823.283/images/ubuntu/Ubuntu2404-Readme.md
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2912344Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260823.283
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2913501Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2914702Z ##[group]GITHUB_TOKEN Permissions
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2916943Z Contents: read
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2917604Z Metadata: read
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2918318Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2921073Z Secret source: None
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.2922508Z Prepare workflow directory
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.3318279Z Prepare all required actions
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.3366629Z Getting action download info
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.5907671Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.7148127Z Download action repository 'dorny/paths-filter@v4' (SHA:ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.8483761Z Download action repository 'actions/setup-node@v6' (SHA:249970729cb0ef3589644e2896645e5dc5ba9c38)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:33.9680735Z Download action repository 'pnpm/action-setup@v5' (SHA:fc06bc1257f339d1d5d8b3a19a8cae5388b55320)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.1468608Z Download action repository 'actions/cache@v5' (SHA:caa296126883cff596d87d8935842f9db880ef25)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.4724572Z Complete job name: basic-checks
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5888299Z ##[group]Run actions/checkout@v7
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5889662Z with:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5890666Z   fetch-depth: 2
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5891546Z   repository: CherryHQ/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5900876Z   token: ***
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5901697Z   ssh-strict: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5902507Z   ssh-user: git
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5903341Z   persist-credentials: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5904257Z   clean: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5905087Z   sparse-checkout-cone-mode: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5906080Z   fetch-tags: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5906909Z   show-progress: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5907753Z   lfs: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5908533Z   submodules: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5909373Z   set-safe-directory: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5910463Z   allow-unsafe-pr-checkout: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5911774Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5912510Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.5913244Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.7117355Z Syncing repository: CherryHQ/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.7120092Z ##[group]Getting Git version info
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.7121948Z Working directory is '/home/runner/work/cherry-studio/cherry-studio'
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:34.7124062Z [command]/usr/bin/git version
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2023324Z git version 2.55.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2047177Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2059155Z Temporarily overriding HOME='/home/runner/work/_temp/8db236ff-e482-4ff9-b810-15fd1d4a9e61' before making global git config changes
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2061852Z Adding repository directory to the temporary git global config as a safe directory
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2066041Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/cherry-studio/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2501044Z Deleting the contents of '/home/runner/work/cherry-studio/cherry-studio'
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2510739Z ##[group]Determining repository object format
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2521977Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2539001Z ##[group]Initializing the repository
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.2540650Z [command]/usr/bin/git init /home/runner/work/cherry-studio/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9986456Z hint: Using 'master' as the name for the initial branch. This default branch name
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9988181Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9993871Z hint: to use in all of your new repositories, which will suppress this warning,
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9994957Z hint: call:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9995665Z hint:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9996291Z hint: 	git config --global init.defaultBranch <name>
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9996913Z hint:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9997556Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9998514Z hint: 'development'. The just-created branch can be renamed via this command:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9999319Z hint:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:35.9999760Z hint: 	git branch -m <name>
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0000237Z hint:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0001134Z hint: Disable this message with "git config set advice.defaultBranchName false"
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0002281Z Initialized empty Git repository in /home/runner/work/cherry-studio/cherry-studio/.git/
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0008007Z [command]/usr/bin/git remote add origin https://github.com/CherryHQ/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0062395Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0062952Z ##[group]Disabling automatic garbage collection
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0067748Z [command]/usr/bin/git config --local gc.auto 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0110802Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0111717Z ##[group]Setting up auth
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0112327Z Removing SSH command configuration
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0113138Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.0143795Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1229743Z Removing HTTP extra header
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1236131Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1266285Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1476827Z Removing includeIf entries pointing to credentials config files
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1482846Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1513804Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1755262Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1795821Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git.path /home/runner/work/_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.1825025Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.2485380Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.3629010Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.3661100Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.3662243Z ##[group]Fetching the repository
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:36.3668615Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +4f41a91c1ca4c248bf31a291ee032873b815a522:refs/remotes/pull/18151/merge
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3644154Z From https://github.com/CherryHQ/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3646445Z  * [new ref]         4f41a91c1ca4c248bf31a291ee032873b815a522 -> pull/18151/merge
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3648792Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3649452Z ##[group]Determining the checkout info
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3650288Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3656870Z [command]/usr/bin/git sparse-checkout disable
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3708061Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3739397Z ##[group]Checking out the ref
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:39.3739849Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/18151/merge
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0205506Z Note: switching to 'refs/remotes/pull/18151/merge'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0206114Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0206485Z You are in 'detached HEAD' state. You can look around, make experimental
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0207352Z changes and commit them, and you can discard any commits you make in this
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0208262Z state without impacting any branches by switching back to a branch.
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0208768Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0209107Z If you want to create a new branch to retain commits you create, you may
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0209829Z do so (now or later) by using -c with the switch command. Example:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0210246Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0210745Z   git switch -c <new-branch-name>
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0211053Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0211217Z Or undo this operation with:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0211467Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0211610Z   git switch -
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0211858Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0212316Z Turn off this advice by setting config variable advice.detachedHead to false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0212850Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0213453Z HEAD is now at 4f41a91 Merge ff3691e71e838c4b317c2de8d52ee515dedc2a06 into 7aedb8807bbfa63ec5bbd35d7c023a56ca86e1b2
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0228457Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0289126Z [command]/usr/bin/git log -1 --format=%H
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0319593Z 4f41a91c1ca4c248bf31a291ee032873b815a522
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0540308Z ##[group]Run git update-ref "refs/remotes/origin/$BASE_REF" "$(git rev-parse HEAD^1)"
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0541282Z ^[[36;1mgit update-ref "refs/remotes/origin/$BASE_REF" "$(git rev-parse HEAD^1)"^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0583678Z shell: /usr/bin/bash -e {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0583952Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0584158Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0584364Z   BASE_REF: main
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0584584Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0792393Z ##[group]Run dorny/paths-filter@v4
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0792697Z with:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0793288Z   filters: data:
+basic-checks	UNKNOWN STEP	  - 'packages/provider-registry/data/**'
+basic-checks	UNKNOWN STEP	source:
+basic-checks	UNKNOWN STEP	  - 'packages/provider-registry/src/**'
+basic-checks	UNKNOWN STEP	  - 'packages/provider-registry/scripts/**'
+basic-checks	UNKNOWN STEP	
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0796264Z   token: ***
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0796480Z   list-files: none
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0796709Z   initial-fetch-depth: 100
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0796975Z   predicate-quantifier: some
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0797220Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0797402Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.0797596Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.1584846Z ##[group]Fetching list of changed files for PR#18151 from GitHub API
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.1593622Z Invoking listFiles(pull_number: 18151, per_page: 100)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4945102Z Received 13 items
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4945816Z [modified] src/main/ai/agentSession/AgentSessionRuntimeService.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4946926Z [modified] src/main/ai/agentSession/persistence/__tests__/AgentSessionMessageBackend.test.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4947846Z [modified] src/main/ai/streamManager/listeners/PersistenceListener.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4948499Z [modified] src/main/ai/streamManager/listeners/__tests__/PersistenceListener.test.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4949099Z [modified] src/main/ai/streamManager/persistence/PersistenceBackend.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4950077Z [added] src/renderer/components/chat/messages/utils/__tests__/terminalErrorFallback.test.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4951239Z [added] src/renderer/components/chat/messages/utils/terminalErrorFallback.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4951993Z [modified] src/renderer/components/composer/paste/__tests__/pasteHandling.test.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4952934Z [modified] src/renderer/components/composer/paste/pasteHandling.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4953516Z [modified] src/renderer/pages/agents/messages/agentMessageListAdapter.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4954135Z [modified] src/renderer/pages/home/messages/__tests__/homeMessageListAdapter.test.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4954747Z [modified] src/renderer/pages/home/messages/homeMessageListAdapter.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4955209Z [added] src/shared/data/messageRenderability.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4955877Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4956105Z Detected 13 changed files
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4956537Z Results:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4957351Z ##[group]Filter data = false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4957843Z Matching files: none
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4966143Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4966954Z ##[group]Filter source = false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4967544Z Matching files: none
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4968347Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.4968886Z Changes output set to []
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5319671Z ##[group]Run actions/setup-node@v6
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5319980Z with:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5320209Z   node-version-file: .node-version
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5320703Z   check-latest: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5323276Z   token: ***
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5323514Z   package-manager-cache: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5323779Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5323967Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.5324158Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.6640230Z Node version file is not JSON file
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.6642846Z Resolved .node-version as 24.11.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:40.6666479Z Attempting to download 24.11.1...
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:41.1529083Z Acquiring 24.11.1 - x64 from https://github.com/actions/node-versions/releases/download/24.11.1-19282993875/node-24.11.1-linux-x64.tar.gz
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:41.5951251Z Extracting ...
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:41.6080668Z [command]/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/c8ccd726-08b8-4d8f-af56-5685d726c2f7 -f /home/runner/work/_temp/ab95e388-6c7f-4586-ba20-e84084188310
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:42.8438847Z Adding to the cache ...
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:44.7974169Z ##[group]Environment details
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0182198Z node: v24.11.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0182602Z npm: 11.6.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0182918Z yarn: 1.22.22
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0183411Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0383861Z ##[group]Run pnpm/action-setup@v5
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0384156Z with:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0384364Z   dest: ~/setup-pnpm
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0384589Z   run_install: null
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0384798Z   cache: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0385024Z   cache_dependency_path: pnpm-lock.yaml
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0385319Z   package_json_file: package.json
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0385600Z   standalone: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0385811Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0386002Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.0386195Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.1848035Z ##[group]Running self-installer...
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.5995089Z (node:2323) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.5996677Z (Use `node --trace-deprecation ...` to show where the warning was created)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.7342024Z Progress: resolved 1, reused 0, downloaded 0, added 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.7429125Z Packages: +1
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:45.7429773Z +
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.0300225Z Progress: resolved 1, reused 0, downloaded 1, added 1, done
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1042520Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1043159Z dependencies:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1043890Z + pnpm 11.8.0 (11.25.0 is available)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1044196Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1221723Z Done in 757ms
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1388630Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1389267Z Installation Completed!
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1501443Z ##[group]Run echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1502021Z ^[[36;1mecho "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1540244Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1540831Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1541024Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1541290Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:46.1541612Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6034030Z ##[group]Run actions/cache/restore@v5
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6034375Z with:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6034657Z   path: /home/runner/setup-pnpm/node_modules/.bin/store/v11
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6035161Z   key: Linux-pnpm-a0b73169adb511680598e44dcd2848bde5706f91dbf9360644def4c3dd6d5712
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6035613Z   restore-keys: Linux-pnpm-
+basic-checks	UNKNOWN STEP	
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6035883Z   enableCrossOsArchive: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6036177Z   fail-on-cache-miss: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6036418Z   lookup-only: false
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6036632Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6036817Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6037068Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.6037391Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:47.7976552Z Cache hit for: Linux-pnpm-a0b73169adb511680598e44dcd2848bde5706f91dbf9360644def4c3dd6d5712
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:48.8482129Z Received 234881024 of 2080652918 (11.3%), 223.6 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:49.8428464Z Received 490733568 of 2080652918 (23.6%), 233.8 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:50.8430892Z Received 708837376 of 2080652918 (34.1%), 225.2 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:51.8442853Z Received 939524096 of 2080652918 (45.2%), 223.8 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:52.8745502Z Received 1207959552 of 2080652918 (58.1%), 229.0 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:53.8710026Z Received 1472200704 of 2080652918 (70.8%), 232.8 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:54.8752626Z Received 1698693120 of 2080652918 (81.6%), 230.4 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:55.8768457Z Received 1962934272 of 2080652918 (94.3%), 233.0 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:56.4526057Z Received 2080652918 of 2080652918 (100.0%), 230.4 MBs/sec
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:56.4528016Z Cache Size: ~1984 MB (2080652918 B)
+basic-checks	UNKNOWN STEP	2026-09-01T08:47:56.4644920Z [command]/usr/bin/tar -xf /home/runner/work/_temp/eaab3248-37e3-4c9a-8726-8f1932020635/cache.tzst -P -C /home/runner/work/cherry-studio/cherry-studio --use-compress-program unzstd
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.1285977Z Cache restored successfully
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2326482Z Cache restored from key: Linux-pnpm-a0b73169adb511680598e44dcd2848bde5706f91dbf9360644def4c3dd6d5712
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2508617Z ##[group]Run pnpm install
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2508931Z ^[[36;1mpnpm install^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2546504Z shell: /usr/bin/bash -e {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2546780Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2546979Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2547248Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.2547584Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:12.8192341Z Scope: all 7 workspace projects
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:13.0674631Z ? Verifying lockfile against supply-chain policies (2963 entries)...
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:13.2682902Z Lockfile is up to date, resolution step is skipped
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:13.5220208Z Progress: resolved 1, reused 0, downloaded 0, added 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:13.7687467Z Packages: +2703
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:13.7688417Z ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:14.5231663Z Progress: resolved 2703, reused 2077, downloaded 0, added 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:15.5300951Z Progress: resolved 2703, reused 2672, downloaded 0, added 39
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:16.5342556Z Progress: resolved 2703, reused 2672, downloaded 0, added 213
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:17.5592040Z Progress: resolved 2703, reused 2672, downloaded 0, added 383
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:18.5568228Z Progress: resolved 2703, reused 2672, downloaded 0, added 647
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:19.5573604Z Progress: resolved 2703, reused 2672, downloaded 0, added 960
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:20.5604200Z Progress: resolved 2703, reused 2672, downloaded 0, added 1175
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:21.5607915Z Progress: resolved 2703, reused 2672, downloaded 0, added 1545
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:22.5613316Z Progress: resolved 2703, reused 2672, downloaded 0, added 1833
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:23.5663995Z Progress: resolved 2703, reused 2672, downloaded 0, added 2068
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:24.5799413Z Progress: resolved 2703, reused 2672, downloaded 0, added 2327
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:25.5815548Z Progress: resolved 2703, reused 2672, downloaded 0, added 2590
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:26.1914946Z Progress: resolved 2703, reused 2672, downloaded 0, added 2703, done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:29.7763473Z ✓ Lockfile passes supply-chain policies (2963 entries in 16.7s)
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:29.8761605Z .../node_modules/protobufjs postinstall$ node scripts/postinstall
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:29.8762609Z .../node_modules/@swc/core postinstall$ node postinstall.js
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:29.9244819Z .../node_modules/msw postinstall$ node -e "import('./config/scripts/postinstall.js').catch(() => void 0)"
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:29.9487621Z .../node_modules/protobufjs postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:29.9512424Z .../node_modules/@swc/core postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.0058216Z .../node_modules/msw postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.0125040Z .../node_modules/@swc/core postinstall$ node postinstall.js
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.0339673Z .../node_modules/unrs-resolver postinstall$ node postinstall.js
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.0782013Z .../@paymoapp/electron-shutdown-handler install$ node install.js
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.0952400Z .../node_modules/@swc/core postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.1101977Z .../node_modules/selection-hook install$ node-gyp-build
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.1275794Z .../node_modules/unrs-resolver postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.1556530Z .../@paymoapp/electron-shutdown-handler install: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.2041934Z .../node_modules/msw postinstall$ node -e "import('./config/scripts/postinstall.js').catch(() => void 0)"
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.2262082Z .../.pnpm/koffi@3.1.4/node_modules/koffi install$ node ./cnoke.cjs -P . -D src/koffi --prebuild --release
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.2592218Z .../node_modules/node-pty install$ node scripts/prebuild.js || node-gyp rebuild
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.2791001Z .../node_modules/msw postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.2805567Z .../node_modules/selection-hook install: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3298809Z .../node_modules/node-pty install: ^[[32m> Checking prebuilds...^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3394424Z .../node_modules/node-pty install: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3422100Z .../node_modules/node-pty postinstall$ node scripts/post-install.js
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3562744Z .../.pnpm/koffi@3.1.4/node_modules/koffi install: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3801427Z .../node_modules/node-pty postinstall: ^[[32m> Cleaning release folder...^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3802837Z .../node_modules/node-pty postinstall: ^[[32m> Moving conpty.dll...^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3803661Z .../node_modules/node-pty postinstall:   SKIPPED (not Windows)
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.3821781Z .../node_modules/node-pty postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.5093861Z .../@deepseek-ai/dsh-subprocess-local postinstall$ node scripts/ensure-spawn-helper.mjs
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.5564610Z .../@deepseek-ai/dsh-subprocess-local postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9396546Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9397352Z dependencies:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9397992Z + @anthropic-ai/claude-agent-sdk 0.3.220
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9398969Z + @cherrystudio/dsh-bridge 0.0.1-alpha.1 <- packages/dsh-bridge
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9399748Z + @deepseek-ai/dsh-sdk-client 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9400661Z + @deepseek-ai/dsh-sdk-protocol 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9401333Z + @earendil-works/pi-ai 0.80.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9401931Z + @earendil-works/pi-coding-agent 0.80.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9402518Z + @firecrawl/anydoc 0.1.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9403065Z + @huggingface/transformers 4.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9403630Z + @larksuiteoapi/node-sdk 1.73.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9404108Z + @napi-rs/canvas 0.1.97
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9404552Z + @napi-rs/system-ocr 1.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9405625Z + @node-rs/xxhash 1.7.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9406210Z + @paymoapp/electron-shutdown-handler 1.1.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9406811Z + @vectorstores/core 0.1.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9407249Z + @vectorstores/env 0.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9407644Z + @vectorstores/readers 0.1.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9408046Z + better-sqlite3 12.11.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9408429Z + cross-spawn 7.0.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9408752Z + font-list 2.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9409078Z + graceful-fs 4.2.11
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9409397Z + grammy 1.41.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9409775Z + gray-matter 4.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9410140Z + jsdom 26.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9410857Z + node-screenshots 0.2.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9411294Z + node-stream-zip 1.15.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9411812Z + officeparser 4.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9412275Z + onnxruntime-common 1.25.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9412807Z + onnxruntime-node 1.25.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9413308Z + os-proxy-config 1.1.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9413811Z + pdf-parse 2.4.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9414293Z + pdfjs-dist 5.4.296
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9414773Z + ppu-paddle-ocr 6.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9415272Z + registry-js 1.16.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9415736Z + selection-hook 2.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9416202Z + sharp 0.35.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9416625Z + smol-toml 1.7.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9417275Z + sqlite-vec <- @aiany/sqlite-vec 0.1.10-alpha.4.aiany.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9417909Z + tar 7.5.19
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9418369Z + tesseract.js 6.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9418794Z + turndown 7.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9419282Z + which 6.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9419707Z + ws 8.21.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9419935Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9420197Z optionalDependencies:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9430067Z + @aiany/sqlite-vec-linux-arm64 0.1.10-alpha.4.aiany.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9430996Z + @aiany/sqlite-vec-linux-x64 0.1.10-alpha.4.aiany.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9431637Z + @anthropic-ai/claude-agent-sdk-linux-arm64 0.3.220
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9432283Z + @anthropic-ai/claude-agent-sdk-linux-x64 0.3.220
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9432969Z + @deepseek-ai/node-addon-landlock-run-linux-arm64 0.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9433668Z + @deepseek-ai/node-addon-landlock-run-linux-x64 0.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9434271Z + @firecrawl/anydoc-linux-arm64-gnu 0.1.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9434810Z + @firecrawl/anydoc-linux-x64-gnu 0.1.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9435338Z + @img/sharp-libvips-linux-arm64 1.3.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9435854Z + @img/sharp-libvips-linux-x64 1.3.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9436333Z + @img/sharp-linux-arm64 0.35.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9436773Z + @img/sharp-linux-x64 0.35.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9437259Z + @napi-rs/canvas-linux-arm64-gnu 0.1.97
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9438118Z + @napi-rs/canvas-linux-x64-gnu 0.1.97
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9438692Z + @node-rs/xxhash-linux-arm64-gnu 1.7.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9439206Z + @node-rs/xxhash-linux-x64-gnu 1.7.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9439736Z + node-screenshots-linux-arm64-gnu 0.2.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9440288Z + node-screenshots-linux-x64-gnu 0.2.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9440799Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9440939Z devDependencies:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9441534Z + @ai-sdk/amazon-bedrock 4.0.96
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9442281Z + @ai-sdk/anthropic 3.0.103
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9442949Z + @ai-sdk/azure 3.0.54
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9443645Z + @ai-sdk/bytedance 1.0.29
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9444220Z + @ai-sdk/cerebras 2.0.78
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9444838Z + @ai-sdk/cohere 3.0.30
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9445425Z + @ai-sdk/devtools 0.0.17
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9445990Z + @ai-sdk/gateway 3.0.104
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9446658Z + @ai-sdk/google 3.0.113
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9447319Z + @ai-sdk/google-vertex 4.0.188
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9448009Z + @ai-sdk/groq 3.0.35
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9448530Z + @ai-sdk/huggingface 1.0.74
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9449118Z + @ai-sdk/mistral 3.0.30
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9449856Z + @ai-sdk/open-responses 1.0.34
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9450755Z + @ai-sdk/openai 3.0.53
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9451474Z + @ai-sdk/openai-compatible 2.0.72
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9452085Z + @ai-sdk/perplexity 3.0.29
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9452901Z + @ai-sdk/provider 3.0.15
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9453868Z + @ai-sdk/provider-utils 4.0.48
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9454430Z + @ai-sdk/react 3.0.187
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9455172Z + @ai-sdk/test-server 1.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9455795Z + @ai-sdk/togetherai 2.0.78
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9456458Z + @ai-sdk/xai 3.0.126
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9457278Z + @aiden0z/pptx-renderer 1.2.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9457956Z + @anthropic-ai/sdk 0.81.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9458771Z + @aws-sdk/client-s3 3.998.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9459539Z + @aws-sdk/lib-storage 3.998.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9460300Z + @babel/runtime 7.29.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9461210Z + @biomejs/biome 2.2.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9461877Z + @changesets/changelog-github 0.5.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9462719Z + @changesets/cli 2.29.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9463461Z + @cherrystudio/ai-core 2.0.1 <- packages/aiCore
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9464416Z + @cherrystudio/analytics-client 1.3.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9465545Z + @cherrystudio/extension-table-plus 3.0.12 <- packages/extension-table-plus
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9466530Z + @cherrystudio/openai 6.15.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9467540Z + @cherrystudio/provider-registry 0.0.1-alpha.1 <- packages/provider-registry
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9468569Z + @cherrystudio/ui 1.0.0-alpha.1 <- packages/ui
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9469385Z + @codemirror/lang-json 6.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9469976Z + @codemirror/language 6.12.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9471019Z + @codemirror/lint 6.9.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9471636Z + @codemirror/view 6.39.16
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9472225Z + @dagrejs/dagre 3.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9473142Z + @deepseek-ai/dsh-compaction-basic 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9473954Z + @deepseek-ai/dsh-llm 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9474820Z + @deepseek-ai/dsh-llm-retry 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9475637Z + @deepseek-ai/dsh-plan-mode 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9476478Z + @deepseek-ai/dsh-session 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9477352Z + @deepseek-ai/dsh-user-approval 0.1.0-rc.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9478066Z + @dnd-kit/core 6.3.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9478748Z + @dnd-kit/modifiers 9.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9479336Z + @dnd-kit/sortable 10.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9480007Z + @dnd-kit/utilities 3.2.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9480928Z + @e965/xlsx 0.20.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9481558Z + @electron-toolkit/eslint-config-ts 3.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9482427Z + @electron-toolkit/preload 3.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9483214Z + @electron-toolkit/tsconfig 1.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9484041Z + @electron-toolkit/utils 3.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9484713Z + @electron/notarize 2.5.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9485474Z + @electron/rebuild 4.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9486104Z + @elysia/bearer 1.4.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9486629Z + @elysia/cors 1.4.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9487585Z + @elysia/node 1.4.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9488195Z + @elysia/openapi 1.4.15
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9488965Z + @eslint-react/eslint-plugin 1.53.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9489658Z + @eslint/js 9.39.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9490259Z + @floating-ui/dom 1.7.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9491243Z + @fontsource/ubuntu 5.2.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9491849Z + @google/genai 1.46.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9492602Z + @hello-pangea/dnd 18.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9493245Z + @hookform/resolvers 5.2.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9493912Z + @iconify-json/material-icon-theme 1.2.57
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9494784Z + @iconify/react 6.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9495343Z + @j178/prek 0.3.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9496010Z + @lezer/highlight 1.2.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9496733Z + @mistralai/mistralai 1.11.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9497445Z + @modelcontextprotocol/sdk 1.27.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9498124Z + @mozilla/readability 0.6.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9498740Z + @notionhq/client 2.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9499567Z + @openrouter/ai-sdk-provider 2.10.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9500248Z + @opentelemetry/api 1.9.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9501313Z + @opentelemetry/context-async-hooks 2.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9502159Z + @opentelemetry/core 2.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9502975Z + @opentelemetry/exporter-trace-otlp-http 0.200.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9503956Z + @opentelemetry/sdk-trace-base 2.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9504846Z + @opentelemetry/sdk-trace-node 2.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9506133Z + @opeoginni/github-copilot-openai-compatible 1.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9506955Z + @paddleocr/api-sdk 0.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9507699Z + @pierre/diffs 1.1.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9508395Z + @playwright/test 1.57.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9509048Z + @radix-ui/react-context-menu 2.3.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9509909Z + @radix-ui/react-slot 1.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9510871Z + @radix-ui/react-switch 1.2.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9511647Z + @shikijs/markdown-it 3.20.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9512435Z + @swc/core 1.15.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9512972Z + @tailwindcss/vite 4.1.18
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9513792Z + @tanstack/react-router 1.168.10
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9514551Z + @tanstack/react-virtual 3.13.24
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9515464Z + @tanstack/router-plugin 1.167.12
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9516155Z + @testing-library/dom 10.4.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9516851Z + @testing-library/jest-dom 6.9.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9517684Z + @testing-library/react 16.3.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9518356Z + @testing-library/user-event 14.6.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9519227Z + @tiptap/core 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9519973Z + @tiptap/extension-code-block 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9521130Z + @tiptap/extension-collaboration 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9521955Z + @tiptap/extension-drag-handle 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9522781Z + @tiptap/extension-drag-handle-react 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9523692Z + @tiptap/extension-heading 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9524393Z + @tiptap/extension-image 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9525247Z + @tiptap/extension-link 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9525972Z + @tiptap/extension-list 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9526717Z + @tiptap/extension-mathematics 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9527699Z + @tiptap/extension-mention 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9528564Z + @tiptap/extension-node-range 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9529514Z + @tiptap/extension-table-of-contents 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9530678Z + @tiptap/extension-typography 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9531696Z + @tiptap/extension-underline 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9532396Z + @tiptap/markdown 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9533030Z + @tiptap/pm 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9533765Z + @tiptap/react 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9534411Z + @tiptap/starter-kit 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9535153Z + @tiptap/suggestion 3.26.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9535874Z + @tiptap/y-tiptap 3.0.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9536460Z + @tryfabric/martian 1.2.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9537215Z + @types/adm-zip 0.5.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9537994Z + @types/better-sqlite3 7.6.13
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9538811Z + @types/cli-progress 3.11.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9539496Z + @types/cross-spawn 6.0.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9540050Z + @types/diff 7.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9541215Z + @types/fs-extra 11.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9541962Z + @types/hast 3.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9542658Z + @types/html-to-text 9.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9543336Z + @types/json-schema 7.0.15
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9544088Z + @types/markdown-it 14.1.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9544720Z + @types/md5 2.3.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9545261Z + @types/mdast 4.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9545982Z + @types/mime-types 3.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9546719Z + @types/node 24.10.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9547197Z + @types/pako 1.0.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9547654Z + @types/qrcode 1.5.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9548103Z + @types/react 19.2.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9548541Z + @types/react-dom 19.2.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9549132Z + @types/react-transition-group 4.4.12
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9549695Z + @types/react-window 1.8.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9550171Z + @types/semver 7.7.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9550906Z + @types/stream-json 1.7.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9551400Z + @types/tinycolor2 1.4.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9551878Z + @types/turndown 5.0.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9552363Z + @types/unist 3.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9552877Z + @types/use-sync-external-store 0.0.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9553413Z + @types/uuid 10.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9553857Z + @types/which 3.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9554325Z + @types/word-extractor 1.0.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9554672Z + @types/ws 8.18.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9555003Z + @typescript/native-preview 7.0.0-dev.20260204.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9555637Z + @uiw/codemirror-extensions-langs 4.25.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9556138Z + @uiw/codemirror-themes-all 4.25.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9556726Z + @uiw/react-codemirror 4.25.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9557292Z + @vitejs/plugin-react-swc 3.11.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9557820Z + @vitest/browser 3.2.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9558266Z + @vitest/coverage-v8 3.2.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9558717Z + @vitest/ui 3.2.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9559160Z + @vitest/web-worker 3.2.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9559655Z + @viz-js/lang-dot 1.0.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9560113Z + @viz-js/viz 3.24.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9560789Z + @xyflow/react 12.10.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9561226Z + adm-zip 0.4.16
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9561616Z + ai 6.0.185
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9562019Z + ai-retry 1.11.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9562448Z + ansi-to-react 6.2.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9562856Z + archiver 8.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9563256Z + async-mutex 0.5.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9563657Z + axios 1.16.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9564069Z + bonjour-service 1.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9564575Z + builder-util-runtime 9.5.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9565039Z + chalk 4.1.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9565409Z + chardet 2.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9565786Z + cheerio 1.1.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9566158Z + chokidar 4.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9566597Z + cli-progress 3.12.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9567007Z + clsx 2.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9567487Z + code-inspector-plugin 0.20.17
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9568052Z + codemirror-lang-mermaid 0.5.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9568515Z + color 5.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9568935Z + commander 14.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9569366Z + concurrently 9.2.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9569828Z + country-flag-emoji-polyfill 0.1.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9570130Z + croner 10.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9570616Z + cross-env 10.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9570932Z + dayjs 1.11.19
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9571144Z + dexie 4.2.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9571350Z + diff 8.0.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9571551Z + docx 9.5.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9571782Z + docx-preview 0.3.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9572024Z + dompurify 3.3.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9572242Z + dotenv 16.6.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9572476Z + dotenv-cli 7.4.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9572704Z + drizzle-kit 0.31.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9572939Z + drizzle-orm 0.44.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9573159Z + echarts 6.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9573385Z + electron 41.8.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9573628Z + electron-builder 26.15.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9573938Z + electron-devtools-installer 3.2.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9574269Z + electron-reload 2.0.0-alpha.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9574543Z + electron-store 8.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9574800Z + electron-updater 6.7.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9575064Z + electron-vite 5.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9575294Z + elysia 1.4.28
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9575698Z + emittery 1.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9575985Z + emoji-picker-element-data 1.8.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9576296Z + emoji-picker-react 4.19.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9576549Z + epub 2.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9576773Z + es-toolkit 1.49.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9577000Z + eslint 9.39.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9577293Z + eslint-import-resolver-typescript 4.4.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9577657Z + eslint-plugin-import-x 4.17.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9577982Z + eslint-plugin-import-zod 1.2.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9578290Z + eslint-plugin-oxlint 1.36.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9578605Z + eslint-plugin-react-hooks 5.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9578951Z + eslint-plugin-simple-import-sort 12.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9579321Z + eslint-plugin-unused-imports 4.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9579601Z + exceljs 4.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9579829Z + fast-diff 1.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9580089Z + fast-formula-parser 1.0.19
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9580614Z + fast-xml-parser 5.10.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9580981Z + fetch-socks 1.3.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9581239Z + file-type 22.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9581498Z + fractional-indexing 3.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9581754Z + franc-min 6.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9581977Z + fs-extra 11.3.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9582225Z + google-auth-library 9.15.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9582490Z + gpt-tokenizer 3.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9582735Z + html-to-image 1.11.13
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9582978Z + html-to-text 9.0.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9583384Z + htmlparser2 10.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9583628Z + http-proxy-agent 7.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9583894Z + https-proxy-agent 7.0.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9584147Z + i18next 23.16.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9584370Z + i18next-cli 1.64.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9584651Z + i18next-resources-to-backend 1.2.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9584941Z + iconv-lite 0.6.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9585157Z + ignore 7.0.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9585380Z + ipaddr.js 2.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9585606Z + isbinaryfile 5.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9585846Z + jaison 2.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9586064Z + js-base64 3.7.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9586292Z + json-schema 0.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9586534Z + jsonc-parser 3.3.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9586753Z + jszip 3.10.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9586962Z + katex 0.16.22
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9587168Z + ky 1.8.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9587400Z + linguist-languages 8.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9587658Z + lru-cache 11.2.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9587893Z + lucide-react 0.525.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9588196Z + macos-release 3.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9588443Z + magic-string 0.30.21
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9588682Z + markdown-it 14.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9588904Z + md5 2.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9589116Z + mermaid 11.13.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9589330Z + mime 4.1.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9589556Z + mime-types 3.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9589771Z + motion 12.42.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9589988Z + nanoid 3.3.11
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9590217Z + notion-helper 1.3.29
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9590941Z + npx-scope-finder 1.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9591396Z + numfmt 3.2.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9591776Z + og-crd 0.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9592193Z + ollama-ai-provider-v2 3.3.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9592653Z + open 8.4.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9593022Z + oxlint 1.56.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9593454Z + oxlint-tsgolint 0.17.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9593890Z + p-queue 8.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9594274Z + pako 1.0.11
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9594676Z + partial-json 0.1.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9595064Z + pdf-lib 1.17.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9595435Z + postcss 8.5.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9595817Z + qrcode 1.5.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9596225Z + qrcode.react 4.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9596682Z + rc-input 1.8.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9597105Z + rc-select 14.16.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9597537Z + rc-virtual-list 3.18.6
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9597974Z + react 19.2.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9598376Z + react-dom 19.2.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9598838Z + react-error-boundary 6.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9599340Z + react-hook-form 7.75.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9599823Z + react-hotkeys-hook 4.6.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9600305Z + react-i18next 14.1.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9600990Z + react-player 3.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9601457Z + react-spinners 0.14.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9602227Z + react-transition-group 4.4.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9602793Z + reflect-metadata 0.2.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9603283Z + rehype-parse 9.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9603762Z + rehype-stringify 10.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9604265Z + remark-gfm 4.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9604790Z + remark-github-blockquote-alert 2.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9605340Z + remark-parse 11.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9605811Z + remark-stringify 11.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9606315Z + remove-markdown 0.6.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9606887Z + rollup-plugin-visualizer 5.14.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9607382Z + semver 7.7.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9607782Z + shiki 3.20.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9608223Z + socks-proxy-agent 8.0.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9608683Z + stream-json 1.9.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9609161Z + streamdown 2.5.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9609612Z + strict-url-sanitise 0.0.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9610114Z + string-width 7.2.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9610976Z + swr 2.3.8
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9611397Z + tailwind-merge 3.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9611921Z + tailwindcss 4.1.18
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9612405Z + telegram-markdown-v2 0.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9612902Z + tiny-pinyin 1.3.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9613313Z + tokenx 1.2.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9613762Z + ts-morph 27.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9614171Z + tsx 4.21.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9614600Z + turndown-plugin-gfm 1.0.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9615103Z + tw-animate-css 1.4.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9615892Z + typescript 5.8.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9616296Z + undici 6.27.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9616682Z + unified 11.0.5
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9617130Z + unist-util-visit 5.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9617612Z + use-sync-external-store 1.6.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9618062Z + uuid 13.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9618430Z + virtua 0.49.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9618873Z + vite <- rolldown-vite 7.3.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9619321Z + vitest 3.2.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9619764Z + voyage-ai-provider 3.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9620217Z + webdav 5.9.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9620839Z + winston 3.19.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9621352Z + winston-daily-rotate-file 5.0.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9621939Z + word-extractor 1.0.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9622382Z + y-protocols 1.0.7
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9622779Z + yaml 2.8.2
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9623145Z + yjs 13.6.29
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9623556Z + youtubei.js 15.1.1
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9623971Z + zipread 1.3.3
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9624353Z + zod 4.3.4
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:30.9624573Z 
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.1516248Z . postinstall$ pnpm --filter @cherrystudio/dsh-bridge build
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.6571928Z . postinstall: $ tsdown
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.7519998Z . postinstall: ^[[34mℹ^[[39m tsdown ^[[2mv0.16.8^[[22m powered by rolldown ^[[2mv1.0.0-beta.52^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8209561Z . postinstall: ^[[34mℹ^[[39m Using tsdown config: ^[[4m/home/runner/work/cherry-studio/cherry-studio/packages/dsh-bridge/tsdown.config.ts^[[24m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8211958Z . postinstall: ^[[34mℹ^[[39m entry: ^[[34msrc/index.ts^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8354919Z . postinstall: ^[[34mℹ^[[39m entry: ^[[34m../../node_modules/.pnpm/@deepseek-ai+dsh-sdk-jsonrpc-demo@0.1.0-rc.7_841886ac118bfb5fb30893f901bf2f97/node_modules/@deepseek-ai/dsh-sdk-jsonrpc-demo/lib/bin.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-sdk-jsonrpc-server@0.1.0-rc.7_6c5c04fee659d60ba290d9b4eee8448d/node_modules/@deepseek-ai/dsh-sdk-jsonrpc-server/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-llm-pi-ai@0.1.0-rc.7_patch_hash=9c4deb543997ef0b40cf4a39f177e8edbb42c4_bf2bfcb3f1319ee79794476e02fa16e6/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-llm-retry@0.1.0-rc.7_f6ee553b5544017c93f5bcbec0012ce3/node_modules/@deepseek-ai/dsh-llm-retry/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-pwsh-local@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-invar_702db42983296c14126078800ba11847/node_modules/@deepseek-ai/dsh-pwsh-local/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-pwsh-sandbox@0.1.0-rc.7_01b43dee0e175c8dd5e3a7e6517088bf/node_modules/@deepseek-ai/dsh-pwsh-sandbox/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-sandbox-local@0.1.0-rc.7_dbd40ab583e375c407ea206b169b3049/node_modules/@deepseek-ai/dsh-sandbox-local/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-sandbox-policy@0.1.0-rc.7_3ced98780dcdd5e8fdc23c5292f54483/node_modules/@deepseek-ai/dsh-sandbox-policy/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-subprocess-local@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh_57ecc33dfefa384c3b2b24d7c639953b/node_modules/@deepseek-ai/dsh-subprocess-local/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-bash-sandbox@0.1.0-rc.7_685f6ca975e6615c43b38d43329eb0bf/node_modules/@deepseek-ai/dsh-bash-sandbox/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-user-approval@0.1.0-rc.7_6b8cefd624fd84694a941b103cc9b3fb/node_modules/@deepseek-ai/dsh-user-approval/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-agent-spine-demo@0.1.0-rc.7_e638f34e801462f1b1f4504c288a0f39/node_modules/@deepseek-ai/dsh-agent-spine-demo/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-attachment-local@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh_7713686f6c769dca4d4dd60757dc0877/node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-fs-local@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-fs@0.1._94fa7b69abe6dd4ae350b6207061160c/node_modules/@deepseek-ai/dsh-fs-local/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-fs@0.1.0-rc.7_e7d989b5e5a4423849aa5d8248287fa2/node_modules/@deepseek-ai/dsh-tool-fs/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-todo@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-agent@_5b759218d16d44b78a90d91cc022b679/node_modules/@deepseek-ai/dsh-tool-todo/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-token-meter@0.1.0-rc.7_2fa39e651d6b4d00840b5133c167cc09/node_modules/@deepseek-ai/dsh-token-meter/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-session-projection@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+d_8e39d6d2bfa60a8f909a7c75946a79b3/node_modules/@deepseek-ai/dsh-session-projection/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-compaction-tool-result-pruner@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@de_ed66276954fc087e0805d542c82c6aba/node_modules/@deepseek-ai/dsh-compaction-tool-result-pruner/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-compaction-basic@0.1.0-rc.7_f519e9ab3c16060968f3852a830521b6/node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-commands@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-agent@0_cbc96102c3e6d869c612b5d42d4d4cc7/node_modules/@deepseek-ai/dsh-commands/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-command-compact@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-_e2344ed342333112a34993b73c5237b7/node_modules/@deepseek-ai/dsh-command-compact/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-command-goal@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-com_6dd2b73b3616cc66fbfe77cb4be0da28/node_modules/@deepseek-ai/dsh-command-goal/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-goal@0.1.0-rc.7_9616cea51a4bea931c5522310292a042/node_modules/@deepseek-ai/dsh-goal/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-goal-round-driver@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+ds_dfac6d1ef893bf2153e2b038f3a7e9e3/node_modules/@deepseek-ai/dsh-goal-round-driver/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-goal@0.1.0-rc.7_180e0f3f329d9b10860ecf7e00313277/node_modules/@deepseek-ai/dsh-tool-goal/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-subagent@0.1.0-rc.7_1b6079401dbb31e84cdd730e8138699a/node_modules/@deepseek-ai/dsh-subagent/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-subagent-spawn-in-process@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepse_8ccd0eb7dfd35db4e7940c4e4e484e54/node_modules/@deepseek-ai/dsh-subagent-spawn-in-process/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-subagent-fork-in-process@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepsee_4316e5abb11e430e2c9e2d4e8091ff14/node_modules/@deepseek-ai/dsh-subagent-fork-in-process/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-subagent-control@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-a_235c238d1ed76d0daf80d9eab7553a42/node_modules/@deepseek-ai/dsh-tool-subagent-control/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-subagent-control@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-a_235c238d1ed76d0daf80d9eab7553a42/node_modules/@deepseek-ai/dsh-tool-subagent-control/lib/types/list-agents.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-subagent@0.1.0-rc.7_905d043f7e395b94e523b5f2bf140a0d/node_modules/@deepseek-ai/dsh-tool-subagent/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-subagent-report@0.1.0-rc.7_6ad664580ab5df6b29bd84f5902d7389/node_modules/@deepseek-ai/dsh-tool-subagent-report/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-user-questions@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-a_b9280b9741ca2842f07dddfbf24e26a3/node_modules/@deepseek-ai/dsh-user-questions/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-plan-mode@0.1.0-rc.7_3abfc5979880a1c8e6bc377abfd69758/node_modules/@deepseek-ai/dsh-plan-mode/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-session-persistence-jsonl@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepse_74f98467d294a8cc72c0e22d1424c9b9/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-shell-env@0.1.0-rc.7_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-home-p_e9ada1d8a493388eff73f21153f10608/node_modules/@deepseek-ai/dsh-shell-env/lib/index.js, ../../node_modules/.pnpm/@deepseek-ai+dsh-tool-pwsh@0.1.0-rc.7_e6524a4741ca5f7a041a012548fcf420/node_modules/@deepseek-ai/dsh-tool-pwsh/lib/index.js, src/plugin.ts^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8399476Z . postinstall: ^[[34mℹ^[[39m tsconfig: ^[[34mtsconfig.json^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8400676Z . postinstall: ^[[34mℹ^[[39m tsconfig: ^[[34mtsconfig.json^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8401504Z . postinstall: ^[[34mℹ^[[39m Build start
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8403622Z . postinstall: (node:2550) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/runner/work/cherry-studio/cherry-studio/packages/dsh-bridge/tsdown.config.ts is not specified and it doesn't parse as CommonJS.
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8405874Z . postinstall: Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8406950Z . postinstall: To eliminate this warning, add "type": "module" to /home/runner/work/cherry-studio/cherry-studio/packages/dsh-bridge/package.json.
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:31.8407830Z . postinstall: (Use `node --trace-warnings ...` to show where the warning was created)
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.3684823Z . postinstall: ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m ^[[2mdist/^[[22m^[[1mindex.cjs^[[22m  ^[[2m3.24 kB^[[22m ^[[2m│ gzip: 0.91 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.3695439Z . postinstall: ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m 1 files, total: 3.24 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.6717499Z . postinstall: ^[[34mℹ^[[39m ^[[34m[ESM]^[[39m ^[[2mdist/^[[22m^[[1mindex.mjs^[[22m    ^[[2m 3.00 kB^[[22m ^[[2m│ gzip: 0.87 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.6732042Z . postinstall: ^[[34mℹ^[[39m ^[[34m[ESM]^[[39m ^[[2mdist/^[[22m^[[32m^[[1mindex.d.mts^[[22m^[[39m  ^[[2m10.01 kB^[[22m ^[[2m│ gzip: 3.10 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.6763001Z . postinstall: ^[[34mℹ^[[39m ^[[34m[ESM]^[[39m 2 files, total: 13.01 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.7128039Z . postinstall: ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m ^[[2mdist/^[[22m^[[32m^[[1mindex.d.cts^[[22m^[[39m  ^[[2m10.01 kB^[[22m ^[[2m│ gzip: 3.10 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.7129923Z . postinstall: ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m 1 files, total: 10.01 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.7131837Z . postinstall: ^[[32m✔^[[39m Build complete in ^[[32m1892ms^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9146210Z . postinstall: ^[[34mℹ^[[39m Granting execute permission to ^[[4mdist/runtime/bin.mjs^[[24m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9957278Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mllm-pi-ai.mjs^[[22m                      ^[[2m457.35 kB^[[22m ^[[2m│ gzip:  45.70 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9959486Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1magent-spine-demo.mjs^[[22m               ^[[2m265.05 kB^[[22m ^[[2m│ gzip:  81.05 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9974800Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mbin.mjs^[[22m                            ^[[2m 64.93 kB^[[22m ^[[2m│ gzip:  21.41 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9976581Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msession-persistence-jsonl.mjs^[[22m      ^[[2m 46.88 kB^[[22m ^[[2m│ gzip:  13.38 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9978407Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-fs.mjs^[[22m                        ^[[2m 27.59 kB^[[22m ^[[2m│ gzip:   9.24 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9980672Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msdk-jsonrpc-server.mjs^[[22m             ^[[2m 22.82 kB^[[22m ^[[2m│ gzip:   8.22 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9982807Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mcompaction-basic.mjs^[[22m               ^[[2m 20.13 kB^[[22m ^[[2m│ gzip:   6.83 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:33.9984863Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msubprocess-local.mjs^[[22m               ^[[2m 15.95 kB^[[22m ^[[2m│ gzip:   5.77 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0012067Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mfs-local.mjs^[[22m                       ^[[2m 14.20 kB^[[22m ^[[2m│ gzip:   4.60 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0013941Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mcherry-bridge.mjs^[[22m                  ^[[2m 12.16 kB^[[22m ^[[2m│ gzip:   4.69 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0015718Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-pwsh.mjs^[[22m                      ^[[2m 11.24 kB^[[22m ^[[2m│ gzip:   4.38 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0017726Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtoken-meter.mjs^[[22m                    ^[[2m  8.53 kB^[[22m ^[[2m│ gzip:   2.75 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0019426Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-subagent.mjs^[[22m                  ^[[2m  8.29 kB^[[22m ^[[2m│ gzip:   3.08 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0021324Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mbash-sandbox.mjs^[[22m                   ^[[2m  7.67 kB^[[22m ^[[2m│ gzip:   2.88 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0023128Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msandbox-local.mjs^[[22m                  ^[[2m  7.56 kB^[[22m ^[[2m│ gzip:   2.65 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0024727Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mplan-mode.mjs^[[22m                      ^[[2m  6.83 kB^[[22m ^[[2m│ gzip:   2.74 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0026407Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mcommands.mjs^[[22m                       ^[[2m  6.50 kB^[[22m ^[[2m│ gzip:   2.46 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0028011Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mattachment-local.mjs^[[22m               ^[[2m  5.33 kB^[[22m ^[[2m│ gzip:   2.13 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0029591Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-todo.mjs^[[22m                      ^[[2m  3.63 kB^[[22m ^[[2m│ gzip:   1.59 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0031446Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-subagent-list-agents.mjs^[[22m      ^[[2m  3.28 kB^[[22m ^[[2m│ gzip:   1.44 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0054877Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mcommand-goal.mjs^[[22m                   ^[[2m  3.25 kB^[[22m ^[[2m│ gzip:   1.21 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0056835Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mcompaction-tool-result-pruner.mjs^[[22m  ^[[2m  3.18 kB^[[22m ^[[2m│ gzip:   1.35 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0058856Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msession-projection.mjs^[[22m             ^[[2m  3.08 kB^[[22m ^[[2m│ gzip:   1.23 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0061007Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mpwsh-sandbox.mjs^[[22m                   ^[[2m  2.89 kB^[[22m ^[[2m│ gzip:   1.17 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0062845Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1muser-approval.mjs^[[22m                  ^[[2m  2.87 kB^[[22m ^[[2m│ gzip:   1.32 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0064696Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-subagent-control.mjs^[[22m          ^[[2m  2.60 kB^[[22m ^[[2m│ gzip:   1.06 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0066931Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-subagent-report.mjs^[[22m           ^[[2m  2.39 kB^[[22m ^[[2m│ gzip:   1.11 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0068850Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msandbox-policy.mjs^[[22m                 ^[[2m  2.08 kB^[[22m ^[[2m│ gzip:   0.94 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0070909Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mcommand-compact.mjs^[[22m                ^[[2m  1.93 kB^[[22m ^[[2m│ gzip:   0.88 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0072759Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msubagent.mjs^[[22m                       ^[[2m  1.07 kB^[[22m ^[[2m│ gzip:   0.51 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0074598Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msubagent-fork-in-process.mjs^[[22m       ^[[2m  0.89 kB^[[22m ^[[2m│ gzip:   0.48 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0076526Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1msubagent-spawn-in-process.mjs^[[22m      ^[[2m  0.69 kB^[[22m ^[[2m│ gzip:   0.38 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0078362Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mgoal.mjs^[[22m                           ^[[2m  0.43 kB^[[22m ^[[2m│ gzip:   0.22 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0080105Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mpwsh-local.mjs^[[22m                     ^[[2m  0.36 kB^[[22m ^[[2m│ gzip:   0.21 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0082114Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mtool-goal.mjs^[[22m                      ^[[2m  0.34 kB^[[22m ^[[2m│ gzip:   0.15 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0084224Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mshell-env.mjs^[[22m                      ^[[2m  0.27 kB^[[22m ^[[2m│ gzip:   0.15 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0086037Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mgoal-round-driver.mjs^[[22m              ^[[2m  0.21 kB^[[22m ^[[2m│ gzip:   0.13 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0087882Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1muser-questions.mjs^[[22m                 ^[[2m  0.20 kB^[[22m ^[[2m│ gzip:   0.12 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0089678Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22m^[[1mllm-retry.mjs^[[22m                      ^[[2m  0.16 kB^[[22m ^[[2m│ gzip:   0.12 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0091647Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mmistral-conversations.mjs          ^[[2m586.11 kB^[[22m ^[[2m│ gzip:  79.41 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0093437Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mgoogle-shared.mjs                  ^[[2m492.68 kB^[[22m ^[[2m│ gzip: 117.21 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0095127Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22motel.mjs                           ^[[2m166.03 kB^[[22m ^[[2m│ gzip:  37.72 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0096841Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22manthropic-messages.mjs             ^[[2m102.09 kB^[[22m ^[[2m│ gzip:  25.80 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0098538Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mopenai.mjs                         ^[[2m100.95 kB^[[22m ^[[2m│ gzip:  26.99 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0100197Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mschemas.mjs                        ^[[2m 76.69 kB^[[22m ^[[2m│ gzip:  20.16 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0102134Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mfrom.mjs                           ^[[2m 65.68 kB^[[22m ^[[2m│ gzip:  16.33 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0103761Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib18.mjs                          ^[[2m 53.21 kB^[[22m ^[[2m│ gzip:  15.92 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0105399Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib28.mjs                          ^[[2m 32.86 kB^[[22m ^[[2m│ gzip:  10.05 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0107111Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib10.mjs                          ^[[2m 28.39 kB^[[22m ^[[2m│ gzip:   8.88 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0108738Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib2.mjs                           ^[[2m 23.90 kB^[[22m ^[[2m│ gzip:   8.16 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0110624Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mopenai-codex-responses.mjs         ^[[2m 21.48 kB^[[22m ^[[2m│ gzip:   8.00 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0112555Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib8.mjs                           ^[[2m 21.36 kB^[[22m ^[[2m│ gzip:   6.93 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0114285Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mopenai-completions.mjs             ^[[2m 19.94 kB^[[22m ^[[2m│ gzip:   6.22 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0115988Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22msrc.mjs                            ^[[2m 19.82 kB^[[22m ^[[2m│ gzip:   7.29 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0117629Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mdist.mjs                           ^[[2m 17.57 kB^[[22m ^[[2m│ gzip:   6.61 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0119259Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib21.mjs                          ^[[2m 16.11 kB^[[22m ^[[2m│ gzip:   4.79 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0125276Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib5.mjs                           ^[[2m 11.94 kB^[[22m ^[[2m│ gzip:   4.03 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0127193Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mopenai-responses-shared.mjs        ^[[2m 10.70 kB^[[22m ^[[2m│ gzip:   3.28 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0128993Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mmodels.mjs                         ^[[2m 10.48 kB^[[22m ^[[2m│ gzip:   3.57 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0130849Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib23.mjs                          ^[[2m 10.12 kB^[[22m ^[[2m│ gzip:   3.33 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0132504Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib19.mjs                          ^[[2m  8.64 kB^[[22m ^[[2m│ gzip:   2.99 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0134558Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mcompletionchunk.mjs                ^[[2m  7.99 kB^[[22m ^[[2m│ gzip:   2.84 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0141639Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib22.mjs                          ^[[2m  7.05 kB^[[22m ^[[2m│ gzip:   2.56 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0143815Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mgoogle-vertex.mjs                  ^[[2m  6.96 kB^[[22m ^[[2m│ gzip:   2.55 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0145959Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mtransform-messages.mjs             ^[[2m  6.50 kB^[[22m ^[[2m│ gzip:   2.48 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0147977Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mgoogle-generative-ai.mjs           ^[[2m  6.03 kB^[[22m ^[[2m│ gzip:   2.09 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0149926Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib16.mjs                          ^[[2m  6.02 kB^[[22m ^[[2m│ gzip:   2.43 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0154297Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mopenai-responses.mjs               ^[[2m  5.36 kB^[[22m ^[[2m│ gzip:   2.14 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0156157Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib.mjs                            ^[[2m  5.09 kB^[[22m ^[[2m│ gzip:   2.06 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0157886Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mpi-messages.mjs                    ^[[2m  4.89 kB^[[22m ^[[2m│ gzip:   2.00 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0159639Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mjson-parse.mjs                     ^[[2m  4.72 kB^[[22m ^[[2m│ gzip:   1.93 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0161734Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mazure-openai-responses.mjs         ^[[2m  4.50 kB^[[22m ^[[2m│ gzip:   1.91 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0163623Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mmultipart-parser.mjs               ^[[2m  4.41 kB^[[22m ^[[2m│ gzip:   1.86 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0165469Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib29.mjs                          ^[[2m  3.42 kB^[[22m ^[[2m│ gzip:   1.63 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0167182Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib6.mjs                           ^[[2m  3.16 kB^[[22m ^[[2m│ gzip:   1.28 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0168865Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib13.mjs                          ^[[2m  3.04 kB^[[22m ^[[2m│ gzip:   1.35 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0171181Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib24.mjs                          ^[[2m  2.68 kB^[[22m ^[[2m│ gzip:   1.16 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0173696Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib17.mjs                          ^[[2m  2.65 kB^[[22m ^[[2m│ gzip:   1.21 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0175471Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib9.mjs                           ^[[2m  2.64 kB^[[22m ^[[2m│ gzip:   1.09 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0177197Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib12.mjs                          ^[[2m  2.33 kB^[[22m ^[[2m│ gzip:   1.03 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0178944Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib27.mjs                          ^[[2m  1.68 kB^[[22m ^[[2m│ gzip:   0.80 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0180842Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib30.mjs                          ^[[2m  1.68 kB^[[22m ^[[2m│ gzip:   0.81 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0182611Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib20.mjs                          ^[[2m  1.55 kB^[[22m ^[[2m│ gzip:   0.76 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0184367Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mdiagnostics.mjs                    ^[[2m  1.45 kB^[[22m ^[[2m│ gzip:   0.66 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0186128Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib7.mjs                           ^[[2m  1.37 kB^[[22m ^[[2m│ gzip:   0.63 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0187879Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mprovider-retry.mjs                 ^[[2m  1.37 kB^[[22m ^[[2m│ gzip:   0.69 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0189934Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22merror-body.mjs                     ^[[2m  1.32 kB^[[22m ^[[2m│ gzip:   0.54 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0192319Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib25.mjs                          ^[[2m  0.83 kB^[[22m ^[[2m│ gzip:   0.48 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0194045Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mchunk.mjs                          ^[[2m  0.82 kB^[[22m ^[[2m│ gzip:   0.48 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0195731Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib3.mjs                           ^[[2m  0.75 kB^[[22m ^[[2m│ gzip:   0.46 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0197447Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib4.mjs                           ^[[2m  0.59 kB^[[22m ^[[2m│ gzip:   0.36 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0198801Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mdeferred-tools.mjs                 ^[[2m  0.48 kB^[[22m ^[[2m│ gzip:   0.30 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0199798Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mprovider-env.mjs                   ^[[2m  0.45 kB^[[22m ^[[2m│ gzip:   0.33 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0201147Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib15.mjs                          ^[[2m  0.45 kB^[[22m ^[[2m│ gzip:   0.29 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0217079Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mgithub-copilot-headers.mjs         ^[[2m  0.41 kB^[[22m ^[[2m│ gzip:   0.27 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0218158Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mhash.mjs                           ^[[2m  0.34 kB^[[22m ^[[2m│ gzip:   0.22 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0219110Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib14.mjs                          ^[[2m  0.30 kB^[[22m ^[[2m│ gzip:   0.26 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0220033Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib26.mjs                          ^[[2m  0.28 kB^[[22m ^[[2m│ gzip:   0.18 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0221167Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mheaders.mjs                        ^[[2m  0.22 kB^[[22m ^[[2m│ gzip:   0.16 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0222099Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mlib11.mjs                          ^[[2m  0.15 kB^[[22m ^[[2m│ gzip:   0.15 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0223059Z . postinstall: ^[[34mℹ^[[39m ^[[2mdist/runtime/^[[22mopenai-prompt-cache.mjs            ^[[2m  0.12 kB^[[22m ^[[2m│ gzip:   0.12 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0223763Z . postinstall: ^[[34mℹ^[[39m 101 files, total: 3047.65 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0224296Z . postinstall: ^[[32m✔^[[39m Build complete in ^[[32m2180ms^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0819994Z . postinstall: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.0822812Z . prepare$ git config blame.ignoreRevsFile .git-blame-ignore-revs && node -e "process.env.CI||require('child_process').execSync('prek install',{stdio:'inherit'})"
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.1169551Z . prepare: Done
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.1692589Z Done in 21.8s using pnpm v11.8.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2665854Z ##[group]Run pnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2667313Z ^[[36;1mpnpm --filter @cherrystudio/provider-registry compat:policy -- "origin/$BASE_REF"^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2706106Z shell: /usr/bin/bash -e {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2706373Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2706572Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2706837Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2707170Z   BASE_REF: main
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.2707385Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:34.7725486Z $ tsx scripts/compatibilityPolicy.ts -- origin/main
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2488913Z Provider-registry compatibility baseline policy passed
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2901388Z ##[group]Run pnpm changeset status --since="origin/$BASE_REF"
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2901882Z ^[[36;1mpnpm changeset status --since="origin/$BASE_REF"^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2938477Z shell: /usr/bin/bash -e {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2938743Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2938936Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2939204Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2939530Z   BASE_REF: main
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.2939922Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:35.7355163Z $ changeset status --since=origin/main
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0694349Z 🦋  ^[[36minfo^[[39m ^[[32mNO^[[39m packages to be bumped at ^[[32mpatch^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0695745Z 🦋  ---
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0696524Z 🦋  ^[[36minfo^[[39m ^[[32mNO^[[39m packages to be bumped at ^[[32mminor^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0697191Z 🦋  ---
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0697933Z 🦋  ^[[36minfo^[[39m ^[[32mNO^[[39m packages to be bumped at ^[[32mmajor^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0896770Z ##[group]Run pnpm i18n:sync
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0897097Z ^[[36;1mpnpm i18n:sync^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0897568Z ^[[36;1mif [ -n "$(git status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n)" ]; then^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0898368Z ^[[36;1m  echo "::error::Translations are out of sync. Run pnpm i18n:sync, translate every pending value, and commit the result."^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0899169Z ^[[36;1m  git --no-pager status --porcelain --untracked-files=all -- src/renderer/i18n src/main/i18n^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0899766Z ^[[36;1m  git --no-pager diff -- src/renderer/i18n src/main/i18n^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0900106Z ^[[36;1m  exit 1^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0900314Z ^[[36;1mfi^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0901143Z ^[[36;1mpnpm i18n:check^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0901414Z ^[[36;1mpnpm i18n:unused:check^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0938164Z shell: /usr/bin/bash -e {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0938429Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0938626Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0938921Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0939257Z   TRANSLATION_BASE_LOCALE: en-us
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.0939519Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.5409290Z $ dotenv -e .env -- tsx scripts/i18n-sync.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9330136Z File de-de.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9456986Z File el-gr.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9550582Z File es-es.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9645450Z File fr-fr.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9733873Z File ja-jp.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9816322Z File pt-pt.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:36.9916825Z File ro-ro.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0019562Z File ru-ru.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0120030Z File vi-vn.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0204859Z File zh-cn.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0349614Z File zh-tw.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0357593Z File de-de.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0361133Z File el-gr.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0364137Z File es-es.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0367036Z File fr-fr.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0369873Z File ja-jp.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0372817Z File pt-pt.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0375547Z File ro-ro.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0379065Z File ru-ru.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0382235Z File vi-vn.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0384632Z File zh-cn.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.0386961Z File zh-tw.json has been sorted and synced to match base locale content
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:37.5525963Z $ dotenv -e .env -- tsx scripts/i18n-check.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:38.4141069Z i18n 检查已通过（已校验 63720 条翻译）
+basic-checks	UNKNOWN STEP	2026-09-01T08:48:38.8858257Z $ tsx scripts/i18n-check-unused.ts --fail-on-unused
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.1566960Z [renderer] Found 0 unused i18n keys out of 5192 total keys.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.1569580Z [main] Found 0 unused i18n keys out of 118 total keys.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2515252Z ##[group]Run # Share one checkout/install while keeping independent checks parallel.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2515897Z ^[[36;1m# Share one checkout/install while keeping independent checks parallel.^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2516417Z ^[[36;1m# Do not kill sibling checks on failure so every failure is reported.^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2516961Z ^[[36;1m# `--max-processes 1` lands on the typecheck script's trailing concurrently call and^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2517544Z ^[[36;1m# serializes it: eslint plus two concurrent tsgo runs OOM the runner mid-job.^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2517972Z ^[[36;1mpnpm exec concurrently \^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2518367Z ^[[36;1m  --names "Lint,Type and Hardcoded Strings,Format and Repository,Docs" \^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2518831Z ^[[36;1m  --prefix-colors "blue,yellow,cyan,green" \^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2519172Z ^[[36;1m  "pnpm test:lint" \^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2519543Z ^[[36;1m  "pnpm typecheck --max-processes 1 && pnpm i18n:hardcoded:strict" \^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2520132Z ^[[36;1m  "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check" \^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2521046Z ^[[36;1m  "pnpm docs:check"^[[0m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2557694Z shell: /usr/bin/bash -e {0}
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2557958Z env:
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2558153Z   CI: true
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2558417Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:24.2558744Z ##[endgroup]
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:25.5931861Z [Format and Repository] $ biome format && biome lint
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:25.5962164Z [Lint] $ oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:25.5975077Z [Type and Hardcoded Strings] $ pnpm --filter @cherrystudio/ai-sdk-provider build && concurrently -n "node,web,aicore" -c "cyan,magenta,yellow" "pnpm run typecheck:node" "pnpm run typecheck:web" "pnpm --filter @cherrystudio/ai-core typecheck" --max-processes 1
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:25.5978149Z [Docs] $ pnpm docs:check-links && pnpm docs:check-structure && pnpm docs:check-frontmatter && pnpm docs:check-index
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:26.7891722Z [Docs] $ tsx scripts/check-doc-links.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:26.8761820Z [Type and Hardcoded Strings] $ tsdown
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:27.1814137Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m tsdown ^[[2mv0.20.3^[[22m powered by rolldown ^[[2mv1.0.0-rc.3^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:27.3993031Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m config file: ^[[4m/home/runner/work/cherry-studio/cherry-studio/packages/ai-sdk-provider/tsdown.config.ts^[[24m 
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:27.4312200Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m entry: ^[[34msrc/index.ts^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:27.4371902Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m target: ^[[34mnode18.0.0^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:27.4423930Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m tsconfig: ^[[34mtsconfig.json^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:27.4481684Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m Build start
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:28.4391959Z [Docs] Checking 297 markdown files for broken links...
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:28.5412063Z [Docs] All links are valid.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:30.5071792Z [Docs] $ tsx scripts/verify-doc-structure.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:32.2135360Z [Docs] Docs structure OK.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.6752630Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m ^[[2mdist/^[[22m^[[1mindex.cjs^[[22m  ^[[2m15.71 kB^[[22m ^[[2m│ gzip: 3.92 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.6791848Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m 1 files, total: 15.71 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.6794231Z [Type and Hardcoded Strings] ^[[33m[PLUGIN_TIMINGS] Warning:^[[0m Your build spent significant time in plugin `tsdown:external`. See https://rolldown.rs/options/checks#plugintimings for more details.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.6871352Z [Type and Hardcoded Strings] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8042764Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m ^[[2mdist/^[[22m^[[32m^[[1mindex.d.cts^[[22m^[[39m  ^[[2m5.51 kB^[[22m ^[[2m│ gzip: 1.59 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8063476Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[33m[CJS]^[[39m 1 files, total: 5.51 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8152483Z [Type and Hardcoded Strings] ^[[33m[PLUGIN_TIMINGS] Warning:^[[0m Your build spent significant time in plugins. Here is a breakdown:
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8191599Z [Type and Hardcoded Strings]   - rolldown-plugin-dts:generate (49%)
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8261354Z [Type and Hardcoded Strings]   - tsdown:external (41%)
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8321609Z [Type and Hardcoded Strings] See https://rolldown.rs/options/checks#plugintimings for more details.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8350953Z [Type and Hardcoded Strings] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8373022Z [Type and Hardcoded Strings] ^[[33m[PLUGIN_TIMINGS] Warning:^[[0m Your build spent significant time in plugin `rolldown-plugin-dts:generate`. See https://rolldown.rs/options/checks#plugintimings for more details.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8441516Z [Type and Hardcoded Strings] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8494495Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[34m[ESM]^[[39m ^[[2mdist/^[[22m^[[1mindex.mjs^[[22m    ^[[2m15.05 kB^[[22m ^[[2m│ gzip: 3.84 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8572283Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[34m[ESM]^[[39m ^[[2mdist/^[[22m^[[32m^[[1mindex.d.mts^[[22m^[[39m  ^[[2m 5.51 kB^[[22m ^[[2m│ gzip: 1.59 kB^[[22m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8631773Z [Type and Hardcoded Strings] ^[[34mℹ^[[39m ^[[34m[ESM]^[[39m 2 files, total: 20.56 kB
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8671537Z [Type and Hardcoded Strings] ^[[32m✔^[[39m Build complete in ^[[32m6360ms^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:33.8721552Z [Type and Hardcoded Strings] ^[[32m✔^[[39m Build complete in ^[[32m6365ms^[[39m
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:34.4925719Z [Docs] $ tsx scripts/verify-doc-frontmatter.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:35.9595209Z [Docs] Doc frontmatter OK.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:36.0483292Z [Format and Repository] Checked 7543 files in 10s. No fixes applied.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:36.1196355Z [Type and Hardcoded Strings] [node] $ tsgo --noEmit -p tsconfig.node.json --composite false
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:37.7851738Z [Docs] $ tsx scripts/gen-doc-index.ts --check
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:39.9112015Z [Format and Repository] Checked 2845 files in 3s. No fixes applied.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:40.1072121Z [Docs] Docs index OK.
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:40.3351873Z [Docs] pnpm docs:check exited with code 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:41.4945323Z [Format and Repository] $ tsx scripts/generate-cherry-assistant-knowledge --check
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:44.8659852Z [Format and Repository] build:builtin-knowledge:check passed
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:47.0482051Z [Format and Repository] $ tsx scripts/skills-check.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:48.8819283Z [Format and Repository] skills:check passed (8 public skills)
+basic-checks	UNKNOWN STEP	2026-09-01T08:50:48.9902211Z [Format and Repository] pnpm format:check && pnpm build:builtin-knowledge:check && pnpm skills:check exited with code 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:14.1662724Z [Type and Hardcoded Strings] [node] pnpm run typecheck:node exited with code 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:15.1048539Z [Type and Hardcoded Strings] [web] $ tsgo --noEmit -p tsconfig.web.json --composite false
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5433572Z ##[error][Type and Hardcoded Strings] [web] src/renderer/components/chat/messages/utils/__tests__/terminalErrorFallback.test.ts(107,23): error TS2352: Conversion of type '{ type: "data-clear"; data: { dismissedNoResponse: boolean; }; }' to type 'CherryMessagePart' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5451601Z [Type and Hardcoded Strings] [web]   Type '{ type: "data-clear"; data: { dismissedNoResponse: boolean; }; }' is not comparable to type '{ type: "data-clear"; id?: string | undefined; data: ClearPartData; }'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5452713Z [Type and Hardcoded Strings] [web]     Types of property 'data' are incompatible.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5453593Z [Type and Hardcoded Strings] [web]       Type '{ dismissedNoResponse: boolean; }' is not comparable to type 'ClearPartData'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5457336Z [Type and Hardcoded Strings] [web]         Property 'dismissedNoResponse' is incompatible with index signature.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5458528Z [Type and Hardcoded Strings] [web]           Type 'boolean' is not comparable to type 'never'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5462133Z ##[error][Type and Hardcoded Strings] [web] src/renderer/pages/home/messages/homeMessageListAdapter.tsx(548,27): error TS2352: Conversion of type '{ type: "data-clear"; data: { dismissedNoResponse: boolean; }; }' to type 'CherryMessagePart' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5464806Z [Type and Hardcoded Strings] [web]   Type '{ type: "data-clear"; data: { dismissedNoResponse: boolean; }; }' is not comparable to type '{ type: "data-clear"; id?: string | undefined; data: ClearPartData; }'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5465830Z [Type and Hardcoded Strings] [web]     Types of property 'data' are incompatible.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5466663Z [Type and Hardcoded Strings] [web]       Type '{ dismissedNoResponse: boolean; }' is not comparable to type 'ClearPartData'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5467577Z [Type and Hardcoded Strings] [web]         Property 'dismissedNoResponse' is incompatible with index signature.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.5468349Z [Type and Hardcoded Strings] [web]           Type 'boolean' is not comparable to type 'never'.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.6096545Z [Type and Hardcoded Strings] [web] [ELIFECYCLE] Command failed with exit code 2.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:40.6512314Z [Type and Hardcoded Strings] [web] pnpm run typecheck:web exited with code 2
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:41.3884695Z [Type and Hardcoded Strings] [aicore] $ tsc --noEmit
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:45.9937510Z [Type and Hardcoded Strings] [aicore] pnpm --filter @cherrystudio/ai-core typecheck exited with code 0
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:46.0194293Z [Type and Hardcoded Strings] [ELIFECYCLE] Command failed with exit code 1.
+basic-checks	UNKNOWN STEP	2026-09-01T08:51:46.0501482Z [Type and Hardcoded Strings] pnpm typecheck --max-processes 1 && pnpm i18n:hardcoded:strict exited with code 1
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4131455Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4132638Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/main/ai/streamManager/persistence/PersistenceBackend.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4133912Z [Lint]   11:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4134570Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4135748Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/app/__tests__/sidebarVariants.test.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4137381Z [Lint]    46:11  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4139081Z [Lint]    60:11  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4141097Z [Lint]    74:11  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4143157Z [Lint]    88:11  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4145130Z [Lint]   102:11  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4146540Z [Lint]   116:11  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4147918Z [Lint]   129:13  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4148988Z [Lint]   149:13  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4149998Z [Lint]   167:13  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4151828Z [Lint]   184:13  warning  A context name must be a valid component name with the suffix 'Context'  @eslint-react/naming-convention/context-name
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4153222Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4154403Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/chat/messages/blocks/ToolBlockGroup.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4156456Z [Lint]   288:23  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4158173Z [Lint]   293:14  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4159882Z [Lint]   294:42  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4161024Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4162099Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/chat/messages/utils/terminalErrorFallback.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4163442Z [Lint]    1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4164493Z [Lint]   52:1  error  Run autofix to sort these exports!  simple-import-sort/exports
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4165092Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4165900Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/command/CommandMenus.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4167391Z [Lint]   841:14  warning  Using 'cloneElement' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-clone-element
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4168368Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4169438Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/composer/tools/components/KnowledgeBaseButton.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4171690Z [Lint]   145:6  warning  React Hook useCallback has an unnecessary dependency: 'language'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4172797Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4173769Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/composer/variants/AgentComposer.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4175195Z [Lint]   917:6  warning  React Hook useEffect has a missing dependency: 'actionsRef'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4175866Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4176823Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/composer/variants/shared/useEntityReferenceMentionSource.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4178009Z [Lint]   224:20  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4178998Z [Lint]   225:26  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4179973Z [Lint]   240:18  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4180747Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4181280Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/layout/AppShellTabBar.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4182270Z [Lint]   580:11  warning  Using 'cloneElement' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-clone-element
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4182857Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4183359Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/components/layout/TabsProvider.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4184422Z [Lint]   301:6  warning  React Hook useMemo has an unnecessary dependency: 'i18n.language'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4185118Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4185877Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/code/components/configEditPanel/tools/__tests__/ClaudeConfigFields.test.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4187009Z [Lint]   67:27  warning  Using 'Children.map' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-children-map
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4188353Z [Lint]   68:43  warning  Using 'cloneElement' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-clone-element
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4189535Z [Lint]   75:25  warning  Using 'Children.map' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-children-map
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4190820Z [Lint]   76:41  warning  Using 'cloneElement' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-clone-element
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4191426Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4192154Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/code/components/configEditPanel/tools/__tests__/CliConfigFields.test.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4193255Z [Lint]   55:27  warning  Using 'Children.map' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-children-map
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4194292Z [Lint]   56:43  warning  Using 'cloneElement' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-clone-element
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4195338Z [Lint]   63:25  warning  Using 'Children.map' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-children-map
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4196371Z [Lint]   64:41  warning  Using 'cloneElement' is uncommon and can lead to fragile code. Use alternatives instead  @eslint-react/no-clone-element
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4196949Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4197563Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/paintings/hooks/usePaintingComposerInputFiles.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4199988Z [Lint]   159:21  warning  The ref value 'draftEpochRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'draftEpochRef.current' to a variable inside the effect, and use that variable in the cleanup function  react-hooks/exhaustive-deps
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4202084Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4203266Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/settings/DependenciesSettings/EnvironmentDependencies.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4205272Z [Lint]   537:25  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4206190Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4207430Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/settings/FileProcessingSettings/components/ProcessorPanel.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4211641Z [Lint]   113:6  warning  React Hook useEffect has missing dependencies: 'entry.capability.apiHost', 'entry.capability.modelId', and 'processor.apiKeys'. Either include them or remove the dependency array. If 'setApiHostInput' needs the current value of 'entry.capability.apiHost', you can also switch to useReducer instead of useState and read 'entry.capability.apiHost' in the reducer  react-hooks/exhaustive-deps
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4214000Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4214962Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/settings/ModelSettings/ModelSettings.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4217540Z [Lint]   20:47  warning  Unexpected path "@renderer/pages/translate/TranslateSettings" imported in restricted zone. A page must not import another page (cross-page coupling). architecture/renderer.md §7  import-x/no-restricted-paths
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4218814Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4219904Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/settings/ProviderSettings/ProviderSpecific/LoginOauthPanel.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4221841Z [Lint]    65:47  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4223318Z [Lint]    85:23  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4224826Z [Lint]   123:21  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4226381Z [Lint]   163:21  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4228481Z [Lint]   207:41  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4229985Z [Lint]   209:57  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4231717Z [Lint]   221:43  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4233204Z [Lint]   222:48  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4234738Z [Lint]   228:30  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4236265Z [Lint]   228:54  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4237057Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4237916Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/pages/settings/QuickAssistantSettings.tsx
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4240324Z [Lint]   35:24  warning  Unexpected path "@renderer/windows/quickAssistant/home/HomeWindow" imported in restricted zone. A page must not import a window (reverse edge). architecture/renderer.md §2/§7  import-x/no-restricted-paths
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4241895Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4242630Z [Lint] /home/runner/work/cherry-studio/cherry-studio/src/renderer/utils/miniAppPermission.ts
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4244068Z [Lint]   15:5  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4245607Z [Lint]   18:5  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4247183Z [Lint]   21:5  warning  ⚠️ Avoid template literals in t() — they make rendering output unpredictable  i18n/no-template-in-t
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4248017Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4248581Z [Lint] ✖ 50 problems (3 errors, 47 warnings)
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4249454Z [Lint]   3 errors and 0 warnings potentially fixable with the `--fix` option.
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.4250131Z [Lint] 
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.6855507Z [Lint] [ELIFECYCLE] Command failed with exit code 1.
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.7063622Z [Lint] pnpm test:lint exited with code 1
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.7239293Z ##[error]Process completed with exit code 1.
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:49.7346017Z Post job cleanup.
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.0190685Z Pruning is unnecessary.
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.0370177Z Post job cleanup.
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1323479Z [command]/usr/bin/git version
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1364965Z git version 2.55.0
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1402667Z Temporarily overriding HOME='/home/runner/work/_temp/bbe11418-c734-4606-b17e-88992f7aff80' before making global git config changes
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1404216Z Adding repository directory to the temporary git global config as a safe directory
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1408923Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/cherry-studio/cherry-studio
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1438985Z Removing SSH command configuration
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1445686Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1482012Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1751299Z Removing HTTP extra header
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1757054Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.1791821Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2022029Z Removing includeIf entries pointing to credentials config files
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2028378Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2056408Z includeif.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2057347Z includeif.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git/worktrees/*.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2058021Z includeif.gitdir:/github/workspace/.git.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2058574Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2065049Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2086235Z /home/runner/work/_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2095620Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-e5a9d8a6\-caea\-4dba\-9f83\-bf99b2686d66\.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2133982Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git/worktrees/*.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2156548Z /home/runner/work/_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2168361Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/cherry-studio/cherry-studio/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-e5a9d8a6\-caea\-4dba\-9f83\-bf99b2686d66\.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2199715Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2221206Z /github/runner_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2228242Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-e5a9d8a6\-caea\-4dba\-9f83\-bf99b2686d66\.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2259408Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2279525Z /github/runner_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2287668Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-e5a9d8a6\-caea\-4dba\-9f83\-bf99b2686d66\.config
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2318952Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2547718Z Removing credentials config '/home/runner/work/_temp/git-credentials-e5a9d8a6-caea-4dba-9f83-bf99b2686d66.config'
+basic-checks	UNKNOWN STEP	2026-09-01T08:52:50.2699440Z Cleaning up orphan processes
