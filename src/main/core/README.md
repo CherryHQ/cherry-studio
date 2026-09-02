@@ -51,3 +51,4 @@ no longer imported anywhere. It will be removed in a follow-up cleanup PR.
 | `logger/` | Winston-based logging service (preboot singleton, consumed via `@logger` alias) | [logging.md](../../../docs/references/logging/README.md) |
 | `paths/` | Path registry: single source of truth for all main-process filesystem paths | [paths/README.md](./paths/README.md) |
 | `preboot/` | Pre-bootstrap synchronous setup (userData resolution, etc.) | [preboot/README.md](./preboot/README.md) |
+| `utilityProcess/` | Crash-isolated Electron utility processes: manifest, typed clients, wire protocol, child runtime | [Utility Process Reference](../../../docs/references/utility-process/README.md) |
