@@ -37,22 +37,22 @@ The harness drives `ProcessHost` with the real Electron adapter but does **not**
 
 `resolveEntry` in the harness is deliberately the same join as the `app.utility_process` path key, so the asar run also proves the production path composition works inside an archive.
 
-| Check | What it proves |
+The harness covers **only what a real process can prove**. Request correlation, cancellation policy, the breaker, and the stop barriers are unit tests against the in-memory adapter and are deliberately not repeated here — running them twice costs maintenance and proves nothing new.
+
+| Check | What only a real process proves |
 | --- | --- |
-| `request-event` | Handshake, dispatch, ordered events before the result |
-| `typed-array-4mib` | A 4 MiB `Uint8Array` survives the round trip with its checksum |
-| `cooperative-cancel` | The caller's reason is rethrown, the child's signal aborts, the generation survives |
-| `terminate-cancel` | The process is killed, the canceller settles after the exit, bystanders get an intentional exit |
-| `stop-dispose` | `shutdown` runs `dispose` and exits `0`; the next request respawns |
-| `stop-stuck-kill` | A handler that ignores its abort is killed after the grace period |
-| `crash-recovery` | `process.abort()` kills only the child; a replacement serves the next request |
-| `breaker-reset` | Three unrequested exits open the circuit; `stop({ resetFailures: true })` reopens it |
-| `stdio-log-relay` | Child stdout, stderr, and `log` frames all reach the host logger |
+| `entry-isolation` | Each definition resolves and forks its own bundle, and the connect handshake accepts it — including from inside the asar |
+| `typed-array-4mib` | A 4 MiB `Uint8Array` survives real cross-process cloning with its checksum |
+| `stop-stuck-kill` | A real `kill()` terminates a handler that ignores its abort signal |
+| `crash-recovery` | `process.abort()` kills only the child; a replacement process serves the next request |
+| `stdio-log-relay` | Child stdout and stderr really reach the host through the pipe, alongside `log` frames |
 | `net-proxy` | `electron.net.fetch()` in the child honours `app.setProxy()` |
 
 The build assertions matter as much as the checks: the runner rejects any `require()` in an entry bundle that is not relative, `electron`, or a Node builtin, and greps both trees for `LoggerService` / `winston` / `ServiceContainer`.
 
 `process.abort()` exit codes are platform-specific, so `crash-recovery` only asserts a non-zero code. Anything that reads a pipe rather than the message port (stdout/stderr) is polled with a deadline instead of asserted immediately — the pipe is not synchronised with the port, and asserting an order that does not exist would only produce a flaky gate.
+
+One thing the harness does **not** currently catch: entry bundles folding into one another. That failure mode (RFC §9, E1) needs a main entry in the same rollup graph as the utility entries; the harness builds them in two separate passes, so it cannot arise — verified by rebuilding with `preserveModules: false`, which still emits two independent entries and still passes. A consumer that adds its entries to the main build reintroduces the risk and owes its own check.
 
 ## Scope and residual risk
 

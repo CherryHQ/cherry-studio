@@ -1,8 +1,13 @@
 /**
  * Drives ProcessHost + the real Electron adapter inside a real Electron main process.
- * It deliberately does not boot the lifecycle container: everything that needs a real
- * utility process lives in host/ and runtime/, and the container would drag winston,
- * BootConfig and quit handlers into a throwaway app.
+ *
+ * Only what a real process can prove lives here — bundle layout, asar path resolution,
+ * cross-process cloning, kill and crash semantics, pipes, proxy inheritance. Request
+ * correlation, cancellation policy, the breaker and the stop barriers are unit-tested
+ * against the in-memory adapter and are deliberately not repeated.
+ *
+ * It does not boot the lifecycle container: that would drag winston, BootConfig and quit
+ * handlers into a throwaway app for no added coverage.
  */
 
 import http from 'node:http'
@@ -12,10 +17,7 @@ import { app } from 'electron'
 
 import { electronProcessAdapter } from '../../../src/main/core/utilityProcess/host/electronProcessAdapter'
 import { ProcessHost } from '../../../src/main/core/utilityProcess/host/ProcessHost'
-import {
-  isUtilityProcessError,
-  type UtilityProcessErrorCode
-} from '../../../src/main/core/utilityProcess/UtilityProcessError'
+import { isUtilityProcessError } from '../../../src/main/core/utilityProcess/UtilityProcessError'
 import { createEvidenceLogger, record } from './evidence'
 import {
   checksum,
@@ -41,13 +43,6 @@ const hostFor = (definition: typeof smokeEchoProcess) =>
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
-}
-
-function assertCode(error: unknown, code: UtilityProcessErrorCode): void {
-  assert(
-    isUtilityProcessError(error, code),
-    `expected ${code}, got ${error instanceof Error ? error.message : String(error)}`
-  )
 }
 
 /** stdout/stderr cross a pipe, not the message port, so they can land after the result. */
@@ -92,15 +87,16 @@ async function withHost(
 }
 
 async function runChecks(): Promise<void> {
-  await check('request-event', () =>
-    withHost(smokeEchoProcess, async (host) => {
-      const events: number[] = []
-      assert((await host.request('ping', undefined)) === 'pong', 'ping did not answer pong')
-      const result = await host.request('stream', 3, { onEvent: (event) => events.push(event) })
-      assert(result === 'done', `stream returned ${result}`)
-      assert(events.join(',') === '1,2,3', `events were ${events.join(',')}`)
-    })
-  )
+  // Each definition resolves its own bundle and gets through the connect handshake, whose
+  // processId check would reject a process serving the other entry's id. Covers the emitted
+  // layout and, in the asar variant, path resolution inside the archive.
+  await check('entry-isolation', async () => {
+    for (const definition of [smokeEchoProcess, smokeTerminateProcess]) {
+      await withHost(definition, async (host) => {
+        assert((await host.request('ping', undefined)) === 'pong', `${definition.id} did not answer ping`)
+      })
+    }
+  })
 
   await check('typed-array-4mib', () =>
     withHost(smokeEchoProcess, async (host) => {
@@ -112,41 +108,6 @@ async function runChecks(): Promise<void> {
       assert(echoed.byteLength === FOUR_MIB, `child saw ${echoed.byteLength} bytes`)
       assert(echoed.checksum === expected, `child checksum ${echoed.checksum} !== ${expected}`)
       assert(checksum(echoed.bytes) === expected, 'returned checksum mismatch')
-    })
-  )
-
-  await check('cooperative-cancel', () =>
-    withHost(smokeEchoProcess, async (host) => {
-      await host.request('ping', undefined)
-      const controller = new AbortController()
-      const reason = new Error('cancelled by smoke')
-      const pending = rejectionOf(host.request('stall', undefined, { signal: controller.signal }))
-      controller.abort(reason)
-      assert((await pending) === reason, 'cooperative cancel did not rethrow the caller reason')
-      assert((await host.request('ping', undefined)) === 'pong', 'generation did not survive a cooperative cancel')
-    })
-  )
-
-  await check('terminate-cancel', () =>
-    withHost(smokeTerminateProcess, async (host) => {
-      await host.request('ping', undefined)
-      const controller = new AbortController()
-      const reason = new Error('terminated by smoke')
-      const cancelled = rejectionOf(host.request('stall', undefined, { signal: controller.signal }))
-      const bystander = rejectionOf(host.request('stall', undefined))
-      controller.abort(reason)
-      assert((await cancelled) === reason, 'terminate cancel did not rethrow the caller reason')
-      assertCode(await bystander, 'PROCESS_EXITED')
-      assert((await host.request('ping', undefined)) === 'pong', 'no replacement generation after terminate')
-    })
-  )
-
-  await check('stop-dispose', () =>
-    withHost(smokeEchoProcess, async (host) => {
-      await host.request('ping', undefined)
-      await host.stop()
-      await waitFor(() => logger.messages.some((message) => message.includes('disposed')), 'child dispose log')
-      assert((await host.request('ping', undefined)) === 'pong', 'no respawn after stop')
     })
   )
 
@@ -162,20 +123,9 @@ async function runChecks(): Promise<void> {
   await check('crash-recovery', () =>
     withHost(smokeEchoProcess, async (host) => {
       const crashed = await rejectionOf(host.request('crash', undefined))
-      assertCode(crashed, 'PROCESS_EXITED')
-      assert(isUtilityProcessError(crashed) && crashed.exitCode !== 0, 'process.abort() reported a clean exit')
+      assert(isUtilityProcessError(crashed, 'PROCESS_EXITED'), `crash gave ${String(crashed)}`)
+      assert(crashed.exitCode !== 0, 'process.abort() reported a clean exit')
       assert((await host.request('ping', undefined)) === 'pong', 'no replacement after a crash')
-    })
-  )
-
-  await check('breaker-reset', () =>
-    withHost(smokeEchoProcess, async (host) => {
-      for (let round = 0; round < 3; round += 1) {
-        assertCode(await rejectionOf(host.request('exitNow', 4)), 'PROCESS_EXITED')
-      }
-      assertCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
-      await host.stop({ resetFailures: true })
-      assert((await host.request('ping', undefined)) === 'pong', 'circuit did not reopen after a resetting stop')
     })
   )
 

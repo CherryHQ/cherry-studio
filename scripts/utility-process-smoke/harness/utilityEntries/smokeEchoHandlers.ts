@@ -11,17 +11,9 @@ export const smokeHandlers: UtilityProcessHandlers<SmokeContract> = {
     if (!(bytes instanceof Uint8Array)) throw new TypeError('echoBytes did not receive a Uint8Array')
     return { byteLength: bytes.byteLength, checksum: checksum(bytes), bytes }
   },
-  stream: (count, { emit }) => {
-    for (let index = 1; index <= count; index += 1) emit(index)
-    return 'done'
-  },
   stall: () => new Promise<never>(() => {}),
   crash: () => {
     setImmediate(() => process.abort())
-    return new Promise<never>(() => {})
-  },
-  exitNow: (code) => {
-    setImmediate(() => process.exit(code))
     return new Promise<never>(() => {})
   },
   fetchThrough: async (url) => {

@@ -12,13 +12,10 @@ export type SmokeContract = {
     ping: UtilityProcessMethod<void, string>
     /** Round-trips a large typed array and reports what the child received. */
     echoBytes: UtilityProcessMethod<Uint8Array, { byteLength: number; checksum: number; bytes: Uint8Array }>
-    stream: UtilityProcessMethod<number, string, number>
     /** Never settles and ignores its abort signal — models a wedged native call. */
     stall: UtilityProcessMethod<void, never>
     /** `process.abort()`s the child. */
     crash: UtilityProcessMethod<void, never>
-    /** Exits with the given code without being asked to. */
-    exitNow: UtilityProcessMethod<number, never>
     fetchThrough: UtilityProcessMethod<string, { status: number; body: string }>
     /** Writes one stdout line, one stderr line, and one child log frame. */
     logLines: UtilityProcessMethod<string, string>
