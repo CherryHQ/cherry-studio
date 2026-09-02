@@ -272,10 +272,16 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
 
-    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Agent response' }]
-    } as never)
+    await createService().maybeRenameAgentSession(
+      'agent-1',
+      'session-1',
+      'User request',
+      {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never,
+      'user-1'
+    )
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -283,7 +289,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
-    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'common.unnamed', 'Generated Title')
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'common.unnamed', 'Generated Title', 'user-1')
   })
 
   it('renames default unnamed agent sessions from the first user message without generating a summary', async () => {
@@ -554,10 +560,16 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: true
     })
 
-    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Agent response' }]
-    } as never)
+    await createService().maybeRenameAgentSession(
+      'agent-1',
+      'session-1',
+      'User request',
+      {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never,
+      'user-1'
+    )
 
     expect(mocks.generateText).not.toHaveBeenCalled()
     expect(mocks.tryAutoRenameSession).not.toHaveBeenCalled()
@@ -571,12 +583,18 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
 
-    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Agent response' }]
-    } as never)
+    await createService().maybeRenameAgentSession(
+      'agent-1',
+      'session-1',
+      'User request',
+      {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never,
+      'user-1'
+    )
 
-    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'User request', 'Generated Title')
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'User request', 'Generated Title', 'user-1')
   })
 
   it('allows summary rename after first-message extraction and summary extraction see the same message data', async () => {
@@ -606,12 +624,23 @@ describe('TopicNamingService', () => {
     })
     mocks.generateText.mockResolvedValue({ text: 'Generated Title' })
 
-    await createService().maybeRenameAgentSession('agent-1', 'session-1', '  first line  \nsecond line', {
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Agent response' }]
-    } as never)
+    await createService().maybeRenameAgentSession(
+      'agent-1',
+      'session-1',
+      '  first line  \nsecond line',
+      {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never,
+      'user-1'
+    )
 
-    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith('session-1', 'first line second line', 'Generated Title')
+    expect(mocks.tryAutoRenameSession).toHaveBeenCalledWith(
+      'session-1',
+      'first line second line',
+      'Generated Title',
+      'user-1'
+    )
   })
 
   it('does not summary-rename an agent session after a manual rename race', async () => {
@@ -629,10 +658,16 @@ describe('TopicNamingService', () => {
         isNameManuallyEdited: true
       })
 
-    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Agent response' }]
-    } as never)
+    await createService().maybeRenameAgentSession(
+      'agent-1',
+      'session-1',
+      'User request',
+      {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never,
+      'user-1'
+    )
 
     expect(mocks.generateText).toHaveBeenCalledOnce()
     expect(mocks.getSession).toHaveBeenCalledTimes(2)
@@ -650,10 +685,16 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
 
-    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'Agent response' }]
-    } as never)
+    await createService().maybeRenameAgentSession(
+      'agent-1',
+      'session-1',
+      'User request',
+      {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never,
+      'user-1'
+    )
 
     expect(mocks.getModelByKey).not.toHaveBeenCalledWith('claude-code', 'haiku')
     expect(mocks.generateText).toHaveBeenCalledWith(
@@ -727,10 +768,16 @@ describe('TopicNamingService', () => {
       })
       const service = createService()
 
-      const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-        role: 'assistant',
-        parts: [{ type: 'text', text: 'Agent response' }]
-      } as never)
+      const pending = service.maybeRenameAgentSession(
+        'agent-1',
+        'session-1',
+        'User request',
+        {
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'Agent response' }]
+        } as never,
+        'user-1'
+      )
 
       // Registered at method entry, before any await — a detached spawn is
       // captured before its caller's promise resolves.
@@ -764,10 +811,16 @@ describe('TopicNamingService', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
       const service = createService()
 
-      const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
-        role: 'assistant',
-        parts: [{ type: 'text', text: 'Agent response' }]
-      } as never)
+      const pending = service.maybeRenameAgentSession(
+        'agent-1',
+        'session-1',
+        'User request',
+        {
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'Agent response' }]
+        } as never,
+        'user-1'
+      )
 
       // Even the disabled early return was registered first…
       expect(service.inFlightWrites().size).toBe(1)

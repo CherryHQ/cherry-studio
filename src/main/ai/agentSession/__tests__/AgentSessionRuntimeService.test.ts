@@ -3288,11 +3288,17 @@ describe('AgentSessionRuntimeService', () => {
       },
       { publishDataChange: true }
     )
-    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
-      id: 'assistant-1',
-      role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }]
-    })
+    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith(
+      'agent-1',
+      'session-1',
+      'hello',
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'hi' }]
+      },
+      'user-1'
+    )
   })
 
   it('does not auto-name non-initial assistant turns', async () => {

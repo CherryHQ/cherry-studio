@@ -740,7 +740,8 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  tryAutoRename(id: string, expectedName: string, name: string): boolean {
+  tryAutoRename(id: string, expectedName: string, name: string, expectedMessageId?: string): boolean {
+    const sourceMessageId = expectedMessageId ?? null
     const changed = withSqliteErrors(
       () =>
         application
@@ -756,6 +757,7 @@ export class AgentSessionService {
               sql`EXISTS (
                 SELECT 1 FROM ${agentSessionMessageTable}
                 WHERE ${agentSessionMessageTable.sessionId} = ${sessionsTable.id}
+                  AND (${sourceMessageId} IS NULL OR ${agentSessionMessageTable.id} = ${sourceMessageId})
               )`
             )
           )

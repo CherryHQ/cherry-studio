@@ -842,6 +842,16 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(cleared.id).name).toBe('Cleared request')
   })
 
+  it('does not apply a detached rename after its source message is replaced', async () => {
+    const session = await createSession('Original request')
+    await insertSessionMessage(session.id, 'original-user')
+    await dbh.db.delete(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id))
+    await insertSessionMessage(session.id, 'replacement-user')
+
+    expect(agentSessionService.tryAutoRename(session.id, session.name, 'Stale title', 'original-user')).toBe(false)
+    expect(agentSessionService.getById(session.id).name).toBe('Original request')
+  })
+
   it('updates an empty session workspace', async () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')
