@@ -685,7 +685,7 @@ it('accepts documentCount=0 for empty knowledge bases (issue #19861)', () => {
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
-      documentCount: 0,
+      documentCount: 0
     }).success
   ).toBe(true)
   expect(
