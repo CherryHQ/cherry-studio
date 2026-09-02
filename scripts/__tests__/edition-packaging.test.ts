@@ -11,6 +11,23 @@ import { CHINA_EDITION, getExpectedReleaseArtifacts, getReleaseChannel, GLOBAL_E
 const projectRoot = path.join(import.meta.dirname, '..', '..')
 const packageMetadata = JSON.parse(readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
 
+type WorkflowStep = {
+  if?: string
+  name?: string
+  run?: string
+  with?: Record<string, unknown>
+}
+
+type GitCodeWorkflow = {
+  jobs: {
+    'build-windows-signed': {
+      strategy?: { matrix?: { edition?: string[] } }
+      steps: WorkflowStep[]
+    }
+    'sync-to-gitcode': { steps: WorkflowStep[] }
+  }
+}
+
 describe('edition packaging', () => {
   it('injects the selected edition into the renderer build', () => {
     const rendererDefine = (
@@ -138,5 +155,30 @@ describe('edition packaging', () => {
       'Cherry-Studio-CN-2.1.0-mac-x64.dmg',
       'Cherry-Studio-CN-2.1.0-mac-arm64.dmg'
     ])
+  })
+
+  it('re-signs both Windows editions before syncing the release to GitCode', () => {
+    const workflow = parse(
+      readFileSync(path.join(projectRoot, '.github/workflows/sync-to-gitcode.yml'), 'utf8')
+    ) as GitCodeWorkflow
+    const buildJob = workflow.jobs['build-windows-signed']
+    const syncJob = workflow.jobs['sync-to-gitcode']
+    const buildStep = buildJob.steps.find((step) => step.name === 'Build Windows with code signing')
+    const uploadStep = buildJob.steps.find((step) => step.name === 'Upload signed Windows artifacts')
+    const downloadStep = syncJob.steps.find((step) => step.name === 'Download signed Windows artifacts')
+    const replaceStep = syncJob.steps.find((step) => step.name === 'Replace Windows files with signed versions')
+
+    expect(buildJob.strategy?.matrix?.edition).toEqual([GLOBAL_EDITION, CHINA_EDITION])
+    expect(buildStep?.run).toContain('pnpm build:win:cn')
+    expect(buildStep?.run).toContain('pnpm build:win')
+    expect(buildStep?.run).toContain('electron-builder.cn.config.cjs')
+    expect(uploadStep?.with?.name).toContain('matrix.edition')
+    expect(uploadStep?.if).toContain('steps.build-windows.outputs.supported')
+    expect(downloadStep?.with).toMatchObject({
+      pattern: 'signed-windows-artifacts-*',
+      'merge-multiple': true
+    })
+    expect(replaceStep?.run).toContain('cp signed-windows-artifacts/*.exe')
+    expect(replaceStep?.run).toContain('cp signed-windows-artifacts/*.yml')
   })
 })

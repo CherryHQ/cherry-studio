@@ -1,21 +1,14 @@
-import type * as NodeFs from 'node:fs'
-
 import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { netFetchMock, readFileSyncMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
+const { appEditionState, netFetchMock, releaseNotesCheckMock, releaseNotesUpdaterInstances, trackAppUpdateMock } =
   vi.hoisted(() => ({
+    appEditionState: { current: 'global' as 'global' | 'cn' },
     netFetchMock: vi.fn(),
-    readFileSyncMock: vi.fn(),
     releaseNotesCheckMock: vi.fn(),
     releaseNotesUpdaterInstances: [] as Array<Record<string, unknown>>,
     trackAppUpdateMock: vi.fn()
   }))
-
-vi.mock('node:fs', async (importOriginal) => ({
-  ...(await importOriginal<typeof NodeFs>()),
-  readFileSync: readFileSyncMock
-}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -58,6 +51,10 @@ vi.mock('@main/core/lifecycle', () => {
 
 vi.mock('@main/core/platform', () => ({
   isWin: false
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: () => appEditionState.current
 }))
 
 vi.mock('@main/services/RegionService', () => ({
@@ -141,7 +138,7 @@ describe('AppUpdaterService', () => {
     vi.mocked(regionService.getCountry).mockResolvedValue('US')
     vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue(null)
     netFetchMock.mockReset()
-    readFileSyncMock.mockReset().mockReturnValue(JSON.stringify({ name: 'CherryStudio' }))
+    appEditionState.current = 'global'
     releaseNotesCheckMock.mockReset().mockResolvedValue(null)
     releaseNotesUpdaterInstances.length = 0
     autoUpdater.requestHeaders = {}
@@ -182,13 +179,11 @@ describe('AppUpdaterService', () => {
       expect(autoUpdater.requestHeaders).not.toHaveProperty('X-Release-Channel')
     })
 
-    it('uses the China edition stable channel from packaged metadata', async () => {
-      readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn' }))
-      appUpdater = new AppUpdaterService()
+    it('uses the China edition stable channel', async () => {
+      appEditionState.current = 'cn'
 
       await (appUpdater as any).configureUpdaterForCheck()
 
-      expect(readFileSyncMock).toHaveBeenCalledWith('/mock/app.root/package.json', 'utf8')
       expect(autoUpdater.channel).toBe('latest-cn')
       expect(autoUpdater.requestHeaders).toMatchObject({
         'X-Edition': 'cn',
@@ -225,10 +220,9 @@ describe('AppUpdaterService', () => {
     ])(
       'requests the China edition %s manifest when that test channel is enabled',
       async (_label, channel, expected) => {
-        readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn' }))
+        appEditionState.current = 'cn'
         MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
         MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', channel)
-        appUpdater = new AppUpdaterService()
 
         await (appUpdater as any).configureUpdaterForCheck()
 
@@ -286,11 +280,10 @@ describe('AppUpdaterService', () => {
     })
 
     it('uses the China edition channel for the latest release notes request', async () => {
-      readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn' }))
+      appEditionState.current = 'cn'
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.enabled', true)
       MockMainPreferenceServiceUtils.setPreferenceValue('app.dist.test_plan.channel', UpgradeChannel.RC)
       releaseNotesCheckMock.mockResolvedValue(null)
-      appUpdater = new AppUpdaterService()
 
       await appUpdater.getLatestReleaseNotes()
 
