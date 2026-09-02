@@ -5,7 +5,7 @@ const QwencloudLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 28 28" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="-14 -14 56 56" {...props}>
       <defs>
         <linearGradient id={`${iconId}-qwencloudlight__b`} x1={-0.948} x2={1.293} y1={-1.094} y2={0.905}>
           <stop offset="1%" stopColor="#4F21FF" />
