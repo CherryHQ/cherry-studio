@@ -33,6 +33,10 @@ function requireAvailableProvider(provider: Provider): Provider {
   return provider
 }
 
+function requireAvailableProviderById(providerId: string): Provider {
+  return requireAvailableProvider(providerService.getByProviderId(providerId))
+}
+
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
@@ -49,15 +53,17 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
   '/providers/:providerId': {
     GET: async ({ params }) => {
-      return requireAvailableProvider(providerService.getByProviderId(params.providerId))
+      return requireAvailableProviderById(params.providerId)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
+      requireAvailableProviderById(params.providerId)
       return providerService.update(params.providerId, parsed)
     },
 
     DELETE: async ({ params }) => {
+      requireAvailableProviderById(params.providerId)
       providerService.delete(params.providerId)
       return undefined
     }
@@ -66,23 +72,27 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/api-keys': {
     GET: async ({ params, query }) => {
       const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})
+      requireAvailableProviderById(params.providerId)
       const keys = providerService.getApiKeys(params.providerId, parsed)
       return { keys }
     },
 
     POST: async ({ params, body }) => {
       const parsed = AddProviderApiKeySchema.parse(body)
+      requireAvailableProviderById(params.providerId)
       return providerService.addApiKey(params.providerId, parsed.key, parsed.label)
     },
 
     PUT: async ({ params, body }) => {
       const parsed = ReplaceProviderApiKeysSchema.parse(body)
+      requireAvailableProviderById(params.providerId)
       return providerService.replaceApiKeys(params.providerId, parsed.keys)
     }
   },
 
   '/providers/:providerId/auth-config': {
     GET: async ({ params }) => {
+      requireAvailableProviderById(params.providerId)
       const authConfig = providerService.getAuthConfig(params.providerId)
       // OAuth secrets never need to leave the main process — the renderer uses
       // `oauth.has_token` for the signed-in boolean. Whitelist only the
@@ -100,7 +110,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/preset': {
     GET: async ({ params, query }) => {
       const parsed = ProviderPresetQuerySchema.parse(query ?? {})
-      const provider = requireAvailableProvider(providerService.getByProviderId(params.providerId))
+      const provider = requireAvailableProviderById(params.providerId)
       const fields = Array.isArray(parsed.fields) ? parsed.fields : [parsed.fields]
       return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId ?? null)
     }
@@ -109,10 +119,12 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/api-keys/:keyId': {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateApiKeySchema.parse(body)
+      requireAvailableProviderById(params.providerId)
       return providerService.updateApiKey(params.providerId, params.keyId, parsed)
     },
 
     DELETE: async ({ params }) => {
+      requireAvailableProviderById(params.providerId)
       return providerService.deleteApiKey(params.providerId, params.keyId)
     }
   },
@@ -120,6 +132,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
+      requireAvailableProviderById(params.id)
       providerService.move(params.id, parsed)
       return undefined
     }
@@ -128,6 +141,9 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
+      for (const move of parsed.moves) {
+        requireAvailableProviderById(move.id)
+      }
       providerService.reorder(parsed.moves)
       return undefined
     }

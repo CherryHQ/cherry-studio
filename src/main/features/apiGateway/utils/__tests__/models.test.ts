@@ -3,9 +3,14 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  appEdition: { current: 'cn' as 'global' | 'cn' },
   getProvider: vi.fn(),
   listProviders: vi.fn(),
   listModels: vi.fn()
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: () => mocks.appEdition.current
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -32,6 +37,7 @@ import { getModels, resolveGatewayModelAddress } from '../models'
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.appEdition.current = 'cn'
     mocks.getProvider.mockReturnValue({ id: 'openai', name: 'OpenAI', isEnabled: true })
     mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
@@ -85,6 +91,41 @@ describe('api gateway model listing', () => {
       uniqueModelId: 'openai::gpt-4o',
       model: resolvedModel
     })
+  })
+
+  it('does not expose providers unavailable in the application edition', async () => {
+    mocks.listProviders.mockReturnValue([
+      { id: 'global-only', name: 'Global Only', availableInEditions: ['global'] },
+      { id: 'openai', name: 'OpenAI', availableInEditions: ['global', 'cn'] }
+    ])
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+    expect(mocks.listModels).not.toHaveBeenCalledWith(expect.objectContaining({ providerId: 'global-only' }))
+  })
+
+  it('does not resolve providers unavailable in the application edition', () => {
+    mocks.getProvider.mockReturnValue({
+      id: 'global-only',
+      name: 'Global Only',
+      isEnabled: true,
+      availableInEditions: ['global']
+    })
+    mocks.listModels.mockReturnValue([
+      {
+        id: 'global-only::gpt-4o',
+        providerId: 'global-only',
+        apiModelId: 'gpt-4o',
+        ownedBy: 'Global Only',
+        capabilities: [],
+        isEnabled: true
+      }
+    ])
+
+    expect(() => resolveGatewayModelAddress('global-only:gpt-4o')).toThrow(
+      'Model "global-only:gpt-4o" is not available through the API gateway'
+    )
   })
 
   // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never
