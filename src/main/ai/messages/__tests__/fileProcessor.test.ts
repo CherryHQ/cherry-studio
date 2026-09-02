@@ -11,7 +11,7 @@ vi.mock('@logger', () => ({
 
 const { readMock, fileManagerGetMetadataMock } = vi.hoisted(() => ({
   readMock: vi.fn<(id: string, options: { encoding: 'base64' }) => Promise<{ content: string; mime: string }>>(),
-  fileManagerGetMetadataMock: vi.fn<(id: string) => Promise<{ size: number }>>(),
+  fileManagerGetMetadataMock: vi.fn<(id: string) => Promise<{ size: number }>>()
 }))
 
 vi.mock('@application', async () => {

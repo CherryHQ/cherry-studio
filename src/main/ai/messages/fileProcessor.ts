@@ -20,8 +20,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { stat, read as fsRead } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
-import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import mime from 'mime'
 
 /**
@@ -92,7 +92,7 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
       logger.warn('Refusing to inline oversized native file; degrading to note', {
         fileEntryId,
         size,
-        cap: NATIVE_INLINE_FILE_CAP_BYTES,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES
       })
       return null
     }
@@ -126,7 +126,7 @@ async function fileUrlToDataUrl(fileUrl: string) {
       logger.warn('Refusing to inline oversized native file from file:// URL; degrading to note', {
         fileUrl,
         size: stats.size,
-        cap: NATIVE_INLINE_FILE_CAP_BYTES,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES
       })
       return null
     }
