@@ -5,6 +5,7 @@
 !README*.md
 !cherry-electron-dev
 !cherry-pr-test
+!cherry-studio-product-screenshot
 !create-skill
 !gh-create-issue
 !gh-create-pr

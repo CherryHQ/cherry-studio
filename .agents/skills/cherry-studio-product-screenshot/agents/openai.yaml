@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cherry Studio Product Screenshot"
+  short_description: "Capture and verify Cherry Studio product screenshots"
+  default_prompt: "Use $cherry-studio-product-screenshot to capture and verify one Cherry Studio product screenshot from a supplied reference or a product claim."

@@ -8,3 +8,4 @@ gh-pr-review
 vercel-react-best-practices
 cherry-pr-test
 cherry-electron-dev
+cherry-studio-product-screenshot

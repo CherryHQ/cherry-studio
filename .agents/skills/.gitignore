@@ -8,6 +8,8 @@
 !cherry-electron-dev/**
 !cherry-pr-test/
 !cherry-pr-test/**
+!cherry-studio-product-screenshot/
+!cherry-studio-product-screenshot/**
 !create-skill/
 !create-skill/**
 !gh-create-issue/
