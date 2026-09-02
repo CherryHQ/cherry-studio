@@ -37289,6 +37289,81 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "seedream-image-v5.0-lite",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 14,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["2K", "3K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/wand/si-image/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "doubao-seedream-5-0-lite",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "seedream-image-v5.0-pro",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 10,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "1.5K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/wand/si-image/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "doubao-seedream-5-0-pro",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "glm-5",
       "modelId": "glm-5",
       "providerId": "tokenhub"
@@ -37311,6 +37386,44 @@
     {
       "apiModelId": "glm-5v-turbo",
       "modelId": "glm-5v-turbo",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hy-image-v3",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 3,
+            "supports": {
+              "customSize": {
+                "maxSide": 2048,
+                "minSide": 512,
+                "pairedEnumKey": "size",
+                "type": "size"
+              },
+              "promptEnhancement": {
+                "default": false,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "1280x768", "768x1280", "1024x768", "768x1024", "custom"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/wand/hunyuan-image/v3-generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "hy-image-v3-0",
       "providerId": "tokenhub"
     },
     {
@@ -37371,6 +37484,39 @@
     {
       "apiModelId": "qwen3.5-plus",
       "modelId": "qwen3-5-plus",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "vidu-image-q2",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 7,
+            "supports": {
+              "aspectRatio": {
+                "default": "16:9",
+                "options": ["16:9", "9:16", "1:1", "3:4", "4:3", "21:9", "2:3", "3:2"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "resolution": {
+                "default": "1080p",
+                "options": ["1080p", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/wand/vidu-image/generation"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "viduq2",
       "providerId": "tokenhub"
     },
     {
@@ -38547,5 +38693,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "e480b304ca4cc435"
+  "version": "ea68f0c96ce12011"
 }
