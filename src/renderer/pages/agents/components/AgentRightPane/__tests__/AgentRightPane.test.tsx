@@ -22,7 +22,6 @@ import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
   buildAgentToolFlowProjectionMock,
-  getToolResultMock,
   fileSessionDiscardMock,
   fileSessionFlushMock,
   fileSessionState,
@@ -38,7 +37,6 @@ const {
   webviewBrowserMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
-  getToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
   fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
   fileSessionState: {
@@ -183,10 +181,6 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
-}))
-
-vi.mock('@renderer/hooks/useToolResult', () => ({
-  useToolResult: (ref: unknown) => ({ output: ref ? getToolResultMock(ref) : undefined })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -500,6 +494,32 @@ function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { o
   }
 }
 
+function createPreviewToolPart(
+  toolCallId: string,
+  toolName: 'Bash' | 'BashOutput' | 'TaskOutput',
+  output: unknown
+): CherryMessagePart {
+  return {
+    type: 'dynamic-tool',
+    toolCallId,
+    toolName,
+    state: 'output-available',
+    output
+  } as unknown as CherryMessagePart
+}
+
+function createPreviewMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
+  return { id, role: 'assistant', parts, metadata: { status: 'success' } } as unknown as CherryUIMessage
+}
+
+function createDeferredPromise<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 describe('AgentRightPane', () => {
   const triggerRightSidebarShortcut = () => {
     const handler = useCommandHandlerMock.mock.calls
@@ -512,13 +532,16 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    ipcRequestMock.mockResolvedValue({
-      kind: 'file',
-      type: 'text',
-      size: 1,
-      createdAt: 1,
-      modifiedAt: 1,
-      mime: 'text/plain'
+    ipcRequestMock.mockImplementation(async (route: string) => {
+      if (route === 'ai.tool.get_result') return { found: true, output: 'Loaded flow result' }
+      return {
+        kind: 'file',
+        type: 'text',
+        size: 1,
+        createdAt: 1,
+        modifiedAt: 1,
+        mime: 'text/plain'
+      }
     })
     fileSessionState.isDirty = false
     fileSessionState.isSaving = false
@@ -535,7 +558,6 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
-    getToolResultMock.mockReturnValue('Loaded flow result')
   })
 
   it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
@@ -716,6 +738,7 @@ describe('AgentRightPane', () => {
         output: { $deferredToolResult: { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'bash-1' } }
       } as unknown as CherryMessagePart
     ]
+    ipcRequestMock.mockReturnValue(new Promise(() => {}))
     const deferredMessages = [
       {
         id: 'm1',
@@ -737,6 +760,168 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' })).toBeInTheDocument()
     expect(screen.getByTestId('webview-browser')).toBe(browser)
+  })
+
+  it('opens the first preview URL when it exists only in a deferred tool result', async () => {
+    const deferredToolResult = {
+      topicId: 'agent-session:session-a',
+      messageId: 'm1',
+      toolCallId: 'bash-deferred'
+    }
+    const part = createPreviewToolPart('bash-deferred', 'Bash', {
+      $deferredToolResult: deferredToolResult,
+      excerpt: {
+        head: 'Starting development server',
+        tail: 'Waiting for connections',
+        totalChars: 40_000,
+        totalLines: 2
+      }
+    })
+    const messages = [createPreviewMessage('m1', [part])]
+    ipcRequestMock.mockResolvedValue({ found: true, output: 'Ready at http://localhost:6100/app' })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: [part] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await waitFor(() =>
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6100/app')
+    )
+  })
+
+  it('uses a preview URL from the deferred excerpt without loading the full result', () => {
+    const deferredToolResult = {
+      topicId: 'agent-session:session-excerpt',
+      messageId: 'm-excerpt',
+      toolCallId: 'bash-excerpt'
+    }
+    const part = createPreviewToolPart('bash-excerpt', 'BashOutput', {
+      $deferredToolResult: deferredToolResult,
+      excerpt: {
+        head: 'Starting development server',
+        tail: 'Ready at http://localhost:6150/',
+        totalChars: 40_000,
+        totalLines: 500
+      }
+    })
+    const messages = [createPreviewMessage('m-excerpt', [part])]
+
+    render(
+      <TestAgentRightPane sessionId="session-excerpt" messages={messages} partsByMessageId={{ 'm-excerpt': [part] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6150/')
+    expect(ipcRequestMock).not.toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult)
+  })
+
+  it('waits for a newer deferred result before falling back to an older preview URL', async () => {
+    const olderPart = createPreviewToolPart('bash-old', 'Bash', 'Ready at http://localhost:6200/')
+    const newerRef = {
+      topicId: 'agent-session:session-a',
+      messageId: 'm2',
+      toolCallId: 'bash-new'
+    }
+    const newerPart = createPreviewToolPart('bash-new', 'BashOutput', {
+      $deferredToolResult: newerRef,
+      excerpt: { head: 'Still compiling', tail: 'No address yet', totalChars: 40_000, totalLines: 2 }
+    })
+    const result = createDeferredPromise<{ found: true; output: string }>()
+    ipcRequestMock.mockReturnValue(result.promise)
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[createPreviewMessage('m1', [olderPart]), createPreviewMessage('m2', [newerPart])]}
+        partsByMessageId={{ m1: [olderPart], m2: [newerPart] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'about:blank')
+
+    await act(async () => result.resolve({ found: true, output: 'Build completed without a preview address' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6200/')
+    )
+  })
+
+  it.each([
+    { caseName: 'is unavailable', reply: () => Promise.resolve({ found: false }), suffix: 'missing' },
+    { caseName: 'request fails', reply: () => Promise.reject(new Error('result lookup failed')), suffix: 'error' }
+  ])('falls back to an older preview URL when the deferred result $caseName', async ({ reply, suffix }) => {
+    const olderPart = createPreviewToolPart(`bash-old-${suffix}`, 'Bash', 'Ready at http://localhost:6300/')
+    const newerRef = {
+      topicId: 'agent-session:session-a',
+      messageId: 'm2',
+      toolCallId: `bash-new-${suffix}`
+    }
+    const newerPart = createPreviewToolPart(`bash-new-${suffix}`, 'TaskOutput', {
+      $deferredToolResult: newerRef
+    })
+    ipcRequestMock.mockImplementation(reply)
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        messages={[createPreviewMessage('m1', [olderPart]), createPreviewMessage('m2', [newerPart])]}
+        partsByMessageId={{ m1: [olderPart], m2: [newerPart] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+    await waitFor(() =>
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6300/')
+    )
+  })
+
+  it('does not let a stale deferred result replace the current session preview URL', async () => {
+    const resultA = createDeferredPromise<{ found: true; output: string }>()
+    const resultB = createDeferredPromise<{ found: true; output: string }>()
+    ipcRequestMock.mockImplementation((_route: string, ref: { topicId: string }) =>
+      ref.topicId === 'agent-session:session-a' ? resultA.promise : resultB.promise
+    )
+    const refA = { topicId: 'agent-session:session-a', messageId: 'm-a', toolCallId: 'bash-a' }
+    const refB = { topicId: 'agent-session:session-b', messageId: 'm-b', toolCallId: 'bash-b' }
+    const partA = createPreviewToolPart('bash-a', 'Bash', { $deferredToolResult: refA })
+    const partB = createPreviewToolPart('bash-b', 'Bash', { $deferredToolResult: refB })
+    const renderPane = (sessionId: string, messageId: string, part: CherryMessagePart) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        messages={[createPreviewMessage(messageId, [part])]}
+        partsByMessageId={{ [messageId]: [part] }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane('session-a', 'm-a', partA))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refA))
+
+    rerender(renderPane('session-b', 'm-b', partB))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', refB))
+    await act(async () => resultB.resolve({ found: true, output: 'Ready at http://localhost:6400/' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
+    )
+
+    await act(async () => resultA.resolve({ found: true, output: 'Ready at http://localhost:6500/' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6400/')
   })
 
   it('registers the sidebar command independently and prioritizes the resource pane', () => {
@@ -986,7 +1171,7 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
-    await waitFor(() => expect(getToolResultMock).toHaveBeenCalledWith(deferredToolResult))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
     await waitFor(() =>
       expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
         messages,

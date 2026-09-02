@@ -87,9 +87,9 @@ import {
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection,
-  findLatestAgentPreviewUrl
+  buildAgentToolFlowProjection
 } from './agentRightPaneProjection'
+import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 
 const logger = loggerService.withContext('AgentRightPane')
 
@@ -418,10 +418,7 @@ function AgentRightPaneStateProvider({
   // until the transition is accepted so a new tree can never write an old path.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
-  const detectedPreviewUrl = useMemo(
-    () => findLatestAgentPreviewUrl(messages, partsByMessageId),
-    [messages, partsByMessageId]
-  )
+  const detectedPreviewUrl = useAgentPreviewUrl(sessionId, messages, partsByMessageId)
   // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
   const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
   const runtime = useMemo<AgentRightPaneRuntime>(

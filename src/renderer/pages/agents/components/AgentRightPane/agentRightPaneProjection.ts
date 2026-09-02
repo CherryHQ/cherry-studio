@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import { type DeferredToolResultRef, isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
@@ -243,6 +244,10 @@ const LOCAL_PREVIEW_URL_PATTERN =
   /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi
 const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
 
+export type AgentPreviewUrlCandidate =
+  | { key: string; type: 'url'; url: string }
+  | { key: string; type: 'deferred'; ref: DeferredToolResultRef }
+
 function extractLatestLocalPreviewUrl(text: string): string | null {
   const matches = text.match(LOCAL_PREVIEW_URL_PATTERN)
   if (!matches?.length) return null
@@ -260,11 +265,18 @@ function extractLatestLocalPreviewUrl(text: string): string | null {
   return null
 }
 
-/** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
-export function findLatestAgentPreviewUrl(
+/** Extracts the last usable loopback URL from one resolved tool output. */
+export function findAgentPreviewUrlInOutput(output: unknown): string | null {
+  const text = textFromContent(output)
+  return text ? extractLatestLocalPreviewUrl(text) : null
+}
+
+/** Builds newest-first candidates, stopping once an inline or excerpt URL makes older output irrelevant. */
+export function findAgentPreviewUrlCandidates(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): string | null {
+): AgentPreviewUrlCandidate[] {
+  const candidates: AgentPreviewUrlCandidate[] = []
   const entries = getOrderedMessageParts(messages, partsByMessageId)
 
   for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
@@ -272,14 +284,41 @@ export function findLatestAgentPreviewUrl(
     for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
       const part = parts[partIndex]
       if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
-      const output = getToolOutputText(part)
-      if (!output) continue
-      const url = extractLatestLocalPreviewUrl(output)
-      if (url) return url
+
+      const output = getToolPartOutput(part)
+      if (isDeferredToolOutput(output)) {
+        const excerpt = output.excerpt
+        const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
+        if (excerptUrl) {
+          candidates.push({ key: `url:${excerptUrl}`, type: 'url', url: excerptUrl })
+          return candidates
+        }
+        const ref = output.$deferredToolResult
+        candidates.push({
+          key: `deferred:${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}`,
+          type: 'deferred',
+          ref
+        })
+        continue
+      }
+
+      const url = findAgentPreviewUrlInOutput(output)
+      if (!url) continue
+      candidates.push({ key: `url:${url}`, type: 'url', url })
+      return candidates
     }
   }
 
-  return null
+  return candidates
+}
+
+/** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */
+export function findLatestAgentPreviewUrl(
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): string | null {
+  const candidate = findAgentPreviewUrlCandidates(messages, partsByMessageId)[0]
+  return candidate?.type === 'url' ? candidate.url : null
 }
 
 function isTerminalToolState(state: string | undefined): boolean {
