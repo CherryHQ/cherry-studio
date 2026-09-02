@@ -30,6 +30,7 @@ const logger = loggerService.withContext('WebviewService')
 const WEBVIEW_PARTITION = 'persist:webview'
 const ANNOTATION_CACHE_KEY = 'webview.annotations'
 const ACCESSIBILITY_CAPTURE_TIMEOUT_MS = 5_000
+const ACCESSIBILITY_WORLD_NAME = 'cherry-webview-annotation-accessibility'
 
 type AnnotationRegistry = Record<string, WebviewAnnotationDocument>
 type AccessibilityCaptureQueue = Promise<void>
@@ -72,6 +73,18 @@ interface CdpRuntimeEvaluateResult {
     subtype?: string
   }
   exceptionDetails?: unknown
+}
+
+interface CdpPageGetFrameTreeResult {
+  frameTree?: {
+    frame?: {
+      id?: string
+    }
+  }
+}
+
+interface CdpPageCreateIsolatedWorldResult {
+  executionContextId?: number
 }
 
 class AccessibilityCaptureTimeout extends Error {}
@@ -457,6 +470,7 @@ export class WebviewService extends BaseService {
 
   private async captureAnnotationAccessibility(
     debuggerSession: Electron.Debugger,
+    executionContextId: number,
     annotation: WebviewAnnotation,
     budget: AccessibilityCaptureBudget,
     deadline: number
@@ -471,6 +485,7 @@ export class WebviewService extends BaseService {
         'Runtime.evaluate',
         {
           expression: buildElementResolverExpression(annotation.element.selector),
+          contextId: executionContextId,
           objectGroup,
           returnByValue: false,
           silent: true
@@ -614,12 +629,37 @@ export class WebviewService extends BaseService {
         return withStatus('debugger_unavailable')
       }
 
+      let executionContextId: number
       try {
         await this.sendDebuggerCommand(debuggerSession, 'Runtime.enable', undefined, deadline)
         await this.sendDebuggerCommand(debuggerSession, 'Accessibility.enable', undefined, deadline)
+
+        const frameTreeResult = await this.sendDebuggerCommand<CdpPageGetFrameTreeResult>(
+          debuggerSession,
+          'Page.getFrameTree',
+          undefined,
+          deadline
+        )
+        const frameId = frameTreeResult.frameTree?.frame?.id
+        if (!frameId) throw new Error('Webview main frame is unavailable')
+
+        const isolatedWorld = await this.sendDebuggerCommand<CdpPageCreateIsolatedWorldResult>(
+          debuggerSession,
+          'Page.createIsolatedWorld',
+          {
+            frameId,
+            worldName: ACCESSIBILITY_WORLD_NAME,
+            grantUniveralAccess: false
+          },
+          deadline
+        )
+        if (typeof isolatedWorld.executionContextId !== 'number') {
+          throw new Error('Webview isolated world is unavailable')
+        }
+        executionContextId = isolatedWorld.executionContextId
       } catch (error) {
         const status = error instanceof AccessibilityCaptureTimeout ? 'timeout' : 'capture_failed'
-        logger.debug('Failed to enable webview accessibility capture', {
+        logger.debug('Failed to initialize webview accessibility capture', {
           webviewId: guest.id,
           status,
           error: error instanceof Error ? error.message : String(error)
@@ -647,7 +687,13 @@ export class WebviewService extends BaseService {
         try {
           resolved.push({
             ...annotation,
-            accessibility: await this.captureAnnotationAccessibility(debuggerSession, annotation, budget, deadline)
+            accessibility: await this.captureAnnotationAccessibility(
+              debuggerSession,
+              executionContextId,
+              annotation,
+              budget,
+              deadline
+            )
           })
         } catch (error) {
           const status = error instanceof AccessibilityCaptureTimeout ? 'timeout' : 'capture_failed'
