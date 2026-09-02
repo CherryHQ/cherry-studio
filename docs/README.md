@@ -10,6 +10,7 @@
 | [App Update Architecture](./contrib/app-upgrade.md) | How clients check for updates through the managed release service, with channels and the release history feed |
 | [🌿 Branching Strategy](./contrib/branching-strategy.md) | Branch model for contributions, pull request guidelines, and version tag management targeting main |
 | [🖥️ Develop](./contrib/development.md) | Developer environment setup covering IDE configuration, Windows symlink support, and project install steps |
+| [BAChat Feature List v0.1](./contrib/feature-list-v0.1.md) | BAChat v0.1 product feature inventory and scope decisions for the lean core edition |
 | [Feishu Notification Script](./contrib/feishu-notify.md) | CLI script that sends Feishu webhook card notifications from GitHub Actions workflows, with command reference |
 | [Linux Packaging](./contrib/linux-packaging.md) | Linux packaging flow using pinned better-sqlite3 prebuilds, with build commands and prebuild update steps |
 | [Release Workflow Operations](./contrib/release-workflow.md) | Maintainer runbook for preparing, validating, hotfixing, publishing, and synchronizing release branches |
