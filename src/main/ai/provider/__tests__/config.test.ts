@@ -903,6 +903,78 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
   })
 
+  describe('QwenCloud image routing (shared DashScope transport + intl AIGC origin)', () => {
+    const qwencloudEndpointConfigs = {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+        baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/',
+        adapterFamily: 'openai-compatible'
+      }
+    }
+
+    it('routes an image model to the qwencloud transport id and derives the AIGC origin from the chat host', async () => {
+      const provider = makeProvider({
+        id: 'qwencloud',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: qwencloudEndpointConfigs
+      })
+      const model = makeModel({
+        id: 'qwencloud::qwen-image-3-0',
+        providerId: 'qwencloud',
+        apiModelId: 'qwen-image-3.0',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('qwencloud')
+      expect(settings.imageBaseURL).toBe('https://dashscope-intl.aliyuncs.com')
+    })
+
+    it('tracks a custom proxy host when deriving the AIGC origin', async () => {
+      const provider = makeProvider({
+        id: 'qwencloud-proxy',
+        presetProviderId: 'qwencloud',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://proxy.example.com/ds/compatible-mode/v1/',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'qwencloud-proxy::qwen-image-3-0',
+        providerId: 'qwencloud-proxy',
+        apiModelId: 'qwen-image-3.0',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBe('https://proxy.example.com/ds')
+    })
+
+    it('keeps qwencloud chat on the generic openai-compatible builder without an image origin', async () => {
+      const provider = makeProvider({
+        id: 'qwencloud',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: qwencloudEndpointConfigs
+      })
+      const model = makeModel({
+        id: 'qwencloud::qwen3-8-max',
+        providerId: 'qwencloud',
+        apiModelId: 'qwen3.8-max',
+        capabilities: []
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect((config.providerSettings as Record<string, unknown>).imageBaseURL).toBeUndefined()
+    })
+  })
+
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
       resolveApiKeyMock.mockReturnValue({ value: '', apiKeySelection: { attribution: 'unknown' } })
