@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatMarkdown from '../ChatMarkdownRuntime'
 import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'
+import { remarkLatexMath } from '../plugins/remarkLatexMath'
+import { remarkLiteralAutolinkFix } from '../plugins/remarkLiteralAutolinkFix'
 
 const mocks = vi.hoisted(() => ({
   markdown: vi.fn(),
@@ -56,6 +58,9 @@ describe('ChatMarkdown', () => {
 
     expect(streamingNode).toHaveAttribute('data-animated', 'undefined')
     expect(streamingNode).toHaveAttribute('data-parse-incomplete', 'true')
+    expect(mocks.streamingMarkdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remarkPlugins: [remarkLiteralAutolinkFix, remarkLatexMath] })
+    )
 
     rerender(<ChatMarkdown block={{ id: 'message-part', content: '[unfinished](', status: 'success' }} />)
 
@@ -65,18 +70,22 @@ describe('ChatMarkdown', () => {
     expect(mocks.markdown).not.toHaveBeenCalled()
   })
 
-  it('enables raw HTML artifacts only for inline HTML preview messages', () => {
+  it('registers LaTeX math after autolink repair and before optional HTML artifacts', () => {
     const block = { id: 'message-part', content: 'Before\n\n<div>Preview</div>', status: 'success' as const }
     const { rerender } = render(<ChatMarkdown block={block} />)
 
-    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ remarkPlugins: undefined }))
+    expect(mocks.markdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remarkPlugins: [remarkLiteralAutolinkFix, remarkLatexMath] })
+    )
 
     rerender(<ChatMarkdown block={block} inlineHtmlPreviewMode="ready" />)
 
-    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ remarkPlugins: [remarkHtmlArtifact] }))
+    expect(mocks.markdown).toHaveBeenLastCalledWith(
+      expect.objectContaining({ remarkPlugins: [remarkLiteralAutolinkFix, remarkLatexMath, remarkHtmlArtifact] })
+    )
   })
 
-  it('keeps raw and fenced HTML source unchanged during Markdown preprocessing', () => {
+  it('keeps LaTeX and raw or fenced HTML source unchanged during preprocessing', () => {
     const rawHtml = String.raw`<script>const re = /\(x\)/</script>`
     const fencedHtml = `\`\`\`html
 ${rawHtml}
@@ -101,7 +110,7 @@ ${fencedHtml}`,
 
     expect(mocks.markdown).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        children: `Processed $y$
+        children: `Processed \\(y\\)
 
 ${rawHtml}
 

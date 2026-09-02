@@ -14,6 +14,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -109,7 +110,8 @@ const mocks = vi.hoisted(() => ({
   sessionWorkspaceName: 'Workspace 1',
   sessionWorkspacePath: '/workspace',
   runtimeProviderMounts: 0,
-  runtimeProviderUnmounts: 0
+  runtimeProviderUnmounts: 0,
+  providerNames: {} as Record<string, string>
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -531,6 +533,10 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderDisplayName: (providerId?: string) => (providerId ? mocks.providerNames[providerId] : '')
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: (key: string, handler: () => void, options?: Record<string, unknown>) => {
     mocks.shortcutHandlers.set(key, handler)
@@ -881,6 +887,7 @@ describe('AgentComposer', () => {
     mocks.sessionWorkspacePath = '/workspace'
     mocks.runtimeProviderMounts = 0
     mocks.runtimeProviderUnmounts = 0
+    mocks.providerNames = {}
     mocks.sessionLayout = undefined
     mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
@@ -1600,13 +1607,39 @@ describe('AgentComposer', () => {
       />
     )
 
-    const modelLabel = screen.getByText('Claude Sonnet 4.5')
+    const modelLabel = screen.getByText('Claude Sonnet 4.5 | Anthropic')
+    expect(modelLabel).toHaveAttribute('title', 'Claude Sonnet 4.5 | Anthropic')
     expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
     fireEvent.click(screen.getByText('select model 2'))
 
     expect(mocks.updateModel).not.toHaveBeenCalled()
+  })
+
+  it('shows the configured custom provider name in the inline model label', async () => {
+    const customModel: Model = {
+      ...model,
+      id: 'my-custom::custom-model',
+      providerId: 'my-custom',
+      apiModelId: 'custom-model',
+      name: 'Custom Model'
+    }
+    mocks.providerNames['my-custom'] = 'My Custom Provider'
+    mocks.modelResult = customModel
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const modelLabel = await screen.findByText('Custom Model | My Custom Provider')
+    expect(modelLabel).toHaveAttribute('title', 'Custom Model | My Custom Provider')
   })
 
   it('routes new session shortcuts through the empty session action', () => {
@@ -3071,7 +3104,9 @@ describe('AgentComposer', () => {
     const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
     expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
     expect(skillsLauncher?.order).toBe(40)
-    expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
+    expect(skillsLauncher?.rootSearchItems).toEqual([
+      expect.objectContaining({ id: 'skill:pdf', suffix: 'plugins.skills' })
+    ])
     expect(mocks.pinnedLauncherIds).toEqual(['composer:new-session', 'agent-skills'])
 
     const items = getAgentSkillsPanelItems()
@@ -3082,10 +3117,10 @@ describe('AgentComposer', () => {
         id: 'skill:pdf',
         label: 'pdf',
         description: 'Read and analyze PDFs',
-        suffix: 'plugins.skills',
         filterText: 'pdf'
       })
     )
+    expect(skillItem?.suffix).toBeUndefined()
 
     // The pinned footer opens the agent's skills config.
     const manageItem = items.at(-1)
@@ -3732,6 +3767,62 @@ describe('AgentComposer', () => {
       text: 'latest agent draft',
       knowledgeBaseIds: ['pending-kb']
     })
+  })
+
+  it('persists the surface-serialized draft on unmount, not the shadow token state', async () => {
+    // A managed-sync dispatch (panel pick / hydration) inserts the chip while onTokensChange is
+    // suppressed, so persisting the shadow token state would strand its sentence as visible prose.
+    const draftCacheKey = 'agent.composer_draft.session_session-1'
+    const knowledgePrompt =
+      'The user attached knowledge base "Knowledge One" (id: kb-1). Include "kb-1" in kb_search baseIds before answering questions that may depend on this knowledge base, and cite relevant kb_search or kb_read results. Use kb_list only to browse its structure; kb_list output is not retrieved evidence.'
+    const chipToken: ComposerSerializedToken = {
+      ...knowledgeBaseToken(knowledgeBaseOne),
+      promptText: knowledgePrompt,
+      textOffset: 'hello '.length
+    }
+    const drafts = new Map<string, unknown>()
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    const serializedText = `hello ${knowledgePrompt} tail`
+    mocks.getDraft.mockImplementation(() => ({
+      text: serializedText,
+      tokens: [chipToken]
+    }))
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    // The managed-sync upward propagation: editor text changes, tokens never reported.
+    await act(async () => {
+      mocks.surfaceProps?.onTextChange(`hello ${knowledgePrompt}`)
+    })
+
+    // Every writer — periodic and unmount — must store the serialized pair, even where the text
+    // state has fallen behind the editor serialization the pair was captured from.
+    expect(drafts.get(draftCacheKey)).toEqual(
+      expect.objectContaining({
+        text: serializedText,
+        tokens: [chipToken]
+      })
+    )
+
+    view.unmount()
+
+    expect(drafts.get(draftCacheKey)).toEqual(
+      expect.objectContaining({
+        text: serializedText,
+        tokens: [chipToken]
+      })
+    )
   })
 
   it('seeds cached files before managed file tokens reconcile', () => {
@@ -4512,6 +4603,30 @@ describe('AgentComposer', () => {
     expect(mocks.stop).toHaveBeenCalledTimes(1)
   })
 
+  it('handles a failed active stream stop at the composer boundary', async () => {
+    const stopError = new Error('main abort failed')
+    mocks.stop.mockRejectedValueOnce(stopError)
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    fireEvent.click(screen.getByText('pause'))
+
+    await waitFor(() =>
+      expect(loggerError).toHaveBeenCalledWith('Failed to abort agent session', {
+        sessionTopicId: 'agent-session:session-1',
+        error: stopError
+      })
+    )
+  })
+
   it('queues a follow-up while the agent session is streaming (does not send directly)', () => {
     render(
       <AgentComposer
@@ -5159,7 +5274,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Claude Sonnet 4.5')).not.toHaveClass('sr-only')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).not.toHaveClass('sr-only')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
     expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
 
@@ -5167,7 +5282,7 @@ describe('AgentComposer', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Agent')).toHaveClass('sr-only')
-      expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('sr-only')
+      expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('sr-only')
     })
     expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })

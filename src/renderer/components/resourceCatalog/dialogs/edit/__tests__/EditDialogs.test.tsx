@@ -16,6 +16,7 @@ const {
   createPromptMock,
   createGroupMock,
   fetchGenerateMock,
+  invalidateCacheMock,
   installedSkillsState,
   ipcRequestMock,
   knowledgeBasesState,
@@ -37,6 +38,7 @@ const {
   createPromptMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
+  invalidateCacheMock: vi.fn(),
   installedSkillsState: {
     current: {
       skills: [
@@ -262,6 +264,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useDataChange: vi.fn(),
+  useInvalidateCache: () => invalidateCacheMock,
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
@@ -360,6 +363,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
           'library.config.agent.field.permission_mode.label': 'Permission mode',
+          'library.config.agent.field.runtime.immutable_hint': 'Cannot be changed after creation',
           'library.config.agent.section.permission.desc': 'Permission options.',
           'library.config.agent.section.permission.title': 'Permission',
           'library.config.agent.section.tools.add': 'Add',
@@ -386,6 +390,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
           'library.config.basic.custom_params_name': 'Parameter name',
+          'library.config.basic.custom_params_value': 'Parameter value',
           'library.config.basic.default_value': 'Model default',
           'library.config.basic.field.model.hint': 'Default chat model.',
           'library.config.basic.field.name.hint': 'Shown in the selector.',
@@ -443,6 +448,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.prompt.vars.time': 'Time',
           'library.config.prompt.vars.username': 'Username',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
+          'library.config.dialogs.create.avatar_name_label': 'Avatar and name',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
@@ -1101,7 +1107,7 @@ describe('edit dialogs', () => {
         }}
       />
     )
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Locally renamed' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Locally renamed' } })
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
@@ -1121,7 +1127,7 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'First edit' } })
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
 
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Second edit' } })
@@ -1149,7 +1155,7 @@ describe('edit dialogs', () => {
     const props = { open: true, resource: AGENT, onOpenChange: vi.fn() }
     const { rerender } = render(<AgentEditDialog {...props} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'First edit' } })
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
 
     installedSkillsState.current = {
@@ -1317,6 +1323,30 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('names custom parameter value inputs for screen-reader users', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            customParameters: [
+              { name: 'stop', type: 'string', value: 'END' },
+              { name: '', type: 'number', value: 0 }
+            ]
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    expect(await screen.findByRole('textbox', { name: 'Parameter value: stop' })).toHaveValue('END')
+    expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue(0)
   })
 
   it('names the context override for what it does and states what is inherited while off', async () => {
@@ -1867,11 +1897,18 @@ describe('edit dialogs', () => {
   it('keeps edited values while switching tabs before save', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Agent' } })
+    fireEvent.change(screen.getByLabelText('Avatar and name'), { target: { value: 'Draft Agent' } })
     selectTab('System Prompt')
     selectTab('Basic')
 
-    expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
+    expect(screen.getByLabelText('Avatar and name')).toHaveValue('Draft Agent')
+  })
+
+  it('shows the immutable runtime guidance without requiring hover or focus', () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText('Cannot be changed after creation')).toBeVisible()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 
   it('shows an auto-save error and still allows the dialog to close', async () => {
@@ -2061,7 +2098,7 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
-    const nameInput = screen.getByLabelText('Name')
+    const nameInput = screen.getByLabelText('Avatar and name')
     fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
@@ -2084,7 +2121,7 @@ describe('edit dialogs', () => {
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
-    const nameInput = screen.getByLabelText('Name')
+    const nameInput = screen.getByLabelText('Avatar and name')
     fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 

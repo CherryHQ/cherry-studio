@@ -112,6 +112,41 @@
       "when": 1787387094750,
       "tag": "0015_chief_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1787514273959,
+      "tag": "0016_agent_session_message_reasoning_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1787715649955,
+      "tag": "0017_chief_revanche",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1787913871613,
+      "tag": "0018_dashing_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1788241355850,
+      "tag": "0019_colorful_gladiator",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1788247231321,
+      "tag": "0020_wooden_fat_cobra",
+      "breakpoints": true
     }
   ],
   "version": "7"

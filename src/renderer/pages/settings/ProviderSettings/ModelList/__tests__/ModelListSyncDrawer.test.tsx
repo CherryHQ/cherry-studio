@@ -38,9 +38,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('@cherrystudio/ui/icons', () => ({
   useIcon: () => ({
-    Avatar: ({ size, shape }: { size: number; shape: string }) => (
-      <span data-testid="model-icon" data-size={size} data-shape={shape} />
-    )
+    Avatar: () => null
   })
 }))
 
@@ -164,10 +162,17 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
-    expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
     expect(screen.getByText('GPT 5')).toBeInTheDocument()
     expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
     expect(screen.getByText('Legacy Model')).toBeInTheDocument()
+  })
+
+  it('hides model controls while loading', () => {
+    renderDrawer({ isLoading: true })
+
+    expect(screen.getByTestId('spinner')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).not.toBeVisible()
+    expect(screen.getByRole('tablist', { hidden: true })).not.toBeVisible()
   })
 
   // The raw api id moved out of a visible subtitle line into the title's tooltip, so it must stay

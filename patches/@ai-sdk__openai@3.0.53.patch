@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..2e4f1a303666d5dde57f7eee1aed7bd90193a84e 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..9489a0c2b109af4865e2c76ac80fb7b9af5b4c95 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -737,7 +737,7 @@ var OpenAIChatLanguageModel = class {
@@ -111,6 +111,15 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..2e4f1a303666d5dde57f7eee1aed7bd9
        import_v421.z.object({
          type: import_v421.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v421.z.string(),
+@@ -3878,7 +3903,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils26.lazySchema)(
+                       index: import_v421.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
 @@ -4812,7 +4837,7 @@ var OpenAIResponsesLanguageModel = class {
          }
        }
@@ -139,7 +148,7 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..2e4f1a303666d5dde57f7eee1aed7bd9
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0f9e7c9d4055f92619e7389799bc227c080ce008 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..4536cc06d7026fa76b9af104fc652335c1deac09 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -728,7 +728,7 @@ var OpenAIChatLanguageModel = class {
@@ -251,6 +260,15 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0f9e7c9d4055f92619e7389799bc227c
        z21.object({
          type: z21.literal("response.reasoning_summary_part.done"),
          item_id: z21.string(),
+@@ -3955,7 +3980,7 @@ var openaiResponsesResponseSchema = lazySchema19(
+                       index: z21.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
 @@ -4891,7 +4916,7 @@ var OpenAIResponsesLanguageModel = class {
          }
        }
@@ -279,7 +297,7 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..0f9e7c9d4055f92619e7389799bc227c
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..fb4082853ddb20ce66c7ae7e5b2581e4a8cba40a 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..b05a907baa10ed0323d6b5abc48e613025a06a07 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -764,7 +764,7 @@ var OpenAIChatLanguageModel = class {
@@ -391,6 +409,15 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..fb4082853ddb20ce66c7ae7e5b2581e4
        import_v417.z.object({
          type: import_v417.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v417.z.string(),
+@@ -3820,7 +3845,7 @@ var openaiResponsesResponseSchema = (0, import_provider_utils24.lazySchema)(
+                       index: import_v417.z.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
 @@ -5073,7 +5098,7 @@ var OpenAIResponsesLanguageModel = class {
          }
        }
@@ -419,7 +446,7 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..fb4082853ddb20ce66c7ae7e5b2581e4
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..8944669a00acc033bbd2c2faa04c04a2d32bbef9 100644
+index db50beda01459008c836cd5648e024340fe31e90..412e91203d5a79b44cf5570a66d831fe9cd7493b 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -720,7 +720,7 @@ var OpenAIChatLanguageModel = class {
@@ -531,6 +558,15 @@ index db50beda01459008c836cd5648e024340fe31e90..8944669a00acc033bbd2c2faa04c04a2
        z17.object({
          type: z17.literal("response.reasoning_summary_part.done"),
          item_id: z17.string(),
+@@ -3846,7 +3871,7 @@ var openaiResponsesResponseSchema = lazySchema15(
+                       index: z17.number()
+                     })
+                   ])
+-                )
++                ).nullish().transform((v) => v ?? [])
+               })
+             )
+           }),
 @@ -5129,7 +5154,7 @@ var OpenAIResponsesLanguageModel = class {
          }
        }
@@ -661,7 +697,7 @@ index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..56ed9e241cbdeb327878345b3852159d
  
  export type OpenAIResponsesReasoningProviderOptions = z.infer<
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
+index 53a3f242d81d0b52d9126b0f4580a30778373606..b478c2cd2af3112592255d010f67b61187cb4f2b 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
 @@ -985,6 +985,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
@@ -676,6 +712,15 @@ index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d50893
        z.object({
          type: z.literal('response.reasoning_summary_part.done'),
          item_id: z.string(),
+@@ -1111,7 +1116,7 @@ export const openaiResponsesResponseSchema = lazySchema(() =>
+                         index: z.number(),
+                       }),
+                     ]),
+-                  ),
++                  ).nullish().transform((v) => v ?? []),
+                 }),
+               ),
+             }),
 diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
 index fe9616c8119e0d81750b4b367115aa1e58c9bc3d..ee29c4bf14104ceb2e5ce1dafe816828b14018cb 100644
 --- a/src/responses/openai-responses-language-model.ts

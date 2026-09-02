@@ -12,6 +12,7 @@ import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { memo } from 'react'
 
 import type { AddNewTopicPayload } from './types'
 
@@ -39,7 +40,7 @@ type ChatComposerSlotProps =
   | (ChatComposerSlotBaseProps & { placement: 'home'; sendDisabled?: never })
   | (ChatComposerSlotBaseProps & { placement: 'docked'; sendDisabled?: boolean })
 
-export default function ChatComposerSlot({
+function ChatComposerSlot({
   placement,
   topic,
   contextUsage,
@@ -94,3 +95,5 @@ export default function ChatComposerSlot({
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(ChatComposerSlot)

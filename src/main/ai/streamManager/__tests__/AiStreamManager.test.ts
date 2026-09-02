@@ -132,6 +132,7 @@ const fakeCacheService = {
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
 const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
+const mockCloseSession = vi.fn<(sessionId: string) => Promise<void>>(async () => undefined)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -144,7 +145,11 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
+    AgentSessionRuntimeService: {
+      willContinueTopic: mockWillContinueTopic,
+      abortPendingTurn: mockAbortPendingTurn,
+      closeSession: mockCloseSession
+    }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -297,6 +302,7 @@ describe('AiStreamManager', () => {
         messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
         listener: new FakeListener('gateway:request-1'),
         contextOwner: 'caller',
+        tokenUsageSource: 'agent',
         usageContext: {
           agentSessionId: 'session-1',
           assistantMessageId: 'message-1',
@@ -304,7 +310,9 @@ describe('AiStreamManager', () => {
         }
       })
 
-      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: 'session-1', tokenUsageSource: 'agent' })
+      )
     })
   })
 
@@ -1570,6 +1578,87 @@ describe('AiStreamManager', () => {
       // Abort on a finished stream → no-op (status stays 'done')
       mgr.abort('a', 'late')
       expect(mgr.inspect('a')!.status).toBe('done')
+    })
+
+    it('holds same-topic admission until paused persistence and runtime close settle', async () => {
+      vi.useRealTimers()
+      const listener = new FakeListener('persistence:agent')
+      let releasePersistence!: () => void
+      listener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releasePersistence = resolve
+        })
+      let releaseRuntimeClose!: () => void
+      mockCloseSession.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseRuntimeClose = resolve
+          })
+      )
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [listener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => listener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releasePersistence()
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseRuntimeClose()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
+    })
+
+    it('drains an agent continuation launched during terminal handling before releasing admission', async () => {
+      vi.useRealTimers()
+      const continuationListener = new FakeListener('persistence:continuation', 'persistence')
+      let releaseContinuationPersistence!: () => void
+      continuationListener.onPausedImpl = () =>
+        new Promise<void>((resolve) => {
+          releaseContinuationPersistence = resolve
+        })
+      const runtimeListener = new FakeListener('agent-runtime:session-1')
+      runtimeListener.onPausedImpl = () => {
+        mgr.startRuntimeTurn({
+          topicId: 'agent-session:session-1',
+          modelId: 'provider-a::model-a',
+          request: req('agent-session:session-1'),
+          listeners: [continuationListener]
+        })
+      }
+      startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: req('agent-session:session-1'),
+        listeners: [new FakeListener('persistence:initial', 'persistence'), runtimeListener]
+      })
+
+      const stopping = mgr.abortAndDrain('agent-session:session-1', 'user-requested')
+      let nextTurnAdmitted = false
+      const nextTurn = mgr.withDispatchLock('agent-session:session-1', async () => {
+        nextTurnAdmitted = true
+      })
+
+      await flushUntil(() => mockCloseSession.mock.calls.length === 1)
+      await flushUntil(() => continuationListener.pausedResults.length === 1)
+      expect(nextTurnAdmitted).toBe(false)
+
+      releaseContinuationPersistence()
+      await expect(stopping).resolves.toBeUndefined()
+      await expect(nextTurn).resolves.toBeUndefined()
+      expect(nextTurnAdmitted).toBe(true)
     })
   })
 

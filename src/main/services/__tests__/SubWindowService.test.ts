@@ -24,6 +24,7 @@ const {
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
     broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
+    onWindowCreatedByType: vi.fn(() => vi.fn()),
     behavior: { setAlwaysOnTop: vi.fn<(id: string, enabled: boolean) => void>() }
   }
   const ipcApiServiceMock = {

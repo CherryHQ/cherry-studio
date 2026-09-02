@@ -83,6 +83,45 @@ describe('ProviderService.update', () => {
     expect(row.providerSettings).toEqual({ timeout: 30 })
   })
 
+  it('merges nested providerSettings without clobbering sibling keys', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'p-nested',
+      name: 'P',
+      orderKey: 'a0',
+      providerSettings: {
+        cacheControl: { enabled: true, tokenThreshold: 5_000, cacheLastNMessages: 2 }
+      }
+    })
+
+    providerService.update('p-nested', {
+      providerSettings: { cacheControl: { tokenThreshold: 20_000 } }
+    })
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-nested'))
+    expect(row.providerSettings).toEqual({
+      cacheControl: { enabled: true, tokenThreshold: 20_000, cacheLastNMessages: 2 }
+    })
+  })
+
+  it('removes nested and top-level providerSettings keys with null merge-patch values', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'p-delete',
+      name: 'P',
+      orderKey: 'a0',
+      providerSettings: {
+        notes: 'temporary',
+        extraHeaders: { 'X-Keep': 'yes', 'X-Remove': 'no' }
+      }
+    })
+
+    providerService.update('p-delete', {
+      providerSettings: { notes: null, extraHeaders: { 'X-Remove': null } }
+    })
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-delete'))
+    expect(row.providerSettings).toEqual({ extraHeaders: { 'X-Keep': 'yes' } })
+  })
+
   it('drops a key when the patch sets it to undefined (reset-to-default)', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'p-undef',

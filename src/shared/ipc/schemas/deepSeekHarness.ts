@@ -37,3 +37,9 @@ export const deepSeekHarnessRequestSchemas = {
     output: z.object({ status: deepSeekHarnessStatusSchema, url: z.string().url().optional() })
   })
 }
+
+// ── Event schemas ──
+export type DeepSeekHarnessEventSchemas = {
+  /** Fired on every status transition; payload is identical in shape to get_status. */
+  'deepseek_harness.status_changed': { status: z.infer<typeof deepSeekHarnessStatusSchema>; url?: string }
+}

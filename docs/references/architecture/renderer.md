@@ -9,7 +9,7 @@ sources:
 
 This is the canonical reference for how `src/renderer/` is organized: directory responsibilities, dependency direction, and the rules that keep them enforceable.
 
-Renderer code is organized along **two orthogonal axes** — **type** (what kind of artifact it is) and **domain** (which business domain owns it) — with dependencies flowing **strictly downward**, and a **closed top-level**: no capability ever earns its own top-level directory.
+Renderer code is organized along **two orthogonal axes** — **type** (what kind of artifact it is) and **domain** (which business domain owns it) — with dependencies flowing **strictly downward**, and a **closed top-level**: no capability ever earns its own top-level directory. The **domain** axis is a target layer — `features/<domain>/` does not exist on disk today (see §4.1 and §8); domain code currently lives in the shared type buckets (`pages/<domain>/`, `components/<domain>/`, …).
 
 ## 1. Two Axes
 
@@ -18,9 +18,9 @@ Renderer code is organized along **two orthogonal axes** — **type** (what kind
 | **Type** | What kind of artifact is this? | page / component / hook / service / util / … |
 | **Domain** | Which domain owns it? | a specific business domain (chat, knowledge, agent, …) **\|** `shared` (no single owner) |
 
-- `features/<domain>/` is a full **row** on the domain axis: it spans every type column for one domain (its own pages, components, hooks, services, utils). This is why a feature is "cross-cutting" — it cuts across the type buckets.
-- The top-level type buckets (`components/`, `pages/`, `hooks/`, `utils/`, …) are the cells of the **`shared` row**: they hold **only** the cross-domain / standalone remainder.
-- The meaningful comparison is **cell-to-cell within a column** (`features/chat/components/` ↔ top-level `components/`), never `features/` ↔ `components/` (a category error: a row is not a cell).
+- `features/<domain>/` is the **target** full **row** on the domain axis: it would span every type column for one domain (its own pages, components, hooks, services, utils). This is why a feature is "cross-cutting" — it cuts across the type buckets. No `features/` directory exists on disk today; see §4.1 and §8. Domain content currently lives in the shared buckets as `pages/<domain>/`, `components/<domain>/`, `hooks/<domain>/`, … until promotion.
+- The top-level type buckets (`components/`, `pages/`, `hooks/`, `utils/`, …) are the cells of the **`shared` row**: they hold **only** the cross-domain / standalone remainder — and, until promotion, the per-domain slices listed above.
+- The meaningful comparison is **cell-to-cell within a column** (`features/chat/components/` (target) ↔ top-level `components/`), never `features/` ↔ `components/` (a category error: a row is not a cell).
 
 ## 2. Layers & Dependency Direction
 
@@ -28,8 +28,8 @@ Four layers. Dependencies may only flow **downward** (1 → 2 → 3 → 4).
 
 | # | Layer | Directories | Role |
 |---|---|---|---|
-| 1 | **App / composition** | `windows/`, `routes/`, top-level `pages/` (cross-domain shells only) | Entry points, provider mounting, router, app shell; composes features |
-| 2 | **Domain** | `features/<domain>/` | One business domain's vertical slice; mutually isolated from sibling features (consumed from above by the app layer) |
+| 1 | **App / composition** | `windows/`, `routes/`, top-level `pages/` (cross-domain shells + currently all domain pages — see §4.1) | Entry points, provider mounting, router, app shell; composes features (when present) and shared buckets |
+| 2 | **Domain (target — not present on disk; see §8)** | `features/<domain>/` | One business domain's vertical slice; mutually isolated from sibling features (consumed from above by the app layer) |
 | 3 | **Shared** (no single owner) | `components/` → `hooks/` / `services/` → `utils/` / `data/` / `ipc/` / `workers/`; plus `i18n/` / `assets/` / `types/` | Cross-domain reusable artifacts |
 | 4 | **Primitives** | `packages/ui` (`@cherrystudio/ui`), `@shared`, `@logger` | App-agnostic foundation |
 
@@ -63,14 +63,14 @@ It is orthogonal to the domain axis (§1) — a `page` may be domain-owned (`fea
 
 ## 3. Directory Responsibilities
 
-Target layout (in-flight directories pending migration are listed in §8):
+Target layout (in-flight directories pending migration are listed in §8). `features/` is target-only and does not exist on disk today (see §4.1 and §8).
 
 ```text
 src/renderer/
 ├── windows/      # App      — per-window entry roots (MainApp/SubWindowApp) + shell
 ├── routes/       # App      — route definitions
-├── pages/        # App      — cross-domain shell pages only (domain pages live in features)
-├── features/     # Domain   — one business domain per dir
+├── pages/        # App      — cross-domain shell pages + all domain pages today (domain pages move into features/<domain>/pages/ when promoted — see §4.1)
+├── features/     # Domain   — target, not present — one business domain per dir (see §4, §4.1, §8)
 │   └── <domain>/ #            index.ts (sole public API) + pages/ components/ hooks/ services/ utils/
 ├── components/   # Shared    — cross-domain, app-aware, presentational UI
 ├── hooks/        # Shared    — cross-domain hooks
@@ -86,9 +86,9 @@ src/shared                       # Primitive — cross-process types / contracts
 | Directory | Responsibility | May depend on (downward) | Must not |
 |---|---|---|---|
 | `windows/` | Multi-window entry points; mount providers, router, shell | every lower layer | be imported by anyone |
-| `routes/` | Route definitions pointing at pages | features, shared, primitives | be imported by lower layers |
-| `pages/` (top-level) | **Only** cross-domain shell / composition pages; domain pages move into `features/<domain>/pages/` | features, components, shared, primitives | import another `pages/<page>` (cross-page coupling) |
-| `features/<domain>/` | One **business domain**'s vertical slice (its pages/components/hooks/services/utils); curated `index.ts` is the sole public entry. Its **only** legal importers are the app layer (`windows`/`routes`/`pages`), via the barrel | shared layer, primitives, its own internals | (1) import a sibling feature (2) be imported by the shared layer or a sibling feature (3) hold non-domain / cross-cutting / domain-agnostic infra |
+| `routes/` | Route definitions pointing at pages | features (target), shared, primitives | be imported by lower layers |
+| `pages/` (top-level) | Cross-domain shell / composition pages **plus** all domain pages today (`pages/<domain>/`, moving into `features/<domain>/pages/` when promoted — see §4.1 and §8) | features (target), components, shared, primitives | import another `pages/<page>` (cross-page coupling) |
+| `features/<domain>/` (target — not present on disk; see §8) | One **business domain**'s vertical slice (its pages/components/hooks/services/utils); curated `index.ts` is the sole public entry. Its **only** legal importers are the app layer (`windows`/`routes`/`pages`), via the barrel | shared layer, primitives, its own internals | (1) import a sibling feature (2) be imported by the shared layer or a sibling feature (3) hold non-domain / cross-cutting / domain-agnostic infra |
 | `components/` | App-level **shared UI**: cross-page, no domain knowledge, app-aware, presentational | packages/ui, other components, hooks, services, utils, @shared | import features; import pages; own a domain's data flow |
 | `services/` | App-level **runtime services**: a module owning retained state / resources / lifecycle (a singleton capability — class + suffix, [Naming §5.2](./naming-conventions.md)), **or** a stateless module promoted out of `utils/` by **outward side effects** or a forced dependency (routing procedure below). A multi-file topic forms `services/<topic>/` behind a barrel (§3.1). Plain modules, **no components or JSX**. A stateless helper does **not** belong here merely for calling `data` / `ipc` reads — route it to `utils/` | other services, utils, data, ipc, @shared | import features; import pages; import components; render UI; call React hooks |
 | `hooks/` | **Cross-domain** reusable hooks | other hooks, services, utils, data, @shared | import features/pages/components; retain a domain's hooks once that domain has its own feature (§4.1) |
@@ -127,9 +127,9 @@ A **headless** capability (no UI) that outgrows one file grows **in place** into
 | No UI, ever | no JSX and no React hooks inside; UI parts route into the shared buckets by shape (§3 / §6), and the domain promotes to `features/<domain>/` only once the §4.1 trigger holds |
 | Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/StreamDispatchService.ts`, not `AiTransportStreamDispatchService.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
 
-## 4. `features/` Definition
+## 4. `features/` Definition (target — not present on disk; see §8)
 
-> A `features/<domain>/` is a **self-contained business-domain module** — a full row on the domain axis that co-locates the pages, components, hooks, services, and utils for **one** business domain in a single tree, exposing its public API through a curated `index.ts`.
+> A `features/<domain>/` is a **self-contained business-domain module** — a full row on the domain axis that co-locates the pages, components, hooks, services, and utils for **one** business domain in a single tree, exposing its public API through a curated `index.ts`. This is a **target** design: no `features/` directory exists today (the last occupant was removed in `78165e7094` — see §8), and §4.1 below describes when a domain would earn one.
 >
 > *Self-contained* describes **internal cohesion** (all of one domain's parts live in one tree), **not** external unreachability: a feature is openly imported from above by the app layer (§2). It is isolated only **horizontally** — from sibling features.
 
@@ -139,7 +139,7 @@ A **headless** capability (no UI) that outgrows one file grows **in place** into
 
 ### 4.1 Promotion Rule — when a domain earns a feature
 
-Promotion is **lazy and per-case** (§4), not a default — but it is a real path, not a directory doomed to stay empty: the rules above describe what the destination *looks like*. Until a domain qualifies, its pieces legitimately sit in the shared type-buckets (`pages/<domain>/`, `components/<domain>/`, `hooks/<domain>/`, …). (No `features/` directory exists yet — see §8.)
+Promotion is **lazy and per-case** (§4), not a default — but it is a real path, not a directory doomed to stay empty: the rules above describe what the destination *looks like*. Until a domain qualifies, its pieces legitimately sit in the shared type-buckets (`pages/<domain>/`, `components/<domain>/`, `hooks/<domain>/`, …). No `features/` directory exists today — the last occupant (`features/command`) was decomposed into shared buckets in `78165e7094` (2026-06-19); the current gap is tracked in §8.
 
 Operational trigger (guidance, not a hard gate) — promote when **all** hold:
 
@@ -221,7 +221,7 @@ Only **outstanding** deviations are tracked here: once a deviation is resolved i
 | App shell | shell chrome in `components/layout/` is partly window-specific, partly cross-window — including `AppShell` and the `Sidebar` it renders (`components/app/Sidebar`, imported by `components/layout/AppShell.tsx` — window-shell UI, **not** dead code) | decompose by ownership: main shell (`AppShell`, `AppShellTabBar`, tab drag, `Sidebar`) → `windows/main/`; sub-window chrome (`SubWindowControls`, `SubWindowTitle`) → `windows/subWindow/`; cross-window building blocks (`TabRouter`, `TabIcon`, `titleBar`, tab icons) → shared `components/` (e.g. `components/shell/`). No new `windows/shell/` bucket |
 | Cross-page imports | `pages/<domain>/` files still import sibling page domains (`pages → pages` coupling), held at `warn` by the §5 gate | a page must not import another page; route shared needs through the shared layer, then tighten the gate to `error` |
 | `utils/message/` topic barrel | `utils/message/` is a multi-file topic subdir with **no `index.ts`** (the `@renderer/utils` root barrel has already been dropped) | give `utils/message/` one curated `index.ts` (named exports, **no `export *`**) |
-| Domain promotion | large multi-file domains (`chat` ≈ `pages/home` + `components/chat` + `components/composer`; `knowledge` ≈ `pages/knowledge` + …) are scattered across the shared type-buckets, and **no `features/` directory exists yet** | promote the largest domains into `features/<domain>/` per the §4.1 trigger (`chat` and `knowledge` first) |
+| Domain promotion | large multi-file domains (`chat` ≈ `pages/home` + `components/chat` + `components/composer`; `knowledge` ≈ `pages/knowledge` + …) are scattered across the shared type-buckets, and **no `features/` directory exists** — the last occupant (`features/command`) was decomposed in `78165e7094` (2026-06-19) | promote the largest domains into `features/<domain>/` per the §4.1 trigger (`chat` and `knowledge` first) |
 
 ## 9. Industry References
 

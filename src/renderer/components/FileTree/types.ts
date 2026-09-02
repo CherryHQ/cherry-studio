@@ -32,6 +32,9 @@ export interface FileTreeAnimationSlot {
 export interface FileTreeProps {
   nodes: FileTreeNode[]
 
+  /** Accessible name for the tree surface. */
+  ariaLabel?: string
+
   expandedIds?: ReadonlySet<string>
   defaultExpandedIds?: ReadonlySet<string>
   onExpandedChange?: (next: ReadonlySet<string>) => void

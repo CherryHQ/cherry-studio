@@ -179,6 +179,20 @@ describe('AgentService', () => {
   }
 
   describe('createAgent', () => {
+    it('notifies live agent lists after creation', () => {
+      notifyDataApiDataChangeMock.mockClear()
+
+      const agent = createAgentForTest({
+        type: 'claude-code',
+        name: 'Externally Created',
+        model: TEST_MODEL_ID
+      })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [agent.id] }
+      ])
+    })
+
     it('persists plan and small models when provided', async () => {
       const agent = createAgentForTest({
         type: 'claude-code',
@@ -1052,6 +1066,7 @@ describe('AgentService', () => {
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = agentService.deleteAgent(id)
 
@@ -1059,6 +1074,10 @@ describe('AgentService', () => {
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {

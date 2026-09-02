@@ -72,10 +72,7 @@ export function ResourceCard({
   const { t } = useTranslation()
   const cfg = RESOURCE_TYPE_META[r.type]
   const isSettings = variant === 'settings'
-  // Library cards keep the type tint for quick scanning. The settings surface uses a neutral icon block
-  // so Skill management follows the same calm visual hierarchy as the surrounding settings pages.
   const showTypeIcon = r.type === 'skill'
-  const useTypedAvatarBg = showTypeIcon && !isSettings
   const TypeIcon = cfg.icon
   const showOverflowMenu = hasOverflowActions(r)
   const visibleGroup = r.type === 'assistant' ? r.groupName : undefined
@@ -100,13 +97,9 @@ export function ResourceCard({
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-lg text-base',
-              useTypedAvatarBg ? cfg.color : 'bg-secondary text-secondary-foreground'
+              showTypeIcon ? cfg.color : 'bg-secondary text-secondary-foreground'
             )}>
-            {showTypeIcon ? (
-              <TypeIcon size={20} aria-hidden className={isSettings ? 'text-foreground-tertiary' : undefined} />
-            ) : (
-              r.avatar
-            )}
+            {showTypeIcon ? <TypeIcon size={20} aria-hidden className="lucide-custom" /> : r.avatar}
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
