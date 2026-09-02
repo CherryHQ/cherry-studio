@@ -579,6 +579,7 @@
   "chat.default.name": "Assistente Cherry",
   "chat.default.topic.name": "Tópico Padrão",
   "chat.home.welcome_title": "Sobre o que devemos falar hoje?",
+  "chat.input.ai_disclaimer": "Conteúdo gerado por IA, apenas para referência",
   "chat.input.cancel_editing": "Cancelar edição",
   "chat.input.clear.content": "Tem a certeza de que pretende limpar todas as mensagens da sessão atual?",
   "chat.input.clear.title": "Limpar mensagens",
