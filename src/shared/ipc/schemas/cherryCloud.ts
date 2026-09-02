@@ -1,3 +1,5 @@
+import { objectValues } from '@cherrystudio/provider-registry'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -10,6 +12,16 @@ export const cherryCloudStatusSchema = z.strictObject({
 
 export type CherryCloudStatus = z.infer<typeof cherryCloudStatusSchema>
 
+const cherryCloudModelFeatureSchema = z.enum(objectValues(CHERRY_CLOUD_MODEL_FEATURE))
+
+const cherryCloudModelSyncResultSchema = z.strictObject({
+  entitledModelIds: z.array(UniqueModelIdSchema),
+  quotaExhaustedModelIds: z.array(UniqueModelIdSchema),
+  featuresByModelId: z.record(UniqueModelIdSchema, z.array(cherryCloudModelFeatureSchema))
+})
+
+export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
+
 export const cherryCloudRequestSchemas = {
   'cherry_cloud.status.get': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.login.start': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
@@ -17,10 +29,7 @@ export const cherryCloudRequestSchemas = {
   'cherry_cloud.session.revoke': defineRoute({ input: z.void(), output: cherryCloudStatusSchema }),
   'cherry_cloud.models.sync': defineRoute({
     input: z.void(),
-    output: z.strictObject({
-      entitledModelIds: z.array(UniqueModelIdSchema),
-      quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
-    })
+    output: cherryCloudModelSyncResultSchema
   })
 }
 

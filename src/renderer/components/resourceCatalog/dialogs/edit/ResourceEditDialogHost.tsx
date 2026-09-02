@@ -4,9 +4,10 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,8 +21,6 @@ type ResourceEditDialogHostProps = {
 }
 
 const logger = loggerService.withContext('ResourceEditDialogHost')
-const assistantModelFilter: ModelSelectorFilter = (model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model)
-
 export function ResourceEditDialogHost({ target, onOpenChange }: ResourceEditDialogHostProps) {
   const [open, setOpen] = useState(target !== null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -81,6 +80,11 @@ function AssistantEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { assistant, error } = useAssistantApiById(target.id)
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
+  const assistantModelFilter = useCallback<ModelSelectorFilter>(
+    (model) => isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && !isNonChatModel(model),
+    [isModelAvailableForFeature]
+  )
 
   useEffect(() => {
     if (!error) return
@@ -95,6 +99,7 @@ function AssistantEditDialogHost({
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
       modelFilter={assistantModelFilter}
+      isModelDisabled={isModelDisabled}
       initialTab={target.initialTab}
     />
   )

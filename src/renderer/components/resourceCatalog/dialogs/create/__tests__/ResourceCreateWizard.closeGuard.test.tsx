@@ -29,8 +29,14 @@ vi.mock('@renderer/hooks/useModel', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true,
-  useAgentModelDisabled: () => () => false
+  useAgentModelFilter: () => () => true
+}))
+
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    isModelAvailableForFeature: () => true,
+    isModelDisabled: () => false
+  })
 }))
 
 vi.mock('@renderer/ipc', () => ({

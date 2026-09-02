@@ -21,6 +21,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { CHERRY_CLOUD_MODEL_FEATURE, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
@@ -133,6 +134,14 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
+    if (
+      isManagedCherryCloudModel(providerId) &&
+      !application
+        .get('CherryCloudService')
+        .isModelAvailableForFeature(uniqueModelId, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE)
+    ) {
+      throw new Error(NOT_CONFIGURED_ERROR)
+    }
 
     const content = isQwenMTModel(model)
       ? text

@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { Navbar } from '@renderer/components/Navbar'
 import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -23,7 +24,6 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
@@ -41,6 +41,7 @@ import {
   BABELDOC_TOOL_NAME,
   getBabelDocInstallationStatus
 } from '@shared/data/presets/binaryTools'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
@@ -215,6 +216,7 @@ const TranslatePage: FC = () => {
   const { t } = useTranslation()
   const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
   const { models } = useModels({ enabled: true })
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
   const detectLanguage = useDetectLang()
   const { add: addHistory, update: updateHistory } = useTranslateHistory({
     update: { showErrorToast: false, rethrowError: false }
@@ -275,13 +277,20 @@ const TranslatePage: FC = () => {
   const pdfTextFallbackStartedRef = useRef(false)
   const prePdfOutputRef = useRef<string | null>(null)
 
-  const selectedModelId = useMemo(
+  const configuredModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
     [translateModelId]
   )
 
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
-  const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : undefined
+  const configuredModel = configuredModelId ? modelsById.get(configuredModelId) : undefined
+  const selectedModel =
+    configuredModel &&
+    isModelAvailableForFeature(configuredModel, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE) &&
+    !isModelDisabled(configuredModel)
+      ? configuredModel
+      : undefined
+  const selectedModelId = selectedModel?.id
   const isSelectedPdfModelRoutable = !!selectedModel && isGatewayRoutableModel(selectedModel)
   const selectedModelIcon = useIcon(selectedModel ? getModelLogoRef(selectedModel) : undefined)
 
@@ -690,10 +699,10 @@ const TranslatePage: FC = () => {
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
     (model) =>
-      isModelVisibleOutsideAgent(model) &&
+      isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE) &&
       !isNonChatModel(model) &&
       (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
-    [babelDoc.availability, isPdfMode]
+    [babelDoc.availability, isModelAvailableForFeature, isPdfMode]
   )
 
   const handleModelIdSelect = useCallback(
@@ -1005,6 +1014,7 @@ const TranslatePage: FC = () => {
               value={selectedModelId}
               onSelect={handleModelIdSelect}
               filter={modelSelectorFilter}
+              isModelDisabled={isModelDisabled}
               showTagFilter={false}
               showPinnedModels
               prioritizedProviderIds={PRIORITIZED_PROVIDER_IDS}

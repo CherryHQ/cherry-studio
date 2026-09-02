@@ -60,6 +60,7 @@ describe('Cherry Cloud response contracts', () => {
             endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
             context_window: 200_000,
             max_output_tokens: 8_192,
+            available_features: ['agent', 'chat', 'translate'],
             model_metadata: { tier: 'work' }
           }
         ],
@@ -76,5 +77,23 @@ describe('Cherry Cloud response contracts', () => {
       }).success
     ).toBe(false)
     expect(cloudModelListSchema.safeParse({ has_more: false }).success).toBe(false)
+  })
+
+  it('requires a non-empty unique list of supported model features', () => {
+    const model = {
+      id: 'claude-test',
+      display_name: 'Claude Test',
+      endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      context_window: 200_000,
+      max_output_tokens: 8_192
+    }
+
+    expect(cloudModelListSchema.safeParse({ data: [model] }).success).toBe(false)
+    expect(
+      cloudModelListSchema.safeParse({ data: [{ ...model, available_features: ['agent', 'agent'] }] }).success
+    ).toBe(false)
+    expect(cloudModelListSchema.safeParse({ data: [{ ...model, available_features: ['unsupported'] }] }).success).toBe(
+      false
+    )
   })
 })

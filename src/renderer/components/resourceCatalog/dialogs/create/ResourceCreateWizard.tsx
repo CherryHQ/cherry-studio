@@ -1,11 +1,12 @@
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -137,20 +138,21 @@ export function ResourceCreateWizard({
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
-  const isAgentModelDisabled = useAgentModelDisabled()
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
   const assistantModelFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) => isModelVisibleOutsideAgent(model) && (modelFilter?.(model, provider) ?? true),
-    [modelFilter]
+    (model, provider) =>
+      isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && (modelFilter?.(model, provider) ?? true),
+    [isModelAvailableForFeature, modelFilter]
   )
   const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter
-  const activeIsModelDisabled = kind === 'agent' ? isAgentModelDisabled : undefined
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
   const selectableDefaultModelId =
     open &&
     defaultModel?.isEnabled &&
     defaultModelProvider?.isEnabled &&
-    (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider))
+    (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider)) &&
+    !isModelDisabled(defaultModel, defaultModelProvider)
       ? defaultModel.id
       : null
   const autoSelectedDefaultModelIdRef = useRef<UniqueModelId | null>(null)
@@ -358,7 +360,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getResourceCreateDefaultAvatar(kind)}
                     modelFilter={activeModelFilter}
-                    isModelDisabled={activeIsModelDisabled}
+                    isModelDisabled={isModelDisabled}
                     runtimeSelectable={kind === 'agent'}
                     onSettingsNavigate={closeBeforeAction}
                   />

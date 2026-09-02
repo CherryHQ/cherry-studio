@@ -4,14 +4,18 @@ import { createManagedModelWriter, modelService } from '@data/services/ModelServ
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
-import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_MODEL_GROUP,
+  CHERRY_CLOUD_PROVIDER_ID,
+  type CherryCloudModelFeature
+} from '@shared/data/presets/cherryai'
 import {
   createUniqueModelId,
   type EndpointType,
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
+import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
 
@@ -64,11 +68,6 @@ type CherryCloudState = {
   pending: PendingAuthorization | null
   session: ProductSession | null
 }
-type CloudModelSyncResult = {
-  entitledModelIds: UniqueModelId[]
-  quotaExhaustedModelIds: UniqueModelId[]
-}
-
 function emptyState(): CherryCloudState {
   return { device: null, pending: null, session: null }
 }
@@ -114,12 +113,12 @@ export class CherryCloudService extends BaseService {
   private modelSyncPromise: {
     controller: AbortController
     generation: number
-    promise: Promise<CloudModelSyncResult>
+    promise: Promise<CherryCloudModelSyncResult>
   } | null = null
   private modelSyncCache: {
     generation: number
     syncedAt: number
-    result: CloudModelSyncResult
+    result: CherryCloudModelSyncResult
   } | null = null
   private sessionGeneration = 0
   private loopbackCallback: CherryCloudLoopbackCallback | null = null
@@ -501,7 +500,7 @@ export class CherryCloudService extends BaseService {
     this.modelSyncCache = null
   }
 
-  private async syncEntitledModels(): Promise<CloudModelSyncResult> {
+  private async syncEntitledModels(): Promise<CherryCloudModelSyncResult> {
     await this.pruneExpiredState()
     const generation = this.sessionGeneration
     if (this.modelSyncPromise?.generation === generation) return this.modelSyncPromise.promise
@@ -530,7 +529,7 @@ export class CherryCloudService extends BaseService {
     return sync
   }
 
-  public async syncEntitledModelsIfStale(): Promise<CloudModelSyncResult> {
+  public async syncEntitledModelsIfStale(): Promise<CherryCloudModelSyncResult> {
     await this.pruneExpiredState()
     const cached = this.modelSyncCache
     if (cached?.generation === this.sessionGeneration && Date.now() - cached.syncedAt < CLOUD_MODEL_SYNC_CACHE_TTL_MS) {
@@ -539,10 +538,25 @@ export class CherryCloudService extends BaseService {
     return this.syncEntitledModels()
   }
 
-  private async syncEntitledModelsOnce(sessionGeneration: number, signal: AbortSignal): Promise<CloudModelSyncResult> {
+  public isModelAvailableForFeature(modelId: UniqueModelId, feature: CherryCloudModelFeature): boolean {
+    const cached = this.modelSyncCache
+    return (
+      cached?.generation === this.sessionGeneration &&
+      (cached.result.featuresByModelId[modelId]?.includes(feature) ?? false)
+    )
+  }
+
+  private async syncEntitledModelsOnce(
+    sessionGeneration: number,
+    signal: AbortSignal
+  ): Promise<CherryCloudModelSyncResult> {
     if (!this.cloudState.session) {
       this.reconcileEntitledModels([])
-      return { entitledModelIds: [], quotaExhaustedModelIds: [] }
+      return {
+        entitledModelIds: [],
+        quotaExhaustedModelIds: [],
+        featuresByModelId: {}
+      }
     }
 
     const [account, catalog] = await Promise.all([
@@ -577,10 +591,16 @@ export class CherryCloudService extends BaseService {
           .map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
       )
     ]
+    const featuresByModelId: CherryCloudModelSyncResult['featuresByModelId'] = {}
+    for (const model of models) {
+      const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
+      featuresByModelId[uniqueModelId] = model.available_features
+    }
     this.reconcileEntitledModels(models)
     return {
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
-      quotaExhaustedModelIds
+      quotaExhaustedModelIds,
+      featuresByModelId
     }
   }
 

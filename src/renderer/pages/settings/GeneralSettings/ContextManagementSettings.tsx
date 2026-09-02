@@ -10,10 +10,11 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import {
   MAX_COMPRESS_THRESHOLD_PERCENT,
   MIN_COMPRESS_THRESHOLD_PERCENT,
@@ -24,8 +25,6 @@ import { clampThresholdPercent } from '@shared/utils/contextSettings'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const chatModelFilter: ModelSelectorFilter = (model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model)
 
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">
@@ -45,6 +44,11 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
  */
 export const ContextManagementSettings = () => {
   const { t } = useTranslation()
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
+  const chatModelFilter = useCallback<ModelSelectorFilter>(
+    (model) => isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && !isNonChatModel(model),
+    [isModelAvailableForFeature]
+  )
   const { theme } = useTheme()
   const [enabled, setEnabled] = usePreference('chat.context_settings.enabled')
   const [maxMessages, setMaxMessages] = usePreference('chat.context_settings.max_messages')
@@ -190,6 +194,7 @@ export const ContextManagementSettings = () => {
                     model={compressModel}
                     providers={providers}
                     filter={chatModelFilter}
+                    isModelDisabled={isModelDisabled}
                     onSelect={handleSelectCompressModel}
                     placeholder={t('settings.models.context_management.compress_model_follow')}
                   />

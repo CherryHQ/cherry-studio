@@ -13,6 +13,7 @@ import {
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -23,6 +24,7 @@ import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibilit
 import { scrollIntoView } from '@renderer/utils/dom'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
 import {
@@ -147,6 +149,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
   const defaultRowRef = useRef<HTMLDivElement | null>(null)
   const translateRowRef = useRef<HTMLDivElement | null>(null)
   const [showFocusGuide, setShowFocusGuide] = useState(false)
@@ -159,8 +162,18 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
   const chatModelFilter = useCallback(
-    (model: Model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model) && (modelFilter?.(model) ?? true),
-    [modelFilter]
+    (model: Model) =>
+      isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) &&
+      !isNonChatModel(model) &&
+      (modelFilter?.(model) ?? true),
+    [isModelAvailableForFeature, modelFilter]
+  )
+  const translateModelFilter = useCallback(
+    (model: Model) =>
+      isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE) &&
+      !isNonChatModel(model) &&
+      (modelFilter?.(model) ?? true),
+    [isModelAvailableForFeature, modelFilter]
   )
   const paintingModelFilter = useCallback(
     (model: Model) => isModelVisibleOutsideAgent(model) && isGenerateImageModel(model),
@@ -168,7 +181,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   )
   const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
   const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
-  const selectableTranslateModel = translateModel && chatModelFilter(translateModel) ? translateModel : undefined
+  const selectableTranslateModel = translateModel && translateModelFilter(translateModel) ? translateModel : undefined
   const shouldAutoFillEmptyModels =
     autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
@@ -259,6 +272,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               model={selectableDefaultModel}
               providers={providers}
               filter={chatModelFilter}
+              isModelDisabled={isModelDisabled}
               compact={compact}
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
@@ -279,6 +293,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               model={selectableQuickModel}
               providers={providers}
               filter={chatModelFilter}
+              isModelDisabled={isModelDisabled}
               compact={compact}
               onSelect={onSelectQuick}
               placeholder={t('settings.models.empty')}
@@ -305,7 +320,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             <DefaultModelSelector
               model={selectableTranslateModel}
               providers={providers}
-              filter={chatModelFilter}
+              filter={translateModelFilter}
+              isModelDisabled={isModelDisabled}
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}
@@ -413,6 +429,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                   value={retryFallbackModelIds}
                   onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
                   filter={chatModelFilter}
+                  isModelDisabled={isModelDisabled}
                   trigger={
                     <Button
                       type="button"

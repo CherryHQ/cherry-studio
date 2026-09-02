@@ -1,3 +1,4 @@
+import { CHERRY_CLOUD_MODEL_FEATURE, type CherryCloudModelFeature } from '@shared/data/presets/cherryai'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -5,6 +6,7 @@ import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { useCherryCloudModelAvailability } from '../../useCherryCloudModelAvailability'
 import {
   modelFilterIncludesAgentOnlyProviders,
   useAgentModelDisabled,
@@ -14,7 +16,8 @@ import {
 const mocks = vi.hoisted(() => ({
   cloudAvailability: {
     entitledModelIds: [] as Model['id'][],
-    quotaExhaustedModelIds: [] as Model['id'][]
+    quotaExhaustedModelIds: [] as Model['id'][],
+    featuresByModelId: {} as Record<Model['id'], CherryCloudModelFeature[]>
   },
   ipcRequest: vi.fn(),
   statusChanged: undefined as
@@ -73,7 +76,11 @@ const providers = {
 
 describe('useAgentModelFilter', () => {
   beforeEach(() => {
-    mocks.cloudAvailability = { entitledModelIds: [], quotaExhaustedModelIds: [] }
+    mocks.cloudAvailability = {
+      entitledModelIds: [],
+      quotaExhaustedModelIds: [],
+      featuresByModelId: {}
+    }
     mocks.ipcRequest.mockReset()
     mocks.ipcRequest.mockImplementation(async (route: string) => {
       if (route !== 'cherry_cloud.models.sync') throw new Error(`Unexpected IPC route: ${route}`)
@@ -104,6 +111,37 @@ describe('useAgentModelFilter', () => {
     expect(result.current(model([MODEL_CAPABILITY.EMBEDDING]))).toBe(false)
   })
 
+  it('keeps Cloud models Agent-only until the first model snapshot arrives', () => {
+    mocks.ipcRequest.mockReturnValue(new Promise(() => undefined))
+    const cloudModel = {
+      ...model(),
+      id: 'cherryai-subscription::deepseek-go',
+      providerId: 'cherryai-subscription'
+    } as Model
+    const { result } = renderHook(() => useCherryCloudModelAvailability(), { wrapper: createSWRWrapper() })
+
+    expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.AGENT)).toBe(true)
+    expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.CHAT)).toBe(false)
+    expect(result.current.isModelAvailableForFeature(cloudModel, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE)).toBe(false)
+  })
+
+  it('accepts only Cloud models enabled for Agent by the latest sync result', async () => {
+    const cloudModel = {
+      ...model(),
+      id: 'cherryai-subscription::deepseek-go',
+      providerId: 'cherryai-subscription'
+    } as Model
+    mocks.cloudAvailability = {
+      entitledModelIds: [cloudModel.id],
+      quotaExhaustedModelIds: [],
+      featuresByModelId: { [cloudModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT] }
+    }
+    const { result } = renderHook(() => useAgentModelFilter(undefined), { wrapper: createSWRWrapper() })
+
+    await waitFor(() => expect(result.current(cloudModel)).toBe(true))
+    expect(result.current({ ...cloudModel, id: 'cherryai-subscription::chat-only' })).toBe(false)
+  })
+
   it('disables only Cloud models whose quota is exhausted', async () => {
     const exhaustedModel = {
       ...model(),
@@ -117,7 +155,11 @@ describe('useAgentModelFilter', () => {
     } as Model
     mocks.cloudAvailability = {
       entitledModelIds: [exhaustedModel.id, availableModel.id],
-      quotaExhaustedModelIds: [exhaustedModel.id]
+      quotaExhaustedModelIds: [exhaustedModel.id],
+      featuresByModelId: {
+        [exhaustedModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT],
+        [availableModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT]
+      }
     }
 
     const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: createSWRWrapper() })
@@ -136,7 +178,11 @@ describe('useAgentModelFilter', () => {
     const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: createSWRWrapper() })
 
     await waitFor(() => expect(result.current(cloudModel)).toBe(true))
-    mocks.cloudAvailability = { entitledModelIds: [cloudModel.id], quotaExhaustedModelIds: [] }
+    mocks.cloudAvailability = {
+      entitledModelIds: [cloudModel.id],
+      quotaExhaustedModelIds: [],
+      featuresByModelId: { [cloudModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT] }
+    }
 
     act(() => emitCloudStatus('signed-in'))
 
@@ -158,7 +204,11 @@ describe('useAgentModelFilter', () => {
     await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledTimes(2))
 
     act(() => emitCloudStatus('signed-out'))
-    pendingRefresh.resolve({ entitledModelIds: [cloudModel.id], quotaExhaustedModelIds: [] })
+    pendingRefresh.resolve({
+      entitledModelIds: [cloudModel.id],
+      quotaExhaustedModelIds: [],
+      featuresByModelId: { [cloudModel.id]: [CHERRY_CLOUD_MODEL_FEATURE.AGENT] }
+    })
 
     await waitFor(() => expect(result.current(cloudModel)).toBe(true))
   })

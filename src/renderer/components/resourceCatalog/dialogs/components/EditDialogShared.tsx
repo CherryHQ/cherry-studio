@@ -68,6 +68,7 @@ export type EditDialogBaseProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   modelFilter?: ModelSelectorFilter
+  isModelDisabled?: ModelSelectorFilter
   /** Leaf tab id to open on first render (e.g. `tools.mcp`, `tools.skills`); falls back to `basic`. */
   initialTab?: string
 }

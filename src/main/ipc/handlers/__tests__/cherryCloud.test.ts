@@ -63,15 +63,19 @@ describe('cherryCloudHandlers', () => {
   })
 
   it('syncs the signed-in entitled model catalog', async () => {
-    service.syncEntitledModelsIfStale.mockResolvedValue({
+    const result = {
       entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
-    })
+      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+      featuresByModelId: {
+        'cherryai-subscription::deepseek-free': ['agent'],
+        'cherryai-subscription::deepseek-go': ['agent', 'chat', 'translate']
+      }
+    }
+    service.syncEntitledModelsIfStale.mockResolvedValue(result)
 
-    await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
-    })
+    await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual(
+      result
+    )
   })
 
   it('maps an unavailable login service to a stable IPC error', async () => {

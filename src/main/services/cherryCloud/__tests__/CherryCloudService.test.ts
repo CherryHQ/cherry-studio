@@ -112,23 +112,30 @@ const cloudModelCatalog = {
       display_name: 'DeepSeek Free',
       endpoint_type: 'anthropic-messages',
       context_window: 128_000,
-      max_output_tokens: 8_192
+      max_output_tokens: 8_192,
+      available_features: ['agent']
     },
     {
       id: 'deepseek-go',
       display_name: 'DeepSeek GO',
       endpoint_type: 'anthropic-messages',
       context_window: 256_000,
-      max_output_tokens: 16_384
+      max_output_tokens: 16_384,
+      available_features: ['agent', 'chat', 'translate']
     },
     {
       id: 'deepseek-inactive',
       display_name: 'DeepSeek Inactive',
       endpoint_type: 'anthropic-messages',
       context_window: 64_000,
-      max_output_tokens: 4_096
+      max_output_tokens: 4_096,
+      available_features: ['agent']
     }
   ]
+}
+const cloudFeaturesByModelId = {
+  'cherryai-subscription::deepseek-free': ['agent'],
+  'cherryai-subscription::deepseek-go': ['agent', 'chat', 'translate']
 }
 
 function jsonResponse(value: unknown, status = 200): Response {
@@ -738,7 +745,8 @@ describe('CherryCloudService', () => {
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
       entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
+      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+      featuresByModelId: cloudFeaturesByModelId
     })
 
     expect(mocks.modelReconcile).toHaveBeenCalledWith({
@@ -763,6 +771,9 @@ describe('CherryCloudService', () => {
       toUpdate: [],
       toRemove: ['old-free']
     })
+    expect(mocks.modelReconcile.mock.calls[0][0].toAdd[0]).not.toHaveProperty('availableFeatures')
+    expect(service.isModelAvailableForFeature('cherryai-subscription::deepseek-go', 'chat')).toBe(true)
+    expect(service.isModelAvailableForFeature('cherryai-subscription::deepseek-free', 'chat')).toBe(false)
 
     for (const [, init] of mocks.netFetch.mock.calls) {
       const headers = new Headers(init.headers)
@@ -777,7 +788,13 @@ describe('CherryCloudService', () => {
     mocks.netFetch.mockResolvedValueOnce(jsonResponse(accountSnapshot)).mockResolvedValueOnce(
       jsonResponse({
         data: [
-          { id: 'deepseek-free', display_name: 'DeepSeek Free', context_window: 128_000, max_output_tokens: 8_192 }
+          {
+            id: 'deepseek-free',
+            display_name: 'DeepSeek Free',
+            context_window: 128_000,
+            max_output_tokens: 8_192,
+            available_features: ['agent']
+          }
         ]
       })
     )
@@ -796,7 +813,8 @@ describe('CherryCloudService', () => {
             display_name: 'DeepSeek Free',
             endpoint_type: 'openai-responses',
             context_window: 128_000,
-            max_output_tokens: 8_192
+            max_output_tokens: 8_192,
+            available_features: ['agent']
           }
         ]
       })
@@ -806,7 +824,12 @@ describe('CherryCloudService', () => {
 
     expect(mocks.modelReconcile).toHaveBeenCalledWith(
       expect.objectContaining({
-        toAdd: [expect.objectContaining({ modelId: 'deepseek-free', endpointTypes: ['openai-responses'] })]
+        toAdd: [
+          expect.objectContaining({
+            modelId: 'deepseek-free',
+            endpointTypes: ['openai-responses']
+          })
+        ]
       })
     )
   })
@@ -848,7 +871,8 @@ describe('CherryCloudService', () => {
 
       await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
         entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
+        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
+        featuresByModelId: cloudFeaturesByModelId
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {
@@ -911,7 +935,8 @@ describe('CherryCloudService', () => {
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
       entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: []
+      quotaExhaustedModelIds: [],
+      featuresByModelId: cloudFeaturesByModelId
     })
 
     expect(mocks.modelList).toHaveBeenLastCalledWith({ providerId: 'cherryai-subscription' })

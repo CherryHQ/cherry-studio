@@ -116,6 +116,13 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
   useChatWrite: () => chatWriteMock
 }))
 
+vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
+  useCherryCloudModelAvailability: () => ({
+    isModelAvailableForFeature: () => true,
+    isModelDisabled: () => false
+  })
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: commandHandlerMock
 }))

@@ -34,6 +34,7 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
+import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { openRoute } from '@renderer/services/mainWindowNavigation'
@@ -41,7 +42,6 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
@@ -49,6 +49,7 @@ import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
@@ -107,6 +108,7 @@ export function useHomeMessageListProviderValue({
   })
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
+  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const [translationLanguagesRequested, setTranslationLanguagesRequested] = useState(false)
   const {
@@ -745,7 +747,7 @@ export function useHomeMessageListProviderValue({
         : undefined
 
       const mentionModelFilter: ModelSelectorFilter = (model) => {
-        if (!isModelVisibleOutsideAgent(model)) return false
+        if (!isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT)) return false
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
         if (needsVision && !isVisionModel(model)) return false
@@ -767,13 +769,14 @@ export function useHomeMessageListProviderValue({
           multiple={false}
           value={currentMentionModel}
           filter={mentionModelFilter}
+          isModelDisabled={isModelDisabled}
           onSelect={onSelectMentionModel}
           trigger={trigger}
           onOpenChange={onOpenChange}
         />
       )
     },
-    [regenerateMessageUsingModel, t]
+    [isModelAvailableForFeature, isModelDisabled, regenerateMessageUsingModel, t]
   )
 
   const state = useMemo<MessageListState>(
