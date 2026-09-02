@@ -47,7 +47,12 @@ const SplitPanePicker: FC<Props> = ({ occupiedAppId, onClose, className }) => {
   const { openMiniAppInSplit } = useMiniAppPopup()
   const openMiniAppInSplitRef = useRef(openMiniAppInSplit)
   openMiniAppInSplitRef.current = openMiniAppInSplit
-  const openMiniApp = useCallback((app: MiniAppType) => openMiniAppInSplitRef.current(app), [])
+  const miniAppsRef = useRef(miniApps)
+  miniAppsRef.current = miniApps
+  const openMiniApp = useCallback((appId: string) => {
+    const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+    if (app) openMiniAppInSplitRef.current(app)
+  }, [])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
   const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
 

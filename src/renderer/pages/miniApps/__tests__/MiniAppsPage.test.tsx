@@ -3,6 +3,7 @@ import type * as UseCacheModule from '@data/hooks/useCache'
 import type * as MiniAppPresets from '@shared/data/presets/miniApps'
 import type { MiniApp, SiteMiniApp } from '@shared/data/types/miniApp'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,7 +21,8 @@ const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | '
   logo: overrides.logo ?? `${overrides.appId}-logo`,
   bordered: overrides.bordered,
   background: overrides.background,
-  supportedRegions: overrides.supportedRegions
+  supportedRegions: overrides.supportedRegions,
+  configuration: overrides.configuration
 })
 
 const mocks = vi.hoisted(() => ({
@@ -209,7 +211,13 @@ vi.mock('../MiniAppSettings/MiniAppDisplaySettings', () => ({
 
 vi.mock('../NewMiniAppPanel', () => ({
   default: ({ open, app }: { open: boolean; app?: MiniApp | null }) =>
-    open ? <div data-testid="new-mini-app-panel" data-app-id={app?.appId ?? ''} /> : null
+    open ? (
+      <div
+        data-testid="new-mini-app-panel"
+        data-app-id={app?.appId ?? ''}
+        data-configuration={app?.kind === 'site' ? JSON.stringify(app.configuration) : undefined}
+      />
+    ) : null
 }))
 
 vi.mock('../InstallMiniAppPanel', () => ({
@@ -282,6 +290,36 @@ describe('MiniAppsPage', () => {
     // DataApi refreshes reserialize the list. The changed Gemini card rerenders,
     // while the structurally unchanged ChatGPT snapshot keeps its first render.
     expect(mocks.renderMiniAppIcon.mock.calls.map(([appId]) => appId)).toEqual(['chatgpt', 'gemini', 'gemini'])
+  })
+
+  it('keeps a card stable for non-visual configuration updates while editing the latest app', async () => {
+    const user = userEvent.setup()
+    mocks.apps = [
+      stubApp({
+        appId: 'custom',
+        name: 'Custom App',
+        url: 'https://custom.example.com',
+        presetMiniAppId: null,
+        configuration: { theme: 'light' }
+      })
+    ]
+    const view = render(<MiniAppsPage />)
+    expect(mocks.renderMiniAppIcon).toHaveBeenCalledTimes(1)
+
+    mocks.apps = [
+      stubApp({
+        appId: 'custom',
+        name: 'Custom App',
+        url: 'https://custom.example.com',
+        presetMiniAppId: null,
+        configuration: { theme: 'dark' }
+      })
+    ]
+    view.rerender(<MiniAppsPage />)
+
+    expect(mocks.renderMiniAppIcon).toHaveBeenCalledTimes(1)
+    await user.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-configuration', '{"theme":"dark"}')
   })
 
   it('opens the selected mini app without changing the tab contract', () => {

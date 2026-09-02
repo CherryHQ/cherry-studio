@@ -120,10 +120,10 @@ export default function LaunchpadPage() {
   }
 
   const openMiniApp = useCallback(
-    (app: MiniAppType) => {
-      if (shouldSuppressLaunchClick(app.appId)) return
+    (appId: string) => {
+      if (shouldSuppressLaunchClick(appId)) return
 
-      void navigateToUrl(`/app/mini-app/${app.appId}`)
+      void navigateToUrl(`/app/mini-app/${appId}`)
     },
     [navigateToUrl, shouldSuppressLaunchClick]
   )

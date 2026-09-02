@@ -13,7 +13,6 @@ import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
-import { isEqual } from 'es-toolkit/compat'
 import type { FC, KeyboardEvent } from 'react'
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,8 +22,8 @@ import MiniAppDetailPanel from './MiniAppDetailPanel'
 interface Props {
   app: MiniApp
   onClick?: () => void
-  onOpen: (app: MiniApp, displayName: string) => void
-  onEditCustom?: (app: MiniApp) => void
+  onOpen: (appId: string, displayName: string, icon?: string) => void
+  onEditCustom?: (appId: string) => void
   onUpdateStatus: (appId: string, status: MiniAppStatus) => Promise<unknown>
   onHide: (appId: string) => Promise<unknown>
   onRemoveCustom: (appId: string) => Promise<unknown>
@@ -97,7 +96,7 @@ const MiniApp: FC<Props> = ({
 
   const handleClick = () => {
     if (disabled) return
-    onOpen(app, displayName)
+    onOpen(app.appId, displayName, app.logoSrc ?? app.logo)
     onClick?.()
   }
 
@@ -243,7 +242,7 @@ const MiniApp: FC<Props> = ({
                   type: 'item',
                   id: 'mini-app.edit-custom',
                   label: t('common.edit'),
-                  onSelect: () => onEditCustom(app)
+                  onSelect: () => onEditCustom(app.appId)
                 }
               ] satisfies CommandContextMenuExtraItem[])
             : []),
@@ -385,5 +384,29 @@ const MiniApp: FC<Props> = ({
   )
 }
 
-// DataApi refreshes reserialize rows; preserve cards whose small per-app snapshot is unchanged.
-export default memo(MiniApp, isEqual)
+const arePropsEqual = (previous: Props, next: Props) =>
+  previous.app.appId === next.app.appId &&
+  previous.app.name === next.app.name &&
+  previous.app.nameKey === next.app.nameKey &&
+  previous.app.logo === next.app.logo &&
+  previous.app.logoSrc === next.app.logoSrc &&
+  previous.app.background === next.app.background &&
+  previous.app.kind === next.app.kind &&
+  previous.app.presetMiniAppId === next.app.presetMiniAppId &&
+  previous.onClick === next.onClick &&
+  previous.onOpen === next.onOpen &&
+  previous.onEditCustom === next.onEditCustom &&
+  previous.onUpdateStatus === next.onUpdateStatus &&
+  previous.onHide === next.onHide &&
+  previous.onRemoveCustom === next.onRemoveCustom &&
+  previous.onToggleSidebarFavorite === next.onToggleSidebarFavorite &&
+  previous.isPinned === next.isPinned &&
+  previous.isSidebarFavorite === next.isSidebarFavorite &&
+  previous.isOpened === next.isOpened &&
+  previous.isActive === next.isActive &&
+  previous.size === next.size &&
+  previous.isLast === next.isLast &&
+  previous.variant === next.variant &&
+  previous.disabled === next.disabled
+
+export default memo(MiniApp, arePropsEqual)

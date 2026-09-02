@@ -52,14 +52,20 @@ const MiniAppsPage: FC = () => {
   const { openTab } = useTabs()
   const openTabRef = useRef(openTab)
   openTabRef.current = openTab
+  const miniAppsRef = useRef(miniApps)
+  miniAppsRef.current = miniApps
   const pinnedIds = useMemo(() => new Set(pinned.map((app) => app.appId)), [pinned])
   const openedIds = useMemo(() => new Set(openedKeepAliveMiniApps.map((app) => app.appId)), [openedKeepAliveMiniApps])
   const sidebarFavoriteIds = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
-  const openMiniApp = useCallback((app: MiniApp, displayName: string) => {
-    openTabRef.current(`/app/mini-app/${app.appId}`, {
+  const openMiniApp = useCallback((appId: string, displayName: string, icon?: string) => {
+    openTabRef.current(`/app/mini-app/${appId}`, {
       title: displayName,
-      icon: app.logoSrc ?? app.logo
+      icon
     })
+  }, [])
+  const editCustomApp = useCallback((appId: string) => {
+    const app = miniAppsRef.current.find((candidate) => candidate.appId === appId)
+    if (app) setEditingApp(app)
   }, [])
   const visibility = useMiniAppVisibility()
   const droppedInstall = useMiniAppInstallPreview(() => undefined)
@@ -190,7 +196,7 @@ const MiniAppsPage: FC = () => {
                         size={56}
                         variant="launchpad"
                         onOpen={openMiniApp}
-                        onEditCustom={setEditingApp}
+                        onEditCustom={editCustomApp}
                         onUpdateStatus={updateAppStatus}
                         onHide={hideMiniApp}
                         onRemoveCustom={removeCustomMiniApp}

@@ -122,10 +122,10 @@ const TestMiniApp = (props: TestMiniAppProps) => {
   return (
     <MiniApp
       {...props}
-      onOpen={(openedApp, displayName) =>
-        mocks.openTab(`/app/mini-app/${openedApp.appId}`, {
+      onOpen={(appId, displayName, icon) =>
+        mocks.openTab(`/app/mini-app/${appId}`, {
           title: displayName,
-          icon: openedApp.logoSrc ?? openedApp.logo
+          icon
         })
       }
       onUpdateStatus={mocks.updateAppStatus}

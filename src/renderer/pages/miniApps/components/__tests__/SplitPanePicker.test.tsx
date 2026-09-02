@@ -66,7 +66,7 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
     disabled
   }: {
     app: MiniAppType
-    onOpen?: (app: MiniAppType, name: string) => void
+    onOpen?: (appId: string, name: string) => void
     disabled?: boolean
   }) => (
     // Mirrors the real tile: `disabled` drops it from the tab order and blocks
@@ -78,7 +78,7 @@ vi.mock('@renderer/components/MiniApp/MiniApp', () => ({
       aria-disabled={disabled || undefined}
       onClick={() => {
         if (disabled) return
-        onOpen ? onOpen(app, app.name) : mocks.openTab()
+        onOpen ? onOpen(app.appId, app.name) : mocks.openTab()
       }}>
       {app.name}
     </button>
