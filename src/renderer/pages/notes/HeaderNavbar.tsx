@@ -306,6 +306,7 @@ const HeaderNavbar = ({
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
               aria-label={t('navbar.hide_sidebar')}
+              aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
@@ -316,6 +317,7 @@ const HeaderNavbar = ({
             <BaseNavbarIcon
               className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
               aria-label={t('navbar.show_sidebar')}
+              aria-pressed={showWorkspace}
               onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>

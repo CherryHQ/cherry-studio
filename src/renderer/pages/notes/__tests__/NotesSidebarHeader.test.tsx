@@ -1,15 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async () => vi.importActual('@cherrystudio/ui'))
 
+import i18n from '@renderer/i18n/resolver'
+
 import NotesSidebarHeader from '../NotesSidebarHeader'
+
+let previousLanguage: string
+
+beforeAll(async () => {
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
 
 const renderHeader = (overrides: Partial<ComponentProps<typeof NotesSidebarHeader>> = {}) => {
   const props = {
@@ -33,12 +42,12 @@ describe('NotesSidebarHeader accessible names', () => {
   it('names the sidebar toolbar icon buttons', () => {
     const props = renderHeader()
 
-    fireEvent.click(screen.getByRole('button', { name: 'notes.new_note' }))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.new_folder' }))
-    fireEvent.click(screen.getByRole('button', { name: 'notes.show_starred' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.search' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create a new note' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New Folder' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show favorite notes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
 
-    expect(screen.getByRole('button', { name: 'assistants.presets.sorting.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sorting' })).toBeInTheDocument()
     expect(props.onCreateNote).toHaveBeenCalledTimes(1)
     expect(props.onCreateFolder).toHaveBeenCalledTimes(1)
     expect(props.onToggleStarredView).toHaveBeenCalledTimes(1)
@@ -48,22 +57,22 @@ describe('NotesSidebarHeader accessible names', () => {
   it('names the back control in the starred view', () => {
     const props = renderHeader({ isShowStarred: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
     expect(props.onToggleStarredView).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'notes.new_note' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
   })
 
   it('restores keyboard focus to the sort button when its menu closes', async () => {
     const user = userEvent.setup()
     renderHeader()
-    const sortButton = screen.getByRole('button', { name: 'assistants.presets.sorting.title' })
+    const sortButton = screen.getByRole('button', { name: 'Sorting' })
 
     await user.tab()
     await user.tab()
     await user.tab()
     expect(sortButton).toHaveFocus()
     await user.keyboard('{Enter}')
-    expect(await screen.findByRole('button', { name: 'notes.sort_a2z' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'File name (A-Z)' })).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
     expect(sortButton).toHaveFocus()
@@ -71,12 +80,12 @@ describe('NotesSidebarHeader accessible names', () => {
 
   it('renders toolbar icons and search clear via shared Button', () => {
     renderHeader()
-    const newNote = screen.getByRole('button', { name: 'notes.new_note' })
+    const newNote = screen.getByRole('button', { name: 'Create a new note' })
     expect(newNote).toHaveAttribute('data-slot', 'button')
     expect(newNote).toHaveAttribute('data-variant', 'ghost')
 
     const props = renderHeader({ isShowSearch: true, searchKeyword: 'query' })
-    const clear = screen.getByRole('button', { name: 'common.clear' })
+    const clear = screen.getByRole('button', { name: 'Clear' })
     expect(clear).toHaveAttribute('data-slot', 'button')
     expect(clear).toHaveAttribute('data-variant', 'ghost')
 

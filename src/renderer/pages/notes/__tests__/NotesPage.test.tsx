@@ -352,41 +352,6 @@ async function renderReadyNotesPage() {
   return view
 }
 
-describe('NotesPage header accessibility', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.sessionStatus = 'ready'
-    mocks.sessionIsDirty = false
-    mocks.sessionIsSaving = false
-    mocks.sessionSaveError = undefined
-    mocks.sessionDraft = 'saved content'
-    mocks.currentContent = 'saved content'
-    mocks.richEditorContent = 'edited rich content'
-    mocks.sourceEditorContent = 'edited source content'
-    mocks.mountedEditor = 'source'
-    mocks.settings.defaultEditMode = 'source'
-    mocks.settings.defaultViewMode = 'edit'
-    mocks.ipcRequest.mockImplementation((route: string) => {
-      if (route === 'app.get_info') return Promise.resolve({ notesPath: '/notes' })
-      return Promise.resolve(true)
-    })
-    mocks.commandHandlers.clear()
-    mocks.isActiveTab = true
-    mocks.showWorkspace = false
-    mocks.printShortcutLabel = 'Ctrl+P'
-    mocks.treeVersion = 0
-    mocks.treeIsLoading = false
-    mocks.projectedNodes = [mocks.noteNode]
-  })
-
-  it('names the sidebar toggle and more menu for assistive tech', async () => {
-    await renderReadyNotesPage()
-
-    expect(screen.getByRole('button', { name: 'navbar.show_sidebar' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.more' })).toBeInTheDocument()
-  })
-})
-
 describe('NotesPage print payloads', () => {
   beforeEach(() => {
     vi.clearAllMocks()

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   codeEditorEvaluations: 0,
@@ -55,12 +55,20 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ settings: mocks.settings })
 }))
 
-vi.mock('react-i18next', () => ({
-  initReactI18next: { type: '3rdParty', init: vi.fn() },
-  useTranslation: () => ({ t: (key: string) => key })
-}))
+import i18n from '@renderer/i18n/resolver'
 
 import NotesEditor from '../NotesEditor'
+
+let previousLanguage: string
+
+beforeAll(async () => {
+  previousLanguage = i18n.language
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
 
 describe('NotesEditor focus behavior', () => {
   beforeEach(() => {
@@ -143,7 +151,7 @@ describe('NotesEditor focus behavior', () => {
     )
 
     await screen.findByTestId('rich-editor')
-    expect(screen.getByRole('button', { name: 'notes.spell_check_tooltip' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enable/Disable spell check' })).toBeInTheDocument()
   })
 })
 
@@ -166,8 +174,8 @@ describe('NotesEditor empty state', () => {
 
     render(<NotesEditor {...emptyEditorProps} onCreateNote={onCreateNote} />)
 
-    expect(screen.getByText('notes.empty')).toBeInTheDocument()
-    const createButton = screen.getByRole('button', { name: 'notes.new_note' })
+    expect(screen.getByText('No notes available yet')).toBeInTheDocument()
+    const createButton = screen.getByRole('button', { name: 'Create a new note' })
     await user.click(createButton)
 
     expect(onCreateNote).toHaveBeenCalledTimes(1)
@@ -187,7 +195,7 @@ describe('NotesEditor empty state', () => {
     )
 
     await screen.findByTestId('rich-editor')
-    expect(screen.queryByRole('button', { name: 'notes.new_note' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
   })
 
   it('does not expose a create-note action on a load error', () => {
@@ -204,7 +212,7 @@ describe('NotesEditor empty state', () => {
       />
     )
 
-    expect(screen.getByText('notes.load_failed')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'notes.new_note' })).not.toBeInTheDocument()
+    expect(screen.getByText('Failed to load note')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create a new note' })).not.toBeInTheDocument()
   })
 })
