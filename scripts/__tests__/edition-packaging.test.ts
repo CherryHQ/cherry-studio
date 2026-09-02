@@ -169,8 +169,8 @@ describe('edition packaging', () => {
     const replaceStep = syncJob.steps.find((step) => step.name === 'Replace Windows files with signed versions')
 
     expect(buildJob.strategy?.matrix?.edition).toEqual([GLOBAL_EDITION, CHINA_EDITION])
-    expect(buildStep?.run).toContain('pnpm build:win:cn')
-    expect(buildStep?.run).toContain('pnpm build:win')
+    expect(buildStep?.run).toMatch(/^\s*pnpm build:win:cn\s*$/m)
+    expect(buildStep?.run).toMatch(/^\s*pnpm build:win\s*$/m)
     expect(buildStep?.run).toContain('electron-builder.cn.config.cjs')
     expect(uploadStep?.with?.name).toContain('matrix.edition')
     expect(uploadStep?.if).toContain('steps.build-windows.outputs.supported')
