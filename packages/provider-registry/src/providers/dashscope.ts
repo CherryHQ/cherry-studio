@@ -1,8 +1,6 @@
 import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
-import { defineProvider } from './types'
-import { EFFORT, modeWire } from './wires'
 import {
   effortChatWire,
   highMaxSupport,
@@ -13,6 +11,8 @@ import {
   qwen38Support,
   qwenChatWire
 } from './qwenFamily'
+import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
 const webSearchModelPrefixes = [
   'qwen3-8-flash',
