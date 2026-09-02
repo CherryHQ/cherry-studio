@@ -37495,7 +37495,7 @@
             "supports": {
               "aspectRatio": {
                 "default": "16:9",
-                "options": ["16:9", "9:16", "1:1", "3:4", "4:3", "21:9", "2:3", "3:2", "auto"],
+                "options": ["16:9", "9:16", "1:1", "3:4", "4:3", "21:9", "2:3", "3:2"],
                 "render": "chips",
                 "type": "enum"
               },
@@ -38693,5 +38693,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "24dbd801f99b085b"
+  "version": "ea68f0c96ce12011"
 }
