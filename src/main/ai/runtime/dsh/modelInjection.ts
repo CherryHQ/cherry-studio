@@ -14,6 +14,7 @@ import type { ReasoningEffort } from '@cherrystudio/provider-registry'
 import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -191,7 +192,7 @@ export function buildDshProviderInjection(
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
   const modelId = getRawModelId(model)
-  const headers = toAgentProviderHeaders(provider.settings?.extraHeaders)
+  const headers = toAgentProviderHeaders(getExtraHeaders(provider))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
 
   return {

@@ -31,7 +31,8 @@ const ICON_DISPLAY_CONFIG: Readonly<Record<IconDisplayContext, Readonly<Record<s
     anthropic: providerListContainedIcon,
     yi: providerListContainedIcon,
     groq: providerListContainedIcon,
-    'aws-bedrock': providerListContainedIcon
+    'aws-bedrock': providerListContainedIcon,
+    tokendance: providerListContainedIcon
   }
 }
 

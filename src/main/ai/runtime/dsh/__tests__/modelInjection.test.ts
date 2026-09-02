@@ -157,6 +157,20 @@ describe('buildDshProviderInjection', () => {
 
     expect(injection.headers).toEqual({ 'x-trace': 'on', 'x-legacy': '42' })
   })
+
+  it('adds stable TokenDance app attribution', () => {
+    const provider = {
+      ...nativeProvider,
+      id: 'tokendance',
+      presetProviderId: 'tokendance',
+      settings: { extraHeaders: { 'x-app-url': 'https://wrong.example', 'x-trace': 'on' } }
+    } as unknown as Provider
+    const model = makeModel({ id: 'tokendance::gpt-5', providerId: 'tokendance', apiModelId: 'gpt-5' })
+
+    const injection = buildDshProviderInjection(provider, model, 'sk-native')
+
+    expect(injection.headers).toEqual({ 'x-trace': 'on', 'X-App-URL': 'app://cherryai.com.cn' })
+  })
 })
 
 describe('resolveDshProviderInjectionFromSnapshot', () => {

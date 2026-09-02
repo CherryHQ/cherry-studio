@@ -15,6 +15,7 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
+import { getExtraHeaders } from '@main/ai/utils/provider'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
 import { mapEndpointToPiApi, type PiApi } from '@shared/ai/piModelCompatibility'
 import { isCodexProviderId } from '@shared/data/presets/codex'
@@ -166,7 +167,7 @@ export function buildPiProviderInjection(
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    headers: toPiHeaders(provider.settings?.extraHeaders),
+    headers: toPiHeaders(getExtraHeaders(provider)),
     models: [modelConfig]
   }
 

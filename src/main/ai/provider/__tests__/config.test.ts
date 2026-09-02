@@ -931,6 +931,26 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('generic / openai-compatible fallback', () => {
+    it('adds X-App-URL to TokenDance chat request headers', async () => {
+      const provider = makeProvider({
+        id: 'tokendance',
+        presetProviderId: 'tokendance',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://tokendance.space/gateway/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ providerId: 'tokendance', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(settings.headers).toMatchObject({ 'X-App-URL': 'app://cherryai.com.cn' })
+    })
+
     it('adds X-Source only to Radeon Cloud chat request headers', async () => {
       const radeonProvider = makeProvider({
         id: 'radeon-cloud',
