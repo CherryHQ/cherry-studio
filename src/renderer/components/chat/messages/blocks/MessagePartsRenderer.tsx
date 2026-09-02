@@ -1356,6 +1356,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   const activeTurnStatus = useMessageListActiveTurnStatus()
   const { removeMessageTranslation, notifySuccess } = useMessageListActions()
   const { t } = useTranslation()
+  const canRemoveTranslation = !!removeMessageTranslation
   const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
   removeTranslationRef.current = { removeMessageTranslation, notifySuccess, t }
   const handleRemoveTranslation = React.useCallback(async () => {
@@ -1455,9 +1456,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       readOnlyFilePreviews,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
-      onRemoveTranslation: handleRemoveTranslation
+      onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
     }),
     [
+      canRemoveTranslation,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,

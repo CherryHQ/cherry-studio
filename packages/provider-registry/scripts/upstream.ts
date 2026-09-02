@@ -18,6 +18,7 @@ import { deriveLegacyReasoningFields } from '../src/utils/reasoningControls'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
 const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
+
 export const CAP_ORDER = [
   'function-call',
   'reasoning',

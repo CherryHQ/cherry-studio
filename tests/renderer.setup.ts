@@ -698,8 +698,18 @@ vi.mock('@cherrystudio/ui', () => {
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, autoHideScrollbar: _autoHideScrollbar, ...props }) =>
       React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
-    Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
+    Dropzone: ({
+      children,
+      getFilesFromEvent: _getFilesFromEvent,
+      maxFiles: _maxFiles,
+      multiple: _multiple,
+      noClick: _noClick,
+      noKeyboard: _noKeyboard,
+      onDrop: _onDrop,
+      onError: _onError,
+      validator: _validator,
+      ...props
+    }) => React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
     DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
     Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>

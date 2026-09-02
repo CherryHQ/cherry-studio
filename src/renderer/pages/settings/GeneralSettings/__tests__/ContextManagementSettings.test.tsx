@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
+import { MIN_COMPRESS_THRESHOLD_PERCENT, MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -69,7 +69,8 @@ describe('ContextManagementSettings', () => {
       'chat.context_settings.max_messages': null,
       'chat.context_settings.truncate_threshold': 50_000,
       'chat.context_settings.compress.enabled': true,
-      'chat.context_settings.compress.model_id': null
+      'chat.context_settings.compress.model_id': null,
+      'chat.context_settings.compress.threshold_percent': 80
     }
   })
 
@@ -151,5 +152,30 @@ describe('ContextManagementSettings', () => {
     prefs.state['chat.context_settings.compress.enabled'] = false
     rerender(<ContextManagementSettings />)
     expect(screen.queryByTestId('compress-model-selector')).not.toBeInTheDocument()
+  })
+
+  it('writes the compaction trigger and clamps it into range', () => {
+    render(<ContextManagementSettings />)
+    const input = screen.getByLabelText('settings.models.context_management.compress_threshold')
+    const setter = prefs.setters['chat.context_settings.compress.threshold_percent']
+
+    fireEvent.change(input, { target: { value: '60' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(60)
+
+    // A trigger of 0 would fold on every step; 250 could never fire.
+    fireEvent.change(input, { target: { value: '0' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(MIN_COMPRESS_THRESHOLD_PERCENT)
+
+    fireEvent.change(input, { target: { value: '250' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(100)
+  })
+
+  it('hides the compaction trigger while compression is off', () => {
+    prefs.state['chat.context_settings.compress.enabled'] = false
+    render(<ContextManagementSettings />)
+    expect(screen.queryByLabelText('settings.models.context_management.compress_threshold')).not.toBeInTheDocument()
   })
 })
