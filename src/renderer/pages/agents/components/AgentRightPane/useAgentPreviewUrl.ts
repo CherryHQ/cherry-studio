@@ -4,18 +4,38 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { findAgentPreviewUrlCandidates, findAgentPreviewUrlInOutput } from './agentRightPaneProjection'
 
+function buildSearchKey(sessionId: string | undefined, candidateKeys: string[]): string {
+  return `${sessionId ?? ''}\0${candidateKeys.join('\0')}`
+}
+
+/** Identifies the ordered candidate set without materializing deferred outputs. */
+export function getAgentPreviewUrlSearchKey(
+  sessionId: string | undefined,
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): string {
+  const candidates = sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []
+  return buildSearchKey(
+    sessionId,
+    candidates.map((candidate) => candidate.key)
+  )
+}
+
 /** Resolves deferred preview candidates one at a time until the newest available URL is known. */
 export function useAgentPreviewUrl(
   enabled: boolean,
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): string | null {
+): { searchKey: string; url: string | null } {
   const candidates = useMemo(
     () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
     [enabled, messages, partsByMessageId, sessionId]
   )
-  const searchKey = `${sessionId ?? ''}\0${candidates.map((candidate) => candidate.key).join('\0')}`
+  const searchKey = buildSearchKey(
+    sessionId,
+    candidates.map((candidate) => candidate.key)
+  )
   const [cursor, setCursor] = useState({ searchKey, index: 0 })
   const index = cursor.searchKey === searchKey ? cursor.index : 0
   const candidate = candidates[index]
@@ -39,5 +59,5 @@ export function useAgentPreviewUrl(
     )
   }, [candidate, cursor.searchKey, index, isLoading, resolvedUrl, searchKey])
 
-  return resolvedUrl
+  return { searchKey, url: resolvedUrl }
 }

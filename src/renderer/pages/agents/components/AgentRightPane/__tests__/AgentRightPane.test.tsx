@@ -699,6 +699,99 @@ describe('AgentRightPane', () => {
     expect(ipcRequestMock).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 
+  it('keeps a directly opened artifact over an existing inline preview when the browser was never active', () => {
+    const part = createPreviewToolPart('bash-existing-inline', 'Bash', 'Ready at http://localhost:6700/')
+    const message = createPreviewMessage('m-existing-inline', [part])
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-existing-inline"
+        workspacePath="/workspace"
+        messages={[message]}
+        partsByMessageId={{ [message.id]: [part] }}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+  })
+
+  it('keeps a directly opened artifact over an existing deferred preview when the browser was never active', async () => {
+    const deferredToolResult = {
+      topicId: 'agent-session:session-existing-deferred',
+      messageId: 'm-existing-deferred',
+      toolCallId: 'bash-existing-deferred'
+    }
+    const part = createPreviewToolPart('bash-existing-deferred', 'BashOutput', {
+      $deferredToolResult: deferredToolResult
+    })
+    const message = createPreviewMessage('m-existing-deferred', [part])
+    const result = createDeferredPromise<{ found: true; output: string }>()
+    ipcRequestMock.mockReturnValue(result.promise)
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-existing-deferred"
+        workspacePath="/workspace"
+        messages={[message]}
+        partsByMessageId={{ [message.id]: [part] }}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+    await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6750/' }))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+  })
+
+  it('applies a preview URL from a candidate generation added after direct artifact opening', () => {
+    const existingPart = createPreviewToolPart('bash-before-artifact', 'Bash', 'Ready at http://localhost:6800/')
+    const existingMessage = createPreviewMessage('m-before-artifact', [existingPart])
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+    const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId="session-new-generation"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={partsByMessageId}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane([existingMessage], { [existingMessage.id]: [existingPart] }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+
+    const newerPart = createPreviewToolPart('bash-after-artifact', 'Bash', 'Ready at http://localhost:6850/')
+    const newerMessage = createPreviewMessage('m-after-artifact', [newerPart])
+    rerender(
+      renderPane([existingMessage, newerMessage], {
+        [existingMessage.id]: [existingPart],
+        [newerMessage.id]: [newerPart]
+      })
+    )
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6850/')
+  })
+
   it('offers a session-scoped browser after a shell tool reports a local preview URL', () => {
     const parts = [
       {
