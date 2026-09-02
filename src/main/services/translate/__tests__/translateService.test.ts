@@ -19,6 +19,16 @@ vi.mock('@main/data/services/ModelService', () => ({
   modelService: { getByKey: getByKeyMock }
 }))
 
+const getByProviderIdMock = vi.fn()
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: { getByProviderId: getByProviderIdMock }
+}))
+
+const getAppEditionMock = vi.fn(() => 'cn' as const)
+vi.mock('@main/utils/appEdition', () => ({
+  getAppEdition: getAppEditionMock
+}))
+
 const getByLangCodeMock = vi.fn()
 vi.mock('@main/data/services/TranslateLanguageService', () => ({
   translateLanguageService: { getByLangCode: getByLangCodeMock }
@@ -50,6 +60,8 @@ const fakeSender = { id: 1 } as unknown as Electron.WebContents
 beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   getByKeyMock.mockReset()
+  getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
+  getAppEditionMock.mockReset().mockReturnValue('cn')
   getByLangCodeMock.mockReset()
   streamPromptMock.mockReset()
   streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
@@ -119,6 +131,19 @@ describe('translateService.resolveTranslatePayload', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
     getByKeyMock.mockImplementation(() => {
       throw new Error('not found')
+    })
+
+    expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
+  })
+
+  it('treats a persisted model from an unavailable provider as not configured', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'global-only::model')
+    getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
+    getByKeyMock.mockReturnValueOnce({
+      id: 'global-only::model',
+      providerId: 'global-only',
+      apiModelId: 'model',
+      name: 'Global Model'
     })
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
