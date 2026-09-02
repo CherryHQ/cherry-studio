@@ -140,6 +140,8 @@ export class DshStreamAdapter {
   private suppressedTurn?: number
   /** Timestamp of the last host-prompted turn's `turn/end`; drives the post-turn grace period. */
   private hostTurnEndedAt?: number
+  /** Call ids from a suppressed autonomous turn; isolates late bridge approvals even after a host turn begins. */
+  private readonly suppressedToolCallIds = new Set<string>()
 
   constructor(private readonly sink: DshStreamSink) {}
 
@@ -170,7 +172,11 @@ export class DshStreamAdapter {
    */
   ensureToolCall(callId: string, toolName: string, input: Record<string, unknown>): void {
     if (this.startedTools.has(callId)) return
-    if (this.ensureTurnOpen()) return
+    if (this.suppressedToolCallIds.has(callId)) return
+    if (this.ensureTurnOpen()) {
+      this.suppressedToolCallIds.add(callId)
+      return
+    }
     this.handleToolCall({ callId: callId as CallId, name: toolName, arguments: JSON.stringify(input) })
   }
 
@@ -187,6 +193,9 @@ export class DshStreamAdapter {
     // downstream service never opens a receive-only stream, so content chunks would be dropped
     // anyway — better to not enqueue them at all.
     if (this.autonomousTurnSuppressed) return true
+    if (this.hostTurnEndedAt !== undefined && Date.now() - this.hostTurnEndedAt < POST_HOST_TURN_GRACE_MS) {
+      return true
+    }
     this.sink.onAutonomousTurnState('started')
     this.turnActive = true
     this.autonomousTurn = true
@@ -222,7 +231,11 @@ export class DshStreamAdapter {
         this.handleAssistantChunk(event.data, event.seq)
         return
       case 'tool/call':
-        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) {
+          const callId = (event.data as { callId?: string }).callId
+          if (callId) this.suppressedToolCallIds.add(callId)
+          return
+        }
         if (this.ensureTurnOpen()) return
         this.handleToolCall(event.data)
         return
@@ -263,10 +276,12 @@ export class DshStreamAdapter {
         return
       }
       case 'llm/retry':
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         this.flushPendingProviderUsage()
         this.handleRetry(event.data)
         return
       case 'llm/retry-started':
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         this.startProviderAttempt(event.data, false)
         return
       case 'step/end':
