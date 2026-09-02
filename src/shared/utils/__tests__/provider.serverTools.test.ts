@@ -159,7 +159,7 @@ describe('server-tool model eligibility', () => {
         webSearchEnabled: true,
         clientSearchAvailable: true,
         clientFetchAvailable: false,
-        clientToolsPreferred: false,
+        modelToolsPreferred: true,
         endpointType
       })
 

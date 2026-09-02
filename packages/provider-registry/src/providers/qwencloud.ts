@@ -178,6 +178,8 @@ export default defineProvider({
   // Chat Completions stays the provider default: it is the fallback for every model that arrives without
   // `endpointTypes`, and no per-model Responses support list is published for QwenCloud yet.
   name: 'QwenCloud',
+  // International platform only — mainland users are served by dashscope.
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
