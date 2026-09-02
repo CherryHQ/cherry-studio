@@ -212,6 +212,22 @@ describe('PaintingFieldRenderer range contract', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('keeps aria-valuenow on the committed range while a pasted draft is out of bounds', () => {
+    render(
+      <ControlledRange
+        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
+        initial={2}
+      />
+    )
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '99.' } })
+
+    expect(input).toHaveValue('99.')
+    expect(input).toHaveAttribute('aria-valuenow', '2')
+  })
+
   it('replaces a focused draft when the model value changes from outside', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

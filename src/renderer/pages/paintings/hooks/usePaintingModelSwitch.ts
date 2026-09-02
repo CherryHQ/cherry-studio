@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { isEditImageModel } from '@shared/utils/model'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
@@ -26,6 +26,8 @@ export function usePaintingModelSwitch({
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
+  const paintingRef = useRef(painting)
+  paintingRef.current = painting
   const { models } = useModels(currentProviderId ? { providerId: currentProviderId } : undefined)
 
   return useCallback(
@@ -42,7 +44,7 @@ export function usePaintingModelSwitch({
           oldModelId: painting.model,
           newModelId: modelId,
           mode: tabToImageGenerationMode(painting.mode),
-          currentValues: painting.params ?? {}
+          currentValues: () => paintingRef.current.params ?? {}
         })
         // Drop attached input images when the target model can't accept them:
         // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
@@ -51,8 +53,9 @@ export function usePaintingModelSwitch({
         // clear must be explicit.
         const nextModel = models.find((model) => model.apiModelId === modelId)
         const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
+        const latestPainting = paintingRef.current
         onPaintingChange({
-          params: { ...painting.params, ...resetPatch },
+          params: { ...latestPainting.params, ...resetPatch },
           model: modelId,
           ...(keepInputFiles ? {} : { inputFiles: [] })
         } as Partial<PaintingData>)

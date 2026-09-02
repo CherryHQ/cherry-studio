@@ -72,7 +72,7 @@ function PaintingRangeField({
     setDraft((current) => (current === null ? current : String(numericValue)))
   }, [numericValue])
 
-  const ariaValueNow = draft === null ? numericValue : (parseRangeDraft(draft) ?? undefined)
+  const ariaValueNow = draft !== null && parseRangeDraft(draft) === null ? undefined : numericValue
 
   return (
     <div className="flex min-w-0 items-center gap-3">
