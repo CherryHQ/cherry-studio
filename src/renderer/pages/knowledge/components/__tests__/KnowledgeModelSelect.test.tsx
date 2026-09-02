@@ -88,6 +88,7 @@ describe('KnowledgeModelSelect', () => {
   it('combines capability and non-Agent visibility rules and renders no external clear button', () => {
     const allowedModel = makeModel('openai::gpt-4o', 'GPT-4o')
     const rejectedModel = makeModel('openai::embedding', 'Embedding')
+    const cloudModel = makeModel('cherryai-subscription::deepseek-go', 'DeepSeek Go')
     const filter = (model: Model) => model.id === allowedModel.id
 
     render(
@@ -103,10 +104,9 @@ describe('KnowledgeModelSelect', () => {
 
     const visibleFilter = mockModelSelectorProps.at(-1)?.filter
     const openai = { id: 'openai', authMethods: ['api-key'] } as Provider
-    const externalCli = { id: 'claude-code', authMethods: ['external-cli'] } as Provider
     expect(visibleFilter(allowedModel, openai)).toBe(true)
     expect(visibleFilter(rejectedModel, openai)).toBe(false)
-    expect(visibleFilter(allowedModel, externalCli)).toBe(false)
+    expect(visibleFilter(cloudModel)).toBe(false)
     expect(mockModelSelectorProps.at(-1)?.noneOptionLabel).toBe('no-model')
     expect(screen.getAllByRole('button')).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'embedding-model' })).toBeInTheDocument()
