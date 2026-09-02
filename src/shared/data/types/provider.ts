@@ -148,6 +148,10 @@ export const ProviderWebsitesSchema = z.object({
 
 export type ProviderWebsites = z.infer<typeof ProviderWebsitesSchema>
 
+export const ANTHROPIC_CACHE_TTL_OPTIONS = ['5m', '1h'] as const
+const AnthropicCacheTtlSchema = z.enum(ANTHROPIC_CACHE_TTL_OPTIONS)
+export type AnthropicCacheTtl = z.infer<typeof AnthropicCacheTtlSchema>
+
 export const ProviderSettingsSchema = z.object({
   streamOptions: z
     .object({
@@ -164,7 +168,8 @@ export const ProviderSettingsSchema = z.object({
       enabled: z.boolean(),
       tokenThreshold: z.number().optional(),
       cacheSystemMessage: z.boolean().optional(),
-      cacheLastNMessages: z.number().optional()
+      cacheLastNMessages: z.number().optional(),
+      ttl: AnthropicCacheTtlSchema.optional()
     })
     .optional(),
 
