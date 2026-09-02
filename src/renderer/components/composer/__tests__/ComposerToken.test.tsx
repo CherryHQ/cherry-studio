@@ -21,11 +21,6 @@ import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } f
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const imagePreviewShowMock = vi.hoisted(() => vi.fn())
-const openFilePreviewTabMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@renderer/components/FilePreview', () => ({
-  useOptionalOpenFilePreviewTab: () => openFilePreviewTabMock
-}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -218,8 +213,6 @@ beforeEach(() => {
   ipcRequestMock.mockResolvedValue(undefined)
   imagePreviewShowMock.mockReset()
   imagePreviewShowMock.mockResolvedValue(undefined)
-  openFilePreviewTabMock.mockReset()
-  openFilePreviewTabMock.mockReturnValue('file-preview-tab')
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -566,10 +559,12 @@ describe('ComposerToken', () => {
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
 
-  it('opens an editable Markdown attachment in the file preview tab by pointer or keyboard', async () => {
+  it('opens an editable Markdown attachment with the injected file preview action by pointer or keyboard', async () => {
     const user = userEvent.setup()
+    const previewInputFile = vi.fn()
     render(
       <ComposerToken
+        onFilePreviewActivate={previewInputFile}
         token={{
           id: 'file:markdown',
           kind: 'file',
@@ -588,19 +583,27 @@ describe('ComposerToken', () => {
     const attachment = screen.getByRole('button', { name: 'requirements.md' })
     await user.click(attachment)
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'requirements.md',
+      previewPath: '/tmp/managed-file.md'
+    })
 
-    openFilePreviewTabMock.mockClear()
+    previewInputFile.mockClear()
     attachment.focus()
     await user.keyboard('{Enter}')
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/managed-file.md', 'requirements.md')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'requirements.md',
+      previewPath: '/tmp/managed-file.md'
+    })
   })
 
-  it('opens an editable Office attachment in the file preview tab', async () => {
+  it('opens an editable Office attachment with the injected file preview action', async () => {
     const user = userEvent.setup()
+    const previewInputFile = vi.fn()
     render(
       <ComposerToken
+        onFilePreviewActivate={previewInputFile}
         token={{
           id: 'file:docx',
           kind: 'file',
@@ -618,14 +621,19 @@ describe('ComposerToken', () => {
 
     await user.click(screen.getByRole('button', { name: 'report.docx' }))
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/report.docx', 'report.docx')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'report.docx',
+      previewPath: '/tmp/report.docx'
+    })
   })
 
-  it('opens a sent Markdown attachment from its managed file URL', async () => {
+  it('opens a sent Markdown attachment from its managed file URL with the injected file preview action', async () => {
     const user = userEvent.setup()
+    const previewInputFile = vi.fn()
     render(
       <FileComposerToken
         readOnly
+        onFilePreviewActivate={previewInputFile}
         readOnlyFilePreview={{ url: 'file:///tmp/message-files/managed-file.md', mediaType: 'text/markdown' }}
         token={{
           id: 'file:sent-markdown',
@@ -644,14 +652,20 @@ describe('ComposerToken', () => {
 
     await user.click(screen.getByRole('button', { name: 'requirements.md' }))
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/managed-file.md', 'requirements.md')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'requirements.md',
+      previewPath: '/tmp/message-files/managed-file.md',
+      mediaType: 'text/markdown'
+    })
   })
 
-  it('opens a sent Office attachment from its managed file URL', async () => {
+  it('opens a sent Office attachment from its managed file URL with the injected file preview action', async () => {
     const user = userEvent.setup()
+    const previewInputFile = vi.fn()
     render(
       <FileComposerToken
         readOnly
+        onFilePreviewActivate={previewInputFile}
         readOnlyFilePreview={{
           url: 'file:///tmp/message-files/report.docx',
           mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -666,7 +680,11 @@ describe('ComposerToken', () => {
 
     await user.click(screen.getByRole('button', { name: 'report.docx' }))
 
-    expect(openFilePreviewTabMock).toHaveBeenCalledWith('/tmp/message-files/report.docx', 'report.docx')
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'report.docx',
+      previewPath: '/tmp/message-files/report.docx',
+      mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
   })
 
   it('renders office file tokens with dedicated variants', () => {

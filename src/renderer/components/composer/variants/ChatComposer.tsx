@@ -20,6 +20,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
@@ -170,6 +171,7 @@ export interface ChatComposerProps {
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  previewInputFile?: ComposerInputFilePreviewAction
 }
 
 interface SavedComposerDraft {
@@ -414,6 +416,7 @@ const ChatComposerRoot = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -473,6 +476,7 @@ const ChatComposerRoot = ({
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
             onCreateEmptyTopic={onCreateEmptyTopic}
+            previewInputFile={previewInputFile}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
             deferQuickPanel={deferQuickPanel}
@@ -513,6 +517,7 @@ const ChatComposerInner = ({
   onDraftAssistantChange,
   onNewTopic,
   onCreateEmptyTopic,
+  previewInputFile,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
@@ -1934,6 +1939,7 @@ const ChatComposerInner = ({
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
+          previewInputFile={previewInputFile}
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}

@@ -1,15 +1,65 @@
+import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { ResourcePaneCountButton } from '@renderer/components/chat/panes/Shell'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { TopicRightPane } from '../TopicRightPane'
+import { TopicRightPane, useOptionalTopicRightPaneActions } from '../TopicRightPane'
 
 const developerModeEnabled = vi.fn(() => true)
 const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+const resolveArtifactPaneFileSelectionMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
+}))
+
+vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
+  useArtifactFileTreeModel: () => ({
+    errorKind: undefined,
+    hasLoaded: true,
+    nodeById: new Map(),
+    refresh: vi.fn(),
+    reloadExpandedDirectories: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
+  ArtifactPaneView: ({
+    editMode,
+    paneTitle,
+    previewFileSelection,
+    selectedFile
+  }: {
+    editMode?: string
+    paneTitle?: string
+    previewFileSelection?: ArtifactPanePath.ArtifactPaneFileSelection | null
+    selectedFile?: string | null
+  }) => (
+    <div
+      data-testid="artifact-pane"
+      data-display-path={previewFileSelection?.displayPath ?? ''}
+      data-edit-mode={editMode ?? ''}
+      data-preview-path={
+        previewFileSelection ? `${previewFileSelection.workspacePath}/${previewFileSelection.filePath}` : ''
+      }
+      data-preview-type={previewFileSelection?.previewType ?? ''}
+      data-read-only={String(Boolean(previewFileSelection?.readOnly))}
+      data-selected-file={selectedFile ?? ''}
+      data-title={previewFileSelection?.displayName ?? paneTitle ?? ''}
+    />
+  ),
+  getArtifactPaneSelectionPath: (selection: ArtifactPanePath.ArtifactPaneFileSelection) =>
+    `${selection.workspacePath}/${selection.filePath}`,
+  resolveArtifactPaneFileSelection: resolveArtifactPaneFileSelectionMock
+}))
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: useCommandHandlerMock
@@ -119,6 +169,8 @@ vi.mock('react-i18next', () => ({
 describe('TopicRightPane', () => {
   beforeEach(() => {
     useCommandHandlerMock.mockClear()
+    ipcRequestMock.mockReset()
+    resolveArtifactPaneFileSelectionMock.mockReset()
     developerModeEnabled.mockReturnValue(true)
   })
 
@@ -129,6 +181,24 @@ describe('TopicRightPane', () => {
 
     expect(handler).toBeDefined()
     handler?.()
+  }
+
+  function OpenInputFilePreviewButton() {
+    const actions = useOptionalTopicRightPaneActions()
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          actions?.previewInputFile({
+            displayName: 'report.docx',
+            previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
+            originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
+            mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          })
+        }>
+        open input preview
+      </button>
+    )
   }
 
   it('does not load the branch flow implementation before the pane opens', () => {
@@ -179,6 +249,43 @@ describe('TopicRightPane', () => {
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+  })
+
+  it('opens input file previews in the right files pane', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockRejectedValueOnce(new Error('missing original')).mockResolvedValueOnce({ kind: 'file' })
+
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <OpenInputFilePreviewButton />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.docx'
+      )
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-read-only', 'true')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-preview-type', 'file')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-display-path', '/Users/alice/report.docx')
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-title', 'report.docx')
+    expect(ipcRequestMock).toHaveBeenNthCalledWith(1, 'file.get_metadata', {
+      kind: 'path',
+      path: '/Users/alice/report.docx'
+    })
+    expect(ipcRequestMock).toHaveBeenNthCalledWith(2, 'file.get_metadata', {
+      kind: 'path',
+      path: '/internal/message-files/report.docx'
+    })
   })
 
   it('disables the right sidebar keyboard shortcut without a ready capability', () => {

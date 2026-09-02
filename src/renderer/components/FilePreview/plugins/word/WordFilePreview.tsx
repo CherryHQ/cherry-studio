@@ -17,6 +17,7 @@ const DOCX_PREVIEW_DEFAULT_ZOOM = 1
 const DOCX_PREVIEW_ZOOM_STEP = 0.1
 const DOCX_PREVIEW_MIN_ZOOM = 0.5
 const DOCX_PREVIEW_MAX_ZOOM = 2
+const DOCX_PREVIEW_FIT_PADDING_X = 24
 const DOCX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
 const SAFE_HYPERLINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
@@ -59,21 +60,87 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
+function getLayoutWidth(element: HTMLElement): number {
+  return Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width)
+}
+
+function getDocxContentWidth(body: HTMLElement): number {
+  const wrapper = body.querySelector<HTMLElement>('.docx-preview-wrapper')
+  const pages = Array.from(body.querySelectorAll<HTMLElement>('.docx-preview-page'))
+  const widths = [wrapper, ...pages].filter((element): element is HTMLElement => Boolean(element)).map(getLayoutWidth)
+  return widths.length > 0 ? Math.max(...widths) : 0
+}
+
+function getDocxFitZoom(scrollRoot: HTMLElement | null, body: HTMLElement | null): number {
+  if (!scrollRoot || !body) return DOCX_PREVIEW_DEFAULT_ZOOM
+
+  const availableWidth = scrollRoot.clientWidth - DOCX_PREVIEW_FIT_PADDING_X
+  const contentWidth = getDocxContentWidth(body)
+  if (availableWidth <= 0 || contentWidth <= 0) return DOCX_PREVIEW_DEFAULT_ZOOM
+
+  return clamp(
+    Number(Math.min(DOCX_PREVIEW_DEFAULT_ZOOM, availableWidth / contentWidth).toFixed(2)),
+    DOCX_PREVIEW_MIN_ZOOM,
+    DOCX_PREVIEW_DEFAULT_ZOOM
+  )
+}
+
+function afterLayout(callback: () => void): void {
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(callback)
+    return
+  }
+
+  window.setTimeout(callback, 0)
+}
+
 export default function WordFilePreview({ filePath, fileName, metadata, refreshKey }: FilePreviewPluginProps) {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const styleRef = useRef<HTMLDivElement>(null)
   const renderTokenRef = useRef(0)
+  const manualZoomRef = useRef(false)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
+  const [fitZoom, setFitZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
+  const [manualZoom, setManualZoom] = useState(false)
   const [zoom, setZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
 
   const focusContainer = useCallback(() => {
     containerRef.current?.focus({ preventScroll: true })
   }, [])
+
+  const captureHorizontalCenter = useCallback(() => {
+    const scrollRoot = containerRef.current
+    if (!scrollRoot || scrollRoot.clientWidth <= 0 || scrollRoot.scrollWidth <= 0) return 0.5
+
+    return clamp((scrollRoot.scrollLeft + scrollRoot.clientWidth / 2) / scrollRoot.scrollWidth, 0, 1)
+  }, [])
+
+  const restoreHorizontalCenter = useCallback((centerRatio = 0.5) => {
+    afterLayout(() => {
+      const scrollRoot = containerRef.current
+      if (!scrollRoot) return
+
+      const maxScrollLeft = Math.max(0, scrollRoot.scrollWidth - scrollRoot.clientWidth)
+      scrollRoot.scrollLeft =
+        maxScrollLeft > 0
+          ? clamp(scrollRoot.scrollWidth * centerRatio - scrollRoot.clientWidth / 2, 0, maxScrollLeft)
+          : 0
+    })
+  }, [])
+
+  const applyFitZoom = useCallback(() => {
+    const nextFitZoom = getDocxFitZoom(containerRef.current, bodyRef.current)
+    setFitZoom(nextFitZoom)
+    if (!manualZoomRef.current) {
+      setZoom(nextFitZoom)
+      restoreHorizontalCenter()
+    }
+  }, [restoreHorizontalCenter])
 
   const jumpToPage = useCallback(
     (pageNumber: number) => {
@@ -91,6 +158,9 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
 
   const zoomBy = useCallback(
     (direction: 'in' | 'out') => {
+      const centerRatio = captureHorizontalCenter()
+      manualZoomRef.current = true
+      setManualZoom(true)
       setZoom((value) =>
         clamp(
           Number((value + (direction === 'in' ? DOCX_PREVIEW_ZOOM_STEP : -DOCX_PREVIEW_ZOOM_STEP)).toFixed(2)),
@@ -98,15 +168,20 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
           DOCX_PREVIEW_MAX_ZOOM
         )
       )
+      restoreHorizontalCenter(centerRatio)
       focusContainer()
     },
-    [focusContainer]
+    [captureHorizontalCenter, focusContainer, restoreHorizontalCenter]
   )
 
   const resetZoom = useCallback(() => {
-    setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
+    manualZoomRef.current = false
+    setManualZoom(false)
+    applyFitZoom()
     focusContainer()
-  }, [focusContainer])
+  }, [applyFitZoom, focusContainer])
+
+  const hasPages = !error && pageCount > 0
 
   useEffect(() => {
     const bodyContainer = bodyRef.current
@@ -119,6 +194,9 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     setLoading(true)
     setCurrentPage(0)
     setPageCount(0)
+    setFitZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
+    setManualZoom(false)
+    manualZoomRef.current = false
     setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
 
     const stagingHost = document.createElement('div')
@@ -166,6 +244,7 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
         const nextPageCount = Math.max(pages.length, 1)
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? 1 : 0)
+        applyFitZoom()
         focusContainer()
       } catch (loadError) {
         if (!isCurrent()) return
@@ -184,7 +263,22 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
       styleContainer.innerHTML = ''
       stagingHost.remove()
     }
-  }, [filePath, focusContainer, metadata.size, refreshKey])
+  }, [applyFitZoom, filePath, focusContainer, metadata.size, refreshKey])
+
+  useEffect(() => {
+    if (!hasPages || typeof ResizeObserver === 'undefined') return
+    const scrollRoot = containerRef.current
+    const bodyContainer = bodyRef.current
+    if (!scrollRoot || !bodyContainer) return
+
+    const observer = new ResizeObserver(applyFitZoom)
+    observer.observe(scrollRoot)
+    const wrapper = bodyContainer.querySelector<HTMLElement>('.docx-preview-wrapper')
+    if (wrapper) observer.observe(wrapper)
+    bodyContainer.querySelectorAll<HTMLElement>('.docx-preview-page').forEach((page) => observer.observe(page))
+
+    return () => observer.disconnect()
+  }, [applyFitZoom, hasPages])
 
   useEffect(() => {
     const scrollRoot = containerRef.current
@@ -216,7 +310,6 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
     return () => observer.disconnect()
   }, [pageCount])
 
-  const hasPages = !error && pageCount > 0
   const contentStyle = { zoom } as CSSProperties
 
   return (
@@ -229,7 +322,7 @@ export default function WordFilePreview({ filePath, fileName, metadata, refreshK
         canNextPage={hasPages && currentPage < pageCount}
         canZoomOut={hasPages && zoom > DOCX_PREVIEW_MIN_ZOOM}
         canZoomIn={hasPages && zoom < DOCX_PREVIEW_MAX_ZOOM}
-        canResetZoom={hasPages && zoom !== DOCX_PREVIEW_DEFAULT_ZOOM}
+        canResetZoom={hasPages && (manualZoom || zoom !== fitZoom)}
         onPreviousPage={() => jumpToPage(currentPage - 1)}
         onNextPage={() => jumpToPage(currentPage + 1)}
         onZoomOut={() => zoomBy('out')}

@@ -122,6 +122,46 @@ describe('WordFilePreview', () => {
     expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '1.1')
   })
 
+  it('fits rendered DOCX pages to a narrow preview width before manual zoom', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.getAttribute('aria-label') === 'report.docx' ? 524 : 0
+    })
+    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.getAttribute('aria-label') === 'report.docx') {
+        const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
+        return Math.max(524, Math.round(800 * zoom))
+      }
+      if (this.classList.contains('docx-preview-wrapper')) return 800
+      if (this.classList.contains('docx-preview-page')) return 760
+      return 0
+    })
+    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<div class="docx-preview-wrapper"><section>Page 1</section></div>'
+    })
+
+    try {
+      render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+
+      await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%'))
+      expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '0.63')
+
+      fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('73%')
+      await waitFor(() => expect(screen.getByRole('region', { name: 'report.docx' }).scrollLeft).toBe(30))
+
+      fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
+      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%')
+      await waitFor(() => expect(screen.getByRole('region', { name: 'report.docx' }).scrollLeft).toBe(0))
+    } finally {
+      clientWidthSpy.mockRestore()
+      scrollWidthSpy.mockRestore()
+    }
+  })
+
   it('sanitizes unsafe hyperlinks rendered by docx-preview', async () => {
     mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
       body.innerHTML =
