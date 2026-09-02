@@ -25,7 +25,8 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
     {title}
     <InfoTooltip
       content={description}
-      iconProps={{ className: 'cursor-pointer', 'aria-label': `${title}: ${description}` }}
+      ariaLabel={`${title}: ${description}`}
+      iconProps={{ className: 'cursor-pointer' }}
     />
   </SettingRowTitle>
 )

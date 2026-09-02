@@ -6,8 +6,8 @@ import type { IconTooltipProps } from './types'
 export interface BaseIconTooltipProps extends IconTooltipProps {
   /** The Lucide icon component to render */
   icon: LucideIcon
-  /** Accessible label for screen readers */
-  ariaLabel?: string
+  /** Fallback accessible label when content is not plain text */
+  defaultAriaLabel?: string
   /** Default icon color */
   defaultColor?: string
 }
@@ -19,19 +19,31 @@ export interface BaseIconTooltipProps extends IconTooltipProps {
 export const IconTooltip = ({
   icon: Icon,
   iconProps,
-  ariaLabel = 'Icon',
+  ariaLabel,
+  defaultAriaLabel = 'Icon',
   defaultColor,
+  content,
   ...tooltipProps
 }: BaseIconTooltipProps) => {
+  const accessibleLabel =
+    ariaLabel ?? iconProps?.['aria-label'] ?? (typeof content === 'string' ? content : defaultAriaLabel)
+
   return (
-    <Tooltip {...tooltipProps}>
-      <Icon
-        size={iconProps?.size ?? 14}
-        color={iconProps?.color ?? defaultColor}
+    <Tooltip content={content} {...tooltipProps}>
+      <span
         role="img"
-        aria-label={ariaLabel}
-        {...iconProps}
-      />
+        aria-label={accessibleLabel}
+        tabIndex={0}
+        className="inline-flex shrink-0 items-center justify-center rounded-sm outline-none focus-visible:bg-accent">
+        <Icon
+          size={iconProps?.size ?? 14}
+          color={iconProps?.color ?? defaultColor}
+          {...iconProps}
+          aria-hidden="true"
+          focusable="false"
+          tabIndex={-1}
+        />
+      </span>
     </Tooltip>
   )
 }

@@ -46,8 +46,8 @@ vi.mock('@cherrystudio/ui', () => ({
       onChange={(event) => onCheckedChange(event.currentTarget.checked)}
     />
   ),
-  InfoTooltip: ({ content, iconProps }: { content: string; iconProps: { 'aria-label': string } }) => (
-    <span aria-label={iconProps['aria-label']} data-tooltip-content={content} />
+  InfoTooltip: ({ content, ariaLabel }: { content: string; ariaLabel: string }) => (
+    <span aria-label={ariaLabel} data-tooltip-content={content} />
   )
 }))
 
