@@ -150,6 +150,7 @@ async function buildSubmitInput(
     prompt: input.prompt,
     n: input.n,
     size: input.size as `${number}x${number}` | undefined,
+    aspectRatio: input.aspectRatio as `${number}:${number}` | undefined,
     seed: input.seed,
     files,
     mask,

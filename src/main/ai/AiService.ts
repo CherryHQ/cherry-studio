@@ -928,6 +928,7 @@ export class AiService extends BaseService {
         prompt: request.prompt,
         n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
+        ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
