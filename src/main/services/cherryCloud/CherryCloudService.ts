@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { cherryAccountSessionService } from '@data/services/CherryAccountSessionService'
 import { createManagedModelWriter, modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
@@ -19,6 +18,7 @@ import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
 
+import { cherryAccountCredentialStore } from './CherryAccountCredentialStore'
 import { CherryCloudLoopbackCallback } from './CherryCloudLoopbackCallback'
 import {
   accountSnapshotSchema,
@@ -216,7 +216,7 @@ export class CherryCloudService extends BaseService {
     this.assertAuthorizationOperation(operation)
     if (current.phase !== 'signed-out') return current
 
-    const device = this.cloudState.device ?? createDeviceKeyPair()
+    const device = this.getOrCreateDevice()
     const secrets = createAuthorizationSecrets()
     const loopbackCallback = await this.openLoopbackCallback(lifecycleGeneration, operation)
     if (this.lifecycleGeneration !== lifecycleGeneration) {
@@ -292,6 +292,27 @@ export class CherryCloudService extends BaseService {
     }
     this.loopbackCallback = receiver
     return receiver
+  }
+
+  private getOrCreateDevice(): CherryCloudDevice {
+    if (this.cloudState.device) return this.cloudState.device
+
+    const stored = cherryAccountCredentialStore.get()
+    if (stored) {
+      const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
+      this.cloudState = { ...this.cloudState, device }
+      return device
+    }
+
+    const device = createDeviceKeyPair()
+    cherryAccountCredentialStore.replace({
+      version: 1,
+      devicePublicKey: device.publicKey,
+      devicePrivateKey: device.privateKey,
+      session: null
+    })
+    this.cloudState = { ...this.cloudState, device }
+    return device
   }
 
   private async handleCallback(url: URL): Promise<void> {
@@ -814,7 +835,7 @@ export class CherryCloudService extends BaseService {
     const currentSession = this.cloudState.session
     if (!currentSession || (expectedSession && currentSession !== expectedSession)) return
 
-    cherryAccountSessionService.clear()
+    cherryAccountCredentialStore.clearSession()
     this.invalidateModelSync()
     this.cloudState = { ...this.cloudState, session: null }
     this.sessionGeneration += 1
@@ -894,40 +915,45 @@ export class CherryCloudService extends BaseService {
   }
 
   private async restoreSession(): Promise<void> {
-    const stored = cherryAccountSessionService.get()
+    const stored = cherryAccountCredentialStore.get()
     if (!stored) return
 
+    const device = { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey }
+
     this.cloudState = {
-      device: { publicKey: stored.devicePublicKey, privateKey: stored.devicePrivateKey },
+      device,
       pending: null,
-      session: {
-        accessToken: stored.accessToken,
-        accessExpiresAt: stored.accessExpiresAt,
-        refreshToken: stored.refreshToken,
-        sessionId: stored.sessionId,
-        sessionExpiresAt: stored.sessionExpiresAt,
-        deviceId: stored.deviceId,
-        accountId: stored.accountId,
-        displayName: stored.displayName ?? null
-      }
+      session: stored.session
+        ? {
+            accessToken: '',
+            accessExpiresAt: 0,
+            refreshToken: stored.session.refreshToken,
+            sessionId: stored.session.sessionId,
+            sessionExpiresAt: stored.session.sessionExpiresAt,
+            deviceId: stored.session.deviceId,
+            accountId: stored.session.accountId,
+            displayName: stored.session.displayName
+          }
+        : null
     }
-    this.sessionGeneration += 1
+    if (this.cloudState.session) this.sessionGeneration += 1
     if (this.cloudState.session) this.scheduleSessionExpiry(this.cloudState.session)
     await this.pruneExpiredState()
   }
 
   private persistSession(device: CherryCloudDevice, session: ProductSession): void {
-    cherryAccountSessionService.replace({
-      accessToken: session.accessToken,
-      refreshToken: session.refreshToken,
-      accessExpiresAt: session.accessExpiresAt,
-      sessionId: session.sessionId,
-      sessionExpiresAt: session.sessionExpiresAt,
-      deviceId: session.deviceId,
-      accountId: session.accountId,
-      displayName: session.displayName,
+    cherryAccountCredentialStore.replace({
+      version: 1,
       devicePublicKey: device.publicKey,
-      devicePrivateKey: device.privateKey
+      devicePrivateKey: device.privateKey,
+      session: {
+        refreshToken: session.refreshToken,
+        sessionId: session.sessionId,
+        sessionExpiresAt: session.sessionExpiresAt,
+        deviceId: session.deviceId,
+        accountId: session.accountId,
+        displayName: session.displayName
+      }
     })
   }
 

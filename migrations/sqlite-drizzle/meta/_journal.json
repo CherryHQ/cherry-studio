@@ -147,13 +147,6 @@
       "when": 1788247231321,
       "tag": "0020_wooden_fat_cobra",
       "breakpoints": true
-    },
-    {
-      "idx": 21,
-      "version": "6",
-      "when": 1788340656822,
-      "tag": "0021_nasty_kang",
-      "breakpoints": true
     }
   ],
   "version": "7"

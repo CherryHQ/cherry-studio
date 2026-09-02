@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   modelReconcile: vi.fn(),
   netFetch: vi.fn(),
   openExternal: vi.fn(),
+  savedDevice: null as { publicKey: string; privateKey: string } | null,
   savedSession: null as Record<string, unknown> | null,
   sessionClear: vi.fn(),
   sessionReplace: vi.fn()
@@ -28,14 +29,30 @@ vi.mock('@data/services/ModelService', () => ({
   }
 }))
 
-vi.mock('@data/services/CherryAccountSessionService', () => ({
-  cherryAccountSessionService: {
-    get: () => mocks.savedSession,
-    replace: (session: Record<string, unknown>) => {
-      mocks.sessionReplace(session)
-      mocks.savedSession = structuredClone(session)
+vi.mock('../CherryAccountCredentialStore', () => ({
+  cherryAccountCredentialStore: {
+    get: () =>
+      mocks.savedDevice
+        ? {
+            version: 1,
+            devicePublicKey: mocks.savedDevice.publicKey,
+            devicePrivateKey: mocks.savedDevice.privateKey,
+            session: mocks.savedSession ? structuredClone(mocks.savedSession) : null
+          }
+        : null,
+    replace: (credentials: {
+      devicePublicKey: string
+      devicePrivateKey: string
+      session: Record<string, unknown> | null
+    }) => {
+      mocks.sessionReplace(credentials)
+      mocks.savedDevice = {
+        publicKey: credentials.devicePublicKey,
+        privateKey: credentials.devicePrivateKey
+      }
+      mocks.savedSession = credentials.session ? structuredClone(credentials.session) : null
     },
-    clear: () => {
+    clearSession: () => {
       mocks.sessionClear()
       mocks.savedSession = null
     }
@@ -228,6 +245,7 @@ describe('CherryCloudService', () => {
     MockMainCacheServiceUtils.resetMocks()
     mocks.appEdition = 'global'
     mocks.appIsPackaged = false
+    mocks.savedDevice = null
     mocks.savedSession = null
     mocks.modelList.mockReturnValue([])
     mocks.modelReconcile.mockReturnValue([])
@@ -287,17 +305,40 @@ describe('CherryCloudService', () => {
 
     mocks.netFetch.mockReset()
     mocks.netFetch
+      .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
       .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
       .mockResolvedValueOnce(jsonResponse({ data: [] }))
     CherryCloudService.resetInstances()
     const restarted = new CherryCloudService()
     await restarted._doInit()
     expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(3))
     expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
+      'http://127.0.0.1:8084/api/v1/product-sessions/refresh',
       'http://127.0.0.1:8084/api/v1/account',
       'http://127.0.0.1:8084/v1/models?limit=1000'
     ])
+  })
+
+  it('reuses the device key after logout and a service restart', async () => {
+    const service = await createSignedInService()
+    const firstDevicePublicKey = mocks.savedDevice?.publicKey
+    expect(firstDevicePublicKey).toMatch(/^[A-Za-z0-9_-]{43}$/)
+
+    mocks.netFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
+    await service.revokeCurrentSession()
+    await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
+    expect(mocks.savedSession).toBeNull()
+
+    await service._doStop()
+    CherryCloudService.resetInstances()
+    const restarted = new CherryCloudService()
+    await restarted._doInit()
+    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    await restarted.startLogin()
+
+    const createBody = JSON.parse(mocks.netFetch.mock.calls[1][1].body as string)
+    expect(createBody.device_public_key).toBe(firstDevicePublicKey)
   })
 
   it('starts the API Gateway after a successful login', async () => {
@@ -336,9 +377,11 @@ describe('CherryCloudService', () => {
     mocks.netFetch
       .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
       .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-    mocks.sessionReplace.mockImplementationOnce(() => {
-      throw new Error('database is read-only')
-    })
+    mocks.sessionReplace
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw new Error('database is read-only')
+      })
     const service = new CherryCloudService()
     await service._doInit()
     await service.startLogin()
@@ -1152,7 +1195,7 @@ describe('CherryCloudService', () => {
       await expect(oldRequest).resolves.toHaveProperty('status', 401)
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
-      expect(mocks.savedSession).toMatchObject({ accessToken: token('H'), refreshToken: token('I') })
+      expect(mocks.savedSession).toMatchObject({ refreshToken: token('I') })
       expect(new Headers(mocks.netFetch.mock.calls[2][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
     } finally {
       clock.mockRestore()
