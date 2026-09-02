@@ -1,11 +1,9 @@
 import { CURRENCY } from '../schemas/enums'
 import { defineProvider } from './types'
-import { EFFORT, modeWire } from './wires'
 
 export default defineProvider({
   id: 'openrouter',
   name: 'OpenRouter',
-  availableInEditions: ['global'],
   // OpenRouter's usage response carries the actual billed amount, so the cost
   // engine trusts it over locally computed pricing.
   reportsActualCost: true,
@@ -31,7 +29,29 @@ export default defineProvider({
       baseUrl: 'https://openrouter.ai/api/v1/',
       reasoningFormat: {
         type: 'openai-chat',
-        wire: modeWire('reasoning.effort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
+        wire: {
+          off: {
+            operations: [
+              {
+                target: 'reasoning.effort',
+                value: { source: 'literal', value: 'none' },
+                delivery: 'request-body' as const
+              }
+            ]
+          },
+          auto: {
+            operations: [
+              {
+                target: 'reasoning.effort',
+                value: { source: 'literal', value: 'medium' },
+                delivery: 'request-body' as const
+              }
+            ]
+          },
+          effort: {
+            operations: [{ target: 'reasoning.effort', value: { source: 'effort' }, delivery: 'request-body' as const }]
+          }
+        }
       },
       requestControls: {
         serviceTier: {
@@ -66,16 +86,5 @@ export default defineProvider({
       official: 'https://openrouter.ai/'
     }
   },
-  modelsDevProvider: 'openrouter',
-  standaloneModelIds: ['gpt-5-4-image-2'],
-  overrides: [
-    // OpenRouter owns this moving router alias; DeepSeek does not publish it as
-    // a model. Actual usage cost is authoritative, so omit a static alias price.
-    { modelId: 'deepseek-v4-flash-latest', name: 'DeepSeek V4 Flash Latest', pricing: undefined },
-    {
-      modelId: 'gpt-5-4-image-2',
-      name: 'OpenAI: GPT-5.4 Image 2',
-      ownedBy: 'openrouter'
-    }
-  ]
+  modelsDevProvider: 'openrouter'
 })
