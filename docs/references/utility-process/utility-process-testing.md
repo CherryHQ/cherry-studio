@@ -56,7 +56,7 @@ One thing the harness does **not** currently catch: entry bundles folding into o
 
 ## Scope and residual risk
 
-The harness has been run on macOS (darwin-arm64) only. Proxy inheritance, `process.abort()` behaviour, and kill semantics are the platform-sensitive parts; **the first consumer PR owes a Windows and Linux re-run** before its process ships to users. Until then the layer is exercised only by the empty manifest.
+Proxy inheritance, `process.abort()` behaviour, and kill semantics are the platform-sensitive parts, so the harness must be re-run on every platform a shipped process targets. The inference migration covers macOS (darwin-arm64) and Windows; Linux is still unverified.
 
 The harness is a manual gate, not part of `pnpm test`: it builds two bundles and launches Electron twice. Wiring it into CI is worth doing when the first consumer lands, gated on changes under `src/main/core/utilityProcess/**`.
 

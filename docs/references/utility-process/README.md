@@ -4,6 +4,7 @@ sources:
   - src/main/core/utilityProcess
   - src/main/core/application/utilityProcessManifest.ts
   - src/main/core/paths/pathRegistry.ts
+  - electron.vite.entries.config.ts
 ---
 
 # Utility Process Reference
@@ -20,27 +21,26 @@ The design rationale, the rejected alternatives, and the experiment evidence liv
 
 ## What V1 is not
 
-No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. The manifest ships empty: the layer exists, no consumer has migrated yet.
+No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. Two processes are installed today — `inference.embedding` and `inference.ocr` (local embedding and OCR).
 
 ## Declaring a process
 
 A definition is a frozen, validated description of one utility process. It carries the contract only as a phantom type — main and child come from the same signed build, so there is no runtime validation of method payloads.
 
 ```typescript
-// src/main/ai/inference/embeddingProcess.ts
-export type EmbeddingContract = {
+// src/main/ai/localModel/runtime/inferenceProcess.ts
+export type EmbeddingInferenceContract = {
   methods: {
-    embed: UtilityProcessMethod<{ texts: string[] }, number[][]>
-    warmup: UtilityProcessMethod<void, void, { loaded: number }>
+    embed: UtilityProcessMethod<{ modelDir: string; dtype: string; texts: string[] }, number[][]>
   }
 }
 
-export const embeddingProcess = defineUtilityProcess<EmbeddingContract, { modelPath: string }>({
+export const embeddingInferenceProcess = defineUtilityProcess<EmbeddingInferenceContract, InferenceInitData>({
   id: 'inference.embedding',
   entry: 'inference-embedding',
-  cancellation: 'terminate',
-  idleTimeoutMs: 5 * 60_000,
-  createInitData: () => ({ modelPath: application.getPath('feature.embedding.models') })
+  cancellation: 'cooperative',
+  idleTimeoutMs: 60_000,
+  createInitData: () => createInferenceInitData('embedding')
 })
 ```
 
@@ -56,20 +56,18 @@ Add the definition to `src/main/core/application/utilityProcessManifest.ts`; `ma
 Entries live in a `utilityEntries/` directory next to their consumer and end with `serveUtilityProcess()`:
 
 ```typescript
-// src/main/ai/inference/utilityEntries/inferenceEmbedding.ts
-serveUtilityProcess<EmbeddingContract, { modelPath: string }>({
+// src/main/ai/localModel/runtime/utilityEntries/inferenceEmbedding.ts
+serveUtilityProcess<EmbeddingInferenceContract, InferenceInitData>({
   id: 'inference.embedding',
-  initialize: async ({ modelPath }, { logger }) => {
-    session = await loadModel(modelPath)
-    logger.info('model loaded')
-  },
-  handlers: {
-    embed: ({ texts }, { signal }) => session.embed(texts, { signal }),
-    warmup: (_input, { emit }) => emit({ loaded: session.layerCount })
-  },
-  dispose: () => session.release()
+  initialize: (initData, { logger }) => applyInitData(initData, logger),
+  handlers: embeddingHandlers,
+  dispose: ({ logger }) => disposeCachedResources(logger)
 })
 ```
+
+Keep the entry file itself to that call and put the handlers in a sibling module (`inferenceEmbeddingHandlers.ts`): importing an entry executes `serveUtilityProcess()`, which needs a real `process.parentPort`, so handler logic in the entry file cannot be unit-tested.
+
+Register the entry in `electron.vite.entries.config.ts` under the same key its definition names — the key becomes the emitted `<entry>.js`. That config is a **second build pass** (`pnpm build:utility-process`, run by `pnpm build` and `pnpm dev`) because each entry is a standalone bundle for a fresh Node runtime, not a chunk of the main bundle. Entries do not hot-reload: re-run it after changing one.
 
 `initialize` must stay light: the host fails the cold start after 10 s. Heavy work belongs in a method the caller can cancel. Handlers receive `{ signal, emit, logger }`; `emit` streams progress, `logger` writes structured lines that the host relays with the process id, generation, pid, and request id attached. Anything the child writes to stdout/stderr is relayed too (`debug` / `warn`), so a native library's own logging is not lost.
 
@@ -108,7 +106,7 @@ Utility processes are Node contexts with Electron's `net` module available, so `
 
 Child code is bundled for a process with no lifecycle container, no logger, and no database. `eslint.config.mjs` fences four globs — `core/utilityProcess/protocol/**`, `core/utilityProcess/runtime/**`, `src/main/**/utilityEntries/**`, and the smoke harness entries — against `@application`, `@logger`, `@data`, `@main/data`, `@main/ipc`, `core/lifecycle`, `core/paths`, `core/logger`, `core/application`, and the host half of this module (`host/**`, `UtilityProcessManager`, `installedManifest`). Type-only imports are allowed.
 
-That rule only sees direct imports. The transitive case — an innocent helper that pulls in `@logger` three modules down — is caught at build time by the entry-graph guard the smoke harness installs (`scripts/utility-process-smoke/hermeticEntryGuardPlugin.ts`); the first consumer promotes it to the production entries build. To check a boundary by hand:
+That rule only sees direct imports. The transitive case — an innocent helper that pulls in `@logger` three modules down — is caught at build time by `scripts/utilityProcessEntryGuard.ts`, installed by both the production entries build and the smoke harness. To check a boundary by hand:
 
 ```bash
 pnpm exec eslint --stdin --stdin-filename src/main/core/utilityProcess/runtime/probe.ts < probe.ts

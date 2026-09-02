@@ -29,7 +29,7 @@ V1 ships the narrowest layer that lets the first consumer stop hand-rolling proc
 
 ## Consumer order
 
-1. **`InferenceServiceBase`** (embedding / OCR) — the reason this layer exists. It hand-rolls a pending map, generation guards, an idle timer, and a `terminateThen` maintenance gate; all four are now generic. It also proves the `terminate` policy against a native call.
+1. ~~**`InferenceServiceBase`** (embedding / OCR)~~ — **migrated.** The pending map, generation guards, idle timer and `terminateThen` gate it hand-rolled are all generic now; what is left is request serialization and relaunching on a stale proxy snapshot or hardware profile.
 2. **Code-mode sandbox** — the security case: a hermetic environment and per-request isolation, and the first likely user of ephemeral processes.
 3. **Screenshot window enumeration** — a small, blocking native call; a good test of whether the layer is pleasant for something that is *not* a long-lived runtime.
 
