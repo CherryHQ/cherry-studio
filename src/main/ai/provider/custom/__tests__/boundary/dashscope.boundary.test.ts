@@ -215,6 +215,36 @@ describe('DashScope request boundary', () => {
     })
   }
 
+  it('honors the injected proxy-aware fetch and provider extra headers', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ output: { task_id: 't-1', task_status: 'PENDING' } }), { status: 200 })
+      )
+    const proxiedTransport = createDashScopeTransport({
+      apiKey: 'ds-key',
+      imageBaseURL: host,
+      fetch: fetchSpy as unknown as typeof globalThis.fetch,
+      headers: { 'X-Custom': 'on' }
+    })
+
+    const submit = await proxiedTransport.submit({
+      ...base,
+      modelId: 'qwen-image-3.0',
+      prompt: 'a fox',
+      modelDescriptor: descriptor('qwen-image-3.0', 'generate'),
+      providerParams: {}
+    } as ImageGenerationSubmitInput)
+
+    expect(submit).toEqual({ taskId: 't-1' })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchSpy.mock.calls[0] as [URL | RequestInfo | string, RequestInit]
+    expect(String(url)).toBe(`${host}/api/v1/services/aigc/image`)
+    const headers = new Headers(init.headers as HeadersInit)
+    expect(headers.get('authorization')).toBe('Bearer ds-key')
+    expect(headers.get('x-custom')).toBe('on')
+  })
+
   it.each([
     {
       name: 'cn host',
