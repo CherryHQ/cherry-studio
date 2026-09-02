@@ -448,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "92900b8ee894edee",
-    "count": 61,
+    "version": "844fcef804be23d3",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -526,6 +526,10 @@
       {
         "id": "openrouter",
         "name": "OpenRouter"
+      },
+      {
+        "id": "tokendance",
+        "name": "TokenDance"
       },
       {
         "id": "ollama",
