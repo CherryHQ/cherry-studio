@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "Căutare web",
   "chat.input.web_search.route.builtin": "Căutări cu instrumentul încorporat al modelului",
   "chat.input.web_search.route.client": "Căutări cu {{provider}}",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}} nu este disponibil, astfel încât interogarea este trimisă către {{fallbackProvider}}.",
+  "chat.input.web_search.route.client_with_fallback": "Căutări cu {{provider}}. Dacă nu este disponibil, interogarea este trimisă automat către {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini nu acceptă utilizarea simultană a instrumentelor native de căutare web și a apelării funcțiilor",
   "chat.message.editing_current": "Acest mesaj este editat în compozitor",
   "chat.message.flow.branches": "ramuri",

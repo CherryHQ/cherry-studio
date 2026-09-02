@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "Веб-поиск",
   "chat.input.web_search.route.builtin": "Поиск с помощью встроенного инструмента модели",
   "chat.input.web_search.route.client": "Поиск с {{provider}}",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}} недоступен, поэтому запрос отправляется в {{fallbackProvider}}.",
+  "chat.input.web_search.route.client_with_fallback": "Поиск с {{provider}}. Если сервис недоступен, запрос автоматически отправляется в {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini не поддерживает одновременное использование встроенного инструмента поиска в сети и вызова функций",
   "chat.message.editing_current": "Это сообщение редактируется в композере",
   "chat.message.flow.branches": "ветви",

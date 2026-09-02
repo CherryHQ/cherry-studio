@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "Activer la recherche web",
   "chat.input.web_search.route.builtin": "Recherches avec l'outil intégré au modèle",
   "chat.input.web_search.route.client": "Recherches avec {{provider}}",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}} est indisponible, la requête est donc envoyée à {{fallbackProvider}}.",
+  "chat.input.web_search.route.client_with_fallback": "Recherches avec {{provider}}. S'il est indisponible, la requête est automatiquement envoyée à {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
   "chat.message.editing_current": "Ce message est en cours de modification dans le compositeur",
   "chat.message.flow.branches": "branches",

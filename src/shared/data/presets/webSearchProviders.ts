@@ -214,7 +214,7 @@ export const PRESETS_WEB_SEARCH_PROVIDERS: readonly WebSearchProviderPreset[] = 
   ...WEB_SEARCH_PROVIDER_PRESET_MAP[id]
 }))
 
-export const WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY = {
-  searchKeywords: 'exa-mcp',
-  fetchUrls: 'fetch'
-} as const satisfies Record<WebSearchCapability, WebSearchProviderId>
+export const WEB_SEARCH_FALLBACK_PROVIDER_IDS_BY_CAPABILITY = {
+  searchKeywords: ['exa-mcp'],
+  fetchUrls: ['fetch', 'jina']
+} as const satisfies Record<WebSearchCapability, readonly WebSearchProviderId[]>

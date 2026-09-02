@@ -315,7 +315,7 @@ describe('WebSearchService', () => {
 
     expect(tavilySearch).not.toHaveBeenCalled()
     expect(exaMcpSearch).toHaveBeenCalledTimes(2)
-    expect(result.providerId).toBe('tavily')
+    expect(result.providerId).toBe('exa-mcp')
     expect(result.results.map(({ title }) => title)).toEqual(['Fallback first', 'Fallback second'])
   })
 
@@ -375,6 +375,8 @@ describe('WebSearchService', () => {
 
     expect(exaMcpSearch).toHaveBeenCalledOnce()
     expect(exaMcpSearch).toHaveBeenCalledWith('second', expect.any(Object), undefined)
+    expect(result.providerId).toBe('exa-mcp')
+    expect(result.providerIds).toEqual(['tavily', 'exa-mcp'])
     expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
   })
 
@@ -618,7 +620,7 @@ describe('WebSearchService', () => {
 
     expect(queritFetch).not.toHaveBeenCalled()
     expect(cherryFetch).toHaveBeenCalledTimes(2)
-    expect(result.providerId).toBe('querit')
+    expect(result.providerId).toBe('fetch')
     expect(result.results.map(({ content }) => content)).toEqual(['cherry', 'cherry'])
   })
 
@@ -644,26 +646,32 @@ describe('WebSearchService', () => {
     expect(result.results[0]?.title).toBe('Recovered')
   })
 
-  it('does not continue from a failed Cherry Fetch fallback to Jina', async () => {
+  it('continues from a failed Cherry Fetch fallback to Jina', async () => {
     const primaryError = new Error('Querit failed')
     const fallbackError = new Error('Cherry Fetch failed')
     const queritFetch = vi.fn().mockRejectedValue(primaryError)
     const cherryFetch = vi.fn().mockRejectedValue(fallbackError)
-    const jinaFetch = vi.fn()
+    const jinaFetch = vi
+      .fn()
+      .mockResolvedValue(
+        response('jina', 'fetchUrls', 'https://example.com/article', [
+          { title: 'Recovered', content: 'Jina content', url: 'https://example.com/article' }
+        ])
+      )
     createWebSearchProviderMock.mockImplementation((provider: WebSearchProvider) => {
       if (provider.id === 'querit') return { fetchUrls: queritFetch }
       if (provider.id === 'fetch') return { fetchUrls: cherryFetch }
       return { fetchUrls: jinaFetch }
     })
 
-    await expect(
-      webSearchService.fetchUrls({ providerId: 'querit', urls: ['https://example.com/article'] })
-    ).rejects.toSatisfy(
-      (error: unknown) =>
-        error instanceof AggregateError && error.errors.includes(primaryError) && error.errors.includes(fallbackError)
-    )
+    const result = await webSearchService.fetchUrls({
+      providerId: 'querit',
+      urls: ['https://example.com/article']
+    })
 
-    expect(jinaFetch).not.toHaveBeenCalled()
+    expect(jinaFetch).toHaveBeenCalledOnce()
+    expect(result.providerId).toBe('jina')
+    expect(result.results[0]?.title).toBe('Recovered')
   })
 
   it('falls back from native fetch to Jina after passing the failed hostname through the literal URL guard', async () => {
@@ -718,7 +726,7 @@ describe('WebSearchService', () => {
 
     expect(nativeFetch).toHaveBeenCalledWith('https://example.com/article', expect.any(Object), undefined)
     expect(sanitizeRemoteUrlMock).not.toHaveBeenCalled()
-    expect(result.providerId).toBe('jina')
+    expect(result.providerId).toBe('fetch')
     expect(result.results).toHaveLength(1)
   })
 
@@ -750,6 +758,8 @@ describe('WebSearchService', () => {
     expect(jinaFetch).toHaveBeenCalledTimes(2)
     expect(jinaFetch).toHaveBeenNthCalledWith(1, 'https://example.com/second', expect.any(Object), undefined)
     expect(jinaFetch).toHaveBeenNthCalledWith(2, 'https://example.com/third', expect.any(Object), undefined)
+    expect(result.providerId).toBe('jina')
+    expect(result.providerIds).toEqual(['fetch', 'jina'])
     expect(result.results.map(({ title }) => title)).toEqual(['First', 'Second'])
   })
 

@@ -15,7 +15,6 @@ import {
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import { WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY } from '@shared/data/presets/webSearchProviders'
 import {
   type Assistant,
   DEFAULT_ASSISTANT_SETTINGS,
@@ -26,7 +25,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
-import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
+import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -540,19 +539,13 @@ async function resolveRequestWebToolRoutes(
   async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
     try {
       const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
-      const fallbackProviderId = WEB_SEARCH_FALLBACK_PROVIDER_ID_BY_CAPABILITY[capability]
-      const fallbackProvider =
-        fallbackProviderId === clientProvider.id
-          ? undefined
-          : await getProviderById(fallbackProviderId, preferenceService)
-
-      return Boolean(
-        resolveReadyWebSearchProvider(
-          fallbackProvider ? [clientProvider, fallbackProvider] : [clientProvider],
-          clientProvider,
-          capability
+      const fallbackProviders = await Promise.all(
+        getWebSearchFallbackProviderIds(clientProvider.id, capability).map((providerId) =>
+          getProviderById(providerId, preferenceService)
         )
       )
+
+      return Boolean(resolveReadyWebSearchProvider([clientProvider, ...fallbackProviders], clientProvider, capability))
     } catch (error) {
       if (!isPermanentWebSearchConfigError(error)) {
         logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })

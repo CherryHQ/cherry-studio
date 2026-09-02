@@ -2,7 +2,12 @@ import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/webSearchProviders'
 import { describe, expect, it } from 'vitest'
 
-import { isWebSearchProviderReady, resolveReadyWebSearchProvider } from '../webSearch'
+import {
+  getWebSearchFallbackProviderIds,
+  getWebSearchProviderReadiness,
+  isWebSearchProviderReady,
+  resolveReadyWebSearchProvider
+} from '../webSearch'
 
 describe('client web provider readiness', () => {
   const provider = (id: WebSearchProvider['id'], apiKeys: string[] = []): WebSearchProvider => {
@@ -46,6 +51,32 @@ describe('client web provider readiness', () => {
         'searchKeywords'
       )
     ).toBe(false)
+  })
+
+  it('reports the configuration reason from the shared readiness contract', () => {
+    expect(getWebSearchProviderReadiness(provider('tavily'), 'searchKeywords')).toEqual({
+      ready: false,
+      reason: 'api_key_missing'
+    })
+
+    const exaMcp = provider('exa-mcp')
+    expect(
+      getWebSearchProviderReadiness(
+        {
+          ...exaMcp,
+          capabilities: [{ ...exaMcp.capabilities[0], apiHost: 'not-a-url' }]
+        },
+        'searchKeywords'
+      )
+    ).toEqual({ ready: false, reason: 'api_host_invalid' })
+  })
+
+  it('defines the complete fallback chain once per capability', () => {
+    expect(getWebSearchFallbackProviderIds('tavily', 'searchKeywords')).toEqual(['exa-mcp'])
+    expect(getWebSearchFallbackProviderIds('exa-mcp', 'searchKeywords')).toEqual([])
+    expect(getWebSearchFallbackProviderIds('querit', 'fetchUrls')).toEqual(['fetch', 'jina'])
+    expect(getWebSearchFallbackProviderIds('fetch', 'fetchUrls')).toEqual(['jina'])
+    expect(getWebSearchFallbackProviderIds('jina', 'fetchUrls')).toEqual(['fetch'])
   })
 
   it('keeps a ready primary provider instead of replacing it with the fallback', () => {

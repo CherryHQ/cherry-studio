@@ -302,14 +302,9 @@ export function isBuiltinWebFetchAvailable(
 }
 
 /**
- * Select one web-tool side for a request, then expose only the capabilities
- * available on that side.
- *
- * Provider/model conflicts (pre-3 Gemini native tools × function tools, OpenAI
- * GPT-5 minimal reasoning × native web_search) enter here as availability
- * inputs, so a conflicted server side falls back to the client tools instead
- * of being vetoed downstream. Each capability that lands on 'none' carries a
- * reason code for UI messaging.
+ * Route search and fetch independently through their preferred side and then
+ * the available fallback. Pre-3 Gemini is the exception: when that would mix
+ * Google-native and function tools, the side covering more capabilities wins.
  */
 export function resolveWebToolRoutes(
   model: Model,
@@ -335,13 +330,13 @@ export function resolveWebToolRoutes(
   const serverFetchEligible =
     options.webSearchEnabled && provider ? isBuiltinWebFetchAvailable(model, provider, options.endpointType) : false
 
-  const googleToolConflict =
-    options.hasFunctionToolSignals === true &&
+  const googleFunctionToolMixingUnsupported =
     supportsClientTools &&
     provider !== undefined &&
     servesGeminiNativeWebTools(provider) &&
     isGeminiModel(model) &&
     !supportsServerToolFunctionMixing(getRawModelId(model))
+  const googleToolConflict = options.hasFunctionToolSignals === true && googleFunctionToolMixingUnsupported
   const openaiMinimalConflict =
     options.reasoningEffort !== undefined &&
     provider !== undefined &&
@@ -350,38 +345,45 @@ export function resolveWebToolRoutes(
 
   const serverSearchAvailable = serverSearchEligible && !googleToolConflict && !openaiMinimalConflict
   const serverFetchAvailable = serverFetchEligible && !googleToolConflict
-  const clientAvailable = clientSearchAvailable || clientFetchAvailable
-  const serverAvailable = serverSearchAvailable || serverFetchAvailable
 
-  const selectedSide: Exclude<WebToolRoute, 'none'> | undefined = options.modelToolsPreferred
-    ? serverAvailable
-      ? 'server'
-      : clientAvailable
-        ? 'client'
-        : undefined
-    : clientAvailable
-      ? 'client'
-      : serverAvailable
-        ? 'server'
-        : undefined
+  const selectRoute = (clientAvailable: boolean, serverAvailable: boolean): WebToolRoute => {
+    if (options.modelToolsPreferred) {
+      return serverAvailable ? 'server' : clientAvailable ? 'client' : 'none'
+    }
+    return clientAvailable ? 'client' : serverAvailable ? 'server' : 'none'
+  }
 
-  const webSearch: WebToolRoute =
-    selectedSide === 'client' && clientSearchAvailable
-      ? 'client'
-      : selectedSide === 'server' && serverSearchAvailable
-        ? 'server'
-        : 'none'
-  const webFetch: WebToolRoute =
-    selectedSide === 'client' && clientFetchAvailable
-      ? 'client'
-      : selectedSide === 'server' && serverFetchAvailable
-        ? 'server'
-        : 'none'
+  let webSearch = selectRoute(clientSearchAvailable, serverSearchAvailable)
+  let webFetch = selectRoute(clientFetchAvailable, serverFetchAvailable)
+  let coordinatedGoogleConflict = false
+
+  if (
+    googleFunctionToolMixingUnsupported &&
+    ((webSearch === 'server' && webFetch === 'client') || (webSearch === 'client' && webFetch === 'server'))
+  ) {
+    coordinatedGoogleConflict = true
+    const clientCoverage = Number(clientSearchAvailable) + Number(clientFetchAvailable)
+    const serverCoverage = Number(serverSearchAvailable) + Number(serverFetchAvailable)
+    const selectedSide: Exclude<WebToolRoute, 'none'> =
+      clientCoverage === serverCoverage
+        ? options.modelToolsPreferred
+          ? 'server'
+          : 'client'
+        : clientCoverage > serverCoverage
+          ? 'client'
+          : 'server'
+
+    webSearch = selectedSide === 'client' ? (clientSearchAvailable ? 'client' : 'none') : 'server'
+    if (selectedSide === 'server' && !serverSearchAvailable) webSearch = 'none'
+    webFetch = selectedSide === 'client' ? (clientFetchAvailable ? 'client' : 'none') : 'server'
+    if (selectedSide === 'server' && !serverFetchAvailable) webFetch = 'none'
+  }
 
   const reasons: NonNullable<WebToolRoutes['reasons']> = {}
   if (webSearch === 'none') {
     reasons.webSearch =
-      serverSearchEligible && googleToolConflict
+      (serverSearchEligible && googleToolConflict) ||
+      (coordinatedGoogleConflict && (serverSearchAvailable || clientSearchAvailable))
         ? 'gemini-function-tool-conflict'
         : serverSearchEligible && openaiMinimalConflict
           ? 'openai-minimal-reasoning'
@@ -391,7 +393,8 @@ export function resolveWebToolRoutes(
   }
   if (webFetch === 'none') {
     reasons.webFetch =
-      serverFetchEligible && googleToolConflict
+      (serverFetchEligible && googleToolConflict) ||
+      (coordinatedGoogleConflict && (serverFetchAvailable || clientFetchAvailable))
         ? 'gemini-function-tool-conflict'
         : options.clientFetchAvailable && !supportsClientTools
           ? 'model-unsupported'

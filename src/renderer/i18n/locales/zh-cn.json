@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "网络搜索",
   "chat.input.web_search.route.builtin": "使用模型内置搜索",
   "chat.input.web_search.route.client": "使用 {{provider}} 搜索",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}} 不可用，查询将发送到 {{fallbackProvider}}。",
+  "chat.input.web_search.route.client_with_fallback": "使用 {{provider}} 搜索；不可用时，查询将自动发送到 {{fallbackProvider}}。",
   "chat.mcp.warning.gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
   "chat.message.editing_current": "这条消息正在输入框中编辑",
   "chat.message.flow.branches": "分支",

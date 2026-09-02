@@ -13,7 +13,7 @@ import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { getWebSearchProviderIconRef } from '@renderer/utils/webSearchProviderMeta'
 import { resolveWebToolRoutes, type WebToolUnavailableReason } from '@shared/utils/provider'
-import { resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
+import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
 import type { FC, MouseEventHandler } from 'react'
@@ -58,6 +58,12 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     'searchKeywords'
   )
   const effectiveFetchProvider = resolveReadyWebSearchProvider(providers, defaultFetchUrlsProvider, 'fetchUrls')
+  const fallbackSearchProvider = defaultSearchKeywordsProvider
+    ? providers.find(
+        (provider) =>
+          provider.id === getWebSearchFallbackProviderIds(defaultSearchKeywordsProvider.id, 'searchKeywords')[0]
+      )
+    : undefined
   const clientSearchAvailable = Boolean(effectiveSearchProvider)
   const clientFetchAvailable = Boolean(effectiveFetchProvider)
   // Same resolver as the main process; MCP mode stands in for the request's
@@ -137,7 +143,17 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     webSearchRoute === 'server'
       ? t('chat.input.web_search.route.builtin')
       : webSearchRoute === 'client' && effectiveSearchProvider
-        ? t('chat.input.web_search.route.client', { provider: effectiveSearchProvider.name })
+        ? defaultSearchKeywordsProvider && effectiveSearchProvider.id !== defaultSearchKeywordsProvider.id
+          ? t('chat.input.web_search.route.client_fallback_active', {
+              fallbackProvider: effectiveSearchProvider.name,
+              provider: defaultSearchKeywordsProvider.name
+            })
+          : fallbackSearchProvider
+            ? t('chat.input.web_search.route.client_with_fallback', {
+                fallbackProvider: fallbackSearchProvider.name,
+                provider: effectiveSearchProvider.name
+              })
+            : t('chat.input.web_search.route.client', { provider: effectiveSearchProvider.name })
         : undefined
   const tooltipTitle = disabledReason ?? routeHint ?? ariaLabel
 

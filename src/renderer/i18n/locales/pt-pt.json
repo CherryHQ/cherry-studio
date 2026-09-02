@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "Ativar pesquisa na web",
   "chat.input.web_search.route.builtin": "Pesquisas com a ferramenta integrada do modelo",
   "chat.input.web_search.route.client": "Pesquisas com {{provider}}",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}} não está disponível, por isso a consulta é enviada para {{fallbackProvider}}.",
+  "chat.input.web_search.route.client_with_fallback": "Pesquisas com {{provider}}. Se não estiver disponível, a consulta é enviada automaticamente para {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
   "chat.message.editing_current": "Esta mensagem está a ser editada no compositor",
   "chat.message.flow.branches": "ramos",

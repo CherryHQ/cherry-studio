@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "ウェブ検索",
   "chat.input.web_search.route.builtin": "モデル内蔵ツールを使用した検索",
   "chat.input.web_search.route.client": "{{provider}}での検索",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}}を利用できないため、検索クエリは{{fallbackProvider}}に送信されます。",
+  "chat.input.web_search.route.client_with_fallback": "{{provider}}で検索します。利用できない場合、検索クエリは自動的に{{fallbackProvider}}に送信されます。",
   "chat.mcp.warning.gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。",
   "chat.message.editing_current": "このメッセージはコンポーザーで編集中です",
   "chat.message.flow.branches": "枝",

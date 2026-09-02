@@ -670,6 +670,8 @@
   "chat.input.web_search.label": "Tìm kiếm trên web",
   "chat.input.web_search.route.builtin": "Tìm kiếm bằng công cụ tích hợp sẵn của mô hình",
   "chat.input.web_search.route.client": "Tìm kiếm với {{provider}}",
+  "chat.input.web_search.route.client_fallback_active": "{{provider}} không khả dụng, vì vậy truy vấn được gửi đến {{fallbackProvider}}.",
+  "chat.input.web_search.route.client_with_fallback": "Tìm kiếm với {{provider}}. Nếu không khả dụng, truy vấn sẽ tự động được gửi đến {{fallbackProvider}}.",
   "chat.mcp.warning.gemini_web_search": "Gemini không hỗ trợ sử dụng đồng thời các công cụ tìm kiếm web gốc và gọi hàm",
   "chat.message.editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
   "chat.message.flow.branches": "chi nhánh",

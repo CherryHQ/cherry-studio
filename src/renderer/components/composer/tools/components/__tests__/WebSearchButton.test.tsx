@@ -31,7 +31,17 @@ vi.mock('react-i18next', async (importOriginal) => {
 
   return {
     ...actual,
-    useTranslation: () => ({ t: (key: string) => key })
+    useTranslation: () => ({
+      t: (key: string, values?: { fallbackProvider?: string; provider?: string }) => {
+        if (key === 'chat.input.web_search.route.client_fallback_active') {
+          return `${values?.provider} is unavailable, so the query is sent to ${values?.fallbackProvider}.`
+        }
+        if (key === 'chat.input.web_search.route.client_with_fallback') {
+          return `Searches with ${values?.provider}. If unavailable, the query is automatically sent to ${values?.fallbackProvider}.`
+        }
+        return key
+      }
+    })
   }
 })
 
@@ -329,6 +339,25 @@ describe('WebSearchButton', () => {
 
     const button = screen.getByRole('button', { name: 'common.close' })
     expect(within(button).getByTestId('web-search-provider-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('tooltip')).toHaveAttribute(
+      'data-content',
+      'Zhipu is unavailable, so the query is sent to ExaMCP.'
+    )
+  })
+
+  it('discloses the automatic ExaMCP fallback while the selected provider is ready', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {
+      tavily: { apiKeys: ['tavily-key'] }
+    })
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(screen.getByTestId('tooltip')).toHaveAttribute(
+      'data-content',
+      'Searches with Tavily. If unavailable, the query is automatically sent to ExaMCP.'
+    )
   })
 
   it('disables Zhipu web search while model provider API keys are loading', async () => {

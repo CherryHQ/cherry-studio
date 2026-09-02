@@ -210,20 +210,20 @@ describe('web-tool routing', () => {
     expect(resolveWebToolRoutes(claude, provider, { webSearchEnabled: true, ...options })).toEqual(expected)
   })
 
-  it('never mixes client and server tools when the selected side lacks one capability', () => {
+  it('routes each capability through its preferred side and then the available fallback', () => {
     expect(
       resolveWebToolRoutes(claude, provider('all-chat-models'), {
         ...bothEnabled,
         modelToolsPreferred: true
       })
-    ).toEqual({ webSearch: 'server', webFetch: 'none', reasons: { webFetch: 'no-backend' } })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
     expect(
       resolveWebToolRoutes(claude, serverProvider, {
         ...bothEnabled,
         clientSearchAvailable: false,
         modelToolsPreferred: false
       })
-    ).toEqual({ webSearch: 'none', webFetch: 'client', reasons: { webSearch: 'no-backend' } })
+    ).toEqual({ webSearch: 'server', webFetch: 'client' })
   })
 
   it('recognizes provider-native URL fetch for supported model families', () => {
@@ -286,6 +286,22 @@ describe('conflict-aware routing', () => {
         clientFetchAvailable: true,
         modelToolsPreferred: true,
         hasFunctionToolSignals: true
+      })
+    ).toEqual({ webSearch: 'client', webFetch: 'client' })
+  })
+
+  it('coordinates web routes to the side with broader coverage when pre-3 Gemini cannot mix them', () => {
+    const searchOnlyProvider = {
+      id: 'gemini',
+      serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+    } as Provider
+
+    expect(
+      resolveWebToolRoutes(gemini25, searchOnlyProvider, {
+        webSearchEnabled: true,
+        clientSearchAvailable: true,
+        clientFetchAvailable: true,
+        modelToolsPreferred: true
       })
     ).toEqual({ webSearch: 'client', webFetch: 'client' })
   })
