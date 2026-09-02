@@ -2700,6 +2700,7 @@
   "notification.assistant": "Resposta do assistente",
   "notification.tip": "Controla apenas as notificações do sistema em segundo plano. As notificações na aplicação estão sempre ativadas.",
   "ocr.processing": "Processamento OCR em andamento...",
+  "onboarding.cloud.no_available_models": "Não existem modelos disponíveis para esta conta. Configure outro fornecedor para continuar.",
   "onboarding.privacy.accept_and_continue": "Aceitar e continuar",
   "onboarding.privacy.accept_policy": "Aceitar a Política de Privacidade",
   "onboarding.privacy.notice": "Li e concordo com a",

@@ -2700,6 +2700,7 @@
   "notification.assistant": "アシスタントの応答",
   "notification.tip": "バックグラウンド時のシステム通知のみを制御します。アプリ内通知は常に有効です。",
   "ocr.processing": "OCR処理中...",
+  "onboarding.cloud.no_available_models": "このアカウントで利用できるモデルがありません。続行するには別のプロバイダーを設定してください。",
   "onboarding.privacy.accept_and_continue": "同意して続行",
   "onboarding.privacy.accept_policy": "プライバシーポリシーに同意する",
   "onboarding.privacy.notice": "以下を読み、同意します：",

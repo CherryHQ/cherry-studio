@@ -2700,6 +2700,7 @@
   "notification.assistant": "助手响应",
   "notification.tip": "仅控制后台系统通知，应用内通知始终开启。",
   "ocr.processing": "OCR 处理中...",
+  "onboarding.cloud.no_available_models": "当前账户没有可用模型，请配置其他服务商后继续。",
   "onboarding.privacy.accept_and_continue": "同意并继续",
   "onboarding.privacy.accept_policy": "同意隐私协议",
   "onboarding.privacy.notice": "我已阅读并同意",

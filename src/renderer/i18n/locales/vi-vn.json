@@ -2700,6 +2700,7 @@
   "notification.assistant": "Phản hồi của Trợ lý",
   "notification.tip": "Chỉ kiểm soát thông báo hệ thống khi ứng dụng chạy nền. Thông báo trong ứng dụng luôn được bật.",
   "ocr.processing": "Đang xử lý OCR...",
+  "onboarding.cloud.no_available_models": "Tài khoản này không có mô hình nào khả dụng. Hãy thiết lập nhà cung cấp khác để tiếp tục.",
   "onboarding.privacy.accept_and_continue": "Đồng ý và tiếp tục",
   "onboarding.privacy.accept_policy": "Đồng ý với Chính sách quyền riêng tư",
   "onboarding.privacy.notice": "Tôi đã đọc và đồng ý với",

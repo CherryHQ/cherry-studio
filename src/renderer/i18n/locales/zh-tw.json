@@ -2700,6 +2700,7 @@
   "notification.assistant": "助理回應",
   "notification.tip": "僅控制背景系統通知；應用程式內通知一律開啟。",
   "ocr.processing": "OCR 處理中...",
+  "onboarding.cloud.no_available_models": "目前帳戶沒有可用模型，請設定其他供應商後繼續。",
   "onboarding.privacy.accept_and_continue": "同意並繼續",
   "onboarding.privacy.accept_policy": "同意隱私權政策",
   "onboarding.privacy.notice": "我已閱讀並同意",

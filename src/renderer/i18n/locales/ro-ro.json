@@ -2700,6 +2700,7 @@
   "notification.assistant": "Răspuns asistent",
   "notification.tip": "Controlează doar notificările de sistem din fundal. Notificările din aplicație sunt întotdeauna activate.",
   "ocr.processing": "Procesare OCR...",
+  "onboarding.cloud.no_available_models": "Nu există modele disponibile pentru acest cont. Configurează un alt furnizor pentru a continua.",
   "onboarding.privacy.accept_and_continue": "Acceptă și continuă",
   "onboarding.privacy.accept_policy": "Acceptă Politica de confidențialitate",
   "onboarding.privacy.notice": "Am citit și sunt de acord cu",

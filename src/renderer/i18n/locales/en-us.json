@@ -2700,6 +2700,7 @@
   "notification.assistant": "Assistant Response",
   "notification.tip": "Only controls system notifications while the app is in the background. In-app notifications are always enabled.",
   "ocr.processing": "OCR processing...",
+  "onboarding.cloud.no_available_models": "No models are available for this account. Set up another provider to continue.",
   "onboarding.privacy.accept_and_continue": "Accept and Continue",
   "onboarding.privacy.accept_policy": "Agree to the Privacy Policy",
   "onboarding.privacy.notice": "I have read and agree to the",

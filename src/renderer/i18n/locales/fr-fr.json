@@ -2700,6 +2700,7 @@
   "notification.assistant": "Réponse de l'assistant",
   "notification.tip": "Contrôle uniquement les notifications système en arrière-plan. Les notifications dans l’application restent toujours activées.",
   "ocr.processing": "Traitement OCR en cours...",
+  "onboarding.cloud.no_available_models": "Aucun modèle n’est disponible pour ce compte. Configurez un autre fournisseur pour continuer.",
   "onboarding.privacy.accept_and_continue": "Accepter et continuer",
   "onboarding.privacy.accept_policy": "Accepter la Politique de confidentialité",
   "onboarding.privacy.notice": "J'ai lu et j'accepte la",

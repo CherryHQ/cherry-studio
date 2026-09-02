@@ -1,6 +1,12 @@
 import {
   Button,
   Checkbox,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Scrollbar,
   Select,
   SelectContent,
@@ -25,8 +31,12 @@ import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
-import type { Model } from '@shared/data/types/model'
+import {
+  CHERRY_CLOUD_MODEL_FEATURE,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  isManagedCherryProviderId
+} from '@shared/data/presets/cherryai'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
@@ -83,6 +93,7 @@ export default function OnboardingPage() {
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(true)
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
+  const [showNoCloudModelsDialog, setShowNoCloudModelsDialog] = useState(false)
   const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
   const [isStartingCloudLogin, setIsStartingCloudLogin] = useState(false)
   const [isCancellingCloudLogin, setIsCancellingCloudLogin] = useState(false)
@@ -140,37 +151,41 @@ export default function OnboardingPage() {
     }
   }, [isCnEdition])
 
-  const updateSeededResourceModels = useCallback(async (model: Model) => {
-    const assistantUpdate = dataApiService
-      .get('/assistants', { query: { limit: 2 } })
-      .then(async ({ items, total }) => {
-        const assistant = total === 1 ? items[0] : undefined
-        if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
-          await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
-        }
-      })
-    const agentUpdate = (async () => {
-      const limit = 500
-      let page = 1
-      let total = 0
+  const updateSeededAgentModels = useCallback(async (modelId: UniqueModelId) => {
+    const limit = 500
+    let page = 1
+    let total = 0
 
-      do {
-        const response = await dataApiService.get('/agents', { query: { limit, page } })
-        const officialAgents = response.items.filter(
-          (agent) =>
-            isProtectedBuiltinAgentRole(agent.configuration?.builtin_role) &&
-            (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-        )
-        await Promise.all(
-          officialAgents.map((agent) => dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } }))
-        )
-        total = response.total
-        page += 1
-      } while ((page - 1) * limit < total)
-    })()
-
-    await Promise.all([assistantUpdate, agentUpdate])
+    do {
+      const response = await dataApiService.get('/agents', { query: { limit, page } })
+      const officialAgents = response.items.filter(
+        (agent) =>
+          isProtectedBuiltinAgentRole(agent.configuration?.builtin_role) &&
+          (agent.model === null || agent.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      )
+      await Promise.all(
+        officialAgents.map((agent) => dataApiService.patch(`/agents/${agent.id}`, { body: { model: modelId } }))
+      )
+      total = response.total
+      page += 1
+    } while ((page - 1) * limit < total)
   }, [])
+
+  const updateSeededResourceModels = useCallback(
+    async (model: Model) => {
+      const assistantUpdate = dataApiService
+        .get('/assistants', { query: { limit: 2 } })
+        .then(async ({ items, total }) => {
+          const assistant = total === 1 ? items[0] : undefined
+          if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+            await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
+          }
+        })
+
+      await Promise.all([assistantUpdate, updateSeededAgentModels(model.id)])
+    },
+    [updateSeededAgentModels]
+  )
 
   const handleLanguageChange = (value: string) => {
     if (!isAppLanguage(value)) return
@@ -251,16 +266,62 @@ export default function OnboardingPage() {
     [defaultModel, persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededResourceModels]
   )
 
+  const completeWithCloudAgentModel = useCallback(
+    async (modelId: UniqueModelId, requestId: number) => {
+      setIsCompleting(true)
+      try {
+        if (!(await persistPrivacyChoice()) || requestId !== cloudStatusRequestRef.current) return
+        await updateSeededAgentModels(modelId)
+        if (requestId !== cloudStatusRequestRef.current) return
+        await updateOnboardingPreferences({ providerSetupStatus: 'skipped' })
+      } catch {
+        if (requestId === cloudStatusRequestRef.current) {
+          toast.error(t('onboarding.toast.complete_failed'))
+        }
+      } finally {
+        setIsCompleting(false)
+      }
+    },
+    [persistPrivacyChoice, t, updateOnboardingPreferences, updateSeededAgentModels]
+  )
+
+  const openProviderSetupAfterCloudModelUnavailable = () => {
+    setShowNoCloudModelsDialog(false)
+    setStep('provider')
+  }
+
   useEffect(() => {
     if (!isCnEdition || cloudStatus?.phase !== 'signed-in') {
       hasRoutedCloudLoginRef.current = false
+      setShowNoCloudModelsDialog(false)
       return
     }
     if (isProviderSetupLoading || hasRoutedCloudLoginRef.current) return
 
     hasRoutedCloudLoginRef.current = true
-    setStep(canContinueProviderSetup ? 'select-model' : 'provider')
-  }, [canContinueProviderSetup, cloudStatus?.phase, isCnEdition, isProviderSetupLoading])
+    const requestId = cloudStatusRequestRef.current
+    void ipcApi
+      .request('cherry_cloud.models.sync')
+      .then(({ entitledModelIds, quotaExhaustedModelIds, featuresByModelId }) => {
+        if (requestId !== cloudStatusRequestRef.current) return
+
+        const exhaustedModelIds = new Set(quotaExhaustedModelIds)
+        const agentModelId = entitledModelIds.find(
+          (modelId) =>
+            !exhaustedModelIds.has(modelId) && featuresByModelId[modelId]?.includes(CHERRY_CLOUD_MODEL_FEATURE.AGENT)
+        )
+        if (agentModelId) {
+          void completeWithCloudAgentModel(agentModelId, requestId)
+        } else {
+          setShowNoCloudModelsDialog(true)
+        }
+      })
+      .catch(() => {
+        if (requestId === cloudStatusRequestRef.current) {
+          setStep(canContinueProviderSetup ? 'select-model' : 'provider')
+        }
+      })
+  }, [canContinueProviderSetup, cloudStatus?.phase, completeWithCloudAgentModel, isCnEdition, isProviderSetupLoading])
 
   const runAfterPrivacyChoice = useCallback(
     async (action: PrivacyChoiceAction) => {
@@ -576,6 +637,19 @@ export default function OnboardingPage() {
         acceptButtonText={t('onboarding.privacy.accept_and_continue')}
         isPending={isUpdatingPrivacy}
       />
+      <Dialog
+        open={showNoCloudModelsDialog}
+        onOpenChange={(open) => !open && openProviderSetupAfterCloudModelUnavailable()}>
+        <DialogContent size="sm" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{t('models.no_matches')}</DialogTitle>
+            <DialogDescription>{t('onboarding.cloud.no_available_models')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={openProviderSetupAfterCloudModelUnavailable}>{t('common.confirm')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

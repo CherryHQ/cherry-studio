@@ -2700,6 +2700,7 @@
   "notification.assistant": "Asistan Yanıtı",
   "notification.tip": "Yalnızca uygulama arka plandayken sistem bildirimlerini denetler. Uygulama içi bildirimler her zaman etkindir.",
   "ocr.processing": "OCR işleniyor...",
+  "onboarding.cloud.no_available_models": "Bu hesap için kullanılabilir model yok. Devam etmek için başka bir sağlayıcı yapılandırın.",
   "onboarding.privacy.accept_and_continue": "Kabul Et ve Devam Et",
   "onboarding.privacy.accept_policy": "Gizlilik Politikasını kabul et",
   "onboarding.privacy.notice": "Okudum ve kabul ediyorum:",

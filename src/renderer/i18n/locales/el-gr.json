@@ -2700,6 +2700,7 @@
   "notification.assistant": "Απάντηση Βοηθού",
   "notification.tip": "Ελέγχει μόνο τις ειδοποιήσεις συστήματος στο παρασκήνιο. Οι ειδοποιήσεις εντός εφαρμογής είναι πάντα ενεργές.",
   "ocr.processing": "Η επεξεργασία OCR βρίσκεται σε εξέλιξη...",
+  "onboarding.cloud.no_available_models": "Δεν υπάρχουν διαθέσιμα μοντέλα για αυτόν τον λογαριασμό. Ρυθμίστε έναν άλλο πάροχο για να συνεχίσετε.",
   "onboarding.privacy.accept_and_continue": "Αποδοχή και συνέχεια",
   "onboarding.privacy.accept_policy": "Αποδοχή της Πολιτικής Απορρήτου",
   "onboarding.privacy.notice": "Έχω διαβάσει και συμφωνώ με την",

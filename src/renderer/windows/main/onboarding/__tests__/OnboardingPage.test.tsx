@@ -173,6 +173,9 @@ describe('OnboardingPage', () => {
       if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
       if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
       if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.models.sync') {
+        return { entitledModelIds: [], quotaExhaustedModelIds: [], featuresByModelId: {} }
+      }
       throw new Error(`Unexpected IPC route: ${route}`)
     })
     if (defaultUsePreferenceImplementation) {
@@ -664,7 +667,8 @@ describe('OnboardingPage', () => {
     expect(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' })).toBeEnabled()
   })
 
-  it('opens provider setup after Cherry Cloud login when no chat model is available', async () => {
+  it('explains that the Cherry Cloud account has no available model before opening provider setup', async () => {
+    const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
     enabledProvidersMock.splice(0, enabledProvidersMock.length, {
       id: CHERRY_CLOUD_PROVIDER_ID,
@@ -681,18 +685,77 @@ describe('OnboardingPage', () => {
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
     act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
 
+    expect(await screen.findByText('onboarding.cloud.no_available_models')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
+
     expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
   })
 
-  it('opens model selection after Cherry Cloud login when a chat model is available', async () => {
+  it('selects the first available Cherry Cloud Agent model and completes onboarding', async () => {
+    const firstCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::first-agent-model`
+    const secondCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::second-agent-model`
+    cloudMocks.appEdition = 'cn'
+    cloudMocks.ipcRequest.mockImplementation(async (route: string) => {
+      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
+      if (route === 'cherry_cloud.models.sync') {
+        return {
+          entitledModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
+          quotaExhaustedModelIds: [],
+          featuresByModelId: {
+            [firstCloudAgentModelId]: ['agent'],
+            [secondCloudAgentModelId]: ['agent']
+          }
+        }
+      }
+      throw new Error(`Unexpected IPC route: ${route}`)
+    })
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/agents') {
+        return {
+          items: [
+            { id: 'assistant-agent', model: null, configuration: { builtin_role: 'assistant' } },
+            { id: 'support-agent', model: null, configuration: { builtin_role: 'support' } }
+          ],
+          total: 2
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    render(<OnboardingPage />)
+
+    await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
+    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
+
+    await waitFor(() => {
+      expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/assistant-agent', {
+        body: { model: firstCloudAgentModelId }
+      })
+      expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/support-agent', {
+        body: { model: firstCloudAgentModelId }
+      })
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('skipped')
+    })
+    expect(dataApiMocks.patch).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ body: { model: secondCloudAgentModelId } })
+    )
+  })
+
+  it('opens provider setup after the warning even when an ordinary chat model is available', async () => {
+    const user = userEvent.setup()
     cloudMocks.appEdition = 'cn'
     render(<OnboardingPage />)
 
     await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
     act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
 
-    expect(await screen.findByTestId('model-settings')).toBeInTheDocument()
+    expect(await screen.findByText('onboarding.cloud.no_available_models')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
     expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
   })
 
