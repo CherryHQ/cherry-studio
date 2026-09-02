@@ -211,10 +211,15 @@ export function useFollowupQueue({
       let added = false
       try {
         cacheService.setPersist(QUEUE_STORAGE_KEY, (prev) => {
-          const next = { ...(prev as Record<string, unknown> || {}) } as Record<string, unknown>
+          const next = { ...(prev as Record<string, unknown>) } as Record<string, unknown>
           const raw = next[scopeKeyRef.current]
           // Treat a tombstone/null as an empty queue
-          const entry = raw === null ? { items: [], paused: false } : typeof raw === 'object' && !Array.isArray(raw) ? (raw as any) : { items: [] }
+          const entry =
+            raw === null
+              ? { items: [], paused: false }
+              : typeof raw === 'object' && !Array.isArray(raw)
+                ? (raw as any)
+                : { items: [] }
           const items = Array.isArray(entry.items) ? [...entry.items] : []
           if (items.length >= QUEUE_LIMIT) return prev
           items.push(newItem)
