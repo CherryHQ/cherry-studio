@@ -77,7 +77,6 @@ export enum IpcChannel {
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
-  File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
 
   // backup

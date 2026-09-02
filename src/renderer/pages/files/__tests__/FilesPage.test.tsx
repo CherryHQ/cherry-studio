@@ -445,7 +445,7 @@ describe('FilesPage file operations', () => {
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_trash') return Promise.resolve({ succeeded: [], failed: [] })
-      if (route === 'file.batch_permanent_delete') return Promise.resolve({ succeeded: [], failed: [] })
+      if (route === 'file.batch_remove_from_library') return Promise.resolve({ succeeded: [], failed: [] })
       if (route === 'file.batch_restore') return Promise.resolve({ succeeded: [], failed: [] })
       if (route === 'file.batch_create_internal_entries') return Promise.resolve({ succeeded: [], failed: [] })
       if (route === 'file.rename') return Promise.resolve({})
@@ -584,7 +584,7 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
+    expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_remove_from_library', { ids: [externalEntry.id] })
     await waitFor(() => {
       expect(refetchStats).toHaveBeenCalled()
     })
@@ -725,16 +725,16 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       const trashCalls = ipcMocks.request.mock.calls.filter(([route]) => route === 'file.batch_trash')
-      const permanentDeleteCalls = ipcMocks.request.mock.calls.filter(
-        ([route]) => route === 'file.batch_permanent_delete'
+      const removeFromLibraryCalls = ipcMocks.request.mock.calls.filter(
+        ([route]) => route === 'file.batch_remove_from_library'
       )
 
       expect(trashCalls).toHaveLength(2)
-      expect(permanentDeleteCalls).toHaveLength(2)
+      expect(removeFromLibraryCalls).toHaveLength(2)
       expect((trashCalls[0][1] as { ids: string[] }).ids).toHaveLength(500)
       expect((trashCalls[1][1] as { ids: string[] }).ids).toHaveLength(1)
-      expect((permanentDeleteCalls[0][1] as { ids: string[] }).ids).toHaveLength(500)
-      expect((permanentDeleteCalls[1][1] as { ids: string[] }).ids).toHaveLength(1)
+      expect((removeFromLibraryCalls[0][1] as { ids: string[] }).ids).toHaveLength(500)
+      expect((removeFromLibraryCalls[1][1] as { ids: string[] }).ids).toHaveLength(1)
     })
   })
 
@@ -764,7 +764,7 @@ describe('FilesPage file operations', () => {
       if (route === 'file.batch_trash') {
         return Promise.resolve({ succeeded: [], failed: [{ id: entry.id, error: 'trash denied' }] })
       }
-      if (route === 'file.batch_permanent_delete') {
+      if (route === 'file.batch_remove_from_library') {
         return Promise.resolve({ succeeded: [], failed: [{ id: externalEntry.id, error: 'remove denied' }] })
       }
       return Promise.resolve(input)
@@ -931,7 +931,9 @@ describe('FilesPage file operations', () => {
     ipcMocks.request.mockImplementation((route: string) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({ [externalEntry.id]: 'missing' })
-      if (route === 'file.batch_permanent_delete') return Promise.resolve({ succeeded: [externalEntry.id], failed: [] })
+      if (route === 'file.batch_remove_from_library') {
+        return Promise.resolve({ succeeded: [externalEntry.id], failed: [] })
+      }
       return Promise.resolve({})
     })
 
@@ -949,7 +951,7 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.remove_from_library'))
 
     await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_remove_from_library', { ids: [externalEntry.id] })
     })
   })
 

@@ -44,7 +44,7 @@ type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
-type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_permanent_delete'
+type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_remove_from_library'
 
 interface EmbeddedFilePreview {
   fileName: string
@@ -104,8 +104,8 @@ async function requestBatchedFileMutation(
       switch (route) {
         case 'file.batch_trash':
           return ipcApi.request('file.batch_trash', { ids: chunk })
-        case 'file.batch_permanent_delete':
-          return ipcApi.request('file.batch_permanent_delete', { ids: chunk })
+        case 'file.batch_remove_from_library':
+          return ipcApi.request('file.batch_remove_from_library', { ids: chunk })
       }
     })
   )
@@ -632,7 +632,7 @@ function FilesPage() {
         const [trashResult, removeResult] = await Promise.all([
           trashIds.length > 0 ? requestBatchedFileMutation('file.batch_trash', trashIds) : Promise.resolve(null),
           removeIds.length > 0
-            ? requestBatchedFileMutation('file.batch_permanent_delete', removeIds)
+            ? requestBatchedFileMutation('file.batch_remove_from_library', removeIds)
             : Promise.resolve(null)
         ])
         const trashFailed = warnMutationFailures('file trash', trashResult)

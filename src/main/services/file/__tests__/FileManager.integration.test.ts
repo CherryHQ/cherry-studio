@@ -435,7 +435,9 @@ describe('FileManager (integration)', () => {
     ])
 
     notifyDataApiDataChangeMock.mockClear()
-    expect(await fm.batchPermanentDelete(ids)).toMatchObject({ succeeded: [first.id, second.id] })
+    await fm.batchTrash([first.id, second.id])
+    notifyDataApiDataChangeMock.mockClear()
+    expect(await fm.batchPermanentDeleteFromTrash(ids)).toMatchObject({ succeeded: [first.id, second.id] })
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
       { endpoint: '/files/entries', kind: 'membership', entityIds: [first.id, second.id] },
       { endpoint: '/files/entries/:id', entityIds: [first.id, second.id] }
@@ -462,6 +464,17 @@ describe('FileManager (integration)', () => {
     const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await fm.permanentDelete(e.id)
     await expect(fm.getById(e.id)).rejects.toThrow(/not found/i)
+    const { readFile } = await import('node:fs/promises')
+    expect(await readFile(file, 'utf-8')).toBe('preserve me')
+  })
+
+  it('INT-6a: batchRemoveFromLibrary removes the row and leaves the user file untouched', async () => {
+    const file = path.join(tmp, 'library-remove-keep.txt')
+    await writeFile(file, 'preserve me')
+    const entry = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
+
+    expect(await fm.batchRemoveFromLibrary([entry.id])).toEqual({ succeeded: [entry.id], failed: [] })
+    await expect(fm.getById(entry.id)).rejects.toThrow(/not found/i)
     const { readFile } = await import('node:fs/promises')
     expect(await readFile(file, 'utf-8')).toBe('preserve me')
   })

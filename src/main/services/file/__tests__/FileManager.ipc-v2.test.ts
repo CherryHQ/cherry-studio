@@ -1,14 +1,12 @@
 /**
  * IPC handler registration tests for Phase 2 File channels.
  *
- * Verifies that `createInternalEntry`, `ensureExternalEntry`,
- * `getPhysicalPath`, and `permanentDelete` channels are registered on
- * `ipcMain.handle` and that each dispatches to the corresponding FileManager
- * method. `permanentDelete` covers both `FileEntryHandle` and `FilePathHandle`
- * branches via `dispatchHandle`.
+ * Verifies that the remaining legacy entry channels are registered on
+ * `ipcMain.handle`, while renderer-facing permanent deletion stays exclusively
+ * on the protected IpcApi routes.
  */
 
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -206,74 +204,8 @@ describe('FileManager v2 IPC handler registration', () => {
     expect(physicalPath).toContain('bin')
   })
 
-  it('registers File:permanentDelete IPC channel', () => {
+  it('does not register the legacy permanent-delete IPC channel', () => {
     const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
-    expect(registeredChannels).toContain(IpcChannel.File_PermanentDelete)
-  })
-
-  it('permanentDelete entry-handle removes an internal entry row and physical file', async () => {
-    // Create an internal entry so we have a known id + physical path
-    const createHandler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_CreateInternalEntry)?.[1]
-    const entry = await createHandler!({} as never, {
-      source: 'bytes' as const,
-      data: new Uint8Array([72, 101, 108, 108, 111]),
-      name: 'todelete',
-      ext: 'txt',
-      cleanupPolicy: 'manual'
-    })
-
-    // Resolve the physical path before deletion so we can check it afterward
-    const getPathHandler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_GetPhysicalPath)?.[1]
-    const physicalPath = await getPathHandler!({} as never, { id: entry.id })
-
-    const deleteHandler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
-    expect(deleteHandler).toBeDefined()
-
-    // Entry-handle branch
-    await expect(deleteHandler!({} as never, { kind: 'entry', entryId: entry.id })).resolves.toBeUndefined()
-
-    // Physical file must be gone
-    await expect(access(physicalPath)).rejects.toThrow()
-  })
-
-  it('permanentDelete entry-handle throws when the id does not exist', async () => {
-    const deleteHandler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
-    expect(deleteHandler).toBeDefined()
-
-    // Use a valid UUID that was never inserted — DB lookup will reject it
-    const nonExistentId = '123e4567-e89b-4d3c-a456-426614174000'
-    await expect(deleteHandler!({} as never, { kind: 'entry', entryId: nonExistentId })).rejects.toThrow()
-  })
-
-  it('permanentDelete path-handle removes the file at the given path', async () => {
-    // Stage a real file outside the entry system
-    const orphan = path.join(tmp, 'orphan.txt')
-    await writeFile(orphan, 'bye')
-
-    const deleteHandler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
-    await expect(deleteHandler!({} as never, { kind: 'path', path: orphan })).resolves.toBeUndefined()
-    await expect(access(orphan)).rejects.toThrow()
-  })
-
-  it('permanentDelete rejects malformed handles at the schema boundary', async () => {
-    const deleteHandler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_PermanentDelete)?.[1]
-    // Missing discriminant
-    await expect(deleteHandler!({} as never, { entryId: 'x' })).rejects.toThrow()
-    // Unknown kind
-    await expect(deleteHandler!({} as never, { kind: 'virtual', path: '/tmp/x' })).rejects.toThrow()
-    // path-handle with a relative path
-    await expect(deleteHandler!({} as never, { kind: 'path', path: 'relative.txt' })).rejects.toThrow()
+    expect(registeredChannels).not.toContain('file:permanentDelete')
   })
 })

@@ -2,6 +2,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
+import { ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -21,7 +24,17 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { batchPermanentDelete, batchRestore, batchTrash, permanentDelete, restore, trash } = await import('../lifecycle')
+const {
+  batchPermanentDeleteFromTrash,
+  batchRemoveFromLibrary,
+  batchRestore,
+  batchTrash,
+  permanentDelete,
+  permanentDeleteFromTrash,
+  removeExternalFromLibrary,
+  restore,
+  trash
+} = await import('../lifecycle')
 const { exists } = await import('@main/utils/file')
 const { createInternal, ensureExternal } = await import('../create')
 
@@ -84,6 +97,24 @@ describe('internal/entry/lifecycle', () => {
     await writeFile(file, 'x')
     const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
     return e.id
+  }
+
+  async function seedPersistentRef(fileEntryId: FileEntryId): Promise<void> {
+    const suffix = fileEntryId.slice(-12)
+    const paintingId = `11111111-1111-4111-8111-${suffix}`
+    await dbh.db.insert(paintingTable).values({
+      id: paintingId,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: paintingId
+    })
+    await dbh.db.insert(paintingFileRefTable).values({
+      id: `22222222-2222-4222-8222-${suffix}`,
+      fileEntryId,
+      sourceId: paintingId,
+      role: 'output'
+    })
   }
 
   describe('trash', () => {
@@ -210,6 +241,63 @@ describe('internal/entry/lifecycle', () => {
     })
   })
 
+  describe('protected user delete actions', () => {
+    it('rejects permanent deletion of an active internal entry and preserves its row and blob', async () => {
+      const id = await makeInternal()
+      const entry = fileEntryService.getById(id)
+      const physical = path.join(filesDir, `${id}.${entry.ext}`)
+
+      await expect(permanentDeleteFromTrash(deps, id)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect(await exists(physical as AbsoluteFilePath)).toBe(true)
+    })
+
+    it('rejects permanent deletion of a referenced trashed internal entry and preserves its row and blob', async () => {
+      const id = await makeInternal()
+      const entry = fileEntryService.getById(id)
+      const physical = path.join(filesDir, `${id}.${entry.ext}`)
+      trash(deps, id)
+      await seedPersistentRef(id)
+
+      await expect(permanentDeleteFromTrash(deps, id)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringMatching(/referenced/i)
+      })
+
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect(await exists(physical as AbsoluteFilePath)).toBe(true)
+    })
+
+    it('removes an unreferenced external entry from the library without deleting the user file', async () => {
+      const id = await makeExternal()
+      const entry = fileEntryService.getById(id)
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+
+      await removeExternalFromLibrary(deps, id)
+
+      expect(fileEntryService.findById(id)).toBeNull()
+      expect(await exists(entry.externalPath)).toBe(true)
+    })
+
+    it('rejects removal of a referenced external entry and preserves its row and user file', async () => {
+      const id = await makeExternal()
+      const entry = fileEntryService.getById(id)
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+      await seedPersistentRef(id)
+
+      await expect(removeExternalFromLibrary(deps, id)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        message: expect.stringMatching(/referenced/i)
+      })
+
+      expect(fileEntryService.findById(id)).not.toBeNull()
+      expect(await exists(entry.externalPath)).toBe(true)
+    })
+  })
+
   describe('batch ops', () => {
     it('batchTrash partitions internal-success / external-failure', async () => {
       const internal = await makeInternal()
@@ -229,18 +317,28 @@ describe('internal/entry/lifecycle', () => {
       expect(result.failed).toHaveLength(1)
     })
 
-    it('batchPermanentDelete deletes both internal and external rows', async () => {
+    it('protected delete batches partition successes and invalid-origin failures', async () => {
       const internal = await makeInternal()
+      trash(deps, internal)
       const external = await makeExternal()
-      const result = await batchPermanentDelete(deps, [internal, external])
-      expect(result.succeeded.sort()).toEqual([internal, external].sort())
-      expect(result.failed).toEqual([])
+
+      const trashResult = await batchPermanentDeleteFromTrash(deps, [internal, external])
+      expect(trashResult.succeeded).toEqual([internal])
+      expect(trashResult.failed).toEqual([{ id: external, error: expect.stringMatching(/invalid operation/i) }])
+
+      const activeInternal = await makeInternal()
+      const libraryResult = await batchRemoveFromLibrary(deps, [external, activeInternal])
+      expect(libraryResult.succeeded).toEqual([external])
+      expect(libraryResult.failed).toEqual([{ id: activeInternal, error: expect.stringMatching(/invalid operation/i) }])
     })
 
-    it('composes each batch DB write loop inside one serialized write tx', async () => {
+    it('uses one serialized write transaction per protected batch item', async () => {
       const trashInternal = await makeInternal()
       const trashExternal = await makeExternal()
-      const deleteInternal = await makeInternal()
+      const deleteInternalA = await makeInternal()
+      const deleteInternalB = await makeInternal()
+      trash(deps, deleteInternalA)
+      trash(deps, deleteInternalB)
       const deleteExternal = await makeExternal()
       const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
 
@@ -249,7 +347,11 @@ describe('internal/entry/lifecycle', () => {
       expect(withWriteTx).toHaveBeenCalledTimes(1)
 
       withWriteTx.mockClear()
-      await batchPermanentDelete(deps, [deleteInternal, deleteExternal])
+      await batchPermanentDeleteFromTrash(deps, [deleteInternalA, deleteInternalB])
+      expect(withWriteTx).toHaveBeenCalledTimes(2)
+
+      withWriteTx.mockClear()
+      await batchRemoveFromLibrary(deps, [deleteExternal])
       expect(withWriteTx).toHaveBeenCalledTimes(1)
     })
 

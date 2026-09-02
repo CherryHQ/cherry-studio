@@ -410,7 +410,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({ retentionDays, o
   const handleDelete = (item: TrashItem) =>
     onRequestDelete(item, (target) =>
       runAction('permanent_delete', async () => {
-        throwOnBatchFailure(await ipcApi.request('file.batch_permanent_delete', { ids: [target.id] }))
+        throwOnBatchFailure(await ipcApi.request('file.batch_permanent_delete_from_trash', { ids: [target.id] }))
         await invalidatePurgedFiles()
       })
     )

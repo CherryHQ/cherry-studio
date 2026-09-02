@@ -42,9 +42,6 @@
  * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
  * dispatches read, metadata, open, show-in-folder, and optimistic-write
  * routes. Entry arms call FileManager; path arms call helpers under `utils/*`.
- * The legacy
- * `File_PermanentDelete` handler still uses the same dispatcher here until its
- * remaining preload consumers migrate:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.open(entryId)`)
@@ -83,15 +80,17 @@
  * - No background sync
  * - No tracking of external rename/move
  * - `permanentDelete` on an external file_entry removes only the DB row — this
- *   entry-level operation is deliberately decoupled from physical deletion.
+ *   general operation remains for internal cleanup and legacy callers.
  *   Path-level deletion remains available via `remove(path)` from
  *   `@main/utils/file/fs` (reached through a `FilePathHandle`), which is an
  *   explicit user-facing operation not tied to any entry id.
+ * - User-facing removal goes through `batchRemoveFromLibrary`, which also
+ *   verifies external origin and persistent-reference absence in the delete tx.
  *
  * **External entries cannot be trashed.** Their lifecycle is monotonic:
  * created by `ensureExternalEntry` (pure upsert keyed by path — see below),
- * updated in place via `write` / `rename`, and removed only by an explicit
- * (non-UI) `permanentDelete`. The `fe_external_no_delete` CHECK constraint
+ * updated in place via `write` / `rename`, and removed from the library by an
+ * explicit protected action. The `fe_external_no_delete` CHECK constraint
  * enforces this at the DB level; `trash` / `restore` on an external entry id
  * will throw.
  *
@@ -132,9 +131,9 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
-import type { ContentHash, DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { CleanupPolicySchema, FileEntryIdSchema, FileHandleSchema } from '@shared/data/types/file'
+import { stat as fsStat } from '@main/utils/file'
+import type { ContentHash, DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
+import { CleanupPolicySchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { type CreateInternalEntryInput, createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
@@ -158,14 +157,14 @@ import {
   writeIfUnchanged as internalWriteIfUnchanged
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
-import { dispatchHandle } from './internal/dispatch'
 import { copy as internalCopy } from './internal/entry/copy'
 import {
   createInternal as internalCreateInternal,
   ensureExternal as internalEnsureExternal
 } from './internal/entry/create'
 import {
-  batchPermanentDelete as internalBatchPermanentDelete,
+  batchPermanentDeleteFromTrash as internalBatchPermanentDeleteFromTrash,
+  batchRemoveFromLibrary as internalBatchRemoveFromLibrary,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
   permanentDelete as internalPermanentDelete,
@@ -189,7 +188,6 @@ import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy
 import { safeOpen } from './system'
 import { createContentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { ensureContentMetadataGeneration } from './tasks/contentMetadataGeneration'
-import { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 import { buildPhysicalFileMetadata } from './utils/metadata'
 import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -271,8 +269,6 @@ export const EnsureExternalEntryIpcSchema = z.strictObject({
 })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
-
-export const PermanentDeleteIpcSchema = FileHandleSchema
 
 // ─── Version types ───
 
@@ -571,8 +567,8 @@ export interface IFileManager {
    *
    * Passing an external entry id throws: external entries cannot be trashed
    * (enforced by the `fe_external_no_delete` CHECK constraint). Business layers
-   * should call `permanentDelete` on external entries if the user really wants
-   * the reference gone.
+   * should call `batchRemoveFromLibrary` for a user-requested external entry
+   * removal.
    */
   trash(id: FileEntryId): Promise<void>
 
@@ -584,7 +580,8 @@ export interface IFileManager {
   restore(id: FileEntryId): Promise<FileEntry>
 
   /**
-   * Permanently delete entry. DB row is always removed; FS behavior depends on origin:
+   * General cleanup/compensation primitive. DB row is always removed without
+   * user-action trash/reference guards; FS behavior depends on origin:
    * - internal: unlinks `{userData}/Data/Files/{id}.{ext}`
    * - external: **DB-only** — the user's physical file is left untouched.
    *   Entry-level deletion is deliberately decoupled from physical deletion;
@@ -602,7 +599,10 @@ export interface IFileManager {
   batchTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
-  batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
+  /** Permanently delete unreferenced internal entries that are currently in Trash. */
+  batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult>
+  /** Remove unreferenced external entries from the library without modifying user files. */
+  batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult>
 
   // ─── Stream ───
 
@@ -864,13 +864,10 @@ export class FileManager extends BaseService implements IFileManager {
     // for `ipcMain.handle` listeners).
     // Phase 2 channels.
     //
-    // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
-    // path: string }`, etc.). The TS-side param types use template literal
-    // brands (`AbsoluteFilePath`, `FileHandle`) that Zod can't reproduce without a
+    // Zod outputs structural strings while the TS-side param types use template
+    // literal brands (`AbsoluteFilePath`) that Zod cannot reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
-    // brand-as-doc convention intact while letting runtime validation (Zod)
-    // remain the actual gate — same pattern used by every other IPC handler
-    // in this file.
+    // brand-as-doc convention intact while runtime validation remains the gate.
     this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
       this.createInternalEntry(createInternalEntryInputSchema.parse(params))
     )
@@ -880,17 +877,6 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
-    this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
-      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
-      return dispatchHandle(
-        handle,
-        (entryId) => this.permanentDelete(entryId),
-        async (path) => {
-          await assertOutsideManagedStorageMutation(path)
-          await fsRemove(path)
-        }
-      )
-    })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
   }
 
@@ -1219,8 +1205,14 @@ export class FileManager extends BaseService implements IFileManager {
     return result
   }
 
-  async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
-    const result = await internalBatchPermanentDelete(this.deps, ids)
+  async batchPermanentDeleteFromTrash(ids: FileEntryId[]): Promise<BatchMutationResult> {
+    const result = await internalBatchPermanentDeleteFromTrash(this.deps, ids)
+    this.notifyReadModelChange(result.succeeded)
+    return result
+  }
+
+  async batchRemoveFromLibrary(ids: FileEntryId[]): Promise<BatchMutationResult> {
+    const result = await internalBatchRemoveFromLibrary(this.deps, ids)
     this.notifyReadModelChange(result.succeeded)
     return result
   }

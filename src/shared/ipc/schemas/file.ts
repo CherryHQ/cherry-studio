@@ -150,7 +150,14 @@ export const fileRequestSchemas = {
   }),
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
-  'file.batch_permanent_delete': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
+  'file.batch_permanent_delete_from_trash': defineRoute({
+    input: fileEntryIdsInputSchema,
+    output: batchMutationResultSchema
+  }),
+  'file.batch_remove_from_library': defineRoute({
+    input: fileEntryIdsInputSchema,
+    output: batchMutationResultSchema
+  }),
   'file.rename': defineRoute({
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
