@@ -239,6 +239,12 @@ interface AgentRightPaneActions {
   setFileTreeSearchKeyword: (keyword: string) => void
 }
 
+interface FilePreviewReturnTarget {
+  closePane: boolean
+  panelId?: string
+  selection: ArtifactPaneFileSelection | null
+}
+
 interface AgentRightPanelScope {
   developerMode: boolean
   filePreviewSelection: ArtifactPaneFileSelection | null
@@ -312,7 +318,7 @@ interface AgentRightPaneActionsProviderProps {
   sessionId?: string
   workspacePath?: string
   replaceFlowTab: (input: AgentToolFlowOpenInput) => void
-  closeFilePreview: () => void
+  previewFileSelection: ArtifactPaneFileSelection | null
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
   selectFile: (file: string | null) => void
   setFileEditMode: (mode: AgentFileEditorMode) => void
@@ -327,7 +333,7 @@ function AgentRightPaneActionsProvider({
   sessionId,
   workspacePath,
   replaceFlowTab,
-  closeFilePreview,
+  previewFileSelection,
   requestFileSelection,
   selectFile,
   setFileEditMode,
@@ -336,13 +342,16 @@ function AgentRightPaneActionsProvider({
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const panelActions = useRightPanelActions()
+  const panelState = useRightPanelState()
   const artifactOpenRequestRef = useRef(0)
+  const filePreviewReturnRef = useRef<FilePreviewReturnTarget | null>(null)
   // Invalidate in-flight artifact-open requests when the session or workspace
   // changes (and on unmount), so a late getMetadata resolution cannot restore a
   // preview that the switch just cleared.
   useEffect(() => {
     return () => {
       artifactOpenRequestRef.current += 1
+      filePreviewReturnRef.current = null
     }
   }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
@@ -362,6 +371,11 @@ function AgentRightPaneActionsProvider({
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
+      filePreviewReturnRef.current = {
+        closePane: !panelState.presentationOpen,
+        panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
+        selection: previewFileSelection
+      }
       panelActions.tryOpen(FILES_PANE_ID, { userInitiated: true })
 
       if (!selection) {
@@ -381,13 +395,26 @@ function AgentRightPaneActionsProvider({
           requestFileSelection(selection)
         })
     },
-    [canOpenArtifactFile, panelActions, requestFileSelection, workspacePath]
+    [
+      canOpenArtifactFile,
+      panelActions,
+      panelState.activePanelId,
+      panelState.presentationOpen,
+      previewFileSelection,
+      requestFileSelection,
+      workspacePath
+    ]
   )
   const previewInputFileInRightPane = useCallback(
     (input: MessageInputFilePreview) => {
       if (!canPreviewInputFileInRightPane) return
       const requestId = artifactOpenRequestRef.current + 1
       artifactOpenRequestRef.current = requestId
+      filePreviewReturnRef.current = {
+        closePane: !panelState.presentationOpen,
+        panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
+        selection: previewFileSelection
+      }
 
       const initialSelection = createInputFileSelection(input, workspacePath, input.previewPath)
       if (!initialSelection) {
@@ -430,7 +457,35 @@ function AgentRightPaneActionsProvider({
         }
       })()
     },
-    [canPreviewInputFileInRightPane, panelActions, requestFileSelection, workspacePath]
+    [
+      canPreviewInputFileInRightPane,
+      panelActions,
+      panelState.activePanelId,
+      panelState.presentationOpen,
+      previewFileSelection,
+      requestFileSelection,
+      workspacePath
+    ]
+  )
+  const closeFilePreview = useCallback(() => {
+    artifactOpenRequestRef.current += 1
+    const returnTarget = filePreviewReturnRef.current
+    filePreviewReturnRef.current = null
+    requestFileSelection(returnTarget?.selection ?? null)
+
+    if (!returnTarget) return
+    if (returnTarget.closePane) {
+      panelActions.close()
+      return
+    }
+    if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
+  }, [panelActions, requestFileSelection])
+  const setSelectedFile = useCallback(
+    (file: string | null) => {
+      filePreviewReturnRef.current = null
+      selectFile(file)
+    },
+    [selectFile]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({
@@ -442,7 +497,7 @@ function AgentRightPaneActionsProvider({
       previewInputFileInRightPane,
       closeFilePreview,
       setFileEditMode,
-      setSelectedFile: selectFile,
+      setSelectedFile,
       setFileTreeExpandedIds,
       setFileTreeSearchKeyword
     }),
@@ -454,10 +509,10 @@ function AgentRightPaneActionsProvider({
       openAgentToolFlow,
       openArtifactFile,
       previewInputFileInRightPane,
-      selectFile,
       setFileEditMode,
       setFileTreeExpandedIds,
-      setFileTreeSearchKeyword
+      setFileTreeSearchKeyword,
+      setSelectedFile
     ]
   )
 
@@ -626,8 +681,6 @@ function AgentRightPaneStateProvider({
     requestFileTransition(commitWorkspace)
   }, [fileSession.isDirty, fileWorkspace.key, requestFileTransition, workspaceKey, workspacePath])
 
-  const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
-
   const fileState = useMemo<AgentRightPaneFileState>(
     () => ({
       editMode,
@@ -710,7 +763,7 @@ function AgentRightPaneStateProvider({
                 sessionId={sessionId}
                 workspacePath={workspacePath}
                 replaceFlowTab={replaceFlowTab}
-                closeFilePreview={closeFilePreview}
+                previewFileSelection={previewFileSelection}
                 requestFileSelection={requestFileSelection}
                 selectFile={selectFile}
                 setFileEditMode={requestFileEditMode}

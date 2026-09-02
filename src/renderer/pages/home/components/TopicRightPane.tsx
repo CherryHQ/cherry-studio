@@ -95,6 +95,12 @@ interface TopicBranchLiveStateStore {
   subscribe: (topicId: string, listener: () => void) => () => void
 }
 
+interface FilePreviewReturnTarget {
+  closePane: boolean
+  panelId?: string
+  selection: ArtifactPaneFileSelection | null
+}
+
 function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
   const snapshots = new Map<string, TopicMessageFlowLiveState>()
   const listeners = new Map<string, Set<() => void>>()
@@ -258,24 +264,39 @@ function TopicFilePreviewRightPanel({ active, scope }: RightPanelComponentProps<
 
 function TopicRightPaneActionsProvider({
   children,
-  closeFilePreview,
+  previewFileSelection,
   requestFileSelection,
   selectFile,
   setFileTreeExpandedIds,
-  setFileTreeSearchKeyword
+  setFileTreeSearchKeyword,
+  topicId
 }: PropsWithChildren<{
-  closeFilePreview: () => void
+  previewFileSelection: ArtifactPaneFileSelection | null
   requestFileSelection: (selection: ArtifactPaneFileSelection | null) => void
   selectFile: (file: string | null) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
+  topicId?: string
 }>) {
   const panelActions = useRightPanelActions()
+  const panelState = useRightPanelState()
   const previewRequestRef = useRef(0)
+  const previewReturnRef = useRef<FilePreviewReturnTarget | null>(null)
+  useEffect(() => {
+    return () => {
+      previewRequestRef.current += 1
+      previewReturnRef.current = null
+    }
+  }, [topicId])
   const previewInputFile = useCallback(
     (input: ComposerInputFilePreview) => {
       const requestId = previewRequestRef.current + 1
       previewRequestRef.current = requestId
+      previewReturnRef.current = {
+        closePane: !panelState.presentationOpen,
+        panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
+        selection: previewFileSelection
+      }
 
       const initialSelection = createInputFileSelection(input, input.previewPath)
       if (!initialSelection) {
@@ -318,17 +339,37 @@ function TopicRightPaneActionsProvider({
         }
       })()
     },
-    [panelActions, requestFileSelection]
+    [panelActions, panelState.activePanelId, panelState.presentationOpen, previewFileSelection, requestFileSelection]
+  )
+  const closeFilePreview = useCallback(() => {
+    previewRequestRef.current += 1
+    const returnTarget = previewReturnRef.current
+    previewReturnRef.current = null
+    requestFileSelection(returnTarget?.selection ?? null)
+
+    if (!returnTarget) return
+    if (returnTarget.closePane) {
+      panelActions.close()
+      return
+    }
+    if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
+  }, [panelActions, requestFileSelection])
+  const setSelectedFile = useCallback(
+    (file: string | null) => {
+      previewReturnRef.current = null
+      selectFile(file)
+    },
+    [selectFile]
   )
   const actions = useMemo<TopicRightPaneActions>(
     () => ({
       previewInputFile,
       closeFilePreview,
-      setSelectedFile: selectFile,
+      setSelectedFile,
       setFileTreeExpandedIds,
       setFileTreeSearchKeyword
     }),
-    [closeFilePreview, previewInputFile, selectFile, setFileTreeExpandedIds, setFileTreeSearchKeyword]
+    [closeFilePreview, previewInputFile, setFileTreeExpandedIds, setFileTreeSearchKeyword, setSelectedFile]
   )
 
   return <TopicRightPaneActionsContext value={actions}>{children}</TopicRightPaneActionsContext>
@@ -464,11 +505,12 @@ function TopicRightPaneProvider({
       present={present}>
       <ResourcePaneLocateOpener revealRequest={revealRequest} />
       <TopicRightPaneActionsProvider
-        closeFilePreview={closeFilePreview}
+        previewFileSelection={previewFileSelection}
         requestFileSelection={requestFileSelection}
         selectFile={selectFile}
         setFileTreeExpandedIds={setFileTreeExpandedIds}
-        setFileTreeSearchKeyword={setFileTreeSearchKeyword}>
+        setFileTreeSearchKeyword={setFileTreeSearchKeyword}
+        topicId={topicId}>
         <TopicRightPaneFileStateContext value={fileState}>
           <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>
         </TopicRightPaneFileStateContext>

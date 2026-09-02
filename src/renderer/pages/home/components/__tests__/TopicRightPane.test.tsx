@@ -34,11 +34,13 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ArtifactPaneView: ({
     editMode,
+    onPreviewClose,
     paneTitle,
     previewFileSelection,
     selectedFile
   }: {
     editMode?: string
+    onPreviewClose?: () => void
     paneTitle?: string
     previewFileSelection?: ArtifactPanePath.ArtifactPaneFileSelection | null
     selectedFile?: string | null
@@ -53,8 +55,13 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
       data-preview-type={previewFileSelection?.previewType ?? ''}
       data-read-only={String(Boolean(previewFileSelection?.readOnly))}
       data-selected-file={selectedFile ?? ''}
-      data-title={previewFileSelection?.displayName ?? paneTitle ?? ''}
-    />
+      data-title={previewFileSelection?.displayName ?? paneTitle ?? ''}>
+      {previewFileSelection ? (
+        <button type="button" aria-label="common.back" onClick={onPreviewClose}>
+          back
+        </button>
+      ) : null}
+    </div>
   ),
   getArtifactPaneSelectionPath: (selection: ArtifactPanePath.ArtifactPaneFileSelection) =>
     `${selection.workspacePath}/${selection.filePath}`,
@@ -286,6 +293,67 @@ describe('TopicRightPane', () => {
       kind: 'path',
       path: '/internal/message-files/report.docx'
     })
+  })
+
+  it('closes the right pane when returning from an input preview opened from closed state', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockRejectedValueOnce(new Error('missing original')).mockResolvedValueOnce({ kind: 'file' })
+
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <OpenInputFilePreviewButton />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.docx'
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('returns to the previously active pane when closing an input preview', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockRejectedValueOnce(new Error('missing original')).mockResolvedValueOnce({ kind: 'file' })
+
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <OpenInputFilePreviewButton />
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    expect(await screen.findByTestId('branch-pane')).toHaveAttribute('data-open', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.docx'
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('branch-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('chat.message.flow.title')
   })
 
   it('disables the right sidebar keyboard shortcut without a ready capability', () => {
