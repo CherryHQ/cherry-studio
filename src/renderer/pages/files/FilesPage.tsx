@@ -12,11 +12,11 @@ import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/us
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
+import { requestBatchedFileMutation } from '@renderer/services/fileBatchMutation'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { popup } from '@renderer/services/popup'
 import { showRecycleBinBatchUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
-import { getErrorMessage } from '@renderer/utils/error'
 import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -45,10 +45,7 @@ type FileMetadataById = OutputFor<'file.batch_get_metadata'>
 type PhysicalPathById = OutputFor<'file.batch_get_physical_paths'>
 type DanglingStateById = OutputFor<'file.batch_get_dangling_states'>
 type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_entries'>
-type FileBatchMutationResult = OutputFor<'file.batch_trash'>
-type FileBatchMutationOutcome = FileBatchMutationResult & { requestFailed: boolean }
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
-type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_remove_from_library' | 'file.batch_restore'
 
 interface EmbeddedFilePreview {
   fileName: string
@@ -90,46 +87,6 @@ async function requestBatchedFileRecords<Route extends FileBatchRoute>(
     })
   )
   return Object.assign({}, ...results) as OutputFor<Route>
-}
-
-async function requestBatchedFileMutation(
-  route: FileBatchMutationRoute,
-  ids: readonly string[]
-): Promise<FileBatchMutationOutcome> {
-  if (ids.length === 0) return { succeeded: [], failed: [], requestFailed: false }
-
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += FILE_IPC_BATCH_SIZE) {
-    chunks.push(ids.slice(i, i + FILE_IPC_BATCH_SIZE))
-  }
-
-  const results = await Promise.allSettled(
-    chunks.map((chunk) => {
-      switch (route) {
-        case 'file.batch_trash':
-          return ipcApi.request('file.batch_trash', { ids: chunk })
-        case 'file.batch_remove_from_library':
-          return ipcApi.request('file.batch_remove_from_library', { ids: chunk })
-        case 'file.batch_restore':
-          return ipcApi.request('file.batch_restore', { ids: chunk })
-      }
-    })
-  )
-
-  const outcome: FileBatchMutationOutcome = { succeeded: [], failed: [], requestFailed: false }
-  for (let index = 0; index < results.length; index += 1) {
-    const settled = results[index]
-    if (settled.status === 'fulfilled') {
-      outcome.succeeded.push(...settled.value.succeeded)
-      outcome.failed.push(...settled.value.failed)
-      continue
-    }
-
-    outcome.requestFailed = true
-    outcome.failed.push(...chunks[index].map((id) => ({ id, error: getErrorMessage(settled.reason) })))
-  }
-
-  return outcome
 }
 
 async function requestBatchedInternalEntryCreates(

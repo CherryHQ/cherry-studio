@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { computeDaysRemaining, formatDeletedTime, toEpochMs } from '../trashUtils'
+import { computeDaysRemaining, formatDeletedTime, runPerItem, toEpochMs } from '../trashUtils'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -62,5 +62,40 @@ describe('formatDeletedTime', () => {
 
   it('degrades to em dash when invalid', () => {
     expect(formatDeletedTime(Number.NaN)).toBe('—')
+  })
+})
+
+describe('runPerItem', () => {
+  it('commits items in order and reports exact successes and failures', async () => {
+    const calls: string[] = []
+    const items = [
+      { id: 'first', name: 'First', deletedAt: 1 },
+      { id: 'stale', name: 'Stale', deletedAt: 2 },
+      { id: 'last', name: 'Last', deletedAt: 3 }
+    ]
+
+    const outcome = await runPerItem(items, async (item) => {
+      calls.push(item.id)
+      if (item.id === 'stale') throw new Error('no longer in trash')
+    })
+
+    expect(calls).toEqual(['first', 'stale', 'last'])
+    expect(outcome).toEqual({
+      succeeded: ['first', 'last'],
+      failed: [{ id: 'stale', error: 'no longer in trash' }]
+    })
+  })
+
+  it('formats non-Error rejection values for user feedback', async () => {
+    const [item] = [{ id: 'first', name: 'First', deletedAt: 1 }]
+
+    const outcome = await runPerItem([item], async () => {
+      throw 'unavailable'
+    })
+
+    expect(outcome).toEqual({
+      succeeded: [],
+      failed: [{ id: 'first', error: 'Error Details:\n  "unavailable"' }]
+    })
   })
 })

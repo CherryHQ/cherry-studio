@@ -2,12 +2,41 @@
  * Pure helpers for the trash ("Recently Deleted") settings page.
  */
 
+import { formatErrorMessage } from '@renderer/utils/error'
 import dayjs from 'dayjs'
 
 export interface TrashItem {
   id: string
   name: string
   deletedAt: number | undefined
+}
+
+export interface TrashBatchOutcome {
+  succeeded: string[]
+  failed: Array<{
+    id: string
+    error: string
+    reason?: 'no-longer-in-recycle-bin'
+  }>
+}
+
+export async function runPerItem(
+  items: TrashItem[],
+  mutate: (item: TrashItem) => Promise<unknown>
+): Promise<TrashBatchOutcome> {
+  const succeeded: string[] = []
+  const failed: TrashBatchOutcome['failed'] = []
+
+  for (const item of items) {
+    try {
+      await mutate(item)
+      succeeded.push(item.id)
+    } catch (error) {
+      failed.push({ id: item.id, error: formatErrorMessage(error) })
+    }
+  }
+
+  return { succeeded, failed }
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000

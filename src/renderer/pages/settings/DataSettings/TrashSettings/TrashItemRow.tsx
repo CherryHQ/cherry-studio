@@ -1,5 +1,5 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { ArchiveRestore, Trash2 } from 'lucide-react'
+import { Button, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { RotateCcw, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,6 +10,8 @@ interface TrashItemRowProps {
   item: TrashItem
   retentionDays: number
   isRestoring: boolean
+  selected: boolean
+  onSelectedChange: (selected: boolean) => void
   /** Any row in this section has a mutation in flight — they share one instance. */
   isSectionBusy?: boolean
   onRestore: (item: TrashItem) => void
@@ -20,6 +22,8 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   item,
   retentionDays,
   isRestoring,
+  selected,
+  onSelectedChange,
   isSectionBusy = false,
   onRestore,
   onDelete
@@ -27,14 +31,20 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
   const { t } = useTranslation()
 
   const deletedTime = formatDeletedTime(item.deletedAt)
+  const displayName = item.name || t('settings.data.trash.unnamed')
   const deletedAtLabel = t('settings.data.trash.deleted_at', { time: deletedTime })
   const daysRemaining = computeDaysRemaining(item.deletedAt, retentionDays)
+  const isBatchBlocked = isSectionBusy && !isRestoring
 
   return (
     <div className="flex min-h-9 items-center gap-2 border-border border-b last:border-b-0">
-      <span className="min-w-0 flex-1 truncate text-foreground text-sm">
-        {item.name || t('settings.data.trash.unnamed')}
-      </span>
+      <Checkbox
+        checked={selected}
+        disabled={isSectionBusy}
+        aria-label={t('settings.data.trash.selection.item', { name: displayName })}
+        onCheckedChange={(checked) => onSelectedChange(checked === true)}
+      />
+      <span className="min-w-0 flex-1 truncate text-foreground text-sm">{displayName}</span>
       <span className="shrink-0 text-muted-foreground text-xs" title={deletedAtLabel} aria-label={deletedAtLabel}>
         {deletedTime}
       </span>
@@ -52,22 +62,27 @@ const TrashItemRow: FC<TrashItemRowProps> = ({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
           aria-label={t('settings.data.trash.restore.label')}
+          aria-disabled={isBatchBlocked || undefined}
           loading={isRestoring}
-          disabled={isSectionBusy && !isRestoring}
-          onClick={() => onRestore(item)}>
-          {!isRestoring && <ArchiveRestore size={16} />}
+          onClick={() => {
+            if (!isBatchBlocked) onRestore(item)
+          }}>
+          {!isRestoring && <RotateCcw size={16} />}
         </Button>
       </Tooltip>
       <Tooltip title={t('settings.data.trash.permanent_delete.label')}>
         <Button
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
           aria-label={t('settings.data.trash.permanent_delete.label')}
-          disabled={isRestoring || isSectionBusy}
-          onClick={() => onDelete(item)}>
+          aria-disabled={isBatchBlocked || undefined}
+          disabled={isRestoring}
+          onClick={() => {
+            if (!isRestoring && !isSectionBusy) onDelete(item)
+          }}>
           <Trash2 size={16} />
         </Button>
       </Tooltip>

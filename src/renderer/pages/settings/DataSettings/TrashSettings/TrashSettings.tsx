@@ -9,12 +9,14 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { type FileEntryRefCount, REF_COUNTS_MAX_ENTRY_IDS } from '@shared/data/api/schemas/files'
 import { Bot, Check, File, Image, type LucideIcon, MessageSquare, MessagesSquare, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -26,7 +28,7 @@ import {
   TopicTrashSection,
   type TrashDomainSectionProps
 } from './TrashDomainSections'
-import type { TrashItem } from './trashUtils'
+import type { PendingPermanentDelete } from './TrashSection'
 
 const logger = loggerService.withContext('TrashSettings')
 
@@ -65,9 +67,20 @@ const PURGE_INVALIDATE_PATHS = [
   '/files/entries/*'
 ]
 
-interface PendingDelete {
-  item: TrashItem
-  deleteItem: (item: TrashItem) => Promise<void>
+type FileReferencePreview =
+  | { status: 'idle' | 'loading' }
+  | { status: 'error' }
+  | { status: 'ready'; referencedFiles: number; totalReferences: number }
+
+function getFileReferenceBlockedKey(fileCount: number, referenceCount: number) {
+  if (fileCount === 1) {
+    return referenceCount === 1
+      ? 'settings.data.trash.file_refs.blocked_one_one'
+      : 'settings.data.trash.file_refs.blocked_one_other'
+  }
+  return referenceCount === 1
+    ? 'settings.data.trash.file_refs.blocked_other_one'
+    : 'settings.data.trash.file_refs.blocked_other_other'
 }
 
 /** `0` = keep forever. */
@@ -96,23 +109,71 @@ const TrashSettings: FC = () => {
   )
   const ActiveSection = SECTION_BY_CATEGORY[category]
 
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingPermanentDelete | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [fileReferencePreview, setFileReferencePreview] = useState<FileReferencePreview>({ status: 'idle' })
+  const referenceRequestToken = useRef(0)
   const [emptyTrashOpen, setEmptyTrashOpen] = useState(false)
   const [isEmptying, setIsEmptying] = useState(false)
 
-  const handleRequestDelete = (item: TrashItem, deleteItem: (item: TrashItem) => Promise<void>) => {
-    setPendingDelete({ item, deleteItem })
+  const closePendingDelete = useCallback(() => {
+    referenceRequestToken.current += 1
+    setPendingDelete(null)
+    setFileReferencePreview({ status: 'idle' })
+  }, [])
+
+  const loadFileReferencePreview = useCallback(async (entryIds: string[]) => {
+    const token = ++referenceRequestToken.current
+    setFileReferencePreview({ status: 'loading' })
+    try {
+      const requests: Array<Promise<FileEntryRefCount[]>> = []
+      for (let index = 0; index < entryIds.length; index += REF_COUNTS_MAX_ENTRY_IDS) {
+        requests.push(
+          dataApiService.get('/files/entries/ref-counts', {
+            query: { entryIds: entryIds.slice(index, index + REF_COUNTS_MAX_ENTRY_IDS) }
+          })
+        )
+      }
+      const counts = (await Promise.all(requests)).flat()
+      if (referenceRequestToken.current !== token) return
+      setFileReferencePreview({
+        status: 'ready',
+        referencedFiles: counts.filter(({ refCount }) => refCount > 0).length,
+        totalReferences: counts.reduce((total, { refCount }) => total + refCount, 0)
+      })
+    } catch (error) {
+      if (referenceRequestToken.current !== token) return
+      logger.error('file reference preview failed', error as Error)
+      setFileReferencePreview({ status: 'error' })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!pendingDelete?.fileEntryIds) {
+      setFileReferencePreview({ status: 'idle' })
+      return
+    }
+    void loadFileReferencePreview(pendingDelete.fileEntryIds)
+    return () => {
+      referenceRequestToken.current += 1
+    }
+  }, [loadFileReferencePreview, pendingDelete])
+
+  const handleRequestDelete = (request: PendingPermanentDelete) => {
+    setPendingDelete(request)
   }
 
   const handleConfirmDelete = async () => {
     if (!pendingDelete) return
     setIsDeleting(true)
     try {
-      await pendingDelete.deleteItem(pendingDelete.item)
+      await pendingDelete.run(pendingDelete.items)
+    } catch (error) {
+      logger.error('permanent delete failed', error as Error)
+      toast.error(t('settings.data.trash.permanent_delete.error'))
     } finally {
       setIsDeleting(false)
-      setPendingDelete(null)
+      closePendingDelete()
     }
   }
 
@@ -140,7 +201,37 @@ const TrashSettings: FC = () => {
     }
   }
 
-  const sectionProps = { retentionDays, onRequestDelete: handleRequestDelete }
+  const sectionProps = { retentionDays, isPermanentDeleting: isDeleting, onRequestDelete: handleRequestDelete }
+  const isFilePreview = pendingDelete?.fileEntryIds !== undefined
+  const fileReferenceBlocksDelete =
+    isFilePreview && (fileReferencePreview.status !== 'ready' || fileReferencePreview.referencedFiles > 0)
+
+  const fileReferenceContent = isFilePreview ? (
+    <div className="text-sm">
+      {fileReferencePreview.status === 'loading' && (
+        <span className="text-muted-foreground">{t('settings.data.trash.file_refs.loading')}</span>
+      )}
+      {fileReferencePreview.status === 'error' && (
+        <div className="flex items-center gap-2">
+          <span className="text-error-subtle-foreground">{t('settings.data.trash.file_refs.error')}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => pendingDelete?.fileEntryIds && loadFileReferencePreview(pendingDelete.fileEntryIds)}>
+            {t('settings.data.trash.file_refs.retry')}
+          </Button>
+        </div>
+      )}
+      {fileReferencePreview.status === 'ready' && fileReferencePreview.referencedFiles > 0 && (
+        <span className="text-error-subtle-foreground">
+          {t(getFileReferenceBlockedKey(fileReferencePreview.referencedFiles, fileReferencePreview.totalReferences), {
+            count: fileReferencePreview.referencedFiles,
+            records: fileReferencePreview.totalReferences
+          })}
+        </span>
+      )}
+    </div>
+  ) : undefined
 
   return (
     <>
@@ -177,7 +268,10 @@ const TrashSettings: FC = () => {
           <SelectDropdown
             items={categoryOptions}
             selectedId={category}
-            onSelect={(id) => setCategory(id as TrashCategory)}
+            onSelect={(id) => {
+              closePendingDelete()
+              setCategory(id as TrashCategory)
+            }}
             triggerClassName="w-56"
             renderSelected={({ label, Icon }) => (
               <>
@@ -199,16 +293,20 @@ const TrashSettings: FC = () => {
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {
-          if (!open && !isDeleting) setPendingDelete(null)
+          if (!open && !isDeleting) closePendingDelete()
         }}
         destructive
-        title={t('settings.data.trash.permanent_delete.confirm_title')}
-        description={t('settings.data.trash.permanent_delete.confirm_content', {
-          name: pendingDelete?.item.name || t('settings.data.trash.unnamed')
-        })}
+        title={
+          pendingDelete && pendingDelete.items.length > 1
+            ? t('settings.data.trash.permanent_delete.batch_confirm_title', { count: pendingDelete.items.length })
+            : t('settings.data.trash.permanent_delete.confirm_title')
+        }
+        description={t('settings.data.trash.permanent_delete.confirm_content')}
+        content={fileReferenceContent}
         confirmText={t('settings.data.trash.permanent_delete.label')}
         cancelText={t('common.cancel')}
         confirmLoading={isDeleting}
+        confirmDisabled={fileReferenceBlocksDelete}
         onConfirm={handleConfirmDelete}
       />
       <ConfirmDialog

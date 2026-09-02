@@ -1,11 +1,22 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Checkbox } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { SettingGroup } from '@renderer/components/SettingsPrimitives'
+import { toast } from '@renderer/services/toast'
 import { Loader } from 'lucide-react'
 import type { FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TrashItemRow from './TrashItemRow'
-import type { TrashItem } from './trashUtils'
+import type { TrashBatchOutcome, TrashItem } from './trashUtils'
+
+const logger = loggerService.withContext('TrashSection')
+
+export interface PendingPermanentDelete {
+  items: TrashItem[]
+  run: (items: TrashItem[]) => Promise<TrashBatchOutcome>
+  fileEntryIds?: string[]
+}
 
 export type TrashSectionPagination =
   | { kind: 'cursor'; hasMore: boolean; isLoadingMore: boolean; onLoadMore: () => void }
@@ -28,8 +39,13 @@ interface TrashSectionProps {
   pagination?: TrashSectionPagination
   retentionDays: number
   pendingRestoreId: string | null
+  isPermanentDeleting: boolean
   onRestore: (item: TrashItem) => void
-  onDelete: (item: TrashItem) => void
+  onRestoreMany: (items: TrashItem[]) => Promise<TrashBatchOutcome>
+  onPermanentDelete: (item: TrashItem) => Promise<TrashBatchOutcome>
+  onPermanentDeleteMany: (items: TrashItem[]) => Promise<TrashBatchOutcome>
+  onRequestDelete: (request: PendingPermanentDelete) => void
+  includeFileReferencePreview?: boolean
 }
 
 const TrashSection: FC<TrashSectionProps> = ({
@@ -40,10 +56,102 @@ const TrashSection: FC<TrashSectionProps> = ({
   pagination,
   retentionDays,
   pendingRestoreId,
+  isPermanentDeleting,
   onRestore,
-  onDelete
+  onRestoreMany,
+  onPermanentDelete,
+  onPermanentDeleteMany,
+  onRequestDelete,
+  includeFileReferencePreview = false
 }) => {
   const { t } = useTranslation()
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [isBatchActionPending, setIsBatchActionPending] = useState(false)
+  const mountedRef = useRef(true)
+  const itemIds = useMemo(() => new Set(items.map((item) => item.id)), [items])
+  const selectedItems = useMemo(() => items.filter((item) => selectedIds.has(item.id)), [items, selectedIds])
+  const isSectionBusy = pendingRestoreId !== null || isBatchActionPending || isPermanentDeleting
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false
+    },
+    []
+  )
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => itemIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [itemIds])
+
+  const applyOutcome = (outcome: TrashBatchOutcome) => {
+    if (!mountedRef.current || outcome.succeeded.length === 0) return
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      for (const id of outcome.succeeded) next.delete(id)
+      return next
+    })
+  }
+
+  const showBatchOutcome = (action: 'restore' | 'permanent_delete', outcome: TrashBatchOutcome) => {
+    const succeeded = outcome.succeeded.length
+    const stale = outcome.failed.filter(({ reason }) => reason === 'no-longer-in-recycle-bin').length
+    const failed = outcome.failed.length - stale
+    if (action === 'permanent_delete' && stale > 0) {
+      toast.warning(
+        t('settings.data.trash.permanent_delete.batch_stale_summary', {
+          succeeded,
+          stale,
+          failed
+        })
+      )
+      return
+    }
+    const key =
+      outcome.failed.length === 0
+        ? `settings.data.trash.${action}.batch_success`
+        : `settings.data.trash.${action}.batch_partial`
+    toast[outcome.failed.length === 0 ? 'success' : 'warning'](t(key, { count: succeeded, succeeded, failed }))
+  }
+
+  const handleRestoreSelected = async () => {
+    const targets = selectedItems
+    if (targets.length === 0) return
+    setIsBatchActionPending(true)
+    try {
+      const outcome = await onRestoreMany(targets)
+      applyOutcome(outcome)
+      showBatchOutcome('restore', outcome)
+    } catch (error) {
+      logger.error('batch restore failed', error as Error)
+      toast.error(t('settings.data.trash.restore.error'))
+    } finally {
+      if (mountedRef.current) setIsBatchActionPending(false)
+    }
+  }
+
+  const requestPermanentDelete = (targets: TrashItem[], isBatch: boolean) => {
+    if (targets.length === 0) return
+    onRequestDelete({
+      items: targets,
+      fileEntryIds: includeFileReferencePreview ? targets.map((item) => item.id) : undefined,
+      run: async (confirmedItems) => {
+        if (mountedRef.current) setIsBatchActionPending(true)
+        try {
+          const outcome = isBatch
+            ? await onPermanentDeleteMany(confirmedItems)
+            : await onPermanentDelete(confirmedItems[0])
+          applyOutcome(outcome)
+          if (isBatch) showBatchOutcome('permanent_delete', outcome)
+          return outcome
+        } finally {
+          if (mountedRef.current) setIsBatchActionPending(false)
+        }
+      }
+    })
+  }
 
   // Show offset prev/next whenever more than one page exists OR the user has
   // been stranded on a now-empty page past the first (so Prev remains reachable).
@@ -64,6 +172,38 @@ const TrashSection: FC<TrashSectionProps> = ({
         </div>
       ) : (
         <>
+          {items.length > 0 && (
+            <div className="mb-2 flex min-h-8 flex-wrap items-center gap-2 border-border border-b pb-2">
+              <Checkbox
+                checked={
+                  selectedItems.length === 0 ? false : selectedItems.length === items.length ? true : 'indeterminate'
+                }
+                disabled={isSectionBusy}
+                aria-label={t('settings.data.trash.selection.select_all_visible')}
+                onCheckedChange={(checked) => setSelectedIds(checked === true ? new Set(itemIds) : new Set())}
+              />
+              {selectedItems.length > 0 && (
+                <>
+                  <span className="text-muted-foreground text-sm">
+                    {t('settings.data.trash.selection.count', { count: selectedItems.length })}
+                  </span>
+                  <Button variant="outline" size="sm" disabled={isSectionBusy} onClick={handleRestoreSelected}>
+                    {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isSectionBusy}
+                    onClick={() => requestPermanentDelete(selectedItems, true)}>
+                    {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
+                  </Button>
+                  <Button variant="ghost" size="sm" disabled={isSectionBusy} onClick={() => setSelectedIds(new Set())}>
+                    {t('settings.data.trash.selection.clear')}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
           {items.length === 0 ? (
             <div className="text-muted-foreground text-sm">{t('settings.data.trash.empty.section')}</div>
           ) : (
@@ -73,11 +213,20 @@ const TrashSection: FC<TrashSectionProps> = ({
                 item={item}
                 retentionDays={retentionDays}
                 isRestoring={pendingRestoreId === item.id}
+                selected={selectedIds.has(item.id)}
+                onSelectedChange={(selected) =>
+                  setSelectedIds((current) => {
+                    const next = new Set(current)
+                    if (selected) next.add(item.id)
+                    else next.delete(item.id)
+                    return next
+                  })
+                }
                 // One mutation instance backs every row, so a second in-flight action would
                 // share and clobber its state — freeze the whole section until this one lands.
-                isSectionBusy={pendingRestoreId !== null}
+                isSectionBusy={isSectionBusy}
                 onRestore={onRestore}
-                onDelete={onDelete}
+                onDelete={(target) => requestPermanentDelete([target], false)}
               />
             ))
           )}

@@ -876,6 +876,39 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('keeps the successful first file-trash chunk undoable when the second chunk rejects', async () => {
+    const entries = Array.from({ length: 501 }, (_, index) => bulkEntry('internal', index))
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        const ids = (input as { ids: string[] }).ids
+        return ids.length === 1
+          ? Promise.reject(new Error('second chunk unavailable'))
+          : Promise.resolve({ succeeded: ids, failed: [] })
+      }
+      return Promise.resolve(input)
+    })
+    renderFilesPage(entries)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledOnce()
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+        itemCount: 500,
+        onUndo: expect.any(Function)
+      })
+    })
+    const trashCalls = ipcMocks.request.mock.calls.filter(([route]) => route === 'file.batch_trash')
+    expect(trashCalls).toEqual([
+      ['file.batch_trash', { ids: entries.slice(0, 500).map((file) => file.id) }],
+      ['file.batch_trash', { ids: [entries[500].id] }]
+    ])
+  })
+
   it('shows a toast when delete partially fails', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
