@@ -1164,6 +1164,61 @@ describe('QuickPanelView', () => {
     expect(manageAction).toHaveBeenCalledTimes(1)
   })
 
+  it('hides only footer actions registered as unavailable during search', async () => {
+    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+    let text = ''
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => text.length,
+      getText: () => text,
+      insertText: vi.fn(),
+      subscribeInput: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      }
+    }
+    const searchOnlyAction = {
+      id: 'customize-toolbar',
+      label: 'Customize',
+      ariaLabel: 'Customize toolbar',
+      icon: 'settings',
+      hideWhenSearching: true,
+      action: vi.fn()
+    } as QuickPanelFooterAction
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          footerActions={[
+            searchOnlyAction,
+            {
+              id: 'manage-global',
+              label: 'Global',
+              ariaLabel: 'Manage global prompts',
+              icon: 'settings',
+              action: vi.fn()
+            }
+          ]}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'prompt', label: 'Daily summary', icon: 'prompt' }]}
+          queryAnchor={0}
+          trackInputQuery
+          triggerInfo={{ type: 'button', position: 0 }}
+        />
+      </QuickPanelProvider>
+    )
+
+    expect(await screen.findByRole('button', { name: 'Customize toolbar' })).toBeInTheDocument()
+
+    text = 'daily'
+    act(() => listeners.forEach((listener) => listener({ cause: 'user-input' })))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Customize toolbar' })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Manage global prompts' })).toBeInTheDocument()
+  })
+
   it('keeps the measured empty state inside a collapsed read-only panel', async () => {
     const footerHeight = 30
     const emptyStateHeight = 48
@@ -1313,6 +1368,43 @@ describe('QuickPanelView', () => {
 
     await screen.findByText('Loaded MCP server')
     expect(actionButton).toHaveAttribute('aria-current', 'true')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
+    })
+
+    expect(footerAction).toHaveBeenCalledTimes(1)
+    expect(rowAction).not.toHaveBeenCalled()
+  })
+
+  it('activates a focused footer action instead of the stale list selection', async () => {
+    const footerAction = vi.fn()
+    const rowAction = vi.fn()
+    const captureDispatch = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          footerActions={[
+            {
+              id: 'configure',
+              label: 'Configure',
+              ariaLabel: 'Configure tools',
+              icon: 'settings',
+              action: footerAction
+            }
+          ]}
+          items={[{ id: 'result', label: 'Search result', icon: 'result', action: rowAction }]}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Search result')
+    const actionButton = screen.getByRole('button', { name: 'Configure tools' })
+    fireEvent.focus(actionButton)
+    await waitFor(() => expect(actionButton).toHaveAttribute('aria-current', 'true'))
 
     const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
     act(() => {

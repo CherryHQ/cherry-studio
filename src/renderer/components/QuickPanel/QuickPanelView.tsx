@@ -179,7 +179,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     filterFn,
     sortFn
   ])
-  const footerActions = useMemo(() => ctx.footerActions ?? [], [ctx.footerActions])
+  const footerActions = useMemo(
+    () => (ctx.footerActions ?? []).filter((action) => !activeSearchQuery || !action.hideWhenSearching),
+    [activeSearchQuery, ctx.footerActions]
+  )
   const navigationItems = useMemo<QuickPanelListItem[]>(() => [...list, ...footerActions], [footerActions, list])
 
   useLayoutEffect(() => {
@@ -1031,6 +1034,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             onAction={(footerAction: QuickPanelFooterAction) => {
               setActiveIndex(list.length + footerActions.indexOf(footerAction))
               handleItemAction(footerAction, 'click', true)
+            }}
+            onActionFocus={(footerAction: QuickPanelFooterAction) => {
+              setActiveIndex(list.length + footerActions.indexOf(footerAction))
             }}
           />
         ) : null}

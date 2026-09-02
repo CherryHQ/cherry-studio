@@ -160,6 +160,8 @@ export type QuickPanelFooterAction = Pick<
 > & {
   id: string
   ariaLabel: string
+  /** Hide this action while the panel has a search query. */
+  hideWhenSearching?: boolean
   action: NonNullable<QuickPanelListItem['action']>
 }
 

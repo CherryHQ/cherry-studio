@@ -524,10 +524,6 @@ describe('ComposerToolRuntimeHost', () => {
     mockQuickPanelValue.symbol = '/'
     mockQuickPanelValue.initialSearchText = 'skills'
     view.rerender(renderContent())
-    await waitFor(() => expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([]))
-
-    mockQuickPanelValue.initialSearchText = ''
-    view.rerender(renderContent())
     await waitFor(() => {
       expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([
         expect.objectContaining({ id: 'customize-toolbar' })

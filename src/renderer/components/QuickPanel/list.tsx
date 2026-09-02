@@ -36,6 +36,7 @@ interface QuickPanelFooterProps {
   className?: string
   containerRef?: Ref<HTMLDivElement>
   onAction?: (action: QuickPanelFooterAction) => void
+  onActionFocus?: (action: QuickPanelFooterAction) => void
 }
 
 interface QuickPanelReadOnlyHeaderProps {
@@ -127,6 +128,7 @@ export function QuickPanelFooter({
   confirmLabel,
   containerRef,
   onAction,
+  onActionFocus,
   showPageHint = false,
   title
 }: QuickPanelFooterProps) {
@@ -156,6 +158,7 @@ export function QuickPanelFooter({
                   compact ? 'px-1' : 'px-1.5',
                   activeActionId === action.id && 'bg-accent text-accent-foreground'
                 )}
+                onFocus={() => onActionFocus?.(action)}
                 onClick={(event) => {
                   event.stopPropagation()
                   onAction?.(action)

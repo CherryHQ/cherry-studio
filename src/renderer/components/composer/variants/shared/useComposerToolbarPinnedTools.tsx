@@ -45,6 +45,7 @@ export function useComposerToolbarPinnedTools(prefKey: ComposerToolbarPinnedTool
       label,
       ariaLabel: label,
       tooltip: label,
+      hideWhenSearching: true,
       icon: <Settings2 size={16} />,
       action: () => setCustomizeOpen(true)
     }

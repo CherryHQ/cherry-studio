@@ -29,7 +29,6 @@ import React, { createContext, memo, use, useCallback, useEffect, useLayoutEffec
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
-import { ComposerPanelSymbol } from './quickPanel'
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
 
@@ -211,16 +210,15 @@ export { ComposerToolDerivedStateProvider }
 export const ComposerToolFooterActionsSync = () => {
   const { getFooterActions, version } = useComposerToolProviderLaunchers()
   const quickPanel = useQuickPanel()
-  const { initialSearchText, isVisible, symbol, updateFooterActions } = quickPanel
+  const { isVisible, symbol, updateFooterActions } = quickPanel
 
   useLayoutEffect(() => {
     if (!isVisible) return
 
-    const actions = symbol === ComposerPanelSymbol.Root && initialSearchText ? [] : getFooterActions(symbol)
-    updateFooterActions(actions)
+    updateFooterActions(getFooterActions(symbol))
 
     return () => updateFooterActions([])
-  }, [getFooterActions, initialSearchText, isVisible, symbol, updateFooterActions, version])
+  }, [getFooterActions, isVisible, symbol, updateFooterActions, version])
 
   return null
 }
