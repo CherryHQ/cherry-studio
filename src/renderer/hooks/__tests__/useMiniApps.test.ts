@@ -157,7 +157,7 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
-    it('forces the CN catalog in the CN edition without overwriting the shared preference', () => {
+    it('forces the CN-only catalog in the CN edition without overwriting the shared preference', () => {
       vi.stubGlobal('__APP_EDITION__', 'cn')
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
@@ -165,8 +165,20 @@ describe('useMiniApps', () => {
 
       const { result } = renderHook(() => useMiniApps())
 
-      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['g', 'c'])
+      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
       expect(MockUsePreferenceUtils.getPreferenceValue('feature.mini_app.region')).toBe('Global')
+    })
+
+    it('hides Global-only pinned apps from CN edition launcher surfaces', () => {
+      vi.stubGlobal('__APP_EDITION__', 'cn')
+      const apps = [createGlobalApp('g', { status: 'pinned' }), createCnOnlyApp('c', { status: 'pinned' })]
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.pinned.map((app) => app.appId)).toEqual(['c'])
+      expect(result.current.allApps.map((app) => app.appId)).toEqual(['g', 'c'])
     })
 
     it('does not detect the IP region in the CN edition', () => {

@@ -14,6 +14,7 @@ import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStat
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
+import type { AppEdition } from '@shared/types/appEdition'
 import { resolveLocalizedText } from '@shared/types/miniAppManifest'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,12 +22,12 @@ import { useTranslation } from 'react-i18next'
 /**
  * Data Flow Design:
  *
- * PRINCIPLE: Region filtering is a VIEW concern, not a DATA concern.
+ * PRINCIPLE: Catalog filtering is a VIEW concern, not a DATA concern.
  *
- * - DataApi stores ALL apps (including region-restricted ones) to preserve user preferences
- * - ORIGIN_DEFAULT_MIN_APPS is the preset data source containing region definitions
- * - This hook applies region filtering only when READING for UI display
- * - Mutations target individual apps by appId, never touching region-hidden apps
+ * - DataApi stores ALL apps (including hidden catalog entries) to preserve user preferences
+ * - PRESETS_MINI_APPS is the preset data source containing region definitions
+ * - This hook applies region and edition filtering only when reading for UI display
+ * - Mutations target individual apps by appId, never touching hidden apps
  */
 
 /**
@@ -34,16 +35,9 @@ import { useTranslation } from 'react-i18next'
  *
  * Region-based visibility rules:
  * 1. CN users see everything.
- * 2. Global users:
- *    - Preset apps with supportedRegions including 'Global' → visible.
- *    - Preset apps without supportedRegions → CN-only (preserves the existing
- *      curated catalog semantics: presets that omit the field are intentionally
- *      gated to CN by the catalog author).
- *    - Custom apps (`presetMiniAppId === null`) without supportedRegions →
- *      visible. Custom apps come from migrated v1 data (which had no region
- *      concept) or from the user's own form, neither of which has a curated
- *      region intent. Defaulting them to CN-only would silently hide a user's
- *      own app under Global.
+ * 2. Global users see presets that support Global. Presets without a region
+ *    declaration retain the legacy CN-only default.
+ * 3. User-added sites and installed local apps remain visible everywhere.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
   if (app.kind === 'app') return true
@@ -53,6 +47,11 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
     return app.presetMiniAppId === null
   }
   return app.supportedRegions.includes('Global')
+}
+
+const isVisibleForEdition = (app: MiniApp, appEdition: AppEdition): boolean => {
+  if (appEdition === 'global' || app.kind === 'app' || app.presetMiniAppId === null) return true
+  return !app.supportedRegions?.length || app.supportedRegions.includes('CN')
 }
 
 function isVisibleStatus(status: MiniAppStatus): boolean {
@@ -66,6 +65,10 @@ function compareOrderKey(a: MiniApp, b: MiniApp): number {
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
+}
+
+const filterByEdition = (apps: MiniApp[], appEdition: AppEdition): MiniApp[] => {
+  return apps.filter((app) => isVisibleForEdition(app, appEdition))
 }
 
 // Module-level promise to ensure only one IP detection request is made
@@ -223,11 +226,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const miniApps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
-    return regionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
-  }, [enabled, effectiveRegion, pinned])
-  const disabledApps = useMemo(() => filterByRegion(disabled, effectiveRegion), [disabled, effectiveRegion])
-  // Pinned apps are always visible regardless of region
-  const pinnedApps = pinned
+    const editionFiltered = filterByEdition(regionFiltered, appEdition)
+    return editionFiltered.sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
+  }, [appEdition, enabled, effectiveRegion, pinned])
+  const disabledApps = useMemo(
+    () => filterByEdition(filterByRegion(disabled, effectiveRegion), appEdition),
+    [appEdition, disabled, effectiveRegion]
+  )
+  // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
+  const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
 
   // === UI State Cache (unchanged) ===
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
