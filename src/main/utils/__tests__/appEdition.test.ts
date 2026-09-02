@@ -17,6 +17,7 @@ const setPackaged = (value: boolean) => {
 }
 
 const loadGetAppEdition = async () => (await import('../appEdition')).getAppEdition
+const loadGetApplicationId = async () => (await import('../appEdition')).getApplicationId
 
 describe('getAppEdition', () => {
   beforeEach(() => {
@@ -74,13 +75,14 @@ describe('getAppEdition', () => {
     expect(() => getAppEdition()).toThrow('Unsupported application edition: enterprise')
   })
 
-  it('reads immutable application metadata only once per process', async () => {
+  it.each([
+    ['global', 'com.kangfenmao.CherryStudio'],
+    ['cn', 'com.cherryai.cherrystudio.cn']
+  ] as const)('maps the %s edition to its packaged application ID', async (edition, expected) => {
     setPackaged(true)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: 'cn' }))
-    const getAppEdition = await loadGetAppEdition()
+    readFileSyncMock.mockReturnValue(JSON.stringify({ cherryEdition: edition }))
+    const getApplicationId = await loadGetApplicationId()
 
-    expect(getAppEdition()).toBe('cn')
-    expect(getAppEdition()).toBe('cn')
-    expect(readFileSyncMock).toHaveBeenCalledTimes(1)
+    expect(getApplicationId()).toBe(expected)
   })
 })

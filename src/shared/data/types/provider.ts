@@ -250,7 +250,10 @@ export const ProviderSchema = z.object({
   logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
-  /** App editions where this provider is available. Omitted means all editions. */
+  /**
+   * App editions where this provider is available. Omitted means all editions.
+   * Other-edition rows remain persisted, but ordinary runtime reads and user mutations treat them as unavailable.
+   */
   availableInEditions: z.array(z.enum(APP_EDITIONS)).min(1).optional(),
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),

@@ -23,9 +23,7 @@ const {
   lookupModelMock,
   resolveModelsMock,
   getImageGenerationSupportMock,
-  listProvidersMock,
-  getByProviderIdMock,
-  getAppEditionMock
+  getByProviderIdMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
@@ -38,18 +36,11 @@ const {
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
   getImageGenerationSupportMock: vi.fn(),
-  listProvidersMock: vi.fn(),
-  getByProviderIdMock: vi.fn(),
-  getAppEditionMock: vi.fn(() => 'cn' as const)
-}))
-
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: getAppEditionMock
+  getByProviderIdMock: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
   providerService: {
-    list: listProvidersMock,
     getByProviderId: getByProviderIdMock
   }
 }))
@@ -81,8 +72,6 @@ const DISABLED_REASONING_PROFILE = { format: 'none', wire: { disabled: true } } 
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getAppEditionMock.mockReturnValue('cn')
-  listProvidersMock.mockReturnValue([{ id: 'openai' }])
   getByProviderIdMock.mockImplementation((providerId: string) => ({ id: providerId }))
 })
 
@@ -159,26 +148,6 @@ describe('/models', () => {
     await modelHandlers['/models'].GET({ query: { providerId: 'openai' } } as never)
 
     expect(listMock).toHaveBeenCalledWith({ providerId: 'openai' })
-  })
-
-  it('excludes persisted models whose providers are unavailable in the application edition', async () => {
-    listProvidersMock.mockReturnValueOnce([
-      { id: 'global-only', availableInEditions: ['global'] },
-      { id: 'cn-provider', availableInEditions: ['cn'] },
-      { id: 'custom-provider' }
-    ])
-    listMock.mockReturnValueOnce([
-      { id: 'global-only::model', providerId: 'global-only' },
-      { id: 'cn-provider::model', providerId: 'cn-provider' },
-      { id: 'custom-provider::model', providerId: 'custom-provider' }
-    ])
-
-    const result = await modelHandlers['/models'].GET({ query: {} } as never)
-
-    expect(result).toEqual([
-      { id: 'cn-provider::model', providerId: 'cn-provider' },
-      { id: 'custom-provider::model', providerId: 'custom-provider' }
-    ])
   })
 
   it('passes registry data to modelService.create for a single-item array', async () => {
@@ -399,18 +368,6 @@ describe('/models', () => {
 })
 
 describe('/models/:uniqueModelId*', () => {
-  it('rejects a persisted model whose provider is unavailable in the application edition', async () => {
-    getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
-
-    await expect(
-      modelHandlers['/models/:uniqueModelId*'].GET({
-        params: { uniqueModelId: 'global-only::model' }
-      } as never)
-    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-
-    expect(getByKeyMock).not.toHaveBeenCalled()
-  })
-
   it('splits a slash-containing uniqueModelId at the first :: and forwards GET', async () => {
     const model = { id: 'fireworks::accounts/fireworks/models/deepseek-v3p2' }
     getByKeyMock.mockReturnValueOnce(model)
@@ -567,55 +524,8 @@ describe('/providers/:providerId/models/:modelId*/image-generation-support', () 
   })
 })
 
-describe('model edition availability', () => {
+describe('provider-backed registry routes', () => {
   it.each([
-    [
-      'model creation',
-      () =>
-        modelHandlers['/models'].POST({
-          body: [{ providerId: 'global-only', modelId: 'model' }]
-        } as never),
-      createMock
-    ],
-    [
-      'bulk model update',
-      () =>
-        modelHandlers['/models'].PATCH({
-          body: [{ uniqueModelId: 'global-only::model', patch: { isEnabled: false } }]
-        } as never),
-      bulkUpdateMock
-    ],
-    [
-      'bulk model deletion',
-      () => modelHandlers['/models'].DELETE({ query: { ids: 'global-only::model' } } as never),
-      bulkDeleteMock
-    ],
-    [
-      'model update',
-      () =>
-        modelHandlers['/models/:uniqueModelId*'].PATCH({
-          params: { uniqueModelId: 'global-only::model' },
-          body: { isEnabled: false }
-        } as never),
-      updateMock
-    ],
-    [
-      'model deletion',
-      () =>
-        modelHandlers['/models/:uniqueModelId*'].DELETE({
-          params: { uniqueModelId: 'global-only::model' }
-        } as never),
-      deleteMock
-    ],
-    [
-      'provider model reconciliation',
-      () =>
-        modelHandlers['/providers/:providerId/models:reconcile'].POST({
-          params: { providerId: 'global-only' },
-          body: { toAdd: [], toRemove: [] }
-        } as never),
-      reconcileForProviderMock
-    ],
     [
       'provider model resolution',
       () =>
@@ -633,8 +543,10 @@ describe('model edition availability', () => {
         } as never),
       getImageGenerationSupportMock
     ]
-  ])('rejects %s for a provider unavailable in the application edition', async (_label, invoke, serviceMock) => {
-    getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
+  ])('does not call %s when the provider service reports it unavailable', async (_label, invoke, serviceMock) => {
+    getByProviderIdMock.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Provider', 'global-only')
+    })
 
     await expect(invoke()).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     expect(serviceMock).not.toHaveBeenCalled()

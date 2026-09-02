@@ -23,6 +23,7 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
+import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -37,6 +38,7 @@ import type {
   ProviderSettings
 } from '@shared/data/types/provider'
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { APP_EDITIONS } from '@shared/types/appEdition'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
@@ -66,6 +68,23 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+
+function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
+  const availableInEditions = provider.availableInEditions
+  if (!availableInEditions || APP_EDITIONS.every((edition) => availableInEditions.includes(edition))) return true
+
+  return availableInEditions.includes(getAppEdition())
+}
+
+function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+  if (isRetiredProvider(row.providerId, row.presetProviderId)) return false
+
+  const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
+    row.providerId,
+    row.presetProviderId
+  )
+  return isProviderAvailableInCurrentEdition(metadata)
+}
 
 /**
  * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
@@ -127,7 +146,7 @@ function assertProviderAvailable<T extends ProviderIdentity>(
   row: T | null | undefined,
   providerId: string
 ): asserts row is T {
-  if (!row || isRetiredProvider(row.providerId, row.presetProviderId)) {
+  if (!row || !isProviderIdentityAvailable(row)) {
     throw DataApiErrorFactory.notFound('Provider', providerId)
   }
 }
@@ -340,7 +359,39 @@ class ProviderService {
             .all()
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
-    return rows.filter((row) => !isRetiredProvider(row.providerId, row.presetProviderId)).map(rowToRuntimeProvider)
+    return rows.filter(isProviderIdentityAvailable).map(rowToRuntimeProvider)
+  }
+
+  /** Return provider IDs available to runtime callers in this application edition. */
+  listAvailableProviderIds(): Set<string> {
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .all()
+
+    return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
+  }
+
+  /** Check whether a persisted provider is available to runtime callers in this application edition. */
+  isAvailableByProviderId(providerId: string): boolean {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+      .all()
+
+    return row !== undefined && isProviderIdentityAvailable(row)
   }
 
   /**
@@ -373,6 +424,12 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
+    if (!isProviderAvailableInCurrentEdition(presetMetadata)) {
+      throw DataApiErrorFactory.invalidOperation(
+        `create provider ${dto.providerId}`,
+        'provider is unavailable in the current application edition'
+      )
+    }
     const defaultChatEndpoint =
       dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
@@ -894,6 +951,7 @@ class ProviderService {
 
   move(providerId: string, anchor: OrderRequest): void {
     assertManagedCherryAiProviderMutationAllowed(providerId, `move provider ${providerId}`)
+    this.getByProviderId(providerId)
 
     const db = application.get('DbService').getDb()
 
@@ -912,6 +970,7 @@ class ProviderService {
   reorder(moves: OrderBatchRequest['moves']): void {
     for (const move of moves) {
       assertManagedCherryAiProviderMutationAllowed(move.id, `move provider ${move.id}`)
+      this.getByProviderId(move.id)
     }
 
     const db = application.get('DbService').getDb()

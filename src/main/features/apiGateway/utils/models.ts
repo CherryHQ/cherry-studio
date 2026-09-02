@@ -1,8 +1,6 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { getAppEdition } from '@main/utils/appEdition'
-import { isProviderAvailableInEdition } from '@main/utils/providerEdition'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -45,8 +43,7 @@ export interface ResolvedGatewayModelAddress {
 /** Enabled providers from the data layer (`ProviderService`, not Redux). */
 function getAvailableProviders(): Provider[] {
   try {
-    const edition = getAppEdition()
-    return providerService.list({ enabled: true }).filter((provider) => isProviderAvailableInEdition(provider, edition))
+    return providerService.list({ enabled: true })
   } catch (error) {
     logger.error('Failed to list providers', error as Error)
     return []
@@ -106,11 +103,7 @@ export function resolveGatewayModelAddress(modelAddress: string): ResolvedGatewa
   } catch {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
-  if (
-    !provider.isEnabled ||
-    !isProviderAvailableInEdition(provider, getAppEdition()) ||
-    isExternalCliProvider(provider)
-  ) {
+  if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 

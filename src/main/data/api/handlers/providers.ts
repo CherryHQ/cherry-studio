@@ -8,9 +8,6 @@
 
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
-import { getAppEdition } from '@main/utils/appEdition'
-import { isProviderAvailableInEdition } from '@main/utils/providerEdition'
-import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
@@ -24,25 +21,12 @@ import {
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
 import type { HandlersFor } from '@shared/data/api/types'
-import type { Provider } from '@shared/data/types/provider'
-
-function requireAvailableProvider(provider: Provider): Provider {
-  if (!isProviderAvailableInEdition(provider, getAppEdition())) {
-    throw DataApiErrorFactory.notFound('Provider', provider.id)
-  }
-  return provider
-}
-
-function requireAvailableProviderById(providerId: string): Provider {
-  return requireAvailableProvider(providerService.getByProviderId(providerId))
-}
 
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
       const parsed = ListProvidersQuerySchema.parse(query ?? {})
-      const edition = getAppEdition()
-      return providerService.list(parsed).filter((provider) => isProviderAvailableInEdition(provider, edition))
+      return providerService.list(parsed)
     },
 
     POST: async ({ body }) => {
@@ -53,17 +37,15 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
   '/providers/:providerId': {
     GET: async ({ params }) => {
-      return requireAvailableProviderById(params.providerId)
+      return providerService.getByProviderId(params.providerId)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
-      requireAvailableProviderById(params.providerId)
       return providerService.update(params.providerId, parsed)
     },
 
     DELETE: async ({ params }) => {
-      requireAvailableProviderById(params.providerId)
       providerService.delete(params.providerId)
       return undefined
     }
@@ -72,27 +54,23 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/api-keys': {
     GET: async ({ params, query }) => {
       const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})
-      requireAvailableProviderById(params.providerId)
       const keys = providerService.getApiKeys(params.providerId, parsed)
       return { keys }
     },
 
     POST: async ({ params, body }) => {
       const parsed = AddProviderApiKeySchema.parse(body)
-      requireAvailableProviderById(params.providerId)
       return providerService.addApiKey(params.providerId, parsed.key, parsed.label)
     },
 
     PUT: async ({ params, body }) => {
       const parsed = ReplaceProviderApiKeysSchema.parse(body)
-      requireAvailableProviderById(params.providerId)
       return providerService.replaceApiKeys(params.providerId, parsed.keys)
     }
   },
 
   '/providers/:providerId/auth-config': {
     GET: async ({ params }) => {
-      requireAvailableProviderById(params.providerId)
       const authConfig = providerService.getAuthConfig(params.providerId)
       // OAuth secrets never need to leave the main process — the renderer uses
       // `oauth.has_token` for the signed-in boolean. Whitelist only the
@@ -110,7 +88,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/preset': {
     GET: async ({ params, query }) => {
       const parsed = ProviderPresetQuerySchema.parse(query ?? {})
-      const provider = requireAvailableProviderById(params.providerId)
+      const provider = providerService.getByProviderId(params.providerId)
       const fields = Array.isArray(parsed.fields) ? parsed.fields : [parsed.fields]
       return providerRegistryService.getProviderPreset(provider.id, fields, provider.presetProviderId ?? null)
     }
@@ -119,12 +97,10 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/api-keys/:keyId': {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateApiKeySchema.parse(body)
-      requireAvailableProviderById(params.providerId)
       return providerService.updateApiKey(params.providerId, params.keyId, parsed)
     },
 
     DELETE: async ({ params }) => {
-      requireAvailableProviderById(params.providerId)
       return providerService.deleteApiKey(params.providerId, params.keyId)
     }
   },
@@ -132,7 +108,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      requireAvailableProviderById(params.id)
       providerService.move(params.id, parsed)
       return undefined
     }
@@ -141,9 +116,6 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      for (const move of parsed.moves) {
-        requireAvailableProviderById(move.id)
-      }
       providerService.reorder(parsed.moves)
       return undefined
     }

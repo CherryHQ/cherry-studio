@@ -4,6 +4,14 @@ import { BaseService } from '@main/core/lifecycle/BaseService'
 import { WindowType } from '@main/core/window/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { getApplicationIdMock } = vi.hoisted(() => ({
+  getApplicationIdMock: vi.fn(() => 'com.kangfenmao.CherryStudio')
+}))
+
+vi.mock('@main/utils/appEdition', () => ({
+  getApplicationId: getApplicationIdMock
+}))
+
 vi.mock('@main/core/platform', () => ({
   isDev: false,
   isLinux: false,
@@ -200,7 +208,21 @@ describe('SelectionService.onInit — SelectionAction pool suspension', () => {
 })
 
 describe('SelectionService macOS toolbar', () => {
-  it('preserves selection inside the China edition', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    BaseService.resetInstances()
+  })
+
+  afterEach(() => {
+    BaseService.resetInstances()
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    ['global', 'com.kangfenmao.CherryStudio'],
+    ['China', 'com.cherryai.cherrystudio.cn']
+  ])('preserves selection inside the %s edition', (_edition, applicationId) => {
+    getApplicationIdMock.mockReturnValue(applicationId)
     const svc = new SelectionService()
     const toolbarWindow = {
       isDestroyed: vi.fn(() => false),
@@ -220,7 +242,7 @@ describe('SelectionService macOS toolbar', () => {
     vi.spyOn(access, 'calculateToolbarPosition').mockReturnValue({ x: 10, y: 20 })
     vi.spyOn(access, 'getToolbarRealSize').mockReturnValue({ toolbarWidth: 100, toolbarHeight: 40 })
 
-    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', 'com.cherryai.cherrystudio.cn')
+    access.showToolbarAtPosition({ x: 10, y: 20 }, 'bottomLeft', applicationId)
 
     expect(toolbarWindow.setVisibleOnAllWorkspaces).not.toHaveBeenCalled()
     expect(toolbarWindow.showInactive).toHaveBeenCalledOnce()

@@ -14,8 +14,7 @@ const {
   deleteApiKeyMock,
   getProviderPresetMock,
   moveMock,
-  reorderMock,
-  getAppEditionMock
+  reorderMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   listMock: vi.fn(),
@@ -30,12 +29,7 @@ const {
   deleteApiKeyMock: vi.fn(),
   getProviderPresetMock: vi.fn(),
   moveMock: vi.fn(),
-  reorderMock: vi.fn(),
-  getAppEditionMock: vi.fn(() => 'cn' as const)
-}))
-
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: getAppEditionMock
+  reorderMock: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
@@ -71,19 +65,6 @@ describe('providerHandlers', () => {
   })
 
   describe('/providers', () => {
-    it('returns only providers available in the application edition', async () => {
-      listMock.mockReturnValueOnce([
-        { id: 'global-only', availableInEditions: ['global'] },
-        { id: 'all-editions', availableInEditions: ['global', 'cn'] },
-        { id: 'custom' }
-      ])
-
-      const result = await providerHandlers['/providers'].GET({ query: {} } as never)
-
-      expect(result).toEqual([{ id: 'all-editions', availableInEditions: ['global', 'cn'] }, { id: 'custom' }])
-      expect(listMock).toHaveBeenCalledWith({})
-    })
-
     it('accepts a minimal create payload without DB-managed fields', async () => {
       createMock.mockReturnValueOnce({
         id: 'custom-provider',
@@ -127,14 +108,6 @@ describe('providerHandlers', () => {
   })
 
   describe('/providers/:providerId', () => {
-    it('does not expose a provider unavailable in the application edition', async () => {
-      getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
-
-      await expect(
-        providerHandlers['/providers/:providerId'].GET({ params: { providerId: 'global-only' } } as never)
-      ).rejects.toMatchObject({ code: 'NOT_FOUND' })
-    })
-
     it('delegates PATCH to providerService.update with parsed body', async () => {
       const updated = { id: 'openai', isEnabled: true }
       updateMock.mockReturnValueOnce(updated)
@@ -410,98 +383,6 @@ describe('providerHandlers', () => {
       ).rejects.toThrow()
 
       expect(reorderMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('edition availability', () => {
-    it.each([
-      [
-        'provider update',
-        () =>
-          providerHandlers['/providers/:providerId'].PATCH({
-            params: { providerId: 'global-only' },
-            body: { isEnabled: true }
-          } as never),
-        updateMock
-      ],
-      [
-        'provider deletion',
-        () => providerHandlers['/providers/:providerId'].DELETE({ params: { providerId: 'global-only' } } as never),
-        deleteMock
-      ],
-      [
-        'API key listing',
-        () =>
-          providerHandlers['/providers/:providerId/api-keys'].GET({
-            params: { providerId: 'global-only' }
-          } as never),
-        getApiKeysMock
-      ],
-      [
-        'API key creation',
-        () =>
-          providerHandlers['/providers/:providerId/api-keys'].POST({
-            params: { providerId: 'global-only' },
-            body: { key: 'sk-test' }
-          } as never),
-        addApiKeyMock
-      ],
-      [
-        'API key replacement',
-        () =>
-          providerHandlers['/providers/:providerId/api-keys'].PUT({
-            params: { providerId: 'global-only' },
-            body: { keys: [] }
-          } as never),
-        replaceApiKeysMock
-      ],
-      [
-        'auth config access',
-        () =>
-          providerHandlers['/providers/:providerId/auth-config'].GET({
-            params: { providerId: 'global-only' }
-          } as never),
-        getAuthConfigMock
-      ],
-      [
-        'API key update',
-        () =>
-          providerHandlers['/providers/:providerId/api-keys/:keyId'].PATCH({
-            params: { providerId: 'global-only', keyId: 'key-a' },
-            body: { isEnabled: false }
-          } as never),
-        updateApiKeyMock
-      ],
-      [
-        'API key deletion',
-        () =>
-          providerHandlers['/providers/:providerId/api-keys/:keyId'].DELETE({
-            params: { providerId: 'global-only', keyId: 'key-a' }
-          } as never),
-        deleteApiKeyMock
-      ],
-      [
-        'provider move',
-        () =>
-          providerHandlers['/providers/:id/order'].PATCH({
-            params: { id: 'global-only' },
-            body: { position: 'first' }
-          } as never),
-        moveMock
-      ],
-      [
-        'provider reorder',
-        () =>
-          providerHandlers['/providers/order:batch'].PATCH({
-            body: { moves: [{ id: 'global-only', anchor: { position: 'first' } }] }
-          } as never),
-        reorderMock
-      ]
-    ])('rejects %s for a provider unavailable in the application edition', async (_label, invoke, serviceMock) => {
-      getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
-
-      await expect(invoke()).rejects.toMatchObject({ code: 'NOT_FOUND' })
-      expect(serviceMock).not.toHaveBeenCalled()
     })
   })
 })

@@ -24,11 +24,6 @@ vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: getByProviderIdMock }
 }))
 
-const getAppEditionMock = vi.fn(() => 'cn' as const)
-vi.mock('@main/utils/appEdition', () => ({
-  getAppEdition: getAppEditionMock
-}))
-
 const getByLangCodeMock = vi.fn()
 vi.mock('@main/data/services/TranslateLanguageService', () => ({
   translateLanguageService: { getByLangCode: getByLangCodeMock }
@@ -61,7 +56,6 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   getByKeyMock.mockReset()
   getByProviderIdMock.mockReset().mockImplementation((providerId: string) => ({ id: providerId }))
-  getAppEditionMock.mockReset().mockReturnValue('cn')
   getByLangCodeMock.mockReset()
   streamPromptMock.mockReset()
   streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
@@ -136,14 +130,10 @@ describe('translateService.resolveTranslatePayload', () => {
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
   })
 
-  it('treats a persisted model from an unavailable provider as not configured', () => {
+  it('treats a model rejected by the provider service as not configured', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'global-only::model')
-    getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
-    getByKeyMock.mockReturnValueOnce({
-      id: 'global-only::model',
-      providerId: 'global-only',
-      apiModelId: 'model',
-      name: 'Global Model'
+    getByProviderIdMock.mockImplementationOnce(() => {
+      throw new Error('provider not found')
     })
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')

@@ -10,6 +10,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+
 // Stub the registry loader with CherryIN plus a future `my-relay` preset.
 // `google-generate-content` is deliberately present for CherryIN but ABSENT
 // from the persisted rows below — modelling an install seeded before the

@@ -10,8 +10,6 @@ import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { getAppEdition } from '@main/utils/appEdition'
-import { isProviderAvailableInEdition } from '@main/utils/providerEdition'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
@@ -29,19 +27,6 @@ import { SuccessStatus } from '@shared/data/api/types'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')
-
-function requireAvailableProviderById(providerId: string): void {
-  const provider = providerService.getByProviderId(providerId)
-  if (!isProviderAvailableInEdition(provider, getAppEdition())) {
-    throw DataApiErrorFactory.notFound('Provider', providerId)
-  }
-}
-
-function requireAvailableProviders(providerIds: Iterable<string>): void {
-  for (const providerId of new Set(providerIds)) {
-    requireAvailableProviderById(providerId)
-  }
-}
 
 /**
  * Parse a UniqueModelId from the transport layer, raising a 422 validation
@@ -103,14 +88,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models': {
     GET: async ({ query }) => {
       const parsed = ListModelsQuerySchema.parse(query ?? {})
-      const edition = getAppEdition()
-      const availableProviderIds = new Set(
-        providerService
-          .list({})
-          .filter((provider) => isProviderAvailableInEdition(provider, edition))
-          .map((provider) => provider.id)
-      )
-      return modelService.list(parsed).filter((model) => availableProviderIds.has(model.providerId))
+      return modelService.list(parsed)
     },
 
     POST: async ({ body }) => {
@@ -118,7 +96,6 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
       // normalized before they reach the service so the service can expose one
       // collection-oriented create path with consistent transaction semantics.
       const parsed = CreateModelsSchema.parse(body)
-      requireAvailableProviders(parsed.map((item) => item.providerId))
       const items = await enrichCreateItems(parsed)
       return modelService.create(items)
     },
@@ -132,14 +109,12 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
         ...parseOrValidationError(item.uniqueModelId),
         patch: item.patch
       }))
-      requireAvailableProviders(items.map((item) => item.providerId))
       return modelService.bulkUpdate(items)
     },
 
     DELETE: async ({ query }) => {
       const parsed = DeleteModelsQuerySchema.parse(query)
       const items = parsed.ids.map((uniqueModelId) => parseOrValidationError(uniqueModelId))
-      requireAvailableProviders(items.map((item) => item.providerId))
       modelService.bulkDelete(items)
       return undefined
     }
@@ -148,20 +123,17 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/models/:uniqueModelId*': {
     GET: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      requireAvailableProviderById(providerId)
       return modelService.getByKey(providerId, modelId)
     },
 
     PATCH: async ({ params, body }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
       const parsed = UpdateModelSchema.parse(body)
-      requireAvailableProviderById(providerId)
       return modelService.update(providerId, modelId, parsed)
     },
 
     DELETE: async ({ params }) => {
       const { providerId, modelId } = parseOrValidationError(params.uniqueModelId)
-      requireAvailableProviderById(providerId)
       modelService.delete(providerId, modelId)
       return undefined
     }
@@ -170,7 +142,6 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/providers/:providerId/models:reconcile': {
     POST: async ({ params, body }) => {
       const parsed = ReconcileProviderModelsSchema.parse(body)
-      requireAvailableProviderById(params.providerId)
 
       for (const dto of parsed.toAdd) {
         if (dto.providerId !== params.providerId) {
@@ -204,7 +175,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
   '/providers/:providerId/models:resolve': {
     GET: async ({ params, query }) => {
       const parsed = ResolveProviderModelsQuerySchema.parse(query ?? {})
-      requireAvailableProviderById(params.providerId)
+      providerService.getByProviderId(params.providerId)
       const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
       return providerRegistryService.resolveModels(params.providerId, ids)
     }
@@ -212,7 +183,7 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
 
   '/providers/:providerId/models/:modelId*/image-generation-support': {
     GET: async ({ params }) => {
-      requireAvailableProviderById(params.providerId)
+      providerService.getByProviderId(params.providerId)
       return providerRegistryService.getImageGenerationSupport(params.providerId, params.modelId)
     }
   }
