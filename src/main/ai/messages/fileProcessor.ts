@@ -89,10 +89,11 @@ async function fileEntryIdToDataUrl(fileEntryId: string) {
       size = Number.POSITIVE_INFINITY
     }
     if (size > NATIVE_INLINE_FILE_CAP_BYTES) {
-      logger.warn(
-        'Refusing to inline oversized native file; degrading to note',
-        { fileEntryId, size, cap: NATIVE_INLINE_FILE_CAP_BYTES }
-      )
+      logger.warn('Refusing to inline oversized native file; degrading to note', {
+        fileEntryId,
+        size,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES,
+      })
       return null
     }
     const { content, mime } = await fileManager.read(fileEntryId, { encoding: 'base64' })
@@ -122,10 +123,11 @@ async function fileUrlToDataUrl(fileUrl: string) {
     // caught, not bypassed via the link's own tiny byte count.
     const stats = await stat(absPath)
     if (stats.size > NATIVE_INLINE_FILE_CAP_BYTES) {
-      logger.warn(
-        'Refusing to inline oversized native file from file:// URL; degrading to note',
-        { fileUrl, size: stats.size, cap: NATIVE_INLINE_FILE_CAP_BYTES }
-      )
+      logger.warn('Refusing to inline oversized native file from file:// URL; degrading to note', {
+        fileUrl,
+        size: stats.size,
+        cap: NATIVE_INLINE_FILE_CAP_BYTES,
+      })
       return null
     }
     const { data, mime } = await fsRead(absPath, { encoding: 'base64' })
