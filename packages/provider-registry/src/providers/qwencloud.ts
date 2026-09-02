@@ -1,3 +1,4 @@
+import type { ImageModeDef } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import {
   effortChatWire,
@@ -82,6 +83,95 @@ const webSearchModelPrefixes = [
  * absent from the catalog; append them here once models.dev carries them.
  */
 const responsesSearchModelIds = ['deepseek-v4-flash', 'deepseek-v4-pro', 'glm-5-2']
+
+/** qwen-image-3.0 / -pro serve both t2i and editing off one sync multimodal endpoint. */
+const qwenImage3Mode: ImageModeDef = {
+  supports: {
+    addWatermark: { default: false, type: 'switch' },
+    negativePrompt: { multiline: true, type: 'text' },
+    numImages: { default: 1, max: 6, min: 1, type: 'range' },
+    promptExtend: { default: true, type: 'switch' },
+    seed: { type: 'text' },
+    size: {
+      default: 'auto',
+      options: ['auto', '1328x1328', '1664x928', '928x1664', '1472x1140', '1140x1472'],
+      render: 'chips',
+      type: 'enum'
+    }
+  },
+  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+}
+
+const qwenImage3ImageGeneration = { modes: { edit: qwenImage3Mode, generate: qwenImage3Mode } }
+
+/**
+ * qwen-image-2.0 lines ride the same sync multimodal transport with a fixed 2048x2048 default
+ * (no `auto`); on editing the upstream default is the input image's resolution instead.
+ */
+const qwenImage20Mode: ImageModeDef = {
+  supports: {
+    addWatermark: { default: false, type: 'switch' },
+    negativePrompt: { multiline: true, type: 'text' },
+    numImages: { default: 1, max: 6, min: 1, type: 'range' },
+    promptExtend: { default: true, type: 'switch' },
+    seed: { type: 'text' },
+    size: {
+      default: '2048x2048',
+      options: ['2048x2048', '1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
+      render: 'chips',
+      type: 'enum'
+    }
+  },
+  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+}
+
+const qwenImage20ImageGeneration = { modes: { edit: qwenImage20Mode, generate: qwenImage20Mode } }
+
+/** z-image-turbo is t2i-only on the same sync transport; prompt rewriting defaults off upstream. */
+const zImageTurboMode: ImageModeDef = {
+  supports: {
+    promptExtend: { default: false, type: 'switch' },
+    seed: { type: 'text' },
+    size: {
+      default: '1024x1536',
+      options: ['1024x1536', '1536x1024', '1024x1024', '1152x768', '768x1152'],
+      render: 'chips',
+      type: 'enum'
+    }
+  },
+  vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+}
+
+/** wan2.7 lines take t2i and editing (0-9 reference images) on one async endpoint with one parameter set. */
+const wan27Supports: ImageModeDef['supports'] = {
+  addWatermark: { default: false, type: 'switch' },
+  imageResolution: { default: '2K', options: ['1K', '2K'], render: 'chips', type: 'enum' },
+  numImages: { default: 1, max: 4, min: 1, type: 'range' },
+  seed: { type: 'text' },
+  thinkingMode: { default: true, type: 'switch' }
+}
+
+/** Only `-pro` reaches 4K. */
+const wan27ProSupports: ImageModeDef['supports'] = {
+  ...wan27Supports,
+  imageResolution: { default: '2K', options: ['1K', '2K', '4K'], render: 'chips', type: 'enum' }
+}
+
+const wan27Endpoint = { endpoint: '/api/v1/services/aigc/image-generation/generation' }
+
+const wan27ImageGeneration = {
+  modes: {
+    edit: { supports: wan27Supports, vendorTransport: wan27Endpoint },
+    generate: { supports: wan27Supports, vendorTransport: wan27Endpoint }
+  }
+}
+
+const wan27ProImageGeneration = {
+  modes: {
+    edit: { supports: wan27ProSupports, vendorTransport: wan27Endpoint },
+    generate: { supports: wan27ProSupports, vendorTransport: wan27Endpoint }
+  }
+}
 
 export default defineProvider({
   id: 'qwencloud',
@@ -182,6 +272,142 @@ export default defineProvider({
         }
       })
     ),
-    ...listedModels.map((modelId): Partial<ProviderModelOverride> => ({ modelId }))
+    ...listedModels.map((modelId): Partial<ProviderModelOverride> => ({ modelId })),
+    /**
+     * Image SKUs per the QwenCloud image-models catalog (docs.qwencloud.com): sync multimodal
+     * qwen-image-2.x/3.x + z-image lines, legacy async wan/qwen-image SKUs shared with the mainland
+     * provider. Mainland-only lines (qwen-mt-image, wanx*) are absent internationally and stay out.
+     * Blocks restate the full `imageGeneration` — the runtime replaces it wholesale.
+     */
+    { apiModelId: 'qwen-image-3.0', imageGeneration: qwenImage3ImageGeneration, modelId: 'qwen-image-3-0' },
+    { apiModelId: 'qwen-image-3.0-pro', imageGeneration: qwenImage3ImageGeneration, modelId: 'qwen-image-3-0-pro' },
+    {
+      apiModelId: 'qwen-image-2.0-pro',
+      capabilities: { force: ['image-generation'] },
+      imageGeneration: qwenImage20ImageGeneration,
+      inputModalities: ['text', 'image'],
+      modelId: 'qwen-image-2-0-pro',
+      name: 'Qwen Image 2.0 Pro',
+      outputModalities: ['image'],
+      ownedBy: 'alibaba'
+    },
+    {
+      apiModelId: 'qwen-image-2.0',
+      capabilities: { force: ['image-generation'] },
+      imageGeneration: qwenImage20ImageGeneration,
+      inputModalities: ['text', 'image'],
+      modelId: 'qwen-image-2-0',
+      name: 'Qwen Image 2.0',
+      outputModalities: ['image'],
+      ownedBy: 'alibaba'
+    },
+    {
+      apiModelId: 'z-image-turbo',
+      capabilities: { force: ['image-generation'] },
+      imageGeneration: { modes: { generate: zImageTurboMode } },
+      inputModalities: ['text'],
+      modelId: 'z-image-turbo',
+      name: 'Z-Image Turbo',
+      outputModalities: ['image'],
+      ownedBy: 'alibaba'
+    },
+    {
+      apiModelId: 'qwen-image-edit',
+      imageGeneration: {
+        modes: {
+          edit: {
+            supports: {
+              addWatermark: { default: false, type: 'switch' },
+              negativePrompt: { multiline: true, type: 'text' },
+              seed: { type: 'text' }
+            },
+            vendorTransport: {
+              endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+              isSync: true
+            }
+          }
+        }
+      },
+      modelId: 'qwen-image-edit'
+    },
+    {
+      apiModelId: 'qwen-image',
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              addWatermark: { default: false, type: 'switch' },
+              negativePrompt: { multiline: true, type: 'text' },
+              numImages: { default: 1, max: 4, min: 1, type: 'range' },
+              promptExtend: { default: true, type: 'switch' },
+              seed: { type: 'text' },
+              size: {
+                default: '1328x1328',
+                options: ['1664x928', '1472x1140', '1328x1328', '1140x1472', '928x1664'],
+                render: 'chips',
+                type: 'enum'
+              }
+            },
+            vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
+          }
+        }
+      },
+      modelId: 'qwen-image'
+    },
+    {
+      apiModelId: 'wan2.7-image-pro',
+      imageGeneration: wan27ProImageGeneration,
+      modelId: 'wan2-7-image-pro'
+    },
+    { apiModelId: 'wan2.7-image', imageGeneration: wan27ImageGeneration, modelId: 'wan2-7-image' },
+    {
+      apiModelId: 'wan2.6-image',
+      imageGeneration: {
+        modes: {
+          generate: {
+            supports: {
+              addWatermark: { default: false, type: 'switch' },
+              enableInterleave: { default: true, type: 'switch' },
+              imageResolution: { default: '1K', options: ['1K', '2K'], render: 'chips', type: 'enum' },
+              negativePrompt: { multiline: true, type: 'text' },
+              numImages: { default: 1, max: 4, min: 1, type: 'range' },
+              promptExtend: { default: true, type: 'switch' },
+              seed: { type: 'text' }
+            },
+            vendorTransport: { endpoint: '/api/v1/services/aigc/image-generation/generation' }
+          }
+        }
+      },
+      modelId: 'wan2-6-image'
+    },
+    {
+      apiModelId: 'wan2.5-i2i-preview',
+      capabilities: { force: ['image-generation'] },
+      imageGeneration: {
+        modes: {
+          edit: {
+            supports: {
+              addWatermark: { default: false, type: 'switch' },
+              negativePrompt: { multiline: true, type: 'text' },
+              numImages: { default: 1, max: 4, min: 1, type: 'range' },
+              promptExtend: { default: true, type: 'switch' },
+              seed: { type: 'text' },
+              size: {
+                default: '1280x1280',
+                options: ['1280x1280', '1024x1024', '1664x928', '928x1664'],
+                render: 'chips',
+                type: 'enum'
+              }
+            },
+            vendorTransport: { endpoint: '/api/v1/services/aigc/image2image/image-synthesis' }
+          }
+        }
+      },
+      inputModalities: ['text', 'image'],
+      modelId: 'wan2-5-i2i-preview',
+      name: 'Wan 2.5 i2i Preview',
+      outputModalities: ['image'],
+      ownedBy: 'alibaba'
+    }
   ]
 })
