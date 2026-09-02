@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 describe('PreferenceSeeder', () => {
   const dbh = setupTestDatabase()
   const toolbarKey = 'chat.input.toolbar.pinned_tools'
-  const clientWebToolsPreferredKey = 'chat.web_search.client_tools_preferred'
+  const modelToolsPreferredKey = 'chat.web_search.model_tools_preferred'
 
   it('should insert all default preferences into empty table', async () => {
     const seed = new PreferenceSeeder()
@@ -84,8 +84,8 @@ describe('PreferenceSeeder', () => {
     const [preference] = await dbh.db
       .select()
       .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, clientWebToolsPreferredKey)))
-    expect(preference.value).toBe(false)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, modelToolsPreferredKey)))
+    expect(preference?.value).toBe(true)
   })
 
   it('does not overwrite a persisted sidebar favorites order that differs from the generated default', async () => {
