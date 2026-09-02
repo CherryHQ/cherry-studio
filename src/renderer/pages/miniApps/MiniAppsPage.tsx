@@ -5,11 +5,9 @@ import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { Menu, PackagePlus, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
@@ -23,6 +21,7 @@ import MiniAppSettingsPanel from './MiniAppSettings/MiniAppSettingsPanel'
 import { useMiniAppVisibility } from './MiniAppSettings/useMiniAppVisibility'
 import NewMiniAppPanel from './NewMiniAppPanel'
 import { useBuiltinMiniApps } from './useBuiltinMiniApps'
+import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
 const MINI_APPS_LOADING_COLOR = 'var(--muted-foreground)'
 
@@ -37,6 +36,7 @@ const MiniAppsPage: FC = () => {
   const { allApps, miniApps, isLoading, error } = useMiniApps()
   const visibility = useMiniAppVisibility()
   const droppedInstall = useMiniAppInstallPreview(() => undefined)
+  const packageDropzone = useMiniAppPackageDrop(droppedInstall.settle)
   const hasOpenDialog =
     settingsOpen || newAppOpen || editingApp !== null || install !== null || droppedInstall.preview !== null
   const pageDropDisabled = hasOpenDialog || droppedInstall.busy
@@ -66,39 +66,9 @@ const MiniAppsPage: FC = () => {
     setNewAppOpen(true)
   }
 
-  const handleDrop = (files: File[]) => {
-    const file = files[0]
-    if (!file) {
-      toast.error(t('miniApp.install.drop_invalid'))
-      return
-    }
-
-    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file))
-    if (!filePath.success) {
-      toast.error(t('miniApp.install.drop_invalid'))
-      return
-    }
-
-    void droppedInstall.settle(
-      () => ipcApi.request('mini_app.install.preview_file', { filePath: filePath.data }),
-      'miniApp.install.preview_error'
-    )
-  }
-
   const { getRootProps, isDragActive } = useDropzone({
-    disabled: pageDropDisabled,
-    getFilesFromEvent: async (event) =>
-      'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : [],
-    maxFiles: 1,
-    multiple: false,
-    noClick: true,
-    noKeyboard: true,
-    validator: (file) =>
-      file.name.toLowerCase().endsWith('.miniapp')
-        ? null
-        : { code: 'file-invalid-type', message: 'Expected a .miniapp package' },
-    onDropAccepted: handleDrop,
-    onDropRejected: () => toast.error(t('miniApp.install.drop_invalid'))
+    ...packageDropzone,
+    disabled: pageDropDisabled
   })
 
   useEffect(() => {

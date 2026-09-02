@@ -15,10 +15,11 @@ import { InstallConsentDialog } from '@renderer/components/MiniApp/InstallConsen
 import { useMiniAppInstallPreview } from '@renderer/hooks/useMiniAppInstallPreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
 /** Enough shape to be worth a request: a scheme and a host. Main still decides https and the rest. */
 const looksLikeUrl = (value: string): boolean => {
@@ -38,28 +39,10 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
   const { t } = useTranslation()
   const [manifestUrl, setManifestUrl] = useState('')
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(onClose)
+  const packageDropzone = useMiniAppPackageDrop(settle)
 
   const handlePick = () =>
     settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
-
-  const handleDrop = (files: File[]) => {
-    const file = files[0]
-    if (!file) {
-      toast.error(t('miniApp.install.drop_invalid'))
-      return
-    }
-
-    const filePath = AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file))
-    if (!filePath.success) {
-      toast.error(t('miniApp.install.drop_invalid'))
-      return
-    }
-
-    void settle(
-      () => ipcApi.request('mini_app.install.preview_file', { filePath: filePath.data }),
-      'miniApp.install.preview_error'
-    )
-  }
 
   // One address: the user types whichever mirror they can reach, and the manifest itself
   // names the pair every later fetch chooses between.
@@ -77,21 +60,8 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
           data-ui="mini-apps.install-dropzone"
           className="gap-3 border-dashed px-4 py-5"
           disabled={busy}
-          getFilesFromEvent={async (event) =>
-            'dataTransfer' in event && event.dataTransfer ? Array.from(event.dataTransfer.files) : []
-          }
-          maxFiles={1}
-          multiple={false}
-          noClick
-          noKeyboard
-          validator={(file) =>
-            file.name.toLowerCase().endsWith('.miniapp')
-              ? null
-              : { code: 'file-invalid-type', message: 'Expected a .miniapp package' }
-          }
-          onClick={handlePick}
-          onDrop={handleDrop}
-          onError={() => toast.error(t('miniApp.install.drop_invalid'))}>
+          {...packageDropzone}
+          onClick={handlePick}>
           <DropzoneEmptyState>
             <div className="flex flex-col items-center gap-3 text-center">
               <p className="text-muted-foreground text-sm">{t('miniApp.install.pick_hint')}</p>
