@@ -16,9 +16,10 @@
  */
 
 import { fileURLToPath } from 'node:url'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { stat, read as fsRead } from '@main/utils/file'
+import { read as fsRead, stat } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
