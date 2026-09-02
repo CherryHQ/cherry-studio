@@ -36,7 +36,9 @@ export function buildTokenhubTransport(settings: TokenhubProviderSettings): Imag
   return createTokenhubTransport({
     apiKey: settings.apiKey ?? '',
     // The `/v1/wand/*` image endpoints are host-root paths; the chat baseURL carries `/v1`.
-    baseURL: withoutTrailingApiVersion(settings.baseURL)
+    baseURL: withoutTrailingApiVersion(settings.baseURL),
+    headers: settings.headers,
+    fetch: settings.fetch
   })
 }
 

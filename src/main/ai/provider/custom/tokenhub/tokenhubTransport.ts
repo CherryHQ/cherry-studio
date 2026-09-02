@@ -1,3 +1,4 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError, PaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -75,6 +76,8 @@ export interface TokenhubProviderParams {
 export interface TokenhubTransportSettings {
   apiKey: string
   baseURL?: string
+  headers?: Record<string, string>
+  fetch?: FetchFunction
 }
 
 type BodyFamily = 'hunyuan' | 'seedream' | 'vidu'
@@ -137,10 +140,14 @@ function extractSyncUrls(response: TokenhubSyncImageResponse): string[] {
 class TokenhubTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
+  private headers: Record<string, string>
+  private customFetch?: FetchFunction
 
   constructor(settings: TokenhubTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_TOKENHUB_BASE_URL
+    this.headers = settings.headers ?? {}
+    this.customFetch = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
@@ -274,10 +281,12 @@ class TokenhubTransport implements ImageGenerationTransport {
     }
 
     try {
-      const response = await fetch(`${this.baseURL}${path}`, {
+      const doFetch = this.customFetch ?? globalThis.fetch
+      const response = await doFetch(`${this.baseURL}${path}`, {
         method,
         headers: {
           Accept: 'application/json',
+          ...this.headers,
           Authorization: `Bearer ${this.apiKey}`,
           ...(method === 'POST' && { 'Content-Type': 'application/json' })
         },

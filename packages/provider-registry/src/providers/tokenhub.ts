@@ -125,7 +125,7 @@ export default defineProvider({
             supports: {
               aspectRatio: {
                 type: 'enum',
-                options: ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9', '2:3', '3:2', 'auto'],
+                options: ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9', '2:3', '3:2'],
                 default: '16:9',
                 render: 'chips'
               },

@@ -134,6 +134,26 @@ describe('TokenhubTransport', () => {
     expect(result).toEqual({ taskId: 'task-1' })
   })
 
+  it('routes requests through the provider fetch and merges provider headers under the bearer auth', async () => {
+    const globalFetch = vi.spyOn(globalThis, 'fetch')
+    const providerFetch = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ data: [{ url: 'https://img/x' }] }))
+    const transport = createTokenhubTransport({
+      apiKey: 'token',
+      fetch: providerFetch,
+      headers: { 'X-App': 'cherry', Authorization: 'Bearer stale' }
+    })
+
+    await transport.submit({ ...baseInput, modelId: 'hy-image-v3', modelDescriptor: HUNYUAN, prompt: 'x' })
+
+    expect(globalFetch).not.toHaveBeenCalled()
+    const headers = lastRequest(providerFetch as unknown as MockInstance<typeof fetch>).init.headers as Record<
+      string,
+      string
+    >
+    expect(headers['X-App']).toBe('cherry')
+    expect(headers.Authorization).toBe('Bearer token')
+  })
+
   it('rejects a vidu submit that returns no task_id instead of completing empty', async () => {
     const transport = createTokenhubTransport({ apiKey: 'token' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ state: 'created' }))
