@@ -218,6 +218,22 @@ describe('TranslateSettings', () => {
     cleanup()
   })
 
+  it('keeps preference hooks inactive while closed and restores them when reopened', () => {
+    const { rerender } = render(<TranslateSettings visible={false} onClose={vi.fn()} />)
+
+    expect(mockUsePreference).not.toHaveBeenCalled()
+
+    rerender(<TranslateSettings visible onClose={vi.fn()} />)
+    expect(mockUsePreference).toHaveBeenCalled()
+
+    const callsWhileOpen = mockUsePreference.mock.calls.length
+    rerender(<TranslateSettings visible={false} onClose={vi.fn()} />)
+    expect(mockUsePreference).toHaveBeenCalledTimes(callsWhileOpen)
+
+    rerender(<TranslateSettings visible onClose={vi.fn()} />)
+    expect(mockUsePreference.mock.calls.length).toBeGreaterThan(callsWhileOpen)
+  })
+
   it('warns and blocks pair persistence when selecting the same bidirectional language', () => {
     render(<TranslateSettings visible onClose={vi.fn()} />)
 
