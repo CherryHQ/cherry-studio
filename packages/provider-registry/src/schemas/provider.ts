@@ -193,8 +193,8 @@ export const ProviderConfigSchema = z
     presetProviderId: ProviderIdSchema.optional(),
     /** Display name */
     name: z.string(),
-    /** Application editions that should offer this preset. */
-    supportedEditions: z.array(ProviderEditionSchema).min(1).optional(),
+    /** App editions where this provider is available. Omitted means all editions. */
+    availableInEditions: z.array(ProviderEditionSchema).min(1).optional(),
     /** Provider description */
     description: z.string().optional(),
     /** Per-endpoint-type configuration (partial record — not all endpoint types need to be present) */

@@ -276,7 +276,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
-    supportedEditions: presetMetadata.supportedEditions,
+    availableInEditions: presetMetadata.availableInEditions,
     // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
     // endpoint-type key set) resolve from the CURRENT registry at read time
     // (#17096 — the seeder is insert-only, so the row alone goes stale);

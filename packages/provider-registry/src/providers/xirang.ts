@@ -3,7 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'xirang',
   name: 'Xirang',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://wishub-x1.ctyun.cn',
   website: {
     apiKey: 'https://huiju.ctyun.cn/service/serviceGroup',

@@ -33,7 +33,7 @@ import {
   configureOpenAIResponsesSummary,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
-  findLegacyProviderSupportedEditions,
+  findLegacyProviderAvailableInEditions,
   inferAdapterFamily,
   inferReasoningControls,
   inferReasoningMembership,
@@ -75,7 +75,7 @@ export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
   /** Application editions that should offer the resolved preset. */
-  supportedEditions?: Provider['supportedEditions']
+  availableInEditions?: Provider['availableInEditions']
   /** Registry capability: where the model list comes from (default `'api'`). */
   modelListSource?: 'api' | 'registry'
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
@@ -784,9 +784,9 @@ class ProviderRegistryService {
       return {
         description: provider?.description,
         websites: provider?.metadata?.website,
-        supportedEditions:
-          provider?.supportedEditions ??
-          (presetProviderId ? findLegacyProviderSupportedEditions(presetProviderId) : undefined),
+        availableInEditions:
+          provider?.availableInEditions ??
+          (presetProviderId ? findLegacyProviderAvailableInEditions(presetProviderId) : undefined),
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,

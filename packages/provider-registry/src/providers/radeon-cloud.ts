@@ -5,7 +5,7 @@ const TOKEN_FACTORY_URL = 'https://developer.amd.com.cn/radeon/tokenfactory?sour
 export default openaiCompatible({
   id: 'radeon-cloud',
   name: 'AMD GPU Cloud',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://developer.amd.com.cn/radeon/v1',
   website: {
     apiKey: TOKEN_FACTORY_URL,

@@ -4,7 +4,7 @@ const ALL_EDITIONS = ['global', 'cn'] as const satisfies readonly ProviderEditio
 const GLOBAL_ONLY_EDITIONS = ['global'] as const satisfies readonly ProviderEdition[]
 
 // Presets removed from the current catalog can still exist in migrated user data.
-export const LEGACY_PROVIDER_SUPPORTED_EDITIONS = {
+export const LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS = {
   github: GLOBAL_ONLY_EDITIONS,
   yi: ALL_EDITIONS,
   infini: ALL_EDITIONS,
@@ -14,9 +14,9 @@ export const LEGACY_PROVIDER_SUPPORTED_EDITIONS = {
   'gitee-ai': ALL_EDITIONS
 } as const satisfies Record<string, readonly ProviderEdition[]>
 
-export function findLegacyProviderSupportedEditions(providerId: string): ProviderEdition[] | undefined {
-  const supportedEditions =
-    LEGACY_PROVIDER_SUPPORTED_EDITIONS[providerId as keyof typeof LEGACY_PROVIDER_SUPPORTED_EDITIONS]
+export function findLegacyProviderAvailableInEditions(providerId: string): ProviderEdition[] | undefined {
+  const availableInEditions =
+    LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS[providerId as keyof typeof LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS]
 
-  return supportedEditions ? [...supportedEditions] : undefined
+  return availableInEditions ? [...availableInEditions] : undefined
 }

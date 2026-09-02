@@ -3,7 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'cerebras',
   name: 'Cerebras AI',
-  supportedEditions: ['global'],
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {

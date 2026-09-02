@@ -3,7 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'alayanew',
   name: 'AlayaNew',
-  supportedEditions: ['global'],
+  availableInEditions: ['global'],
   baseUrl: 'https://deepseek.alayanew.com',
   website: {
     apiKey: 'https://www.alayanew.com/',

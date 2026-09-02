@@ -3,7 +3,7 @@ import { defineProvider } from './types'
 export default defineProvider({
   id: 'lmstudio',
   name: 'LM Studio',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   authOptional: true,
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {

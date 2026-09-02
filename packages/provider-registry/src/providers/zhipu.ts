@@ -37,7 +37,7 @@ const glm53Wire: ReasoningWireProfile = {
 export default openaiCompatible({
   id: 'zhipu',
   name: 'ZhiPu',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
   reasoningFormat: {
     type: 'openai-chat',

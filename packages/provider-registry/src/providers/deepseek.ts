@@ -59,7 +59,7 @@ const v4ResponsesEffortWire = {
 export default defineProvider({
   id: 'deepseek',
   name: 'deepseek',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

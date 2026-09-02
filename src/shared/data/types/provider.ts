@@ -250,8 +250,8 @@ export const ProviderSchema = z.object({
   logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
-  /** Application editions that should offer the resolved preset. */
-  supportedEditions: z.array(z.enum(APP_EDITIONS)).min(1).optional(),
+  /** App editions where this provider is available. Omitted means all editions. */
+  availableInEditions: z.array(z.enum(APP_EDITIONS)).min(1).optional(),
   /** Preset provider website links */
   websites: ProviderWebsitesSchema.optional(),
   /** Per-endpoint-type connection configuration */

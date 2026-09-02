@@ -95,7 +95,7 @@ const qwenAudioCompatibilityOverrides = [
 export default defineProvider({
   id: 'cherryin',
   name: 'CherryIN',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

@@ -3,7 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'burncloud',
   name: 'BurnCloud',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://ai.burncloud.com',
   website: {
     apiKey: 'https://ai.burncloud.com/token',

@@ -12,7 +12,7 @@ const webToolModels = [
 export default defineProvider({
   id: 'anthropic',
   name: 'Anthropic',
-  supportedEditions: ['global'],
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'anthropic-messages',
   endpointConfigs: {
     'anthropic-messages': {

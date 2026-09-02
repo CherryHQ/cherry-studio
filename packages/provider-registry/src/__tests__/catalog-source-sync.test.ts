@@ -28,8 +28,8 @@ import {
 import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
 import {
-  findLegacyProviderSupportedEditions,
-  LEGACY_PROVIDER_SUPPORTED_EDITIONS
+  findLegacyProviderAvailableInEditions,
+  LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS
 } from '../providers/legacyProviderEditions'
 import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
@@ -82,16 +82,16 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
 describe('catalog ↔ source sync (regenerate guard)', () => {
   it('classifies every source provider by supported application edition', () => {
     for (const provider of PROVIDERS) {
-      expect(provider.supportedEditions).toContain('global')
+      expect(provider.availableInEditions).toContain('global')
     }
   })
 
   it('classifies historical presets without treating unknown custom providers as presets', () => {
-    for (const [providerId, supportedEditions] of Object.entries(LEGACY_PROVIDER_SUPPORTED_EDITIONS)) {
-      expect(findLegacyProviderSupportedEditions(providerId)).toEqual(supportedEditions)
+    for (const [providerId, availableInEditions] of Object.entries(LEGACY_PROVIDER_AVAILABLE_IN_EDITIONS)) {
+      expect(findLegacyProviderAvailableInEditions(providerId)).toEqual(availableInEditions)
     }
 
-    expect(findLegacyProviderSupportedEditions('custom-provider')).toBeUndefined()
+    expect(findLegacyProviderAvailableInEditions('custom-provider')).toBeUndefined()
   })
 
   it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {

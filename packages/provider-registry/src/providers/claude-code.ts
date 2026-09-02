@@ -54,7 +54,7 @@ const EXTENDED_CONTEXT_MODELS = [
 export default defineProvider({
   id: 'claude-code',
   name: 'Claude Code',
-  supportedEditions: ['global'],
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'anthropic-messages',
   modelListSource: 'registry',
   authMethods: ['external-cli'],

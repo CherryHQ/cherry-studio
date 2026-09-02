@@ -72,14 +72,14 @@ describe('providerHandlers', () => {
   describe('/providers', () => {
     it('returns only providers available in the application edition', async () => {
       listMock.mockReturnValueOnce([
-        { id: 'global-only', supportedEditions: ['global'] },
-        { id: 'all-editions', supportedEditions: ['global', 'cn'] },
+        { id: 'global-only', availableInEditions: ['global'] },
+        { id: 'all-editions', availableInEditions: ['global', 'cn'] },
         { id: 'custom' }
       ])
 
       const result = await providerHandlers['/providers'].GET({ query: {} } as never)
 
-      expect(result).toEqual([{ id: 'all-editions', supportedEditions: ['global', 'cn'] }, { id: 'custom' }])
+      expect(result).toEqual([{ id: 'all-editions', availableInEditions: ['global', 'cn'] }, { id: 'custom' }])
       expect(listMock).toHaveBeenCalledWith({})
     })
 
@@ -127,7 +127,7 @@ describe('providerHandlers', () => {
 
   describe('/providers/:providerId', () => {
     it('does not expose a provider unavailable in the application edition', async () => {
-      getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', supportedEditions: ['global'] })
+      getByProviderIdMock.mockReturnValueOnce({ id: 'global-only', availableInEditions: ['global'] })
 
       await expect(
         providerHandlers['/providers/:providerId'].GET({ params: { providerId: 'global-only' } } as never)

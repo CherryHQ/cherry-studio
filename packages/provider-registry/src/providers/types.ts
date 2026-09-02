@@ -25,11 +25,11 @@ type ProviderConnection = Omit<
   | 'authOptional'
   | 'serverTools'
   | 'reportsActualCost'
-  | 'supportedEditions'
+  | 'availableInEditions'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
-  supportedEditions: NonNullable<ProviderConfig['supportedEditions']>
+  availableInEditions: NonNullable<ProviderConfig['availableInEditions']>
   /** Defaults to `api`; only registry-backed providers need to declare it. */
   modelListSource?: ProviderConfig['modelListSource']
   /** Defaults to `false`; only credential-free local providers declare it. */
@@ -92,7 +92,7 @@ export function openaiCompatible(
     baseUrl: string
     anthropic?: string
     website: ProviderWebsite
-    supportedEditions: ProviderConnection['supportedEditions']
+    availableInEditions: ProviderConnection['availableInEditions']
     /** Dialect deviations of this host's chat-completions implementation. */
     dialect?: EndpointDialect
     presetProviderId?: string
@@ -120,7 +120,7 @@ export function openaiCompatible(
     defaultChatEndpoint: 'openai-chat-completions',
     endpointConfigs,
     metadata: { website: p.website },
-    supportedEditions: p.supportedEditions,
+    availableInEditions: p.availableInEditions,
     ...(p.authOptional ? { authOptional: p.authOptional } : {}),
     ...(p.serverTools ? { serverTools: p.serverTools } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),

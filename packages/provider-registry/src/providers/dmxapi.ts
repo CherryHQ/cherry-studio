@@ -60,7 +60,7 @@ const nanoBanana2Modes = { edit: nanoBanana2Mode, merge: nanoBanana2Mode }
 export default defineProvider({
   id: 'dmxapi',
   name: 'DMXAPI',
-  supportedEditions: ['global', 'cn'],
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

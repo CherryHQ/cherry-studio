@@ -4,7 +4,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'minimax-global',
   name: 'minimax-global',
-  supportedEditions: ['global'],
+  availableInEditions: ['global'],
   baseUrl: 'https://api.minimax.io/v1/',
   anthropic: 'https://api.minimax.io/anthropic',
   website: {

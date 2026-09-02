@@ -113,7 +113,7 @@ export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Application-edition support for presets removed from the current catalog.
-export { findLegacyProviderSupportedEditions } from './providers/legacyProviderEditions'
+export { findLegacyProviderAvailableInEditions } from './providers/legacyProviderEditions'
 
 // Model ID normalization utilities
 export {
