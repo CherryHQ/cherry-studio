@@ -232,6 +232,16 @@ describe('shared artifact installation', () => {
 })
 
 describe('shared artifact removal coordination', () => {
+  it('admits a reservation before a later removal can observe the artifact as unused', async () => {
+    const reservation = localModelStorageService.reserveArtifacts(['onnxruntime-node'], new AbortController().signal)
+    const removal = localModelStorageService.removeArtifactIfUnused('onnxruntime-node')
+
+    const release = await reservation
+    await expect(removal).resolves.toBe(false)
+    expect(removeArtifact).not.toHaveBeenCalled()
+    release()
+  })
+
   it('does not remove an artifact reserved by a bundle attempt', async () => {
     const controller = new AbortController()
     const release = await localModelStorageService.reserveArtifacts(['onnxruntime-node'], controller.signal)
@@ -272,6 +282,51 @@ describe('shared artifact removal coordination', () => {
     release()
   })
 
+  it('coalesces concurrent removals into one artifact deletion', async () => {
+    let finishRemoval: (() => void) | undefined
+    removeArtifact.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRemoval = resolve
+        })
+    )
+
+    const first = localModelStorageService.removeArtifactIfUnused('onnxruntime-node')
+    const second = localModelStorageService.removeArtifactIfUnused('onnxruntime-node')
+    await vi.waitFor(() => expect(finishRemoval).toBeDefined())
+
+    expect(removeArtifact).toHaveBeenCalledOnce()
+    finishRemoval?.()
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true])
+  })
+
+  it('waits for an aborted install to drain before deleting the artifact', async () => {
+    let finishInstall: (() => void) | undefined
+    installArtifact.mockImplementationOnce(
+      (_artifact, signal: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              finishInstall = () => reject(signal.reason)
+            },
+            { once: true }
+          )
+        })
+    )
+    const install = ensureArtifact(new AbortController().signal)
+    await vi.waitFor(() => expect(installArtifact).toHaveBeenCalledOnce())
+
+    const removal = localModelStorageService.removeArtifactIfUnused('onnxruntime-node')
+    await vi.waitFor(() => expect(finishInstall).toBeDefined())
+    expect(removeArtifact).not.toHaveBeenCalled()
+
+    finishInstall?.()
+    await expect(install).rejects.toThrow('shared artifact removed')
+    await expect(removal).resolves.toBe(true)
+    expect(removeArtifact).toHaveBeenCalledOnce()
+  })
+
   it('can cancel while waiting for an active removal', async () => {
     let finishRemoval: (() => void) | undefined
     removeArtifact.mockImplementationOnce(
@@ -292,7 +347,7 @@ describe('shared artifact removal coordination', () => {
     await expect(removal).resolves.toBe(true)
   })
 
-  it('grants a reservation after a failed removal has settled', async () => {
+  it('allows reservation and removal to retry after a failed deletion', async () => {
     let failRemoval: (() => void) | undefined
     removeArtifact.mockImplementationOnce(
       () =>
@@ -310,6 +365,9 @@ describe('shared artifact removal coordination', () => {
     await expect(removal).rejects.toThrow('disk busy')
     const release = await reservation
     release()
+
+    await expect(localModelStorageService.removeArtifactIfUnused('onnxruntime-node')).resolves.toBe(true)
+    expect(removeArtifact).toHaveBeenCalledTimes(2)
   })
 
   it('does not start an install while the artifact directory is being removed', async () => {

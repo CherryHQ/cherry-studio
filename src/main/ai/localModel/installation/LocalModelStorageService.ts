@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 
 import {
   artifactEntryPath,
@@ -27,6 +28,7 @@ interface ArtifactInstall {
   listeners: Set<(fraction: number) => void>
   progress: number
   promise: Promise<void>
+  start: () => void
   waiters: number
 }
 
@@ -45,6 +47,7 @@ export class LocalModelStorageService {
   private readonly artifactInstalls = new Map<SharedArtifactId, ArtifactInstall>()
   private readonly artifactReservations = new Map<SharedArtifactId, number>()
   private readonly artifactRemovals = new Map<SharedArtifactId, Promise<void>>()
+  private readonly artifactLifecycleGate = new KeyedMutex()
 
   /** The bundle's own root — what removal deletes. Wider than the model directory when
    * a loader dictates a nested layout, so no empty parent chain is left behind. */
@@ -187,54 +190,79 @@ export class LocalModelStorageService {
     onProgress: ((fraction: number) => void) | undefined,
     registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
   ): Promise<void> {
-    await this.waitForArtifactRemoval(id, signal)
-    if (this.isArtifactReady(id)) return
-    if (signal.aborted) throw this.abortError(signal)
+    for (;;) {
+      if (signal.aborted) throw this.abortError(signal)
+      const admission = await this.artifactLifecycleGate.runExclusive(id, () => {
+        if (signal.aborted) return { kind: 'aborted' as const }
+        const removal = this.artifactRemovals.get(id)
+        if (removal) return { kind: 'removing' as const, removal }
+        if (this.isArtifactReady(id)) return { kind: 'ready' as const }
 
-    let install = this.artifactInstalls.get(id)
-    if (install?.controller.signal.aborted) {
-      try {
-        await this.awaitArtifactInstall(install, signal)
-      } catch (error) {
-        if (signal.aborted) throw error
-      }
-      return this.ensureArtifact(id, signal, onProgress, registryOrder)
-    }
-    if (!install) {
-      const controller = new AbortController()
-      install = {
-        controller,
-        listeners: new Set(),
-        progress: 0,
-        promise: Promise.resolve(),
-        waiters: 0
-      }
-      const activeInstall = install
-      install.promise = installArtifact(
-        getSharedArtifact(id),
-        controller.signal,
-        (fraction) => {
-          activeInstall.progress = fraction
-          for (const listener of activeInstall.listeners) listener(fraction)
-        },
-        registryOrder
-      ).finally(() => {
-        if (this.artifactInstalls.get(id) === activeInstall) this.artifactInstalls.delete(id)
+        let install = this.artifactInstalls.get(id)
+        if (install?.controller.signal.aborted) return { kind: 'draining' as const, install }
+        if (!install) {
+          install = this.createArtifactInstall(id, registryOrder)
+          this.artifactInstalls.set(id, install)
+        }
+        return { kind: 'installing' as const, install }
       })
-      this.artifactInstalls.set(id, install)
-    }
 
-    return this.awaitArtifactInstall(install, signal, onProgress)
+      switch (admission.kind) {
+        case 'aborted':
+          throw this.abortError(signal)
+        case 'ready':
+          return
+        case 'removing':
+          try {
+            await this.awaitWithAbort(admission.removal, signal)
+          } catch (error) {
+            if (signal.aborted) throw error
+          }
+          break
+        case 'draining':
+          try {
+            await this.awaitArtifactInstall(admission.install, signal)
+          } catch (error) {
+            if (signal.aborted) throw error
+          }
+          break
+        case 'installing':
+          admission.install.start()
+          return this.awaitArtifactInstall(admission.install, signal, onProgress)
+      }
+    }
   }
 
   async reserveArtifacts(ids: readonly SharedArtifactId[], signal: AbortSignal): Promise<() => void> {
     const acquired: SharedArtifactId[] = []
     try {
       for (const id of new Set(ids)) {
-        await this.waitForArtifactRemoval(id, signal)
-        if (signal.aborted) throw this.abortError(signal)
-        this.artifactReservations.set(id, (this.artifactReservations.get(id) ?? 0) + 1)
-        acquired.push(id)
+        for (;;) {
+          if (signal.aborted) throw this.abortError(signal)
+          const admission = await this.artifactLifecycleGate.runExclusive(id, () => {
+            if (signal.aborted) return { kind: 'aborted' as const }
+            const removal = this.artifactRemovals.get(id)
+            if (removal) return { kind: 'removing' as const, removal }
+
+            this.artifactReservations.set(id, (this.artifactReservations.get(id) ?? 0) + 1)
+            return { kind: 'acquired' as const }
+          })
+          switch (admission.kind) {
+            case 'aborted':
+              throw this.abortError(signal)
+            case 'acquired':
+              acquired.push(id)
+              break
+            case 'removing':
+              try {
+                await this.awaitWithAbort(admission.removal, signal)
+              } catch (error) {
+                if (signal.aborted) throw error
+              }
+              continue
+          }
+          break
+        }
       }
     } catch (error) {
       this.releaseArtifactReservations(acquired)
@@ -251,17 +279,71 @@ export class LocalModelStorageService {
 
   /** Removes an artifact only after atomically excluding new users. */
   async removeArtifactIfUnused(id: SharedArtifactId): Promise<boolean> {
-    if ((this.artifactReservations.get(id) ?? 0) > 0) return false
+    const admission = await this.artifactLifecycleGate.runExclusive(id, () => {
+      if ((this.artifactReservations.get(id) ?? 0) > 0) return { kind: 'reserved' as const }
 
-    let removal = this.artifactRemovals.get(id)
-    if (!removal) {
-      removal = this.performArtifactRemoval(id).finally(() => {
+      const existing = this.artifactRemovals.get(id)
+      if (existing) return { kind: 'removing' as const, removal: existing }
+
+      let start!: () => void
+      let started = false
+      const operation = new Promise<void>((resolve, reject) => {
+        start = () => {
+          if (started) return
+          started = true
+          void this.performArtifactRemoval(id).then(resolve, reject)
+        }
+      })
+      const removal = operation.finally(() => {
         if (this.artifactRemovals.get(id) === removal) this.artifactRemovals.delete(id)
       })
       this.artifactRemovals.set(id, removal)
-    }
-    await removal
+      return { kind: 'removing' as const, removal, start }
+    })
+    if (admission.kind === 'reserved') return false
+
+    admission.start?.()
+    await admission.removal
     return true
+  }
+
+  private createArtifactInstall(
+    id: SharedArtifactId,
+    registryOrder: readonly [ArtifactRegistryId, ...ArtifactRegistryId[]]
+  ): ArtifactInstall {
+    const controller = new AbortController()
+    const install: ArtifactInstall = {
+      controller,
+      listeners: new Set(),
+      progress: 0,
+      promise: Promise.resolve(),
+      start: () => {},
+      waiters: 0
+    }
+    let resolveInstall!: () => void
+    let rejectInstall!: (error: unknown) => void
+    const operation = new Promise<void>((resolve, reject) => {
+      resolveInstall = resolve
+      rejectInstall = reject
+    })
+    install.promise = operation.finally(() => {
+      if (this.artifactInstalls.get(id) === install) this.artifactInstalls.delete(id)
+    })
+    let started = false
+    install.start = () => {
+      if (started) return
+      started = true
+      void installArtifact(
+        getSharedArtifact(id),
+        controller.signal,
+        (fraction) => {
+          install.progress = fraction
+          for (const listener of install.listeners) listener(fraction)
+        },
+        registryOrder
+      ).then(resolveInstall, rejectInstall)
+    }
+    return install
   }
 
   private awaitArtifactInstall(
@@ -269,6 +351,11 @@ export class LocalModelStorageService {
     signal: AbortSignal,
     onProgress?: (fraction: number) => void
   ): Promise<void> {
+    if (signal.aborted) {
+      if (install.waiters === 0) install.controller.abort(this.abortError(signal))
+      return Promise.reject(this.abortError(signal))
+    }
+
     const listener = onProgress ? (fraction: number) => onProgress(fraction) : undefined
     install.waiters += 1
     if (listener) {
@@ -314,18 +401,6 @@ export class LocalModelStorageService {
       const remaining = (this.artifactReservations.get(id) ?? 1) - 1
       if (remaining === 0) this.artifactReservations.delete(id)
       else this.artifactReservations.set(id, remaining)
-    }
-  }
-
-  private async waitForArtifactRemoval(id: SharedArtifactId, signal: AbortSignal): Promise<void> {
-    let removal = this.artifactRemovals.get(id)
-    while (removal) {
-      try {
-        await this.awaitWithAbort(removal, signal)
-      } catch (error) {
-        if (signal.aborted) throw error
-      }
-      removal = this.artifactRemovals.get(id)
     }
   }
 

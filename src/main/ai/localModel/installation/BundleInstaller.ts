@@ -113,6 +113,10 @@ export class BundleInstaller {
     return this.bundle.requires.every((id) => localModelStorageService.isArtifactReady(id))
   }
 
+  private isDurablyReady(): boolean {
+    return localModelStorageService.scanBundleFiles(this.bundle).status === 'installed' && this.artifactsReady()
+  }
+
   async download(resolvePreference: ResolveDownloadSourcePreference): Promise<LocalModelDownloadResult> {
     if (this.removalInFlight) throw new Error(`Local model bundle ${this.bundle.id} is being removed.`)
     if (!localModelStorageService.isBundleSupported(this.bundle)) {
@@ -140,28 +144,39 @@ export class BundleInstaller {
     const { signal } = controller
     let releaseReservations: (() => void) | undefined
     let outcome: DownloadOutcome
+    let failure: { error: unknown } | null = null
 
     try {
       releaseReservations = await localModelStorageService.reserveArtifacts(this.bundle.requires, signal)
       const preference = await this.waitForSourcePreference(resolvePreference, signal)
       signal.throwIfAborted()
       await this.performDownload(signal, modelSourceOrder(preference), artifactRegistryOrder(preference))
-      signal.throwIfAborted()
-      outcome = { kind: 'result', result: 'ready', terminal: { status: 'ready', percent: 100 } }
     } catch (error) {
-      if (signal.aborted) {
-        outcome = {
-          kind: 'result',
-          result: 'cancelled',
-          terminal: { status: 'not_downloaded', percent: 0 }
-        }
-      } else {
-        logger.error(`local ${this.bundle.capability} model download failed`, error as Error)
-        outcome = {
-          kind: 'error',
-          error,
-          terminal: { status: 'error', percent: 0, errorCode: 'download_failed' }
-        }
+      failure = { error }
+    }
+
+    let durableReady = false
+    try {
+      durableReady = this.isDurablyReady()
+    } catch (error) {
+      failure ??= { error }
+    }
+
+    if (durableReady) {
+      outcome = { kind: 'result', result: 'ready', terminal: { status: 'ready', percent: 100 } }
+    } else if (signal.aborted) {
+      outcome = {
+        kind: 'result',
+        result: 'cancelled',
+        terminal: { status: 'not_downloaded', percent: 0 }
+      }
+    } else {
+      const error = failure?.error ?? new Error(`Local model bundle ${this.bundle.id} is incomplete after download.`)
+      logger.error(`local ${this.bundle.capability} model download failed`, error as Error)
+      outcome = {
+        kind: 'error',
+        error,
+        terminal: { status: 'error', percent: 0, errorCode: 'download_failed' }
       }
     }
 
@@ -210,6 +225,7 @@ export class BundleInstaller {
 
     for (const id of this.bundle.requires) {
       if (localModelStorageService.isArtifactReady(id)) continue
+      signal.throwIfAborted()
       const base = doneWeight
       await localModelStorageService.ensureArtifact(
         id,
@@ -217,12 +233,12 @@ export class BundleInstaller {
         (fraction) => report(base + SHARED_ARTIFACT_WEIGHT * fraction),
         registryOrder
       )
-      signal.throwIfAborted()
       doneWeight += SHARED_ARTIFACT_WEIGHT
       report(doneWeight)
     }
 
     if (pending.length > 0) {
+      signal.throwIfAborted()
       const base = doneWeight
       await downloadBundleFiles(this.bundle, pending, {
         signal,
@@ -230,7 +246,6 @@ export class BundleInstaller {
         sourceOrder,
         onProgress: (fraction) => report(base + filesWeight * fraction)
       })
-      signal.throwIfAborted()
     }
   }
 

@@ -251,6 +251,19 @@ describe('download', () => {
     expect(manager.getStatus()).toBe('not_downloaded')
   })
 
+  it('keeps the committed bundle ready when cancellation arrives after the final write', async () => {
+    downloadBundleFiles.mockImplementation(async () => {
+      installComplete()
+      void manager.cancel()
+    })
+
+    await expect(manager.download(GLOBAL_FIRST)).resolves.toBe('ready')
+
+    expect(finalizeSharedArtifacts).not.toHaveBeenCalled()
+    expect(statusUpdates().at(-1)).toEqual({ status: 'ready', percent: 100 })
+    expect(manager.getStatus()).toBe('ready')
+  })
+
   it('can cancel while the mirror region decision is pending', async () => {
     let resolveRegion: ((value: 'china-first') => void) | undefined
     const regionDecision = new Promise<'china-first'>((resolve) => {

@@ -163,10 +163,16 @@ describe('InferenceService worker exit / failAll', () => {
     const first = embeddingInferenceService.embed(['a'])
     const failedWorker = await latestWorker()
     const second = embeddingInferenceService.embed(['b'])
+    let releaseExit!: (code: number) => void
+    failedWorker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
 
     failedWorker.emit('error', new Error('worker crashed'))
 
     await expect(first).rejects.toThrow('worker crashed')
+    await Promise.resolve()
+    expect(fakeWorkers).toHaveLength(1)
+
+    releaseExit(1)
     const replacement = await latestWorker(2)
     replacement.emit('message', {
       kind: 'result',
@@ -209,6 +215,27 @@ describe('InferenceService worker exit / failAll', () => {
     expect(fakeWorkers).toHaveLength(0)
   })
 
+  it('does not spawn a worker when the caller aborts during worker initialization', async () => {
+    let resolveRouting!: (routing: ProxyRoutingSnapshot) => void
+    getRoutingSnapshot.mockReturnValueOnce(
+      new Promise<ProxyRoutingSnapshot>((resolve) => {
+        resolveRouting = resolve
+      })
+    )
+    const controller = new AbortController()
+    const pending = embeddingInferenceService.embed(['hi'], controller.signal)
+    for (let attempt = 0; attempt < 10 && getRoutingSnapshot.mock.calls.length === 0; attempt += 1) {
+      await Promise.resolve()
+    }
+
+    controller.abort(new Error('request cancelled'))
+    await expect(pending).rejects.toThrow('request cancelled')
+    resolveRouting(DIRECT_ROUTING)
+    for (let attempt = 0; attempt < 10; attempt += 1) await Promise.resolve()
+
+    expect(fakeWorkers).toHaveLength(0)
+  })
+
   it('terminate() resolves only once the worker has actually exited, not just been asked to', async () => {
     // terminate() rejects this in-flight request synchronously — swallow it here, but still
     // await it below so the shared queue's concurrency slot is fully released before the
@@ -235,6 +262,33 @@ describe('InferenceService worker exit / failAll', () => {
     await done
     await rejected
     expect(settled).toBe(true)
+  })
+
+  it('coalesces termination and delays a replacement worker until the old worker exits', async () => {
+    const first = embeddingInferenceService.embed(['first'])
+    const worker = await latestWorker()
+    worker.emit('message', { kind: 'result', requestId: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
+    await first
+
+    let releaseExit!: (code: number) => void
+    worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
+    const termination = embeddingInferenceService.terminate()
+    const concurrentTermination = embeddingInferenceService.terminate()
+    const next = embeddingInferenceService.embed(['next'])
+
+    await Promise.resolve()
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    expect(fakeWorkers).toHaveLength(1)
+
+    releaseExit(0)
+    await Promise.all([termination, concurrentTermination])
+    const replacement = await latestWorker(2)
+    replacement.emit('message', {
+      kind: 'result',
+      requestId: lastRequestId(replacement),
+      payload: { embeddings: [[0.2]] }
+    })
+    await expect(next).resolves.toEqual([[0.2]])
   })
 
   it("ignores a superseded worker's late exit instead of tearing down the live worker", async () => {
@@ -449,16 +503,17 @@ describe('InferenceService worker init message', () => {
     workerA.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
     getRoutingSnapshot.mockResolvedValue({ version: 2, mode: 'direct' })
     const second = embeddingInferenceService.embed(['second'])
-    const rejected = expect(second).rejects.toThrow(/terminated/)
     for (let attempt = 0; attempt < 20 && workerA.terminate.mock.calls.length === 0; attempt += 1) {
       await Promise.resolve()
     }
     expect(workerA.terminate).toHaveBeenCalledTimes(1)
 
-    await embeddingInferenceService.terminate()
+    const termination = embeddingInferenceService.terminate()
+    expect(workerA.terminate).toHaveBeenCalledTimes(1)
     releaseExit(0)
 
-    await rejected
+    await termination
+    await expect(second).rejects.toThrow(/terminated/)
     expect(fakeWorkers).toHaveLength(1)
   })
 })
@@ -487,6 +542,24 @@ describe('InferenceService idle-release timer', () => {
     await vi.advanceTimersByTimeAsync(60_000)
 
     expect(worker.terminate).toHaveBeenCalledTimes(1)
+  })
+
+  it('coalesces an explicit termination with an idle release already in progress', async () => {
+    vi.useFakeTimers()
+
+    const pending = embeddingInferenceService.embed(['hi'])
+    const worker = await latestWorker()
+    worker.emit('message', { kind: 'result', requestId: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
+    await pending
+    let releaseExit!: (code: number) => void
+    worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    const explicitTermination = embeddingInferenceService.terminate()
+
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    releaseExit(0)
+    await explicitTermination
   })
 
   it('keeps the worker alive when another request arrives before the idle timeout', async () => {
@@ -543,7 +616,8 @@ describe('InferenceService request queue', () => {
     worker.emit('message', { kind: 'result', requestId: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await first
 
-    // Settling the first dispatches the second — still to the same (single) worker.
+    // The caller result may settle just before the queue observes execution quiescence.
+    await waitForPostedRequests(worker, 2)
     expect(postedRequestCount()).toBe(2)
     expect(fakeWorkers).toHaveLength(1)
 
@@ -551,21 +625,67 @@ describe('InferenceService request queue', () => {
     await expect(second).resolves.toEqual([[0.2]])
   })
 
-  it('rejects a queued request immediately once dequeued if its signal was already aborted while waiting', async () => {
+  it('rejects a queued request immediately when its signal is aborted', async () => {
     const first = embeddingInferenceService.embed(['a'])
     const worker = await latestWorker()
     const controller = new AbortController()
     const second = embeddingInferenceService.embed(['b'], controller.signal)
 
-    controller.abort()
+    controller.abort(new Error('queued request cancelled'))
+    await expect(second).rejects.toThrow('queued request cancelled')
+
+    // Cancelling the queued caller does not disturb the active worker request.
+    expect(worker.terminate).not.toHaveBeenCalled()
     worker.emit('message', { kind: 'result', requestId: lastRequestId(worker), payload: { embeddings: [[0.1]] } })
     await first
 
-    await expect(second).rejects.toThrow()
     // The aborted request never reached the worker.
     expect(
       worker.postMessage.mock.calls.filter(([message]) => (message as { requestId?: string }).requestId !== undefined)
     ).toHaveLength(1)
+  })
+
+  it('rejects an active caller immediately but keeps the queue blocked until the worker exits', async () => {
+    const controller = new AbortController()
+    const first = embeddingInferenceService.embed(['a'], controller.signal)
+    const worker = await latestWorker()
+    let releaseExit!: (code: number) => void
+    worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
+    const second = embeddingInferenceService.embed(['b'])
+
+    controller.abort(new Error('active request cancelled'))
+
+    await expect(first).rejects.toThrow('active request cancelled')
+    expect(worker.terminate).toHaveBeenCalledOnce()
+    await Promise.resolve()
+    expect(fakeWorkers).toHaveLength(1)
+    expect(
+      worker.postMessage.mock.calls.filter(([message]) => (message as { requestId?: string }).requestId !== undefined)
+    ).toHaveLength(1)
+
+    releaseExit(0)
+    const replacement = await latestWorker(2)
+    replacement.emit('message', {
+      kind: 'result',
+      requestId: lastRequestId(replacement),
+      payload: { embeddings: [[0.2]] }
+    })
+    await expect(second).resolves.toEqual([[0.2]])
+  })
+
+  it('reuses the worker after a request error response reaches quiescence', async () => {
+    const first = embeddingInferenceService.embed(['a'])
+    const worker = await latestWorker()
+    const second = embeddingInferenceService.embed(['b'])
+
+    worker.emit('message', { kind: 'error', requestId: lastRequestId(worker), message: 'inference failed' })
+    await expect(first).rejects.toThrow('inference failed')
+    await waitForPostedRequests(worker, 2)
+
+    expect(fakeWorkers).toHaveLength(1)
+    expect(worker.terminate).not.toHaveBeenCalled()
+    worker.emit('message', { kind: 'result', requestId: lastPostedId(worker), payload: { embeddings: [[0.2]] } })
+    await expect(second).resolves.toEqual([[0.2]])
   })
 })
 

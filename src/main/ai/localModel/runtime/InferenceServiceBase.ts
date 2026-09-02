@@ -35,10 +35,23 @@ interface InferenceServiceSpec<
 }
 
 interface Pending<TRequestType extends string> {
+  worker: Worker
   resolve: (payload: unknown) => void
   reject: (error: Error) => void
   requestType: TRequestType
   cleanup: () => void
+  complete: () => void
+}
+
+interface AttemptResult<T> {
+  resolve: (value: T) => void
+  reject: (error: Error) => void
+  setCancelExecution: (cancel: (() => void) | undefined) => void
+}
+
+interface WorkerTermination {
+  worker: Worker
+  promise: Promise<void>
 }
 
 /**
@@ -61,6 +74,7 @@ export abstract class InferenceServiceBase<
   private idSeq = 0
   private idleReleaseTimer: NodeJS.Timeout | null = null
   private closing = false
+  private workerTermination: WorkerTermination | null = null
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   protected constructor(private readonly spec: InferenceServiceSpec<TCapability, TRequests, TResults>) {
@@ -69,7 +83,11 @@ export abstract class InferenceServiceBase<
     this.workerSource = buildInferenceWorkerSource(spec.runtimeModuleSource, spec.workerModuleSource)
   }
 
-  private async ensureWorker(): Promise<Worker> {
+  private async ensureWorker(signal?: AbortSignal): Promise<Worker> {
+    if (signal?.aborted) throw this.abortError(signal)
+    if (this.closing) throw new Error('inference host is shutting down')
+    if (this.workerTermination) await this.workerTermination.promise
+    if (signal?.aborted) throw this.abortError(signal)
     if (this.closing) throw new Error('inference host is shutting down')
 
     const unsupportedArtifact = this.spec.sharedArtifacts.find(
@@ -86,6 +104,7 @@ export abstract class InferenceServiceBase<
     const runtimeProfile = resolveLocalInferenceProfile(
       application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
     )
+    if (signal?.aborted) throw this.abortError(signal)
     if (generation !== this.workerGeneration) throw new Error('inference host terminated')
     if (this.closing) throw new Error('inference host is shutting down')
     if (this.worker && this.workerProxyVersion === proxyRouting.version && this.workerProfileId === runtimeProfile.id) {
@@ -93,29 +112,29 @@ export abstract class InferenceServiceBase<
     }
     if (this.worker) {
       await this.terminate()
+      if (signal?.aborted) throw this.abortError(signal)
       if (this.workerGeneration !== generation + 1) throw new Error('inference host terminated')
     }
     if (this.closing) throw new Error('inference host is shutting down')
 
     const worker = new Worker(this.workerSource, { eval: true })
     worker.unref()
-    worker.on('message', (message: InferenceResponse) => this.handleMessage(message))
+    worker.on('message', (message: InferenceResponse) => this.handleMessage(worker, message))
     worker.on('error', (error) => {
       if (this.worker !== worker) return
-      this.worker = null
-      this.workerProxyVersion = null
-      this.workerProfileId = null
       const workerError = error instanceof Error ? error : new Error(String(error))
-      if (this.pending.size === 0) this.logger.error('inference worker failed', workerError)
-      this.failAll(workerError)
+      this.logger.error('inference worker failed', workerError)
+      this.workerGeneration += 1
+      void this.startWorkerTermination(worker, workerError).catch((terminationError) => {
+        this.logger.error('failed to terminate inference worker after an error', this.asError(terminationError))
+      })
     })
     worker.on('exit', (code) => {
       if (this.worker !== worker) return
-      this.worker = null
-      this.workerProxyVersion = null
-      this.workerProfileId = null
+      this.workerGeneration += 1
+      this.detachWorker(worker)
       if (code !== 0) this.logger.error('inference worker exited abnormally', new Error(`exit code ${code}`))
-      this.failAll(new Error(`inference worker exited unexpectedly (code ${code})`))
+      this.finishExitedWorker(worker, new Error(`inference worker exited unexpectedly (code ${code})`))
     })
 
     const artifactPaths = Object.fromEntries(
@@ -136,7 +155,7 @@ export abstract class InferenceServiceBase<
     return worker
   }
 
-  private handleMessage(message: InferenceResponse): void {
+  private handleMessage(worker: Worker, message: InferenceResponse): void {
     switch (message.kind) {
       case 'log': {
         const log =
@@ -146,7 +165,7 @@ export abstract class InferenceServiceBase<
       }
       case 'result': {
         const pending = this.pending.get(message.requestId)
-        if (!pending) return
+        if (!pending || pending.worker !== worker) return
         this.pending.delete(message.requestId)
         pending.cleanup()
         const payload =
@@ -156,74 +175,147 @@ export abstract class InferenceServiceBase<
           pending.reject(
             new Error(`inference worker returned a ${pending.requestType} result without ${missing.join(', ')}`)
           )
+          pending.complete()
           return
         }
         pending.resolve(payload)
+        pending.complete()
         return
       }
       case 'error': {
         const pending = this.pending.get(message.requestId)
-        if (!pending) return
+        if (!pending || pending.worker !== worker) return
         this.pending.delete(message.requestId)
         pending.cleanup()
         pending.reject(new Error(message.message))
+        pending.complete()
       }
     }
   }
 
-  private failAll(error: Error): void {
-    if (this.pending.size === 0) return
-    this.logger.error('inference worker failed', error)
-    for (const pending of this.pending.values()) {
+  private finishExitedWorker(worker: Worker, error: Error): void {
+    const entries = [...this.pending.entries()].filter(([, pending]) => pending.worker === worker)
+    if (entries.length > 0) this.logger.error('inference worker failed', error)
+    for (const [requestId, pending] of entries) {
+      this.pending.delete(requestId)
       pending.cleanup()
       pending.reject(error)
+      pending.complete()
     }
-    this.pending.clear()
   }
 
-  protected async send<TType extends RequestType<TRequests>>(
+  protected send<TType extends RequestType<TRequests>>(
     type: TType,
     payload: TRequests[TType],
     options: { signal?: AbortSignal } = {}
   ): Promise<TResults[TType]> {
-    if (options.signal?.aborted) throw this.abortError(options.signal)
+    if (options.signal?.aborted) return Promise.reject(this.abortError(options.signal))
     this.clearIdleReleaseTimer()
+
+    let settled = false
+    let cancelExecution: (() => void) | undefined
+    let resolveResult!: (value: TResults[TType]) => void
+    let rejectResult!: (error: Error) => void
+    const result = new Promise<TResults[TType]>((resolve, reject) => {
+      resolveResult = resolve
+      rejectResult = reject
+    })
+    const cleanup = () => {
+      options.signal?.removeEventListener('abort', abortListener)
+    }
+    const attemptResult: AttemptResult<TResults[TType]> = {
+      resolve: (value) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolveResult(value)
+      },
+      reject: (error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        rejectResult(error)
+      },
+      setCancelExecution: (cancel) => {
+        cancelExecution = cancel
+      }
+    }
+
+    const abortListener = () => {
+      const cancel = cancelExecution
+      attemptResult.reject(this.abortError(options.signal!))
+      cancel?.()
+    }
+    options.signal?.addEventListener('abort', abortListener, { once: true })
+    const execution = this.queue.add(() => this.executeAttempt(type, payload, options, attemptResult))
+    void execution.then(
+      () => this.scheduleIdleReleaseIfNeeded(),
+      (error) => {
+        attemptResult.reject(this.asError(error))
+        this.scheduleIdleReleaseIfNeeded()
+      }
+    )
+    return result
+  }
+
+  private async executeAttempt<TType extends RequestType<TRequests>>(
+    type: TType,
+    payload: TRequests[TType],
+    options: { signal?: AbortSignal },
+    result: AttemptResult<TResults[TType]>
+  ): Promise<void> {
+    if (options.signal?.aborted) return
     try {
-      const result = await this.queue.add(() => this.sendNow(type, payload, options))
-      if (result === undefined) throw new Error('inference request queue did not return a result')
-      return result
-    } finally {
-      this.scheduleIdleReleaseIfNeeded()
+      const worker = await this.ensureWorker(options.signal)
+      if (options.signal?.aborted) return
+      await this.executeWorkerRequest(worker, type, payload, options, result)
+    } catch (error) {
+      result.reject(this.asError(error))
     }
   }
 
-  private async sendNow<TType extends RequestType<TRequests>>(
+  private executeWorkerRequest<TType extends RequestType<TRequests>>(
+    worker: Worker,
     type: TType,
     payload: TRequests[TType],
-    options: { signal?: AbortSignal }
-  ): Promise<TResults[TType]> {
-    if (options.signal?.aborted) throw this.abortError(options.signal)
-    const worker = await this.ensureWorker()
+    options: { signal?: AbortSignal },
+    result: AttemptResult<TResults[TType]>
+  ): Promise<void> {
     const requestId = String(++this.idSeq)
 
-    return new Promise<TResults[TType]>((resolve, reject) => {
+    return new Promise<void>((resolveExecution) => {
+      let executionComplete = false
+      const complete = () => {
+        if (executionComplete) return
+        executionComplete = true
+        resolveExecution()
+      }
+      const cleanup = () => result.setCancelExecution(undefined)
+      const cancelExecution = () => {
+        if (this.pending.get(requestId) !== pending) return
+        this.pending.delete(requestId)
+        cleanup()
+        void this.terminate().then(complete, (error) => {
+          this.logger.error('failed to terminate an aborted inference worker', this.asError(error))
+        })
+      }
+
+      const pending: Pending<RequestType<TRequests>> = {
+        worker,
+        resolve: (value) => result.resolve(value as TResults[TType]),
+        reject: result.reject,
+        cleanup,
+        requestType: type,
+        complete
+      }
+      this.pending.set(requestId, pending)
+      result.setCancelExecution(cancelExecution)
       if (options.signal?.aborted) {
-        reject(this.abortError(options.signal))
+        result.reject(this.abortError(options.signal))
+        cancelExecution()
         return
       }
-      const onAbort = () => {
-        if (!this.pending.has(requestId)) return
-        this.pending.delete(requestId)
-        reject(this.abortError(options.signal!))
-      }
-      const cleanup = () => options.signal?.removeEventListener('abort', onAbort)
-      this.pending.set(requestId, {
-        resolve: (result) => resolve(result as TResults[TType]),
-        reject,
-        cleanup,
-        requestType: type
-      })
-      options.signal?.addEventListener('abort', onAbort, { once: true })
+
       const request: InferenceRequestMessage<TCapability, TType, TRequests[TType]> = {
         kind: 'request',
         capability: this.spec.capability,
@@ -231,7 +323,14 @@ export abstract class InferenceServiceBase<
         requestId,
         payload
       }
-      worker.postMessage(request)
+      try {
+        worker.postMessage(request)
+      } catch (error) {
+        this.pending.delete(requestId)
+        cleanup()
+        result.reject(this.asError(error))
+        complete()
+      }
     })
   }
 
@@ -239,20 +338,63 @@ export abstract class InferenceServiceBase<
     return signal.reason instanceof Error ? signal.reason : new Error('aborted')
   }
 
+  private asError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error))
+  }
+
   async terminate(): Promise<void> {
     this.clearIdleReleaseTimer()
     this.workerGeneration += 1
+    if (this.workerTermination) {
+      await this.workerTermination.promise
+      return
+    }
     if (!this.worker) {
       this.workerProxyVersion = null
       this.workerProfileId = null
       return
     }
     const worker = this.worker
+    await this.startWorkerTermination(worker, new Error('inference host terminated'))
+  }
+
+  private startWorkerTermination(worker: Worker, error: Error): Promise<void> {
+    const existing = this.workerTermination
+    if (existing) return existing.promise
+
+    this.detachWorker(worker)
+    let termination: Promise<void>
+    try {
+      termination = worker.terminate().then(() => {})
+    } catch (terminationError) {
+      termination = Promise.reject(terminationError)
+    }
+    const record: WorkerTermination = { worker, promise: Promise.resolve() }
+    record.promise = termination.finally(() => {
+      if (this.workerTermination === record) this.workerTermination = null
+    })
+    this.workerTermination = record
+    this.rejectPendingForTermination(worker, error, record.promise)
+    return record.promise
+  }
+
+  private rejectPendingForTermination(worker: Worker, error: Error, termination: Promise<void>): void {
+    const entries = [...this.pending.entries()].filter(([, pending]) => pending.worker === worker)
+    for (const [requestId, pending] of entries) {
+      this.pending.delete(requestId)
+      pending.cleanup()
+      pending.reject(error)
+      void termination.then(pending.complete, (terminationError) => {
+        this.logger.error('inference worker termination did not reach quiescence', this.asError(terminationError))
+      })
+    }
+  }
+
+  private detachWorker(worker: Worker): void {
+    if (this.worker !== worker) return
     this.worker = null
     this.workerProxyVersion = null
     this.workerProfileId = null
-    this.failAll(new Error('inference host terminated'))
-    await worker.terminate()
   }
 
   async terminateThen<T>(after: () => Promise<T>): Promise<T> {
@@ -300,6 +442,10 @@ export abstract class InferenceServiceBase<
   private async releaseWorkerIfIdle(): Promise<void> {
     if (!this.worker || this.queue.pending > 0 || this.queue.size > 0) return
     this.logger.debug('releasing idle inference worker')
-    await this.terminateSafely()
+    try {
+      await this.terminate()
+    } catch (error) {
+      this.logger.warn('failed to release idle inference worker', this.asError(error))
+    }
   }
 }
