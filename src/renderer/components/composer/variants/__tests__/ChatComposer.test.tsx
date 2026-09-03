@@ -11,7 +11,7 @@ import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -642,6 +642,17 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
       start editing
     </button>
   )
+}
+
+const RunOnLayoutValueChange = ({ value, run }: { value: string; run: () => void }) => {
+  const previousValueRef = useRef(value)
+
+  useLayoutEffect(() => {
+    if (previousValueRef.current !== value) run()
+    previousValueRef.current = value
+  }, [run, value])
+
+  return null
 }
 
 const createPastedTextEditingParts = () => [
@@ -3812,6 +3823,48 @@ describe('ChatComposer', () => {
     })
   })
 
+  it('blocks quote insertion until asynchronous attachment restoration completes', async () => {
+    const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
+    vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={createPastedTextEditingParts() as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    mocks.insertToken.mockClear()
+
+    act(() => {
+      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected while restoring')
+    })
+
+    expect(mocks.insertToken).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pathRestore.resolve(AbsoluteFilePathSchema.parse('/new-user-data/Data/Files/pasted.txt'))
+      await pathRestore.promise
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(true))
+
+    act(() => {
+      mocks.ipcListeners.get(IpcChannel.App_QuoteToMain)?.({}, 'Selected after restoring')
+    })
+
+    expect(mocks.insertToken).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'quote', description: 'Selected after restoring' })
+    )
+  })
+
   it('does not apply a pending attachment restoration after editing is cancelled', async () => {
     const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
     vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
@@ -3842,6 +3895,49 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(mocks.surfaceProps?.text).toBe('original draft')
     expect(mocks.replaceDraft).toHaveBeenLastCalledWith({ text: 'original draft', tokens: [] })
+  })
+
+  it('does not apply a pending attachment restoration after switching topics', async () => {
+    const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
+    vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const nextTopic = { ...topic, id: 'topic-2' }
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-2'
+        ? { text: 'topic 2 draft', tokens: [], files: [], knowledgeBaseIds: [] }
+        : undefined
+    )
+    const resolveRestoration = () =>
+      pathRestore.resolve(AbsoluteFilePathSchema.parse('/new-user-data/Data/Files/pasted.txt'))
+    const view = render(
+      <MessageEditingProvider>
+        <RunOnLayoutValueChange value={topic.id} run={resolveRestoration} />
+        <StartEditingOnMount message={message as any} parts={createPastedTextEditingParts() as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    mocks.replaceDraft.mockClear()
+
+    view.rerender(
+      <MessageEditingProvider>
+        <RunOnLayoutValueChange value={nextTopic.id} run={resolveRestoration} />
+        <StartEditingOnMount enabled={false} message={message as any} parts={createPastedTextEditingParts() as any} />
+        <ChatComposer topic={nextTopic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await act(async () => pathRestore.promise)
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('topic 2 draft')
+    expect(mocks.replaceDraft).not.toHaveBeenCalledWith(expect.objectContaining({ text: 'old' }))
   })
 
   it('locates the edited message from the Composer editing state', async () => {

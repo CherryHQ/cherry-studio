@@ -614,6 +614,12 @@ const ChatComposerInner = ({
   const mentionedModelsRef = useLatest(mentionedModels)
   const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
   const restoringEditingSessionIdRef = useRef<number | null>(null)
+  useLayoutEffect(
+    () => () => {
+      restoringEditingSessionIdRef.current = null
+    },
+    []
+  )
   const isEditingDraftRestoring = Boolean(
     editingMessageForCurrentTopic && restoredEditingSessionId !== editingMessageForCurrentTopic.editingSessionId
   )
@@ -1170,7 +1176,7 @@ const ChatComposerInner = ({
   const restoreEditableMessageDraft = useEffectEvent(async (nextEditingMessage: NonNullable<typeof editingMessage>) => {
     const editableDraft = await createEditableMessageDraft(nextEditingMessage.parts)
     if (
-      editingMessageForCurrentTopic?.editingSessionId !== nextEditingMessage.editingSessionId ||
+      editingMessageForCurrentTopicRef.current?.editingSessionId !== nextEditingMessage.editingSessionId ||
       restoringEditingSessionIdRef.current !== nextEditingMessage.editingSessionId
     ) {
       return
@@ -1417,7 +1423,7 @@ const ChatComposerInner = ({
     Object.assign(actionsRef.current, { addNewTopic })
   }, [actionsRef, addNewTopic])
 
-  useComposerQuoteInsertion(actionsRef)
+  useComposerQuoteInsertion(actionsRef, !isEditingDraftRestoring)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
