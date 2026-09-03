@@ -88,14 +88,17 @@ function removePreviewWrapperBackground(body: HTMLElement): void {
   })
 }
 
-function getLayoutWidth(element: HTMLElement): number {
-  return Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width)
+function getLayoutWidth(element: HTMLElement, appliedZoom: number): number {
+  return Math.max(element.scrollWidth, element.offsetWidth, element.getBoundingClientRect().width / appliedZoom)
 }
 
 function getDocxContentWidth(body: HTMLElement): number {
+  const appliedZoom = Number(body.style.zoom) || DOCX_PREVIEW_DEFAULT_ZOOM
   const wrapper = body.querySelector<HTMLElement>('.docx-preview-wrapper')
   const pages = Array.from(body.querySelectorAll<HTMLElement>('.docx-preview-page'))
-  const widths = [wrapper, ...pages].filter((element): element is HTMLElement => Boolean(element)).map(getLayoutWidth)
+  const widths = [wrapper, ...pages]
+    .filter((element): element is HTMLElement => Boolean(element))
+    .map((element) => getLayoutWidth(element, appliedZoom))
   return widths.length > 0 ? Math.max(...widths) : 0
 }
 

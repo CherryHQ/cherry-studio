@@ -165,6 +165,48 @@ describe('WordFilePreview', () => {
     }
   })
 
+  it('resets to the same fit zoom when browser geometry reflects the current CSS zoom', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      return this.getAttribute('aria-label') === 'report.docx' ? 524 : 0
+    })
+    const scrollWidthSpy = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.getAttribute('aria-label') !== 'report.docx') return 0
+      const zoom = Number(screen.queryByTestId('docx-preview-content')?.getAttribute('data-zoom') ?? '1')
+      return Math.max(524, Math.round(800 * zoom))
+    })
+    const boundingRectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      const zoom = Number(this.closest('[data-testid="docx-preview-content"]')?.getAttribute('data-zoom') ?? '1')
+      const width =
+        this.classList.contains('docx-preview-wrapper') || this.classList.contains('docx-preview-page') ? 800 * zoom : 0
+      return { bottom: 0, height: 0, left: 0, right: width, top: 0, width, x: 0, y: 0, toJSON: () => ({}) }
+    })
+    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
+      body.innerHTML = '<div class="docx-preview-wrapper"><section>Page 1</section></div>'
+    })
+
+    try {
+      render(<WordFilePreview filePath={filePath} fileName="report.docx" metadata={{ size: 1024 }} refreshKey={0} />)
+
+      await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%'))
+      fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_in' }))
+      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('73%')
+
+      fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
+
+      expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('63%')
+    } finally {
+      clientWidthSpy.mockRestore()
+      scrollWidthSpy.mockRestore()
+      boundingRectSpy.mockRestore()
+    }
+  })
+
   it('removes the default DOCX wrapper background', async () => {
     mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, body: HTMLElement) => {
       body.innerHTML =

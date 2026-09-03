@@ -1303,6 +1303,51 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
+  it('keeps a file-tree selection when an older input-preview request completes', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    let resolveOriginalMetadata: (metadata: PhysicalFileMetadata | null) => void = () => {}
+    ipcRequestMock.mockImplementationOnce(
+      () =>
+        new Promise<PhysicalFileMetadata | null>((resolve) => {
+          resolveOriginalMetadata = resolve
+        })
+    )
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+      'data-preview-path',
+      '/internal/message-files/report.md'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-preview-path', '/workspace/README.md')
+
+    await act(async () => {
+      resolveOriginalMetadata({
+        kind: 'file',
+        type: 'text',
+        size: 1,
+        createdAt: 1,
+        modifiedAt: 1,
+        mime: 'text/plain'
+      })
+      await Promise.resolve()
+    })
+
+    expect(ipcRequestMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-preview-path', '/workspace/README.md')
+  })
+
   it('opens the files pane without previewing a declared directory', async () => {
     ipcRequestMock.mockResolvedValue({
       kind: 'directory',

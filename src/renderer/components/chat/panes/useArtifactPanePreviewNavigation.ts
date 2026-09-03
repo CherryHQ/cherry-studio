@@ -155,6 +155,7 @@ export function useArtifactPanePreviewNavigation({
   }, [panelActions, requestFileSelection])
 
   const clearReturnTarget = useCallback(() => {
+    requestRef.current += 1
     returnRef.current = null
   }, [])
 
