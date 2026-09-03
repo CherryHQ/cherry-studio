@@ -58,6 +58,24 @@ function omit(reason: string, model: Model, selection: CanonicalReasoningSelecti
 }
 
 /**
+ * Degrade a requested `auto` the model's vocabulary does not offer.
+ *
+ * `auto` is synthesized per model — a budget model never declares it, a toggle
+ * model declares nothing else — so a selection stored against one model can
+ * arrive at another that cannot express it. There it means `default`: let the
+ * provider decide, rather than push `auto` onto an effort wire with no such
+ * tier. Runs before {@link resolveSelection}, which deliberately passes `auto`
+ * through for cross-dialect requests carrying it canonically.
+ */
+export function normalizeRequestedSelection(
+  selection: CanonicalReasoningSelection,
+  model: Model
+): CanonicalReasoningSelection {
+  if (selection !== 'auto') return selection
+  return (model.reasoning?.selectableEfforts ?? []).includes(selection) ? selection : 'default'
+}
+
+/**
  * Project a selection onto what this model declares: the value itself, the
  * nearest effort it does declare, or `undefined` when it declares none.
  *

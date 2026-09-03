@@ -20,7 +20,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CallOverrides } from '@main/ai/types'
 import { type GatedSampling, getTemperature, getTopP } from '@main/ai/utils/modelParameters'
-import { type ResolvedReasoningKind, resolveSelection } from '@main/ai/utils/reasoningSerializers'
+import {
+  normalizeRequestedSelection,
+  type ResolvedReasoningKind,
+  resolveSelection
+} from '@main/ai/utils/reasoningSerializers'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
@@ -49,7 +53,7 @@ const TRANSLATE_STREAM_PREFIX = 'translate:'
 // Which bucket the sampling gates should assume, resolved the way Main will resolve it. Guessing
 // from the stored effort alone drops a parameter over thinking the model was never going to do.
 function reasoningKindFor(effort: ReasoningEffortOption, model: Model): ResolvedReasoningKind {
-  const resolved = resolveSelection(effort, model)
+  const resolved = resolveSelection(normalizeRequestedSelection(effort, model), model)
   if (resolved === undefined || resolved === 'default') return 'omit'
   if (resolved === 'none') return 'off'
   return 'effort'
@@ -140,11 +144,11 @@ export class TranslateService {
    *
    * That forces the gate to run before the pipeline resolves reasoning, which an
    * assistant's settings never do — `buildAgentParams` gates them after. Sharing
-   * `resolveSelection` closes the model half of that gap. The wire half stays
-   * open: a profile with no mode for the selection still reads as active here
-   * and omits downstream, so a translation could lose a temperature it should
-   * have kept. #19693 is the exit — it moves this gate inside the pipeline,
-   * where both halves are known.
+   * `normalizeRequestedSelection` + `resolveSelection` closes the model half of
+   * that gap. What stays open is the endpoint: this reads the vocabulary
+   * projected when the model row was materialized, while the pipeline
+   * re-projects against the endpoint the request actually uses. #19693 is the
+   * exit — it moves this gate inside the pipeline, where both are known.
    */
   resolveRequestParameters(model: Model): { reasoningEffort: ReasoningEffortOption; callOverrides: CallOverrides } {
     const preferenceService = application.get('PreferenceService')

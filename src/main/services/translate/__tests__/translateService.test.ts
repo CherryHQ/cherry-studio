@@ -297,6 +297,22 @@ describe('translateService.resolveRequestParameters', () => {
     expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBe(0.3)
   })
 
+  it('keeps temperature when a stored auto reaches a model whose vocabulary cannot offer it', () => {
+    // 'auto' is synthesized per model: a toggle model offers it, a budget model never does.
+    // Carried onto the latter, Main degrades it to 'default' and Anthropic declares no default
+    // mode, so nothing is sent — the temperature must not be spent on that.
+    enableAll()
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'auto')
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4-5',
+      providerId: 'anthropic',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'budget', min: 1024, max: 8192 }], selectableEfforts: ['low', 'medium', 'high'] }
+    })
+
+    expect(translateService.resolveRequestParameters(model).callOverrides.temperature).toBe(0.3)
+  })
+
   it('drops temperature when the stored effort resolves to a neighbour the model does declare', () => {
     enableAll()
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.reasoning_effort', 'high')
