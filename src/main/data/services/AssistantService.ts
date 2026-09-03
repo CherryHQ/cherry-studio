@@ -128,8 +128,8 @@ export class AssistantDataService {
     if (dtoModelId !== undefined) {
       if (dtoModelId && !modelService.existsByIdTx(tx, dtoModelId)) {
         throw DataApiErrorFactory.validation(
-          { modelId: [`Model '${dtoModelId}' is not registered in user_model`] },
-          `Assistant modelId '${dtoModelId}' is not registered — add the model first or pass null`
+          { modelId: [`Model '${dtoModelId}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant modelId '${dtoModelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
       }
       return dtoModelId
@@ -525,8 +525,8 @@ export class AssistantDataService {
       // the existing modelId untouched (undefined/empty).
       if (dto.modelId && !modelService.existsByIdTx(tx, dto.modelId)) {
         throw DataApiErrorFactory.validation(
-          { modelId: [`Model '${dto.modelId}' is not registered in user_model`] },
-          `Assistant modelId '${dto.modelId}' is not registered — add the model first or pass null`
+          { modelId: [`Model '${dto.modelId}' is unavailable in this edition or not registered in user_model`] },
+          `Assistant modelId '${dto.modelId}' is unavailable in this edition or not registered — add the model first or pass null`
         )
       }
       if (dto.groupId !== undefined) {

@@ -285,7 +285,10 @@ describe('context-management override (P2-D)', () => {
     const assistant = createAssistant({
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
-        contextSettings: { truncateThreshold: 4000, compress: { enabled: false, modelId: 'openai::c' } }
+        contextSettings: {
+          truncateThreshold: 4000,
+          compress: { enabled: false, modelId: 'openai::c', thresholdPercent: 65 }
+        }
       } as AssistantSettings
     })
     const form = initialAssistantFormState(assistant)
@@ -293,6 +296,7 @@ describe('context-management override (P2-D)', () => {
     expect(form.contextTruncateThreshold).toBe(4000)
     expect(form.contextCompressEnabled).toBe(false)
     expect(form.contextCompressModelId).toBe('openai::c')
+    expect(form.contextCompressThresholdPercent).toBe(65)
   })
 
   it('treats a null contextSettings as override-off (inherit)', () => {
@@ -323,13 +327,14 @@ describe('context-management override (P2-D)', () => {
       contextOverrideEnabled: true,
       contextCompressEnabled: false,
       contextTruncateThreshold: 8000,
+      contextCompressThresholdPercent: 60,
       contextCompressModelId: 'anthropic::c'
     }
 
     const result = diffAssistantUpdate(form, baseline, createAssistant())
     expect(result?.dto.settings?.contextSettings).toEqual({
       truncateThreshold: 8000,
-      compress: { enabled: false, modelId: 'anthropic::c' }
+      compress: { enabled: false, modelId: 'anthropic::c', thresholdPercent: 60 }
     })
   })
 
@@ -361,6 +366,25 @@ describe('context-management override (P2-D)', () => {
 
     const result = diffAssistantUpdate(form, baseline, assistant)
     expect(result?.dto.settings?.contextSettings).toBeNull()
+  })
+
+  // A legacy override stored before the trigger existed must keep INHERITING it.
+  // Materializing the displayed value on an unrelated edit would freeze the
+  // assistant at whatever the global happened to be that day.
+  it('leaves an inherited trigger absent when another override field is edited', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        contextSettings: { truncateThreshold: 4000, compress: { enabled: true } }
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    expect(baseline.contextCompressThresholdPercent).toBeNull()
+
+    const form = { ...baseline, contextTruncateThreshold: 9000 }
+    const compress = diffAssistantUpdate(form, baseline, assistant)?.dto.settings?.contextSettings?.compress
+    expect(compress).toEqual({ enabled: true, modelId: null })
+    expect(compress).not.toHaveProperty('thresholdPercent')
   })
 
   it('does not PATCH when sub-fields change while the override is off', () => {
