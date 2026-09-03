@@ -44,6 +44,7 @@ const mocks = vi.hoisted(() => ({
   usesPiGateway: vi.fn(),
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
+  preferenceGet: vi.fn(),
   loadPiSdk: vi.fn(),
   loadPiAiCompat: vi.fn(),
   unregisterApiProviders: vi.fn(),
@@ -57,7 +58,6 @@ const mocks = vi.hoisted(() => ({
   findChannelBySessionId: vi.fn(),
   buildPromptParts: vi.fn(),
   buildCitationsGuidance: vi.fn(),
-  getAppLanguage: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn(),
   replacePromptVariables: vi.fn(),
@@ -109,6 +109,7 @@ vi.mock('@application', () => ({
     getPath: mocks.getPath,
     get: (name: string) => {
       if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       return {}
     }
@@ -129,7 +130,6 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: mocks.provisionBuiltinAgent
 }))
-vi.mock('@main/i18n', () => ({ getAppLanguage: mocks.getAppLanguage }))
 vi.mock('@main/utils/prompt', () => ({ replacePromptVariables: mocks.replacePromptVariables }))
 vi.mock('@main/ai/runtime/agentMcpServers', () => ({ buildAgentMcpServers: mocks.buildAgentMcpServers }))
 vi.mock('@main/ai/runtime/citationsGuidance', () => ({ buildCitationsGuidance: mocks.buildCitationsGuidance }))
@@ -313,7 +313,7 @@ beforeEach(() => {
   mocks.findChannelBySessionId.mockReturnValue(null)
   mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'native' }, context: 'AGENT PROMPT' })
   mocks.buildCitationsGuidance.mockReturnValue(undefined)
-  mocks.getAppLanguage.mockReturnValue('en-US')
+  mocks.preferenceGet.mockReturnValue(null)
   mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   mocks.provisionBuiltinAgent.mockResolvedValue(undefined)
   mocks.replacePromptVariables.mockImplementation(async (prompt: string) => prompt)
@@ -541,7 +541,45 @@ describe('PiRuntimeConnection', () => {
     expect(appendedSystemPrompt()).toContain('AGENT PROMPT')
     expect(appendedSystemPrompt()).toContain('<agent_instructions>\nBe helpful.\n</agent_instructions>')
     expect(appendedSystemPrompt()).toContain(REPORT_ARTIFACTS_PROMPT)
-    expect(appendedSystemPrompt()).toContain('IMPORTANT: You must respond in English.')
+    // Default global null => no language constraint is injected (decoupled from UI language)
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
+  })
+
+  it('injects global agent language when agent.language is set', async () => {
+    mocks.preferenceGet.mockReturnValue('English')
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(appendedSystemPrompt()).toContain('By default, respond in English.')
+  })
+
+  it('per-agent language overrides the global default', async () => {
+    mocks.preferenceGet.mockReturnValue('English')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { language: 'Thai' }
+    })
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(appendedSystemPrompt()).toContain('By default, respond in Thai.')
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in English.')
+  })
+
+  it('per-agent language set to null suppresses the global language', async () => {
+    mocks.preferenceGet.mockReturnValue('English')
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'p::m',
+      instructions: 'Be helpful.',
+      configuration: { language: null }
+    })
+
+    await new PiRuntimeConnection(input).start()
+
+    expect(appendedSystemPrompt()).not.toContain('By default, respond in')
   })
 
   it('uses Cherry network transport and preserves provider request environment', async () => {

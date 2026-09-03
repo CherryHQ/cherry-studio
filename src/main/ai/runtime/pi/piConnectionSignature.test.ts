@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   findMcp: vi.fn(),
   listTools: vi.fn(),
   findBySessionId: vi.fn(),
+  preferenceGet: vi.fn(),
   getTurnTrustedNotifyChannels: vi.fn(),
   usesPiGateway: vi.fn(),
   gatewayFingerprint: 'gateway-1'
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
+      if (name === 'PreferenceService') return { get: mocks.preferenceGet }
       if (name === 'McpCatalogService') return { listTools: mocks.listTools }
       if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
@@ -81,6 +83,7 @@ beforeEach(() => {
   mocks.findMcp.mockReturnValue({ id: 'mcp-1', name: 'server', updatedAt: 1 })
   mocks.listTools.mockReturnValue([{ name: 'search', inputSchema: { type: 'object' } }])
   mocks.findBySessionId.mockReturnValue(null)
+  mocks.preferenceGet.mockReturnValue(null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
   mocks.usesPiGateway.mockReturnValue(false)
   mocks.gatewayFingerprint = 'gateway-1'
@@ -112,7 +115,17 @@ describe('capturePiConnectionSnapshot', () => {
       () => mocks.listLocalSkillPaths.mockResolvedValueOnce(['/workspace/.agents/skills/review']),
       () => mocks.findMcp.mockReturnValueOnce({ id: 'mcp-1', name: 'server', updatedAt: 2 }),
       () => mocks.listTools.mockReturnValueOnce([{ name: 'changed' }]),
-      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id })
+      () => mocks.findBySessionId.mockReturnValueOnce({ id: 'channel-1', agentId: agent.id }),
+      // Rebuild fact: a language change must invalidate the warm connection so the new
+      // language instruction is baked into the next system prompt.
+      () =>
+        mocks.getAgent.mockReturnValueOnce({
+          ...agent,
+          configuration: { ...agent.configuration, language: 'Thai' }
+        }),
+      // Rebuild fact via the global preference alone: the Agent is unchanged, only
+      // `agent.language` moves — this input is not hashed through agent.configuration.
+      () => mocks.preferenceGet.mockReturnValueOnce('English')
     ]
 
     for (const mutate of mutations) {

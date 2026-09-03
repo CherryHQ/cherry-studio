@@ -17,10 +17,10 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
+import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { encodeReasoningInvocation, resolveReasoningInvocation } from '@main/ai/utils/reasoningSerializers'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { getAppLanguage } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { defaultAppHeaders } from '@main/utils/http'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -128,6 +128,7 @@ interface ConnectionMaterializationFacts {
   contextWindow: number | null
   maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
+  effectiveLanguage?: string | null
 }
 
 /**
@@ -136,6 +137,7 @@ interface ConnectionMaterializationFacts {
  * within the set is invisible; editing either input changes the fingerprint). Gateway routes hash
  * the stable per-install gateway key. External-cli routes have no key (subscription login) — constant.
  */
+
 function fingerprintCredentials(material: string[]): string {
   return createHash('sha256')
     .update(JSON.stringify([...material].sort()))
@@ -386,7 +388,12 @@ async function deriveConnectionConfigFromSnapshot(
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
-    language: getAppLanguage(),
+    // Rebuild fact: language change invalidates the warm connection so the new
+    // language instruction is baked into the next prompt and prompt cache. This
+    // trades cache preservation for correctness — first turn after change pays
+    // full input-token cost until the new prefix is cached.
+    language:
+      materialized?.effectiveLanguage !== undefined ? materialized.effectiveLanguage : getEffectiveAgentLanguage(agent),
     instructions: agent.instructions ?? null,
     // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
     // connection snapshots instead of invalidating this signature every turn.
@@ -515,6 +522,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   )
   const resumeSessionId =
     effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(
       session,
@@ -529,7 +537,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         knowledgeBaseIds: selectedKnowledgeBaseIds,
         supportsImages: Array.isArray(model.capabilities) && isVisionModel(model),
         thinkingOptions,
-        fastMode: fastModeTransport === 'claude-code'
+        fastMode: fastModeTransport === 'claude-code',
+        effectiveLanguage
       },
       agent
     ),
@@ -555,7 +564,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
-      })
+      }),
+      effectiveLanguage
     }
   )
   const sdkModelId = route.modelIds.primary

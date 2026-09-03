@@ -41,6 +41,8 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'agent.input.toolbar.pinned_tools': string[]
     // target-key-definitions/complex/complex
+    'agent.language': PreferenceTypes.AgentLanguagePreference | null
+    // target-key-definitions/complex/complex
     'agent.session.display_mode': PreferenceTypes.AgentSessionDisplayMode
     // target-key-definitions/complex/complex
     'agent.session.position': PreferenceTypes.TopicTabPosition
@@ -568,6 +570,7 @@ export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'agent.icon_type': 'emoji',
     'agent.input.toolbar.pinned_tools': ['composer:new-session', 'skills', 'permission-mode'],
+    'agent.language': null,
     'agent.session.display_mode': 'agent',
     'agent.session.position': 'left',
     'app.developer_mode.enabled': false,
@@ -874,7 +877,7 @@ export const DefaultPreferences: PreferenceSchemas = {
 
 /**
  * 生成统计:
- * - 总配置项: 262
+ * - 总配置项: 263
  * - electronStore项: 2
  * - redux项: 173
  * - localStorage项: 0
