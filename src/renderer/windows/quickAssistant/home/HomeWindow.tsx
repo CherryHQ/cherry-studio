@@ -4,7 +4,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
@@ -17,7 +16,6 @@ import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import { isEmpty } from 'es-toolkit/compat'
@@ -107,17 +105,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
   const { quickModel: quickApiModel } = useDefaultModel()
-  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
   const isAssistantMode = Boolean(quickAssistantId)
-  const configuredModel = isAssistantMode ? chosenApiModel : quickApiModel
-  const currentModel =
-    configuredModel &&
-    isModelAvailableForFeature(configuredModel, CHERRY_CLOUD_MODEL_FEATURE.CHAT) &&
-    !isModelDisabled(configuredModel)
-      ? configuredModel
-      : undefined
-  const currentAssistant = chosenApiModel && !currentModel ? undefined : chosenAssistant
+  const currentAssistant = chosenAssistant
+  const currentModel = isAssistantMode ? chosenApiModel : quickApiModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.

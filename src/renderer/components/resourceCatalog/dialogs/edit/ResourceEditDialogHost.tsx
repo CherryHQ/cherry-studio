@@ -108,7 +108,7 @@ function AgentEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { agent, error } = useAgent(target.id)
-  const modelFilter = useAgentModelFilter(agent?.type, open)
+  const modelFilter = useAgentModelFilter(agent?.type)
   const isModelDisabled = useAgentModelDisabled(open)
 
   useEffect(() => {

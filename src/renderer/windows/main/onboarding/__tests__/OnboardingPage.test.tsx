@@ -174,7 +174,7 @@ describe('OnboardingPage', () => {
       if (route === 'cherry_cloud.login.start') return { phase: 'authorizing', displayName: null }
       if (route === 'cherry_cloud.login.cancel') return { phase: 'signed-out', displayName: null }
       if (route === 'cherry_cloud.models.sync') {
-        return { entitledModelIds: [], quotaExhaustedModelIds: [], featuresByModelId: {} }
+        return { entitledModelIds: [], quotaExhaustedModelIds: [] }
       }
       throw new Error(`Unexpected IPC route: ${route}`)
     })
@@ -676,11 +676,7 @@ describe('OnboardingPage', () => {
       if (route === 'cherry_cloud.models.sync') {
         return {
           entitledModelIds: [firstCloudAgentModelId, secondCloudAgentModelId],
-          quotaExhaustedModelIds: [],
-          featuresByModelId: {
-            [firstCloudAgentModelId]: ['agent'],
-            [secondCloudAgentModelId]: ['agent']
-          }
+          quotaExhaustedModelIds: []
         }
       }
       throw new Error(`Unexpected IPC route: ${route}`)

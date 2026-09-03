@@ -60,7 +60,6 @@ describe('Cherry Cloud response contracts', () => {
             endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
             context_window: 200_000,
             max_output_tokens: 8_192,
-            available_features: ['agent', 'chat', 'translate'],
             model_metadata: { tier: 'work' }
           }
         ],
@@ -84,30 +83,11 @@ describe('Cherry Cloud response contracts', () => {
             id: 'claude-test',
             display_name: 'Claude Test',
             context_window: 200_000,
-            max_output_tokens: 8_192,
-            available_features: ['agent']
+            max_output_tokens: 8_192
           }
         ]
       }).success
     ).toBe(false)
-  })
-
-  it('requires a non-empty unique list of supported model features', () => {
-    const model = {
-      id: 'claude-test',
-      display_name: 'Claude Test',
-      endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-      context_window: 200_000,
-      max_output_tokens: 8_192
-    }
-
-    expect(cloudModelListSchema.safeParse({ data: [model] }).success).toBe(false)
-    expect(
-      cloudModelListSchema.safeParse({ data: [{ ...model, available_features: ['agent', 'agent'] }] }).success
-    ).toBe(false)
-    expect(cloudModelListSchema.safeParse({ data: [{ ...model, available_features: ['unsupported'] }] }).success).toBe(
-      false
-    )
   })
 
   it('rejects model IDs that cannot be encoded as a UniqueModelId', () => {
@@ -115,8 +95,7 @@ describe('Cherry Cloud response contracts', () => {
       display_name: 'Claude Test',
       endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       context_window: 200_000,
-      max_output_tokens: 8_192,
-      available_features: ['agent']
+      max_output_tokens: 8_192
     }
 
     expect(cloudModelListSchema.safeParse({ data: [{ ...model, id: 'claude?test' }] }).success).toBe(false)

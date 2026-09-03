@@ -3,17 +3,8 @@ import { createManagedModelWriter, modelService } from '@data/services/ModelServ
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
-import {
-  CHERRY_CLOUD_MODEL_GROUP,
-  CHERRY_CLOUD_PROVIDER_ID,
-  type CherryCloudModelFeature
-} from '@shared/data/presets/cherryai'
-import {
-  createUniqueModelId,
-  type EndpointType,
-  parseUniqueModelId,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { createUniqueModelId, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
@@ -38,7 +29,6 @@ const PRODUCTION_API_ORIGINS = {
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
-const CLOUD_MODEL_FEATURES_CACHE_KEY = 'feature.cherry_cloud.model_features'
 const cherryCloudModelWriter = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
@@ -560,15 +550,6 @@ export class CherryCloudService extends BaseService {
     return this.syncEntitledModels()
   }
 
-  public isModelAvailableForFeature(modelId: UniqueModelId, feature: CherryCloudModelFeature): boolean {
-    const cached = this.modelSyncCache
-    return (
-      Boolean(this.cloudState.session) &&
-      cached?.generation === this.sessionGeneration &&
-      (cached.result.featuresByModelId[modelId]?.includes(feature) ?? false)
-    )
-  }
-
   private async syncEntitledModelsOnce(
     sessionGeneration: number,
     signal: AbortSignal
@@ -576,8 +557,7 @@ export class CherryCloudService extends BaseService {
     if (!this.cloudState.session) {
       return {
         entitledModelIds: [],
-        quotaExhaustedModelIds: [],
-        featuresByModelId: application.get('CacheService').getPersist(CLOUD_MODEL_FEATURES_CACHE_KEY)
+        quotaExhaustedModelIds: []
       }
     }
 
@@ -613,17 +593,10 @@ export class CherryCloudService extends BaseService {
           .map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id))
       )
     ]
-    const featuresByModelId: CherryCloudModelSyncResult['featuresByModelId'] = {}
-    for (const model of models) {
-      const uniqueModelId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)
-      featuresByModelId[uniqueModelId] = model.available_features
-    }
     this.reconcileEntitledModels(models)
-    application.get('CacheService').setPersist(CLOUD_MODEL_FEATURES_CACHE_KEY, featuresByModelId)
     return {
       entitledModelIds: models.map((model) => createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, model.id)),
-      quotaExhaustedModelIds,
-      featuresByModelId
+      quotaExhaustedModelIds
     }
   }
 

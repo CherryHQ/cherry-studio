@@ -6,13 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
 // assert on the streamPrompt call.
 const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
-const isModelAvailableForFeatureMock = vi.fn(() => true)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    AiStreamManager: { streamPrompt: streamPromptMock },
-    CherryCloudService: { isModelAvailableForFeature: isModelAvailableForFeatureMock }
+    AiStreamManager: { streamPrompt: streamPromptMock }
   } as never)
 })
 
@@ -61,8 +59,6 @@ beforeEach(() => {
   getByLangCodeMock.mockReset()
   streamPromptMock.mockReset()
   streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
-  isModelAvailableForFeatureMock.mockReset()
-  isModelAvailableForFeatureMock.mockReturnValue(true)
 })
 
 describe('translateService.resolveTranslatePayload', () => {
@@ -141,20 +137,6 @@ describe('translateService.resolveTranslatePayload', () => {
     })
 
     expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
-  })
-
-  it('rejects a managed Cloud model that is not enabled for translation', () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'cherryai-subscription::agent-only')
-    getByKeyMock.mockReturnValue({
-      id: 'cherryai-subscription::agent-only',
-      providerId: 'cherryai-subscription',
-      apiModelId: 'agent-only',
-      name: 'Agent only'
-    })
-    isModelAvailableForFeatureMock.mockReturnValue(false)
-
-    expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
-    expect(isModelAvailableForFeatureMock).toHaveBeenCalledWith('cherryai-subscription::agent-only', 'translate')
   })
 })
 

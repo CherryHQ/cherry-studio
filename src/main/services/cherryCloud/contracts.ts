@@ -1,5 +1,5 @@
 import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
-import { CHERRY_CLOUD_MODEL_FEATURE, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -69,14 +69,6 @@ export const refreshProductSessionResponseSchema = z.looseObject({
   token_set: tokenSetSchema
 })
 
-const cloudModelFeatureSchema = z.enum(objectValues(CHERRY_CLOUD_MODEL_FEATURE))
-const cloudModelFeaturesSchema = z
-  .array(cloudModelFeatureSchema)
-  .min(1)
-  .max(objectValues(CHERRY_CLOUD_MODEL_FEATURE).length)
-  .refine((features) => new Set(features).size === features.length, {
-    message: 'model features must be unique'
-  })
 const cloudModelIdSchema = z
   .string()
   .min(1)
@@ -99,8 +91,7 @@ export const cloudModelListSchema = z.looseObject({
       display_name: z.string().min(1),
       endpoint_type: z.enum(objectValues(ENDPOINT_TYPE)),
       context_window: z.number().int().positive(),
-      max_output_tokens: z.number().int().positive(),
-      available_features: cloudModelFeaturesSchema
+      max_output_tokens: z.number().int().positive()
     })
   )
 })

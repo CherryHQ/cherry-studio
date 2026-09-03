@@ -28,13 +28,6 @@ vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => trigger
 }))
 
-vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
-  useCherryCloudModelAvailability: () => ({
-    isModelAvailableForFeature: () => true,
-    isModelDisabled: () => false
-  })
-}))
-
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AssistantSelector: ({ trigger }: { trigger: ReactNode }) => trigger
 }))

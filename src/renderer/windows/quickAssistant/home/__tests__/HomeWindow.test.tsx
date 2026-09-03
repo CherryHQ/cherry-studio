@@ -81,13 +81,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ defaultModel: state.defaultModel, quickModel: state.quickModel })
 }))
 
-vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
-  useCherryCloudModelAvailability: () => ({
-    isModelAvailableForFeature: () => true,
-    isModelDisabled: () => false
-  })
-}))
-
 vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   useTemporaryTopic: () => ({
     topicId: 'temp-topic',

@@ -32,11 +32,7 @@ import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
-import {
-  CHERRY_CLOUD_MODEL_FEATURE,
-  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-  isManagedCherryProviderId
-} from '@shared/data/presets/cherryai'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, isManagedCherryProviderId } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
@@ -284,14 +280,11 @@ export default function OnboardingPage() {
     const expectedStatus = cloudStatus
     void ipcApi
       .request('cherry_cloud.models.sync')
-      .then(({ entitledModelIds, quotaExhaustedModelIds, featuresByModelId }) => {
+      .then(({ entitledModelIds, quotaExhaustedModelIds }) => {
         if (expectedStatus !== cloudStatusRef.current) return
 
         const exhaustedModelIds = new Set(quotaExhaustedModelIds)
-        const agentModelId = entitledModelIds.find(
-          (modelId) =>
-            !exhaustedModelIds.has(modelId) && featuresByModelId[modelId]?.includes(CHERRY_CLOUD_MODEL_FEATURE.AGENT)
-        )
+        const agentModelId = entitledModelIds.find((modelId) => !exhaustedModelIds.has(modelId))
         if (agentModelId) {
           void completeWithCloudAgentModel(agentModelId, expectedStatus)
         } else {

@@ -147,13 +147,6 @@ const ipcRequestMock = vi.hoisted(() => vi.fn())
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
 
-vi.mock('@renderer/hooks/useCherryCloudModelAvailability', () => ({
-  useCherryCloudModelAvailability: () => ({
-    isModelAvailableForFeature: () => true,
-    isModelDisabled: () => false
-  })
-}))
-
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
     useEffect(() => {

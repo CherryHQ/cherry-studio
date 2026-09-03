@@ -1,4 +1,3 @@
-import { MockMainCacheServiceExport, MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -63,7 +62,6 @@ vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'ApiGatewayService') return { start: mocks.gatewayStart }
-      if (name === 'CacheService') return MockMainCacheServiceExport.cacheService
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
       throw new Error(`Unexpected service: ${name}`)
     }
@@ -131,32 +129,24 @@ const cloudModelCatalog = {
       display_name: 'DeepSeek Free',
       endpoint_type: 'anthropic-messages',
       context_window: 128_000,
-      max_output_tokens: 8_192,
-      available_features: ['agent']
+      max_output_tokens: 8_192
     },
     {
       id: 'deepseek-go',
       display_name: 'DeepSeek GO',
       endpoint_type: 'anthropic-messages',
       context_window: 256_000,
-      max_output_tokens: 16_384,
-      available_features: ['agent', 'chat', 'translate']
+      max_output_tokens: 16_384
     },
     {
       id: 'deepseek-inactive',
       display_name: 'DeepSeek Inactive',
       endpoint_type: 'anthropic-messages',
       context_window: 64_000,
-      max_output_tokens: 4_096,
-      available_features: ['agent']
+      max_output_tokens: 4_096
     }
   ]
 }
-const cloudFeaturesByModelId = {
-  'cherryai-subscription::deepseek-free': ['agent'],
-  'cherryai-subscription::deepseek-go': ['agent', 'chat', 'translate']
-}
-
 function jsonResponse(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), {
     status,
@@ -297,7 +287,6 @@ describe('CherryCloudService', () => {
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
     installCloudRouteFixture()
-    MockMainCacheServiceUtils.resetMocks()
     mocks.appEdition = 'global'
     mocks.appIsPackaged = false
     mocks.savedDevice = null
@@ -785,8 +774,7 @@ describe('CherryCloudService', () => {
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
       entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
-      featuresByModelId: cloudFeaturesByModelId
+      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
     })
 
     expect(mocks.modelReconcile).toHaveBeenCalledWith({
@@ -815,13 +803,6 @@ describe('CherryCloudService', () => {
       includeAgentOnly: true
     })
     expect(mocks.modelReconcile.mock.calls[0][0].toAdd[0]).not.toHaveProperty('availableFeatures')
-    expect(MockMainCacheServiceExport.cacheService.setPersist).toHaveBeenCalledWith(
-      'feature.cherry_cloud.model_features',
-      cloudFeaturesByModelId
-    )
-    expect(service.isModelAvailableForFeature('cherryai-subscription::deepseek-go', 'chat')).toBe(true)
-    expect(service.isModelAvailableForFeature('cherryai-subscription::deepseek-free', 'chat')).toBe(false)
-
     for (const [, init] of mocks.netFetch.mock.calls) {
       const headers = new Headers(init.headers)
       expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
@@ -830,8 +811,7 @@ describe('CherryCloudService', () => {
     }
   })
 
-  it('keeps managed models and their feature classification while signed out', async () => {
-    MockMainCacheServiceExport.cacheService.setPersist('feature.cherry_cloud.model_features', cloudFeaturesByModelId)
+  it('keeps managed models while signed out', async () => {
     mocks.modelList.mockReturnValue([
       {
         id: 'cherryai-subscription::deepseek-go',
@@ -848,11 +828,9 @@ describe('CherryCloudService', () => {
 
     await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
       entitledModelIds: [],
-      quotaExhaustedModelIds: [],
-      featuresByModelId: cloudFeaturesByModelId
+      quotaExhaustedModelIds: []
     })
     expect(mocks.modelReconcile).not.toHaveBeenCalled()
-    expect(service.isModelAvailableForFeature('cherryai-subscription::deepseek-go', 'chat')).toBe(false)
   })
 
   it('reuses a recent model snapshot and refreshes it after expiry', async () => {
@@ -876,8 +854,7 @@ describe('CherryCloudService', () => {
 
       await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
         entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
-        featuresByModelId: cloudFeaturesByModelId
+        quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
       })
       expect(mocks.netFetch).toHaveBeenCalledTimes(2)
     } finally {

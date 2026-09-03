@@ -10,13 +10,6 @@ export const CHERRY_CLOUD_MODEL_GROUP = 'Cherry Cloud' as const
 export const CHERRYAI_API_BASE_URL = 'https://api.cherry-ai.com' as const
 export const CHERRYAI_DEFAULT_UNIQUE_MODEL_ID = createUniqueModelId(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID)
 
-export const CHERRY_CLOUD_MODEL_FEATURE = {
-  AGENT: 'agent',
-  CHAT: 'chat',
-  TRANSLATE: 'translate'
-} as const
-export type CherryCloudModelFeature = (typeof CHERRY_CLOUD_MODEL_FEATURE)[keyof typeof CHERRY_CLOUD_MODEL_FEATURE]
-
 export function isManagedCherryAiProviderId(providerId: string): boolean {
   return providerId === CHERRYAI_PROVIDER_ID
 }

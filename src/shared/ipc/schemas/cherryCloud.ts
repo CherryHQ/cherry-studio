@@ -1,5 +1,3 @@
-import { objectValues } from '@cherrystudio/provider-registry'
-import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
@@ -12,12 +10,9 @@ export const cherryCloudStatusSchema = z.strictObject({
 
 export type CherryCloudStatus = z.infer<typeof cherryCloudStatusSchema>
 
-const cherryCloudModelFeatureSchema = z.enum(objectValues(CHERRY_CLOUD_MODEL_FEATURE))
-
 const cherryCloudModelSyncResultSchema = z.strictObject({
   entitledModelIds: z.array(UniqueModelIdSchema),
-  quotaExhaustedModelIds: z.array(UniqueModelIdSchema),
-  featuresByModelId: z.record(UniqueModelIdSchema, z.array(cherryCloudModelFeatureSchema))
+  quotaExhaustedModelIds: z.array(UniqueModelIdSchema)
 })
 
 export type CherryCloudModelSyncResult = z.infer<typeof cherryCloudModelSyncResultSchema>
