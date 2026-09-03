@@ -132,6 +132,36 @@ describe('useTopicMessagesCache', () => {
     ])
   })
 
+  it('clears the active node when its optimistic parent is the virtual root', async () => {
+    const selectedReply = {
+      ...message('answer', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a'),
+      parentId: 'root-1',
+      siblingsGroupId: 0
+    }
+    const pages: BranchMessagesResponse[] = [branchPage([{ message: selectedReply }], selectedReply.id)]
+    const mutate = vi.fn(async (updater?: unknown) => {
+      if (typeof updater === 'function') {
+        return (updater as (current: BranchMessagesResponse[] | undefined) => BranchMessagesResponse[] | undefined)(
+          pages
+        )
+      }
+      return pages
+    })
+    const { result } = renderHook(() => useTopicMessagesCache({ topicId: 'topic-1', mutate }))
+
+    await result.current.seedOptimisticBranch((items, activeNodeId) =>
+      result.current.branchWithoutIds(items, new Set([selectedReply.id]), activeNodeId)
+    )
+
+    const nextPages = await mutate.mock.results[0]?.value
+    expect(nextPages).toEqual([
+      expect.objectContaining({
+        activeNodeId: null,
+        items: []
+      })
+    ])
+  })
+
   it('does not promote a grouped reply when a historical representative is removed', () => {
     const historicalReply = message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b')
     const offPathReply = message('answer-a', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a')

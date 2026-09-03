@@ -72,18 +72,20 @@ function branchWithoutIds(
 function activeNodeIdAfterOptimisticTransform(
   previousItems: BranchMessage[],
   nextItems: BranchMessage[],
-  activeNodeId: string | null
+  activeNodeId: string | null,
+  rootId: string | null
 ): string | null {
   if (!activeNodeId) return activeNodeId
   if (nextItems.some((item) => item.message.id === activeNodeId)) return activeNodeId
 
   const previousActive = previousItems.find((item) => item.message.id === activeNodeId)
   if (!previousActive) return activeNodeId
-  if (!previousActive.siblingsGroup?.length) return previousActive.message.parentId
+  const fallbackId = previousActive.message.parentId === rootId ? null : previousActive.message.parentId
+  if (!previousActive.siblingsGroup?.length) return fallbackId
 
   const previousSiblingIds = new Set(previousActive.siblingsGroup.map((sibling) => sibling.id))
   const promoted = nextItems.find((item) => previousSiblingIds.has(item.message.id))
-  return promoted?.message.id ?? previousActive.message.parentId
+  return promoted?.message.id ?? fallbackId
 }
 
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
@@ -142,7 +144,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
             return {
               ...page,
               items,
-              activeNodeId: activeNodeIdAfterOptimisticTransform(page.items, items, page.activeNodeId)
+              activeNodeId: activeNodeIdAfterOptimisticTransform(page.items, items, page.activeNodeId, page.rootId)
             }
           })
         },

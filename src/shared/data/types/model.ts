@@ -193,8 +193,13 @@ export function resolveUniqueModelId(
 ): UniqueModelId | undefined {
   if (isUniqueModelId(modelId)) return modelId
   if (!modelSnapshot) return undefined
+  if (isUniqueModelId(modelSnapshot.id)) return modelSnapshot.id
 
-  return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
+  try {
+    return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)
+  } catch {
+    return undefined
+  }
 }
 
 /**
