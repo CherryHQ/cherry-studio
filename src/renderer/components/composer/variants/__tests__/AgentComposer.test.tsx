@@ -503,7 +503,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => undefined
+  useAgentModelFilter: () => undefined,
+  useAgentModelDisabled: () => undefined
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({

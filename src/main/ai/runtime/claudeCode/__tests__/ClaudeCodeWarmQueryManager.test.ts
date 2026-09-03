@@ -402,6 +402,27 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(warm.close).toHaveBeenCalledOnce()
   })
 
+  it('discards a warm query when the connection rebuild signature changes', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    await manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      connectionRebuildSignature: 'session-generation-1'
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet' } as any,
+      connectionRebuildSignature: 'session-generation-2'
+    })
+
+    expect(consumed).toBeUndefined()
+    await Promise.resolve()
+    expect(warm.close).toHaveBeenCalledOnce()
+  })
+
   it('discards a warm query when knowledge bindings change between park and consume', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()
