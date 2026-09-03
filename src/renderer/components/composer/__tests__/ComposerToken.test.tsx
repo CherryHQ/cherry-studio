@@ -490,6 +490,21 @@ describe('ComposerToken', () => {
     expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
 
+  it('renders read-only image thumbnails through the generic composer token entry', () => {
+    const { container } = render(
+      <ComposerToken
+        imageIconPreview
+        readOnly
+        readOnlyFilePreview={{ url: 'file:///tmp/sent-image.png', mediaType: 'image/png' }}
+        token={{ id: 'file:sent-image', kind: 'file', label: 'sent-image.png' }}
+      />
+    )
+
+    const token = getRenderedFileToken(container)
+    expect(token).toHaveTextContent('sent-image.png')
+    expect(token.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/sent-image.png')
+  })
+
   it('keeps the default image icon for SVG input files', () => {
     const { container } = render(
       <FileComposerToken

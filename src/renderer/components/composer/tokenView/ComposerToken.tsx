@@ -65,6 +65,7 @@ export interface ComposerTokenProps {
   token: ChatTokenView
   readOnly?: boolean
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
+  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -81,7 +82,6 @@ export interface ReadOnlyComposerFileTokenPreview {
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
-  imageIconPreview?: boolean
   tooltipActions?: ReactNode
 }
 
