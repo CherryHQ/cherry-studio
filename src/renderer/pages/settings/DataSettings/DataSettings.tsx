@@ -12,12 +12,14 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server, Trash2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { type FC, lazy, Suspense } from 'react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
+import { DATA_PANEL_KEYS, type DataPanelKey, DEFAULT_DATA_PANEL } from './dataPanels'
 
 const ExportMenuOptions = lazy(() => import('./ExportMenuSettings'))
 const JoplinSettings = lazy(() => import('./JoplinSettings'))
@@ -33,12 +35,24 @@ const WebDavSettings = lazy(() => import('./WebDavSettings'))
 const YuqueSettings = lazy(() => import('./YuqueSettings'))
 const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
 
+type DataMenuItem =
+  | { key: DataPanelKey; title: string; icon: ReactNode; isDivider?: undefined }
+  | { key: string; isDivider: true; text: string; title?: undefined; icon?: undefined }
+
 const DataSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [menu, setMenu] = useState<string>('data')
+  const navigate = useNavigate()
+  // The URL is the single source of truth for the active panel (search jumps
+  // arrive as /settings/data?panel=<key>; menu clicks write it back with
+  // replace). Unknown values were already dropped by the route schema.
+  const search = useSearch({ strict: false })
+  const rawPanel = typeof search.panel === 'string' ? search.panel : undefined
+  const panelParam =
+    rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? (rawPanel as DataPanelKey) : undefined
+  const menu = panelParam ?? DEFAULT_DATA_PANEL
 
-  const menuItems = [
+  const menuItems: DataMenuItem[] = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
     { key: 'trash', title: t('settings.data.trash.title'), icon: <Trash2 size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
@@ -89,7 +103,7 @@ const DataSettings: FC = () => {
                   key={item.key}
                   label={item.title || ''}
                   active={menu === item.key}
-                  onClick={() => setMenu(item.key)}
+                  onClick={() => void navigate({ to: '/settings/data', search: { panel: item.key }, replace: true })}
                   icon={item.icon}
                   className={settingsSubmenuItemClassName}
                   labelClassName={settingsSubmenuItemLabelClassName}
