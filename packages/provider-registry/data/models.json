@@ -8215,7 +8215,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 32768,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",
@@ -8276,7 +8276,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image-preview",
       "imageGeneration": {
@@ -8596,6 +8596,7 @@
     },
     {
       "capabilities": [
+        "text-generation",
         "reasoning",
         "image-recognition",
         "image-generation",
@@ -8683,7 +8684,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-image-preview",
@@ -9523,6 +9524,7 @@
     },
     {
       "capabilities": [
+        "text-generation",
         "function-call",
         "reasoning",
         "image-recognition",
@@ -9592,7 +9594,7 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-3-pro-image-preview",

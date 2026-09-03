@@ -30,6 +30,6 @@ One exception to "automatic": users already on v2 do not get their v1 `endpoint_
 
 ## Notes for release manager
 
-New `preferred_endpoint_type` column on `user_model` (migration `0017_funny_stark_industries.sql`, additive and nullable). New i18n keys under `settings.models.add.preferred_endpoint.*`: `label`, `tooltip`, `inherit`, `inherit_resolved`.
+New `preferred_endpoint_type` column on `user_model` (migration `0021_broken_doorman.sql`, additive and nullable). New i18n keys under `settings.models.add.preferred_endpoint.*`: `label`, `tooltip`, `inherit`, `inherit_resolved`.
 
 Grep for the column rather than trusting this filename: the branch regenerates its migration on every merge that appends one upstream, and this note has drifted before.
