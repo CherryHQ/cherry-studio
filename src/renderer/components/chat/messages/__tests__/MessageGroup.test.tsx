@@ -601,7 +601,7 @@ describe('MessageGroup', () => {
     expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
 
-  it('renders sent attachments outside the user bubble', () => {
+  it('renders sent images outside the user bubble without hoisting non-image files', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',
       gridColumns: 2,
@@ -654,16 +654,9 @@ describe('MessageGroup', () => {
 
     const bubble = container.querySelector('#message-msg-1 .message-content-container')
     const imageBlock = screen.getByTestId('hoisted-image-block')
-    const attachment = screen.getByTestId('hoisted-attachment')
     expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     expect(bubble?.contains(imageBlock)).toBe(false)
-    expect(bubble?.contains(attachment)).toBe(false)
-    // The card is handed a handle, never a path it assembled: Main resolves it, and the
-    // decode happens once so "%20" never reaches fs.
-    expect(attachment).toHaveAttribute(
-      'data-handle',
-      JSON.stringify({ kind: 'path', path: '/tmp/Application Support/report.pdf' })
-    )
+    expect(screen.queryByTestId('hoisted-attachment')).toBeNull()
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {
