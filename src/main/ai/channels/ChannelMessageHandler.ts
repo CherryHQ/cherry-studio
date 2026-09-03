@@ -372,16 +372,7 @@ export class ChannelMessageHandler {
       const session = await this.resolveSession(agentId, adapter.channelId, conversationIdOf(message))
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
-        await adapter
-          .sendMessage(message.chatId, t('common.channel_session_resolution_error'), {
-            ...responseOptionsFor(message)
-          })
-          .catch((err) => {
-            logger.debug('Failed to send session-error notification to channel', {
-              chatId: message.chatId,
-              error: err instanceof Error ? err.message : String(err)
-            })
-          })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -390,11 +381,13 @@ export class ChannelMessageHandler {
       // An orphan session (`agentId === null`) cannot run; skip it.
       if (!session.agentId) {
         logger.error('Channel message hit an orphan session', { sessionId: session.id })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
       const agent = agentService.getAgent(session.agentId)
       if (!agent) {
         logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
+        await this.notifySessionResolutionError(adapter, message)
         return
       }
 
@@ -885,6 +878,17 @@ export class ChannelMessageHandler {
     } catch {
       return null
     }
+  }
+
+  private async notifySessionResolutionError(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
+    await adapter
+      .sendMessage(message.chatId, t('common.channel_session_resolution_error'), responseOptionsFor(message))
+      .catch((err) => {
+        logger.debug('Failed to send session-error notification to channel', {
+          chatId: message.chatId,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      })
   }
 
   private async collectStreamResponse(
