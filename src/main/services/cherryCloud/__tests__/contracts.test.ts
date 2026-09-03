@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -60,6 +60,7 @@ describe('Cherry Cloud response contracts', () => {
             endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
             context_window: 200_000,
             max_output_tokens: 8_192,
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
             model_metadata: { tier: 'work' }
           }
         ],
@@ -82,6 +83,19 @@ describe('Cherry Cloud response contracts', () => {
           {
             id: 'claude-test',
             display_name: 'Claude Test',
+            endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+            context_window: 200_000,
+            max_output_tokens: 8_192
+          }
+        ]
+      }).success
+    ).toBe(false)
+    expect(
+      cloudModelListSchema.safeParse({
+        data: [
+          {
+            id: 'claude-test',
+            display_name: 'Claude Test',
             context_window: 200_000,
             max_output_tokens: 8_192
           }
@@ -95,7 +109,8 @@ describe('Cherry Cloud response contracts', () => {
       display_name: 'Claude Test',
       endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
       context_window: 200_000,
-      max_output_tokens: 8_192
+      max_output_tokens: 8_192,
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
     }
 
     expect(cloudModelListSchema.safeParse({ data: [{ ...model, id: 'claude?test' }] }).success).toBe(false)

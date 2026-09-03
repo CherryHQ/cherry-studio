@@ -5,7 +5,12 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  type EndpointType,
+  type ModelCapability,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
@@ -607,6 +612,7 @@ export class CherryCloudService extends BaseService {
       endpoint_type: EndpointType
       context_window: number
       max_output_tokens: number
+      capabilities: ModelCapability[]
     }>
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
@@ -624,6 +630,8 @@ export class CherryCloudService extends BaseService {
         model.endpointTypes[0] === remote.endpoint_type &&
         model.contextWindow === remote.context_window &&
         model.maxOutputTokens === remote.max_output_tokens &&
+        model.capabilities.length === remote.capabilities.length &&
+        model.capabilities.every((capability) => remote.capabilities.includes(capability)) &&
         model.supportsStreaming &&
         model.isEnabled
       ) {
@@ -638,6 +646,7 @@ export class CherryCloudService extends BaseService {
             endpointTypes: [remote.endpoint_type],
             contextWindow: remote.context_window,
             maxOutputTokens: remote.max_output_tokens,
+            capabilities: remote.capabilities,
             supportsStreaming: true,
             isEnabled: true
           }
@@ -656,6 +665,7 @@ export class CherryCloudService extends BaseService {
             endpointTypes: [model.endpoint_type],
             contextWindow: model.context_window,
             maxOutputTokens: model.max_output_tokens,
+            capabilities: model.capabilities,
             supportsStreaming: true
           }
         }))
@@ -688,7 +698,9 @@ export class CherryCloudService extends BaseService {
     const url = this.resolveRequestUrl(path)
     const headers = new Headers(init?.headers)
     const idempotencyKey =
-      url.pathname === '/v1/messages' ? (headers.get('Idempotency-Key') ?? createIdempotencyKey()) : undefined
+      url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
+        ? (headers.get('Idempotency-Key') ?? createIdempotencyKey())
+        : undefined
     const response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (response.status === 401) await this.clearSession(session)
     return response

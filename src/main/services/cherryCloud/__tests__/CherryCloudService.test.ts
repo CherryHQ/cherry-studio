@@ -136,21 +136,24 @@ const cloudModelCatalog = {
       display_name: 'DeepSeek Free',
       endpoint_type: 'anthropic-messages',
       context_window: 128_000,
-      max_output_tokens: 8_192
+      max_output_tokens: 8_192,
+      capabilities: ['function-call']
     },
     {
       id: 'deepseek-go',
       display_name: 'DeepSeek GO',
       endpoint_type: 'anthropic-messages',
       context_window: 256_000,
-      max_output_tokens: 16_384
+      max_output_tokens: 16_384,
+      capabilities: ['function-call', 'reasoning']
     },
     {
       id: 'deepseek-inactive',
       display_name: 'DeepSeek Inactive',
       endpoint_type: 'anthropic-messages',
       context_window: 64_000,
-      max_output_tokens: 4_096
+      max_output_tokens: 4_096,
+      capabilities: []
     }
   ]
 }
@@ -776,7 +779,7 @@ describe('CherryCloudService', () => {
       },
       {
         data: cloudModelCatalog.data.map((model) =>
-          model.id === 'deepseek-go' ? { ...model, endpoint_type: 'openai-responses' } : model
+          model.id === 'deepseek-go' ? { ...model, endpoint_type: 'openai-chat-completions' } : model
         )
       }
     )
@@ -796,6 +799,7 @@ describe('CherryCloudService', () => {
           endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
           maxOutputTokens: 8_192,
+          capabilities: ['function-call'],
           supportsStreaming: true
         }
       },
@@ -805,9 +809,10 @@ describe('CherryCloudService', () => {
           modelId: 'deepseek-go',
           name: 'DeepSeek GO',
           group: 'Cherry Cloud',
-          endpointTypes: ['openai-responses'],
+          endpointTypes: ['openai-chat-completions'],
           contextWindow: 256_000,
           maxOutputTokens: 16_384,
+          capabilities: ['function-call', 'reasoning'],
           supportsStreaming: true
         }
       }
@@ -821,6 +826,63 @@ describe('CherryCloudService', () => {
       expect(headers.get('Cherry-Device-ID')).toBe(deviceId)
       expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
     }
+  })
+
+  it('updates capabilities for an existing managed model', async () => {
+    const service = await createSignedInService()
+    mocks.modelList.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        group: 'Cherry Cloud',
+        endpointTypes: ['anthropic-messages'],
+        contextWindow: 128_000,
+        maxOutputTokens: 8_192,
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true
+      }
+    ])
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [accountSnapshot.entitlements[0]]
+      },
+      { data: [cloudModelCatalog.data[0]] }
+    )
+
+    await service['syncEntitledModels']()
+
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).toHaveBeenCalledWith([
+      {
+        providerId: 'cherryai-subscription',
+        modelId: 'deepseek-free',
+        patch: {
+          name: 'DeepSeek Free',
+          group: 'Cherry Cloud',
+          endpointTypes: ['anthropic-messages'],
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192,
+          capabilities: ['function-call'],
+          supportsStreaming: true,
+          isEnabled: true
+        }
+      }
+    ])
+  })
+
+  it('rejects model protocols outside the Cherry Cloud contract', async () => {
+    const service = await createSignedInService()
+    mockModelSync(accountSnapshot, {
+      data: [{ ...cloudModelCatalog.data[0], endpoint_type: 'openai-responses' }]
+    })
+
+    await expect(service['syncEntitledModels']()).rejects.toThrow()
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
   })
 
   it('keeps managed models while signed out', async () => {
@@ -1207,6 +1269,22 @@ describe('CherryCloudService', () => {
     expect(headers.get('Cherry-Body-SHA256')).toBe('f24394a04116608ee41330b7fd6511ff8e44f65e29f6cfc44bb7c8393de7e5ea')
     expect(init.redirect).toBe('error')
     expect(init.signal).toBeUndefined()
+  })
+
+  it('adds an idempotency key to signed OpenAI chat completion requests', async () => {
+    const service = await createSignedInService()
+    mockCloudRoute('/v1/chat/completions', jsonResponse({ object: 'chat.completion' }))
+
+    await service.authenticatedFetch('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"model":"deepseek-go","messages":[]}'
+    })
+
+    const init = requestCalls('/v1/chat/completions')[0][1]
+    const headers = new Headers(init.headers)
+    expect(headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
+    expect(headers.get('Cherry-Signature')).toMatch(/^[A-Za-z0-9_-]{86}$/)
   })
 
   it('clears the local login before waiting for remote Product Session revocation', async () => {

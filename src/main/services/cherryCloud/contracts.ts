@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE, objectValues } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY, objectValues } from '@cherrystudio/provider-registry'
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
@@ -84,14 +84,17 @@ const cloudModelIdSchema = z
     { message: 'model ID cannot contain reserved route characters' }
   )
 
+const cloudEndpointTypeSchema = z.enum([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+
 export const cloudModelListSchema = z.looseObject({
   data: z.array(
     z.looseObject({
       id: cloudModelIdSchema,
       display_name: z.string().min(1),
-      endpoint_type: z.enum(objectValues(ENDPOINT_TYPE)),
+      endpoint_type: cloudEndpointTypeSchema,
       context_window: z.number().int().positive(),
-      max_output_tokens: z.number().int().positive()
+      max_output_tokens: z.number().int().positive(),
+      capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY)))
     })
   )
 })
