@@ -234,7 +234,7 @@ function normalizeForComparison(value: string, platform: NodeJS.Platform): strin
   return platform === 'darwin' || platform === 'win32' ? normalized.toLowerCase() : normalized
 }
 
-function tokenizeShellCommand(command: string): string[] {
+export function tokenizeShellCommand(command: string): string[] {
   const words: string[] = []
   let current = ''
   let quote: '"' | "'" | undefined
@@ -247,7 +247,10 @@ function tokenizeShellCommand(command: string): string[] {
     const character = command[index]
     if (character === '\\' && quote !== "'") {
       const next = command[index + 1]
-      if (next && /[\\\s"'`$;&|<>]/.test(next)) {
+      if (next === '\\' && (!current || current.endsWith('='))) {
+        current += '\\\\'
+        index++
+      } else if (next && /[\\\s"'`$;&|<>]/.test(next)) {
         current += next
         index++
       } else {

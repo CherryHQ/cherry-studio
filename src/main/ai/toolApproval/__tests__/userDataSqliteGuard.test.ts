@@ -6,7 +6,12 @@ import { pathToFileURL } from 'node:url'
 import { application } from '@application'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { evaluateUserDataSqliteGuard, isSameOrInsidePath, USER_DATA_SQLITE_GUARD_REASON } from '../userDataSqliteGuard'
+import {
+  evaluateUserDataSqliteGuard,
+  isSameOrInsidePath,
+  tokenizeShellCommand,
+  USER_DATA_SQLITE_GUARD_REASON
+} from '../userDataSqliteGuard'
 
 const DENIAL = {
   ruleId: 'user-data-sqlite-write',
@@ -199,6 +204,12 @@ describe('evaluateUserDataSqliteGuard', () => {
       const equalsDatabase = path.join(userDataPath, 'Data', 'name=value.sqlite')
       await expect(evaluate({ toolName: 'Bash', args: { command: `sqlite3 "${equalsDatabase}"` } })).resolves.toEqual(
         DENIAL
+      )
+    })
+
+    it('preserves a UNC prefix at the start of an option value', () => {
+      expect(tokenizeShellCommand(String.raw`sqlite3 --database="\\SERVER\Share\data.sqlite"`)).toContain(
+        String.raw`--database=\\SERVER\Share\data.sqlite`
       )
     })
 
