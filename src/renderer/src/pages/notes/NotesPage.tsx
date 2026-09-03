@@ -92,12 +92,9 @@ const NotesPage: FC = () => {
     return isPendingDeleteForPath(normalizedTarget, pendingDeleteSetRef.current)
   }, [])
 
-  const getEffectiveGeneration = useCallback(
-    (normalizedTarget: string) => {
-      return getEffectiveGenerationGuard(normalizedTarget, pathGenerationRef.current)
-    },
-    []
-  )
+  const getEffectiveGeneration = useCallback((normalizedTarget: string) => {
+    return getEffectiveGenerationGuard(normalizedTarget, pathGenerationRef.current)
+  }, [])
 
   const bumpGeneration = useCallback((normalizedPath: string) => {
     const cur = pathGenerationRef.current.get(normalizedPath) ?? 0
@@ -707,9 +704,7 @@ const NotesPage: FC = () => {
               snapNorm === normalizedDeletePath ||
               (nodeToDelete.type === 'folder' && snapNorm?.startsWith(`${normalizedDeletePath}/`))
             // 恢复被取消的防抖：若用户在删除等待期间已切换到其他笔记，切勿用快照的 debounce 覆盖当前笔记的待保存
-            const currentPathNorm = lastFilePathRef.current
-              ? normalizePathValue(lastFilePathRef.current)
-              : undefined
+            const currentPathNorm = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
             const switchedAway = currentPathNorm != null && snapNorm != null && currentPathNorm !== snapNorm
             if (shouldRearmSnapshot && preDeletePath != null) {
               if (switchedAway) {
