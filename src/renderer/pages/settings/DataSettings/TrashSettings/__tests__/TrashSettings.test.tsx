@@ -107,6 +107,16 @@ beforeEach(async () => {
   mocks.fileItems = fileItems(1)
 })
 
+describe('TrashSettings', () => {
+  it('shows the automatic cleanup interval without explanatory copy', async () => {
+    await i18n.changeLanguage('zh-CN')
+    render(<TrashSettings />)
+
+    expect(screen.getByText('自动清理周期')).toBeInTheDocument()
+    expect(screen.queryByText('已删除的项目将一直保留，直到你手动彻底删除')).not.toBeInTheDocument()
+  })
+})
+
 describe('TrashSettings permanent-delete confirmation', () => {
   it('reveals current-type selection on demand and preserves batch mode across categories', async () => {
     const user = userEvent.setup()

@@ -4,7 +4,6 @@ import { loggerService } from '@logger'
 import {
   SettingDivider,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -264,11 +263,6 @@ const TrashSettings: FC = () => {
             )}
           />
         </SettingRow>
-        <SettingHelpText>
-          {retentionDays > 0
-            ? t('settings.data.trash.retention_hint', { count: retentionDays })
-            : t('settings.data.trash.retention_hint_never')}
-        </SettingHelpText>
       </SettingGroup>
       <SettingGroup>
         <SettingRow>
