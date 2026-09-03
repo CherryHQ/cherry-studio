@@ -395,6 +395,36 @@ describe('useMiniApps', () => {
       })
     })
 
+    it('syncs one-off state and tabs opened while the update is pending', async () => {
+      const existing = createMiniApp('custom-app', { url: 'https://old.example.com', presetMiniAppId: null })
+      const updated = { ...existing, name: 'Updated App', url: 'https://new.example.com', logo: 'new-logo' }
+      let resolveUpdate: (value: MiniApp) => void = () => undefined
+      const trigger = vi.fn(
+        () =>
+          new Promise<MiniApp>((resolve) => {
+            resolveUpdate = resolve
+          })
+      )
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      const { result, rerender } = renderHook(() => useMiniApps())
+
+      let pendingUpdate: Promise<MiniApp>
+      act(() => {
+        pendingUpdate = result.current.updateCustomMiniApp('custom-app', { name: 'Updated App' })
+      })
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      mockTabs.tabs = [{ id: 'late-tab', url: '/app/mini-app/custom-app' }]
+      rerender()
+
+      await act(async () => {
+        resolveUpdate(updated)
+        await pendingUpdate
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('late-tab', { title: 'Updated App', icon: 'new-logo' })
+    })
+
     it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', { presetMiniAppId: null })
       const other = createMiniApp('other-app')
@@ -563,6 +593,43 @@ describe('useMiniApps', () => {
       })
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+    })
+
+    it('hides an app and closes a split pane that was showing it', async () => {
+      const hidden = createMiniApp('app1', { status: 'disabled' })
+      const other = createMiniApp('app2')
+      const mockTrigger = vi.fn().mockResolvedValue(hidden)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', mockTrigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [hidden, other])
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'app1')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.hideMiniApp('app1')
+      })
+
+      expect(mockTrigger).toHaveBeenCalledWith({ params: { appId: 'app1' }, body: { status: 'disabled' } })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(false)
+    })
+
+    it('keeps a split pane showing another app when hiding', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue(createMiniApp('app1', { status: 'disabled' }))
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', mockTrigger)
+      MockUseCacheUtils.setCacheValue('mini_app.split_open', true)
+      MockUseCacheUtils.setCacheValue('mini_app.split_id', 'app2')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.hideMiniApp('app1')
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_id')).toBe('app2')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.split_open')).toBe(true)
     })
   })
 
