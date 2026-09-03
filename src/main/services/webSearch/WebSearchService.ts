@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { TraceMethod } from '@main/ai/observability'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isAbortError } from '@main/utils/error'
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { resolveRemoteFetchUrl } from '@main/utils/remoteUrlSafety'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
   WebSearchExecutionConfig,
@@ -143,20 +143,27 @@ export class WebSearchService extends BaseService {
       const failedIndexes = mergedResults.flatMap((result, index) => (result.status === 'rejected' ? [index] : []))
       if (failedIndexes.length === 0) break
 
-      const allowPrivateNetwork = application.get('PreferenceService').get('app.fetch.allow_private_network')
-      const fallbackCandidates = failedIndexes.flatMap((index) => {
-        const input = context.inputs[index]
+      const fallbackCandidates = (
+        await Promise.all(
+          failedIndexes.map(async (index) => {
+            const input = context.inputs[index]
 
-        if (context.capability !== 'fetchUrls' || fallbackProviderId !== 'jina') {
-          return [{ index, input }]
-        }
+            if (context.capability !== 'fetchUrls' || fallbackProviderId !== 'jina') {
+              return { index, input }
+            }
 
-        try {
-          return [{ index, input: sanitizeRemoteUrl(input, undefined, allowPrivateNetwork) }]
-        } catch {
-          return []
-        }
-      })
+            // Jina is a third party: private targets stay blocked here regardless of
+            // app.fetch.allow_private_network, which only governs the local fetch.
+            try {
+              const resolved = await resolveRemoteFetchUrl(input, { allowPrivateNetwork: false, signal })
+              return { index, input: resolved.url }
+            } catch {
+              return undefined
+            }
+          })
+        )
+      ).filter((candidate) => candidate !== undefined)
+      signal?.throwIfAborted()
 
       if (fallbackCandidates.length === 0) continue
 
