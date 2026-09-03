@@ -483,6 +483,36 @@ describe('ComposerToken', () => {
     expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
 
+  it('activates a sent image preview from the keyboard instead of opening its hover card', () => {
+    const onActivate = vi.fn()
+    const { container } = render(
+      <FileComposerToken
+        imageIconPreview
+        readOnly
+        onReadOnlyFilePreviewActivate={onActivate}
+        readOnlyFilePreview={{ url: 'file:///tmp/avatar-preview.png', mediaType: 'image/png' }}
+        token={{
+          id: 'file:sent-image',
+          kind: 'file',
+          label: 'avatar-preview.png',
+          payload: createFileMetadata({
+            name: 'avatar-preview.png',
+            origin_name: 'avatar-preview.png',
+            path: '/tmp/avatar-preview.png',
+            ext: '.png',
+            type: FILE_TYPE.IMAGE
+          })
+        }}
+      />
+    )
+
+    const trigger = getFileTokenTrigger(container)
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onActivate).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+  })
+
   it('keeps the default image icon for SVG input files', () => {
     const { container } = render(
       <FileComposerToken
@@ -899,6 +929,11 @@ describe('ComposerToken', () => {
       }),
       expect.objectContaining({ id: 'file:pasted-text', label: '已粘贴的文本.txt' })
     )
+
+    fireEvent.keyDown(trigger, { key: 'Enter' })
+
+    expect(onActivate).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
   })
 
   it('activates sent generic file previews with click and keyboard without adding a hover card', () => {
