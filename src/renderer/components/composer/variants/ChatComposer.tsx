@@ -52,7 +52,12 @@ import {
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model, ReasoningSummary, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import {
+  type Model,
+  type ReasoningSummary,
+  type ServiceTierSelection,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'

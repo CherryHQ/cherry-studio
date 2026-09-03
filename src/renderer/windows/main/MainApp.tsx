@@ -7,11 +7,13 @@ import { ConversationNotificationRuntime } from '@renderer/components/Conversati
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
+import { useIsPrivacyUpdateRequired } from '@renderer/hooks/useIsPrivacyUpdateRequired'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { registerImageModeChooser } from '@renderer/services/imageExportModeChooser'
@@ -86,6 +88,9 @@ export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+  const privacyUpdateRequired = useIsPrivacyUpdateRequired()
+  // Onboarding collects privacy consent itself, so the gate only owns the window afterwards.
+  const privacyGateOpen = providerSetupStatus !== 'pending' && privacyUpdateRequired
 
   const initialDefaultTab = useMemo<Tab>(
     () => ({
@@ -101,18 +106,20 @@ export function MainWindowContent(): React.ReactElement {
 
   return (
     <TabsProvider initialDefaultTab={initialDefaultTab}>
-      {providerSetupStatus === 'pending' ? (
-        <Suspense fallback={<BootFallback />}>
-          <OnboardingPage />
-        </Suspense>
-      ) : (
-        <AppShell />
-      )}
-      <MainWindowRuntime />
-      <ConversationNotificationRuntime />
-      <PopupHost />
-      <ToastHost />
-      {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+      <MandatoryGateProvider open={privacyGateOpen}>
+        {providerSetupStatus === 'pending' ? (
+          <Suspense fallback={<BootFallback />}>
+            <OnboardingPage />
+          </Suspense>
+        ) : (
+          <AppShell />
+        )}
+        <MainWindowRuntime />
+        <ConversationNotificationRuntime />
+        <PopupHost />
+        <ToastHost />
+        {providerSetupStatus === 'pending' ? null : <PrivacyPolicyUpdateGate />}
+      </MandatoryGateProvider>
     </TabsProvider>
   )
 }

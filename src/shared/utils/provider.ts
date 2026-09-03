@@ -8,9 +8,15 @@ import {
   type ServerToolConfig,
   supportsServerToolFunctionMixing
 } from '@cherrystudio/provider-registry'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import {
+  CHERRY_CLOUD_AUDIENCE,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryCloudModel,
+  isManagedCherryProviderId
+} from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { EndpointDialect, Provider } from '@shared/data/types/provider'
+import type { AppEdition } from '@shared/types/appEdition'
 
 import { getLowerBaseModelName, getRawModelId, isFunctionCallingModel, isGeminiModel, isNonChatModel } from './model'
 import { getProviderHostTopology } from './providerTopology'
@@ -91,7 +97,7 @@ export function isPerplexityProvider(provider: Provider): boolean {
 }
 
 export function isCherryAIProvider(provider: Provider): boolean {
-  return provider.id === CHERRYAI_PROVIDER_ID || provider.presetProviderId === CHERRYAI_PROVIDER_ID
+  return isManagedCherryProviderId(provider.id) || provider.presetProviderId === CHERRYAI_PROVIDER_ID
 }
 
 export function isNewApiProvider(provider: Provider): boolean {
@@ -172,6 +178,17 @@ export function isLoginBasedProvider(provider: Pick<Provider, 'authMethods'>): b
  */
 export function isExternalCliProvider(provider: Pick<Provider, 'authMethods'>): boolean {
   return provider.authMethods?.includes('external-cli') ?? false
+}
+
+/**
+ * Agent-only providers are surfaced only to Agent pickers / runtimes — never to
+ * general chat selectors or the public gateway catalog. External-CLI providers are
+ * always agent-only (no app-side credential); Cherry Cloud follows `CHERRY_CLOUD_AUDIENCE`.
+ */
+export function isAgentOnlyProvider(provider: Pick<Provider, 'id' | 'authMethods'>, edition: AppEdition): boolean {
+  if (isExternalCliProvider(provider)) return true
+  if (isManagedCherryCloudModel(provider.id)) return CHERRY_CLOUD_AUDIENCE[edition] === 'agent'
+  return false
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {

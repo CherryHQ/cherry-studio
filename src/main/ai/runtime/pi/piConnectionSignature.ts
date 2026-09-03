@@ -6,6 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
+import { gatewayCredentialsFingerprint } from '@main/ai/runtime/agentApiGateway'
 import {
   type McpServerSnapshotMap,
   type NotifyChannel,
@@ -18,6 +19,8 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+
+import { usesPiGateway } from './modelInjection'
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -84,7 +87,7 @@ export async function capturePiConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
-
+  const gatewayCredentials = usesPiGateway(provider) ? gatewayCredentialsFingerprint() : null
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
@@ -101,7 +104,8 @@ export async function capturePiConnectionSnapshot(
           mcpTools,
           linkedChannel,
           notificationContext,
-          knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds)
+          knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
+          gatewayCredentials
         })
       )
     )
