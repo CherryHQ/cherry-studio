@@ -1,24 +1,15 @@
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
-import { useCallback, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const dataApiMocks = vi.hoisted(() => ({
-  useDataChange: vi.fn(),
-  useInfiniteFlatItems: vi.fn(),
-  useInfiniteQuery: vi.fn(),
-  useMutation: vi.fn()
-}))
+const dataApiMocks = MockUseDataApi
 
-vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useDataChange: dataApiMocks.useDataChange,
-  useInfiniteFlatItems: dataApiMocks.useInfiniteFlatItems,
-  useMutation: dataApiMocks.useMutation
-}))
-vi.mock('../useConversationHistoryQuery', () => ({
-  useConversationHistoryQuery: dataApiMocks.useInfiniteQuery
+vi.mock('@renderer/data/hooks/useDataApi', async () => (await import('@test-mocks/renderer/useDataApi')).MockUseDataApi)
+vi.mock('../useConversationHistoryQuery', async () => ({
+  useConversationHistoryQuery: (await import('@test-mocks/renderer/useDataApi')).mockUseInfiniteQuery
 }))
 
 const { toAgentSessionUIMessage, useAgentSessionParts } = await import('../useAgentSessionParts')
@@ -40,63 +31,51 @@ function sessionMessageRow(id: string, sessionId = 'session-1'): AgentSessionMes
   } as AgentSessionMessageEntity
 }
 
+function agentSessionHistoryQueryOptions(sessionId: string) {
+  return { params: { sessionId }, query: { deferToolOutputs: true }, limit: 50 } as const
+}
+
 function mockAgentSessionPartsDataApi(pages: Array<{ items: AgentSessionMessageEntity[]; nextCursor?: string }> = []) {
   dataApiMocks.useInfiniteQuery.mockReturnValue({
     pages,
     isLoading: false,
     isRefreshing: false,
+    error: undefined,
     hasNext: false,
     loadNext: vi.fn(),
+    refresh: vi.fn(),
+    reset: vi.fn(),
     mutate: vi.fn()
   })
-  dataApiMocks.useInfiniteFlatItems.mockReturnValue(pages.flatMap((page) => page.items))
-  dataApiMocks.useMutation.mockReturnValue({ trigger: vi.fn() })
+  dataApiMocks.useMutation.mockReturnValue({ trigger: vi.fn(), isLoading: false, error: undefined })
 }
 
 function mockLiveAgentSessionParts(initialItems: AgentSessionMessageEntity[]) {
   type Pages = Array<{ items: AgentSessionMessageEntity[]; nextCursor?: string }>
-  const visiblePagesBySession = new Map<string, Pages>([
-    ['session-1', [{ items: initialItems, nextCursor: undefined }]]
-  ])
   const trigger = vi.fn(async () => undefined)
-  dataApiMocks.useInfiniteQuery.mockImplementation(function useLiveAgentSessionQuery(
-    _path: string,
-    config: { params: { sessionId: string } }
-  ) {
-    const sessionId = config.params.sessionId
-    const [, setVersion] = useState(0)
-    const pages = visiblePagesBySession.get(sessionId) ?? []
-    const mutate = useCallback(
-      async (updater?: unknown) => {
-        const current = visiblePagesBySession.get(sessionId) ?? []
-        const next =
-          typeof updater === 'function'
-            ? await (updater as (value: Pages) => Pages | undefined | Promise<Pages | undefined>)(current)
-            : current
-        visiblePagesBySession.set(sessionId, next ?? current)
-        setVersion((version) => version + 1)
-        return visiblePagesBySession.get(sessionId)
-      },
-      [sessionId]
-    )
-    return {
-      pages,
-      isLoading: false,
-      isRefreshing: false,
-      hasNext: false,
-      loadNext: vi.fn(),
-      mutate
-    }
-  })
-  dataApiMocks.useInfiniteFlatItems.mockImplementation((currentPages: Array<{ items: AgentSessionMessageEntity[] }>) =>
-    currentPages.flatMap((page) => page.items)
+  MockUseDataApiUtils.seedInfiniteQuery(
+    '/agent-sessions/:sessionId/messages',
+    [{ items: [...initialItems].reverse(), nextCursor: undefined }],
+    agentSessionHistoryQueryOptions('session-1')
   )
-  dataApiMocks.useMutation.mockReturnValue({ trigger })
+  MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions/:sessionId/messages/:messageId', trigger)
   return {
     getIds: (sessionId = 'session-1') =>
-      (visiblePagesBySession.get(sessionId) ?? []).flatMap((page) => page.items.map((item) => item.id)),
+      (
+        MockUseDataApiUtils.getInfiniteQueryPages(
+          '/agent-sessions/:sessionId/messages',
+          agentSessionHistoryQueryOptions(sessionId)
+        ) ?? []
+      )
+        .slice()
+        .reverse()
+        .flatMap((page) => [...page.items].reverse().map((item) => item.id)),
     setItems: (sessionId: string, items: AgentSessionMessageEntity[]) => {
-      visiblePagesBySession.set(sessionId, [{ items, nextCursor: undefined }])
+      MockUseDataApiUtils.setInfiniteQueryPages(
+        '/agent-sessions/:sessionId/messages',
+        [{ items: [...items].reverse(), nextCursor: undefined }] as Pages,
+        agentSessionHistoryQueryOptions(sessionId)
+      )
     },
     trigger
   }
@@ -106,6 +85,7 @@ describe('toAgentSessionUIMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
+    MockUseDataApiUtils.resetMocks()
     mockAgentSessionPartsDataApi()
   })
 
@@ -152,6 +132,7 @@ describe('useAgentSessionParts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUseCacheUtils.resetMocks()
+    MockUseDataApiUtils.resetMocks()
     mockAgentSessionPartsDataApi()
   })
 
@@ -190,8 +171,11 @@ describe('useAgentSessionParts', () => {
       pages: [],
       isLoading: false,
       isRefreshing: false,
+      error: undefined,
       hasNext: false,
       loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
       mutate
     })
 
@@ -274,20 +258,21 @@ describe('useAgentSessionParts', () => {
         })
     )
     const sessionTwoMutate = vi.fn()
-    dataApiMocks.useInfiniteQuery.mockImplementation((_path: string, config: { params: { sessionId: string } }) => {
-      const isSessionOne = config.params.sessionId === 'session-1'
+    dataApiMocks.useInfiniteQuery.mockImplementation((_path, config) => {
+      const sessionId = (config as { params?: { sessionId?: string } } | undefined)?.params?.sessionId
+      const isSessionOne = sessionId === 'session-1'
       return {
         pages: [{ items: [isSessionOne ? sessionOneRow : sessionTwoRow] }],
         isLoading: false,
         isRefreshing: false,
+        error: undefined,
         hasNext: false,
         loadNext: vi.fn(),
+        refresh: vi.fn(),
+        reset: vi.fn(),
         mutate: isSessionOne ? sessionOneMutate : sessionTwoMutate
       }
     })
-    dataApiMocks.useInfiniteFlatItems.mockImplementation((pages: Array<{ items: AgentSessionMessageEntity[] }>) =>
-      pages.flatMap((page) => page.items)
-    )
 
     const { result, rerender } = renderHook(({ sessionId }) => useAgentSessionParts(sessionId), {
       initialProps: { sessionId: 'session-1' }
@@ -374,7 +359,7 @@ describe('useAgentSessionParts', () => {
       }) as AgentSessionMessageEntity
     const firstRow = rowFor('message-1')
     const secondRow = rowFor('message-2')
-    mockAgentSessionPartsDataApi([{ items: [firstRow, secondRow] }])
+    mockAgentSessionPartsDataApi([{ items: [secondRow, firstRow] }])
     const firstLiveParts: CherryMessagePart[] = [{ type: 'text', text: 'First live' }]
     const secondLiveParts: CherryMessagePart[] = [{ type: 'text', text: 'Second live' }]
     MockUseCacheUtils.setSharedCacheValue('agent.session.flow_parts.session-1.message-1', firstLiveParts)

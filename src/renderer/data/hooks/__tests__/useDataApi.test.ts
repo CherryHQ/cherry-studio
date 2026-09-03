@@ -1,7 +1,10 @@
 import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { ResponseForPath } from '@shared/data/api/paths'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
+import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Cache } from 'swr'
 import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
@@ -654,6 +657,101 @@ describe('useInfiniteFlatItems behavior', () => {
     expect(pages[0].items).toEqual(['a', 'b'])
     expect(pages[1].items).toBe(items1)
     expect(pages[1].items).toEqual(['c', 'd'])
+  })
+})
+
+describe('unified useInfiniteQuery mock parity', () => {
+  const path = '/agent-sessions/:sessionId/messages' as const
+  const options = (sessionId: string, deferToolOutputs: boolean, limit: number) => ({
+    params: { sessionId },
+    query: { deferToolOutputs },
+    limit
+  })
+  const pages = (id: string): ResponseForPath<typeof path, 'GET'>[] => [
+    {
+      items: [
+        {
+          id,
+          sessionId: 'session-1',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: id }] },
+          searchableText: id,
+          status: 'success',
+          modelId: null,
+          messageSnapshot: null,
+          stats: null,
+          runtimeResumeToken: null,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        } satisfies AgentSessionMessageEntity
+      ],
+      nextCursor: undefined
+    }
+  ]
+
+  afterEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.restoreAllMocks()
+  })
+
+  it('isolates the same route by resolved params, query, and effective limit like the real hook', async () => {
+    const cases = [
+      { id: 'session-1-deferred-10', options: options('session-1', true, 10) },
+      { id: 'session-2-deferred-10', options: options('session-2', true, 10) },
+      { id: 'session-1-full-10', options: options('session-1', false, 10) },
+      { id: 'session-1-deferred-25', options: options('session-1', true, 25) }
+    ]
+
+    const productionKeys = cases.map(({ options: queryOptions }) =>
+      infKey(resolveTemplate(path, queryOptions.params), { ...queryOptions.query, limit: queryOptions.limit })
+    )
+    expect(new Set(productionKeys).size).toBe(cases.length)
+
+    vi.spyOn(dataApiService, 'get').mockImplementation((async (resolvedPath: string, request = {}) => {
+      const query = (request as { query?: { deferToolOutputs?: boolean; limit?: number } }).query
+      const sessionId = resolvedPath.split('/')[2]
+      const id = `${sessionId}-${query?.deferToolOutputs ? 'deferred' : 'full'}-${query?.limit}`
+      return pages(id)[0]
+    }) as never)
+    const { Wrapper } = makeWrapper()
+    const real = renderHook(({ queryOptions }) => useInfiniteQuery(path, queryOptions), {
+      initialProps: { queryOptions: cases[0].options },
+      wrapper: Wrapper
+    })
+    for (const { id, options: queryOptions } of cases) {
+      real.rerender({ queryOptions })
+      await waitFor(() => expect(real.result.current.pages[0]?.items[0]?.id).toBe(id))
+    }
+
+    for (const { id, options: queryOptions } of cases) {
+      MockUseDataApiUtils.seedInfiniteQuery(path, pages(id), queryOptions)
+    }
+
+    const results = cases.map(({ options: queryOptions }) => renderHook(() => mockUseInfiniteQuery(path, queryOptions)))
+    expect(results.map(({ result }) => result.current.pages[0]?.items[0]?.id)).toEqual(cases.map(({ id }) => id))
+  })
+
+  it('matches functional mutate and mounted-subscriber behavior', async () => {
+    const queryOptions = options('session-1', true, 50)
+    const initialPages = pages('before')
+    const updatedPages = pages('after')
+    MockUseDataApiUtils.seedInfiniteQuery(path, initialPages, queryOptions)
+
+    const { result, rerender } = renderHook(() => mockUseInfiniteQuery(path, queryOptions))
+    const mutate = result.current.mutate
+    await act(async () => {
+      await mutate(
+        (current: typeof initialPages) => {
+          expect(current).toEqual(initialPages)
+          return updatedPages
+        },
+        { revalidate: false }
+      )
+    })
+
+    expect(result.current.pages).toEqual(updatedPages)
+    rerender()
+    expect(result.current.mutate).toBe(mutate)
   })
 })
 
