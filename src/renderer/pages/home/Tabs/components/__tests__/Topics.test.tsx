@@ -1357,13 +1357,28 @@ describe('Topics', () => {
     expect(setActiveTopic).not.toHaveBeenCalled()
   })
 
+  it('keeps a pinned topic aligned with its assistant icon', () => {
+    const { getByText } = renderTopicList()
+    const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
+
+    // The leading slot is the horizontal alignment contract shared with the assistant header icon.
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+  })
+
+  it('keeps the leading slot when assistant icons are hidden', () => {
+    MockUsePreferenceUtils.setPreferenceValue('assistant.icon_type' as never, 'none')
+    const { getByText } = renderTopicList()
+    const pinnedRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
+
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).toBeInTheDocument()
+  })
+
   it('unpins from the trailing row button', async () => {
     const { getByText } = renderTopicList()
 
     const betaRow = getByText('Beta pinned').closest('[data-testid="topic-list-row"]')
     const unpinButton = betaRow?.querySelector('[aria-label="Unpin Conversation"]')
     expect(unpinButton ?? null).toBeInTheDocument()
-    expect(betaRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
     expect(unpinButton?.closest('[data-resource-list-item-actions="true"]')).toBeInTheDocument()
     expect(
       betaRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin Conversation"]') ?? null
