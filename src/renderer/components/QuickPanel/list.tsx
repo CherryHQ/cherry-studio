@@ -56,6 +56,8 @@ interface QuickPanelRowProps<T extends QuickPanelRowData> {
   active: boolean
   className?: string
   dataId?: string
+  /** The cursor reached this row through keyboard navigation, so the anchored tooltip mirrors hover. */
+  keyboardActive?: boolean
   hoverEnabled?: boolean
   item: T
   onSelect: () => void
@@ -67,6 +69,15 @@ interface QuickPanelRowProps<T extends QuickPanelRowData> {
 
 export function firstQuickPanelSelectableIndex(items: readonly { disabled?: boolean }[]) {
   return items.findIndex((item) => !item.disabled)
+}
+
+export function initialQuickPanelFocusIndex(items: readonly { disabled?: boolean }[], preferredIndex: number) {
+  const preferred = items[preferredIndex]
+  if (preferredIndex >= 0 && preferred && !preferred.disabled) {
+    return preferredIndex
+  }
+
+  return firstQuickPanelSelectableIndex(items)
 }
 
 function selectableIndexes(items: readonly { disabled?: boolean }[]) {
@@ -232,6 +243,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   active,
   className,
   dataId,
+  keyboardActive = false,
   hoverEnabled = true,
   item,
   onSelect,
@@ -258,7 +270,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
         content={item.tooltip}
         side="top"
         sideOffset={6}
-        open={active || tooltipOpen}
+        open={(active && keyboardActive) || tooltipOpen}
         onOpenChange={setTooltipOpen}>
         <span className="inline-flex shrink-0">{item.tooltipAnchor}</span>
       </NormalTooltip>
@@ -278,9 +290,9 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       className={cn(
         'mx-[5px] mb-px flex items-center justify-between gap-3 rounded-md px-2 py-1 transition-colors duration-100',
         isReadOnlyLocked ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-        !isReadOnlyLocked && selected && 'bg-muted',
-        !isReadOnlyLocked && selected && active && 'bg-accent',
-        !isReadOnlyLocked && !selected && active && 'bg-accent',
+        // Selection is marked by the check suffix alone: bg-accent and bg-muted share the same
+        // token value, so a selected tint would read as a second keyboard cursor on the row.
+        !isReadOnlyLocked && active && 'bg-accent',
         canHover && 'hover:bg-accent',
         className
       )}

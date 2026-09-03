@@ -370,6 +370,9 @@ function openUnifiedPanelSubmenu(
     title: typeof launcher.label === 'string' ? launcher.label : undefined,
     list: childItems,
     symbol: launcher.id,
+    // A single-select submenu opens with the keyboard on the current value (active child), so
+    // the focused row and the selection check never land on two different rows.
+    defaultIndex: childItems.findIndex((child) => child.isSelected && !child.disabled),
     parentPanel: options.parentPanel,
     queryAnchor: options.queryAnchor,
     // A submenu is opened by a selection, so its query starts empty and is typed, not triggered.

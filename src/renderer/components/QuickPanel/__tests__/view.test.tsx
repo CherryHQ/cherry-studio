@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import React, { Activity, useEffect, useRef, useState } from 'react'
+import React, { Activity, type ReactNode, useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getQuickPanelHeights, QUICK_PANEL_ITEM_HEIGHT, QUICK_PANEL_SAFE_MARGIN } from '../heights'
@@ -16,10 +16,49 @@ import type {
 } from '../types'
 import { useQuickPanel } from '../useQuickPanel'
 
+// The renderer setup stubs the whole UI kit with content-dropped tooltips; restore a minimal
+// NormalTooltip that exposes the controlled `open` flag so row tooltip gating stays observable.
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    size: _size,
+    variant: _variant,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => (
+    <button {...props}>{children}</button>
+  ),
+  Kbd: ({ children }: { children?: ReactNode }) => <kbd>{children}</kbd>,
+  NormalTooltip: ({ open = false, children }: { open?: boolean; children?: ReactNode }) => (
+    <div data-open={String(open)}>{children}</div>
+  )
+}))
+
 const virtualListMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   scrollToOffset: vi.fn()
 }))
+
+// 单选子菜单夹具：当前值行带警告 tooltip，模拟权限模式弹层。
+const singleSelectSubmenuItems: QuickPanelListItem[] = [
+  { id: 'default', label: 'Ask every time', icon: '1', action: vi.fn() },
+  {
+    id: 'plan',
+    label: 'Plan only',
+    icon: '2',
+    tooltip: 'Plan tip',
+    tooltipAnchor: <span aria-label="plan-warning" />,
+    action: vi.fn()
+  },
+  {
+    id: 'smart',
+    label: 'Smart approval',
+    icon: '3',
+    isSelected: true,
+    tooltip: 'Smart tip',
+    tooltipAnchor: <span aria-label="smart-warning" />,
+    action: vi.fn()
+  }
+]
 
 vi.mock('i18next', () => ({
   t: (key: string, fallback?: string) => fallback ?? key
@@ -97,6 +136,8 @@ function PanelHarness({
   trackInputQuery,
   initialSearchText,
   queryAnchor,
+  defaultIndex,
+  openNonce = 0,
   onClose,
   fill = false
 }: {
@@ -112,6 +153,9 @@ function PanelHarness({
   trackInputQuery?: boolean
   initialSearchText?: string
   queryAnchor?: number
+  defaultIndex?: number
+  /** Bumping re-calls open() with the same symbol, like a reopen inside the cleanup window. */
+  openNonce?: number
   onClose?: QuickPanelOpenOptions['onClose']
   /** Drives the ambient fill flag the composer would push for home placement. */
   fill?: boolean
@@ -134,6 +178,7 @@ function PanelHarness({
       readOnly,
       symbol,
       title,
+      defaultIndex,
       triggerInfo:
         triggerInfo ??
         (inputAdapter
@@ -158,7 +203,9 @@ function PanelHarness({
     symbol,
     title,
     trackInputQuery,
-    triggerInfo
+    triggerInfo,
+    defaultIndex,
+    openNonce
   ])
 
   return <QuickPanelView inputAdapter={inputAdapter} />
@@ -1091,6 +1138,78 @@ describe('QuickPanelView', () => {
     expect(unselectedAction).toHaveBeenCalledTimes(1)
     expect(selectedAction).toHaveBeenCalledTimes(1)
     expect(disabledAction).not.toHaveBeenCalled()
+  })
+
+  // 双高亮回归防护：单选子菜单打开时键盘焦点应落在当前值上，选中行不再铺与焦点同色的灰底，
+  // 且打开即聚焦不触发行 tooltip（tooltip 只跟随悬停或键盘导航）。
+  it('opens on the opener-requested row without a second highlight or an auto tooltip', async () => {
+    const captureDispatch = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={singleSelectSubmenuItems} defaultIndex={2} />
+      </QuickPanelProvider>
+    )
+
+    const smartRow = (await screen.findByText('Smart approval')).closest('[data-id="smart"]')
+    const defaultRow = screen.getByText('Ask every time').closest('[data-id="default"]')
+
+    expect(smartRow).toHaveAttribute('data-active', 'true')
+    expect(smartRow).toHaveAttribute('aria-pressed', 'true')
+    expect(defaultRow).toHaveAttribute('data-active', 'false')
+    expect(smartRow?.className).not.toContain('bg-muted')
+    expect(smartRow?.className).toContain('bg-accent')
+    // 打开即聚焦（defaultIndex）不触发行 tooltip。
+    expect(screen.getByLabelText('smart-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowUp').event)
+    })
+
+    // 键盘导航到达的行恢复 tooltip 供查看，离开的行收回。
+    expect(screen.getByLabelText('plan-warning').closest('[data-open]')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByLabelText('smart-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('treats a same-symbol reopen as a fresh panel for focus and tooltip state', async () => {
+    const captureDispatch = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
+
+    const harness = (nonce: number) => (
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          items={singleSelectSubmenuItems}
+          defaultIndex={2}
+          openNonce={nonce}
+        />
+      </QuickPanelProvider>
+    )
+    const { rerender } = render(harness(0))
+
+    await screen.findByText('Smart approval')
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowUp').event)
+    })
+    expect(screen.getByLabelText('plan-warning').closest('[data-open]')).toHaveAttribute('data-open', 'true')
+
+    // 关闭后在清理窗口内以同一 symbol 重开：不得恢复旧光标与其 tooltip。
+    act(() => {
+      quickPanel?.close('esc')
+    })
+    // 面板隐藏瞬间 tooltip 就应收回，不等清理窗口结束。
+    expect(screen.getByLabelText('plan-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
+    rerender(harness(1))
+
+    const smartRow = (await screen.findByText('Smart approval')).closest('[data-id="smart"]')
+    const planRow = screen.getByText('Plan only').closest('[data-id="plan"]')
+    expect(smartRow).toHaveAttribute('data-active', 'true')
+    expect(planRow).toHaveAttribute('data-active', 'false')
+    expect(screen.getByLabelText('plan-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
+    expect(screen.getByLabelText('smart-warning').closest('[data-open]')).toHaveAttribute('data-open', 'false')
   })
 
   it('keeps rendered row height aligned with the virtual-list item contract', async () => {

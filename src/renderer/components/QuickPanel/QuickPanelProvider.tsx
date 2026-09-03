@@ -114,6 +114,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setSortFn(undefined)
     setTitle(undefined)
     setSymbol('')
+    setDefaultIndex(-1)
     setTriggerInfo(undefined)
     setQueryAnchor(undefined)
     setTrackInputQuery(false)
