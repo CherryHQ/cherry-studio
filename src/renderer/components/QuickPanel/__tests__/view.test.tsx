@@ -21,11 +21,13 @@ import { useQuickPanel } from '../useQuickPanel'
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
-    size: _size,
-    variant: _variant,
+    size,
+    variant,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) => (
-    <button {...props}>{children}</button>
+    <button type="button" data-size={size} data-variant={variant} {...props}>
+      {children}
+    </button>
   ),
   Kbd: ({ children }: { children?: ReactNode }) => <kbd>{children}</kbd>,
   NormalTooltip: ({ open = false, children }: { open?: boolean; children?: ReactNode }) => (
@@ -129,6 +131,7 @@ function PanelHarness({
   inputAdapter,
   items,
   manageListExternally,
+  multiple,
   readOnly,
   symbol = '/',
   title = 'Actions',
@@ -146,6 +149,7 @@ function PanelHarness({
   inputAdapter?: QuickPanelInputAdapter
   items: QuickPanelListItem[]
   manageListExternally?: boolean
+  multiple?: boolean
   readOnly?: boolean
   symbol?: string
   title?: string
@@ -175,6 +179,7 @@ function PanelHarness({
     open({
       footerActions,
       list: items,
+      multiple,
       readOnly,
       symbol,
       title,
@@ -196,6 +201,7 @@ function PanelHarness({
     initialSearchText,
     items,
     manageListExternally,
+    multiple,
     onClose,
     open,
     queryAnchor,
@@ -1330,6 +1336,37 @@ describe('QuickPanelView', () => {
     fireEvent.click(action)
 
     expect(manageAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes a multi-select panel after a footer action', async () => {
+    const manageAction = vi.fn()
+    const onClose = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          footerActions={[
+            {
+              id: 'knowledge-base:manage',
+              label: 'Manage',
+              ariaLabel: 'Manage knowledge bases',
+              icon: 'settings',
+              action: manageAction
+            }
+          ]}
+          items={[{ id: 'knowledge-base:one', label: 'Knowledge One', icon: 'knowledge' }]}
+          multiple
+          onClose={onClose}
+          symbol="#"
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage knowledge bases' }))
+
+    expect(manageAction).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledWith(expect.objectContaining({ action: 'click' }))
   })
 
   it('hides only footer actions registered as unavailable during search', async () => {

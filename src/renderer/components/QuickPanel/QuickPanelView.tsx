@@ -346,10 +346,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   }, [consumeInputQuery])
 
   const handleItemAction = useCallback(
-    (item: QuickPanelListItem, action?: QuickPanelCloseAction, allowReadOnly = false) => {
+    (item: QuickPanelListItem, action?: QuickPanelCloseAction, isFooterAction = false) => {
       // Read-only panels (e.g. MCP status) stay non-interactive, except for pinned footer actions
       // like "open config" which are the panel's one intentional affordance.
-      if (ctx.readOnly && !allowReadOnly) return
+      if (ctx.readOnly && !isFooterAction) return
       if (item.disabled) return
       const cleanSearchText = activeSearchQuery
       const parentPanel = getCurrentPanelOptions(activeIndex)
@@ -357,7 +357,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const panelGenerationBeforeAction = ctx.getPanelGeneration()
 
       // In multi-select mode, update selection state first.
-      if (ctx.multiple && !item.isMenu) {
+      if (ctx.multiple && !item.isMenu && !isFooterAction) {
         const newSelectedState = !item.isSelected
         ctx.updateItemSelection(item, newSelectedState)
 
@@ -411,8 +411,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         return
       }
 
-      // Keep the panel open in multi-select mode.
-      if (ctx.multiple || item.keepOpenOnAction) return
+      // Keep multi-select list items open; footer actions remain commands unless explicitly retained.
+      if ((!isFooterAction && ctx.multiple) || item.keepOpenOnAction) return
 
       if (ctx.getPanelGeneration() !== panelGenerationBeforeAction) {
         return
