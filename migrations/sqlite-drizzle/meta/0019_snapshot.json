@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3ea94b22-af20-4450-987d-c21171ea4a24",
+  "id": "a644ff4c-db21-420b-8b23-7fc6022f9e3b",
   "prevId": "dfd148a9-f46d-4296-a914-d3af8b69e23d",
   "tables": {
     "agent": {
@@ -642,13 +642,6 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         }
       },
       "indexes": {
@@ -851,6 +844,11 @@
         "agent_session_message_status_idx": {
           "name": "agent_session_message_status_idx",
           "columns": ["status"],
+          "isUnique": false
+        },
+        "agent_session_message_model_id_idx": {
+          "name": "agent_session_message_model_id_idx",
+          "columns": ["model_id"],
           "isUnique": false
         },
         "agent_session_message_delivery_status_idx": {
@@ -3787,6 +3785,11 @@
           "columns": ["status"],
           "isUnique": false
         },
+        "message_model_id_idx": {
+          "name": "message_model_id_idx",
+          "columns": ["model_id"],
+          "isUnique": false
+        },
         "message_topic_root_uniq": {
           "name": "message_topic_root_uniq",
           "columns": ["topic_id"],
@@ -4326,13 +4329,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "deleted_at": {
-          "name": "deleted_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         }
       },

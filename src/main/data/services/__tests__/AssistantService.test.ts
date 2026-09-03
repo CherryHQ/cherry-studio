@@ -721,7 +721,11 @@ describe('AssistantDataService', () => {
       }
       expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { modelId: expect.any(Array) } }
+        details: {
+          fieldErrors: {
+            modelId: ["Model 'cherryai::qwen' is unavailable in this edition or not registered in user_model"]
+          }
+        }
       })
 
       const rows = await dbh.db.select().from(assistantTable)
@@ -1300,7 +1304,11 @@ describe('AssistantDataService', () => {
       }
       expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
-        details: { fieldErrors: { modelId: expect.any(Array) } }
+        details: {
+          fieldErrors: {
+            modelId: ["Model 'cherryai::qwen' is unavailable in this edition or not registered in user_model"]
+          }
+        }
       })
 
       // Row name stays unchanged — modelId validation runs before the column write.

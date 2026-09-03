@@ -137,6 +137,7 @@ export const JobSnapshotSchema = z.strictObject({
   error: JobErrorSchema.nullable(),
   parentId: z.string().nullable(),
   cancelRequested: z.boolean(),
+  cancelRequestedAt: z.string().nullable(),
   metadata: z.record(z.string(), z.unknown()),
   timeoutMs: z.number().int().nullable(),
   createdAt: z.string(),

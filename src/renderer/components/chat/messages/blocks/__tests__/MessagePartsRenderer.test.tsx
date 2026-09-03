@@ -352,7 +352,8 @@ vi.mock('../TranslationBlock', () => ({
     <div
       data-testid="mock-translation-block"
       data-streaming={String(!!isStreaming)}
-      data-has-delete={String(!!onDelete)}>
+      data-has-delete={String(!!onDelete)}
+      onClick={onDelete}>
       {content}
     </div>
   )
@@ -385,13 +386,17 @@ const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = []
 ) => {
   const value: MessageListProviderValue = {
     state: {
       topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
-      messages: [message],
-      partsByMessageId: { [message.id]: parts },
+      messages: [...history.map((entry) => entry.message), message],
+      partsByMessageId: Object.fromEntries([
+        ...history.map((entry) => [entry.message.id, entry.parts]),
+        [message.id, parts]
+      ]),
       messageNavigation: 'none',
       estimateSize: 400,
       overscan: 0,
@@ -421,8 +426,9 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
-) => render(renderPartsTree(parts, message, actions, renderConfig))
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = []
+) => render(renderPartsTree(parts, message, actions, renderConfig, history))
 
 function activateTurn(status?: string): void {
   mockIsActiveTurnTarget.mockReturnValue(true)
@@ -965,6 +971,44 @@ describe('MessagePartsRenderer', () => {
       expect(content).toContain("data-citation='1'")
       expect(content).toContain('https://example.com/news')
       expect(content).not.toContain('[cite:70536f0b-1]')
+    })
+
+    // #19771: the follow-up turn re-cites a kb_search result from the previous turn.
+    it('renders a [cite:id] re-cited from an earlier turn as a badge', () => {
+      const earlierTurn = {
+        message: msg({ id: 'msg-0' }),
+        parts: [
+          {
+            type: 'tool-kb_search',
+            toolCallId: 'search-0',
+            state: 'output-available',
+            input: { query: '审计内容', baseIds: ['b'] },
+            output: [
+              {
+                id: '2598d0ab-1',
+                baseId: 'b',
+                conceptId: 'audit/plan.md',
+                title: '审计方案.md',
+                type: 'file',
+                content: '工程立项与审批合规性审计',
+                score: 0.9
+              }
+            ]
+          }
+        ] as unknown as CherryMessagePart[]
+      }
+
+      renderParts(
+        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-1' }),
+        {},
+        defaultMessageRenderConfig,
+        [earlierTurn]
+      )
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).not.toContain('[cite:')
     })
 
     it('renders video and error value parts', async () => {
@@ -2051,11 +2095,25 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('completed-process-trigger')).toHaveAttribute('aria-expanded', 'false')
     })
 
-    it('threads onRemoveTranslation to the translation block', () => {
+    it('removes this message translation through the inline delete when the action is available', () => {
+      const removeMessageTranslation = vi.fn()
+      renderParts(
+        [{ type: 'data-translation', data: { content: 'translated answer' } }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-translated' }),
+        { removeMessageTranslation }
+      )
+
+      const block = screen.getByTestId('mock-translation-block')
+      expect(block).toHaveAttribute('data-has-delete', 'true')
+      fireEvent.click(block)
+      expect(removeMessageTranslation).toHaveBeenCalledWith('msg-translated')
+    })
+
+    it('hides the inline translation delete in read-only embeds without removeMessageTranslation', () => {
       renderParts([
         { type: 'data-translation', data: { content: 'translated answer' } }
       ] as unknown as CherryMessagePart[])
-      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'true')
+      expect(screen.getByTestId('mock-translation-block')).toHaveAttribute('data-has-delete', 'false')
     })
   })
 })

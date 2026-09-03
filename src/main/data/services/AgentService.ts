@@ -864,7 +864,10 @@ export class AgentService {
       agentSessionService.notifyReadModelChange(result.sessionImpact.sessionIds, result.sessionImpact.changeKind)
     }
     if (deleted) {
-      this.notifyReadModelChange([id], 'membership')
+      notifyDataApiDataChange([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
       promptService.notifyTargetBindingsChanged()
       this._onAgentDeleted.fire({ agentId: id })
     }

@@ -670,6 +670,7 @@ function renderTopicList({
   assistantTopicsSource,
   assistantIdFilter,
   clearActiveTopic = vi.fn(),
+  initiallyCollapsed = false,
   onActiveAssistantDeleted,
   onAddAssistant = vi.fn(),
   historyRecordsActive,
@@ -686,6 +687,7 @@ function renderTopicList({
   assistantTopicsSource?: AssistantTopicsSource
   assistantIdFilter?: string | null
   clearActiveTopic?: Mock<() => void>
+  initiallyCollapsed?: boolean
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
   historyRecordsActive?: ComponentProps<typeof Topics>['historyRecordsActive']
@@ -699,9 +701,13 @@ function renderTopicList({
   revealRequest?: ResourceListRevealRequest
 } = {}) {
   const setActiveTopic = vi.fn()
-  const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
+  const renderNode = (
+    nextRevealRequest = revealRequest,
+    nextActiveTopic = activeTopic,
+    collapseActiveTopic = false
+  ) => (
     <Topics
-      activeTopic={nextActiveTopic}
+      activeTopic={collapseActiveTopic ? undefined : nextActiveTopic}
       assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
       assistantIdFilter={assistantIdFilter}
       clearActiveTopic={clearActiveTopic}
@@ -719,15 +725,18 @@ function renderTopicList({
       revealRequest={nextRevealRequest}
     />
   )
-  const view = render(renderNode())
+  const view = render(renderNode(revealRequest, activeTopic, initiallyCollapsed))
   return {
     ...view,
     clearActiveTopic,
     onAddAssistant,
     onNewTopic,
     onOpenHistoryRecords,
-    rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
-      view.rerender(renderNode(nextRevealRequest, nextActiveTopic)),
+    rerenderTopicList: (
+      nextRevealRequest = revealRequest,
+      nextActiveTopic = activeTopic,
+      options?: { collapseActiveTopic?: boolean }
+    ) => view.rerender(renderNode(nextRevealRequest, nextActiveTopic, options?.collapseActiveTopic)),
     setActiveTopic
   }
 }
@@ -2101,6 +2110,88 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
+  it('reselects the pre-delete neighbour when the active topic collapses while deletion is in flight', async () => {
+    // #19583: the deleted topic's broadcast-triggered by-id refetch 404s while DELETE is
+    // still resolving, activeTopic collapses to undefined and the ref mirror becomes ''.
+    // The post-delete guard must judge with the selection captured at delete start, not
+    // with the mid-race mirror value, otherwise the selection strands on the deleted id
+    // and the 404 recovery chain redirects to another assistant.
+    const topics = [
+      createApiTopic({
+        id: 'topic-a1-first',
+        name: 'A1 First',
+        assistantId: 'assistant-1',
+        orderKey: 'a'
+      }),
+      createApiTopic({
+        id: 'topic-a1-second',
+        name: 'A1 Second',
+        assistantId: 'assistant-1',
+        orderKey: 'b'
+      })
+    ]
+    const assistantTopicsSource = createAssistantTopicsSource(topics)
+    let resolveDelete: (() => void) | undefined
+    topicDataMocks.deleteTopic.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+    const { rerenderTopicList, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' }),
+      assistantTopicsSource
+    })
+
+    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    confirmTopicRowDelete(topicRow as HTMLElement)
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+
+    // Simulate the broadcast-race: by-id refetch 404s → activeTopic collapses mid-delete.
+    rerenderTopicList(undefined, undefined, { collapseActiveTopic: true })
+    await act(async () => {
+      resolveDelete?.()
+    })
+
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
+    )
+  })
+
+  it('keeps the empty selection a no-op when deleting an inactive topic', async () => {
+    // No selection at all (e.g. a cross-window deletion collapsed the active topic):
+    // deleting a background topic must not navigate anywhere.
+    const topics = [
+      createApiTopic({
+        id: 'topic-a1-first',
+        name: 'A1 First',
+        assistantId: 'assistant-1',
+        orderKey: 'a'
+      }),
+      createApiTopic({
+        id: 'topic-a1-second',
+        name: 'A1 Second',
+        assistantId: 'assistant-1',
+        orderKey: 'b'
+      })
+    ]
+    const { clearActiveTopic, setActiveTopic } = renderTopicList({
+      assistantTopicsSource: createAssistantTopicsSource(topics),
+      initiallyCollapsed: true
+    })
+
+    const topicRow = screen.getByText('A1 First').closest('[role="option"]')
+    confirmTopicRowDelete(topicRow as HTMLElement)
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-first'))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(clearActiveTopic).not.toHaveBeenCalled()
+  })
+
   it('switches to the latest topic from another assistant after deleting an assistant last topic', async () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -2155,6 +2246,79 @@ describe('Topics', () => {
       expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-latest' }))
     )
     expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('reselects a live replacement when the selection switches into the assistant delete set mid-delete', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a1-first',
+              name: 'A1 First',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-a1-second',
+              name: 'A1 Second',
+              assistantId: 'assistant-1',
+              orderKey: 'b',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-b-live',
+              name: 'B Live',
+              assistantId: 'assistant-2',
+              orderKey: 'c',
+              createdAt: '2026-01-04T01:00:00.000Z',
+              updatedAt: '2026-01-04T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    let resolveDelete!: (value: { deletedIds: string[]; deletedCount: number }) => void
+    topicDataMocks.deleteTopicsByAssistantId.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveDelete = resolve
+        })
+    )
+
+    const { rerenderTopicList, setActiveTopic } = renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' })
+    })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+
+    // Mid-delete switch to another topic of the same (deleted) set — it dies with the batch.
+    rerenderTopicList(
+      undefined,
+      createRendererTopic({ id: 'topic-a1-first', assistantId: 'assistant-1', name: 'A1 First' })
+    )
+    await act(async () => {
+      resolveDelete({ deletedIds: ['topic-a1-first', 'topic-a1-second'], deletedCount: 2 })
+    })
+
+    await vi.waitFor(() => expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b-live' })))
   })
 
   it('switches to another assistant latest topic after deleting the active assistant last topic in the right panel', async () => {

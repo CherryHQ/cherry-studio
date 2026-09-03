@@ -30,6 +30,7 @@ import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
+import { withPriorCitationParts } from '@renderer/utils/message/exportView'
 import { ErrorCode, isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
@@ -224,7 +225,7 @@ export async function getTopicMessages(
       cursor = response.nextCursor
     } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
-    return pages.reverse().flat()
+    return withPriorCitationParts(pages.reverse().flat())
   } catch (error: unknown) {
     if (error instanceof Object && 'code' in error && error.code === ErrorCode.NOT_FOUND) {
       logger.debug(`Topic ${id} not found in Data API, returning empty`)

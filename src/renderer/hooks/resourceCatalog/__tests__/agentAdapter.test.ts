@@ -26,13 +26,13 @@ describe('useAgentMutationsById', () => {
     })
   })
 
-  it('keeps deletion out of the update-only scoped mutation hook', () => {
+  it('uses DataApi only for the scoped update mutation', () => {
     renderHook(() => useAgentMutationsById('agent-1'))
 
     expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/agents/agent-1', {
       refresh: expect.any(Function)
     })
-    expect(useMutationMock.mock.calls.some(([method]) => method === 'DELETE')).toBe(false)
+    expect(useMutationMock).toHaveBeenCalledTimes(1)
   })
 
   it('additionally refreshes /skills only when the PATCH body includes skillUpdates', () => {

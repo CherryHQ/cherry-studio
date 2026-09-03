@@ -19,6 +19,7 @@ const {
   bulkDeleteMock,
   createMock,
   bulkUpdateMock,
+  reconcileForProviderMock,
   lookupModelMock,
   resolveModelsMock,
   getImageGenerationSupportMock
@@ -30,6 +31,7 @@ const {
   bulkDeleteMock: vi.fn(),
   createMock: vi.fn(),
   bulkUpdateMock: vi.fn(),
+  reconcileForProviderMock: vi.fn(),
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
   getImageGenerationSupportMock: vi.fn()
@@ -43,7 +45,8 @@ vi.mock('@data/services/ModelService', () => ({
     delete: deleteMock,
     bulkDelete: bulkDeleteMock,
     create: createMock,
-    bulkUpdate: bulkUpdateMock
+    bulkUpdate: bulkUpdateMock,
+    reconcileForProvider: reconcileForProviderMock
   }
 }))
 
@@ -122,20 +125,20 @@ describe('Model handler validation', () => {
 
 describe('/models', () => {
   it('delegates GET to modelService.list with an empty query when none is provided', async () => {
-    listMock.mockReturnValueOnce([{ id: 'openai::gpt-4' }])
+    listMock.mockReturnValueOnce([{ id: 'openai::gpt-4', providerId: 'openai' }])
 
     const result = await modelHandlers['/models'].GET({} as never)
 
     expect(listMock).toHaveBeenCalledWith({})
-    expect(result).toEqual([{ id: 'openai::gpt-4' }])
+    expect(result).toEqual([{ id: 'openai::gpt-4', providerId: 'openai' }])
   })
 
   it('forwards a provided GET query to modelService.list', async () => {
     listMock.mockReturnValueOnce([])
 
-    await modelHandlers['/models'].GET({ query: { providerId: 'openai' } } as never)
+    await modelHandlers['/models'].GET({ query: { providerId: 'openai', enabled: true } } as never)
 
-    expect(listMock).toHaveBeenCalledWith({ providerId: 'openai' })
+    expect(listMock).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
   })
 
   it('passes registry data to modelService.create for a single-item array', async () => {

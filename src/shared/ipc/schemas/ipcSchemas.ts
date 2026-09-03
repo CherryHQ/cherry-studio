@@ -5,6 +5,7 @@ import { type AppEventSchemas, appRequestSchemas } from './app'
 import { type BackupEventSchemas, backupRequestSchemas } from './backup'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
+import { type CherryCloudEventSchemas, cherryCloudRequestSchemas } from './cherryCloud'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
@@ -16,7 +17,7 @@ import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { type HermesDashboardEventSchemas, hermesDashboardRequestSchemas } from './hermesDashboard'
 import { knowledgeRequestSchemas } from './knowledge'
-import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
+import { localModelRequestSchemas } from './localModel'
 import { type McpEventSchemas, mcpRequestSchemas } from './mcp'
 import { type MiniAppEventSchemas, miniAppRequestSchemas } from './miniApp'
 import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
@@ -54,6 +55,7 @@ export const ipcRequestSchemas = {
   ...binaryRequestSchemas,
   ...channelRequestSchemas,
   ...cherryinRequestSchemas,
+  ...cherryCloudRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
   ...deepSeekHarnessRequestSchemas,
@@ -103,10 +105,10 @@ export type IpcEventSchemas = AiEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  CherryCloudEventSchemas &
   DeepSeekHarnessEventSchemas &
   FileEventSchemas &
   HermesDashboardEventSchemas &
-  LocalModelEventSchemas &
   McpEventSchemas &
   MiniAppEventSchemas &
   NavigationEventSchemas &

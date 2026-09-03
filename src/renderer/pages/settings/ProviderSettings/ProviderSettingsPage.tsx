@@ -1,6 +1,7 @@
 import { Alert, Button, Spinner } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import type { Provider } from '@shared/data/types/provider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { omit } from 'es-toolkit/compat'
@@ -11,7 +12,6 @@ import type { ProviderApiSetupInitialStep } from './ConnectionSettings/ProviderA
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
-import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
 
 interface ProviderSettingsSearch {
   addProviderData?: string

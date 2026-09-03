@@ -1068,6 +1068,7 @@ describe('AgentService', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
       agentService.deleteAgent(id)
+      notifyDataApiDataChangeMock.mockClear()
 
       const result = agentService.deleteAgent(id, { permanent: true })
 
@@ -1075,6 +1076,10 @@ describe('AgentService', () => {
       expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agents', kind: 'membership', entityIds: [id] },
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
+      ])
     })
 
     it('moves to the Recycle Bin by default and restores exactly the sessions moved with the agent', async () => {
@@ -1098,7 +1103,7 @@ describe('AgentService', () => {
       expect(agentService.deleteAgent(id, { deleteSessions: true })).toMatchObject({ deleted: true })
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/agents', kind: 'membership', entityIds: [id] },
-        { endpoint: '/agents/:agentId', entityIds: [id] }
+        { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
       ])
       expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(1)
 
