@@ -10,7 +10,6 @@ import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyF
 import { IpcChannel } from '@shared/IpcChannel'
 import { dialog } from 'electron'
 
-import { skillService } from './ai/skills/SkillService'
 import { copilotService } from './services/CopilotService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
@@ -160,28 +159,6 @@ export async function registerIpc() {
   handleGuarded(IpcChannel.Nutstore_GetDirectoryContents, (_, token: string, path: string) =>
     NutstoreService.getDirectoryContents(token, path)
   )
-
-  // Global Skills: install / uninstall / install-from-zip / install-from-directory / list-local
-  // migrated to IpcApi (skill.*). read-file / list-files stay on legacy IPC (roadmap placeholders).
-  handleGuarded(IpcChannel.Skill_ReadFile, async (_, skillId: string, filename: string) => {
-    try {
-      const data = await skillService.readFile(skillId, filename)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to read skill file', { skillId, filename, error })
-      return { success: false, error }
-    }
-  })
-
-  handleGuarded(IpcChannel.Skill_ListFiles, async (_, skillId: string) => {
-    try {
-      const data = await skillService.listFiles(skillId)
-      return { success: true, data }
-    } catch (error) {
-      logger.error('Failed to list skill files', { skillId, error })
-      return { success: false, error }
-    }
-  })
 
   // MainWindow_CrashRenderProcess handler moved into MainWindowService (dev-only).
 }

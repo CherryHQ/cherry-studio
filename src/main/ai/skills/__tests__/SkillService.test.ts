@@ -599,25 +599,6 @@ describe('SkillService', () => {
       expect(await dbh.db.select().from(agentSkillTable)).toEqual([])
     })
 
-    it('serves only bounded text content to the skill file preview', async () => {
-      const result = await skillService.importSystem({ directoryPath: sourceSkillDir })
-      const managedRoot = path.join(dataSkillsRoot, 'large-skill')
-
-      await fs.promises.writeFile(path.join(managedRoot, 'binary.bin'), Buffer.alloc(512))
-      await fs.promises.writeFile(path.join(managedRoot, 'oversized.txt'), Buffer.alloc(2 * 1024 * 1024 + 1, 0x61))
-
-      await expect(skillService.readFile(result.id, 'SKILL.md')).resolves.toBe('# Large skill')
-      await expect(skillService.readFile(result.id, 'binary.bin')).resolves.toBeNull()
-      await expect(skillService.readFile(result.id, 'oversized.txt')).resolves.toBeNull()
-
-      if (process.platform !== 'win32') {
-        const outsideFile = path.join(home, 'outside.txt')
-        await fs.promises.writeFile(outsideFile, 'outside content')
-        await fs.promises.symlink(outsideFile, path.join(managedRoot, 'escape.txt'))
-        await expect(skillService.readFile(result.id, 'escape.txt')).resolves.toBeNull()
-      }
-    })
-
     it('does not overwrite the editable managed copy when the system skill is already imported', async () => {
       const imported = await skillService.importSystem({ directoryPath: sourceSkillDir })
       const managedSkillFile = path.join(dataSkillsRoot, 'large-skill', 'SKILL.md')
