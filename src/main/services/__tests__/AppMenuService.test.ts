@@ -19,7 +19,8 @@ const {
   const openSettingsInMainWindowMock = vi.fn()
   const commandServiceMock = {
     execute: vi.fn(),
-    hasHandler: vi.fn((_command: string) => true)
+    // Main registers handlers only for `scope: 'main'` commands.
+    hasHandler: vi.fn((command: string) => command !== 'app.devtools.toggle')
   }
   const ipcApiServiceMock = { send: vi.fn() }
   const windowManagerMock = {
@@ -100,8 +101,6 @@ describe('AppMenuService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     preferenceServiceMock.get.mockReturnValue(undefined)
-    // Main registers handlers only for `scope: 'main'` commands.
-    commandServiceMock.hasHandler.mockImplementation((command: string) => command !== 'app.devtools.toggle')
     windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-window')
     service = new AppMenuService()
   })
