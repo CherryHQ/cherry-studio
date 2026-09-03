@@ -9,8 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { useModelHealthStatus } from './modelHealthStatusCache'
 import ModelListGroup from './ModelListGroup'
-import { useModelHealthStatus, useModelListHealthRun } from './modelListHealthContext'
+import { useModelListHealthRun } from './modelListHealthContext'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupSection } from './useProviderModelList'
 

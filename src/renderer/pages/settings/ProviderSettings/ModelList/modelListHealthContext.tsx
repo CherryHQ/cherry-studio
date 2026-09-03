@@ -7,13 +7,12 @@ import type {
   ModelWithStatus
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { toast } from '@renderer/services/toast'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useMemo, useState, useSyncExternalStore } from 'react'
+import { createContext, use, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ModelHealthStatusStore } from './ModelHealthStatusStore'
 import { useHealthCheck } from './useHealthCheck'
 
 const logger = loggerService.withContext('ProviderSettings:ModelCheckContext')
@@ -46,7 +45,6 @@ interface ModelListHealthRunContextValue {
 }
 
 const ModelListHealthRunContext = createContext<ModelListHealthRunContextValue | null>(null)
-const ModelListHealthStatusContext = createContext<ModelHealthStatusStore | null>(null)
 
 export function ModelListHealthProvider({ providerId, children }: { providerId: string; children: ReactNode }) {
   const { t } = useTranslation()
@@ -146,24 +144,11 @@ export function ModelListHealthProvider({ providerId, children }: { providerId: 
       toggleApiKey
     ]
   )
-  return (
-    <ModelListHealthRunContext value={runValue}>
-      <ModelListHealthStatusContext value={all.statusStore}>{children}</ModelListHealthStatusContext>
-    </ModelListHealthRunContext>
-  )
+  return <ModelListHealthRunContext value={runValue}>{children}</ModelListHealthRunContext>
 }
 
 export function useModelListHealthRun() {
   const context = use(ModelListHealthRunContext)
   if (!context) throw new Error('useModelListHealthRun must be used within ModelListHealthProvider')
   return context
-}
-
-export function useModelHealthStatus(modelId: UniqueModelId) {
-  const store = use(ModelListHealthStatusContext)
-  if (!store) throw new Error('useModelHealthStatus must be used within ModelListHealthProvider')
-
-  const subscribe = useCallback((listener: () => void) => store.subscribe(modelId, listener), [modelId, store])
-  const getSnapshot = useCallback(() => store.getStatus(modelId), [modelId, store])
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

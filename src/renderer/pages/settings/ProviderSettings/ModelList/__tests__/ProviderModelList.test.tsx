@@ -39,7 +39,6 @@ vi.mock('../ModelDrawer', () => ({
 }))
 
 vi.mock('../modelListHealthContext', () => ({
-  useModelHealthStatus: () => undefined,
   useModelListHealthRun: () => ({
     apiKeyEntries: [],
     savingKeyId: null,
