@@ -640,6 +640,11 @@ function ComposerTokenHoverPopover({
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         event.stopPropagation()
+        if (onActivate) {
+          closePopover()
+          onActivate()
+          return
+        }
         openPopover('keyboard')
         return
       }
@@ -650,7 +655,7 @@ function ComposerTokenHoverPopover({
         closePopover()
       }
     },
-    [closePopover, openPopover]
+    [closePopover, onActivate, openPopover]
   )
 
   const handleTriggerClick = useCallback(
