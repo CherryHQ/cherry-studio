@@ -1,3 +1,4 @@
+import { MODALITY } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,6 +40,7 @@ import {
   assertDshProviderUsable,
   buildDshGatewayInjection,
   buildDshProviderInjection,
+  DshUnsupportedModelInputError,
   DshUnsupportedProviderError,
   resolveDshProviderInjectionFromSnapshot
 } from '../modelInjection'
@@ -143,6 +145,12 @@ describe('buildDshGatewayInjection', () => {
     const windowless = makeModel({ contextWindow: undefined })
     expect(buildDshGatewayInjection(vertexProvider, windowless, GATEWAY).modelConfig.contextWindow).toBe(256_000)
   })
+
+  it('rejects a gateway-routable model that explicitly cannot accept text', () => {
+    const videoOnly = makeModel({ inputModalities: [MODALITY.VIDEO] })
+
+    expect(() => buildDshGatewayInjection(vertexProvider, videoOnly, GATEWAY)).toThrow(DshUnsupportedModelInputError)
+  })
 })
 
 describe('buildDshProviderInjection', () => {
@@ -231,6 +239,29 @@ describe('resolveDshProviderInjectionFromSnapshot', () => {
       mocks.ApiGatewayNotRunningError
     )
   })
+
+  it('rejects non-text input before gateway materialization', async () => {
+    const videoOnly = makeModel({ inputModalities: [MODALITY.VIDEO] })
+
+    await expect(resolveDshProviderInjectionFromSnapshot('session-1', vertexProvider, videoOnly)).rejects.toThrow(
+      DshUnsupportedModelInputError
+    )
+    expect(mocks.resolveApiGatewayRuntime).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-text input before native credential selection', async () => {
+    const videoOnly = makeModel({
+      id: 'deepseek::active-speaker-detection',
+      providerId: 'deepseek',
+      apiModelId: 'active-speaker-detection',
+      inputModalities: [MODALITY.VIDEO]
+    })
+
+    await expect(resolveDshProviderInjectionFromSnapshot('session-1', nativeProvider, videoOnly)).rejects.toThrow(
+      DshUnsupportedModelInputError
+    )
+    expect(mocks.resolveApiKey).not.toHaveBeenCalled()
+  })
 })
 
 describe('assertDshProviderUsable', () => {
@@ -257,5 +288,30 @@ describe('assertDshProviderUsable', () => {
     mocks.getByKey.mockResolvedValue(makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS] }))
 
     await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedProviderError)
+  })
+
+  it('rejects a gateway-routable video-only model before checking gateway consent', async () => {
+    mocks.getByProviderId.mockResolvedValue(vertexProvider)
+    mocks.getByKey.mockResolvedValue(makeModel({ inputModalities: [MODALITY.VIDEO] }))
+
+    await expect(assertDshProviderUsable('vertexai::gemini-2.5-pro')).rejects.toThrow(DshUnsupportedModelInputError)
+    expect(mocks.getCurrentConfig).not.toHaveBeenCalled()
+  })
+
+  it('rejects a native video-only model before checking API keys', async () => {
+    mocks.getByProviderId.mockResolvedValue(nativeProvider)
+    mocks.getByKey.mockResolvedValue(
+      makeModel({
+        id: 'deepseek::active-speaker-detection',
+        providerId: 'deepseek',
+        apiModelId: 'active-speaker-detection',
+        inputModalities: [MODALITY.VIDEO]
+      })
+    )
+
+    await expect(assertDshProviderUsable('deepseek::active-speaker-detection')).rejects.toThrow(
+      DshUnsupportedModelInputError
+    )
+    expect(mocks.getApiKeys).not.toHaveBeenCalled()
   })
 })

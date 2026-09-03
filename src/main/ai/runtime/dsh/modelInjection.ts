@@ -15,7 +15,12 @@ import type { AiUsageCredentialReceipt } from '@data/services/AiUsageRecordServi
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { createAiUsagePricingSnapshot } from '@main/ai/utils/usageCapture'
-import { type DshApi, mapEndpointToDshApi, resolveDshEndpointType } from '@shared/ai/dshModelCompatibility'
+import {
+  type DshApi,
+  hasDshTextInput,
+  mapEndpointToDshApi,
+  resolveDshEndpointType
+} from '@shared/ai/dshModelCompatibility'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -53,6 +58,17 @@ export class DshMissingApiKeyError extends Error {
     super(`Provider "${providerId}" has no API key configured for dsh agents`)
     this.name = 'DshMissingApiKeyError'
     this.providerId = providerId
+  }
+}
+
+/** Thrown when a model explicitly declares no text input, which DSH agents require. */
+export class DshUnsupportedModelInputError extends Error {
+  readonly modelId: string
+
+  constructor(modelId: string) {
+    super(`Model "${modelId}" is not supported by dsh agents: text input is required`)
+    this.name = 'DshUnsupportedModelInputError'
+    this.modelId = modelId
   }
 }
 
@@ -170,6 +186,7 @@ export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi
  * unit testable in isolation.
  *
  * @throws DshUnsupportedProviderError when the provider's endpoint has no dsh mapping.
+ * @throws DshUnsupportedModelInputError when the model explicitly declares no text input.
  */
 export function buildDshProviderInjection(
   provider: Provider,
@@ -187,6 +204,7 @@ export function buildDshProviderInjection(
   if (!api) {
     throw new DshUnsupportedProviderError(provider.id)
   }
+  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
   if (!apiKey.trim()) throw new DshMissingApiKeyError(provider.id)
 
   const baseUrl = formatDshBaseUrl(resolvedEndpoint.baseUrl, api)
@@ -249,6 +267,7 @@ export function buildDshProviderInjection(
  * agent message and apply the stable per-session prompt cache key.
  *
  * @throws DshUnsupportedProviderError when the model is not gateway-routable either.
+ * @throws DshUnsupportedModelInputError when the model explicitly declares no text input.
  */
 export function buildDshGatewayInjection(
   provider: Provider,
@@ -257,6 +276,8 @@ export function buildDshGatewayInjection(
   reasoningEffort: ReasoningEffortOption = 'default'
 ): DshProviderInjection {
   if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
+  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
+
   const modelId = formatGatewayModelId(provider.id, getRawModelId(model))
   const reasoning = resolveDshReasoningEffort(model, reasoningEffort)
   return {
@@ -305,10 +326,14 @@ export async function resolveDshProviderInjectionFromSnapshot(
   reasoningEffort: ReasoningEffortOption = 'default'
 ): Promise<DshProviderInjection> {
   if (resolveDshInjectionApi(provider, model) === undefined) {
+    if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(provider.id)
+    if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
     // Claude's gateway sequence: consent (ApiGatewayNotRunningError), converge, materialize key.
     const gateway = await resolveApiGatewayRuntime(sessionId)
     return buildDshGatewayInjection(provider, model, gateway, reasoningEffort)
   }
+  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
+
   const resolvedApiKey = providerService.resolveApiKey(provider.id)
   if (!resolvedApiKey.value.trim()) throw new DshMissingApiKeyError(provider.id)
   if (enabledApiKeys && !enabledApiKeys.some((entry) => entry.key === resolvedApiKey.value)) {
@@ -338,10 +363,13 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   // Unsupported beats missing-credential (parity with buildDshProviderInjection).
   if (resolveDshInjectionApi(provider, model) === undefined) {
     if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
+    if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
     // Consent only (persisted intent) — no ensureRunning/ensureValidApiKey side effects here.
     if (!application.get('ApiGatewayService').getCurrentConfig().enabled) throw new ApiGatewayNotRunningError()
     return
   }
+  if (!hasDshTextInput(model)) throw new DshUnsupportedModelInputError(model.id)
+
   const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
   if (!apiKeys.some((entry) => entry.key.trim())) throw new DshMissingApiKeyError(providerId)
 }

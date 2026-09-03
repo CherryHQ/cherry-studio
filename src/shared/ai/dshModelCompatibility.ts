@@ -12,6 +12,7 @@
  * back to the local API Gateway when the model is gateway-routable.
  */
 
+import { MODALITY } from '@cherrystudio/provider-registry'
 import { resolveGatewayChatRoute } from '@shared/data/presets/gatewayChatRouting'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -81,9 +82,15 @@ export function resolveDshApi(provider: Provider, model: Model): DshApi | undefi
   return mapEndpointToDshApi(endpointType, adapterFamily)
 }
 
+/** DSH agents require text input; missing or empty metadata retains the chat-model default. */
+export function hasDshTextInput(model: Model): boolean {
+  return !model.inputModalities?.length || model.inputModalities.includes(MODALITY.TEXT)
+}
+
 /** Whether a dsh agent can use this provider+model. Used for renderer filtering. */
 export function isDshCompatibleModel(provider: Provider, model: Model): boolean {
   // No native wire family → the local API Gateway can still front any gateway-routable
   // model as OpenAI-compatible (claude's picker rule); everything else stays fail-closed.
-  return resolveDshApi(provider, model) !== undefined || isGatewayRoutableModel(model)
+  if (resolveDshApi(provider, model) === undefined && !isGatewayRoutableModel(model)) return false
+  return hasDshTextInput(model)
 }
