@@ -2,11 +2,12 @@ import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand,
-  type WebviewAnnotationState
+  type WebviewAnnotationState,
+  type WebviewAnnotationTarget
 } from '@shared/types/webview'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
-import type { ReactNode } from 'react'
+import { type ReactNode, useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { request, toastSuccess, toastError } = vi.hoisted(() => ({
@@ -98,7 +99,7 @@ interface FakeKernelOptions {
   onUpdate?: (payload: { editor: { text: string } }) => void
 }
 
-import { WebviewAnnotationControls } from '../WebviewAnnotationControls'
+import { WebviewAnnotationControls, type WebviewAnnotationSavedPayload } from '../WebviewAnnotationControls'
 
 const annotation = {
   id: '123e4567-e89b-12d3-a456-426614174000',
@@ -134,6 +135,38 @@ function dispatchGuestEvent(webview: WebviewTag, guestEvent: WebviewAnnotationGu
 
 function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationState) {
   dispatchGuestEvent(webview, { type: 'state_changed', state })
+}
+
+interface LayoutAckHarnessProps {
+  webviewRef: { current: WebviewTag | null }
+  isWebviewReady: boolean
+  isHostActive: boolean
+  target: WebviewAnnotationTarget
+  onAnnotationSaved: (payload: WebviewAnnotationSavedPayload) => void
+  layoutAck?: { webview: WebviewTag; state: WebviewAnnotationState }
+}
+
+function LayoutAckHarness({
+  webviewRef,
+  isWebviewReady,
+  isHostActive,
+  target,
+  onAnnotationSaved,
+  layoutAck
+}: LayoutAckHarnessProps) {
+  useLayoutEffect(() => {
+    if (layoutAck) dispatchGuestState(layoutAck.webview, layoutAck.state)
+  }, [layoutAck])
+
+  return (
+    <WebviewAnnotationControls
+      webviewRef={webviewRef}
+      isWebviewReady={isWebviewReady}
+      isHostActive={isHostActive}
+      target={target}
+      onAnnotationSaved={onAnnotationSaved}
+    />
+  )
 }
 
 function commitCommands(webview: WebviewTag) {
@@ -445,6 +478,94 @@ describe('WebviewAnnotationControls', () => {
       />
     )
     act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: detached.id }] }))
+
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+  })
+
+  it('rejects a matching guest snapshot during the target-change commit before passive cleanup', () => {
+    const webview = createWebview()
+    const webviewRef = { current: webview }
+    const onAnnotationSaved = vi.fn()
+    const view = render(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    const pending = saveCreateEditor(webview, 'Old target annotation').command
+
+    view.rerender(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive
+        target={{ id: 'mini-app:new-target', label: 'New target' }}
+        onAnnotationSaved={onAnnotationSaved}
+        layoutAck={{ webview, state: { enabled: true, annotations: [{ ...annotation, id: pending.id }] } }}
+      />
+    )
+
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+  })
+
+  it('rejects a matching guest snapshot during host deactivation before passive cleanup', () => {
+    const webview = createWebview()
+    const webviewRef = { current: webview }
+    const onAnnotationSaved = vi.fn()
+    const view = render(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    const pending = saveCreateEditor(webview, 'Inactive host annotation').command
+
+    view.rerender(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive={false}
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+        layoutAck={{ webview, state: { enabled: true, annotations: [{ ...annotation, id: pending.id }] } }}
+      />
+    )
+
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+  })
+
+  it('rejects a matching snapshot from the detached webview before passive cleanup', () => {
+    const webview = createWebview()
+    const webviewRef: { current: WebviewTag | null } = { current: webview }
+    const onAnnotationSaved = vi.fn()
+    const view = render(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    const pending = saveCreateEditor(webview, 'Detached guest annotation').command
+
+    webviewRef.current = createWebview()
+    view.rerender(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady={false}
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+        layoutAck={{ webview, state: { enabled: true, annotations: [{ ...annotation, id: pending.id }] } }}
+      />
+    )
 
     expect(onAnnotationSaved).not.toHaveBeenCalled()
   })

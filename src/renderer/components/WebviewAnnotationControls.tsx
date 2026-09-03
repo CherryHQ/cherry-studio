@@ -41,7 +41,9 @@ type AnnotationEditorSession =
 interface PendingCreateSave {
   id: string
   page: WebviewAnnotationSavedPayload['page']
+  targetId: string
   timeout: ReturnType<typeof setTimeout>
+  webview: WebviewTag
 }
 
 export interface WebviewAnnotationSavedPayload {
@@ -72,9 +74,6 @@ export function WebviewAnnotationControls({
   const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
   const [isCreateSaving, setIsCreateSaving] = useState(false)
   const pendingCreateSaveRef = useRef<PendingCreateSave | null>(null)
-  const notifyAnnotationSaved = useEffectEvent((annotation: WebviewAnnotation, page: PendingCreateSave['page']) => {
-    onAnnotationSaved?.({ annotation, page })
-  })
 
   const locale = useMemo(() => ({ edit: t('webview.annotation.edit') }), [t])
 
@@ -119,6 +118,25 @@ export function WebviewAnnotationControls({
     return true
   }, [])
 
+  const reconcilePendingCreateSave = useEffectEvent(
+    (annotations: readonly WebviewAnnotation[], eventWebview: WebviewTag | null) => {
+      const pending = pendingCreateSaveRef.current
+      if (
+        !pending ||
+        !isHostActive ||
+        pending.targetId !== target.id ||
+        pending.webview !== webviewRef.current ||
+        pending.webview !== eventWebview
+      ) {
+        return
+      }
+      const savedAnnotation = annotations.find((annotation) => annotation.id === pending.id)
+      if (!savedAnnotation || !clearPendingCreateSave(pending.id)) return
+      setEditorSession(null)
+      onAnnotationSaved?.({ annotation: savedAnnotation, page: pending.page })
+    }
+  )
+
   useEffect(() => {
     clearPendingCreateSave()
     setState(EMPTY_STATE)
@@ -141,14 +159,7 @@ export function WebviewAnnotationControls({
           const nextState = isHostActive ? guestEvent.state : { ...guestEvent.state, enabled: false }
           setState(nextState)
           void replaceMainSnapshot(nextState.annotations, attachedWebview)
-          const pendingSave = pendingCreateSaveRef.current
-          const savedAnnotation = pendingSave
-            ? guestEvent.state.annotations.find((annotation) => annotation.id === pendingSave.id)
-            : undefined
-          if (pendingSave && savedAnnotation && clearPendingCreateSave(pendingSave.id)) {
-            setEditorSession(null)
-            notifyAnnotationSaved(savedAnnotation, pendingSave.page)
-          }
+          reconcilePendingCreateSave(guestEvent.state.annotations, attachedWebview)
           if (!isHostActive && guestEvent.state.enabled) {
             sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
           }
@@ -228,7 +239,7 @@ export function WebviewAnnotationControls({
       if (attachedWebview) sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
       detach()
     }
-    // `notifyAnnotationSaved` is an Effect Event and must not reconnect guest listeners.
+    // `reconcilePendingCreateSave` reads the latest committed owner without reconnecting guest listeners.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearPendingCreateSave, isHostActive, locale, replaceMainSnapshot, sendCommand, theme, webviewRef])
 
@@ -288,7 +299,7 @@ export function WebviewAnnotationControls({
           if (!clearPendingCreateSave(id)) return
           logger.debug('Timed out waiting for the webview annotation commit', { targetId: target.id, id })
         }, WEBVIEW_ANNOTATION_COMMIT_TIMEOUT_MS)
-        pendingCreateSaveRef.current = { id, page: { url, title }, timeout }
+        pendingCreateSaveRef.current = { id, page: { url, title }, targetId: target.id, timeout, webview }
         setIsCreateSaving(true)
         try {
           void webview
