@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API Anahtarı yeniden oluşturuldu",
   "apiGateway.messages.notEnabled": "Bu adrese bağlanmadan önce ağ geçidini başlatın.",
+  "apiGateway.messages.portInvalid": "{{min}} ile {{max}} arasında bir port girin.",
   "apiGateway.messages.restartError": "API Ağ Geçidi yeniden başlatılamadı: ",
   "apiGateway.messages.restartFailed": "API Ağ Geçidini yeniden başlatma başarısız oldu: ",
   "apiGateway.messages.restartSuccess": "API Ağ Geçidi başarıyla yeniden başlatıldı",

@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "Clé API régénérée",
   "apiGateway.messages.notEnabled": "Le serveur API n'est pas activé.",
+  "apiGateway.messages.portInvalid": "Saisissez un port compris entre {{min}} et {{max}}.",
   "apiGateway.messages.restartError": "Échec du redémarrage du Serveur API : ",
   "apiGateway.messages.restartFailed": "Redémarrage du Serveur API échoué : ",
   "apiGateway.messages.restartSuccess": "Serveur API redémarré avec succès",

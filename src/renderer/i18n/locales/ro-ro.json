@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "Cheia API a fost regenerată",
   "apiGateway.messages.notEnabled": "Serverul API nu este activat.",
+  "apiGateway.messages.portInvalid": "Introduceți un port între {{min}} și {{max}}.",
   "apiGateway.messages.restartError": "Nu s-a putut reporni serverul API: ",
   "apiGateway.messages.restartFailed": "Repornirea serverului API a eșuat: ",
   "apiGateway.messages.restartSuccess": "Serverul API a repornit cu succes",

@@ -486,6 +486,7 @@
   "apiGateway.fields.url.label": "URL",
   "apiGateway.messages.apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
   "apiGateway.messages.notEnabled": "Starten Sie das Gateway, bevor Sie eine Verbindung mit dieser Adresse herstellen.",
+  "apiGateway.messages.portInvalid": "Geben Sie einen Port zwischen {{min}} und {{max}} ein.",
   "apiGateway.messages.restartError": "API-Server-Neustart fehlgeschlagen:",
   "apiGateway.messages.restartFailed": "API-Server-Neustart fehlgeschlagen:",
   "apiGateway.messages.restartSuccess": "API-Server erfolgreich neu gestartet",

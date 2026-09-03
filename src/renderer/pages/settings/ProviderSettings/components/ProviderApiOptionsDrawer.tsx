@@ -1,5 +1,5 @@
 import {
-  Input,
+  InputNumber,
   PageSidePanelItem,
   Select,
   SelectContent,
@@ -54,12 +54,11 @@ const CACHE_TTL_LABELS = {
   '1h': 'settings.provider.api.options.anthropic_cache.cache_ttl_1h'
 } as const satisfies Record<AnthropicCacheTtl, string>
 
-function clampInteger(value: string, min: number, max: number): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) {
+function clampInteger(value: number | null, min: number, max: number): number {
+  if (value === null) {
     return min
   }
-  return Math.min(max, Math.max(min, Math.trunc(parsed)))
+  return Math.min(max, Math.max(min, Math.trunc(value)))
 }
 
 function apiOptionId(providerId: string, key: string): string {
@@ -97,16 +96,20 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
   const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
   const cacheTtl = cacheControl?.ttl ?? ANTHROPIC_CACHE_DEFAULT_TTL
-  const [tokenThresholdDraft, setTokenThresholdDraft] = useState(String(cacheTokenThreshold))
-  const [cacheLastNDraft, setCacheLastNDraft] = useState(String(cacheLastNMessages))
+  // DO NOT DROP. The server merges `providerSettings` only at its top level, so a
+  // commit to either field replaces the whole nested `cacheControl` and has to carry
+  // the sibling's value. Reading that sibling from `provider` loses a just-saved one:
+  // the query is a round trip behind. See #19247.
+  const [tokenThresholdDraft, setTokenThresholdDraft] = useState(cacheTokenThreshold)
+  const [cacheLastNDraft, setCacheLastNDraft] = useState(cacheLastNMessages)
   const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
 
   useEffect(() => {
     if (!open) {
       return
     }
-    setTokenThresholdDraft(String(cacheTokenThreshold))
-    setCacheLastNDraft(String(cacheLastNMessages))
+    setTokenThresholdDraft(cacheTokenThreshold)
+    setCacheLastNDraft(cacheLastNMessages)
   }, [cacheLastNMessages, cacheTokenThreshold, open])
 
   const openAIOptions = useMemo<ApiOption[]>(
@@ -203,24 +206,30 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     [handleSaveError, provider, updateProvider]
   )
 
-  const commitTokenThreshold = useCallback(() => {
-    const next = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
-    setTokenThresholdDraft(String(next))
-    updateCacheSettings({
-      enabled: next > 0,
-      tokenThreshold: next
-    })
-  }, [tokenThresholdDraft, updateCacheSettings])
+  const commitTokenThreshold = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_TOKEN_THRESHOLD_MAX)
+      setTokenThresholdDraft(next)
+      updateCacheSettings({
+        enabled: next > 0,
+        tokenThreshold: next
+      })
+    },
+    [updateCacheSettings]
+  )
 
-  const commitCacheLastNMessages = useCallback(() => {
-    const next = clampInteger(cacheLastNDraft, 0, CACHE_LAST_N_MAX)
-    setCacheLastNDraft(String(next))
-    updateCacheSettings({
-      enabled: effectiveCacheTokenThreshold > 0,
-      tokenThreshold: effectiveCacheTokenThreshold,
-      cacheLastNMessages: next
-    })
-  }, [cacheLastNDraft, effectiveCacheTokenThreshold, updateCacheSettings])
+  const commitCacheLastNMessages = useCallback(
+    (value: number | null) => {
+      const next = clampInteger(value, 0, CACHE_LAST_N_MAX)
+      setCacheLastNDraft(next)
+      updateCacheSettings({
+        enabled: effectiveCacheTokenThreshold > 0,
+        tokenThreshold: effectiveCacheTokenThreshold,
+        cacheLastNMessages: next
+      })
+    },
+    [effectiveCacheTokenThreshold, updateCacheSettings]
+  )
 
   if (!provider) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
@@ -272,19 +281,13 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                   />
                 }
                 action={
-                  <Input
+                  <InputNumber
                     id={apiOptionId(providerId, 'cache-token-threshold')}
-                    type="number"
                     min={0}
                     max={CACHE_TOKEN_THRESHOLD_MAX}
+                    step={1}
                     value={tokenThresholdDraft}
-                    onChange={(event) => setTokenThresholdDraft(event.target.value)}
                     onBlur={commitTokenThreshold}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.currentTarget.blur()
-                      }
-                    }}
                     className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                   />
                 }
@@ -335,19 +338,13 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                       />
                     }
                     action={
-                      <Input
+                      <InputNumber
                         id={apiOptionId(providerId, 'cache-last-n')}
-                        type="number"
                         min={0}
                         max={CACHE_LAST_N_MAX}
+                        step={1}
                         value={cacheLastNDraft}
-                        onChange={(event) => setCacheLastNDraft(event.target.value)}
                         onBlur={commitCacheLastNMessages}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.currentTarget.blur()
-                          }
-                        }}
                         className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                       />
                     }
