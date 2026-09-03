@@ -130,9 +130,28 @@ describe('internal/entry/lifecycle', () => {
       }
     })
 
-    it('throws when called on an external entry (CHECK fe_external_no_delete)', async () => {
+    it('throws when called on an external entry', async () => {
       const id = await makeExternal()
       expect(() => trash(deps, id)).toThrow()
+    })
+
+    it('reports an already-trashed internal entry as a batch failure without rewriting its timestamps', async () => {
+      const id = await makeInternal()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_900_000_000_000)
+      trash(deps, id)
+      const firstTrash = fileEntryService.getById(id)
+
+      now.mockReturnValue(1_900_000_001_000)
+      const result = batchTrash(deps, [id])
+      const afterRetry = fileEntryService.getById(id)
+
+      expect(result).toEqual({ succeeded: [], failed: [{ id, error: expect.any(String) }] })
+      expect(firstTrash.origin).toBe('internal')
+      expect(afterRetry.origin).toBe('internal')
+      expect(afterRetry.updatedAt).toBe(firstTrash.updatedAt)
+      if (firstTrash.origin === 'internal' && afterRetry.origin === 'internal') {
+        expect(afterRetry.deletedAt).toBe(firstTrash.deletedAt)
+      }
     })
   })
 
@@ -152,6 +171,24 @@ describe('internal/entry/lifecycle', () => {
     it('throws on an external entry', async () => {
       const id = await makeExternal()
       await expect(restore(deps, id)).rejects.toThrow()
+    })
+
+    it('reports an already-restored internal entry as a batch failure without rewriting updatedAt', async () => {
+      const id = await makeInternal()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_900_000_000_000)
+      trash(deps, id)
+      now.mockReturnValue(1_900_000_001_000)
+      await restore(deps, id)
+      const firstRestore = fileEntryService.getById(id)
+
+      now.mockReturnValue(1_900_000_002_000)
+      const result = batchRestore(deps, [id])
+      const afterRetry = fileEntryService.getById(id)
+
+      expect(result).toEqual({ succeeded: [], failed: [{ id, error: expect.any(String) }] })
+      expect(afterRetry.updatedAt).toBe(firstRestore.updatedAt)
+      expect(afterRetry.origin).toBe('internal')
+      if (afterRetry.origin === 'internal') expect(afterRetry.deletedAt).toBeUndefined()
     })
   })
 

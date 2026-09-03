@@ -133,8 +133,11 @@ function classifyStaleFailures(outcome: TrashBatchOutcome, staleIds: ReadonlySet
 
 const FILE_DETAIL_LOOKUP_CONCURRENCY = 8
 
-async function findActiveFileIds(failures: TrashBatchOutcome['failed']): Promise<Set<string>> {
+async function inspectFailedFileIds(
+  failures: TrashBatchOutcome['failed']
+): Promise<{ activeIds: Set<string>; missingIds: Set<string> }> {
   const activeIds = new Set<string>()
+  const missingIds = new Set<string>()
   for (let index = 0; index < failures.length; index += FILE_DETAIL_LOOKUP_CONCURRENCY) {
     const chunk = failures.slice(index, index + FILE_DETAIL_LOOKUP_CONCURRENCY)
     await Promise.all(
@@ -142,13 +145,13 @@ async function findActiveFileIds(failures: TrashBatchOutcome['failed']): Promise
         try {
           const entry = await dataApiService.get(`/files/entries/${id}`)
           if (entry.origin === 'external' || entry.deletedAt == null) activeIds.add(id)
-        } catch {
-          // Still absent or inaccessible: retain the server failure for retry.
+        } catch (error) {
+          if (isDataApiNotFoundError(error)) missingIds.add(id)
         }
       })
     )
   }
-  return activeIds
+  return { activeIds, missingIds }
 }
 
 export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
@@ -600,7 +603,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
     } catch (error) {
       logger.warn('failed to refresh files after restore', error as Error)
     }
-    const activeAfterFailure = await findActiveFileIds(outcome.failed)
+    const { activeIds: activeAfterFailure } = await inspectFailedFileIds(outcome.failed)
     if (activeAfterFailure.size === 0) return outcome
     return {
       succeeded: [...outcome.succeeded, ...activeAfterFailure],
@@ -619,17 +622,18 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
     } catch (error) {
       logger.warn('failed to refresh files after permanent delete', error as Error)
     }
-    const activeAfterFailure = await findActiveFileIds(outcome.failed)
-    if (activeAfterFailure.size === 0) return outcome
+    const { activeIds, missingIds } = await inspectFailedFileIds(outcome.failed)
+    const staleIds = new Set([...activeIds, ...missingIds])
+    if (staleIds.size === 0) return outcome
     const staleMessage = t('settings.data.trash.permanent_delete.no_longer_in_recycle_bin')
     return classifyStaleFailures(
       {
         ...outcome,
         failed: outcome.failed.map((failure) =>
-          activeAfterFailure.has(failure.id) ? { ...failure, error: staleMessage } : failure
+          staleIds.has(failure.id) ? { ...failure, error: staleMessage } : failure
         )
       },
-      activeAfterFailure
+      staleIds
     )
   }
 

@@ -1,10 +1,8 @@
 /**
  * Entry lifecycle — trash / restore / delete actions + batch variants.
  *
- * `trash` / `restore` are internal-only; passing an external id throws (the
- * `fe_external_no_delete` CHECK enforces this at the DB level for `trash`, and
- * `restore` uses an explicit early-throw because trashed external rows cannot
- * exist by definition).
+ * `trash` / `restore` are internal-only and state-conditional: only an active
+ * internal entry can be trashed, and only a trashed internal entry can be restored.
  *
  * The general `permanentDelete` operation crosses DB and FS:
  * - DB row removal is mandatory.
@@ -33,17 +31,21 @@ import type { FileManagerDeps } from '../deps'
 const logger = loggerService.withContext('internal/entry/lifecycle')
 
 function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): void {
+  const entry = deps.fileEntryService.getByIdTx(tx, id)
+  if (entry.origin !== 'internal' || entry.deletedAt != null) {
+    throw DataApiErrorFactory.notFound('FileEntry', id)
+  }
   deps.fileEntryService.updateTx(tx, id, { deletedAt: Date.now() })
 }
 
 export function trash(deps: FileManagerDeps, id: FileEntryId): void {
-  deps.fileEntryService.update(id, { deletedAt: Date.now() })
+  deps.fileEntryService.withWriteTx((tx) => trashTx(deps, tx, id))
 }
 
 function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
   const entry = deps.fileEntryService.getByIdTx(tx, id)
-  if (entry.origin === 'external') {
-    throw new Error(`restore: external entry ${id} cannot be trashed by definition; nothing to restore`)
+  if (entry.origin !== 'internal' || entry.deletedAt == null) {
+    throw DataApiErrorFactory.notFound('FileEntry', id)
   }
   return deps.fileEntryService.updateTx(tx, id, { deletedAt: null })
 }

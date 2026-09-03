@@ -8,6 +8,7 @@ import {
   PageHeader,
   Scrollbar
 } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
@@ -61,6 +62,25 @@ interface EmbeddedFilePreview {
 const FILE_IPC_BATCH_SIZE = 500
 // Keep at or below `FILE_IPC_MAX_BATCH_CREATE_ITEMS` from the IPC schema.
 const FILE_IPC_CREATE_BATCH_SIZE = 100
+const FILE_DETAIL_LOOKUP_CONCURRENCY = 8
+
+async function findTrashedFileIds(failures: readonly { id: FileEntryId }[]): Promise<Set<FileEntryId>> {
+  const trashedIds = new Set<FileEntryId>()
+  for (let index = 0; index < failures.length; index += FILE_DETAIL_LOOKUP_CONCURRENCY) {
+    const chunk = failures.slice(index, index + FILE_DETAIL_LOOKUP_CONCURRENCY)
+    await Promise.all(
+      chunk.map(async ({ id }) => {
+        try {
+          const current = await dataApiService.get(`/files/entries/${id}`)
+          if (current.origin === 'internal' && current.deletedAt != null) trashedIds.add(id)
+        } catch {
+          // Missing or inaccessible entries remain real failures.
+        }
+      })
+    )
+  }
+  return trashedIds
+}
 
 async function requestBatchedFileRecords<Route extends FileBatchRoute>(
   route: Route,
@@ -609,15 +629,29 @@ function FilesPage() {
         requestBatchedFileMutation('file.batch_trash', trashIds),
         requestBatchedFileMutation('file.batch_remove_from_library', removeIds)
       ])
-      const trashFailed = warnMutationFailures('file trash', trashResult)
-      const removeFailed = warnMutationFailures('file remove external entries', removeResult)
-      const succeededIds = new Set([...trashResult.succeeded, ...removeResult.succeeded])
       const requestFailed = trashResult.requestFailed || removeResult.requestFailed
+
+      try {
+        await refetchFiles()
+      } catch (error) {
+        logger.warn('Failed to refresh files after deletion', error as Error)
+      }
+
+      const alreadyTrashedIds = await findTrashedFileIds(trashResult.failed)
+      const effectiveTrashResult = {
+        ...trashResult,
+        failed: trashResult.failed.filter(({ id }) => !alreadyTrashedIds.has(id))
+      }
+      const trashFailed = warnMutationFailures('file trash', effectiveTrashResult)
+      const removeFailed = warnMutationFailures('file remove external entries', removeResult)
+      const completedIds = new Set([...trashResult.succeeded, ...removeResult.succeeded, ...alreadyTrashedIds])
+
+      if (alreadyTrashedIds.size > 0) toast.info(t('recycle_bin.already_moved'))
 
       if (trashFailed || removeFailed) {
         toast.error(
           t(
-            requestFailed && succeededIds.size === 0 ? 'files.error.delete_failed' : 'files.error.delete_partial_failed'
+            requestFailed && completedIds.size === 0 ? 'files.error.delete_failed' : 'files.error.delete_partial_failed'
           )
         )
       }
@@ -625,12 +659,7 @@ function FilesPage() {
         logger.error('Failed to delete files', new Error('One or more file mutation requests failed'))
       }
 
-      setSelectedIds((current) => new Set([...current].filter((id) => !succeededIds.has(id))))
-      try {
-        await refetchFiles()
-      } catch (error) {
-        logger.warn('Failed to refresh files after deletion', error as Error)
-      }
+      setSelectedIds((current) => new Set([...current].filter((id) => !completedIds.has(id))))
 
       if (trashResult.succeeded.length > 0) {
         const trashedIds = [...trashResult.succeeded]

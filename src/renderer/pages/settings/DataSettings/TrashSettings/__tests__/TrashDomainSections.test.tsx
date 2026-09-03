@@ -486,7 +486,7 @@ describe('Trash domain batch adapters', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('chunks 501 File permanent deletes and fails only the rejected second chunk', async () => {
+  it('chunks 501 File permanent deletes and classifies a missing rejected item as stale', async () => {
     const user = userEvent.setup()
     const files = Array.from({ length: 501 }, (_, index) => deletedFile(`file-${index}`, `File ${index}`))
     const ids = files.map((file) => file.id)
@@ -523,17 +523,68 @@ describe('Trash domain batch adapters', () => {
     ])
     expect(outcome).toEqual({
       succeeded: ids.slice(0, 500),
-      failed: [{ id: ids[500], error: 'second chunk unavailable' }]
+      failed: [
+        {
+          id: ids[500],
+          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          reason: 'no-longer-in-recycle-bin'
+        }
+      ]
     })
     expect(mocks.invalidate).toHaveBeenCalledOnce()
     expect(mocks.invalidate).toHaveBeenCalledWith(['/files/entries'])
     expect(screen.getByText('1 selected')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Select File 500.md' })).toBeChecked()
     expect(toast.warning).toHaveBeenCalledOnce()
-    expect(toast.warning).toHaveBeenCalledWith('Permanently deleted 500 items; 1 failed')
+    expect(toast.warning).toHaveBeenCalledWith(
+      'Permanently deleted: 500; no longer in the Recycle Bin: 1; other failures: 0'
+    )
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('reports a single missing File permanent-delete failure as no longer in the Recycle Bin', async () => {
+    const user = userEvent.setup()
+    const file = deletedFile('file-missing', 'Missing')
+    mocks.pagesByPath.set('/files/entries', [{ items: [file] }])
+    mocks.ipcRequest.mockResolvedValueOnce({
+      succeeded: [],
+      failed: [{ id: file.id, error: 'not found' }]
+    })
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
+    let pending: PendingPermanentDelete | undefined
+    render(
+      <FileTrashSection
+        retentionDays={30}
+        isPermanentDeleting={false}
+        onRequestDelete={(request) => {
+          pending = request
+        }}
+      />
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Select Missing.md' }))
+    await user.click(screen.getByRole('button', { name: 'Delete Permanently' }))
+
+    const outcome = await runPendingRequest(pending)
+
+    expect(outcome).toEqual({
+      succeeded: [],
+      failed: [
+        {
+          id: file.id,
+          error: 'No longer in the Recycle Bin. Refresh and try again.',
+          reason: 'no-longer-in-recycle-bin'
+        }
+      ]
+    })
+    expect(mocks.invalidate).toHaveBeenCalledWith(['/files/entries'])
+    expect(mocks.invalidate.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(dataApiService.get).mock.invocationCallOrder[0]
+    )
+    expect(toast.info).toHaveBeenCalledOnce()
+    expect(toast.info).toHaveBeenCalledWith('No longer in the Recycle Bin. Refresh and try again.')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('chunks 501 File restores and counts a failed final item as complete only when it is active', async () => {
@@ -567,6 +618,28 @@ describe('Trash domain batch adapters', () => {
     expect(toast.info).not.toHaveBeenCalled()
     expect(toast.warning).not.toHaveBeenCalled()
     expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps a missing File restore as a real failure after refreshing the trash list', async () => {
+    const user = userEvent.setup()
+    const file = deletedFile('file-missing', 'Missing')
+    mocks.pagesByPath.set('/files/entries', [{ items: [file] }])
+    mocks.ipcRequest.mockResolvedValueOnce({
+      succeeded: [],
+      failed: [{ id: file.id, error: 'not found' }]
+    })
+    vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
+    render(<FileTrashSection retentionDays={30} isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Restore' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to restore'))
+    expect(mocks.invalidate).toHaveBeenCalledWith(['/files/entries', '/files/entries/*'])
+    expect(mocks.invalidate.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(dataApiService.get).mock.invocationCallOrder[0]
+    )
+    expect(toast.info).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('classifies only an active File permanent-delete failure as stale after invalidation', async () => {

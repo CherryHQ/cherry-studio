@@ -444,15 +444,13 @@ describe('FileManager (integration)', () => {
     ])
   })
 
-  it('INT-5: trash on external entry is blocked by DB CHECK fe_external_no_delete', async () => {
+  it('INT-5: trash on external entry is rejected without mutating the row', async () => {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
     const e = await fm.ensureExternalEntry({ externalPath: file as never, cleanupPolicy: 'manual' })
     await expect(fm.trash(e.id)).rejects.toThrow()
-    // External BO has no `deletedAt` field by construction; if the trash
-    // attempt had slipped through, the DB CHECK fe_external_no_delete would
-    // have rejected it, so reading the row back must still surface as
-    // origin='external' with no deletedAt projection.
+    // External BOs have no `deletedAt` field, so the rejected trash attempt
+    // must leave the origin and projection unchanged.
     const refreshed = await fm.getById(e.id)
     expect(refreshed.origin).toBe('external')
     expect(refreshed).not.toHaveProperty('deletedAt')

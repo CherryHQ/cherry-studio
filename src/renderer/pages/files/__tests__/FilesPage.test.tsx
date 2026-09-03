@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { loggerService } from '@logger'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
@@ -178,7 +179,7 @@ function mockFileStats(stats: FileEntryStats, refetch = vi.fn().mockResolvedValu
 }
 
 function mockFiles(entries: FileEntry[]) {
-  mockFileStats(statsForEntries(entries))
+  const refetchStats = mockFileStats(statsForEntries(entries))
   const activePages = [{ items: entries }]
   const trashedPages: Array<{ items: FileEntry[] }> = []
   const loadNext = vi.fn()
@@ -196,11 +197,12 @@ function mockFiles(entries: FileEntry[]) {
     reset,
     mutate
   }))
+  return { refresh, refetchStats }
 }
 
 function renderFilesPage(entries: FileEntry[] = [entry]) {
-  mockFiles(entries)
-  return render(<FilesPage />)
+  const queryMocks = mockFiles(entries)
+  return { ...render(<FilesPage />), ...queryMocks }
 }
 
 function selectFileAt(index: number) {
@@ -219,6 +221,7 @@ beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
   vi.mocked(popup.confirm).mockResolvedValue(true)
+  vi.mocked(dataApiService.get).mockReset().mockRejectedValue(new Error('file detail unavailable'))
   mockFiles([entry])
 })
 
@@ -929,6 +932,44 @@ describe('FilesPage file operations', () => {
     expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
   })
 
+  it('refreshes and reports one info toast when failed trash items are already in the Recycle Bin', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        return Promise.resolve({
+          succeeded: [],
+          failed: [
+            { id: entry.id, error: 'not active' },
+            { id: secondEntry.id, error: 'not active' }
+          ]
+        })
+      }
+      return Promise.resolve({ succeeded: [], failed: [] })
+    })
+    vi.mocked(dataApiService.get).mockImplementation(async (path) => {
+      const staleEntry = path.endsWith(secondEntry.id) ? secondEntry : entry
+      return { ...staleEntry, deletedAt: 1_900_000_000_000 } as never
+    })
+    const { refresh, refetchStats } = renderFilesPage([entry, secondEntry])
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved'))
+    expect(toast.info).toHaveBeenCalledOnce()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(refetchStats).toHaveBeenCalledOnce()
+    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(dataApiService.get).mock.invocationCallOrder[0])
+    for (const checkbox of screen.getAllByRole('checkbox', { name: 'files.select_file' })) {
+      expect(checkbox).not.toBeChecked()
+    }
+  })
+
   it('offers Undo only for the internal file IDs actually moved to the Recycle Bin', async () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
@@ -943,6 +984,7 @@ describe('FilesPage file operations', () => {
       }
       return Promise.resolve(input)
     })
+    vi.mocked(dataApiService.get).mockResolvedValue({ ...secondEntry, deletedAt: 1_900_000_000_000 } as never)
     renderFilesPage([entry, secondEntry])
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
@@ -957,8 +999,11 @@ describe('FilesPage file operations', () => {
     await waitFor(() => {
       const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
       expect(checkboxes[0]).not.toBeChecked()
-      expect(checkboxes[1]).toBeChecked()
+      expect(checkboxes[1]).not.toBeChecked()
     })
+    expect(toast.info).toHaveBeenCalledOnce()
+    expect(toast.info).toHaveBeenCalledWith('recycle_bin.already_moved')
+    expect(toast.error).not.toHaveBeenCalled()
 
     await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [entry.id] })
