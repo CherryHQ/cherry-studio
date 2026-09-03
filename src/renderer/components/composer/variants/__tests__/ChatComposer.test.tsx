@@ -3205,7 +3205,10 @@ describe('ChatComposer', () => {
       </MessageEditingProvider>
     )
 
-    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
+      expect(mocks.surfaceProps?.editable).toBe(true)
+    })
     vi.mocked(cacheService.set).mockClear()
 
     act(() => {
@@ -3820,6 +3823,92 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.enableDragDrop).toBe(true)
       expect(mocks.surfaceProps?.quickPanelEnabled).toBe(true)
       expect(mocks.surfaceProps?.editingState?.onSave).toBeDefined()
+    })
+  })
+
+  it('blocks input history navigation until asynchronous attachment restoration completes', async () => {
+    seedInputHistory(['previous prompt'])
+    const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
+    vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
+    mocks.getDraft.mockImplementation(() => ({ text: mocks.surfaceProps?.text ?? '', tokens: [] }))
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={createPastedTextEditingParts() as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(false))
+    mocks.replaceDraft.mockClear()
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(false)
+    })
+    expect(mocks.replaceDraft).not.toHaveBeenCalledWith({ text: 'previous prompt', tokens: [] })
+
+    await act(async () => {
+      pathRestore.resolve(AbsoluteFilePathSchema.parse('/new-user-data/Data/Files/pasted.txt'))
+      await pathRestore.promise
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('old'))
+  })
+
+  it('keeps queued follow-ups untouched until asynchronous attachment restoration completes', async () => {
+    mocks.topicPending = true
+    const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
+    vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingButton message={message as any} parts={createPastedTextEditingParts() as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued draft', tokens: [] })
+    })
+    const queuedDock = mocks.surfaceProps?.queueContent as any
+    expect(queuedDock).toBeTruthy()
+    const queuedItemId = queuedDock.props.items[0].id
+
+    fireEvent.click(screen.getByRole('button', { name: 'start editing' }))
+    await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(false))
+    mocks.replaceDraft.mockClear()
+    const restoringDock = mocks.surfaceProps?.queueContent as any
+    expect(restoringDock).toBeTruthy()
+    expect(restoringDock.props.editDisabled).toBe(true)
+
+    act(() => {
+      restoringDock.props.onEdit(queuedItemId)
+    })
+
+    expect(mocks.replaceDraft).not.toHaveBeenCalledWith({ text: 'queued draft', tokens: [] })
+
+    await act(async () => {
+      pathRestore.resolve(AbsoluteFilePathSchema.parse('/new-user-data/Data/Files/pasted.txt'))
+      await pathRestore.promise
+    })
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('old')
+      const currentQueueContent = mocks.surfaceProps?.queueContent as any
+      expect(currentQueueContent).toBeTruthy()
+      expect(currentQueueContent.props.items.map((item: any) => item.id)).toContain(queuedItemId)
     })
   })
 

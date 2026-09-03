@@ -670,8 +670,11 @@ const ChatComposerInner = ({
       applyDraft: applyHistoryDraft
     })
   const handleInputHistoryNavigate = useCallback(
-    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
-    [actionsRef, navigateHistory]
+    (direction: InputHistoryDirection) => {
+      if (isEditingDraftRestoring) return false
+      return navigateHistory(direction, actionsRef.current.getDraft())
+    },
+    [actionsRef, isEditingDraftRestoring, navigateHistory]
   )
   const handleTextChange = useCallback(
     (nextText: string) => {
@@ -1960,6 +1963,7 @@ const ChatComposerInner = ({
                   if (sent) removeFollowup(id)
                 }}
                 onEdit={(id) => {
+                  if (isEditingDraftRestoring) return
                   const item = queuedFollowups.find((entry) => entry.id === id)
                   if (!item) return
                   restoreFollowupDraft(item)
@@ -1967,6 +1971,7 @@ const ChatComposerInner = ({
                 }}
                 onRemove={removeFollowup}
                 onReorder={reorderFollowups}
+                editDisabled={isEditingDraftRestoring}
                 isSteerDisabled={isQueuedFollowupSteerDisabled}
               />
             ) : undefined

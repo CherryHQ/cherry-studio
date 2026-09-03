@@ -1987,9 +1987,10 @@ export default function ComposerSurfaceRuntime({
   ])
 
   useEffect(() => {
+    if (!editable) return
     pasteHandling.init()
     return pasteHandling.registerHandler('inputbar', handlePaste)
-  }, [handlePaste])
+  }, [editable, handlePaste])
 
   const sendDraft = useCallback(() => {
     if (!editor) return
