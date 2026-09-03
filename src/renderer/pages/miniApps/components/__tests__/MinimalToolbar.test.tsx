@@ -1,9 +1,16 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
+import { type WebviewAnnotationTarget, WebviewAnnotationTargetSchema } from '@shared/types/webviewAnnotation'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  annotationTarget: undefined as WebviewAnnotationTarget | undefined
+}))
+
+vi.unmock('uuid')
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (
@@ -15,7 +22,10 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
-  WebviewAnnotationControls: () => <button type="button" aria-label="annotation-controls" />
+  WebviewAnnotationControls: ({ target }: { target: WebviewAnnotationTarget }) => {
+    mocks.annotationTarget = target
+    return <button type="button" aria-label="annotation-controls" />
+  }
 }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({ pinned: [], allApps: [], updateAppStatus: vi.fn(() => Promise.resolve()) })
@@ -62,7 +72,10 @@ const renderToolbar = (app: MiniAppType) =>
     />
   )
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  mocks.annotationTarget = undefined
+})
 
 describe('MinimalToolbar', () => {
   it('opens the same detail panel the launcher tile offers, for a local app only', () => {
@@ -98,6 +111,28 @@ describe('MinimalToolbar', () => {
     renderToolbar(site)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'annotation-controls' })).toBeInTheDocument()
+  })
+
+  it('preserves annotation target IDs that already fit the shared contract', () => {
+    renderToolbar(site)
+
+    expect(mocks.annotationTarget?.id).toBe('mini-app:google')
+  })
+
+  it('maps oversized custom app IDs to distinct annotation targets within the shared contract', () => {
+    renderToolbar({ ...site, appId: 'a'.repeat(152) })
+    const firstTarget = mocks.annotationTarget
+
+    expect(WebviewAnnotationTargetSchema.safeParse(firstTarget).success).toBe(true)
+
+    cleanup()
+    renderToolbar({ ...site, appId: `${'a'.repeat(151)}b` })
+    expect(mocks.annotationTarget?.id).not.toBe(firstTarget?.id)
+
+    const digestLikeAppId = firstTarget?.id.split(':').at(-1)
+    cleanup()
+    renderToolbar({ ...site, appId: digestLikeAppId! })
+    expect(mocks.annotationTarget?.id).not.toBe(firstTarget?.id)
   })
 
   it('shows DevTools for local apps and sites alike', () => {
