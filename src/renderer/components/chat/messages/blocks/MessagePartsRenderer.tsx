@@ -225,7 +225,6 @@ interface RenderGroupedEntryOptions {
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
-  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
@@ -236,7 +235,6 @@ interface RenderGroupedEntryOptions {
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
-const EMPTY_HIDDEN_COMPOSER_TOKENS: ReadonlySet<ComposerMessageToken> = new Set()
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -282,7 +280,6 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
 }
 
 interface VisibleComposerFileToken {
-  token: ComposerMessageToken
   sourceId?: string
   names: Set<string>
 }
@@ -325,7 +322,7 @@ function getVisibleComposerFileTokens(
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
-      return [{ token, sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
+      return [{ sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
     })
   })
 }
@@ -379,14 +376,12 @@ function findUniqueVisibleFileTokenIndex(
   return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
 }
 
-function getDisplayProjection(
+function getDisplayEntries(
   entries: readonly PartEntry[],
   message: MessageListItem,
   visibleComposerFileTokens: readonly VisibleComposerFileToken[]
-): { entries: PartEntry[]; hiddenImageTokens: ReadonlySet<ComposerMessageToken> } {
-  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
-    return { entries: [...entries], hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS }
-  }
+): PartEntry[] {
+  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) return [...entries]
 
   const fileEntryNameCounts = new Map<string, number>()
   for (const entry of entries) {
@@ -397,46 +392,34 @@ function getDisplayProjection(
   }
 
   const usedTokenIndexes = new Set<number>()
-  const displayEntries: PartEntry[] = []
-  const hiddenImageTokens = new Set<ComposerMessageToken>()
-  for (const entry of entries) {
-    if ((entry.part.type as string) !== 'file') {
-      displayEntries.push(entry)
-      continue
-    }
+  return entries.filter((entry) => {
+    if ((entry.part.type as string) !== 'file') return true
 
     const sourceId = getFileEntrySourceId(entry)
-    let matchIndex = sourceId
+    const sourceMatchIndex = sourceId
       ? findUniqueVisibleFileTokenIndex(
           visibleComposerFileTokens,
           usedTokenIndexes,
           (token) => token.sourceId === sourceId
         )
       : undefined
-
-    if (matchIndex === undefined) {
-      const name = getFileEntryName(entry)
-      matchIndex =
-        name && fileEntryNameCounts.get(name) === 1
-          ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) =>
-              token.names.has(name)
-            )
-          : undefined
+    if (sourceMatchIndex !== undefined) {
+      usedTokenIndexes.add(sourceMatchIndex)
+      return false
     }
 
-    if (matchIndex === undefined) {
-      displayEntries.push(entry)
-      continue
+    const name = getFileEntryName(entry)
+    const nameMatchIndex =
+      name && fileEntryNameCounts.get(name) === 1
+        ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) => token.names.has(name))
+        : undefined
+    if (nameMatchIndex !== undefined) {
+      usedTokenIndexes.add(nameMatchIndex)
+      return false
     }
 
-    usedTokenIndexes.add(matchIndex)
-    if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
-      displayEntries.push(entry)
-      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
-    }
-  }
-
-  return { entries: displayEntries, hiddenImageTokens }
+    return true
+  })
 }
 
 function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
@@ -612,7 +595,6 @@ function renderPart(
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
-          hiddenComposerTokens={options?.hiddenComposerTokens}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
@@ -1449,11 +1431,10 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
   )
-  const displayProjection = useMemo(
-    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens),
+  const displayEntries = useMemo(
+    () => getDisplayEntries(partEntries, message, visibleComposerFileTokens),
     [message, partEntries, visibleComposerFileTokens]
   )
-  const displayEntries = displayProjection.entries
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(
@@ -1488,7 +1469,6 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
-      hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
       onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
@@ -1501,8 +1481,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       handleTextPlayoutSettledChange,
       handleRemoveTranslation,
       messageCitations,
-      readOnlyFilePreviews,
-      displayProjection.hiddenImageTokens
+      readOnlyFilePreviews
     ]
   )
   const canRenderReportArtifacts =

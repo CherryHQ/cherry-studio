@@ -294,7 +294,6 @@ describe('MainTextBlock', () => {
     mentions?: Model[]
     composer?: ComposerMessageSnapshot
     readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
-    hiddenComposerTokens?: ReadonlySet<ComposerMessageSnapshot['tokens'][number]>
   }) => {
     return render(
       <MainTextBlock
@@ -308,7 +307,6 @@ describe('MainTextBlock', () => {
         mentions={props.mentions}
         composer={props.composer}
         readOnlyFilePreviews={props.readOnlyFilePreviews}
-        hiddenComposerTokens={props.hiddenComposerTokens}
       />
     )
   }
@@ -723,34 +721,6 @@ Hidden answer
       const token = textElement.querySelector('[data-composer-token-kind="file"]')
       expect(token).toBeInTheDocument()
       expect(token?.querySelector('[data-file-token-icon="code"]')).toBeInTheDocument()
-    })
-
-    it.each([false, true])('should consume hidden token prompt text in markdown mode %s', (renderAsMarkdown) => {
-      mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
-      const composer: ComposerMessageSnapshot = {
-        version: 1,
-        tokens: [
-          {
-            id: 'file:image-1',
-            kind: 'file',
-            label: 'photo.png',
-            index: 0,
-            textOffset: 5,
-            promptText: 'internal image context'
-          }
-        ]
-      }
-
-      renderMainTextBlock({
-        content: 'Open internal image context now',
-        role: 'user',
-        composer,
-        hiddenComposerTokens: new Set([composer.tokens[0]])
-      })
-
-      expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
-      expect(document.body).toHaveTextContent('Open now')
-      expect(document.body).not.toHaveTextContent('internal image context')
     })
 
     it('should render composer tokens while preserving markdown for user text segments', () => {
