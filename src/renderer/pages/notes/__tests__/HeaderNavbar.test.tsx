@@ -1,3 +1,4 @@
+import type { NotesTreeNode } from '@renderer/types/note'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { HTMLAttributes } from 'react'
@@ -7,6 +8,7 @@ const workspaceMock = vi.hoisted(() => ({
   showWorkspace: false,
   toggleShowWorkspace: vi.fn()
 }))
+const notesQueryMock = vi.hoisted(() => ({ activeNode: undefined as NotesTreeNode | undefined }))
 
 vi.mock('@cherrystudio/ui', async () => vi.importActual('@cherrystudio/ui'))
 vi.mock('@renderer/components/Navbar', () => ({
@@ -20,7 +22,7 @@ vi.mock('@renderer/hooks/command', () => ({
   useResolvedCommand: () => ({ shortcutLabel: 'Ctrl+P' })
 }))
 vi.mock('@renderer/hooks/tab', () => ({ useIsActiveTab: () => true }))
-vi.mock('@renderer/hooks/useNotesQuery', () => ({ useActiveNode: () => ({ activeNode: undefined }) }))
+vi.mock('@renderer/hooks/useNotesQuery', () => ({ useActiveNode: () => ({ activeNode: notesQueryMock.activeNode }) }))
 vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ settings: {}, updateSettings: vi.fn() })
 }))
@@ -51,6 +53,7 @@ describe('HeaderNavbar accessibility', () => {
   beforeEach(() => {
     workspaceMock.showWorkspace = false
     workspaceMock.toggleShowWorkspace.mockClear()
+    notesQueryMock.activeNode = undefined
   })
 
   it('reflects sidebar visibility through the toggle state', () => {
@@ -62,6 +65,28 @@ describe('HeaderNavbar accessibility', () => {
     rerender(<HeaderNavbar notesTree={[]} />)
 
     expect(screen.getByRole('button', { name: 'Hide Sidebar' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('reflects the active note favorite state', () => {
+    const note: NotesTreeNode = {
+      id: 'note-1',
+      name: 'note.md',
+      type: 'file',
+      treePath: '/note.md',
+      externalPath: '/notes/note.md',
+      isStarred: false,
+      createdAt: '2026-09-03T00:00:00.000Z',
+      updatedAt: '2026-09-03T00:00:00.000Z'
+    }
+    notesQueryMock.activeNode = note
+    const { rerender } = render(<HeaderNavbar notesTree={[note]} onToggleStar={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Favorite note' })).toHaveAttribute('aria-pressed', 'false')
+
+    notesQueryMock.activeNode = { ...note, isStarred: true }
+    rerender(<HeaderNavbar notesTree={[note]} onToggleStar={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Unfavorite' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('restores keyboard focus to the named more button when its menu closes', async () => {

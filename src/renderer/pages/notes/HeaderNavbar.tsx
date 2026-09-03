@@ -372,14 +372,12 @@ const HeaderNavbar = ({
       <NavbarRight className="pr-0">
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
-            <button
-              type="button"
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg border-0 bg-transparent px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted focus-visible:bg-muted [&_svg]:text-muted-foreground"
+            <BaseNavbarIcon
               aria-label={activeNode.isStarred ? t('notes.unstar') : t('notes.star')}
               aria-pressed={activeNode.isStarred}
               onClick={handleToggleStarred}>
               {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
-            </button>
+            </BaseNavbarIcon>
           </Tooltip>
         )}
         <Popover open={menuOpen} onOpenChange={setMenuOpen}>

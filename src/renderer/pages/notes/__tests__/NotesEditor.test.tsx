@@ -32,9 +32,15 @@ vi.mock('@cherrystudio/ui/components/composites/code-editor', () => {
 })
 
 vi.mock('@renderer/components/ActionIconButton', () => ({
-  default: ({ 'aria-label': label, onClick }: { 'aria-label'?: string; onClick?: () => void }) => (
-    <button type="button" aria-label={label} onClick={onClick} />
-  )
+  default: ({
+    'aria-label': label,
+    'aria-pressed': pressed,
+    onClick
+  }: {
+    'aria-label'?: string
+    'aria-pressed'?: boolean
+    onClick?: () => void
+  }) => <button type="button" aria-label={label} aria-pressed={pressed} onClick={onClick} />
 }))
 
 vi.mock('@renderer/components/Selector', () => ({
@@ -56,6 +62,7 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
 }))
 
 import i18n from '@renderer/i18n/resolver'
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 
 import NotesEditor from '../NotesEditor'
 
@@ -73,6 +80,8 @@ afterAll(async () => {
 describe('NotesEditor focus behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('app.spell_check.enabled', false)
   })
 
   it('loads only the selected editor stack', async () => {
@@ -151,7 +160,7 @@ describe('NotesEditor focus behavior', () => {
     )
 
     await screen.findByTestId('rich-editor')
-    expect(screen.getByRole('button', { name: 'Enable/Disable spell check' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enable/Disable spell check' })).toHaveAttribute('aria-pressed', 'false')
   })
 })
 
