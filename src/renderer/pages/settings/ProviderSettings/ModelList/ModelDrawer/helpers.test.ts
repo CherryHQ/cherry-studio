@@ -81,6 +81,13 @@ describe('model drawer classification helpers', () => {
     ])
   })
 
+  it('writes text as the base input for a text-generating multimodal model', () => {
+    const classification = getInitialModelClassification()
+    classification.inputModalities.add(MODALITY.IMAGE)
+
+    expect(buildModelInputModalities([], classification)).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
+  })
+
   it('preserves read-only catalog operations', () => {
     const model = makeModel({ capabilities: [MODEL_CAPABILITY.AUDIO_GENERATION] })
     const classification = getInitialModelClassification(model)

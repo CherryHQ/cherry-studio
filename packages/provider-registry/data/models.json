@@ -2630,7 +2630,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "contextWindow": 53248,
       "family": "qwen",
       "id": "qwen3-asr-flash",
@@ -9231,7 +9231,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "gemini",
       "id": "gemini-3-5-transcribe",
       "inputModalities": ["audio"],
@@ -9251,7 +9251,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "gemini",
       "id": "gemini-3-5-transcribe-live",
       "inputModalities": ["audio"],
@@ -14010,7 +14010,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "voxtral",
       "id": "voxtral-mini-latest",
       "inputModalities": ["audio"],
@@ -15827,7 +15827,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "whisper",
       "id": "whisper-large-v3",
       "inputModalities": ["audio"],
@@ -16180,7 +16180,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "o-mini",
       "id": "gpt-4o-mini-transcribe",
       "inputModalities": ["audio"],
@@ -16200,7 +16200,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "gpt",
       "id": "gpt-4o-transcribe",
       "inputModalities": ["audio"],
@@ -18165,7 +18165,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "whisper",
       "id": "gpt-realtime-whisper",
       "inputModalities": ["audio"],
@@ -19045,7 +19045,7 @@
       "ownedBy": "stepfun"
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "step",
       "id": "stepaudio-2-5-asr",
       "inputModalities": ["audio"],
@@ -20179,7 +20179,7 @@
       "ownedBy": "vercel"
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "o",
       "id": "transcribe-1",
       "inputModalities": ["audio"],
@@ -20359,7 +20359,7 @@
       "ownedBy": "vercel"
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "whisper",
       "id": "whisper-1",
       "inputModalities": ["audio"],
@@ -21340,7 +21340,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "text-generation"],
+      "capabilities": ["audio-recognition", "audio-transcript"],
       "family": "grok",
       "id": "grok-stt",
       "inputModalities": ["audio"],
@@ -22720,5 +22720,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "8e0e15643bcd5524"
+  "version": "ba0a1c370820000a"
 }
