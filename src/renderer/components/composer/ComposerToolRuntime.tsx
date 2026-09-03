@@ -210,15 +210,18 @@ export { ComposerToolDerivedStateProvider }
 export const ComposerToolFooterActionsSync = () => {
   const { getFooterActions, version } = useComposerToolProviderLaunchers()
   const quickPanel = useQuickPanel()
-  const { isVisible, symbol, updateFooterActions } = quickPanel
+  const { symbol, updateFooterActions } = quickPanel
 
   useLayoutEffect(() => {
-    if (!isVisible) return
+    if (!symbol) {
+      updateFooterActions([])
+      return
+    }
 
     updateFooterActions(getFooterActions(symbol))
 
     return () => updateFooterActions([])
-  }, [getFooterActions, isVisible, symbol, updateFooterActions, version])
+  }, [getFooterActions, symbol, updateFooterActions, version])
 
   return null
 }

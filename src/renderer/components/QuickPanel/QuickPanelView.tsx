@@ -204,6 +204,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
     const previousNavigationItems = previousNavigationItemsRef.current
     const preserveActiveItem = (previousIndex: number) => {
+      if (previousIndex === -1) return -1
+
       const previousItem = previousNavigationItems[previousIndex]
       if (!previousItem) return firstQuickPanelSelectableIndex(navigationItems)
 
@@ -588,6 +590,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const isReadOnlyHeaderButton =
         ctx.readOnly && e.target instanceof HTMLButtonElement && readOnlyHeaderRef.current?.contains(e.target)
       if (isReadOnlyHeaderButton && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) return false
+      const isReadOnlyFooterButton =
+        ctx.readOnly && e.target instanceof HTMLButtonElement && footerRef.current?.contains(e.target)
+      if (isReadOnlyFooterButton && e.key === 'Tab' && e.shiftKey) return false
 
       const assistivePressed = isMac ? e.metaKey : e.ctrlKey
 
@@ -1028,7 +1033,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           <QuickPanelFooter
             actions={footerActions}
             activeActionId={footerActions[activeIndex - list.length]?.id}
-            compact={footerWidth > 0 && footerWidth < 620}
+            compact={footerWidth > 0 && footerWidth <= 620}
             containerRef={footerRef}
             title={ctx.readOnly ? undefined : ctx.title}
             assistiveKey={ASSISTIVE_KEY}

@@ -1001,7 +1001,7 @@ describe('QuickPanelView', () => {
     })
   })
 
-  it('preserves native keyboard behavior on the read-only close button', async () => {
+  it('preserves native keyboard traversal between read-only panel controls', async () => {
     const user = userEvent.setup()
     const footerAction = vi.fn()
 
@@ -1027,11 +1027,17 @@ describe('QuickPanelView', () => {
     )
 
     const closeButton = await screen.findByRole('button', { name: 'settings.quickPanel.close' })
+    const actionButton = screen.getByRole('button', { name: 'Configure MCP servers' })
     closeButton.focus()
 
     await user.tab()
 
-    expect(closeButton).not.toHaveFocus()
+    expect(actionButton).toHaveFocus()
+    expect(footerAction).not.toHaveBeenCalled()
+
+    await user.tab({ shift: true })
+
+    expect(closeButton).toHaveFocus()
     expect(footerAction).not.toHaveBeenCalled()
 
     closeButton.focus()
@@ -1312,11 +1318,11 @@ describe('QuickPanelView', () => {
     }
   })
 
-  it('keeps every footer action accessible when the panel uses its compact layout', async () => {
+  it('uses the compact footer layout at its 620px boundary', async () => {
     const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function widthFor(
       this: HTMLElement
     ) {
-      return this.dataset.testid === 'quick-panel-footer' ? 420 : 0
+      return this.dataset.testid === 'quick-panel-footer' ? 620 : 0
     })
     const footerActions: QuickPanelFooterAction[] = [
       {
@@ -1506,6 +1512,7 @@ describe('QuickPanelView', () => {
 
   it('uses either mouse hover or keyboard active state, not both', async () => {
     const captureDispatch = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
     const items: QuickPanelListItem[] = [
       { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
       { id: 'second', label: 'Second action', icon: '2', action: vi.fn() }
@@ -1513,6 +1520,7 @@ describe('QuickPanelView', () => {
 
     render(
       <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
         <PanelHarness captureDispatch={captureDispatch} items={items} />
       </QuickPanelProvider>
     )
@@ -1528,6 +1536,13 @@ describe('QuickPanelView', () => {
       expect(firstRow).toHaveAttribute('data-active', 'false')
     })
     expect(firstRow?.className).toContain('hover:bg-accent')
+
+    act(() => {
+      quickPanel?.updateList([...items, { id: 'third', label: 'Third action', icon: '3', action: vi.fn() }])
+    })
+
+    await screen.findByText('Third action')
+    expect(firstRow).toHaveAttribute('data-active', 'false')
 
     const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
     act(() => {

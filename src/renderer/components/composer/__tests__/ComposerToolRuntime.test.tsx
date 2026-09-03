@@ -529,6 +529,16 @@ describe('ComposerToolRuntimeHost', () => {
         expect.objectContaining({ id: 'customize-toolbar' })
       ])
     })
+
+    mockQuickPanelValue.isVisible = false
+    view.rerender(renderContent())
+    expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'customize-toolbar' })
+    ])
+
+    mockQuickPanelValue.symbol = ''
+    view.rerender(renderContent())
+    expect(mockQuickPanelValue.updateFooterActions).toHaveBeenLastCalledWith([])
   })
 
   it('does not subscribe the runtime host to quick panel state', async () => {
