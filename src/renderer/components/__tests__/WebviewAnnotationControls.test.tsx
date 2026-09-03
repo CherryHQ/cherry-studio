@@ -114,6 +114,11 @@ const annotation = {
     role: 'button'
   }
 }
+const LEGACY_DOCUMENT_ID = '123e4567-e89b-42d3-a456-426614174010'
+const OLD_DOCUMENT_ID = '123e4567-e89b-42d3-a456-426614174011'
+const NEW_DOCUMENT_ID = '123e4567-e89b-42d3-a456-426614174012'
+
+type GuestEventPayload<T = WebviewAnnotationGuestEvent> = T extends unknown ? Omit<T, 'documentId'> : never
 
 function createWebview() {
   const element = document.createElement('webview') as unknown as WebviewTag
@@ -126,16 +131,31 @@ function createWebview() {
   return element
 }
 
-function dispatchGuestEvent(webview: WebviewTag, guestEvent: WebviewAnnotationGuestEvent) {
+function configuredDocumentId(webview: WebviewTag, fallback = LEGACY_DOCUMENT_ID) {
+  const configure = vi
+    .mocked(webview.send)
+    .mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
+    .filter(
+      (command): command is Extract<WebviewAnnotationHostCommand, { type: 'configure' }> => command.type === 'configure'
+    )
+    .at(-1)
+  return configure?.documentId ?? fallback
+}
+
+function dispatchGuestEvent(
+  webview: WebviewTag,
+  guestEvent: GuestEventPayload,
+  documentId = configuredDocumentId(webview)
+) {
   const event = Object.assign(new Event('ipc-message'), {
     channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
-    args: [guestEvent]
+    args: [{ ...guestEvent, documentId }]
   })
   webview.dispatchEvent(event)
 }
 
-function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationState) {
-  dispatchGuestEvent(webview, { type: 'state_changed', state })
+function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationState, documentId?: string) {
+  dispatchGuestEvent(webview, { type: 'state_changed', state }, documentId)
 }
 
 interface LayoutAckHarnessProps {
@@ -247,12 +267,13 @@ describe('WebviewAnnotationControls', () => {
     expect(screen.getByRole('button', { name: '退出标注' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps inactive annotations and blocks delayed in-page state until the reset snapshot', async () => {
+  it('keeps inactive annotations and rejects old events after an in-page document change', async () => {
     const webview = createWebview()
     const { rerender } = render(
       <WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />
     )
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    const oldDocumentId = configuredDocumentId(webview, OLD_DOCUMENT_ID)
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }, oldDocumentId))
     expect(await screen.findByText('1')).toBeInTheDocument()
 
     rerender(
@@ -273,17 +294,19 @@ describe('WebviewAnnotationControls', () => {
       webview.dispatchEvent(new Event('did-navigate-in-page'))
     })
     const replaceRequestsAfterNavigation = replaceAnnotationRequests().length
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
-
-    await waitFor(() => expect(screen.queryByText('1')).not.toBeInTheDocument())
-    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsAfterNavigation)
 
     await act(async () => {
       await Promise.resolve()
     })
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }))
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }, oldDocumentId))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }, oldDocumentId))
+
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsAfterNavigation)
+
+    const newDocumentId = configuredDocumentId(webview, NEW_DOCUMENT_ID)
     const newPageAnnotation = { ...annotation, comment: 'New in-page state' }
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [newPageAnnotation] }))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [newPageAnnotation] }, newDocumentId))
 
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(request).toHaveBeenLastCalledWith('webview.replace_annotations', {
@@ -293,60 +316,39 @@ describe('WebviewAnnotationControls', () => {
     })
   })
 
-  it('blocks delayed old-page state until a full-navigation document handshake', async () => {
+  it('rejects an old empty snapshot after the new full-navigation configure resolves', async () => {
     const webview = createWebview()
-    const onAnnotationSaved = vi.fn()
-    render(
-      <WebviewAnnotationControls
-        webviewRef={{ current: webview }}
-        isWebviewReady
-        isHostActive
-        target={target}
-        onAnnotationSaved={onAnnotationSaved}
-      />
-    )
-    const pending = saveCreateEditor(webview, 'Old page pending annotation').command
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    const oldDocumentId = configuredDocumentId(webview, OLD_DOCUMENT_ID)
     const oldPageState = {
       enabled: true,
-      annotations: [{ ...annotation, id: pending.id, comment: 'Delayed old-page state' }]
+      annotations: [{ ...annotation, comment: 'Delayed old-page state' }]
     }
+    act(() => dispatchGuestState(webview, oldPageState, oldDocumentId))
+    expect(screen.getByText('1')).toBeInTheDocument()
 
     act(() => {
       webview.dispatchEvent(new Event('did-start-loading'))
       webview.dispatchEvent(new Event('did-navigate-in-page'))
     })
-    const replaceRequestsAfterNavigation = replaceAnnotationRequests().length
-    act(() => dispatchGuestState(webview, oldPageState))
-
-    expect(onAnnotationSaved).not.toHaveBeenCalled()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsAfterNavigation)
 
+    act(() => webview.dispatchEvent(new Event('dom-ready')))
     await act(async () => {
       await Promise.resolve()
     })
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }))
-    act(() => dispatchGuestState(webview, oldPageState))
-    expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsAfterNavigation)
-
-    act(() => webview.dispatchEvent(new Event('dom-ready')))
     const replaceRequestsAfterDomReady = replaceAnnotationRequests().length
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }))
-    act(() => dispatchGuestState(webview, oldPageState))
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }, oldDocumentId))
+    act(() => dispatchGuestState(webview, oldPageState, oldDocumentId))
+
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsAfterDomReady)
 
-    await act(async () => {
-      await Promise.resolve()
-    })
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }))
-
+    const newDocumentId = configuredDocumentId(webview, NEW_DOCUMENT_ID)
     const replaceRequestsBeforeNewState = replaceAnnotationRequests().length
     const newPageAnnotation = { ...annotation, comment: 'Trusted new-page state' }
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [newPageAnnotation] }))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [newPageAnnotation] }, newDocumentId))
 
-    expect(onAnnotationSaved).not.toHaveBeenCalled()
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeNewState + 1)
     expect(request).toHaveBeenLastCalledWith('webview.replace_annotations', {
@@ -354,6 +356,25 @@ describe('WebviewAnnotationControls', () => {
       target,
       annotations: [newPageAnnotation]
     })
+  })
+
+  it('stays fail-closed when the current document configuration cannot be sent', async () => {
+    const webview = createWebview()
+    vi.mocked(webview.send).mockImplementation((_channel, command: WebviewAnnotationHostCommand) =>
+      command.type === 'configure' ? Promise.reject(new Error('Guest unavailable')) : Promise.resolve()
+    )
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    const attemptedDocumentId = configuredDocumentId(webview, NEW_DOCUMENT_ID)
+    const replaceRequestsBeforeState = replaceAnnotationRequests().length
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }, attemptedDocumentId))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }, attemptedDocumentId))
+
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeState)
   })
 
   it('synchronizes counts, copies Markdown, and clears after confirmation', async () => {
@@ -534,6 +555,9 @@ describe('WebviewAnnotationControls', () => {
         />
       )
 
+      await act(async () => {
+        await Promise.resolve()
+      })
       const initialStateRequests = requestStateCommands(webview).length
       const firstCommand = saveCreateEditor(webview, 'Wait for the guest').command
       expect(guestAnnotation?.id).toBe(firstCommand.id)
@@ -644,13 +668,14 @@ describe('WebviewAnnotationControls', () => {
     )
     const pending = saveCreateEditor(webview, 'Old target annotation').command
     const replaceRequestsBeforeTargetChange = replaceAnnotationRequests().length
+    const nextTarget = { id: 'mini-app:new-target', label: 'New target' }
 
     view.rerender(
       <LayoutAckHarness
         webviewRef={webviewRef}
         isWebviewReady
         isHostActive
-        target={{ id: 'mini-app:new-target', label: 'New target' }}
+        target={nextTarget}
         onAnnotationSaved={onAnnotationSaved}
         layoutAck={{ webview, state: { enabled: true, annotations: [{ ...annotation, id: pending.id }] } }}
       />
@@ -658,7 +683,9 @@ describe('WebviewAnnotationControls', () => {
 
     expect(onAnnotationSaved).not.toHaveBeenCalled()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeTargetChange)
+    expect(replaceAnnotationRequests().slice(replaceRequestsBeforeTargetChange)).toEqual([
+      ['webview.replace_annotations', { annotations: [], target: nextTarget, webviewId: 42 }]
+    ])
   })
 
   it('rejects a matching guest snapshot during host deactivation before passive cleanup', () => {

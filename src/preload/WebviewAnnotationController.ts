@@ -316,11 +316,13 @@ const findCommonAncestor = (elements: readonly Element[]): Element | null => {
 }
 
 type GuestEventListener = (event: WebviewAnnotationGuestEvent) => void
+type GuestEventPayload<T = WebviewAnnotationGuestEvent> = T extends unknown ? Omit<T, 'documentId'> : never
 
 export class WebviewAnnotationController {
   private annotations: WebviewAnnotation[] = []
   private annotationElements = new Map<string, Element>()
   private configured = false
+  private documentId: string | null = null
   private enabled = false
   private highlightElement: Element | null = null
   private marquee: HTMLDivElement | null = null
@@ -345,12 +347,16 @@ export class WebviewAnnotationController {
 
   handleCommand(command: WebviewAnnotationHostCommand) {
     switch (command.type) {
-      case 'configure':
+      case 'configure': {
+        const documentChanged = this.documentId !== command.documentId
+        this.documentId = command.documentId
         this.configured = true
         this.locale = command.locale
         this.theme = command.theme
+        if (documentChanged) this.reset()
         this.applyTheme()
         break
+      }
       case 'set_enabled':
         this.setEnabled(command.enabled)
         break
@@ -452,7 +458,12 @@ export class WebviewAnnotationController {
   }
 
   private emitState() {
-    this.onEvent({ type: 'state_changed', state: this.getState() })
+    this.emitEvent({ type: 'state_changed', state: this.getState() })
+  }
+
+  private emitEvent(event: GuestEventPayload) {
+    if (!this.documentId) return
+    this.onEvent({ ...event, documentId: this.documentId } as WebviewAnnotationGuestEvent)
   }
 
   private toAnchorRect(rect: ViewportRect): WebviewAnchorRect {
@@ -726,7 +737,7 @@ export class WebviewAnnotationController {
     this.pendingRegionRect = pageRect
     this.highlightElement = null
     this.schedulePositionUpdate()
-    this.onEvent({
+    this.emitEvent({
       type: 'selection_pending',
       selection: { element: locator, region: this.pendingRegion, anchor: this.toAnchorRect(rect) }
     })
@@ -744,7 +755,7 @@ export class WebviewAnnotationController {
     this.highlightElement = element
     this.schedulePositionUpdate()
     const rect = element.getBoundingClientRect()
-    this.onEvent({
+    this.emitEvent({
       type: 'selection_pending',
       selection: {
         element: locator,
@@ -760,7 +771,7 @@ export class WebviewAnnotationController {
     this.pendingRegion = null
     this.pendingRegionRect = null
     this.schedulePositionUpdate()
-    if (notifyHost && hadPending) this.onEvent({ type: 'selection_cleared' })
+    if (notifyHost && hadPending) this.emitEvent({ type: 'selection_cleared' })
   }
 
   private commitPending(id: string, comment: string) {
@@ -836,7 +847,7 @@ export class WebviewAnnotationController {
       pin.addEventListener('click', () => {
         const anchor = this.getAnnotationAnchorRect(annotation)
         if (!anchor) return
-        this.onEvent({ type: 'annotation_activated', id: annotation.id, anchor: this.toAnchorRect(anchor) })
+        this.emitEvent({ type: 'annotation_activated', id: annotation.id, anchor: this.toAnchorRect(anchor) })
       })
       this.pinLayer?.appendChild(pin)
     })

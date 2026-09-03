@@ -206,6 +206,7 @@ export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('configure'),
+      documentId: z.uuid(),
       locale: WebviewAnnotationLocaleSchema,
       theme: WebviewAnnotationThemeSchema
     })
@@ -236,19 +237,22 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('state_changed'),
+      documentId: z.uuid(),
       state: WebviewAnnotationStateSchema
     })
     .strict(),
   z
     .object({
       type: z.literal('selection_pending'),
+      documentId: z.uuid(),
       selection: WebviewPendingSelectionSchema
     })
     .strict(),
-  z.object({ type: z.literal('selection_cleared') }).strict(),
+  z.object({ type: z.literal('selection_cleared'), documentId: z.uuid() }).strict(),
   z
     .object({
       type: z.literal('annotation_activated'),
+      documentId: z.uuid(),
       id: z.uuid(),
       anchor: WebviewAnchorRectSchema
     })

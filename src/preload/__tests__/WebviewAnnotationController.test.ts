@@ -13,11 +13,19 @@ import {
 } from '../WebviewAnnotationController'
 
 const locale = { edit: 'Edit' }
+const DOCUMENT_A_ID = '123e4567-e89b-42d3-a456-426614174001'
+const DOCUMENT_B_ID = '123e4567-e89b-42d3-a456-426614174002'
+
+const configureDocument = (controller: WebviewAnnotationController, documentId: string) => {
+  controller.handleCommand({ type: 'configure', documentId, locale, theme: 'light' })
+}
 
 const configure = (controller: WebviewAnnotationController) => {
-  controller.handleCommand({ type: 'configure', locale, theme: 'light' })
+  configureDocument(controller, DOCUMENT_A_ID)
   controller.handleCommand({ type: 'set_enabled', enabled: true })
 }
+
+const eventDocumentId = (event: WebviewAnnotationGuestEvent) => event.documentId
 
 const privateController = (controller: WebviewAnnotationController) =>
   controller as unknown as {
@@ -164,6 +172,37 @@ describe('WebviewAnnotationController interactions', () => {
 
     controller.handleCommand({ type: 'delete_annotation', id: annotationId })
     expect(controller.getState().annotations).toEqual([])
+  })
+
+  it('labels emitted state and selection events with the configured document', () => {
+    const button = document.createElement('button')
+    button.id = 'document-owned'
+    document.body.appendChild(button)
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    commit('Belongs to this document')
+
+    expect(events.some((event) => event.type === 'selection_pending')).toBe(true)
+    expect(events.some((event) => event.type === 'state_changed')).toBe(true)
+    expect(events.every((event) => eventDocumentId(event) === DOCUMENT_A_ID)).toBe(true)
+  })
+
+  it('preserves annotations for same-document configuration and resets atomically for a new document', () => {
+    const button = document.createElement('button')
+    button.id = 'old-document'
+    document.body.appendChild(button)
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    commit('Old document annotation')
+
+    configureDocument(controller, DOCUMENT_A_ID)
+    expect(controller.getState().annotations).toHaveLength(1)
+
+    configureDocument(controller, DOCUMENT_B_ID)
+    expect(controller.getState()).toEqual({ enabled: false, annotations: [] })
+    expect(events.at(-1)).toEqual({
+      documentId: DOCUMENT_B_ID,
+      type: 'state_changed',
+      state: { enabled: false, annotations: [] }
+    })
   })
 
   it('clears a pending selection with the first Escape and exits selection mode with the next', () => {

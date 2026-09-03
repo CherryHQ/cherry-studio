@@ -39,11 +39,21 @@ type AnnotationEditorSession =
   | { mode: 'create'; selection: WebviewPendingSelection }
   | { mode: 'edit'; annotationId: string; anchor: WebviewAnchorRect }
 
-interface CreateSaveAttempt {
-  attempt: number
-  id: string
+interface AnnotationDocumentOwner {
+  documentId: string
   targetId: string
   webview: WebviewTag
+}
+
+interface CurrentAnnotationDocument extends AnnotationDocumentOwner {
+  configuration: Pick<Extract<WebviewAnnotationHostCommand, { type: 'configure' }>, 'locale' | 'theme'> | null
+  configurationAttempt: number
+  configurationPending: boolean
+}
+
+interface CreateSaveAttempt extends AnnotationDocumentOwner {
+  attempt: number
+  id: string
 }
 
 interface PendingCreateSave extends CreateSaveAttempt {
@@ -52,18 +62,11 @@ interface PendingCreateSave extends CreateSaveAttempt {
   timeout: ReturnType<typeof setTimeout> | null
 }
 
-interface NavigationBarrier {
-  canAcknowledgeResetState: boolean
-  generation: number
-  kind: 'document' | 'in-page'
-  targetId: string
-  webview: WebviewTag
-}
-
 function isSameCreateSaveAttempt(pending: PendingCreateSave, attempt: CreateSaveAttempt) {
   return (
     pending.id === attempt.id &&
     pending.attempt === attempt.attempt &&
+    pending.documentId === attempt.documentId &&
     pending.targetId === attempt.targetId &&
     pending.webview === attempt.webview
   )
@@ -97,8 +100,8 @@ export function WebviewAnnotationControls({
   const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
   const [isCreateSaving, setIsCreateSaving] = useState(false)
   const pendingCreateSaveRef = useRef<PendingCreateSave | null>(null)
-  const navigationBarrierRef = useRef<NavigationBarrier | null>(null)
-  const navigationGenerationRef = useRef(0)
+  const currentDocumentRef = useRef<CurrentAnnotationDocument | null>(null)
+  const awaitingDocumentReadyRef = useRef(false)
   const isMountedRef = useRef(false)
   const currentWebview = webviewRef.current
   const committedOwnerRef = useRef({ isHostActive, targetId: target.id, webview: currentWebview })
@@ -110,7 +113,8 @@ export function WebviewAnnotationControls({
       const pending = pendingCreateSaveRef.current
       if (pending?.timeout) clearTimeout(pending.timeout)
       pendingCreateSaveRef.current = null
-      navigationBarrierRef.current = null
+      currentDocumentRef.current = null
+      awaitingDocumentReadyRef.current = false
     }
   }, [])
 
@@ -123,6 +127,8 @@ export function WebviewAnnotationControls({
   const sendCommand = useCallback(
     (command: WebviewAnnotationHostCommand, webview = webviewRef.current): boolean => {
       if (!webview || !isWebviewReady) return false
+      const document = currentDocumentRef.current
+      if (!document || document.targetId !== target.id || document.webview !== webview) return false
       try {
         void webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command).catch((error) => {
           logger.debug('Failed to send webview annotation command', { targetId: target.id, error })
@@ -169,18 +175,38 @@ export function WebviewAnnotationControls({
     [setPendingCreateSave]
   )
 
-  const isCurrentCreateSaveAttempt = useCallback((attempt: CreateSaveAttempt) => {
+  const isCurrentDocument = useCallback((document: AnnotationDocumentOwner) => {
     if (!isMountedRef.current) return false
-    const pending = pendingCreateSaveRef.current
+    const current = currentDocumentRef.current
     const owner = committedOwnerRef.current
     return (
-      !!pending &&
-      isSameCreateSaveAttempt(pending, attempt) &&
-      owner.isHostActive &&
-      owner.targetId === attempt.targetId &&
-      owner.webview === attempt.webview
+      !!current &&
+      current.documentId === document.documentId &&
+      current.targetId === document.targetId &&
+      current.webview === document.webview &&
+      owner.targetId === document.targetId &&
+      owner.webview === document.webview
     )
   }, [])
+
+  const isCurrentDocumentConfigurationAttempt = useCallback(
+    (attempt: CurrentAnnotationDocument) =>
+      isCurrentDocument(attempt) && currentDocumentRef.current?.configurationAttempt === attempt.configurationAttempt,
+    [isCurrentDocument]
+  )
+
+  const isCurrentCreateSaveAttempt = useCallback(
+    (attempt: CreateSaveAttempt) => {
+      const pending = pendingCreateSaveRef.current
+      return (
+        !!pending &&
+        isSameCreateSaveAttempt(pending, attempt) &&
+        committedOwnerRef.current.isHostActive &&
+        isCurrentDocument(attempt)
+      )
+    },
+    [isCurrentDocument]
+  )
 
   const markCreateSaveRetryable = useCallback(
     (attempt: CreateSaveAttempt) => {
@@ -192,44 +218,75 @@ export function WebviewAnnotationControls({
     [isCurrentCreateSaveAttempt, setPendingCreateSave]
   )
 
-  const isCurrentNavigationBarrier = useCallback((barrier: NavigationBarrier) => {
-    if (!isMountedRef.current) return false
-    const current = navigationBarrierRef.current
-    const owner = committedOwnerRef.current
-    return (
-      current?.generation === barrier.generation &&
-      current.targetId === barrier.targetId &&
-      current.webview === barrier.webview &&
-      owner.targetId === barrier.targetId &&
-      owner.webview === barrier.webview
-    )
-  }, [])
-
-  const sendNavigationReset = useCallback(
-    (barrier: NavigationBarrier, acknowledgeAfterReset: boolean) => {
+  const requestDocumentState = useCallback(
+    (document: AnnotationDocumentOwner) => {
+      if (!isCurrentDocument(document)) return
       try {
-        void barrier.webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'reset' }).then(
-          () => {
-            if (!isCurrentNavigationBarrier(barrier) || !acknowledgeAfterReset) return
-            navigationBarrierRef.current = { ...barrier, canAcknowledgeResetState: true }
-          },
-          (error) => {
-            if (!isCurrentNavigationBarrier(barrier)) return
-            logger.debug('Failed to reset webview annotations for navigation', {
-              targetId: barrier.targetId,
-              error
-            })
-          }
-        )
+        void document.webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'request_state' }).catch((error) => {
+          if (!isCurrentDocument(document)) return
+          logger.debug('Failed to request webview annotation state', { targetId: document.targetId, error })
+        })
       } catch (error) {
-        if (!isCurrentNavigationBarrier(barrier)) return
-        logger.debug('Webview annotation guest is not ready to reset for navigation', {
-          targetId: barrier.targetId,
+        if (!isCurrentDocument(document)) return
+        logger.debug('Webview annotation guest is not ready to report state', {
+          targetId: document.targetId,
           error
         })
       }
     },
-    [isCurrentNavigationBarrier]
+    [isCurrentDocument]
+  )
+
+  const configureDocument = useCallback(
+    (document: AnnotationDocumentOwner, failClosed: boolean) => {
+      const current = currentDocumentRef.current
+      if (!current || !isCurrentDocument(document)) return false
+      const nextConfiguration: CurrentAnnotationDocument['configuration'] = {
+        locale,
+        theme: theme === ThemeMode.dark ? 'dark' : 'light'
+      }
+      if (
+        current.configuration?.locale.edit === nextConfiguration.locale.edit &&
+        current.configuration.theme === nextConfiguration.theme
+      ) {
+        return false
+      }
+
+      const attempt: CurrentAnnotationDocument = {
+        ...current,
+        configuration: nextConfiguration,
+        configurationAttempt: current.configurationAttempt + 1,
+        configurationPending: true
+      }
+      currentDocumentRef.current = attempt
+
+      const handleFailure = (error: unknown) => {
+        if (!isCurrentDocumentConfigurationAttempt(attempt)) return
+        currentDocumentRef.current = failClosed
+          ? null
+          : { ...attempt, configuration: current.configuration, configurationPending: false }
+        logger.debug('Failed to configure webview annotations', { targetId: attempt.targetId, error })
+      }
+
+      try {
+        void attempt.webview
+          .send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+            type: 'configure',
+            documentId: attempt.documentId,
+            ...nextConfiguration
+          })
+          .then(() => {
+            if (!isCurrentDocumentConfigurationAttempt(attempt)) return
+            const configured = { ...attempt, configurationPending: false }
+            currentDocumentRef.current = configured
+            requestDocumentState(configured)
+          }, handleFailure)
+      } catch (error) {
+        handleFailure(error)
+      }
+      return true
+    },
+    [isCurrentDocument, isCurrentDocumentConfigurationAttempt, locale, requestDocumentState, theme]
   )
 
   const handleGuestEvent = useEffectEvent(
@@ -243,19 +300,8 @@ export function WebviewAnnotationControls({
         return
       }
 
-      const navigationBarrier = navigationBarrierRef.current
-      if (navigationBarrier) {
-        if (!isCurrentNavigationBarrier(navigationBarrier)) return
-        if (
-          navigationBarrier.canAcknowledgeResetState &&
-          guestEvent.type === 'state_changed' &&
-          !guestEvent.state.enabled &&
-          guestEvent.state.annotations.length === 0
-        ) {
-          navigationBarrierRef.current = null
-        }
-        return
-      }
+      const document = currentDocumentRef.current
+      if (!document || guestEvent.documentId !== document.documentId || !isCurrentDocument(document)) return
 
       switch (guestEvent.type) {
         case 'state_changed': {
@@ -269,6 +315,7 @@ export function WebviewAnnotationControls({
           if (
             isHostActive &&
             pending &&
+            pending.documentId === guestEvent.documentId &&
             pending.targetId === target.id &&
             pending.webview === eventWebview &&
             savedAnnotation &&
@@ -298,55 +345,63 @@ export function WebviewAnnotationControls({
     }
   )
 
-  const configureGuest = useEffectEvent((webview: WebviewTag | null) => {
-    if (!isMountedRef.current) return
-    sendCommand(
-      {
-        type: 'configure',
-        locale,
-        theme: theme === ThemeMode.dark ? 'dark' : 'light'
-      },
-      webview
-    )
-    sendCommand({ type: 'request_state' }, webview)
-  })
-
   const disableGuest = useEffectEvent((webview: WebviewTag) => {
-    sendCommand({ type: 'set_enabled', enabled: false }, webview)
+    if (!isWebviewReady) return
+    try {
+      void webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'set_enabled', enabled: false }).catch((error) => {
+        logger.debug('Failed to disable webview annotations', { targetId: target.id, error })
+      })
+    } catch (error) {
+      logger.debug('Webview annotation guest is not ready to disable', { targetId: target.id, error })
+    }
   })
 
-  const resetForNavigation = useEffectEvent(
-    (
-      webview: WebviewTag | null,
-      listenerTargetId: string,
-      kind: NavigationBarrier['kind'],
-      acknowledgeAfterReset: boolean
-    ) => {
-      if (!isMountedRef.current || !webview || webview !== webviewRef.current || listenerTargetId !== target.id) {
-        return
-      }
-      const activeBarrier = navigationBarrierRef.current
-      if (kind === 'in-page' && activeBarrier?.kind === 'document' && isCurrentNavigationBarrier(activeBarrier)) {
-        return
-      }
-      clearPendingCreateSave()
-      setState(EMPTY_STATE)
-      setEditorSession(null)
-      const barrier: NavigationBarrier = {
-        canAcknowledgeResetState: false,
-        generation: ++navigationGenerationRef.current,
-        kind,
-        targetId: listenerTargetId,
-        webview
-      }
-      navigationBarrierRef.current = barrier
-      sendNavigationReset(barrier, acknowledgeAfterReset)
-      void replaceMainSnapshot([], webview)
+  const startDocument = useEffectEvent((webview: WebviewTag | null, listenerTargetId: string) => {
+    if (!isMountedRef.current || !webview || webview !== webviewRef.current || listenerTargetId !== target.id) return
+    awaitingDocumentReadyRef.current = false
+    currentDocumentRef.current = null
+    clearPendingCreateSave()
+    setState(EMPTY_STATE)
+    setEditorSession(null)
+    const document: CurrentAnnotationDocument = {
+      configuration: null,
+      configurationAttempt: 0,
+      configurationPending: false,
+      documentId: crypto.randomUUID(),
+      targetId: listenerTargetId,
+      webview
     }
-  )
+    currentDocumentRef.current = document
+    configureDocument(document, true)
+    void replaceMainSnapshot([], webview)
+  })
+
+  const startFullNavigation = useEffectEvent((webview: WebviewTag | null, listenerTargetId: string) => {
+    if (!isMountedRef.current || !webview || webview !== webviewRef.current || listenerTargetId !== target.id) return
+    awaitingDocumentReadyRef.current = true
+    currentDocumentRef.current = null
+    clearPendingCreateSave()
+    setState(EMPTY_STATE)
+    setEditorSession(null)
+    void replaceMainSnapshot([], webview)
+  })
+
+  const initializeAttachedWebview = useEffectEvent((webview: WebviewTag, listenerTargetId: string) => {
+    if (!isMountedRef.current || webview !== webviewRef.current || listenerTargetId !== target.id) return
+    const document = currentDocumentRef.current
+    if (document && isCurrentDocument(document)) {
+      const configurationSent = configureDocument(document, false)
+      if (!configurationSent && !currentDocumentRef.current?.configurationPending) {
+        requestDocumentState(document)
+      }
+      return
+    }
+    if (isWebviewReady && !awaitingDocumentReadyRef.current) startDocument(webview, listenerTargetId)
+  })
 
   useEffect(() => {
-    navigationBarrierRef.current = null
+    currentDocumentRef.current = null
+    awaitingDocumentReadyRef.current = false
     clearPendingCreateSave()
     setState(EMPTY_STATE)
     setEditorSession(null)
@@ -355,9 +410,25 @@ export function WebviewAnnotationControls({
   useEffect(() => {
     const pending = pendingCreateSaveRef.current
     if (pending && pending.webview !== currentWebview) clearPendingCreateSave(pending.id)
-    const navigationBarrier = navigationBarrierRef.current
-    if (navigationBarrier && navigationBarrier.webview !== currentWebview) navigationBarrierRef.current = null
+    const document = currentDocumentRef.current
+    if (document && document.webview !== currentWebview) {
+      currentDocumentRef.current = null
+      awaitingDocumentReadyRef.current = false
+    }
   }, [clearPendingCreateSave, currentWebview])
+
+  useEffect(() => {
+    if (!isWebviewReady) return
+    const document = currentDocumentRef.current
+    if (document && isCurrentDocument(document)) {
+      const configurationSent = configureDocument(document, false)
+      if (!configurationSent && !document.configurationPending) requestDocumentState(document)
+      return
+    }
+    if (!awaitingDocumentReadyRef.current) startDocument(webviewRef.current, target.id)
+    // startDocument is an Effect Event: it reads current owner state without making this effect reactive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configureDocument, isCurrentDocument, isWebviewReady, locale, requestDocumentState, target.id, theme, webviewRef])
 
   useEffect(() => {
     let attachedWebview: WebviewTag | null = null
@@ -372,14 +443,12 @@ export function WebviewAnnotationControls({
       handleGuestEvent(parsed.data, attachedWebview, target.id)
     }
 
-    const handleDomReady = () => {
-      if (navigationBarrierRef.current?.kind === 'document') {
-        resetForNavigation(attachedWebview, target.id, 'document', true)
-      }
-      configureGuest(attachedWebview)
+    const handleDomReady = () => startDocument(attachedWebview, target.id)
+    const handleDocumentNavigation = () => startFullNavigation(attachedWebview, target.id)
+    const handleInPageNavigation = () => {
+      if (awaitingDocumentReadyRef.current) return
+      startDocument(attachedWebview, target.id)
     }
-    const handleDocumentNavigation = () => resetForNavigation(attachedWebview, target.id, 'document', false)
-    const handleInPageNavigation = () => resetForNavigation(attachedWebview, target.id, 'in-page', true)
 
     const detach = () => {
       if (!attachedWebview) return
@@ -407,7 +476,7 @@ export function WebviewAnnotationControls({
       webview.addEventListener('did-start-loading', handleDocumentNavigation)
       webview.addEventListener('did-navigate-in-page', handleInPageNavigation)
       webview.addEventListener('dom-ready', handleDomReady)
-      configureGuest(webview)
+      initializeAttachedWebview(webview, target.id)
     }
 
     attach()
@@ -420,16 +489,6 @@ export function WebviewAnnotationControls({
     // Effect Events read current configuration and owner state without reconnecting guest listeners.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWebview, isHostActive, target.id])
-
-  useEffect(() => {
-    if (!isWebviewReady) return
-    sendCommand({
-      type: 'configure',
-      locale,
-      theme: theme === ThemeMode.dark ? 'dark' : 'light'
-    })
-    sendCommand({ type: 'request_state' })
-  }, [isWebviewReady, locale, sendCommand, theme])
 
   useEffect(() => {
     if (isHostActive) return
@@ -489,8 +548,14 @@ export function WebviewAnnotationControls({
         const pending = pendingCreateSaveRef.current
         if (pending?.status === 'awaiting') return
         const webview = webviewRef.current
-        if (!webview || !isWebviewReady) return
-        if (pending && (pending.targetId !== target.id || pending.webview !== webview)) return
+        const document = currentDocumentRef.current
+        if (!webview || !isWebviewReady || !document || !isCurrentDocument(document)) return
+        if (
+          pending &&
+          (pending.documentId !== document.documentId || pending.targetId !== target.id || pending.webview !== webview)
+        ) {
+          return
+        }
 
         let page = pending?.page
         if (!page) {
@@ -510,6 +575,7 @@ export function WebviewAnnotationControls({
 
         const attempt: CreateSaveAttempt = {
           attempt: (pending?.attempt ?? 0) + 1,
+          documentId: document.documentId,
           id: pending?.id ?? crypto.randomUUID(),
           targetId: target.id,
           webview
@@ -544,6 +610,7 @@ export function WebviewAnnotationControls({
     },
     [
       editorSession,
+      isCurrentDocument,
       isWebviewReady,
       markCreateSaveRetryable,
       requestCreateSaveState,
