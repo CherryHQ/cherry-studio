@@ -7,23 +7,21 @@ import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 import { describe, expect, it, vi } from 'vitest'
 
-import { remarkHtmlArtifact } from '../remarkHtmlArtifact'
 import { remarkLatexMath } from '../remarkLatexMath'
 
 vi.unmock('@cherrystudio/ui')
 
-function parse(source: string, htmlArtifact = false): Root {
+function parse(source: string): Root {
   const processor = unified().use(remarkParse).use(remarkLatexMath)
-  if (htmlArtifact) processor.use(remarkHtmlArtifact)
   const math = withMath({ singleDollar: true })
   if (!math) throw new Error('Expected the Streamdown math plugin')
   processor.use({ plugins: [math.remarkPlugin] })
   return processor.runSync(processor.parse(source), source)
 }
 
-function mathNodes(source: string, htmlArtifact = false): Array<InlineMath | Math> {
+function mathNodes(source: string): Array<InlineMath | Math> {
   const nodes: Array<InlineMath | Math> = []
-  visit(parse(source, htmlArtifact), (node) => {
+  visit(parse(source), (node) => {
     if (node.type === 'inlineMath' || node.type === 'math') nodes.push(node)
   })
   return nodes
@@ -124,7 +122,7 @@ describe('remarkLatexMath', () => {
     ])
   })
 
-  it('leaves code, links, and HTML artifacts outside math parsing', () => {
+  it('leaves code and links outside math parsing', () => {
     const source = [
       '`\\(inline\\)`',
       '',
@@ -138,15 +136,13 @@ describe('remarkLatexMath', () => {
       '',
       '    \\[indented\\]',
       '',
-      '[\\(label\\) and \\[pdf\\]](https://example.com/\\[path\\])',
-      '',
-      '<div>\\(html\\)</div>'
+      '[\\(label\\) and \\[pdf\\]](https://example.com/\\[path\\])'
     ].join('\n')
-    const tree = parse(source, true)
+    const tree = parse(source)
 
-    expect(mathNodes(source, true)).toEqual([])
+    expect(mathNodes(source)).toEqual([])
     expect(textValue(tree)).toContain('(label) and [pdf]')
-    expect(tree.children.filter((node) => node.type === 'code')).toHaveLength(4)
+    expect(tree.children.filter((node) => node.type === 'code')).toHaveLength(3)
   })
 
   it.each([
