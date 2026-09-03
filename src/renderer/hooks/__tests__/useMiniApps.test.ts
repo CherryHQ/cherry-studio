@@ -601,6 +601,50 @@ describe('useMiniApps', () => {
       })
     })
 
+    it('resolves queued target placement against the refreshed cache at execution time', async () => {
+      const firstRequest = Promise.withResolvers<void>()
+      const mockTrigger = vi
+        .fn()
+        .mockImplementationOnce(() => firstRequest.promise)
+        .mockResolvedValueOnce(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: mockTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const appA = createMiniApp('a', { status: 'disabled', orderKey: 'a0' })
+      const appB = createMiniApp('b', { status: 'disabled', orderKey: 'a1' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([appA, appB]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([appA, appB]))
+      const { result } = renderHook(() => useMiniApps())
+      const resolveOrder = vi.fn((apps: readonly MiniApp[]) =>
+        apps.some((app) => app.appId === 'a' && app.status === 'enabled')
+          ? ({ before: 'a' } as const)
+          : ({ position: 'last' } as const)
+      )
+
+      let firstWrite!: Promise<unknown>
+      let secondWrite!: Promise<unknown>
+      act(() => {
+        firstWrite = result.current.updateAppStatus('a', 'enabled')
+        secondWrite = result.current.updateAppStatus('b', 'enabled', resolveOrder)
+      })
+
+      expect(mockTrigger).toHaveBeenCalledTimes(1)
+      expect(resolveOrder).not.toHaveBeenCalled()
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([{ ...appA, status: 'enabled' }, appB]))
+      firstRequest.resolve()
+      await act(async () => Promise.all([firstWrite, secondWrite]))
+
+      expect(resolveOrder).toHaveBeenCalledWith([{ ...appA, status: 'enabled' }, appB])
+      expect(mockTrigger).toHaveBeenNthCalledWith(2, {
+        params: { appId: 'b' },
+        body: { status: 'enabled', order: { before: 'a' } }
+      })
+    })
+
     it('refreshes the mini-app list after a rejected status update', async () => {
       const trigger = vi.fn().mockRejectedValue(new Error('update failed'))
       const invalidate = vi.fn().mockResolvedValue(undefined)

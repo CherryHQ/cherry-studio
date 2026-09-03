@@ -133,23 +133,13 @@ export function useMiniAppVisibility() {
   const originalVisibleIdsRef = useRef<string[]>([])
   const originalVisibleRegionRef = useRef(effectiveRegion)
   const pendingShownIdsRef = useRef(new Set<string>())
-  const mutationQueueRef = useRef<Promise<unknown> | null>(null)
 
   const enqueueMutation = useCallback(
     (mutation: () => Promise<unknown>, fallbackKey: string, onFailure?: () => void) => {
-      const previous = mutationQueueRef.current
-      const persisted = previous ? previous.catch(() => undefined).then(mutation) : mutation()
-      mutationQueueRef.current = persisted
-      persisted.then(
-        () => {
-          if (mutationQueueRef.current === persisted) mutationQueueRef.current = null
-        },
-        (error) => {
-          if (mutationQueueRef.current === persisted) mutationQueueRef.current = null
-          onFailure?.()
-          reportFailure(t, fallbackKey)(error)
-        }
-      )
+      void mutation().catch((error) => {
+        onFailure?.()
+        reportFailure(t, fallbackKey)(error)
+      })
     },
     [t]
   )
@@ -247,23 +237,18 @@ export function useMiniAppVisibility() {
       setVisible((current) => insertMiniAppInOriginalOrder(current, enabledApp, originalVisibleIdsRef.current))
 
       enqueueMutation(
-        () => {
-          const optimisticApps = allApps.map((item) =>
-            pendingShownIdsRef.current.has(item.appId) ? withEnabledStatus(item) : item
-          )
-          const order = restoredOrderAnchor(
-            app.appId,
-            originalVisibleIdsRef.current,
-            optimisticApps,
-            new Set([app.appId])
-          )
-          return updateAppStatus(app.appId, 'enabled', order)
-        },
+        () =>
+          updateAppStatus(app.appId, 'enabled', (currentApps) => {
+            const optimisticApps = currentApps.map((item) =>
+              pendingShownIdsRef.current.has(item.appId) ? withEnabledStatus(item) : item
+            )
+            return restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, optimisticApps, new Set([app.appId]))
+          }),
         'miniApp.show_failed',
         () => pendingShownIdsRef.current.delete(app.appId)
       )
     },
-    [allApps, enqueueMutation, updateAppStatus]
+    [enqueueMutation, updateAppStatus]
   )
 
   const reorderVisible = useCallback(

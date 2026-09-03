@@ -64,6 +64,8 @@ function compareOrderKey(a: MiniApp, b: MiniApp): number {
   return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
 }
 
+type OrderRequestResolver = OrderRequest | ((apps: readonly MiniApp[]) => OrderRequest)
+
 // Filter apps by region
 const filterByRegion = (apps: MiniApp[], region: MiniAppRegion): MiniApp[] => {
   return apps.filter((app) => isVisibleForRegion(app, region))
@@ -205,6 +207,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   )
   // Global keeps pinned apps across region choices; CN still enforces its edition catalog.
   const pinnedApps = useMemo(() => filterByEdition(pinned, appEdition), [appEdition, pinned])
+  const allAppsRef = useRef(allApps)
+  allAppsRef.current = allApps
 
   // === UI State Cache (unchanged) ===
   const [openedKeepAliveMiniApps, setOpenedKeepAliveMiniApps] = useCache('mini_app.opened_keep_alive')
@@ -258,17 +262,19 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * accidentally affecting rows the caller never saw.
    */
   const updateAppStatus = useCallback(
-    (appId: string, status: MiniApp['status'], order?: OrderRequest) =>
+    (appId: string, status: MiniApp['status'], order?: OrderRequestResolver) =>
       miniAppMutationService.enqueue(async () => {
         try {
-          return await patchAppTrigger({ params: { appId }, body: { status, order } })
+          const resolvedOrder =
+            typeof order === 'function' ? order(readCache<MiniApp[]>('/mini-apps') ?? allAppsRef.current) : order
+          return await patchAppTrigger({ params: { appId }, body: { status, order: resolvedOrder } })
         } catch (error) {
           await invalidate('/mini-apps')
           logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
           throw toDataApiError(error)
         }
       }),
-    [invalidate, patchAppTrigger]
+    [invalidate, patchAppTrigger, readCache]
   )
 
   /**
