@@ -20,7 +20,15 @@ it('moves a step-declared range through the real Slider keyboard contract', asyn
     const [numImages, setNumImages] = useState(1)
     return (
       <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'numImages', title: 'paintings.num_images', min: 1, max: 4, step: 1 }}
+        item={{
+          type: 'slider',
+          key: 'numImages',
+          title: 'paintings.num_images',
+          min: 1,
+          max: 4,
+          step: 1,
+          initialValue: 1
+        }}
         painting={{ numImages }}
         onChange={(updates) => setNumImages(updates.numImages as number)}
       />
