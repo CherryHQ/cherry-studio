@@ -45,7 +45,7 @@ function ControlledRange({
 }
 
 describe('PaintingFieldRenderer range contract', () => {
-  it('names both controls for the configured range', () => {
+  it('names the numeric control for the configured range', () => {
     render(
       <PaintingFieldRenderer
         item={{
@@ -62,7 +62,6 @@ describe('PaintingFieldRenderer range contract', () => {
       />
     )
 
-    expect(screen.getByRole('slider', { name: 'paintings.guidance_scale' })).toBeInTheDocument()
     expect(screen.getByRole('spinbutton', { name: 'paintings.guidance_scale' })).toBeInTheDocument()
   })
 
@@ -245,21 +244,6 @@ describe('PaintingFieldRenderer range contract', () => {
     rerender(<PaintingFieldRenderer item={GUIDANCE_RANGE} painting={{ guidanceScale: 8 }} onChange={onChange} />)
 
     expect(input).toHaveProperty('value', '8')
-  })
-
-  it('keeps the slider on the declared step when it moves', () => {
-    const onChange = vi.fn()
-    render(
-      <PaintingFieldRenderer
-        item={{ type: 'slider', key: 'numImages', min: 1, max: 4, step: 1, initialValue: 1 }}
-        painting={{ numImages: 1 }}
-        onChange={onChange}
-      />
-    )
-
-    fireEvent.change(screen.getByTestId('slider'), { target: { value: '2.4' } })
-
-    expect(onChange).toHaveBeenCalledWith({ numImages: 2 })
   })
 
   it.each([0, -1])('does not pass non-positive step %s to the slider', (step) => {

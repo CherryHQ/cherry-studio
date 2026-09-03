@@ -77,8 +77,8 @@ function PaintingRangeField({
   return (
     <div className="flex min-w-0 items-center gap-3">
       <Slider
-        aria-label={label}
         className="min-w-0 flex-1"
+        getThumbAriaLabel={() => label}
         min={min}
         max={max}
         step={snapStep ?? 1}
