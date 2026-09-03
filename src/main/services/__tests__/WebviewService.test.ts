@@ -454,7 +454,7 @@ describe('WebviewService annotation security and lifecycle', () => {
     expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [currentAnnotation] })])
   })
 
-  it('allows a stale revision to clear the current snapshot', () => {
+  it('rejects a stale empty snapshot without clearing the current revision', () => {
     const host = {}
     const guest = createContents(7, host)
     const target = { id: 'mini-app:demo', label: 'Demo' }
@@ -467,7 +467,24 @@ describe('WebviewService annotation security and lifecycle', () => {
     expect(listAnnotations(service)).toHaveLength(1)
 
     service.replaceAnnotations({ webviewId: 7, navigationRevision: 0, target, annotations: [] }, 'owner')
-    expect(listAnnotations(service)).toEqual([])
+    expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [annotation] })])
+  })
+
+  it('preserves a surviving guest revision across lifecycle restart', async () => {
+    const host = {}
+    const guest = createContents(7, host)
+    const target = { id: 'mini-app:demo', label: 'Demo' }
+    guestById.set(7, guest)
+    getWindow.mockReturnValue({ webContents: host })
+    ;(service as any).initializeWebview(guest)
+    guest.emit('did-start-navigation', { isMainFrame: true })
+
+    await (service as any).onStop()
+    ;(service as any).disposeRegistered()
+    ;(service as any).initializeWebview(guest)
+    service.replaceAnnotations({ webviewId: 7, navigationRevision: 1, target, annotations: [annotation] }, 'owner')
+
+    expect(listAnnotations(service)).toEqual([expect.objectContaining({ annotations: [annotation] })])
   })
 
   it('starts a replacement webview instance at revision zero after destruction', () => {
