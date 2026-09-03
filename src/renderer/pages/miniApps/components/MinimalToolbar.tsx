@@ -17,6 +17,7 @@ import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, 
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { v5 as uuidv5 } from 'uuid'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
@@ -30,6 +31,14 @@ const NAVIGATION_COMPLETE_DELAY_MS = 100
 const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
 const HOST_PORT_PATTERN = /^(?:\[[^\]]+\]|[^:/?#\s]+):\d+(?:[/?#]|$)/
 const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
+const MINI_APP_ANNOTATION_TARGET_PREFIX = 'mini-app:'
+
+function getAnnotationTargetId(appId: string): string {
+  const targetId = `${MINI_APP_ANNOTATION_TARGET_PREFIX}${appId}`
+  if (targetId.length <= WEBVIEW_ANNOTATION_LIMITS.targetId) return targetId
+
+  return `${MINI_APP_ANNOTATION_TARGET_PREFIX}hashed:${uuidv5(appId, uuidv5.URL)}`
+}
 
 function normalizeAddress(value: string): string | null {
   const trimmedValue = value.trim()
@@ -97,7 +106,7 @@ const MinimalToolbar: FC<Props> = ({
   const canOpenExternalLink = isExternalUrl(currentPageUrl)
   const annotationTarget = useMemo(
     () => ({
-      id: `mini-app:${app.appId}`,
+      id: getAnnotationTargetId(app.appId),
       label: (app.nameKey ? t(app.nameKey) : app.name).trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
     }),
     [app.appId, app.name, app.nameKey, t]
