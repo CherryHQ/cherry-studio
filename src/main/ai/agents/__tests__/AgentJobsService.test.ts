@@ -17,7 +17,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
-import type { JobHandler } from '@main/core/job/types'
+import type { JobHandler, JobScheduleRegistrationInput } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
@@ -663,6 +663,38 @@ describe('AgentJobsService', () => {
     it('trashing an Agent permanently removes its task, timer, and subscriptions; restore does not recreate them', async () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
       const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
+
+      expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
+
+      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
+      expect(subscriptionRows(task.id)).toHaveLength(0)
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+
+      agentService.restoreAgent(AGENT_ID)
+
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(subscriptionRows(task.id)).toHaveLength(0)
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('trashing an Agent also removes a legacy task whose template has no workspace', async () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+      const task = jobManager.registerJobSchedule({
+        type: 'agent.task',
+        name: 'legacy-task-without-workspace',
+        trigger: intervalTrigger,
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: form.prompt,
+          reuseRevision: 0,
+          timeoutMinutes: form.timeoutMinutes
+        } as JobScheduleRegistrationInput<'agent.task'>['jobInputTemplate'],
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      dbh.db.insert(agentChannelTaskTable).values({ channelId: CHANNEL_ID, taskId: task.id }).run()
+
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
+      expect(subscriptionRows(task.id)).toEqual([{ channelId: CHANNEL_ID, taskId: task.id }])
 
       expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
 

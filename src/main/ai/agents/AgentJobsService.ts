@@ -44,13 +44,20 @@ function workspacesEqual(a: AgentSessionWorkspaceSource, b: AgentSessionWorkspac
 function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplate | null {
   if (typeof value !== 'object' || value === null) return null
   const template = value as Partial<AgentTaskJobInputTemplate>
-  const workspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
-  if (!workspace.success || typeof template.agentId !== 'string') return null
+  if (typeof template.agentId !== 'string') return null
+  let workspace: AgentSessionWorkspaceSource
+  if (template.workspace === undefined) {
+    workspace = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+  } else {
+    const parsedWorkspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+    if (!parsedWorkspace.success) return null
+    workspace = parsedWorkspace.data
+  }
   return {
     agentId: template.agentId,
     prompt: typeof template.prompt === 'string' ? template.prompt : '',
     timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : DEFAULT_TIMEOUT_MINUTES,
-    workspace: workspace.data,
+    workspace,
     reuseRevision: normalizeTaskSessionReuseRevision(template.reuseRevision)
   }
 }
