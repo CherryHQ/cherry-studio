@@ -35,6 +35,8 @@ export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelectio
 export const getCopyableAbsolutePath = (path: string, isWindows: boolean): string =>
   isWindows ? path.replace(/\//g, '\\') : path
 
+export const isWindowsUncPath = (path: string): boolean => /^\\\\[^\\]+\\[^\\]+/.test(path)
+
 export const getArtifactPaneSelectionDisplayPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
   selection.displayPath ?? getArtifactPaneSelectionPath(selection)
 

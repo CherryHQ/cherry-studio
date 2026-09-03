@@ -3,6 +3,7 @@ import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
   getArtifactPaneSelectionPath,
+  isWindowsUncPath,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
@@ -292,7 +293,7 @@ function TopicRightPaneActionsProvider({
     (input: ComposerInputFilePreview) => {
       const requestId = previewRequestRef.current + 1
       previewRequestRef.current = requestId
-      previewReturnRef.current = {
+      const returnTarget = {
         closePane: !panelState.presentationOpen,
         panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
         selection: previewFileSelection
@@ -304,13 +305,15 @@ function TopicRightPaneActionsProvider({
         return
       }
 
+      if (!previewReturnRef.current) previewReturnRef.current = returnTarget
+
       requestFileSelection(initialSelection)
       panelActions.requestOpen(FILE_PREVIEW_PANE_ID, { userInitiated: true })
 
       void (async () => {
         let previewPath = input.previewPath
 
-        if (input.originalPath && input.originalPath !== input.previewPath) {
+        if (input.originalPath && input.originalPath !== input.previewPath && !isWindowsUncPath(input.originalPath)) {
           try {
             const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
             if (previewRequestRef.current !== requestId) return
