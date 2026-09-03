@@ -544,7 +544,8 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         symbol: 'thinking',
         parentPanel: options,
         queryAnchor: 0,
-        triggerInfo: { type: 'input', position: 0, originalText: '/think' },
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         list: [expect.objectContaining({ label: 'Low' })]
       })
     )
@@ -568,6 +569,56 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         queryAnchor: 0,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      })
+    )
+  })
+
+  it('opens a single-select submenu with the keyboard on the active child', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'panel',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            { id: 'mode-default', kind: 'command', label: 'Ask Every Time', icon: 'a', sources: ['popover'] },
+            {
+              id: 'mode-smart',
+              kind: 'command',
+              label: 'Smart Approval',
+              icon: 's',
+              active: true,
+              sources: ['popover']
+            },
+            { id: 'mode-full', kind: 'command', label: 'Full Access', icon: 'f', sources: ['popover'] }
+          ]
+        }
+      ],
+      { quickPanel, triggerInfo: { type: 'button' } }
+    )
+    const submenuLauncher = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    submenuLauncher.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: submenuLauncher,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: ''
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'permission-mode',
+        defaultIndex: 1,
+        list: [
+          expect.objectContaining({ label: 'Ask Every Time' }),
+          expect.objectContaining({ label: 'Smart Approval', isSelected: true }),
+          expect.objectContaining({ label: 'Full Access' })
+        ]
       })
     )
   })

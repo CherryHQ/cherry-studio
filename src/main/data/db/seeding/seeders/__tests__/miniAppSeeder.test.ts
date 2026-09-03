@@ -26,12 +26,13 @@ describe('MiniAppSeeder', () => {
   })
 
   it('should refresh preset display fields on re-run', async () => {
-    const preset = PRESETS_MINI_APPS[0]
+    const preset = PRESETS_MINI_APPS.find(({ id }) => id === 'openai')!
     await dbh.db.insert(miniAppTable).values({
       appId: preset.id,
       presetMiniAppId: preset.id,
       name: 'Stale Name',
       url: preset.url,
+      supportedRegions: ['CN', 'Global'],
       status: 'enabled',
       orderKey: 'a0'
     })
@@ -41,6 +42,7 @@ describe('MiniAppSeeder', () => {
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.name).toBe(preset.name)
+    expect(row.supportedRegions).toEqual(['Global'])
   })
 
   it('should not overwrite user-modified status or orderKey on re-run', async () => {
@@ -140,5 +142,29 @@ describe('MiniAppSeeder', () => {
     expect(row.name).toBe('My Custom Override')
     expect(row.url).toBe('https://custom.example/path')
     expect(row.logoKey).toBe('custom-logo')
+  })
+
+  it('leaves installed local apps untouched on reseed', () => {
+    dbh.db
+      .insert(miniAppTable)
+      .values({
+        appId: 'com.example.mygame',
+        kind: 'app',
+        presetMiniAppId: null,
+        name: 'My Game',
+        url: 'cherry-miniapp://com.example.mygame/index.html',
+        status: 'enabled',
+        orderKey: 'a0'
+      })
+      .run()
+
+    new MiniAppSeeder().run(dbh.db)
+
+    const [row] = dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'com.example.mygame')).all()
+    expect(row).toMatchObject({
+      kind: 'app',
+      name: 'My Game',
+      url: 'cherry-miniapp://com.example.mygame/index.html'
+    })
   })
 })

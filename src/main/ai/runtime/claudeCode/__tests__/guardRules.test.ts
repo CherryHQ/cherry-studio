@@ -96,6 +96,44 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('unsupported-image-read', () => {
+    it.each(['default', 'acceptEdits', 'bypassPermissions'] as const)(
+      'denies image reads for a text-only model under %s',
+      async (mode) => {
+        const decision = await evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/assets/Preview.PNG' },
+            permissionMode: mode,
+            supportsImages: false
+          })
+        )
+
+        expect(decision).toEqual({
+          effect: 'deny',
+          reason:
+            'The selected model does not support image input, so Read cannot open /ws/assets/Preview.PNG. Use a vision-capable model or inspect the file through a text-only alternative.',
+          ruleId: 'unsupported-image-read'
+        })
+      }
+    )
+
+    it('allows image reads for vision models and non-image reads for text-only models', async () => {
+      await expect(
+        evaluate(
+          makeCtx({
+            toolName: 'Read',
+            input: { file_path: '/ws/assets/Preview.png' },
+            supportsImages: true
+          })
+        )
+      ).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ toolName: 'Read', input: { file_path: '/ws/src/Game.cs' }, supportsImages: false }))
+      ).resolves.toBeUndefined()
+    })
+  })
+
   describe('builtin-destructive', () => {
     it('denies destructive Bash for protected built-in agents in every mode', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
@@ -335,6 +373,29 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       )
       expect(decision?.ruleId).toBe('support-bash')
       expect(decision?.effect).toBe('deny')
+    })
+  })
+
+  describe('support-diagnostic-draft', () => {
+    const toolName = 'mcp__assistant__prepare_diagnostic_report'
+
+    it('denies the UI-backed draft tool on headless Support turns in every mode', async () => {
+      for (const permissionMode of ['default', 'bypassPermissions'] as const) {
+        await expect(
+          evaluate(
+            makeCtx({
+              builtinRole: 'support',
+              toolName,
+              permissionMode,
+              interaction: HEADLESS
+            })
+          )
+        ).resolves.toMatchObject({ effect: 'deny', ruleId: 'support-diagnostic-draft' })
+      }
+    })
+
+    it('leaves the draft tool auto-approved on interactive Support turns', async () => {
+      await expect(evaluate(makeCtx({ builtinRole: 'support', toolName }))).resolves.toBeUndefined()
     })
   })
 

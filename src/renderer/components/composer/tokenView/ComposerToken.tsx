@@ -65,6 +65,7 @@ export interface ComposerTokenProps {
   token: ChatTokenView
   readOnly?: boolean
   readOnlyFilePreview?: ReadOnlyComposerFileTokenPreview
+  imageIconPreview?: boolean
   selected?: boolean
   className?: string
   children?: ReactNode
@@ -81,7 +82,6 @@ export interface ReadOnlyComposerFileTokenPreview {
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
-  imageIconPreview?: boolean
   tooltipActions?: ReactNode
 }
 
@@ -255,7 +255,8 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   if (!link) {
     return renderActiveComposerTokenElement({
       ...props,
-      icon: tokenIconByKind.link
+      icon: tokenIconByKind.link,
+      colorClassName: 'text-link'
     })
   }
 
@@ -276,6 +277,7 @@ export function LinkComposerToken(props: ComposerTokenProps) {
   // The chip only shows the truncated label; hover must surface the full url the label stands for.
   const chipElement = renderActiveComposerTokenElement({
     ...props,
+    colorClassName: 'text-link',
     className: cn('cursor-pointer rounded-[4px] focus-visible:bg-accent focus-visible:outline-none', props.className),
     icon: props.readOnly ? (
       <span
@@ -780,7 +782,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[1.4] transition-[color,box-shadow,border-color]',
         'group-focus-visible:border-primary',
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',

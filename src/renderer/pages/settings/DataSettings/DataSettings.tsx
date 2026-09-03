@@ -4,7 +4,6 @@ import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
@@ -13,30 +12,46 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, Import, Server } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
+import type { ReactNode } from 'react'
+import { type FC, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BasicDataSettings from './BasicDataSettings'
-import ExportMenuOptions from './ExportMenuSettings'
-import JoplinSettings from './JoplinSettings'
-import LocalBackupSettings from './LocalBackupSettings'
-import MarkdownExportSettings from './MarkdownExportSettings'
-import NotionSettings from './NotionSettings'
-import NutstoreSettings from './NutstoreSettings'
-import ObsidianSettings from './ObsidianSettings'
-import S3Settings from './S3Settings'
-import SiyuanSettings from './SiyuanSettings'
-import WebDavSettings from './WebDavSettings'
-import YuqueSettings from './YuqueSettings'
+import { DATA_PANEL_KEYS, type DataPanelKey, DEFAULT_DATA_PANEL } from './dataPanels'
+
+const ExportMenuOptions = lazy(() => import('./ExportMenuSettings'))
+const JoplinSettings = lazy(() => import('./JoplinSettings'))
+const LocalBackupSettings = lazy(() => import('./LocalBackupSettings'))
+const MarkdownExportSettings = lazy(() => import('./MarkdownExportSettings'))
+const NotionSettings = lazy(() => import('./NotionSettings'))
+const NutstoreSettings = lazy(() => import('./NutstoreSettings'))
+const ObsidianSettings = lazy(() => import('./ObsidianSettings'))
+const S3Settings = lazy(() => import('./S3Settings'))
+const SiyuanSettings = lazy(() => import('./SiyuanSettings'))
+const WebDavSettings = lazy(() => import('./WebDavSettings'))
+const YuqueSettings = lazy(() => import('./YuqueSettings'))
+const ImportMenuOptions = lazy(() => import('./ImportMenuSettings'))
+
+type DataMenuItem =
+  | { key: DataPanelKey; title: string; icon: ReactNode; isDivider?: undefined }
+  | { key: string; isDivider: true; text: string; title?: undefined; icon?: undefined }
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [menu, setMenu] = useState<string>('data')
+  const navigate = useNavigate()
+  // The URL is the single source of truth for the active panel (search jumps
+  // arrive as /settings/data?panel=<key>; menu clicks write it back with
+  // replace). Unknown values were already dropped by the route schema.
+  const search = useSearch({ strict: false })
+  const rawPanel = typeof search.panel === 'string' ? search.panel : undefined
+  const panelParam =
+    rawPanel && (DATA_PANEL_KEYS as readonly string[]).includes(rawPanel) ? (rawPanel as DataPanelKey) : undefined
+  const menu = panelParam ?? DEFAULT_DATA_PANEL
 
-  const menuItems = [
+  const menuItems: DataMenuItem[] = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
@@ -86,7 +101,7 @@ const DataSettings: FC = () => {
                   key={item.key}
                   label={item.title || ''}
                   active={menu === item.key}
-                  onClick={() => setMenu(item.key)}
+                  onClick={() => void navigate({ to: '/settings/data', search: { panel: item.key }, replace: true })}
                   icon={item.icon}
                   className={settingsSubmenuItemClassName}
                   labelClassName={settingsSubmenuItemLabelClassName}
@@ -97,19 +112,24 @@ const DataSettings: FC = () => {
         </Scrollbar>
       </div>
       <SettingsContentColumn theme={theme}>
-        {menu === 'data' && <BasicDataSettings />}
-        {menu === 'webdav' && <WebDavSettings />}
-        {menu === 'nutstore' && <NutstoreSettings />}
-        {menu === 's3' && <S3Settings />}
-        {menu === 'import_settings' && <ImportMenuOptions />}
-        {menu === 'export_menu' && <ExportMenuOptions />}
-        {menu === 'markdown_export' && <MarkdownExportSettings />}
-        {menu === 'local_backup' && <LocalBackupSettings />}
-        {menu === 'notion' && <NotionSettings />}
-        {menu === 'yuque' && <YuqueSettings />}
-        {menu === 'joplin' && <JoplinSettings />}
-        {menu === 'obsidian' && <ObsidianSettings />}
-        {menu === 'siyuan' && <SiyuanSettings />}
+        {menu === 'data' ? (
+          <BasicDataSettings />
+        ) : (
+          <Suspense fallback={null}>
+            {menu === 'webdav' && <WebDavSettings />}
+            {menu === 'nutstore' && <NutstoreSettings />}
+            {menu === 's3' && <S3Settings />}
+            {menu === 'import_settings' && <ImportMenuOptions />}
+            {menu === 'export_menu' && <ExportMenuOptions />}
+            {menu === 'markdown_export' && <MarkdownExportSettings />}
+            {menu === 'local_backup' && <LocalBackupSettings />}
+            {menu === 'notion' && <NotionSettings />}
+            {menu === 'yuque' && <YuqueSettings />}
+            {menu === 'joplin' && <JoplinSettings />}
+            {menu === 'obsidian' && <ObsidianSettings />}
+            {menu === 'siyuan' && <SiyuanSettings />}
+          </Suspense>
+        )}
       </SettingsContentColumn>
     </RowFlex>
   )

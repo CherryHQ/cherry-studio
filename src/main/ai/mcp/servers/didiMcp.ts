@@ -18,7 +18,7 @@ const logger = loggerService.withContext('DiDiMcpServer')
 
 export class DiDiMcpServer {
   private _server: Server
-  private readonly baseUrl = 'http://mcp.didichuxing.com/mcp-servers'
+  private readonly baseUrl = 'https://mcp.didichuxing.com/mcp-servers'
   private apiKey: string
 
   constructor(apiKey?: string) {

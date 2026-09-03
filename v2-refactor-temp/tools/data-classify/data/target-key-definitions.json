@@ -27,6 +27,13 @@
       "description": "Show a system notification when a background update check finds a new version (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.notification.mini_app.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Show system notifications from installed mini apps that hold the notification grant (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "app.onboarding.provider_setup.status",
       "type": "PreferenceTypes.OnboardingProviderSetupStatus",
       "defaultValue": "pending",
@@ -97,11 +104,11 @@
       "description": "Default Web Search provider for URL fetch capability"
     },
     {
-      "targetKey": "chat.web_search.client_tools_preferred",
+      "targetKey": "chat.web_search.model_tools_preferred",
       "type": "boolean",
       "defaultValue": true,
       "status": "classified",
-      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+      "description": "Prefer model-native web search and URL fetching over configured services when both are available"
     },
     {
       "targetKey": "chat.web_search.compression.cutoff_limit",
@@ -163,8 +170,8 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "assistants", "type": "app" },
         { "id": "agents", "type": "app" },
+        { "id": "assistants", "type": "app" },
         { "id": "translate", "type": "app" },
         { "id": "paintings", "type": "app" },
         { "id": "knowledge", "type": "app" }
@@ -255,6 +262,13 @@
       "defaultValue": null,
       "status": "classified",
       "description": "Explicit compression model (UniqueModelId). null = use the current request model"
+    },
+    {
+      "targetKey": "chat.context_settings.compress.threshold_percent",
+      "type": "number",
+      "defaultValue": 80,
+      "status": "classified",
+      "description": "Percent of the model input room at which history is compacted (v2 新增，非迁移)"
     },
     {
       "targetKey": "topic.tab.display_mode",
@@ -729,6 +743,20 @@
       },
       "status": "classified",
       "description": "Command shortcut: screenshot.capture (unified command system)"
+    },
+    {
+      "targetKey": "feature.mini_app.check_updates_on_open",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Check installed mini apps for updates when they are opened (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "data.backup.webdav.allow_self_signed_tls",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Allow self-signed/unverifiable TLS certificates for WebDAV backup transport (v2 new feature, no v1 source)"
     }
   ]
 }

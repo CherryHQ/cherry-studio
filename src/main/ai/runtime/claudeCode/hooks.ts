@@ -60,6 +60,7 @@ export interface ClaudeCodeHookContext {
   mountedServers: ReadonlySet<string>
   /** Loaded plugin directories by manifest name; indexed once per session. */
   pluginDirectories: ReadonlyMap<string, string>
+  supportsImages: boolean
   agentsMdLoader: AgentsMdLoader
 }
 
@@ -88,6 +89,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       cwd,
       agentDataPath,
       signal: options?.signal,
+      supportsImages: ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false
     })

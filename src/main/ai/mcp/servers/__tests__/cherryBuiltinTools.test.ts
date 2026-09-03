@@ -2,8 +2,9 @@ import { WebSearchConfigError, type WebSearchConfigErrorCode } from '@main/servi
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getImageGenerationSupport, loggerWarn } = vi.hoisted(() => ({
+const { getImageGenerationSupport, getModelByKey, loggerWarn } = vi.hoisted(() => ({
   getImageGenerationSupport: vi.fn(),
+  getModelByKey: vi.fn(),
   loggerWarn: vi.fn()
 }))
 
@@ -21,6 +22,10 @@ const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
 const fileRead = vi.fn()
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: getModelByKey }
+}))
+
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: { getImageGenerationSupport }
 }))
@@ -127,6 +132,8 @@ describe('cherryBuiltinTools', () => {
     generateImage.mockReset()
     fileRead.mockReset()
     getImageGenerationSupport.mockReset()
+    getModelByKey.mockReset()
+    getModelByKey.mockReturnValue({})
     getImageGenerationSupport.mockReturnValue(null)
     loggerWarn.mockReset()
   })
@@ -735,6 +742,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
+    trustedNotifyChannels: [{ id: 'channel-1', type: 'telegram' as const }],
     getKnowledgeBaseIds: () => KB_SCOPE
   }
 
