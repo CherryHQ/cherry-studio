@@ -90,7 +90,8 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       agentDataPath,
       supportsImages: ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
-      isDisabled: (name) => snapshot?.isDisabled(name) ?? false
+      isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
+      bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command)
     })
     if (!decision) return {}
     if (decision.effect === 'deny') {
@@ -169,6 +170,22 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
+  // Feeds the bash-repeat-no-progress guard rule. User interrupts are excluded: an Esc-aborted call
+  // is a deliberate stop, not loop evidence.
+  const bashOutcomeHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
+      return {}
+    }
+    const event = input as unknown as Record<string, unknown>
+    if (event.tool_name !== 'Bash' || event.is_interrupt === true) return {}
+    const command = (event.tool_input as Record<string, unknown> | undefined)?.command
+    if (typeof command !== 'string') return {}
+
+    const failed = input.hook_event_name === 'PostToolUseFailure'
+    sessionState().recordBashOutcome(sessionId, command, failed ? event.error : event.tool_response, failed)
+    return {}
+  }
+
   const postToolTimingHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
@@ -196,7 +213,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   return {
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
-    PostToolUse: [{ hooks: [postToolTimingHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
+    PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }]
   }
 }

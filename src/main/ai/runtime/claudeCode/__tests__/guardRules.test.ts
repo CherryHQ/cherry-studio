@@ -221,6 +221,35 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
     })
   })
 
+  describe('bash-repeat-no-progress', () => {
+    const loopingCtx = (run: number | undefined) => ({
+      input: { command: 'curl -s http://localhost/health' },
+      bashNoProgressRun: () => run
+    })
+
+    it('denies a stuck loop in every mode, bypass included', async () => {
+      for (const mode of ['default', 'bypassPermissions'] as const) {
+        const decision = await evaluate(makeCtx({ ...loopingCtx(3), permissionMode: mode }))
+        expect(decision?.ruleId).toBe('bash-repeat-no-progress')
+        expect(decision?.effect).toBe('deny')
+        expect(decision?.reason).toContain('3 times')
+        expect(decision?.reason).toContain('byte-identical')
+      }
+    })
+
+    it('stays silent while the run is still forming or the session has no Bash history', async () => {
+      await expect(evaluate(makeCtx(loopingCtx(undefined)))).resolves.toBeUndefined()
+      await expect(
+        evaluate(makeCtx({ input: { command: 'curl -s http://localhost/health' } }))
+      ).resolves.toBeUndefined()
+    })
+
+    it('does not gate non-Bash tools or calls without a command', async () => {
+      await expect(evaluate(makeCtx({ toolName: 'Read', bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx({ bashNoProgressRun: () => 5 }))).resolves.toBeUndefined()
+    })
+  })
+
   describe('headless-config-mutation', () => {
     const configTool = toCherryBuiltinRuntimeName('config')
 

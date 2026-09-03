@@ -21,6 +21,13 @@ import { toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
+import {
+  BASH_HISTORY_LIMIT,
+  bashNoProgressRunLength,
+  type BashOutcome,
+  fingerprintBashOutput,
+  normalizeBashCommand
+} from './bashNoProgress'
 import { buildMcpToolMetadata } from './mcpCatalog'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -43,6 +50,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
   private readonly steerHolders = new Map<string, SteerHolder>()
   private readonly toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
   private readonly mcpSessionCatalogStates = new Map<string, McpSessionCatalogState>()
+  private readonly bashOutcomes = new Map<string, BashOutcome[]>()
 
   getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHolder {
     let holder = this.toolApprovalEmitters.get(sessionId)
@@ -111,8 +119,23 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return this.toolPolicySnapshots.get(sessionId)
   }
 
+  recordBashOutcome(sessionId: string, command: string, output: unknown, failed: boolean): void {
+    const normalized = normalizeBashCommand(command)
+    if (!normalized) return
+    const history = this.bashOutcomes.get(sessionId) ?? []
+    history.push({ command: normalized, fingerprint: fingerprintBashOutput(output, failed) })
+    if (history.length > BASH_HISTORY_LIMIT) history.shift()
+    this.bashOutcomes.set(sessionId, history)
+  }
+
+  getBashNoProgressRun(sessionId: string, command: string): number | undefined {
+    const history = this.bashOutcomes.get(sessionId)
+    return history ? bashNoProgressRunLength(history, command) : undefined
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
+    this.bashOutcomes.delete(sessionId)
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }
@@ -188,6 +211,7 @@ export class ClaudeCodeSessionStateService extends BaseService {
     for (const holder of [...this.steerHolders.values()]) holder.dispose()
     this.steerHolders.clear()
     this.toolPolicySnapshots.clear()
+    this.bashOutcomes.clear()
     for (const state of [...this.mcpSessionCatalogStates.values()]) state.subscription?.dispose()
     this.mcpSessionCatalogStates.clear()
   }
