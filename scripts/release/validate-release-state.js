@@ -33,6 +33,15 @@ function validateBuildCompletion({ branchSha, release, tag, workflowSha }) {
       `Release ${tag} was published while its tag was being prepared; refusing any post-publication tag mutation`
     )
   }
+  if (release && release.tag_name !== tag) {
+    throw new Error(`Draft release ${release.tag_name} does not match ${tag}`)
+  }
+  if (release && release.target_commitish !== workflowSha) {
+    throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
+  }
+  if (release && (!Array.isArray(release.assets) || release.assets.length === 0)) {
+    throw new Error(`Draft release ${tag} has no artifacts`)
+  }
 }
 
 function validatePublishState({
@@ -48,6 +57,9 @@ function validatePublishState({
 }) {
   if (!release || release.draft !== true) {
     throw new Error(`Release ${tag} must exist and still be a draft before publication`)
+  }
+  if (release.target_commitish !== workflowSha) {
+    throw new Error(`Draft release ${tag} does not target ${workflowSha}`)
   }
   if (tagSha !== workflowSha || branchSha !== workflowSha) {
     throw new Error('Tag, release branch, and selected workflow commit must be identical before publication')
@@ -70,6 +82,9 @@ function validatePublishState({
   }
   if (!Array.isArray(release.assets) || release.assets.length === 0) {
     throw new Error(`Draft release ${tag} has no artifacts`)
+  }
+  if (!release.body?.trim()) {
+    throw new Error(`Draft release ${tag} has no release notes`)
   }
 }
 

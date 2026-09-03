@@ -10,26 +10,6 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageListProvi
 import { withMessagePartDiagnosis } from '../../utils/messageDiagnosis'
 import { PartsProvider } from '../MessagePartsContext'
 
-const mockIsActiveTurnTarget = vi.hoisted(() => vi.fn(() => false))
-const mockTopicStreamState = vi.hoisted(() => {
-  const listeners = new Set<() => void>()
-  let status: string | undefined
-
-  return {
-    getSnapshot: () => status,
-    reset: () => {
-      status = undefined
-    },
-    setStatus: (nextStatus: string | undefined) => {
-      status = nextStatus
-      listeners.forEach((listener) => listener())
-    },
-    subscribe: (listener: () => void) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    }
-  }
-})
 const mockThinkingBlockMounted = vi.hoisted(() => vi.fn())
 const mockMainTextRender = vi.hoisted(() => vi.fn())
 const mockReadText = vi.hoisted(() => vi.fn())
@@ -46,23 +26,6 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 vi.mock('@data/hooks/usePreference', () => ({ usePreference: vi.fn(() => [false, vi.fn()]) }))
-vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
-  useTopicStreamStatus: () => {
-    const status = React.useSyncExternalStore(
-      mockTopicStreamState.subscribe,
-      mockTopicStreamState.getSnapshot,
-      mockTopicStreamState.getSnapshot
-    )
-    return {
-      status,
-      activeExecutions: [],
-      awaitingApprovalAnchors: [],
-      isPending: status === 'pending' || status === 'streaming',
-      isFulfilled: false,
-      markSeen: vi.fn()
-    }
-  }
-}))
 vi.mock('@renderer/types/file', () => ({
   COMPOSER_FILE_KIND: { PASTED_TEXT: 'pasted-text' },
   FILE_TYPE: { IMAGE: 'image', VIDEO: 'video', AUDIO: 'audio', TEXT: 'text', DOCUMENT: 'document', OTHER: 'other' }
@@ -405,42 +368,31 @@ const msg = (overrides: Partial<MessageListItem> = {}): MessageListItem =>
     ...overrides
   }) as MessageListItem
 
-function getMockActivityState(message: MessageListItem) {
-  const status = mockTopicStreamState.getSnapshot()
-  const isProcessing = mockIsActiveTurnTarget()
-  const isActiveTurnProcessing =
-    isProcessing && (status === undefined || ['pending', 'streaming', 'awaiting-approval'].includes(status))
-  const isStreamLive =
-    isActiveTurnProcessing &&
-    (status === undefined ? message.status === 'pending' : status === 'pending' || status === 'streaming')
-
-  return {
-    isProcessing,
-    isStreamTarget: isProcessing,
-    isApprovalAnchor: status === 'awaiting-approval',
-    isActiveTurnProcessing,
-    isStreamLive
-  }
-}
+let activityStore: KeyedMessageActivityStore
 
 const renderPartsTree = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = []
 ) => {
   const value: MessageListProviderValue = {
     state: {
       topic: { id: message.topicId, name: 'Topic' } as MessageListProviderValue['state']['topic'],
-      messages: [message],
-      partsByMessageId: { [message.id]: parts },
+      messages: [...history.map((entry) => entry.message), message],
+      partsByMessageId: Object.fromEntries([
+        ...history.map((entry) => [entry.message.id, entry.parts]),
+        [message.id, parts]
+      ]),
       messageNavigation: 'none',
       estimateSize: 400,
       overscan: 0,
       loadOlderDelayMs: 0,
       loadingResetDelayMs: 0,
       renderConfig,
-      getMessageActivityState: getMockActivityState
+      messageActivityStore: activityStore,
+      getMessageActivityState: activityStore.getSnapshot
     },
     actions,
     meta: { selectionLayer: false }
@@ -459,12 +411,20 @@ const renderParts = (
   parts: CherryMessagePart[],
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
-  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig
-) => render(renderPartsTree(parts, message, actions, renderConfig))
+  renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = []
+) => render(renderPartsTree(parts, message, actions, renderConfig, history))
 
-function activateTurn(status?: string): void {
-  mockIsActiveTurnTarget.mockReturnValue(true)
-  mockTopicStreamState.setStatus(status)
+function activateTurn(status?: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update(['msg-1'], status === 'awaiting-approval' ? ['msg-1'] : [], status)
+  })
+}
+
+function finishTurn(status: Parameters<KeyedMessageActivityStore['update']>[2]): void {
+  act(() => {
+    activityStore.update([], [], status)
+  })
 }
 
 function expandCollapsedLiveToolGroups(): void {
@@ -521,8 +481,7 @@ function answeredAskUserQuestionPart(toolCallId: string, state = 'output-availab
 
 describe('MessagePartsRenderer', () => {
   beforeEach(() => {
-    mockIsActiveTurnTarget.mockReturnValue(false)
-    mockTopicStreamState.reset()
+    activityStore = new KeyedMessageActivityStore()
     mockThinkingBlockMounted.mockClear()
     mockMainTextRender.mockClear()
     mockReadText.mockReset()
@@ -591,8 +550,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       act(() => {
-        store.update(['msg-1'], [])
-        mockTopicStreamState.setStatus('streaming')
+        store.update(['msg-1'], [], 'streaming')
       })
 
       expect(updateCommits.get('msg-1') ?? 0).toBeGreaterThan(0)
@@ -632,7 +590,8 @@ describe('MessagePartsRenderer', () => {
               loadingResetDelayMs: 0,
               renderConfig: defaultMessageRenderConfig,
               activeTurnStatus,
-              getMessageActivityState: getMockActivityState
+              messageActivityStore: activityStore,
+              getMessageActivityState: activityStore.getSnapshot
             },
             actions: {},
             meta: { selectionLayer: false }
@@ -644,6 +603,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       // Not processing → renderer is not invoked at all.
+      finishTurn('done')
       const idle = render(treeWith(() => <div data-testid="active-turn-status">Retrying 3/10</div>))
       expect(screen.queryByTestId('active-turn-status')).toBeNull()
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1057,6 +1017,44 @@ describe('MessagePartsRenderer', () => {
       expect(content).not.toContain('[cite:70536f0b-1]')
     })
 
+    // #19771: the follow-up turn re-cites a kb_search result from the previous turn.
+    it('renders a [cite:id] re-cited from an earlier turn as a badge', () => {
+      const earlierTurn = {
+        message: msg({ id: 'msg-0' }),
+        parts: [
+          {
+            type: 'tool-kb_search',
+            toolCallId: 'search-0',
+            state: 'output-available',
+            input: { query: '审计内容', baseIds: ['b'] },
+            output: [
+              {
+                id: '2598d0ab-1',
+                baseId: 'b',
+                conceptId: 'audit/plan.md',
+                title: '审计方案.md',
+                type: 'file',
+                content: '工程立项与审批合规性审计',
+                score: 0.9
+              }
+            ]
+          }
+        ] as unknown as CherryMessagePart[]
+      }
+
+      renderParts(
+        [{ type: 'text', text: '1. 工程立项审计；[cite:2598d0ab-1]' }] as unknown as CherryMessagePart[],
+        msg({ id: 'msg-1' }),
+        {},
+        defaultMessageRenderConfig,
+        [earlierTurn]
+      )
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).not.toContain('[cite:')
+    })
+
     it('renders video and error value parts', async () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
@@ -1219,8 +1217,7 @@ describe('MessagePartsRenderer', () => {
       ] as unknown as CherryMessagePart[]
       rerender(renderPartsTree(finalParts, pendingMessage))
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.setStatus('done')
+      finishTurn('done')
       rerender(renderPartsTree(finalParts, msg({ status: 'success' })))
 
       expect(screen.queryByText('report.md')).toBeNull()
@@ -1250,8 +1247,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
       expect(screen.queryByText('report.md')).toBeNull()
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.setStatus('done')
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -1629,8 +1625,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.getByText('final answer')).toBeInTheDocument()
       expect(screen.getByTestId('live-tool-group-header')).not.toHaveAttribute('aria-expanded')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.setStatus('done')
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })))
 
       expect(document.querySelector('[data-live-process-run]')).toBeNull()
@@ -1677,8 +1672,7 @@ describe('MessagePartsRenderer', () => {
       const { rerender } = renderParts(parts, msg({ status: 'pending' }))
       const activeAnswerNode = screen.getByText('stable answer node')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.setStatus('done')
+      finishTurn('done')
       rerender(renderPartsTree(parts, msg({ status: 'success' })))
 
       expect(screen.getByText('stable answer node')).toBe(activeAnswerNode)
@@ -1695,8 +1689,7 @@ describe('MessagePartsRenderer', () => {
 
       expect(animatedWrapper).toHaveAttribute('data-motion-state', 'visible')
 
-      mockIsActiveTurnTarget.mockReturnValue(false)
-      mockTopicStreamState.setStatus('error')
+      finishTurn('error')
       rerender(renderPartsTree(parts, msg({ status: 'error' })))
 
       expect(screen.getByTestId('mock-error-block')).toBe(activeErrorNode)

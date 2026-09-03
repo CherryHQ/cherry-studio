@@ -79,11 +79,11 @@ export default function OnboardingPage() {
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const loginAttemptRef = useRef(0)
   const loginLoadingTimeoutRef = useRef<number | null>(null)
-  const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
-    (model) => model && isOnboardingModel(model)
-  )
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => provider.id !== CHERRYAI_PROVIDER_ID).map((provider) => provider.id)
+  )
+  const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
+    (model) => model && eligibleProviderIds.has(model.providerId) && isOnboardingModel(model)
   )
   const hasEligibleProvider = eligibleProviderIds.size > 0
   const hasEligibleModel = enabledModels.some(
