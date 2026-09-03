@@ -182,9 +182,9 @@ vi.mock('../blocks/ImageBlock', () => ({
 }))
 
 vi.mock('../frame/MessageAttachments', () => ({
-  default: ({ file }: { file: { origin_name: string; size: number; ext: string; path: string } }) => (
-    <div data-testid="hoisted-attachment" data-size={file.size} data-ext={file.ext} data-path={file.path}>
-      {file.origin_name}
+  default: ({ handle, name }: { handle: unknown; name: string }) => (
+    <div data-testid="hoisted-attachment" data-handle={JSON.stringify(handle)}>
+      {name}
     </div>
   )
 }))
@@ -658,11 +658,12 @@ describe('MessageGroup', () => {
     expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     expect(bubble?.contains(imageBlock)).toBe(false)
     expect(bubble?.contains(attachment)).toBe(false)
-    // Size and extension live only on the composer token payload, never on the file part.
-    expect(attachment).toHaveAttribute('data-size', '2048')
-    expect(attachment).toHaveAttribute('data-ext', '.pdf')
-    // Preview / open feed this straight to fs, so it must be a decoded path, not URL text.
-    expect(attachment).toHaveAttribute('data-path', '/tmp/Application Support/report.pdf')
+    // The card is handed a handle, never a path it assembled: Main resolves it, and the
+    // decode happens once so "%20" never reaches fs.
+    expect(attachment).toHaveAttribute(
+      'data-handle',
+      JSON.stringify({ kind: 'path', path: '/tmp/Application Support/report.pdf' })
+    )
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {

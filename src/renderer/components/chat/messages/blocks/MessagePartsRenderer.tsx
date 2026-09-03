@@ -19,8 +19,8 @@ import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/comp
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
+import { fileHandleFromPart } from '@renderer/utils/file/fileHandle'
 import {
   isCitationSourcePart,
   type MessageCitations,
@@ -37,15 +37,10 @@ import {
 } from '@renderer/utils/partsToBlocks'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { classifyTurn } from '@shared/ai/transport'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type {
-  CherryProviderMetadata,
-  ComposerMessageSnapshot,
-  ComposerMessageToken,
-  ComposerMessageTokenPayload
-} from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getFileTypeByExt, tryFileUrlToPath } from '@shared/utils/file'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -212,78 +207,42 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
   return filePart.url || undefined
 }
 
+export interface HoistedFileAttachment {
+  key: string
+  handle: FileHandle
+  name: string
+  ext: string
+}
+
+function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAttachment | undefined {
+  const handle = fileHandleFromPart(part)
+  if (!handle) return undefined
+
+  const name = (part as { filename?: string }).filename ?? ''
+  return { key, handle, name, ext: name.match(/\.[^.]+$/)?.[0] ?? '' }
+}
+
+// Must agree with what the hoisting container actually renders, or a dropped entry
+// leaves no attachment at all.
 function isHoistableFilePart(part: CherryMessagePart): boolean {
-  return (part.type as string) === 'file' && !!extractImageUrl(part)
-}
-
-// Size / ext / type never survive onto the file part — only the composer token payload keeps them,
-// so an attachment card built from the part alone reads "0.00 KB · OTHER".
-function findFileTokenPayload(
-  parts: readonly CherryMessagePart[],
-  part: CherryMessagePart
-): ComposerMessageTokenPayload | undefined {
-  const sourceId = getCherryMeta(part)?.fileTokenSourceId
-  const filename = (part as { filename?: string }).filename
-
-  for (const candidate of parts) {
-    const composer = getCherryMeta(candidate)?.composer
-    if (!composer) continue
-
-    const token = getDisplayComposerTokens(composer).find((candidateToken) => {
-      if (candidateToken.kind !== 'file') return false
-      if (sourceId) return readComposerFileTokenIdSuffix(candidateToken.id) === sourceId
-      return !!filename && getComposerFileTokenNames(candidateToken).has(filename)
-    })
-    if (token) return token.payload
-  }
-
-  return undefined
-}
-
-// A stored `file://` URL is percent-encoded, so stripping the scheme alone leaves
-// "Application%20Support" in a field the preview / open actions pass straight to fs.
-function readFilePartPath(url: string | undefined): string {
-  if (!url) return ''
-  // Not a file: URL — a producer that already stored a plain path.
-  return tryFileUrlToPath(url) ?? url
-}
-
-function toAttachmentFile(
-  part: CherryMessagePart,
-  partId: string,
-  createdAt: string,
-  payload?: ComposerMessageTokenPayload
-): FileMetadata {
-  const filePart = part as { url?: string; filename?: string }
-  const name = payload?.origin_name || payload?.name || filePart.filename || ''
-  const ext = payload?.ext || name.match(/\.[^.]+$/)?.[0] || ''
-  return {
-    id: partId,
-    name,
-    origin_name: name,
-    path: readFilePartPath(filePart.url),
-    size: payload?.size ?? 0,
-    ext,
-    type: payload?.type ?? (ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER),
-    created_at: createdAt,
-    count: 0
-  }
+  if ((part.type as string) !== 'file') return false
+  return isImageFilePart(part) ? !!extractImageUrl(part) : !!fileHandleFromPart(part)
 }
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
 export function getHoistedAttachments(parts: readonly CherryMessagePart[], message: MessageListItem) {
   const images: string[] = []
-  const files: FileMetadata[] = []
+  const files: HoistedFileAttachment[] = []
 
   parts.forEach((part, index) => {
-    if (!isHoistableFilePart(part)) return
+    if ((part.type as string) !== 'file') return
     if (isImageFilePart(part)) {
-      images.push(extractImageUrl(part) as string)
+      const url = extractImageUrl(part)
+      if (url) images.push(url)
       return
     }
-    files.push(
-      toAttachmentFile(part, `${message.id}-part-${index}`, message.createdAt, findFileTokenPayload(parts, part))
-    )
+    const attachment = toFileAttachment(part, `${message.id}-part-${index}`)
+    if (attachment) files.push(attachment)
   })
 
   return { images, files }
@@ -789,11 +748,20 @@ function renderPart(
         if (!url) return null
         return <ImageBlock key={partId} images={[url]} isSingle={true} thumbnail={message.role === 'user'} />
       }
-      if (!filePart.url) {
-        logger.warn('File part has no url, skipping', { filename: filePart.filename })
+      const attachment = toFileAttachment(part, partId)
+      if (!attachment) {
+        logger.warn('File part addresses no file, skipping', { filename: filePart.filename })
         return null
       }
-      return <MessageAttachments key={partId} file={toAttachmentFile(part, partId, message.createdAt)} />
+      return (
+        <MessageAttachments
+          key={partId}
+          handle={attachment.handle}
+          name={attachment.name}
+          ext={attachment.ext}
+          createdAt={message.createdAt}
+        />
+      )
     }
 
     case 'source-url':

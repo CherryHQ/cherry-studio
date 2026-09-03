@@ -267,7 +267,9 @@ vi.mock('../ThinkingBlock', () => ({
 
 vi.mock('../../frame/MessageAttachments', () => ({
   __esModule: true,
-  default: ({ file }: any) => <div data-testid="mock-attachments" data-file-name={file?.name ?? ''} />
+  default: ({ name, handle }: any) => (
+    <div data-testid="mock-attachments" data-file-name={name ?? ''} data-handle={JSON.stringify(handle)} />
+  )
 }))
 
 vi.mock('../ToolBlockGroup', () => ({

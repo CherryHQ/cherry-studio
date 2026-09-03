@@ -1,7 +1,9 @@
 import { Button } from '@cherrystudio/ui'
+import { useQuery } from '@data/hooks/useDataApi'
 import { popup } from '@renderer/services/popup'
-import type { FileMetadata } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
+import type { FileHandle } from '@shared/data/types/file'
+import { isFileEntryHandle } from '@shared/utils/file'
 import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,33 +11,46 @@ import { useTranslation } from 'react-i18next'
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
 
 interface Props {
-  file: FileMetadata
+  /** Addresses the file for open / preview. Main resolves it; never a path this component built. */
+  handle: FileHandle
+  name: string
+  ext: string
+  createdAt: string
 }
 
-const MessageAttachments: FC<Props> = ({ file }) => {
+const MessageAttachments: FC<Props> = ({ handle, name, ext, createdAt }) => {
   const { t } = useTranslation()
   const actions = useOptionalMessageListActions()
   const messageUi = useOptionalMessageListUi()
+  const entryId = isFileEntryHandle(handle) ? handle.entryId : undefined
+  // The part carries no size; the entry row is the authoritative one for managed files.
+  const { data: entry } = useQuery('/files/entries/:id', {
+    params: { id: entryId ?? '' },
+    enabled: !!entryId
+  })
 
-  if (!file) {
-    return null
-  }
-
-  const fileView = messageUi?.getFileView?.(file)
-  const fileName = fileView?.displayName || file.origin_name || file.name || file.path || ''
-  const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
+  const displayExt = entry?.ext || ext
+  const fileView = messageUi?.getFileView?.({
+    origin_name: entry?.name || name,
+    ext: displayExt,
+    created_at: createdAt
+  })
+  const fileName = fileView?.displayName || entry?.name || name
+  const fileSuffix = displayExt.replace('.', '').toUpperCase()
+  const size = entry?.origin === 'internal' ? entry.size : undefined
   const openFile = actions?.openFile
   const previewFile = actions?.previewFile
+  const target = { handle, name: fileName, ext: displayExt }
 
   const handleOpen = () => {
     if (!openFile) return
-    void Promise.resolve(openFile(file)).catch(() => {
+    void Promise.resolve(openFile(target)).catch(() => {
       void popup.error({ content: t('files.preview.error'), centered: true })
     })
   }
 
   const handlePreview = () => {
-    void previewFile?.(file)
+    void previewFile?.(target)
   }
 
   return (
@@ -52,7 +67,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           aria-label={fileName}>
           <div className="truncate text-foreground text-sm">{fileName}</div>
           <div className="text-muted-foreground text-xs">
-            {file.size > 0 ? `${formatFileSize(file.size)} · ${fileSuffix}` : fileSuffix}
+            {size ? `${formatFileSize(size)} · ${fileSuffix}` : fileSuffix}
           </div>
         </button>
         <div className="flex shrink-0 items-center gap-2">

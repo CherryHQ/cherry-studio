@@ -374,7 +374,13 @@ const UserBubbleMessage = ({
                 <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
               )}
               {attachments.files.map((file) => (
-                <MessageAttachments key={file.id} file={file} />
+                <MessageAttachments
+                  key={file.key}
+                  handle={file.handle}
+                  name={file.name}
+                  ext={file.ext}
+                  createdAt={message.createdAt}
+                />
               ))}
             </div>
           )}
