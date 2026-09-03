@@ -766,7 +766,7 @@ describe('CherryCloudService', () => {
     expect(mocks.openExternal).toHaveBeenCalledTimes(2)
   })
 
-  it('syncs models belonging to active free and paid entitlements', async () => {
+  it('syncs entitled models without removing models referenced by user configuration', async () => {
     const service = await createSignedInService()
     mocks.modelList.mockReturnValue([
       {
@@ -815,7 +815,11 @@ describe('CherryCloudService', () => {
         })
       ],
       toUpdate: [],
-      toRemove: ['old-free']
+      toRemove: []
+    })
+    expect(mocks.modelList).toHaveBeenCalledWith({
+      providerId: 'cherryai-subscription',
+      includeAgentOnly: true
     })
     expect(mocks.modelReconcile.mock.calls[0][0].toAdd[0]).not.toHaveProperty('availableFeatures')
     expect(MockMainCacheServiceExport.cacheService.setPersist).toHaveBeenCalledWith(
@@ -1015,7 +1019,10 @@ describe('CherryCloudService', () => {
       featuresByModelId: cloudFeaturesByModelId
     })
 
-    expect(mocks.modelList).toHaveBeenLastCalledWith({ providerId: 'cherryai-subscription' })
+    expect(mocks.modelList).toHaveBeenLastCalledWith({
+      providerId: 'cherryai-subscription',
+      includeAgentOnly: true
+    })
     expect(mocks.modelReconcile).toHaveBeenCalledWith(
       expect.objectContaining({
         toAdd: expect.arrayContaining([

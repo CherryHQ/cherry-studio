@@ -1120,7 +1120,7 @@ export class OpenClawService extends BaseService {
     const [provider, primaryModel, models, apiKeys] = await Promise.all([
       providerService.getByProviderId(providerId),
       modelService.getByKey(providerId, modelId),
-      modelService.list({ providerId, enabled: true }),
+      modelService.list({ providerId, enabled: true, includeAgentOnly: true }),
       providerService.getApiKeys(providerId, { enabled: true })
     ])
 

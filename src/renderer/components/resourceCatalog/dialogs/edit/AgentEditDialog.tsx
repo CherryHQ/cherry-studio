@@ -615,6 +615,7 @@ function AgentBasicFields({
       <CompactModelField
         form={form}
         name="modelId"
+        includeAgentOnlyModels
         label={t('library.config.agent.field.model.label')}
         filter={modelFilter}
         isModelDisabled={isModelDisabled}
@@ -631,6 +632,7 @@ function AgentBasicFields({
           <CompactModelField
             form={form}
             name="planModelId"
+            includeAgentOnlyModels
             label={t('library.config.agent.field.plan_model.label')}
             allowClear
             filter={modelFilter}
@@ -646,6 +648,7 @@ function AgentBasicFields({
           <CompactModelField
             form={form}
             name="smallModelId"
+            includeAgentOnlyModels
             label={t('library.config.agent.field.small_model.label')}
             allowClear
             filter={modelFilter}

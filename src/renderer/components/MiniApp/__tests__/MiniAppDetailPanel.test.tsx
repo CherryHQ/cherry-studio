@@ -22,7 +22,7 @@ const { request, activity, selectableModels } = vi.hoisted(() => {
   return {
     request: vi.fn(),
     activity: { entries: [] as unknown[], bytes: 0, days: 0 },
-    selectableModels: [model('openai', 'Regular chat model'), model('cherryai-subscription', 'Agent-only Cloud model')]
+    selectableModels: [model('openai', 'Regular chat model')]
   }
 })
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
@@ -255,12 +255,11 @@ describe('activity log', () => {
 })
 
 describe('MiniAppDetailPanel', () => {
-  it('offers regular chat models but not Agent-only Cloud models', async () => {
+  it('offers regular chat models from the default model catalog', async () => {
     await open()
 
     const selector = within(screen.getByTestId('model-slot-default'))
     expect(selector.getByRole('button', { name: 'Regular chat model' })).toBeInTheDocument()
-    expect(selector.queryByRole('button', { name: 'Agent-only Cloud model' })).toBeNull()
   })
 
   it('offers a web app both an update check and a package replacement', async () => {

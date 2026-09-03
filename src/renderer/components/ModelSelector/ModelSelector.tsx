@@ -341,6 +341,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     showPinnedModels = true,
     showPinActions = true,
     isModelDisabled,
+    includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
@@ -489,6 +490,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     visibleSelectedModelIdSet
   } = useModelSelectorData({
     enabled: dataEnabled,
+    includeAgentOnlyModels,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,

@@ -699,10 +699,8 @@ const TranslatePage: FC = () => {
 
   const modelSelectorFilter = useCallback<ModelSelectorFilter>(
     (model) =>
-      isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.TRANSLATE) &&
-      !isNonChatModel(model) &&
-      (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
-    [babelDoc.availability, isModelAvailableForFeature, isPdfMode]
+      !isNonChatModel(model) && (!isPdfMode || babelDoc.availability === 'missing' || isGatewayRoutableModel(model)),
+    [babelDoc.availability, isPdfMode]
   )
 
   const handleModelIdSelect = useCallback(
@@ -1014,7 +1012,6 @@ const TranslatePage: FC = () => {
               value={selectedModelId}
               onSelect={handleModelIdSelect}
               filter={modelSelectorFilter}
-              isModelDisabled={isModelDisabled}
               showTagFilter={false}
               showPinnedModels
               prioritizedProviderIds={PRIORITIZED_PROVIDER_IDS}

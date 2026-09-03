@@ -196,6 +196,7 @@ function ModelControl({
   return (
     <ModelSelector
       multiple={false}
+      includeAgentOnlyModels
       value={model}
       onSelect={onModelSelect}
       filter={modelFilter}

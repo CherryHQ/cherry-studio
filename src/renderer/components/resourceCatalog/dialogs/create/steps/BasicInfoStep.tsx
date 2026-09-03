@@ -130,6 +130,7 @@ function AgentRuntimeModelFields({
       <CompactModelField
         form={form}
         name="modelId"
+        includeAgentOnlyModels
         label={t('common.model')}
         labelClassName="font-medium"
         filter={modelFilter}

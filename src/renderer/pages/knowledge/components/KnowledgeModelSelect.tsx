@@ -5,10 +5,9 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 // to the barrel once main converges with feat.
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 
 export { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 
@@ -48,17 +47,12 @@ export const KnowledgeModelSelect = ({
   )
   const hasValue = Boolean(value)
   const triggerLabel = selectedModel?.name ?? (value || placeholder)
-  const visibleFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) => isModelVisibleOutsideAgent(model) && filter(model, provider),
-    [filter]
-  )
-
   return (
     <ModelSelector
       multiple={false}
       selectionType="id"
       value={selectorValue}
-      filter={visibleFilter}
+      filter={filter}
       noneOptionLabel={noneOptionLabel}
       prioritizedProviderIds={prioritizedProviderIds}
       showTagFilter={false}

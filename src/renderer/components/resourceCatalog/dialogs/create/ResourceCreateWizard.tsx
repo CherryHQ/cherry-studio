@@ -1,12 +1,10 @@
 import { Button, Dialog, DialogContent, DialogTitle, Form, MenuItem, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
-import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProviderById } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
@@ -138,18 +136,18 @@ export function ResourceCreateWizard({
   const form = useForm<ResourceCreateWizardFormValues>({ defaultValues: getDefaultValues(kind, initialName) })
   const agentType = form.watch('agentType')
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined, open && kind === 'agent')
-  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability(open)
-  const assistantModelFilter = useCallback<ModelSelectorFilter>(
-    (model, provider) =>
-      isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && (modelFilter?.(model, provider) ?? true),
-    [isModelAvailableForFeature, modelFilter]
+  const isModelDisabled = useAgentModelDisabled(open && kind === 'agent')
+  const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
+  const { models: availableModels } = useModels(
+    { enabled: true, ...(kind === 'agent' && { includeAgentOnly: true }) },
+    { fetchEnabled: open }
   )
-  const activeModelFilter = kind === 'agent' ? agentModelFilter : assistantModelFilter
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
   const selectableDefaultModelId =
     open &&
     defaultModel?.isEnabled &&
+    availableModels.some((model) => model.id === defaultModel.id) &&
     defaultModelProvider?.isEnabled &&
     (!activeModelFilter || activeModelFilter(defaultModel, defaultModelProvider)) &&
     !isModelDisabled(defaultModel, defaultModelProvider)

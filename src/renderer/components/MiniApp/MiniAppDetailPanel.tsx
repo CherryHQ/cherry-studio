@@ -27,7 +27,6 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { formatFileSize } from '@renderer/utils/file'
 import { permissionLabel } from '@renderer/utils/miniAppPermission'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
@@ -153,7 +152,7 @@ const MiniAppDetailPanel: FC<Props> = ({ appId, onClose }) => {
   const { providers } = useProviders()
   const { model: defaultModel } = useModelById(asUniqueModelId(detail?.aiModelId))
   const { model: quickModel } = useModelById(asUniqueModelId(detail?.aiQuickModelId))
-  const chatModelFilter = useCallback((model: Model) => isModelVisibleOutsideAgent(model) && !isNonChatModel(model), [])
+  const chatModelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
   // A plain column write: DataApi, not a command. The panel's own state still comes from `mini_app.detail`.
   const { trigger: patchMiniApp } = useMutation('PATCH', '/mini-apps/:appId')
   const patchModels = (body: { aiModelId?: UniqueModelId | null; aiQuickModelId?: UniqueModelId | null }) =>

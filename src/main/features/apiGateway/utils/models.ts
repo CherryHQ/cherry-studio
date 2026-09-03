@@ -108,7 +108,7 @@ export function resolveGatewayModelAddress(modelAddress: string): ResolvedGatewa
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 
-  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
+  const model = modelService.list({ providerId, enabled: true, includeAgentOnly: true }).find((candidate) => {
     if (!isGatewayRoutableModel(candidate)) return false
     const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
     return candidateApiModelId === apiModelId

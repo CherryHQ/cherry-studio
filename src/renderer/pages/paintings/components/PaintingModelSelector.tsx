@@ -4,7 +4,6 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { isModelVisibleOutsideAgent } from '@renderer/utils/agent/modelVisibility'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { first } from 'es-toolkit/compat'
@@ -17,8 +16,7 @@ import type { PaintingData } from '../model/types/paintingData'
 import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
-const paintingModelFilter: ModelSelectorFilter = (model) =>
-  isModelVisibleOutsideAgent(model) && supportsImageGenerationEndpoint(model)
+const paintingModelFilter: ModelSelectorFilter = supportsImageGenerationEndpoint
 
 interface PaintingModelSelectorProps {
   className?: string
