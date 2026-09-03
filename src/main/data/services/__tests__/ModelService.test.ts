@@ -2722,20 +2722,12 @@ describe('managed provider model mutations', () => {
 
   it('binds a managed writer to one provider and applies its diff atomically', async () => {
     const updateId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'update-me')
-    const removeId = createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'remove-me')
-    await dbh.db
-      .insert(userModelTable)
-      .values([
-        modelRow(CHERRY_CLOUD_PROVIDER_ID, 'update-me', { name: 'Before' }),
-        modelRow(CHERRY_CLOUD_PROVIDER_ID, 'remove-me')
-      ])
-    pinService.pin({ entityType: 'model', entityId: removeId })
+    await dbh.db.insert(userModelTable).values(modelRow(CHERRY_CLOUD_PROVIDER_ID, 'update-me', { name: 'Before' }))
 
     const writer = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
     writer.reconcile({
       toAdd: [{ modelId: 'add-me', name: 'Added' }],
-      toUpdate: [{ modelId: 'update-me', patch: { name: 'After' } }],
-      toRemove: ['remove-me']
+      toUpdate: [{ modelId: 'update-me', patch: { name: 'After' } }]
     })
 
     const rows = await dbh.db
@@ -2744,7 +2736,6 @@ describe('managed provider model mutations', () => {
       .where(eq(userModelTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
     expect(rows.map((row) => row.modelId).sort()).toEqual(['add-me', 'managed-model', 'update-me'])
     expect(rows.find((row) => row.id === updateId)?.name).toBe('After')
-    expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, removeId))).toHaveLength(0)
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
     expect(
       notifyDataApiDataChangeMock.mock.calls.filter(([effects]) =>
@@ -2759,8 +2750,7 @@ describe('managed provider model mutations', () => {
     expect(() =>
       writer.reconcile({
         toAdd: [{ modelId: 'managed-model', name: 'Duplicate' }],
-        toUpdate: [{ modelId: 'managed-model', patch: { name: 'Must Roll Back' } }],
-        toRemove: []
+        toUpdate: [{ modelId: 'managed-model', patch: { name: 'Must Roll Back' } }]
       })
     ).toThrow()
 

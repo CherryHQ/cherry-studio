@@ -808,8 +808,7 @@ describe('CherryCloudService', () => {
           maxOutputTokens: 16_384
         })
       ],
-      toUpdate: [],
-      toRemove: []
+      toUpdate: []
     })
     expect(mocks.modelList).toHaveBeenCalledWith({
       providerId: 'cherryai-subscription',

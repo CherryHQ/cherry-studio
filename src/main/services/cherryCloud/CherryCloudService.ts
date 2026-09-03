@@ -683,8 +683,7 @@ export class CherryCloudService extends BaseService {
           maxOutputTokens: model.max_output_tokens,
           supportsStreaming: true
         })),
-        toUpdate: updates,
-        toRemove: []
+        toUpdate: updates
       })
     }
   }

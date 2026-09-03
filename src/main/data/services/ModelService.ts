@@ -237,7 +237,6 @@ export interface CreateModelInput {
 export interface ManagedModelReconcilePayload {
   toAdd: Array<Omit<CreateModelDto, 'providerId'>>
   toUpdate: Array<{ modelId: string; patch: UpdateModelDto }>
-  toRemove: string[]
 }
 
 export interface ManagedModelWriter {
@@ -1149,21 +1148,20 @@ class ModelService {
 
     return Object.freeze({
       reconcile: (payload: ManagedModelReconcilePayload): Model[] => {
-        if (payload.toAdd.length === 0 && payload.toUpdate.length === 0 && payload.toRemove.length === 0) {
+        if (payload.toAdd.length === 0 && payload.toUpdate.length === 0) {
           return this.list({ providerId, includeAgentOnly: true })
         }
 
         const result = this.applyProviderModelReconcile(providerId, {
           toAdd: payload.toAdd.map((dto) => ({ dto: { ...dto, providerId } })),
           toUpdate: payload.toUpdate,
-          toRemove: payload.toRemove.map((modelId) => createUniqueModelId(providerId, modelId))
+          toRemove: []
         })
         notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
         logger.info('Reconciled externally managed provider models', {
           providerId,
           added: payload.toAdd.length,
-          updated: payload.toUpdate.length,
-          removed: result.deletedIds.length
+          updated: payload.toUpdate.length
         })
         return result.models
       }
