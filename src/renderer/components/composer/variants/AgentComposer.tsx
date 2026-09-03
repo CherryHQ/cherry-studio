@@ -921,6 +921,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
