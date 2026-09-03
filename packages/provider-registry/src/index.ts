@@ -29,6 +29,7 @@ export {
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
+export { alignRangeValue } from './utils/alignRangeValue'
 export { buildParamsSchema } from './utils/buildParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)

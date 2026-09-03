@@ -1,13 +1,141 @@
-import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
+import { alignRangeValue } from '@cherrystudio/provider-registry'
+import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea, Tooltip } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
-import { booleanOr, controlValue, finiteParamNumberOr, stringOr } from './fieldValue'
+import { booleanOr, controlValue, finiteNumberOr, stringOr } from './fieldValue'
 import { resolveOptions, resolveOptionValue } from './resolveOptions'
 
+/** Compact enough for the 300px params popover; wide enough for values like `16.5`. */
+const RANGE_VALUE_INPUT_CLASS =
+  'h-8 min-h-8 w-12 shrink-0 px-1.5 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
 export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
+
+/** Optional sign, one dot, digits — anything else is rejected so letters never stick. */
+function isAllowedRangeDraft(raw: string): boolean {
+  return /^-?\d*\.?\d*$/.test(raw)
+}
+
+/** Empty, sign, trailing decimal, or trailing-zero fraction so the next digit can still be typed. */
+function isTransientRangeDraft(raw: string): boolean {
+  return raw === '' || raw === '-' || /^-?\d*\.$/.test(raw) || /^-?\d*\.\d*0$/.test(raw)
+}
+
+function parseRangeDraft(raw: string): number | null {
+  if (raw.trim() === '') return null
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function PaintingRangeField({
+  fieldKey,
+  label,
+  min,
+  max,
+  step,
+  numericValue,
+  onChange
+}: {
+  fieldKey: string
+  label: string
+  min: number
+  max: number
+  step?: number
+  numericValue: number
+  onChange: (updates: Record<string, unknown>) => void
+}) {
+  const snapStep = typeof step === 'number' && step > 0 ? step : undefined
+  const [draft, setDraft] = useState<string | null>(null)
+  const lastPushedRef = useRef(numericValue)
+  const constraintKey = `${fieldKey}:${min}:${max}:${snapStep ?? ''}`
+  const previousConstraintKeyRef = useRef(constraintKey)
+
+  const commitRange = (raw: number) => {
+    const next = snapStep === undefined ? Math.min(max, Math.max(min, raw)) : alignRangeValue(raw, min, max, snapStep)
+    lastPushedRef.current = next
+    onChange({ [fieldKey]: next })
+    return next
+  }
+
+  const nudge = (direction: 1 | -1) => {
+    const parsed = parseRangeDraft(draft ?? '')
+    const base = parsed ?? numericValue
+    const committed = commitRange(base + (snapStep ?? 1) * direction)
+    setDraft(String(committed))
+  }
+
+  useEffect(() => {
+    const constraintsChanged = constraintKey !== previousConstraintKeyRef.current
+    previousConstraintKeyRef.current = constraintKey
+    if (!constraintsChanged && numericValue === lastPushedRef.current) return
+    lastPushedRef.current = numericValue
+    setDraft((current) => (current === null ? current : String(numericValue)))
+  }, [constraintKey, numericValue])
+
+  const ariaValueNow = draft !== null && parseRangeDraft(draft) === null ? undefined : numericValue
+
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <Slider
+        className="min-w-0 flex-1"
+        getThumbAriaLabel={() => label}
+        min={min}
+        max={max}
+        step={snapStep ?? 1}
+        value={[numericValue]}
+        onValueChange={(values) => {
+          const next = values[0]
+          if (next === undefined) return
+          const committed = commitRange(next)
+          setDraft((current) => (current === null ? current : String(committed)))
+        }}
+      />
+      <Input
+        aria-label={label}
+        className={RANGE_VALUE_INPUT_CLASS}
+        type="text"
+        inputMode="decimal"
+        role="spinbutton"
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={ariaValueNow}
+        value={draft ?? String(numericValue)}
+        onFocus={() => {
+          setDraft((current) => current ?? String(numericValue))
+        }}
+        onChange={(event) => {
+          const raw = event.target.value
+          if (!isAllowedRangeDraft(raw)) return
+          setDraft(raw)
+          if (isTransientRangeDraft(raw)) return
+          const parsed = parseRangeDraft(raw)
+          if (parsed === null) return
+          setDraft(String(commitRange(parsed)))
+        }}
+        onBlur={() => {
+          if (draft !== null) {
+            const parsed = parseRangeDraft(draft)
+            if (parsed !== null) commitRange(parsed)
+          }
+          setDraft(null)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            nudge(1)
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            nudge(-1)
+          }
+        }}
+      />
+    </div>
+  )
+}
 
 export interface PaintingFieldRendererProps {
   item: BaseConfigItem
@@ -98,61 +226,64 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'slider': {
-      const numericValue = finiteParamNumberOr(item.key, currentValue, item.initialValue)
+      const numericValue = finiteNumberOr(currentValue, item.initialValue)
       const { min, max } = item
+      const label = item.title ? t(item.title) : fieldKey
       // Degenerate single-value range (e.g. numImages 1..1): the slider has
       // nowhere to move and Radix renders its thumb flush to the rail edge,
       // which the parent's `overflow-hidden` clips. Skip the slider and show
       // a read-only number input instead.
       if (min === max) {
-        return <Input className="w-20" type="number" value={numericValue} readOnly disabled />
+        return (
+          <Input
+            aria-label={label}
+            className={RANGE_VALUE_INPUT_CLASS}
+            type="number"
+            value={String(numericValue)}
+            readOnly
+            disabled
+          />
+        )
       }
       return (
-        <div className="flex items-center gap-3">
-          <Slider
-            className="flex-1"
-            min={min}
-            max={max}
-            step={item.step ?? 1}
-            value={[numericValue]}
-            onValueChange={(values) => onChange({ [fieldKey]: values[0] })}
-          />
-          <Input
-            className="w-20"
-            type="number"
-            min={min}
-            max={max}
-            step={item.step}
-            value={numericValue}
-            onChange={(event) => {
-              const raw = event.target.value
-              // Ignore the transient empty state (clearing to retype) — committing
-              // `Number('')` → 0 would drop below `min`. Otherwise clamp to [min,max]
-              // so the controlled value never escapes the field's range.
-              if (raw === '') return
-              const parsed = event.target.valueAsNumber
-              if (!Number.isFinite(parsed)) return
-              onChange({ [fieldKey]: Math.min(max, Math.max(min, parsed)) })
-            }}
-          />
-        </div>
+        <PaintingRangeField
+          fieldKey={fieldKey}
+          label={label}
+          min={min}
+          max={max}
+          step={item.step}
+          numericValue={numericValue}
+          onChange={onChange}
+        />
       )
     }
 
     case 'input': {
+      const showSeedReset = fieldKey.toLowerCase().includes('seed') && Boolean(onGenerateRandomSeed)
+      const seedResetLabel = t('common.regenerate')
       const value = stringOr(currentValue, item.initialValue)
       return (
-        <div className="flex items-center gap-2">
+        <div className={showSeedReset ? 'flex h-8 items-center gap-2' : 'flex items-center gap-2'}>
           <Input
             disabled={disabled}
-            className="flex-1"
+            className={showSeedReset ? 'h-8 min-h-8 flex-1' : 'flex-1'}
             value={value}
             onChange={(event) => onChange({ [fieldKey]: event.target.value })}
           />
-          {fieldKey.toLowerCase().includes('seed') && onGenerateRandomSeed ? (
-            <Button type="button" size="icon-sm" variant="outline" onClick={() => onGenerateRandomSeed(fieldKey)}>
-              <RotateCcw size={14} />
-            </Button>
+          {showSeedReset ? (
+            <Tooltip
+              content={seedResetLabel}
+              placement="top"
+              classNames={{ placeholder: 'inline-flex h-8 w-8 shrink-0' }}>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 min-h-8 w-8 min-w-8 shrink-0 p-0"
+                aria-label={seedResetLabel}
+                onClick={() => onGenerateRandomSeed?.(fieldKey)}>
+                <RotateCcw size={14} />
+              </Button>
+            </Tooltip>
           ) : null}
         </div>
       )
@@ -168,9 +299,13 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     case 'switch': {
       const checked = booleanOr(currentValue, item.initialValue)
       return (
-        <div className="flex items-center">
-          <Switch checked={checked} onCheckedChange={(nextChecked) => onChange({ [fieldKey]: nextChecked })} />
-        </div>
+        <Switch
+          className="shrink-0"
+          checked={checked}
+          disabled={disabled}
+          aria-label={item.title ? t(item.title) : fieldKey}
+          onCheckedChange={(checked) => onChange({ [fieldKey]: checked })}
+        />
       )
     }
 

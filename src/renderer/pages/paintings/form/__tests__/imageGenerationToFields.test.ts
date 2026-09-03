@@ -1,3 +1,4 @@
+import { ImageGenerationSupportSchema } from '@cherrystudio/provider-registry'
 import type { ImageGenerationSupport } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
@@ -187,6 +188,29 @@ describe('imageGenerationToFields', () => {
     expect(byKey.guidanceScale?.step).toBe(0.1)
     expect(byKey.guidanceScale?.initialValue).toBe(4.5)
     expect(byKey.promptEnhancement?.type).toBe('switch')
+  })
+
+  it('derives integer count step 1 from the parsed schema and keeps Kolors guidanceScale 4.5', () => {
+    const support = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: {
+          supports: {
+            numImages: { type: 'range', min: 1, max: 4, default: 1 },
+            numInferenceSteps: { type: 'range', min: 1, max: 50, default: 25 },
+            guidanceScale: { type: 'range', min: 1, max: 20, default: 4.5, step: 0.1 },
+            negativePrompt: { type: 'text', multiline: true },
+            seed: { type: 'text' }
+          }
+        }
+      }
+    })
+    const byKey = Object.fromEntries(imageGenerationToFields(support).map((item) => [item.key, item]))
+    expect(byKey.numImages?.step).toBe(1)
+    expect(byKey.numInferenceSteps?.step).toBe(1)
+    expect(byKey.guidanceScale?.step).toBe(0.1)
+    expect(byKey.guidanceScale?.initialValue).toBe(4.5)
+    expect(byKey.negativePrompt?.type).toBe('textarea')
+    expect(byKey.seed?.type).toBe('input')
   })
 
   it('falls back to the first declared mode when the requested mode is absent', () => {

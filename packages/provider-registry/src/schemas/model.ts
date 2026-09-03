@@ -256,7 +256,7 @@ const RangeSpecSchema = z
     default: z.number().optional(),
     /** Omitted means the numeric input accepts any precision; renderers may
      *  still choose an interaction step for controls such as sliders. */
-    step: z.number().optional()
+    step: z.number().positive().optional()
   })
   .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
 
