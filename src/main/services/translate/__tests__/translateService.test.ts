@@ -114,6 +114,63 @@ describe('translateService.resolveTranslatePayload', () => {
     expect(payload.content).toBe('原文')
   })
 
+  it('attaches translation_options for Qwen MT so the model knows the target language (REGRESSION #19701)', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'dashscope::qwen-mt-turbo')
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'Translate to {{target_language}}: {{text}}'
+    )
+    getByKeyMock.mockReturnValue({
+      id: 'dashscope::qwen-mt-turbo',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-turbo',
+      name: 'Qwen MT Turbo'
+    })
+
+    const payload = translateService.resolveTranslatePayload('原文', TARGET)
+
+    expect(payload.callOverrides.providerOptions).toEqual({
+      dashscope: {
+        translation_options: {
+          source_lang: 'auto',
+          target_lang: 'English'
+        }
+      }
+    })
+  })
+
+  it('throws translate.error.not_supported when the Qwen MT model has no target_lang for the language', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'dashscope::qwen-mt-turbo')
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_prompt', 'x')
+    getByKeyMock.mockReturnValue({
+      id: 'dashscope::qwen-mt-turbo',
+      providerId: 'dashscope',
+      apiModelId: 'qwen-mt-turbo',
+      name: 'Qwen MT Turbo'
+    })
+
+    // `langCode: 'tlh'` exercises the not-supported branch: the regex shape is
+    // a valid `PersistedLangCode` (Klingon, ISO 639-2), but the Qwen-MT
+    // language table has no entry for it. Cast through `unknown` so the
+    // branded `langCode` type does not reject the literal here.
+    expect(() => translateService.resolveTranslatePayload('x', { ...TARGET, langCode: 'tlh' as never })).toThrow(
+      /translate\.error\.not_supported/
+    )
+  })
+
+  it('emits an empty providerOptions for non-Qwen-MT models', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'Translate to {{target_language}}: {{text}}'
+    )
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+
+    const payload = translateService.resolveTranslatePayload('hello', TARGET)
+
+    expect(payload.callOverrides).toEqual({ providerOptions: {} })
+  })
+
   it('throws translate.error.not_configured when the translate model preference is unset', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '' as any)
 

@@ -17,6 +17,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { CallOverrides } from '@main/ai/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
@@ -24,6 +25,7 @@ import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/prefer
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
+import { mapLanguageToQwenMTModel } from '@shared/utils/qwenMt'
 
 import { WebContentsListener } from '../../ai/streamManager'
 
@@ -67,6 +69,12 @@ interface ResolvedPayload {
   uniqueModelId: UniqueModelId
   /** Final prompt content. For Qwen MT this is the raw source text (the model handles language pairing). */
   content: string
+  /**
+   * Provider-keyed call overrides for `streamPrompt`. Non-empty only for
+   * Qwen-MT, where we attach `translation_options` so the model knows which
+   * target language to translate into.
+   */
+  callOverrides: CallOverrides
 }
 
 export class TranslateService {
@@ -85,7 +93,7 @@ export class TranslateService {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
     const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
-    const { uniqueModelId, content } = this.resolveTranslatePayload(req.text, targetLanguage)
+    const { uniqueModelId, content, callOverrides } = this.resolveTranslatePayload(req.text, targetLanguage)
 
     const wcListener = new WebContentsListener(sender, req.streamId)
 
@@ -95,6 +103,7 @@ export class TranslateService {
       uniqueModelId,
       prompt: content,
       listener: wcListener,
+      callOverrides,
       reasoningEffort: 'none'
     })
 
@@ -134,7 +143,8 @@ export class TranslateService {
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
 
-    const content = isQwenMTModel(model)
+    const isQwenMT = isQwenMTModel(model)
+    const content = isQwenMT
       ? text
       : preferenceService
           .get('feature.translate.model_prompt')
@@ -142,7 +152,33 @@ export class TranslateService {
             placeholder === '{{target_language}}' ? targetLanguage.value : text
           )
 
-    return { uniqueModelId, content }
+    // For Qwen-MT the model needs the target language in
+    // `providerOptions.<provider>.translation_options`. The v1 renderer did
+    // this inline in `buildProviderOptions` (Qwen MT branch); the v2
+    // consolidation dropped it (issue #19701). Re-attach the options via
+    // `callOverrides` so the same `streamPrompt` channel picks them up —
+    // the rest of the AI SDK stack then merges them into the final request
+    // without any renderer-side special case.
+    let callOverrides: CallOverrides = { providerOptions: {} }
+    if (isQwenMT) {
+      const targetLang = mapLanguageToQwenMTModel(targetLanguage)
+      if (!targetLang) {
+        throw new Error(`translate.error.not_supported: ${targetLanguage.value}`)
+      }
+      const qwenMtOptions = {
+        translation_options: {
+          source_lang: 'auto',
+          target_lang: targetLang
+        }
+      }
+      callOverrides = {
+        providerOptions: {
+          [providerId]: qwenMtOptions
+        }
+      }
+    }
+
+    return { uniqueModelId, content, callOverrides }
   }
 }
 
