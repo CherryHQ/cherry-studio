@@ -78,12 +78,17 @@ interface InputNumberProps
    * value in between — the field drops its own copy on blur, before the caller has a
    * new one. Returning nothing keeps the synchronous behaviour.
    *
-   * Nearly every caller wants this one: it is the only callback that normalizes,
-   * so without it `min`/`max`/`step` never reach a committed value. Skipping it
-   * therefore means not caring what those bounds do — and the check for that is
-   * that none of the three is declared. Declaring `min`/`max` and skipping this
-   * is worse than decorative: they still publish an `aria` range that nothing
-   * enforces.
+   * Any caller that persists the value wants this one — it is the only callback
+   * that hands over a settled value. It both normalizes (so without it
+   * `min`/`max`/`step` never reach a committed value — declaring `min`/`max` and
+   * skipping this is worse than decorative: they still publish an `aria` range
+   * that nothing enforces) and restores an abandoned incomplete edit (`-`, `1e`)
+   * to what it started from. That second job has nothing to do with the bounds,
+   * so declaring none of the three is not a licence to skip this: a caller that
+   * persists through `onValueChange` alone keeps whatever the emptying before
+   * the incomplete text wrote. Only a consumer that is purely live-coupled —
+   * a slider tracking the field, with no state of its own to settle — can do
+   * without it.
    */
   onBlur?: (value: number | null) => void | Promise<unknown>
   /** The floor a committed or stepped value is clamped up to, negatives included. Also published as `aria-valuemin`. */
