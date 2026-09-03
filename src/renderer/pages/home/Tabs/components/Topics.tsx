@@ -967,6 +967,15 @@ export function Topics({
     [clearActiveTopic, deleteTopicsByAssistantId, refreshTopics, restoreTopic, setActiveTopic, t]
   )
 
+  const refreshAssistantResources = useCallback(async () => {
+    const outcomes = await Promise.allSettled([refreshAssistants(), refreshTopics()])
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        logger.warn('Failed to refresh Assistant resources from topic group', { err: outcome.reason })
+      }
+    }
+  }, [refreshAssistants, refreshTopics])
+
   const handleDeleteAssistant = useCallback(
     async (assistantId: string) => {
       if (deletingAssistantId) return
@@ -990,19 +999,25 @@ export function Topics({
           result = await deleteAssistant(assistantId, { deleteTopics: true })
         } catch (err) {
           if (!isDataApiNotFoundError(err)) throw err
-          await Promise.allSettled([refreshAssistants(), refreshTopics()])
+          await refreshAssistantResources()
           toast.info(t('recycle_bin.already_moved'))
           return
         }
         if (!result.deleted) {
-          await Promise.allSettled([refreshAssistants(), refreshTopics()])
+          await refreshAssistantResources()
           toast.info(t('recycle_bin.already_moved'))
           return
         }
 
         showRecycleBinUndo({
           itemName: assistantName,
-          onUndo: () => restoreAssistant(assistantId).then(() => undefined)
+          onUndo: () =>
+            restoreRecycleBinItem({
+              id: assistantId,
+              restore: restoreAssistant,
+              getActive: (id) => dataApiService.get(`/assistants/${id}`),
+              refresh: refreshAssistantResources
+            })
         })
         closeConversationTabs('assistants', result.deletedTopicIds ?? [])
         if (activeTopic?.assistantId === assistantId) {
@@ -1013,15 +1028,7 @@ export function Topics({
           }
         }
 
-        const refreshOutcomes = await Promise.allSettled([refreshAssistants(), refreshTopics()])
-        for (const outcome of refreshOutcomes) {
-          if (outcome.status === 'rejected') {
-            logger.warn('Failed to refresh after deleting Assistant from topic group', {
-              assistantId,
-              err: outcome.reason
-            })
-          }
-        }
+        await refreshAssistantResources()
       } catch (err) {
         logger.error('Failed to delete assistant from topic group', { assistantId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
@@ -1036,8 +1043,7 @@ export function Topics({
       deleteAssistant,
       deletingAssistantId,
       onActiveAssistantDeleted,
-      refreshAssistants,
-      refreshTopics,
+      refreshAssistantResources,
       restoreAssistant,
       t
     ]

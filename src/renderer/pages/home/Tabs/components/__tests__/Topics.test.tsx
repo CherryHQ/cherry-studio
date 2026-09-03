@@ -3498,9 +3498,22 @@ describe('Topics', () => {
       onUndo: expect.any(Function)
     })
 
-    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    assistantMutationMocks.restoreAssistant.mockRejectedValueOnce(
+      DataApiErrorFactory.notFound('Assistant', 'assistant-1')
+    )
+    const getActiveAssistant = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'assistant-1' } as never)
+    assistantQueryMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
+    topicDataMocks.refreshTopics.mockRejectedValueOnce(new Error('Topic refresh failed'))
+    const assistantRefreshCount = assistantQueryMocks.refetchAssistants.mock.calls.length
+    const topicRefreshCount = topicDataMocks.refreshTopics.mock.calls.length
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
 
     expect(assistantMutationMocks.restoreAssistant).toHaveBeenCalledWith({ params: { id: 'assistant-1' } })
+    expect(getActiveAssistant).toHaveBeenCalledWith('/assistants/assistant-1')
+    expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledTimes(assistantRefreshCount + 1)
+    expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(topicRefreshCount + 1)
+    getActiveAssistant.mockRestore()
   })
 
   it('offers Assistant Undo when active reconciliation and post-delete refreshes reject', async () => {

@@ -1233,6 +1233,15 @@ const Sessions = ({
     }
   }, [displayMode, refetchWorkspaces, reload])
 
+  const refreshAgentResources = useCallback(async () => {
+    const outcomes = await Promise.allSettled([refetchAgents(), reload()])
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') {
+        logger.warn('Failed to refresh Agent resources from session group', { err: outcome.reason })
+      }
+    }
+  }, [refetchAgents, reload])
+
   const handleDeleteAgent = useCallback(
     async (agentId: string) => {
       if (deletingAgentId) return
@@ -1329,9 +1338,13 @@ const Sessions = ({
         } else {
           showRecycleBinUndo({
             itemName: agent?.name || t('common.unnamed'),
-            onUndo: async () => {
-              await restoreAgent({ params: { agentId } })
-            }
+            onUndo: () =>
+              restoreRecycleBinItem({
+                id: agentId,
+                restore: (id) => restoreAgent({ params: { agentId: id } }),
+                getActive: (id) => dataApiService.get(`/agents/${id}`),
+                refresh: refreshAgentResources
+              })
           })
         }
       } catch (err) {
@@ -1348,6 +1361,7 @@ const Sessions = ({
       invalidate,
       onActiveAgentDeleted,
       refetchAgents,
+      refreshAgentResources,
       refetchWorkspaces,
       reload,
       restoreAgent,

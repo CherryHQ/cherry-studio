@@ -3619,8 +3619,19 @@ describe('Sessions', () => {
       onUndo: expect.any(Function)
     })
 
-    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    dataApiMocks.restoreAgent.mockRejectedValueOnce(DataApiErrorFactory.notFound('Agent', 'agent-a'))
+    const getActiveAgent = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'agent-a' } as never)
+    dataApiMocks.refetchAgents.mockRejectedValueOnce(new Error('Agent refresh failed'))
+    sessionDataMocks.reload.mockRejectedValueOnce(new Error('Session refresh failed'))
+    const agentRefreshCount = dataApiMocks.refetchAgents.mock.calls.length
+    const sessionRefreshCount = sessionDataMocks.reload.mock.calls.length
+
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
     expect(dataApiMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    expect(getActiveAgent).toHaveBeenCalledWith('/agents/agent-a')
+    expect(dataApiMocks.refetchAgents).toHaveBeenCalledTimes(agentRefreshCount + 1)
+    expect(sessionDataMocks.reload).toHaveBeenCalledTimes(sessionRefreshCount + 1)
+    getActiveAgent.mockRestore()
   })
 
   it('refreshes a stale agent result without changing selection or offering Undo', async () => {
