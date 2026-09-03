@@ -25,6 +25,7 @@ function createProps(
     isLoading: false,
     error: undefined,
     onRetry: vi.fn(),
+    isBatchMode: true,
     retentionDays: 30,
     pendingRestoreId: null,
     isPermanentDeleting: false,

@@ -83,6 +83,7 @@ function deletedFile(id: string, name: string) {
 
 type DomainSection = ComponentType<{
   retentionDays: number
+  isBatchMode: boolean
   isPermanentDeleting: boolean
   onRequestDelete: (request: PendingPermanentDelete) => void
 }>
@@ -171,6 +172,7 @@ describe('Trash domain batch adapters', () => {
       render(
         <testCase.Component
           retentionDays={30}
+          isBatchMode
           isPermanentDeleting={false}
           onRequestDelete={(request) => {
             pending = request
@@ -223,6 +225,7 @@ describe('Trash domain batch adapters', () => {
       render(
         <testCase.Component
           retentionDays={30}
+          isBatchMode
           isPermanentDeleting={false}
           onRequestDelete={(request) => {
             pending = request
@@ -270,6 +273,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <TopicTrashSection
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request
@@ -306,6 +310,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <AgentTrashSection
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request
@@ -366,6 +371,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <SessionTrashSection
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request
@@ -437,6 +443,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <testCase.Component
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request
@@ -476,7 +483,7 @@ describe('Trash domain batch adapters', () => {
       if (method === 'POST') throw DataApiErrorFactory.notFound('Topic', 'topic-1')
     })
     vi.mocked(dataApiService.get).mockResolvedValueOnce(deletedTopic('topic-1', 'First topic') as never)
-    render(<TopicTrashSection retentionDays={30} isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<TopicTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -502,6 +509,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <FileTrashSection
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request
@@ -557,6 +565,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <FileTrashSection
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request
@@ -600,7 +609,7 @@ describe('Trash domain batch adapters', () => {
         : { succeeded: chunkIds, failed: [] }
     })
     vi.mocked(dataApiService.get).mockResolvedValue({ ...files[500], deletedAt: undefined } as never)
-    render(<FileTrashSection retentionDays={30} isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
     await user.click(screen.getByRole('checkbox', { name: 'Select all visible items' }))
 
     await user.click(screen.getByRole('button', { name: 'Restore 501' }))
@@ -629,7 +638,7 @@ describe('Trash domain batch adapters', () => {
       failed: [{ id: file.id, error: 'not found' }]
     })
     vi.mocked(dataApiService.get).mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', file.id))
-    render(<FileTrashSection retentionDays={30} isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
+    render(<FileTrashSection retentionDays={30} isBatchMode isPermanentDeleting={false} onRequestDelete={vi.fn()} />)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -663,6 +672,7 @@ describe('Trash domain batch adapters', () => {
     render(
       <FileTrashSection
         retentionDays={30}
+        isBatchMode
         isPermanentDeleting={false}
         onRequestDelete={(request) => {
           pending = request

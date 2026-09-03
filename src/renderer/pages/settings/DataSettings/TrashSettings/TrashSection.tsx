@@ -1,6 +1,5 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { toast } from '@renderer/services/toast'
 import { Loader } from 'lucide-react'
 import type { FC } from 'react'
@@ -37,6 +36,7 @@ interface TrashSectionProps {
   error: Error | undefined
   onRetry: () => void
   pagination?: TrashSectionPagination
+  isBatchMode: boolean
   retentionDays: number
   pendingRestoreId: string | null
   isPermanentDeleting: boolean
@@ -54,6 +54,7 @@ const TrashSection: FC<TrashSectionProps> = ({
   error,
   onRetry,
   pagination,
+  isBatchMode,
   retentionDays,
   pendingRestoreId,
   isPermanentDeleting,
@@ -85,6 +86,10 @@ const TrashSection: FC<TrashSectionProps> = ({
       return next.size === current.size ? current : next
     })
   }, [itemIds])
+
+  useEffect(() => {
+    if (!isBatchMode) setSelectedIds(new Set())
+  }, [isBatchMode])
 
   const applyOutcome = (outcome: TrashBatchOutcome) => {
     if (!mountedRef.current || outcome.succeeded.length === 0) return
@@ -158,7 +163,43 @@ const TrashSection: FC<TrashSectionProps> = ({
   const showOffsetControls = pagination?.kind === 'offset' && (pagination.totalPages > 1 || pagination.page > 1)
 
   return (
-    <SettingGroup>
+    <>
+      {isBatchMode && (
+        <div className="mb-2 flex min-h-8 flex-wrap items-center justify-between gap-2 border-border border-b pb-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={
+                selectedItems.length === 0 ? false : selectedItems.length === items.length ? true : 'indeterminate'
+              }
+              disabled={items.length === 0 || isLoading || Boolean(error) || isSectionBusy}
+              aria-label={t('settings.data.trash.selection.select_all_visible')}
+              onCheckedChange={(checked) => setSelectedIds(checked === true ? new Set(itemIds) : new Set())}
+            />
+            {!isLoading && !error && selectedItems.length > 0 && (
+              <span className="text-muted-foreground text-sm">
+                {t('settings.data.trash.selection.count', { count: selectedItems.length })}
+              </span>
+            )}
+          </div>
+          {!isLoading && !error && selectedItems.length > 0 && (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <Button variant="outline" size="sm" disabled={isSectionBusy} onClick={handleRestoreSelected}>
+                {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isSectionBusy}
+                onClick={() => requestPermanentDelete(selectedItems, true)}>
+                {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
+              </Button>
+              <Button variant="ghost" size="sm" disabled={isSectionBusy} onClick={() => setSelectedIds(new Set())}>
+                {t('settings.data.trash.selection.clear')}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
       {isLoading ? (
         <div className="flex min-h-16 items-center justify-center">
           <Loader size={16} className="animate-spin text-muted-foreground" />
@@ -172,38 +213,6 @@ const TrashSection: FC<TrashSectionProps> = ({
         </div>
       ) : (
         <>
-          {items.length > 0 && (
-            <div className="mb-2 flex min-h-8 flex-wrap items-center gap-2 border-border border-b pb-2">
-              <Checkbox
-                checked={
-                  selectedItems.length === 0 ? false : selectedItems.length === items.length ? true : 'indeterminate'
-                }
-                disabled={isSectionBusy}
-                aria-label={t('settings.data.trash.selection.select_all_visible')}
-                onCheckedChange={(checked) => setSelectedIds(checked === true ? new Set(itemIds) : new Set())}
-              />
-              {selectedItems.length > 0 && (
-                <>
-                  <span className="text-muted-foreground text-sm">
-                    {t('settings.data.trash.selection.count', { count: selectedItems.length })}
-                  </span>
-                  <Button variant="outline" size="sm" disabled={isSectionBusy} onClick={handleRestoreSelected}>
-                    {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isSectionBusy}
-                    onClick={() => requestPermanentDelete(selectedItems, true)}>
-                    {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
-                  </Button>
-                  <Button variant="ghost" size="sm" disabled={isSectionBusy} onClick={() => setSelectedIds(new Set())}>
-                    {t('settings.data.trash.selection.clear')}
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
           {items.length === 0 ? (
             <div className="text-muted-foreground text-sm">{t('settings.data.trash.empty.section')}</div>
           ) : (
@@ -213,6 +222,7 @@ const TrashSection: FC<TrashSectionProps> = ({
                 item={item}
                 retentionDays={retentionDays}
                 isRestoring={pendingRestoreId === item.id}
+                showSelection={isBatchMode}
                 selected={selectedIds.has(item.id)}
                 onSelectedChange={(selected) =>
                   setSelectedIds((current) => {
@@ -252,7 +262,7 @@ const TrashSection: FC<TrashSectionProps> = ({
           )}
         </>
       )}
-    </SettingGroup>
+    </>
   )
 }
 

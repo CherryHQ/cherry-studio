@@ -27,6 +27,7 @@ const IN_TRASH_QUERY = { inTrash: true } as const
 
 export interface TrashDomainSectionProps {
   retentionDays: number
+  isBatchMode: boolean
   isPermanentDeleting: boolean
   onRequestDelete: (request: PendingPermanentDelete) => void
 }
@@ -156,6 +157,7 @@ async function inspectFailedFileIds(
 
 export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
+  isBatchMode,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -204,6 +206,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -223,6 +226,7 @@ export const TopicTrashSection: FC<TrashDomainSectionProps> = ({
 
 export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
+  isBatchMode,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -295,6 +299,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -323,6 +328,7 @@ export const AgentTrashSection: FC<TrashDomainSectionProps> = ({
 
 export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
+  isBatchMode,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -385,6 +391,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -404,6 +411,7 @@ export const SessionTrashSection: FC<TrashDomainSectionProps> = ({
 
 export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
+  isBatchMode,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -464,6 +472,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -492,6 +501,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
 
 export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
+  isBatchMode,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -544,6 +554,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
       error={error}
@@ -563,6 +574,7 @@ export const PaintingTrashSection: FC<TrashDomainSectionProps> = ({
 
 export const FileTrashSection: FC<TrashDomainSectionProps> = ({
   retentionDays,
+  isBatchMode,
   isPermanentDeleting,
   onRequestDelete
 }) => {
@@ -654,6 +666,7 @@ export const FileTrashSection: FC<TrashDomainSectionProps> = ({
 
   return (
     <TrashSection
+      isBatchMode={isBatchMode}
       items={items}
       isLoading={isLoading}
       error={error}

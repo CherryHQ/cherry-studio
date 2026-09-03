@@ -103,6 +103,7 @@ const TrashSettings: FC = () => {
   )
 
   const [category, setCategory] = useState<TrashCategory>('topics')
+  const [isBatchMode, setIsBatchMode] = useState(false)
   const categoryOptions = useMemo(
     () => CATEGORIES.map(({ id, labelKey, Icon }) => ({ id, label: t(labelKey), Icon })),
     [t]
@@ -201,7 +202,12 @@ const TrashSettings: FC = () => {
     }
   }
 
-  const sectionProps = { retentionDays, isPermanentDeleting: isDeleting, onRequestDelete: handleRequestDelete }
+  const sectionProps = {
+    retentionDays,
+    isBatchMode,
+    isPermanentDeleting: isDeleting,
+    onRequestDelete: handleRequestDelete
+  }
   const isFilePreview = pendingDelete?.fileEntryIds !== undefined
   const fileReferenceBlocksDelete =
     isFilePreview && (fileReferencePreview.status !== 'ready' || fileReferencePreview.referencedFiles > 0)
@@ -235,21 +241,20 @@ const TrashSettings: FC = () => {
 
   return (
     <>
+      <SettingTitle>
+        <span>{t('settings.data.trash.title')}</span>
+        <Button variant="outline" onClick={() => setEmptyTrashOpen(true)}>
+          {t('settings.data.trash.empty_trash.button')}
+        </Button>
+      </SettingTitle>
       <SettingGroup>
-        <SettingTitle>
-          <span>{t('settings.data.trash.title')}</span>
-          <Button variant="outline" onClick={() => setEmptyTrashOpen(true)}>
-            {t('settings.data.trash.empty_trash.button')}
-          </Button>
-        </SettingTitle>
-        <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.trash.retention.label')}</SettingRowTitle>
           <SelectDropdown
             items={retentionOptions}
             selectedId={String(retentionDays)}
             onSelect={(id) => setRetentionDays(Number(id))}
-            triggerClassName="w-40"
+            triggerClassName="w-40 max-w-full"
             renderSelected={({ label }) => <span className="truncate">{label}</span>}
             renderItem={({ label }, isSelected) => (
               <div className="flex w-full items-center gap-2">
@@ -264,7 +269,9 @@ const TrashSettings: FC = () => {
             ? t('settings.data.trash.retention_hint', { count: retentionDays })
             : t('settings.data.trash.retention_hint_never')}
         </SettingHelpText>
-        <div className="mt-3">
+      </SettingGroup>
+      <SettingGroup>
+        <SettingRow>
           <SelectDropdown
             items={categoryOptions}
             selectedId={category}
@@ -272,7 +279,7 @@ const TrashSettings: FC = () => {
               closePendingDelete()
               setCategory(id as TrashCategory)
             }}
-            triggerClassName="w-56"
+            triggerClassName="w-56 max-w-full"
             renderSelected={({ label, Icon }) => (
               <>
                 <Icon size={16} className="shrink-0 text-muted-foreground" />
@@ -287,9 +294,13 @@ const TrashSettings: FC = () => {
               </div>
             )}
           />
-        </div>
+          <Button variant="outline" aria-pressed={isBatchMode} onClick={() => setIsBatchMode((current) => !current)}>
+            {t(isBatchMode ? 'settings.data.trash.selection.done' : 'settings.data.trash.selection.manage')}
+          </Button>
+        </SettingRow>
+        <SettingDivider />
+        <ActiveSection {...sectionProps} />
       </SettingGroup>
-      <ActiveSection {...sectionProps} />
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {

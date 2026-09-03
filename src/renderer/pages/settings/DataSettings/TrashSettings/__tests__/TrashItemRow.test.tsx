@@ -31,6 +31,7 @@ describe('TrashItemRow', () => {
         item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring
+        showSelection={false}
         selected={false}
         onSelectedChange={vi.fn()}
         onRestore={vi.fn()}
@@ -56,6 +57,7 @@ describe('TrashItemRow', () => {
         retentionDays={30}
         isRestoring={false}
         isSectionBusy
+        showSelection={false}
         selected={false}
         onSelectedChange={vi.fn()}
         onRestore={onRestore}
@@ -91,6 +93,7 @@ describe('TrashItemRow', () => {
     const commonProps = {
       retentionDays: 30,
       isRestoring: false,
+      showSelection: false,
       selected: false,
       onSelectedChange: vi.fn(),
       onRestore: vi.fn(),
@@ -119,6 +122,7 @@ describe('TrashItemRow', () => {
         item={{ id: 'topic-1', name: 'Topic', deletedAt: NOW }}
         retentionDays={30}
         isRestoring={false}
+        showSelection
         selected
         onSelectedChange={onSelectedChange}
         onRestore={vi.fn()}

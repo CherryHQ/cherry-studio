@@ -29,6 +29,7 @@ vi.mock('../TrashDomainSections', async () => {
     function SelectionSection(props: {
       retentionDays: number
       onRequestDelete: (request: unknown) => void
+      isBatchMode: boolean
       isPermanentDeleting: boolean
     }) {
       return React.createElement(TrashSection, {
@@ -37,6 +38,7 @@ vi.mock('../TrashDomainSections', async () => {
         error: undefined,
         onRetry: vi.fn(),
         retentionDays: props.retentionDays,
+        isBatchMode: props.isBatchMode,
         pendingRestoreId: null,
         isPermanentDeleting: props.isPermanentDeleting,
         onRestore: vi.fn(),
@@ -106,19 +108,37 @@ beforeEach(async () => {
 })
 
 describe('TrashSettings permanent-delete confirmation', () => {
-  it('clears current-type selection immediately when the category changes', async () => {
+  it('reveals current-type selection on demand and preserves batch mode across categories', async () => {
     const user = userEvent.setup()
     render(<TrashSettings />)
+
+    expect(screen.queryByRole('checkbox', { name: 'Select Deleted topic' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Batch manage' }))
+    expect(screen.getByRole('button', { name: 'Done' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Select all visible items' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Restore 1' })).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted topic' }))
-    expect(screen.getByText('1 selected')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Permanently 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear selection' })).toBeInTheDocument()
 
     await chooseCategory(user, 'Topics', 'Sessions')
 
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Select Deleted session' })).not.toBeChecked()
 
-    await chooseCategory(user, 'Sessions', 'Topics')
-    expect(screen.getByRole('checkbox', { name: 'Select Deleted topic' })).not.toBeChecked()
+    await user.click(screen.getByRole('checkbox', { name: 'Select Deleted session' }))
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }))
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
+    expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select Deleted session' }))
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.getByRole('button', { name: 'Batch manage' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('checkbox', { name: 'Select Deleted session' })).not.toBeInTheDocument()
   })
 
   it('shows the single-item title and waits for a fresh file reference preview', async () => {
