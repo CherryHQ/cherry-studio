@@ -1264,6 +1264,57 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
 
+  it('returns to an already detected preview URL when a newer deferred source reports it', async () => {
+    const sessionId = 'session-repeated-url'
+    const previewUrl = 'http://localhost:7100/'
+    const olderPart = createPreviewToolPart('bash-repeated-old', 'Bash', `Ready at ${previewUrl}`)
+    const olderMessage = createPreviewMessage('m-repeated-old', [olderPart])
+    const newerRef = {
+      topicId: `agent-session:${sessionId}`,
+      messageId: 'm-repeated-new',
+      toolCallId: 'bash-repeated-new'
+    }
+    const newerResult = createDeferredPromise<{ found: true; output: string }>()
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+    const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={partsByMessageId}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', previewUrl)
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+
+    ipcRequestMock.mockReturnValue(newerResult.promise)
+    const newerPart = createPreviewToolPart(newerRef.toolCallId, 'BashOutput', {
+      $deferredToolResult: newerRef
+    })
+    const newerMessage = createPreviewMessage(newerRef.messageId, [newerPart])
+    rerender(
+      renderPane([olderMessage, newerMessage], {
+        [olderMessage.id]: [olderPart],
+        [newerMessage.id]: [newerPart]
+      })
+    )
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+    await act(async () => newerResult.resolve({ found: true, output: `Ready at ${previewUrl}` }))
+
+    await waitFor(() => expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', previewUrl))
+  })
+
   it('registers the sidebar command independently and prioritizes the resource pane', () => {
     render(
       <TestAgentRightPane

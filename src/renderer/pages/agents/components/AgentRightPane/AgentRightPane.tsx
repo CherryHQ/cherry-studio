@@ -416,7 +416,6 @@ function AgentRightPaneStateProvider({
     sessionId,
     url: null
   }))
-  const detectedBrowserUrlRef = useRef<{ sessionId?: string; url: string | null }>({ sessionId, url: null })
   const explicitBrowserBaselineRef = useRef<ExplicitBrowserBaseline | null>(null)
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -447,16 +446,12 @@ function AgentRightPaneStateProvider({
   const acceptDetectedBrowserUrl = useCallback(
     (url: string | null, source: AgentPreviewUrlSource | null) => {
       if (!url || !source) return
-      const detected = detectedBrowserUrlRef.current
-      const isNewDetectedUrl = detected.sessionId !== sessionId || detected.url !== url
-      detectedBrowserUrlRef.current = { sessionId, url }
       const baseline = explicitBrowserBaselineRef.current
       if (
         baseline &&
         baseline.sessionId === sessionId &&
         browserUrl === baseline.url &&
-        (!isNewDetectedUrl ||
-          !isAgentPreviewUrlSourceAfterFrontier(source, baseline.frontier, messages, partsByMessageId))
+        !isAgentPreviewUrlSourceAfterFrontier(source, baseline.frontier, messages, partsByMessageId)
       ) {
         return
       }
