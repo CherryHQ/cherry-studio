@@ -96,7 +96,7 @@ export default defineCreator({
       name: 'gemini-2.5-flash-image',
       family: 'gemini-flash',
       // No web-search: only gemini-3 image models (Nano Banana Pro) ground on Google Search; 2.5 does not.
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -122,7 +122,7 @@ export default defineCreator({
       id: 'gemini-3-pro-image-preview',
       name: 'gemini-3-pro-image-preview',
       family: 'gemini-pro',
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -244,7 +244,7 @@ export default defineCreator({
       id: 'gemini-2-5-flash-image-preview',
       name: 'Nano Banana Preview (Gemini 2.5 Flash Image Preview)',
       family: 'gemini-flash',
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -533,6 +533,7 @@ export default defineCreator({
       name: 'Nano Banana 2',
       family: 'gemini-flash',
       capabilities: [
+        'text-generation',
         'reasoning',
         'image-recognition',
         'image-generation',
@@ -584,7 +585,7 @@ export default defineCreator({
       id: 'gemini-3-1-flash-image-preview',
       name: 'Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)',
       family: 'gemini-flash',
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -665,6 +666,7 @@ export default defineCreator({
       name: 'Nano Banana Pro (Gemini 3 Pro Image)',
       family: 'gemini',
       capabilities: [
+        'text-generation',
         'function-call',
         'reasoning',
         'image-recognition',
