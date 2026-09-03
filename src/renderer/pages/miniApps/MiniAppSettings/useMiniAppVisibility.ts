@@ -100,6 +100,7 @@ function restoredOrderAnchor(
 
   const destinationIds = allApps
     .filter((app) => app.appId !== appId && !restoringIds.has(app.appId) && isVisibleMiniApp(app))
+    .sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0))
     .map((app) => app.appId)
   const destinationIdSet = new Set(destinationIds)
   const originalSuccessor = originalVisibleIds.slice(originalIndex + 1).find((id) => destinationIdSet.has(id))
@@ -132,8 +133,26 @@ export function useMiniAppVisibility() {
   const originalVisibleIdsRef = useRef<string[]>([])
   const originalVisibleRegionRef = useRef(effectiveRegion)
   const pendingShownIdsRef = useRef(new Set<string>())
-  const showQueueRef = useRef<Promise<unknown> | null>(null)
-  const visibleReorderQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const mutationQueueRef = useRef<Promise<unknown> | null>(null)
+
+  const enqueueMutation = useCallback(
+    (mutation: () => Promise<unknown>, fallbackKey: string, onFailure?: () => void) => {
+      const previous = mutationQueueRef.current
+      const persisted = previous ? previous.catch(() => undefined).then(mutation) : mutation()
+      mutationQueueRef.current = persisted
+      persisted.then(
+        () => {
+          if (mutationQueueRef.current === persisted) mutationQueueRef.current = null
+        },
+        (error) => {
+          if (mutationQueueRef.current === persisted) mutationQueueRef.current = null
+          onFailure?.()
+          reportFailure(t, fallbackKey)(error)
+        }
+      )
+    },
+    [t]
+  )
 
   useEffect(() => {
     const visibleIds = allApps
@@ -185,36 +204,39 @@ export function useMiniAppVisibility() {
     const pinnedStays = visible.filter((a) => a.status === 'pinned')
     setVisible([...pinnedStays, ...hidden])
     setHidden(movingToHidden)
-    setAppStatusBulk([
-      ...movingToHidden.map((a) => ({ appId: a.appId, status: 'disabled' as const })),
-      ...hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))
-    ]).catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
-  }, [hidden, visible, setAppStatusBulk, t])
+    enqueueMutation(
+      () =>
+        setAppStatusBulk([
+          ...movingToHidden.map((a) => ({ appId: a.appId, status: 'disabled' as const })),
+          ...hidden.map((a) => ({ appId: a.appId, status: 'enabled' as const }))
+        ]),
+      'miniApps.update_partial_failure_generic'
+    )
+  }, [enqueueMutation, hidden, visible, setAppStatusBulk])
 
   const reset = useCallback(() => {
     const newVisible = restoreHiddenMiniApps(visible, hidden, originalVisibleIdsRef.current)
     const restoringIds = new Set(hidden.map((app) => app.appId))
     setVisible(newVisible)
     setHidden([])
-    setAppStatusBulk(
-      newVisible
-        .filter((app) => restoringIds.has(app.appId))
-        .map((app) => ({
-          appId: app.appId,
-          status: 'enabled' as const,
-          order: restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, allApps, restoringIds)
-        }))
-    ).catch(reportFailure(t, 'miniApps.update_partial_failure_generic'))
-  }, [allApps, visible, hidden, setAppStatusBulk, t])
+    const updates = newVisible
+      .filter((app) => restoringIds.has(app.appId))
+      .map((app) => ({
+        appId: app.appId,
+        status: 'enabled' as const,
+        order: restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, allApps, restoringIds)
+      }))
+    enqueueMutation(() => setAppStatusBulk(updates), 'miniApps.update_partial_failure_generic')
+  }, [allApps, enqueueMutation, visible, hidden, setAppStatusBulk])
 
   const hide = useCallback(
     (app: MiniApp) => {
       pendingShownIdsRef.current.delete(app.appId)
       setVisible((v) => v.filter((a) => a.appId !== app.appId))
       setHidden((h) => [...h, app])
-      updateAppStatus(app.appId, 'disabled').catch(reportFailure(t, 'miniApp.hide_failed'))
+      enqueueMutation(() => updateAppStatus(app.appId, 'disabled'), 'miniApp.hide_failed')
     },
-    [updateAppStatus, t]
+    [enqueueMutation, updateAppStatus]
   )
 
   const show = useCallback(
@@ -228,23 +250,13 @@ export function useMiniAppVisibility() {
       setHidden((h) => h.filter((a) => a.appId !== app.appId))
       setVisible((current) => insertMiniAppInOriginalOrder(current, enabledApp, originalVisibleIdsRef.current))
 
-      const previous = showQueueRef.current
-      const persisted = previous
-        ? previous.catch(() => undefined).then(() => updateAppStatus(app.appId, 'enabled', order))
-        : updateAppStatus(app.appId, 'enabled', order)
-      showQueueRef.current = persisted
-      persisted.then(
-        () => {
-          if (showQueueRef.current === persisted) showQueueRef.current = null
-        },
-        (error) => {
-          pendingShownIdsRef.current.delete(app.appId)
-          if (showQueueRef.current === persisted) showQueueRef.current = null
-          reportFailure(t, 'miniApp.show_failed')(error)
-        }
+      enqueueMutation(
+        () => updateAppStatus(app.appId, 'enabled', order),
+        'miniApp.show_failed',
+        () => pendingShownIdsRef.current.delete(app.appId)
       )
     },
-    [allApps, updateAppStatus, t]
+    [allApps, enqueueMutation, updateAppStatus]
   )
 
   const reorderVisible = useCallback(
@@ -260,18 +272,17 @@ export function useMiniAppVisibility() {
       )
       originalVisibleIdsRef.current = nextOriginalOrder
       setVisible(next)
-      const persisted = visibleReorderQueueRef.current
-        .catch(() => undefined)
-        .then(() => reorderMiniAppsByStatus('visible', next))
-      visibleReorderQueueRef.current = persisted
-      persisted.catch((error) => {
-        if (originalVisibleIdsRef.current === nextOriginalOrder) {
-          originalVisibleIdsRef.current = previousOriginalOrder
+      enqueueMutation(
+        () => reorderMiniAppsByStatus('visible', next),
+        'miniApp.reorder_failed',
+        () => {
+          if (originalVisibleIdsRef.current === nextOriginalOrder) {
+            originalVisibleIdsRef.current = previousOriginalOrder
+          }
         }
-        reportFailure(t, 'miniApp.reorder_failed')(error)
-      })
+      )
     },
-    [visible, reorderMiniAppsByStatus, t]
+    [enqueueMutation, visible, reorderMiniAppsByStatus]
   )
 
   const reorderHidden = useCallback(
@@ -281,9 +292,9 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setHidden(next)
-      reorderMiniAppsByStatus('disabled', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
+      enqueueMutation(() => reorderMiniAppsByStatus('disabled', next), 'miniApp.reorder_failed')
     },
-    [hidden, reorderMiniAppsByStatus, t]
+    [enqueueMutation, hidden, reorderMiniAppsByStatus]
   )
 
   return { visible, hidden, swap, reset, hide, show, reorderVisible, reorderHidden }

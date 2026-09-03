@@ -654,6 +654,51 @@ describe('useMiniApps', () => {
       expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'chatgpt' }, body: { position: 'first' } })
       expect(patchBatchTrigger).not.toHaveBeenCalled()
     })
+
+    it('serializes overlapping partition reorders and reads the refreshed baseline for the second request', async () => {
+      const firstRequest = Promise.withResolvers<void>()
+      const patchOrderTrigger = vi
+        .fn()
+        .mockImplementationOnce(() => firstRequest.promise)
+        .mockResolvedValueOnce(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const a = createMiniApp('a', { status: 'disabled', orderKey: 'a0' })
+      const b = createMiniApp('b', { status: 'disabled', orderKey: 'a1' })
+      const c = createMiniApp('c', { status: 'disabled', orderKey: 'a2' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([a, b, c]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([a, b, c]))
+      const { result } = renderHook(() => useMiniApps())
+
+      let firstReorder!: Promise<void>
+      let secondReorder!: Promise<void>
+      act(() => {
+        firstReorder = result.current.reorderMiniAppsByStatus('disabled', [c, a, b])
+        secondReorder = result.current.reorderMiniAppsByStatus('disabled', [b, c, a])
+      })
+
+      await vi.waitFor(() => expect(patchOrderTrigger).toHaveBeenCalledTimes(1))
+      expect(patchOrderTrigger).toHaveBeenNthCalledWith(1, { params: { id: 'c' }, body: { position: 'first' } })
+
+      MockUseDataApiUtils.seedCache(
+        '/mini-apps',
+        paginated([
+          { ...c, orderKey: 'a0' },
+          { ...a, orderKey: 'a1' },
+          { ...b, orderKey: 'a2' }
+        ])
+      )
+      firstRequest.resolve()
+      await act(async () => Promise.all([firstReorder, secondReorder]))
+
+      expect(patchOrderTrigger).toHaveBeenCalledTimes(2)
+      expect(patchOrderTrigger).toHaveBeenNthCalledWith(2, { params: { id: 'b' }, body: { position: 'first' } })
+    })
   })
 
   // === Edge Cases ===

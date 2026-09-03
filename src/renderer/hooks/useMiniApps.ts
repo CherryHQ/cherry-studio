@@ -211,6 +211,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
   const readCache = useReadCache()
+  const statusReorderQueueRef = useRef<Promise<void> | null>(null)
 
   // Fixed-path mutations (useMutation with auto-refresh)
   const { trigger: postMiniApp } = useMutation('POST', '/mini-apps', {
@@ -459,26 +460,41 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    */
   const reorderMiniAppsByStatus = useCallback(
     async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
-      const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
-      const orderedIds = new Set(orderedPartition.map((app) => app.appId))
-      // Status mutate+refresh writes SWR before React re-renders; peek that membership.
-      const apps = readCache<MiniApp[]>('/mini-apps') ?? allApps
-      const currentPartition = apps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
-      const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
-      if (moves.length === 0) return
+      const persist = async () => {
+        const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
+        const orderedIds = new Set(orderedPartition.map((app) => app.appId))
+        // Status mutate+refresh writes SWR before React re-renders; peek that membership.
+        const apps = readCache<MiniApp[]>('/mini-apps') ?? allApps
+        const currentPartition = apps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+        const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
+        if (moves.length === 0) return
 
-      try {
-        if (moves.length === 1) {
-          const [move] = moves
-          await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
-        } else {
-          await patchMiniAppOrderBatchTrigger({ body: { moves } })
+        try {
+          if (moves.length === 1) {
+            const [move] = moves
+            await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
+          } else {
+            await patchMiniAppOrderBatchTrigger({ body: { moves } })
+          }
+        } catch (error) {
+          await invalidate('/mini-apps')
+          logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
+          throw toDataApiError(error)
         }
-      } catch (error) {
-        await invalidate('/mini-apps')
-        logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
-        throw toDataApiError(error)
       }
+
+      const previous = statusReorderQueueRef.current
+      const persisted = previous ? previous.catch(() => undefined).then(persist) : persist()
+      statusReorderQueueRef.current = persisted
+      persisted.then(
+        () => {
+          if (statusReorderQueueRef.current === persisted) statusReorderQueueRef.current = null
+        },
+        () => {
+          if (statusReorderQueueRef.current === persisted) statusReorderQueueRef.current = null
+        }
+      )
+      return persisted
     },
     [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger, readCache]
   )
