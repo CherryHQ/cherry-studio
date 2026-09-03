@@ -627,7 +627,7 @@ describe('MessagePartsRenderer', () => {
       expect(block).toHaveAttribute('data-images', '["https://img.test/a.png","https://img.test/b.jpg"]')
     })
 
-    it('renders a sent user image as a file token with its thumbnail and filename', () => {
+    it('renders a sent user image instead of its composer file token', () => {
       const persisted = UpdateAgentSessionMessageSchema.parse({
         data: {
           parts: [
@@ -664,13 +664,11 @@ describe('MessagePartsRenderer', () => {
 
       renderParts(persisted.data.parts as CherryMessagePart[], msg({ role: 'user' }))
 
-      const token = document.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveTextContent('photo.png')
-      expect(token?.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/photo.png')
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     })
 
-    it('renders multiple sent images as thumbnail file tokens matched by identity', () => {
+    it('groups sent user images with the same filename by composer file token identity', () => {
       renderParts(
         [
           {
@@ -718,19 +716,11 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      const tokens = document.querySelectorAll('[data-composer-token-kind="file"]')
-      expect(tokens).toHaveLength(2)
-      expect(tokens[0]).toHaveTextContent('photo.png')
-      expect(tokens[0].querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute(
-        'src',
-        'file:///tmp/first/photo.png'
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(0)
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute(
+        'data-images',
+        '["file:///tmp/first/photo.png","file:///tmp/second/photo.png"]'
       )
-      expect(tokens[1]).toHaveTextContent('photo.png')
-      expect(tokens[1].querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute(
-        'src',
-        'file:///tmp/second/photo.png'
-      )
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
       expect(latestMainTextProps(0)?.readOnlyFilePreviews.get('source-image-1')).toEqual({
         url: 'file:///tmp/first/photo.png',
         mediaType: 'image/png'
@@ -741,7 +731,7 @@ describe('MessagePartsRenderer', () => {
       })
     })
 
-    it('keeps a legacy sent image as its unique matching file token', () => {
+    it('renders a legacy sent image without its unique matching file token', () => {
       renderParts(
         [
           {
@@ -761,8 +751,8 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('legacy.png')
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/legacy.png"]')
     })
 
     it('keeps the sent image token when its matching file part has no renderable URL', () => {
@@ -794,7 +784,7 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByTestId('mock-image-block')).toBeNull()
     })
 
-    it('renders an image token while consuming its prompt text', () => {
+    it('consumes hidden image token prompt text instead of exposing it as message text', () => {
       renderParts(
         [
           {
@@ -831,13 +821,10 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByText('before after')).toBeInTheDocument()
       expect(screen.queryByText(/internal image context/)).toBeNull()
-      const token = document.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveTextContent('photo.png')
-      expect(token?.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/photo.png')
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
     })
 
-    it('renders image thumbnails while keeping non-image files as file tokens', () => {
+    it('renders sent images while keeping non-image files as tokens', () => {
       renderParts(
         [
           {
@@ -873,20 +860,13 @@ describe('MessagePartsRenderer', () => {
         msg({ role: 'user' })
       )
 
-      const tokens = document.querySelectorAll('[data-composer-token-kind="file"]')
-      expect(tokens).toHaveLength(2)
-      expect(tokens[0]).toHaveTextContent('photo.png')
-      expect(tokens[0].querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute(
-        'src',
-        'file:///tmp/photo.png'
-      )
-      expect(tokens[1]).toHaveTextContent('report.pdf')
-      expect(tokens[1].querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(1)
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
     })
 
-    it('keeps sent image thumbnail tokens rendered when the user text is collapsed', () => {
+    it('keeps sent images rendered when the user text is collapsed', () => {
       renderParts(
         [
           {
@@ -913,10 +893,8 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(document.querySelector('[data-user-message-content-toggle]')).toBeInTheDocument()
-      const token = document.querySelector('[data-composer-token-kind="file"]')
-      expect(token).toHaveTextContent('photo.png')
-      expect(token?.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/photo.png')
-      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(screen.getByTestId('mock-image-block')).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
     })
 
     it('drops hoisted sent images from the inline flow and keeps their token chips hidden', () => {
