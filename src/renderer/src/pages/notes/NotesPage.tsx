@@ -49,6 +49,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import HeaderNavbar from './HeaderNavbar'
+import { getEffectiveGeneration as getEffectiveGenerationGuard, isPendingDeleteForPath } from './notesGuards'
 import NotesEditor from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
 
@@ -83,9 +84,25 @@ const NotesPage: FC = () => {
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
-  const pendingDeletePathRef = useRef<string | null>(null)
-  const deleteEpochRef = useRef(0)
+  const pendingDeleteSetRef = useRef<Set<string>>(new Set())
+  const pathGenerationRef = useRef<Map<string, number>>(new Map())
   const lastRecreatedPathRef = useRef<string | null>(null)
+
+  const isPendingDeletePath = useCallback((normalizedTarget: string) => {
+    return isPendingDeleteForPath(normalizedTarget, pendingDeleteSetRef.current)
+  }, [])
+
+  const getEffectiveGeneration = useCallback(
+    (normalizedTarget: string) => {
+      return getEffectiveGenerationGuard(normalizedTarget, pathGenerationRef.current)
+    },
+    []
+  )
+
+  const bumpGeneration = useCallback((normalizedPath: string) => {
+    const cur = pathGenerationRef.current.get(normalizedPath) ?? 0
+    pathGenerationRef.current.set(normalizedPath, cur + 1)
+  }, [])
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
@@ -182,60 +199,53 @@ const NotesPage: FC = () => {
       const targetPath = filePath || activeFilePath
       if (!targetPath || content.trim() === currentContent.trim()) return
 
+      const normalizedTarget = normalizePathValue(targetPath)
       // 若目标路径正处于删除流程中（或为其子路径），跳过写入，避免已删除文件被“复活”
-      const pendingDelete = pendingDeletePathRef.current
-      if (pendingDelete) {
-        const normalizedTarget = normalizePathValue(targetPath)
-        if (normalizedTarget === pendingDelete || normalizedTarget.startsWith(`${pendingDelete}/`)) {
-          return
-        }
+      if (isPendingDeletePath(normalizedTarget)) {
+        return
       }
 
-      const epochAtStart = deleteEpochRef.current
+      const genAtStart = getEffectiveGeneration(normalizedTarget)
 
       try {
         await window.api.file.write(targetPath, content)
-        // 若写入期间发生了删除/重建（epoch 变化），说明此次写入是过期写入
-        if (epochAtStart !== deleteEpochRef.current) {
-          const normalizedAfter = normalizePathValue(targetPath)
+        const genNow = getEffectiveGeneration(normalizedTarget)
+        const normalizedAfter = normalizePathValue(targetPath)
+        // 若写入期间该路径的 generation 发生变化，说明此次写入是过期写入（针对该路径的删除/重建）
+        if (genAtStart !== genNow) {
           // 若目标路径是刚被重建的同路径笔记，旧内容已覆盖新文件，需恢复正确内容
           if (lastRecreatedPathRef.current && normalizedAfter === lastRecreatedPathRef.current) {
             const curLastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
             const correctContent = curLastPath === normalizedAfter ? lastContentRef.current : currentContentRef.current
             if (correctContent !== content) {
               try {
-                await window.api.file.write(targetPath, correctContent).catch(() => {})
-              } catch {}
+                await window.api.file.write(targetPath, correctContent)
+              } catch (e) {
+                logger.error('Failed to restore recreated note after stale write:', e as Error)
+                return
+              }
             }
             invalidateFileContent(targetPath)
             return
           }
-          // 若仍处于待删除状态但未重建，已在 pendingAfter 分支处理；这里直接返回避免刷新已删除文件的缓存
-          const pendingStale = pendingDeletePathRef.current
-          if (pendingStale) {
-            const normalizedStale = normalizePathValue(targetPath)
-            if (normalizedStale === pendingStale || normalizedStale.startsWith(`${pendingStale}/`)) {
-              try {
-                await window.api.file.deleteExternalFile(targetPath).catch(() => {})
-                await window.api.file.deleteExternalDir(targetPath).catch(() => {})
-              } catch {}
-              return
-            }
-          }
-          return
-        }
-        // 写入完成后再检查一次删除标记：若在此次写入等待期间文件已被删除，写入会“复活”文件，需立即清理
-        const pendingAfter = pendingDeletePathRef.current
-        if (pendingAfter) {
-          const normalizedAfter = normalizePathValue(targetPath)
-          if (normalizedAfter === pendingAfter || normalizedAfter.startsWith(`${pendingAfter}/`)) {
+          // 过期写入且仍处于待删除状态（或该路径的 generation 已推进但未重建），清理被复活的文件
+          if (isPendingDeletePath(normalizedAfter)) {
             try {
-              // 尝试删除刚被复活的文件/目录（忽略错误）
               await window.api.file.deleteExternalFile(targetPath).catch(() => {})
               await window.api.file.deleteExternalDir(targetPath).catch(() => {})
             } catch {}
             return
           }
+          // generation 推进但 pending 已清理（超时或已被重建后清理），仍需视为过期写入，避免残留复活文件
+          return
+        }
+        // 非过期写入，但若在此次写入等待期间该路径被标记为待删除（generation 未变但标记已设置），也需清理
+        if (isPendingDeletePath(normalizedAfter)) {
+          try {
+            await window.api.file.deleteExternalFile(targetPath).catch(() => {})
+            await window.api.file.deleteExternalDir(targetPath).catch(() => {})
+          } catch {}
+          return
         }
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
         invalidateFileContent(targetPath)
@@ -243,7 +253,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to save note:', error as Error)
       }
     },
-    [activeFilePath, currentContent, invalidateFileContent]
+    [activeFilePath, currentContent, invalidateFileContent, isPendingDeletePath, getEffectiveGeneration]
   )
 
   // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
@@ -564,13 +574,19 @@ const NotesPage: FC = () => {
         const normalizedParent = normalizePathValue(targetPath)
         updateExpandedPaths((prev) => addUniquePath(prev, normalizedParent))
         // 若新笔记路径与待删除标记相同（用户删除后立即重建同名笔记），清除标记避免首个 autosave 被误拦截
-        // 同时推进 epoch 并记录重建路径，防止已开始的 autosave 用旧内容覆盖新文件或清理逻辑误删新文件
-        const pendingCreate = pendingDeletePathRef.current
-        if (pendingCreate) {
+        // 同时推进 generation 并记录重建路径，防止已开始的 autosave 用旧内容覆盖新文件或清理逻辑误删新文件
+        {
           const normalizedNote = normalizePathValue(notePath)
-          if (normalizedNote === pendingCreate || normalizedNote.startsWith(`${pendingCreate}/`)) {
-            pendingDeletePathRef.current = null
-            deleteEpochRef.current += 1
+          let matchedPending: string | null = null
+          for (const pending of pendingDeleteSetRef.current) {
+            if (normalizedNote === pending || normalizedNote.startsWith(`${pending}/`)) {
+              matchedPending = pending
+              break
+            }
+          }
+          if (matchedPending) {
+            pendingDeleteSetRef.current.delete(matchedPending)
+            bumpGeneration(normalizedNote)
             lastRecreatedPathRef.current = normalizedNote
             const recreated = normalizedNote
             setTimeout(() => {
@@ -578,6 +594,9 @@ const NotesPage: FC = () => {
                 lastRecreatedPathRef.current = null
               }
             }, 3000)
+          } else if (lastRecreatedPathRef.current === normalizedNote) {
+            // 同路径再次创建但无 pending（已被清理），仍需刷新 generation 以标记新一代
+            bumpGeneration(normalizedNote)
           }
         }
         dispatch(setActiveFilePath(notePath))
@@ -593,7 +612,7 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [dispatch, getTargetFolderPath, refreshTree, updateExpandedPaths]
+    [bumpGeneration, dispatch, getTargetFolderPath, refreshTree, updateExpandedPaths]
   )
 
   const handleToggleExpanded = useCallback(
@@ -673,8 +692,8 @@ const NotesPage: FC = () => {
         const preDeleteContent = lastContentRef.current
         const preDeletePath = lastFilePathRef.current
         if (isActiveRelated) {
-          pendingDeletePathRef.current = normalizedDeletePath
-          deleteEpochRef.current += 1
+          pendingDeleteSetRef.current.add(normalizedDeletePath)
+          bumpGeneration(normalizedDeletePath)
           debouncedSaveRef.current?.cancel()
         }
 
@@ -682,17 +701,27 @@ const NotesPage: FC = () => {
           await delNode(nodeToDelete)
         } catch (error) {
           if (isActiveRelated) {
-            pendingDeletePathRef.current = null
+            pendingDeleteSetRef.current.delete(normalizedDeletePath)
             const snapNorm = preDeletePath ? normalizePathValue(preDeletePath) : undefined
             const shouldRearmSnapshot =
               snapNorm === normalizedDeletePath ||
               (nodeToDelete.type === 'folder' && snapNorm?.startsWith(`${normalizedDeletePath}/`))
+            // 恢复被取消的防抖：若用户在删除等待期间已切换到其他笔记，切勿用快照的 debounce 覆盖当前笔记的待保存
+            const currentPathNorm = lastFilePathRef.current
+              ? normalizePathValue(lastFilePathRef.current)
+              : undefined
+            const switchedAway = currentPathNorm != null && snapNorm != null && currentPathNorm !== snapNorm
             if (shouldRearmSnapshot && preDeletePath != null) {
-              debouncedSaveRef.current?.(preDeleteContent, preDeletePath)
+              if (switchedAway) {
+                // 已切换：直接写回快照所属文件，不经过共享 debounce，避免取消当前笔记的 pending autosave
+                void saveCurrentNoteRef.current?.(preDeleteContent, preDeletePath).catch(() => {})
+              } else {
+                debouncedSaveRef.current?.(preDeleteContent, preDeletePath)
+              }
             } else if (lastFilePathRef.current != null) {
               debouncedSaveRef.current?.(lastContentRef.current, lastFilePathRef.current)
             } else if (preDeletePath != null) {
-              debouncedSaveRef.current?.(preDeleteContent, preDeletePath)
+              void saveCurrentNoteRef.current?.(preDeleteContent, preDeletePath).catch(() => {})
             }
           }
           throw error
@@ -721,9 +750,7 @@ const NotesPage: FC = () => {
           }
           // 保持删除标记一小段时间，拦截删除后紧接着的 emergency save / 尾随写入
           setTimeout(() => {
-            if (pendingDeletePathRef.current === normalizedDeletePath) {
-              pendingDeletePathRef.current = null
-            }
+            pendingDeleteSetRef.current.delete(normalizedDeletePath)
           }, 2000)
         }
 
@@ -732,7 +759,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to delete node:', error as Error)
       }
     },
-    [notesTree, activeFilePath, dispatch, refreshTree, updateStarredPaths, updateExpandedPaths]
+    [notesTree, activeFilePath, bumpGeneration, dispatch, refreshTree, updateStarredPaths, updateExpandedPaths]
   )
 
   // 重命名节点
