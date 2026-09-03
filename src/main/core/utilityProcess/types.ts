@@ -41,9 +41,6 @@ export type UtilityProcessDefinition<Contract extends UtilityProcessContract, In
   readonly __contract?: Contract
 }>
 
-/** The closed set of definitions installed once at boot. */
-export type UtilityProcessManifest = readonly UtilityProcessDefinition<any, any>[]
-
 export interface UtilityProcessRequestOptions<Event> {
   signal?: AbortSignal
   /** Called synchronously and in order for each event; a throw cancels the request under the definition's policy. */

@@ -2,13 +2,12 @@
 description: Entry point for core/utilityProcess — what the layer owns, how a consumer declares and calls a utility process, and the boundaries lint enforces
 sources:
   - src/main/core/utilityProcess
-  - src/main/core/application/utilityProcessManifest.ts
   - src/main/core/paths/pathRegistry.ts
 ---
 
 # Utility Process Reference
 
-`src/main/core/utilityProcess/` runs untrusted or crash-prone work in an Electron utility process instead of the main process: native model runtimes, sandboxed evaluation, third-party binaries. It owns spawning, the wire protocol, request correlation, cancellation, failure classification, and shutdown — a consumer writes a contract, an entry, and calls typed methods.
+`src/main/core/utilityProcess/` runs trusted but crash-prone work in an Electron utility process instead of the main process: native model runtimes, third-party binaries, anything that can take the main process down with it. It owns spawning, the wire protocol, request correlation, cancellation, failure classification, and shutdown — a consumer writes a contract, an entry, and calls typed methods. The process is a crash and native-library isolation boundary, not a security sandbox: the child is a full Node context with no capability or OS-level restriction, so V1 must not run untrusted code.
 
 The design rationale, the rejected alternatives, and the experiment evidence live in the [design RFC](../architecture/utility-process-rfc.md).
 
@@ -20,7 +19,7 @@ The design rationale, the rejected alternatives, and the experiment evidence liv
 
 ## What V1 is not
 
-No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. The manifest ships empty: the layer exists, no consumer has migrated yet.
+No pooling, no keyed instances, no reverse RPC (child → main), no raw byte channel, no runtime schema validation, and no automatic restart. One live process per definition, spawned on the first request. No consumer registers a process yet: the layer exists, nothing has migrated.
 
 ## Declaring a process
 
@@ -49,7 +48,7 @@ export const embeddingProcess = defineUtilityProcess<EmbeddingContract, { modelP
 - `cancellation` — `cooperative` aborts the handler's signal; `terminate` kills the whole generation. Pick `terminate` when the work is a native call that cannot be interrupted.
 - `createEnv` / `createInitData` — evaluated per generation. `createInitData` may be async; it is awaited while the process launches, so a slow factory spends the same 10 s budget the handshake does. The environment is additive only (see below).
 
-Add the definition to `src/main/core/application/utilityProcessManifest.ts`; `main.ts` installs that manifest once, before `registerAll`. `UtilityProcessManager` accepts only manifest objects, so an unregistered definition fails loudly at `client()` rather than silently spawning.
+Register the definition from the consumer service's `onInit` — `application.get('UtilityProcessManager').register(definition)` under `@DependsOn(['UtilityProcessManager'])` (the manager is `Phase.WhenReady`; the dependency orders the two). Registering the same object again is a no-op, which keeps a service restart safe; a different object with the same id is refused. `client()` accepts only registered objects, so an unregistered definition fails loudly there rather than silently spawning.
 
 ## Writing the entry
 
@@ -106,7 +105,7 @@ Utility processes are Node contexts with Electron's `net` module available, so `
 
 ## Lint boundary
 
-Child code is bundled for a process with no lifecycle container, no logger, and no database. `eslint.config.mjs` fences four globs — `core/utilityProcess/protocol/**`, `core/utilityProcess/runtime/**`, `src/main/**/utilityEntries/**`, and the smoke harness entries — against `@application`, `@logger`, `@data`, `@main/data`, `@main/ipc`, `core/lifecycle`, `core/paths`, `core/logger`, `core/application`, and the host half of this module (`host/**`, `UtilityProcessManager`, `installedManifest`). Type-only imports are allowed.
+Child code is bundled for a process with no lifecycle container, no logger, and no database. `eslint.config.mjs` fences four globs — `core/utilityProcess/protocol/**`, `core/utilityProcess/runtime/**`, `src/main/**/utilityEntries/**`, and the smoke harness entries — with an `import-x/no-restricted-paths` zone resolved against `tsconfig.node.json`: `@application`, `@logger`, `@data/*`, and any relative path into `core/application`, `core/lifecycle`, `core/logger`, `core/paths`, `data`, `ipc`, or the host half of this module (`host/**`, `UtilityProcessManager`) are judged by where they resolve, not by how they are spelled.
 
 That rule only sees direct imports. The transitive case — an innocent helper that pulls in `@logger` three modules down — is caught at build time by the entry-graph guard the smoke harness installs (`scripts/utility-process-smoke/hermeticEntryGuardPlugin.ts`); the first consumer promotes it to the production entries build. To check a boundary by hand:
 

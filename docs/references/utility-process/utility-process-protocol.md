@@ -13,7 +13,7 @@ How a request becomes a message, how a process becomes a generation, and what ea
 ## Bootstrap
 
 1. The host builds the environment and init data, resolves `out/utility-process/<entry>.js`, and forks with `stdio: 'pipe'`, `args: []`, `execArgv: []`, and `serviceName: CherryStudio.UtilityProcess.<id>`.
-2. On `spawn`, the host sends one `connect` frame over `process.parentPort`, transferring one end of a private `MessageChannelMain`. Init data rides on that frame; an async `createInitData` is started before the fork and awaited here, so it overlaps the launch instead of delaying it. A rejection fails the generation with `PROCESS_START_FAILED`.
+2. On `spawn`, the host sends one `connect` frame over `process.parentPort`, transferring one end of a private `MessageChannelMain`. Init data rides on that frame; an async `createInitData` is started before the fork and awaited here, so it overlaps the launch instead of delaying it. A rejection fails the generation with `PROCESS_START_FAILED`. A `stop()` that landed before `spawn` could not kill yet (Electron's `kill()` has no pid until then): the host kills at `spawn` instead and never connects, so the exit is an intentional `PROCESS_EXITED`; a rejected init-data outcome is discarded once the generation is stopping.
 3. The child validates the frame (protocol, version, its own `id`) — a mismatch exits `70` — attaches its port listeners **without starting the port**, and runs `initialize`.
 4. `initialize` resolving posts `ready` and starts the port; the queued requests then flow. `initialize` throwing posts `startup-error` and self-exits `71` after 1 s.
 
@@ -47,9 +47,13 @@ Either side treats these as unrecoverable, kills or exits, and fails everything 
 - an identity mismatch, or a frame that fails its shape guard;
 - a `request` for an unknown method, a non-monotonic `requestId`, or a request after `shutdown` (child exits `72`);
 - a terminal or `event` for a `requestId` main never issued, or a second terminal for one already settled;
-- a second `ready`, or a `startup-error` after `ready`.
+- a second `ready` on a ready generation, or a `startup-error` after `ready`. A `ready` that lands while an intentional stop is already under way is a race, not a violation, and is dropped.
 
 A late frame for a *cancelled* request is not a violation: main keeps a tombstone for it and drops the frame silently.
+
+## Uncaught errors
+
+An uncaught exception or unhandled rejection in the child logs at `error`, aborts every active handler, and exits `73`. From that point the child sends no request terminals: a handler unwinding under the crash must not look like a completed dispatch. Main learns of the crash from the exit alone, settles the pending requests as `PROCESS_EXITED`, and counts it against the breaker.
 
 ## Generations
 
@@ -90,7 +94,7 @@ An `onEvent` callback that throws cancels its own request under the same policy,
 
 ## Circuit breaker
 
-Three consecutive infrastructure failures open the circuit: further requests fail immediately with `PROCESS_CIRCUIT_OPEN` and nothing is spawned. Any well-formed terminal — including a handler error — resets the count to zero, because it proves the fork, handshake, and dispatch path all work. `stop({ resetFailures: true })` and a successful `withStopped(op, { resetFailures: true })` clear it deliberately. A failed stop does not.
+Three consecutive infrastructure failures open the circuit: further requests fail immediately with `PROCESS_CIRCUIT_OPEN` and nothing is spawned. Any well-formed terminal from a healthy child — including a handler error — resets the count to zero, because it proves the fork, handshake, and dispatch path all work. `stop({ resetFailures: true })` and a successful `withStopped(op, { resetFailures: true })` clear it deliberately. A failed stop does not.
 
 The third failure's error already carries `failureCount: 3` and `circuitOpen: true`, so a consumer can tell the user the circuit just opened without waiting for the next rejection.
 
@@ -98,7 +102,7 @@ The third failure's error already carries `failureCount: 3` and `circuitOpen: tr
 
 `stop()` sends `shutdown` (or kills outright if the generation never became ready), then waits: the child aborts its handlers, awaits them, runs `dispose`, closes the port, and exits `0`. A child that has not exited 1 s later is killed. If it has still not exited after 4 s total, `stop()` rejects with `PROCESS_STOP_FAILED`, pending requests are rejected too, and the generation stays quarantined — no successor spawns until its exit is finally observed.
 
-Four seconds fits under the lifecycle's 5 s stop ceiling, and the manager stops every host in parallel, so the budget is 4 s in total rather than 4 s per process.
+Four seconds fits under the lifecycle's 5 s stop ceiling, and the manager stops every host in parallel, so the budget is 4 s in total rather than 4 s per process. The manager keeps each host until its confirmed exit — across `onStop` and a service restart — so `stop()` and `withStopped()` issued during teardown still wait for the real exit, and a quarantined child blocks a successor until it is gone.
 
 ## Errors
 
@@ -115,4 +119,4 @@ Four seconds fits under the lifecycle's 5 s stop ceiling, and the manager stops 
 | `PROCESS_CIRCUIT_OPEN` | Three consecutive infrastructure failures |
 | `PROCESS_STOP_FAILED` | The process did not exit within the stop budget |
 
-A child-side clone failure never kills the process: it comes back as a `PROCESS_REMOTE_ERROR` whose `remote.code` is `PROCESS_SERIALIZATION_FAILED`.
+A child-side clone failure never kills the process: it comes back as a `PROCESS_REMOTE_ERROR` whose `remote.code` is `PROCESS_SERIALIZATION_FAILED`. An unclonable event also aborts its handler's signal; the child keeps tracking that handler until it settles, so a shutdown still waits for it before `dispose`.

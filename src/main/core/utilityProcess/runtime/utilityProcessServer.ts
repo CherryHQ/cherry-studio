@@ -165,8 +165,9 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
   ): void => {
     if (request.settled) return
     request.settled = true
-    active.delete(requestId)
     tombstones.delete(requestId)
+    // After a fatal error the exit is the only truthful signal; a terminal would read as a healthy dispatch.
+    if (failed) return
     try {
       post(frame)
     } catch (error) {
@@ -197,6 +198,9 @@ export function createUtilityProcessServer<Contract extends UtilityProcessContra
         sendTerminal(requestId, request, { kind: 'result', requestId, output })
       } catch (error) {
         sendTerminal(requestId, request, { kind: 'error', requestId, error: toRemoteError(error) })
+      } finally {
+        // Tracked until the handler settles, so shutdown waits for it even after an early terminal.
+        active.delete(requestId)
       }
     })()
   }

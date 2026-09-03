@@ -10,18 +10,23 @@ export function record(entry: EvidenceRecord): void {
   process.stdout.write(`${JSON.stringify({ ...entry, variant })}\n`)
 }
 
+export interface LogEntry {
+  level: 'debug' | 'info' | 'warn' | 'error'
+  message: string
+}
+
 export interface RecordingLogger extends UtilityProcessHostLogger {
-  /** Every message the engine logged, newest last. */
-  readonly messages: string[]
+  /** Every entry the engine logged, newest last. */
+  readonly entries: LogEntry[]
 }
 
 export function createEvidenceLogger(): RecordingLogger {
-  const messages: string[] = []
+  const entries: LogEntry[] = []
   const write =
-    (level: string) =>
+    (level: LogEntry['level']) =>
     (message: string): void => {
-      messages.push(message)
+      entries.push({ level, message })
       record({ event: 'log', level, message })
     }
-  return { messages, debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error') }
+  return { entries, debug: write('debug'), info: write('info'), warn: write('warn'), error: write('error') }
 }

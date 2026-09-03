@@ -232,10 +232,13 @@ function createHandle(child: MemoryChild, options: MemoryAdapterOptions): Proces
   let messageListener: ((data: unknown) => void) | null = null
   let errorListener: ((info: { type: string; location: string; report: string }) => void) | null = null
   void errorListener
+  let spawned = false
   child.mainPort.on('message', ({ data }) => messageListener?.(data))
   child.mainPort.start()
   queueMicrotask(() => {
-    if (!options.noSpawnEvent && !child.exited) spawnListener?.()
+    if (options.noSpawnEvent || child.exited) return
+    spawned = true
+    spawnListener?.()
   })
   return {
     get pid() {
@@ -253,7 +256,8 @@ function createHandle(child: MemoryChild, options: MemoryAdapterOptions): Proces
       child.childPort.enqueue(cloned)
     },
     kill() {
-      child.handleKill()
+      // Electron's UtilityProcess.kill() has no pid before `spawn` and is a no-op there.
+      if (spawned) child.handleKill()
     },
     onSpawn(listener) {
       spawnListener = listener

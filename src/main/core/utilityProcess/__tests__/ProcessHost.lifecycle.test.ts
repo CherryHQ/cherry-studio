@@ -117,6 +117,32 @@ describe('ProcessHost lifecycle', () => {
     await waitUntil(() => adapter.spawns[0].child.killed, 'child kill')
   })
 
+  it('reports the spawn failure when createInitData rejects and spawn throws, leaving no unhandled rejection', async () => {
+    const adapter = createMemoryProcessAdapter(undefined, { spawnThrows: new Error('ENOENT') })
+    const { host } = createHost({
+      adapter,
+      definition: { createInitData: () => Promise.reject(new Error('proxy flush failed')) }
+    })
+
+    const error = expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_START_FAILED')
+    expect((error.cause as Error).message).toBe('ENOENT')
+    await flushMicrotasks()
+  })
+
+  it('fails on the ready deadline when createInitData rejects and spawn never fires, leaving no unhandled rejection', async () => {
+    const adapter = createMemoryProcessAdapter(undefined, { noSpawnEvent: true })
+    const { host } = createHost({
+      adapter,
+      definition: { createInitData: () => Promise.reject(new Error('proxy flush failed')) }
+    })
+    const pending = rejectionOf(host.request('ping', undefined))
+
+    await vi.advanceTimersByTimeAsync(READY_TIMEOUT_MS)
+
+    expectCode(await pending, 'PROCESS_START_FAILED')
+    await flushMicrotasks()
+  })
+
   it('maps a failed child initialize to PROCESS_START_FAILED carrying the remote error', async () => {
     const { script } = echoScript({
       initialize: () => {

@@ -4,7 +4,7 @@ import { STOP_TOTAL_MS } from '../protocol/constants'
 import type { MainFrame } from '../protocol/frames'
 import { isUtilityProcessError, type UtilityProcessError, type UtilityProcessErrorCode } from '../UtilityProcessError'
 import { createHost, echoScript, rejectionOf } from './hostTestUtils'
-import { flushMicrotasks, type MemoryChild, type MemoryChildScript } from './memoryProcessAdapter'
+import { flushMicrotasks, type MemoryChild, type MemoryChildScript, waitUntil } from './memoryProcessAdapter'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
@@ -58,6 +58,24 @@ describe('ProcessHost circuit breaker', () => {
     const error = expectCode(await crashed, 'PROCESS_EXITED')
     expect(error.failureCount).toBe(1)
     expect(error.circuitOpen).toBe(false)
+  })
+
+  it('opens the circuit after three crashes even when a handler unwinds during each crash', async () => {
+    const { script, states } = echoScript()
+    const { host } = createHost({ script })
+    const errors: UtilityProcessError[] = []
+
+    for (let round = 0; round < 3; round += 1) {
+      const waiting = rejectionOf(host.request('wait', undefined))
+      await waitUntil(() => states[round]?.waitSignals.length === 1, 'wait handler started')
+      const crashed = rejectionOf(host.request('crash', undefined))
+      await vi.advanceTimersByTimeAsync(0)
+      errors.push(expectCode(await waiting, 'PROCESS_EXITED'), expectCode(await crashed, 'PROCESS_EXITED'))
+    }
+
+    expect(errors.map((error) => error.failureCount)).toEqual([1, 1, 2, 2, 3, 3])
+    expect(errors.at(-1)?.circuitOpen).toBe(true)
+    expectCode(await rejectionOf(host.request('ping', undefined)), 'PROCESS_CIRCUIT_OPEN')
   })
 
   it('counts unrequested clean exits and protocol violations', async () => {
