@@ -1256,6 +1256,7 @@
   "error.lastError": "Son Hata",
   "error.maxEmbeddingsPerCall": "Çağrı Başına Maksimum Gömme Sayısı",
   "error.message": "Hata Mesajı",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> yanıtı bir bitiş nedeni döndürmeden sonlandırdı. Alınan kısmi yanıt korundu; isteği yeniden deneyin.",
   "error.missing_user_message": "Model yanıtı değiştirilemiyor: Kullanıcının özgün mesajı silinmiş. Bu modelden yanıt almak için yeni bir mesaj gönderin.",
   "error.model.exists": "Model zaten mevcut",
   "error.model.not_exists": "Model mevcut değil",
