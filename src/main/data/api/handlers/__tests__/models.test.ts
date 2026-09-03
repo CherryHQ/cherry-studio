@@ -6,7 +6,8 @@ import {
   CreateModelsSchema,
   DeleteModelsQuerySchema,
   MODELS_BATCH_MAX_ITEMS,
-  MODELS_DELETE_MAX_IDS
+  MODELS_DELETE_MAX_IDS,
+  UpdateModelSchema
 } from '@shared/data/api/schemas/models'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +22,7 @@ const {
   bulkDeleteMock,
   createMock,
   bulkUpdateMock,
+  reconcileForProviderMock,
   lookupModelMock,
   resolveModelsMock,
   getImageGenerationSupportMock
@@ -32,6 +34,7 @@ const {
   bulkDeleteMock: vi.fn(),
   createMock: vi.fn(),
   bulkUpdateMock: vi.fn(),
+  reconcileForProviderMock: vi.fn(),
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
   getImageGenerationSupportMock: vi.fn()
@@ -45,7 +48,8 @@ vi.mock('@data/services/ModelService', () => ({
     delete: deleteMock,
     bulkDelete: bulkDeleteMock,
     create: createMock,
-    bulkUpdate: bulkUpdateMock
+    bulkUpdate: bulkUpdateMock,
+    reconcileForProvider: reconcileForProviderMock
   }
 }))
 
@@ -66,6 +70,13 @@ beforeEach(() => {
 })
 
 describe('Model handler validation', () => {
+  it('distinguishes setting, omitting, and clearing positive model token limits', () => {
+    expect(UpdateModelSchema.parse({ contextWindow: 128_000 })).toEqual({ contextWindow: 128_000 })
+    expect(UpdateModelSchema.parse({})).not.toHaveProperty('contextWindow')
+    expect(UpdateModelSchema.parse({ contextWindow: null })).toEqual({ contextWindow: null })
+    expect(() => UpdateModelSchema.parse({ contextWindow: 0 })).toThrow()
+  })
+
   it('accepts create payload arrays up to the configured limit', () => {
     const items = Array.from({ length: MODELS_BATCH_MAX_ITEMS }, (_, index) => ({
       providerId: 'openai',
@@ -124,20 +135,20 @@ describe('Model handler validation', () => {
 
 describe('/models', () => {
   it('delegates GET to modelService.list with an empty query when none is provided', async () => {
-    listMock.mockReturnValueOnce([{ id: 'openai::gpt-4' }])
+    listMock.mockReturnValueOnce([{ id: 'openai::gpt-4', providerId: 'openai' }])
 
     const result = await modelHandlers['/models'].GET({} as never)
 
     expect(listMock).toHaveBeenCalledWith({})
-    expect(result).toEqual([{ id: 'openai::gpt-4' }])
+    expect(result).toEqual([{ id: 'openai::gpt-4', providerId: 'openai' }])
   })
 
   it('forwards a provided GET query to modelService.list', async () => {
     listMock.mockReturnValueOnce([])
 
-    await modelHandlers['/models'].GET({ query: { providerId: 'openai' } } as never)
+    await modelHandlers['/models'].GET({ query: { providerId: 'openai', enabled: true } } as never)
 
-    expect(listMock).toHaveBeenCalledWith({ providerId: 'openai' })
+    expect(listMock).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
   })
 
   it('passes registry data to modelService.create for a single-item array', async () => {
@@ -406,6 +417,17 @@ describe('/models/:uniqueModelId*', () => {
 
     expect(updateMock).toHaveBeenCalledWith('qwen', 'qwen/qwen3-vl', { isEnabled: false })
     expect(result).toBe(updated)
+  })
+
+  it('forwards an explicit null model limit as a clear operation', async () => {
+    updateMock.mockReturnValueOnce({ id: 'openai::gpt-4o' })
+
+    await modelHandlers['/models/:uniqueModelId*'].PATCH({
+      params: { uniqueModelId: 'openai::gpt-4o' },
+      body: { maxOutputTokens: null }
+    } as never)
+
+    expect(updateMock).toHaveBeenCalledWith('openai', 'gpt-4o', { maxOutputTokens: null })
   })
   it('splits a slash-containing uniqueModelId at the first :: and forwards DELETE', async () => {
     deleteMock.mockReturnValueOnce(undefined)

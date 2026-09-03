@@ -637,11 +637,14 @@ export class KnowledgeItemService {
    * cannot statically prove the patched key belongs to the resolved item type —
    * `allowedTypes` is the runtime guard that makes the cast sound, so the two are
    * load-bearing together and must be kept in sync.
+   *
+   * A `null` patch value removes the key rather than storing a sentinel, because the
+   * optional path fields are read by absence (`toMaterialRelativePath`'s `??`).
    */
   private patchItemData(
     id: string,
     allowedTypes: KnowledgeItemType[],
-    patch: { indexedRelativePath: string } | { relativePath: string },
+    patch: { indexedRelativePath: string | null } | { relativePath: string },
     label: string
   ): KnowledgeItem {
     const dbService = application.get('DbService')
@@ -659,10 +662,17 @@ export class KnowledgeItemService {
         })
       }
 
+      const nextData: Record<string, unknown> = { ...existingItem.data, ...patch }
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) {
+          delete nextData[key]
+        }
+      }
+
       const [updatedRow] = tx
         .update(knowledgeItemTable)
         .set({
-          data: { ...existingItem.data, ...patch } as KnowledgeItemData
+          data: nextData as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()
@@ -684,6 +694,15 @@ export class KnowledgeItemService {
 
   updateIndexedRelativePath(id: string, indexedRelativePath: string): KnowledgeItem {
     return this.patchItemData(id, ['file'], { indexedRelativePath }, 'indexed relative path')
+  }
+
+  /**
+   * Unpin a file item from its processed artifact so it indexes from its own bytes again.
+   * Used when a reindex refreshed the source but the base will not regenerate the artifact,
+   * which would otherwise keep describing content the file no longer has.
+   */
+  clearIndexedRelativePath(id: string): KnowledgeItem {
+    return this.patchItemData(id, ['file'], { indexedRelativePath: null }, 'indexed relative path')
   }
 
   /**

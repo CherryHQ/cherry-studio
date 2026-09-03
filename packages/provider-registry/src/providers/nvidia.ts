@@ -83,6 +83,7 @@ const chatContract = (support: ReasoningSupport, wire: ReasoningWireProfile) => 
 export default openaiCompatible({
   id: 'nvidia',
   name: 'nvidia',
+  availableInEditions: ['global'],
   baseUrl: 'https://integrate.api.nvidia.com',
   additionalEndpointConfigs: {
     'jina-rerank': { adapterFamily: 'openai-compatible' },

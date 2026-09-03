@@ -146,9 +146,13 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 
-vi.mock('@main/utils/processRunner', () => ({
-  crossPlatformSpawn: crossPlatformSpawnMock
-}))
+vi.mock('@main/utils/processRunner', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    crossPlatformSpawn: crossPlatformSpawnMock
+  }
+})
 
 vi.mock('@shared/utils', () => ({
   hasApiVersion: vi.fn(() => false),
@@ -899,6 +903,46 @@ describe('OpenClawService gateway status state machine', () => {
         })
       )
       expect(child.unref).toHaveBeenCalledOnce()
+    })
+
+    it('strips proxy variables from the gateway spawn env without mutating the source shellEnv', async () => {
+      const child = createSpawnChild()
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const shellEnv = {
+        PATH: '/usr/local/bin:/usr/bin',
+        HTTP_PROXY: 'socks5://127.0.0.1:1080',
+        HTTPS_PROXY: 'http://127.0.0.1:7897',
+        http_proxy: 'socks5://127.0.0.1:1080',
+        ALL_PROXY: 'socks5://127.0.0.1:1080',
+        SOCKS_PROXY: 'socks5://127.0.0.1:1080',
+        NO_PROXY: 'localhost',
+        GRPC_PROXY: 'http://proxy.example',
+        CHERRY_STUDIO_NODE_PROXY_RULES: 'socks5://127.0.0.1:1080',
+        CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES: 'localhost',
+        USER_DEFINED_TOKEN: 'keep-me',
+        MISE_DATA_DIR: '/user/mise'
+      }
+      const sourceSnapshot = { ...shellEnv }
+
+      const started = (service as any).startAndWaitForGateway('/usr/local/bin/openclaw', shellEnv)
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(started).resolves.toBeUndefined()
+
+      expect(crossPlatformSpawnMock.mock.calls[0][2].env).toEqual({
+        PATH: '/usr/local/bin:/usr/bin',
+        USER_DEFINED_TOKEN: 'keep-me',
+        MISE_DATA_DIR: '/user/mise',
+        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+        OPENCLAW_NO_AUTO_UPDATE: '1'
+      })
+      expect(shellEnv).toEqual(sourceSnapshot)
     })
 
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {

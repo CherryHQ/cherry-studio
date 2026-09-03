@@ -341,7 +341,7 @@ export function ProcessorPanel({
 
       {requiredLocalModel ? (
         <LocalModelRequirement
-          model={requiredLocalModel}
+          capability={requiredLocalModel}
           description={t(getProcessorDescriptionKey(processor.id))}
           onReady={() => commitPendingDefault(entry)}
         />

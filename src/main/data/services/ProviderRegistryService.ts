@@ -75,6 +75,8 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+  /** Application editions that should offer the resolved preset. */
+  availableInEditions?: Provider['availableInEditions']
   /** Registry capability: where the model list comes from (default `'api'`). */
   modelListSource?: 'api' | 'registry'
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
@@ -769,6 +771,7 @@ class ProviderRegistryService {
       return {
         description: provider?.description,
         websites: provider?.metadata?.website,
+        availableInEditions: provider?.availableInEditions,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
@@ -1187,6 +1190,7 @@ class ProviderRegistryService {
    * @returns Array of fully resolved Model objects
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
+    getDataService('ProviderService').assertAvailable(providerId)
     const loader = this.getLoader()
     const providerContext = this.getEffectiveProviderContext(providerId)
     const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
@@ -1366,6 +1370,7 @@ class ProviderRegistryService {
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
   getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
+    getDataService('ProviderService').assertAvailable(providerId)
     const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
     // Override wins — lets vendor-exclusive overrides declare their own
     // imageGeneration block without polluting the global models.json.

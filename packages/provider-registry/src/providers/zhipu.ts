@@ -37,6 +37,7 @@ const glm53Wire: ReasoningWireProfile = {
 export default openaiCompatible({
   id: 'zhipu',
   name: 'ZhiPu',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
   additionalEndpointConfigs: {
     'openai-embeddings': { adapterFamily: 'zhipu' },

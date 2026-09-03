@@ -4,6 +4,7 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
+import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { type EndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
@@ -53,18 +54,15 @@ interface BuildPatchOverrides {
   classification?: ModelClassificationState
   supportsStreaming?: boolean
   pricing?: Model['pricing']
-  contextWindow?: string
-  maxInputTokens?: string
-  maxOutputTokens?: string
+  contextWindow?: number | null
+  maxInputTokens?: number | null
+  maxOutputTokens?: number | null
 }
-
-/** `preferredEndpointType` widens to `null` so the drawer can clear the pin, which `Model` cannot express. */
-type ModelPatch = Omit<Partial<Model>, 'preferredEndpointType'> & { preferredEndpointType?: EndpointType | null }
 
 interface AutoSaveQueueItem {
   providerId: string
   modelId: string
-  patch: ModelPatch
+  patch: UpdateModelDto
 }
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
@@ -86,9 +84,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
-  const [contextWindow, setContextWindow] = useState('')
-  const [maxInputTokens, setMaxInputTokens] = useState('')
-  const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [contextWindow, setContextWindow] = useState<number | null>(null)
+  const [maxInputTokens, setMaxInputTokens] = useState<number | null>(null)
+  const [maxOutputTokens, setMaxOutputTokens] = useState<number | null>(null)
   const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
@@ -137,34 +135,21 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setShowMoreSettings(true)
     setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
-    setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
-    setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
-    setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    setContextWindow(model.contextWindow ?? null)
+    setMaxInputTokens(model.maxInputTokens ?? null)
+    setMaxOutputTokens(model.maxOutputTokens ?? null)
     setInitializedModel(model)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
     async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
-      await updateModel(providerId, modelId, {
-        name: patch.name,
-        group: patch.group,
-        capabilities: patch.capabilities,
-        inputModalities: patch.inputModalities,
-        outputModalities: patch.outputModalities,
-        supportsStreaming: patch.supportsStreaming,
-        endpointTypes: patch.endpointTypes,
-        preferredEndpointType: patch.preferredEndpointType,
-        contextWindow: patch.contextWindow,
-        maxInputTokens: patch.maxInputTokens,
-        maxOutputTokens: patch.maxOutputTokens,
-        ...(Object.hasOwn(patch, 'pricing') ? { pricing: patch.pricing } : {})
-      })
+      await updateModel(providerId, modelId, patch)
     },
     [updateModel]
   )
 
   const buildPatch = useCallback(
-    (overrides?: BuildPatchOverrides): ModelPatch => {
+    (overrides?: BuildPatchOverrides): UpdateModelDto => {
       if (!model) {
         return {}
       }
@@ -173,6 +158,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextGroup = overrides?.group ?? group
       const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
       const hasPricingOverride = overrides != null && Object.hasOwn(overrides, 'pricing')
+      const hasContextWindowOverride = overrides != null && Object.hasOwn(overrides, 'contextWindow')
+      const hasMaxInputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxInputTokens')
+      const hasMaxOutputTokensOverride = overrides != null && Object.hasOwn(overrides, 'maxOutputTokens')
+      const nextContextWindow = hasContextWindowOverride ? overrides?.contextWindow : contextWindow
+      const nextMaxInputTokens = hasMaxInputTokensOverride ? overrides?.maxInputTokens : maxInputTokens
+      const nextMaxOutputTokens = hasMaxOutputTokensOverride ? overrides?.maxOutputTokens : maxOutputTokens
       const nextClassification = overrides?.classification
       const effectiveClassification = nextClassification ?? classification
       const classifiedCapabilities = nextClassification
@@ -194,9 +185,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { capabilities: classifiedCapabilities, inputModalities: classifiedInputModalities }
           : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
-        contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
-        maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
-        maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
+        ...(hasContextWindowOverride && nextContextWindow !== undefined ? { contextWindow: nextContextWindow } : {}),
+        ...(hasMaxInputTokensOverride && nextMaxInputTokens !== undefined
+          ? { maxInputTokens: nextMaxInputTokens }
+          : {}),
+        ...(hasMaxOutputTokensOverride && nextMaxOutputTokens !== undefined
+          ? { maxOutputTokens: nextMaxOutputTokens }
+          : {}),
         ...(hasPricingOverride ? { pricing: overrides.pricing } : {})
       }
     },
@@ -442,11 +437,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   maxInputTokens={maxInputTokens}
                   maxOutputTokens={maxOutputTokens}
                   onContextWindowChange={setContextWindow}
-                  onContextWindowCommit={(value) => autoSave({ contextWindow: value })}
+                  // The committed value is passed through rather than read back
+                  // from state, which has not re-rendered yet at this point.
+                  onContextWindowCommit={(contextWindow) => autoSave({ contextWindow })}
                   onMaxInputTokensChange={setMaxInputTokens}
-                  onMaxInputTokensCommit={(value) => autoSave({ maxInputTokens: value })}
+                  onMaxInputTokensCommit={(maxInputTokens) => autoSave({ maxInputTokens })}
                   onMaxOutputTokensChange={setMaxOutputTokens}
-                  onMaxOutputTokensCommit={(value) => autoSave({ maxOutputTokens: value })}
+                  onMaxOutputTokensCommit={(maxOutputTokens) => autoSave({ maxOutputTokens })}
                 />
               </div>
 

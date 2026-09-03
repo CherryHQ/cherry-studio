@@ -5,6 +5,7 @@ import {
   areModelClassificationsEqual,
   buildModelCapabilities,
   buildModelInputModalities,
+  getInitialAddModelFormState,
   getInitialModelClassification,
   MODEL_ENDPOINT_OPTIONS,
   splitModelIds
@@ -114,5 +115,26 @@ describe('model drawer classification helpers', () => {
     const capabilities = buildModelCapabilities(model.capabilities, classification)
 
     expect(capabilities).toEqual([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING])
+  })
+})
+
+describe('getInitialAddModelFormState', () => {
+  it('keeps persisted token limits numeric and uses null for missing limits', () => {
+    const form = getInitialAddModelFormState({
+      model: makeModel({
+        id: 'openai::gpt-test',
+        name: 'GPT Test',
+        contextWindow: 128_000,
+        maxInputTokens: 64_000
+      })
+    })
+
+    expect(form).toEqual(
+      expect.objectContaining({
+        contextWindow: 128_000,
+        maxInputTokens: 64_000,
+        maxOutputTokens: null
+      })
+    )
   })
 })

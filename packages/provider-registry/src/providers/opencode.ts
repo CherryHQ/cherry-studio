@@ -125,6 +125,13 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
       'openai-responses': { support: effortSupport(['minimal', 'low', 'medium', 'high', 'xhigh']) }
     }
   },
+  {
+    modelId: 'muse-spark-1-3-contributor',
+    endpointTypes: ['openai-responses' as const],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['minimal', 'low', 'medium', 'high', 'xhigh']) }
+    }
+  },
   ...anthropicFixedModels.map((modelId) => ({
     modelId,
     endpointTypes: ['anthropic-messages' as const],
@@ -157,6 +164,7 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
 export default defineProvider({
   id: 'opencode',
   name: 'OpenCode Go',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

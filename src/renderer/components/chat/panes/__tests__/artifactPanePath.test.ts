@@ -27,6 +27,12 @@ describe('artifactPanePath', () => {
   it('rejects an ambiguous Windows drive-relative path instead of redirecting it to the drive root', () => {
     expect(resolveArtifactPaneFileSelection('D:/work', 'D:notes/report.md')).toBeNull()
   })
+
+  it('preserves a UNC file outside the current workspace', () => {
+    const selection = resolveArtifactPaneFileSelection('D:/work', '\\\\server\\share\\docs\\report.md')
+
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('\\\\server\\share\\docs\\report.md')
+  })
 })
 
 describe('getCopyableAbsolutePath', () => {
