@@ -250,6 +250,7 @@ describe('processMessage model-id parsing', () => {
         outputFormat: 'anthropic'
       })
     ).rejects.toMatchObject({ status: 403 })
+    expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
@@ -270,6 +271,11 @@ describe('processMessage model-id parsing', () => {
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
+    expect(mockListModels).toHaveBeenCalledWith({
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      enabled: true,
+      includeAgentOnly: true
+    })
     void captured.opts!.listener!.onDone({} as any)
 
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
