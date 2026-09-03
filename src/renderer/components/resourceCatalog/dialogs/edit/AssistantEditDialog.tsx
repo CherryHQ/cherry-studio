@@ -199,6 +199,7 @@ export function AssistantEditDialog({
   open,
   onOpenChange,
   modelFilter,
+  isModelDisabled,
   initialTab
 }: AssistantEditDialogProps) {
   if (!resource) return null
@@ -209,6 +210,7 @@ export function AssistantEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       modelFilter={modelFilter}
+      isModelDisabled={isModelDisabled}
       initialTab={initialTab}
     />
   )
@@ -219,6 +221,7 @@ function AssistantEditDialogContent({
   open,
   onOpenChange,
   modelFilter,
+  isModelDisabled,
   initialTab
 }: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
@@ -375,6 +378,7 @@ function AssistantEditDialogContent({
           <AssistantBasicFields
             form={form}
             modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -420,6 +424,8 @@ function AssistantEditDialogContent({
         <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
           <AssistantAdvancedFields
             form={form}
+            modelFilter={modelFilter}
+            isModelDisabled={isModelDisabled}
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
@@ -438,6 +444,7 @@ function AssistantEditDialogContent({
 function AssistantBasicFields({
   form,
   modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -450,7 +457,8 @@ function AssistantBasicFields({
   onSettingsNavigate
 }: {
   form: UseFormReturn<AssistantEditFormValues>
-  modelFilter?: (model: Model) => boolean
+  modelFilter: EditDialogBaseProps['modelFilter']
+  isModelDisabled: EditDialogBaseProps['isModelDisabled']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -506,6 +514,7 @@ function AssistantBasicFields({
         label={t('common.model')}
         allowClear
         filter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -696,11 +705,15 @@ function AssistantToolsFields({
 
 function AssistantAdvancedFields({
   form,
+  modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels
 }: {
   form: UseFormReturn<AssistantEditFormValues>
+  modelFilter: EditDialogBaseProps['modelFilter']
+  isModelDisabled: EditDialogBaseProps['isModelDisabled']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -875,6 +888,8 @@ function AssistantAdvancedFields({
 
       <ContextManagementFields
         form={form}
+        modelFilter={modelFilter}
+        isModelDisabled={isModelDisabled}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
@@ -905,12 +920,16 @@ function AssistantAdvancedFields({
 
 function ContextManagementFields({
   form,
+  modelFilter,
+  isModelDisabled,
   portalContainer,
   modelLabels,
   setModelLabels,
   globalDefaults
 }: {
   form: UseFormReturn<AssistantEditFormValues>
+  modelFilter: EditDialogBaseProps['modelFilter']
+  isModelDisabled: EditDialogBaseProps['isModelDisabled']
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -1106,7 +1125,8 @@ function ContextManagementFields({
             allowClear
             emptyLabel={t('library.config.basic.context_compress_model_follow')}
             // A compression model summarizes history — only chat-capable models qualify.
-            filter={(model) => !isNonChatModel(model)}
+            filter={(model, provider) => !isNonChatModel(model) && (modelFilter?.(model, provider) ?? true)}
+            isModelDisabled={isModelDisabled}
             portalContainer={portalContainer}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}

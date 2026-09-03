@@ -226,6 +226,16 @@ export interface CreateModelInput {
   registryData?: CreateModelRegistryData
 }
 
+interface ProviderModelReconcilePayload {
+  toAdd: CreateModelInput[]
+  toRemove: string[]
+}
+
+interface ProviderModelReconcileResult {
+  models: Model[]
+  deletedIds: string[]
+}
+
 type NewUserModelInput = Omit<InsertUserModelRow, 'orderKey'>
 
 function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
@@ -1062,56 +1072,13 @@ class ModelService {
     }
 
     const db = application.get('DbService').getDb()
-    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
     const removalFilter = this.filterReconcileRemovals(providerId, payload.toRemove, db)
     const toRemove = removalFilter.toRemove
-
-    let actuallyDeleted = 0
-    const deletedIds: string[] = []
-    const rows = withSqliteErrors(
-      () =>
-        db.transaction((tx) => {
-          if (toRemove.length > 0) {
-            for (let i = 0; i < toRemove.length; i += SQLITE_INARRAY_CHUNK) {
-              const chunk = toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
-              const deletedRows = tx
-                .delete(userModelTable)
-                .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
-                .returning({ id: userModelTable.id })
-                .all()
-              actuallyDeleted += deletedRows.length
-              deletedIds.push(...deletedRows.map((row) => row.id))
-
-              if (deletedRows.length > 0) {
-                pinService.purgeForEntitiesTx(
-                  tx,
-                  'model',
-                  deletedRows.map((row) => row.id)
-                )
-              }
-            }
-          }
-
-          if (values.length > 0) {
-            // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
-            const INSERT_CHUNK_SIZE = 500
-            for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
-              insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
-                pkColumn: userModelTable.id,
-                scope: eq(userModelTable.providerId, providerId)
-              })
-            }
-          }
-
-          return tx
-            .select()
-            .from(userModelTable)
-            .where(eq(userModelTable.providerId, providerId))
-            .orderBy(asc(userModelTable.orderKey))
-            .all() as UserModelRow[]
-        }),
-      createModelsSqliteHandlers(values)
-    )
+    const result = this.applyProviderModelReconcile(providerId, {
+      toAdd: payload.toAdd,
+      toRemove
+    })
+    const actuallyDeleted = result.deletedIds.length
 
     if (actuallyDeleted < toRemove.length) {
       // Stale renderer state — caller's toRemove referenced IDs that no longer
@@ -1126,9 +1093,7 @@ class ModelService {
       })
     }
 
-    if (actuallyDeleted > 0) pinService.notifyPurged()
-
-    const deletedPresetBackedIds = deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
+    const deletedPresetBackedIds = result.deletedIds.filter((id) => removalFilter.presetBackedRemovalIds.has(id))
     if (deletedPresetBackedIds.length > 0) {
       logger.info('Deleted preset-backed models during reconcile', {
         providerId,
@@ -1139,11 +1104,61 @@ class ModelService {
 
     logger.info('Reconciled provider models', {
       providerId,
-      added: values.length,
+      added: payload.toAdd.length,
       removed: actuallyDeleted
     })
 
-    return this.enrichRowsFromRegistry(rows)
+    return result.models
+  }
+
+  private applyProviderModelReconcile(
+    providerId: string,
+    payload: ProviderModelReconcilePayload
+  ): ProviderModelReconcileResult {
+    const dbService = application.get('DbService')
+    const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const deletedIds: string[] = []
+    const rows = withSqliteErrors(
+      () =>
+        dbService.withWriteTx((tx) => {
+          for (let i = 0; i < payload.toRemove.length; i += SQLITE_INARRAY_CHUNK) {
+            const chunk = payload.toRemove.slice(i, i + SQLITE_INARRAY_CHUNK)
+            const deletedRows = tx
+              .delete(userModelTable)
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, chunk)))
+              .returning({ id: userModelTable.id })
+              .all()
+            deletedIds.push(...deletedRows.map((row) => row.id))
+            if (deletedRows.length > 0) {
+              pinService.purgeForEntitiesTx(
+                tx,
+                'model',
+                deletedRows.map((row) => row.id)
+              )
+            }
+          }
+
+          // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
+          const INSERT_CHUNK_SIZE = 500
+          for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
+            insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+              pkColumn: userModelTable.id,
+              scope: eq(userModelTable.providerId, providerId)
+            })
+          }
+
+          return tx
+            .select()
+            .from(userModelTable)
+            .where(eq(userModelTable.providerId, providerId))
+            .orderBy(asc(userModelTable.orderKey))
+            .all() as UserModelRow[]
+        }),
+      createModelsSqliteHandlers(values)
+    )
+
+    if (deletedIds.length > 0) pinService.notifyPurged()
+    return { models: this.enrichRowsFromRegistry(rows), deletedIds }
   }
 
   /**
