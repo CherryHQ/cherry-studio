@@ -24,6 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import { checkModelsHealth } from './checkModelsHealth'
+import { clearModelHealthStatus, writeModelHealthStatus } from './modelHealthStatusCache'
 
 const logger = loggerService.withContext('ProviderSettings:ModelCheck')
 
@@ -89,16 +90,30 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const { credentialChangeVersion, prepareCredentials } = credentialsState
-  const [modelStatuses, setModelStatuses] = useState<ModelWithStatus[]>([])
   const [isChecking, setIsChecking] = useState(false)
   const isCheckingRef = useRef(false)
   const modelsRef = useRef(models)
+  const statusesRef = useRef<ModelWithStatus[]>([])
   const runIdRef = useRef(0)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   useLayoutEffect(() => {
     modelsRef.current = models
   }, [models])
+
+  /**
+   * Publishes the run's rows and drops every other row's result — including results a
+   * previous mount left in the cache. The cache itself skips writes whose value is unchanged.
+   */
+  const publishStatuses = useCallback((statuses: ModelWithStatus[]) => {
+    const nextIds = new Set(statuses.map((status) => status.model.id))
+    const staleIds = [...statusesRef.current.map((status) => status.model.id), ...modelsRef.current.map((m) => m.id)]
+    for (const modelId of staleIds) {
+      if (!nextIds.has(modelId)) clearModelHealthStatus(modelId)
+    }
+    statusesRef.current = statuses
+    statuses.forEach(writeModelHealthStatus)
+  }, [])
 
   const abortInFlightCheck = useCallback(() => {
     abortControllerRef.current?.abort()
@@ -144,11 +159,8 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
             const originalIndex = originalIndexes[index]
             if (originalIndex == null) return
 
-            setModelStatuses((current) => {
-              const updated = [...current]
-              updated[originalIndex] = checkResult
-              return updated
-            })
+            statusesRef.current = statusesRef.current.with(originalIndex, checkResult)
+            writeModelHealthStatus(checkResult)
           }
         )
         if (runIdRef.current !== runId || controller.signal.aborted) return
@@ -159,7 +171,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
           if (originalIndex != null) finalStatuses[originalIndex] = result
         })
         finalStatuses = reconcileModelStatuses(finalStatuses, modelsRef.current)
-        setModelStatuses(finalStatuses)
+        publishStatuses(finalStatuses)
         toast.success(summarizeHealthResults(finalStatuses, provider?.name))
       } catch (error) {
         if (runIdRef.current !== runId || controller.signal.aborted) return
@@ -173,7 +185,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
         }
       }
     },
-    [provider?.name, providerId]
+    [provider?.name, providerId, publishStatuses]
   )
 
   const startHealthCheck = useCallback(
@@ -212,7 +224,7 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
         const checkableModels = originalIndexes
           .map((index) => runModels[index])
           .filter((model): model is Model => !!model)
-        setModelStatuses(initialStatuses)
+        publishStatuses(initialStatuses)
 
         if (checkableModels.length === 0) {
           abortControllerRef.current = null
@@ -253,29 +265,24 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
         }
       }
     },
-    [abortInFlightCheck, prepareCredentials, provider, providerId, runHealthCheck]
+    [abortInFlightCheck, prepareCredentials, provider, providerId, publishStatuses, runHealthCheck]
   )
 
+  // Any change to what is being checked (provider, endpoint, credentials) invalidates the run and
+  // its results; the cleanup also covers unmount.
   useEffect(() => {
-    abortInFlightCheck()
-    setModelStatuses([])
-  }, [abortInFlightCheck, anthropicApiHost, apiHost, provider?.id, providerId])
-
-  useEffect(() => {
-    abortInFlightCheck()
-    setModelStatuses([])
-  }, [abortInFlightCheck, credentialChangeVersion])
+    publishStatuses([])
+    return abortInFlightCheck
+  }, [abortInFlightCheck, anthropicApiHost, apiHost, credentialChangeVersion, providerId, publishStatuses])
 
   useEffect(() => {
     if (isChecking) return
-    setModelStatuses((current) => reconcileModelStatuses(current, models))
-  }, [isChecking, models])
-
-  useEffect(() => () => abortInFlightCheck(), [abortInFlightCheck])
+    const nextStatuses = reconcileModelStatuses(statusesRef.current, models)
+    if (nextStatuses !== statusesRef.current) publishStatuses(nextStatuses)
+  }, [isChecking, models, publishStatuses])
 
   return {
     isChecking,
-    modelStatuses,
     startHealthCheck
   }
 }

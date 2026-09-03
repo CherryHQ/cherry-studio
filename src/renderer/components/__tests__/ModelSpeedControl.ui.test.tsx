@@ -5,11 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  ComposerSpeedControl,
-  resolveComposerReasoningEffort,
-  resolveComposerServiceTier
-} from '../ComposerSpeedControl'
+import { ModelSpeedControl, resolveSupportedReasoningEffort, resolveSupportedServiceTier } from '../ModelSpeedControl'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -107,7 +103,7 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
   const [fastMode, setFastMode] = useState(false)
 
   return (
-    <ComposerSpeedControl
+    <ModelSpeedControl
       model={model}
       reasoningEffort={reasoningEffort}
       fastMode={fastMode}
@@ -120,7 +116,7 @@ function ControlledSpeedControl({ model, initialEffort }: { model: Model; initia
 function ControlledServiceTier({ model, initialTier }: { model: Model; initialTier: ServiceTierSelection }) {
   const [serviceTier, setServiceTier] = useState<ServiceTierSelection>(initialTier)
   return (
-    <ComposerSpeedControl
+    <ModelSpeedControl
       model={model}
       reasoningEffort="default"
       serviceTier={serviceTier}
@@ -132,14 +128,14 @@ function ControlledServiceTier({ model, initialTier }: { model: Model; initialTi
   )
 }
 
-describe('ComposerSpeedControl UI', () => {
+describe('ModelSpeedControl UI', () => {
   it('preserves a stored Default for a multi-tier slider model', () => {
-    expect(resolveComposerReasoningEffort(codexModel, 'default')).toBe('default')
+    expect(resolveSupportedReasoningEffort(codexModel, 'default')).toBe('default')
   })
 
   it('preserves Default for a menu-only reasoning model', () => {
     expect(
-      resolveComposerReasoningEffort(
+      resolveSupportedReasoningEffort(
         {
           ...codexModel,
           reasoning: {
@@ -161,16 +157,16 @@ describe('ComposerSpeedControl UI', () => {
     const slider = screen.getByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '5')
     expect(slider).toHaveAttribute('data-value', '3')
-    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(5)
-    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('[data-slot="model-speed-effort-step"]')).toHaveLength(5)
+    expect(container.querySelector('[data-slot="model-speed-effort-step"][data-index="3"]')).not.toBeInTheDocument()
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
       'aria-pressed',
       'false'
     )
     fireEvent.click(screen.getByTestId('select-slider-min'))
-    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(5)
-    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="0"]')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('[data-slot="model-speed-effort-step"]')).toHaveLength(5)
+    expect(container.querySelector('[data-slot="model-speed-effort-step"][data-index="0"]')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
     )
@@ -180,9 +176,7 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.max'
     )
-    expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
-      'assistants.settings.reasoning_effort.max'
-    )
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent('assistants.settings.reasoning_effort.max')
   })
 
   it("displays a stored Default at the model's declared default without changing its submitted value", () => {
@@ -196,7 +190,7 @@ describe('ComposerSpeedControl UI', () => {
     expect(
       screen.queryByRole('button', { name: 'assistants.settings.reasoning_effort.default' })
     ).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
     expect(screen.getByRole('slider', { name: 'agent.speed.effort' })).toHaveAttribute(
@@ -232,7 +226,7 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByTestId('reasoning-menu')).toHaveAttribute('data-value', 'auto')
     expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
     await waitFor(() =>
-      expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
+      expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
         'assistants.settings.reasoning_effort.auto'
       )
     )
@@ -285,7 +279,7 @@ describe('ComposerSpeedControl UI', () => {
       'assistants.settings.reasoning_effort.default'
     )
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
-    expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
+    expect(screen.getByTestId('model-speed-effort-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
   })
@@ -358,6 +352,13 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.queryByRole('button', { name: 'agent.speed.fast' })).not.toBeInTheDocument()
   })
 
+  it('hides Fast when the caller has nowhere to persist it', () => {
+    render(<ModelSpeedControl model={codexModel} reasoningEffort="max" onReasoningEffortChange={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'agent.speed.fast' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('reasoning-slider')).toBeInTheDocument()
+  })
+
   it('renders Fast without requiring reasoning options', () => {
     render(
       <ControlledSpeedControl
@@ -372,7 +373,7 @@ describe('ComposerSpeedControl UI', () => {
   })
 })
 
-describe('ComposerSpeedControl summary verbosity', () => {
+describe('ModelSpeedControl summary verbosity', () => {
   const summaryModel = {
     ...codexModel,
     reasoning: { ...codexModel.reasoning, summaryOptions: ['auto', 'concise', 'detailed'] }
@@ -381,7 +382,7 @@ describe('ComposerSpeedControl summary verbosity', () => {
   it('reports the picked verbosity and marks it selected', async () => {
     const onReasoningSummaryChange = vi.fn()
     render(
-      <ComposerSpeedControl
+      <ModelSpeedControl
         model={summaryModel}
         reasoningEffort="default"
         reasoningSummary="concise"
@@ -399,7 +400,7 @@ describe('ComposerSpeedControl summary verbosity', () => {
 
   it('defaults to auto when nothing is stored', () => {
     render(
-      <ComposerSpeedControl
+      <ModelSpeedControl
         model={summaryModel}
         reasoningEffort="default"
         fastMode={false}
@@ -415,7 +416,7 @@ describe('ComposerSpeedControl summary verbosity', () => {
   // Endpoints without a summary knob (every third-party Responses host) must show nothing.
   it('hides the row when the endpoint carries no summary knob', () => {
     render(
-      <ComposerSpeedControl
+      <ModelSpeedControl
         model={codexModel}
         reasoningEffort="default"
         fastMode={false}
@@ -429,7 +430,7 @@ describe('ComposerSpeedControl summary verbosity', () => {
   })
 })
 
-describe('ComposerSpeedControl service tiers', () => {
+describe('ModelSpeedControl service tiers', () => {
   const groqModel: Model = {
     ...codexModel,
     id: 'groq::openai/gpt-oss-120b',
@@ -492,7 +493,7 @@ describe('ComposerSpeedControl service tiers', () => {
       providerId: 'openrouter',
       requestControls: { serviceTier: { default: 'standard' as const, options: ['standard', 'fast', 'flex'] } }
     }
-    expect(resolveComposerServiceTier(openRouterModel, 'auto')).toBe('standard')
+    expect(resolveSupportedServiceTier(openRouterModel, 'auto')).toBe('standard')
 
     render(<ControlledServiceTier model={openRouterModel} initialTier="auto" />)
     expect(screen.getByRole('radiogroup', { name: 'agent.speed.service_tier.label' })).toHaveAttribute(

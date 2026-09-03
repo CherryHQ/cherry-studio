@@ -172,7 +172,7 @@ describe('Model drawers', () => {
         endpointTypes: undefined
       })
     )
-    expect(createModelMock.mock.calls[0][0]).not.toHaveProperty('inputModalities')
+    expect(createModelMock.mock.calls[0][0]).toMatchObject({ inputModalities: [MODALITY.TEXT] })
     expect(onSuccess).toHaveBeenCalledWith(['openai::alpha-model'])
     expect(onClose).toHaveBeenCalledTimes(1)
   })
@@ -626,12 +626,12 @@ describe('Model drawers', () => {
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         capabilities: [MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
-        inputModalities: [MODALITY.AUDIO]
+        inputModalities: [MODALITY.TEXT, MODALITY.AUDIO]
       })
     )
   })
 
-  it('preserves an explicitly emptied input-modality selection when adding', async () => {
+  it('drops a deselected input modality when adding', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }
     })
@@ -649,7 +649,7 @@ describe('Model drawers', () => {
       fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
     })
 
-    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [] }))
+    expect(createModelMock).toHaveBeenCalledWith(expect.objectContaining({ inputModalities: [MODALITY.TEXT] }))
   })
 
   it('keeps the add-model submit disabled while creating and shows one inline error on failure', async () => {
