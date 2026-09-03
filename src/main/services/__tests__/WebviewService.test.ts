@@ -5,12 +5,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ACCESSIBILITY_CAPTURE_TIMEOUT_MS_FOR_TEST = 5_001
 
-const { cacheValues, guestById, getWindow, getPath } = vi.hoisted(() => ({
-  cacheValues: new Map<string, unknown>(),
-  guestById: new Map<number, unknown>(),
-  getWindow: vi.fn(),
-  getPath: vi.fn(() => '/app/out/preload/webview.js')
-}))
+const {
+  cacheValues,
+  guestById,
+  getWindow,
+  getPath,
+  miniAppSession,
+  agentDevSession,
+  agentArtifactSession,
+  shellOpenExternal
+} = vi.hoisted(() => {
+  const miniAppSession = {}
+  const agentDevSession = {}
+  const agentArtifactSession = {}
+  return {
+    cacheValues: new Map<string, unknown>(),
+    guestById: new Map<number, unknown>(),
+    getWindow: vi.fn(),
+    getPath: vi.fn(() => '/app/out/preload/webview.js'),
+    miniAppSession,
+    agentDevSession,
+    agentArtifactSession,
+    shellOpenExternal: vi.fn()
+  }
+})
 
 const cacheService = {
   get: vi.fn((key: string) => cacheValues.get(key)),
@@ -52,15 +70,21 @@ vi.mock('../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: () => true 
 vi.mock('electron', () => ({
   app: { on: vi.fn(), removeListener: vi.fn() },
   dialog: { showSaveDialog: vi.fn() },
-  session: { fromPartition: vi.fn() },
-  shell: { openExternal: vi.fn() },
+  session: {
+    fromPartition: vi.fn((partition: string) => {
+      if (partition === 'agent-dev-preview') return agentDevSession
+      if (partition === 'agent-html-artifact') return agentArtifactSession
+      return miniAppSession
+    })
+  },
+  shell: { openExternal: shellOpenExternal },
   webContents: {
     fromId: (id: number) => guestById.get(id),
     getAllWebContents: vi.fn(() => [])
   }
 }))
 
-import { WebviewService } from '../WebviewService'
+import { setOpenLinkExternal, WebviewService } from '../WebviewService'
 
 interface MockContents extends EventEmitter {
   id: number
@@ -76,6 +100,8 @@ interface MockContents extends EventEmitter {
   getURL: () => string
   isDevToolsOpened: () => boolean
   isDestroyed: () => boolean
+  session: object
+  setWindowOpenHandler: ReturnType<typeof vi.fn>
 }
 
 function createContents(
@@ -89,6 +115,7 @@ function createContents(
     devToolsOpened?: boolean
     debuggerAttached?: boolean
     sendCommand?: ReturnType<typeof vi.fn>
+    session?: object
   } = {}
 ): MockContents {
   const contents = new EventEmitter() as MockContents
@@ -110,6 +137,8 @@ function createContents(
   contents.getURL = () => options.url ?? 'https://example.com/page'
   contents.isDevToolsOpened = () => options.devToolsOpened ?? false
   contents.isDestroyed = () => options.destroyed ?? false
+  contents.session = options.session ?? miniAppSession
+  contents.setWindowOpenHandler = vi.fn()
   return contents
 }
 
@@ -157,6 +186,30 @@ describe('WebviewService annotation security and lifecycle', () => {
       contextIsolation: true,
       sandbox: true
     })
+  })
+
+  it.each([agentDevSession, agentArtifactSession])(
+    'keeps Agent guests from opening popup windows or invoking the external browser',
+    (restrictedSession) => {
+      const guest = createContents(7, {}, { session: restrictedSession })
+      guestById.set(7, guest)
+
+      setOpenLinkExternal(7, true)
+
+      const handler = guest.setWindowOpenHandler.mock.calls[0]?.[0]
+      expect(handler?.({ url: 'https://example.com' })).toEqual({ action: 'deny' })
+      expect(shellOpenExternal).not.toHaveBeenCalled()
+    }
+  )
+
+  it('preserves MiniApp in-guest popup behavior when external opening is disabled', () => {
+    const guest = createContents(7, {}, { session: miniAppSession })
+    guestById.set(7, guest)
+
+    setOpenLinkExternal(7, false)
+
+    const handler = guest.setWindowOpenHandler.mock.calls[0]?.[0]
+    expect(handler?.({ url: 'https://example.com' })).toEqual({ action: 'allow' })
   })
 
   it('accepts snapshots only from the window that owns the webview and sanitizes page metadata', () => {

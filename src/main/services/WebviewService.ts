@@ -19,6 +19,7 @@ import {
   type WebviewResolvedAnnotationDocument
 } from '@shared/types/webview'
 import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '@shared/utils/webviewAnnotations'
+import { getWebviewPartition, WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import { app, dialog, session, shell, webContents } from 'electron'
 import { promises as fs } from 'fs'
 
@@ -152,7 +153,7 @@ const buildElementResolverExpression = (selector: string) => {
  * remove the CherryStudio and Electron from the useragent
  */
 export function initSessionUserAgent() {
-  const wvSession = session.fromPartition('persist:webview')
+  const wvSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.MiniApp))
   const originUA = wvSession.getUserAgent()
   const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
@@ -175,6 +176,15 @@ export function initSessionUserAgent() {
 export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   const webview = webContents.fromId(webviewId)
   if (!webview) return
+
+  const restrictedSessions = [
+    session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentDevPreview)),
+    session.fromPartition(getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact))
+  ]
+  if (restrictedSessions.includes(webview.session)) {
+    webview.setWindowOpenHandler(() => ({ action: 'deny' }))
+    return
+  }
 
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
@@ -282,7 +292,7 @@ export class WebviewService extends BaseService {
    * Removes CherryStudio and Electron from the useragent.
    */
   private initSessionUserAgent() {
-    const wvSession = session.fromPartition('persist:webview')
+    const wvSession = session.fromPartition(getWebviewPartition(WebviewSecurityProfile.MiniApp))
     const originUA = wvSession.getUserAgent()
     const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 

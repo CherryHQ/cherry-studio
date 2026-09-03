@@ -8,7 +8,7 @@ import {
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
+import { WEBVIEW_SECURITY_PARTITIONS } from '@shared/utils/webviewSecurity'
 import { BrowserWindow, dialog, ipcMain, session } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
@@ -67,8 +67,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [
       session.defaultSession,
-      session.fromPartition('persist:webview'),
-      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+      ...Object.values(WEBVIEW_SECURITY_PARTITIONS).map((partition) => session.fromPartition(partition))
     ]
 
     try {
