@@ -2075,6 +2075,10 @@ export default function ComposerSurfaceRuntime({
           return
         }
 
+        if (quickPanel.isVisible) {
+          quickPanel.close('panel_replaced')
+        }
+
         const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
         const triggerInfo = {
           type: 'button',

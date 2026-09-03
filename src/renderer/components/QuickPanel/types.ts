@@ -24,6 +24,7 @@ export interface QuickPanelInsertTokenOptions {
 export interface QuickPanelInputAdapter {
   getText: () => string
   getCursorOffset?: () => number
+  getSelectionEndOffset?: () => number
   /**
    * Inserts at the cursor. By default `${name}` markers in the text become editable prompt-variable
    * chips (quick phrases rely on it). Pass `tokenizeVariables: false` for text from a source that
@@ -102,6 +103,8 @@ export type QuickPanelOpenOptions = {
   queryAnchor?: number
   /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
   trackInputQuery?: boolean
+  /** Remove this panel's live-filter query on any close. Resource submenus opt in; the root "+" panel must not. */
+  consumeQueryOnDismiss?: boolean
   /** Initial tracked search text for panels opened from buttons without inserting query text into the input. */
   initialSearchText?: string
   beforeAction?: (options: QuickPanelCallBackOptions) => void
@@ -175,6 +178,7 @@ export interface QuickPanelContextType {
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly queryAnchor?: number
   readonly trackInputQuery?: boolean
+  readonly consumeQueryOnDismiss?: boolean
   readonly initialSearchText?: string
   readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean

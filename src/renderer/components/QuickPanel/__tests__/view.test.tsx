@@ -87,11 +87,13 @@ function PanelHarness({
   inputAdapter,
   items,
   manageListExternally,
+  multiple,
   readOnly,
   symbol = '/',
   title = 'Actions',
   triggerInfo,
   trackInputQuery,
+  consumeQueryOnDismiss,
   initialSearchText,
   queryAnchor,
   onClose,
@@ -101,11 +103,13 @@ function PanelHarness({
   inputAdapter?: QuickPanelInputAdapter
   items: QuickPanelListItem[]
   manageListExternally?: boolean
+  multiple?: boolean
   readOnly?: boolean
   symbol?: string
   title?: string
   triggerInfo?: QuickPanelTriggerInfo
   trackInputQuery?: boolean
+  consumeQueryOnDismiss?: boolean
   initialSearchText?: string
   queryAnchor?: number
   onClose?: QuickPanelOpenOptions['onClose']
@@ -126,6 +130,7 @@ function PanelHarness({
   useEffect(() => {
     open({
       list: items,
+      multiple,
       readOnly,
       symbol,
       title,
@@ -137,14 +142,17 @@ function PanelHarness({
       queryAnchor,
       manageListExternally,
       trackInputQuery: trackInputQuery ?? Boolean(inputAdapter),
+      consumeQueryOnDismiss,
       initialSearchText,
       onClose
     })
   }, [
+    consumeQueryOnDismiss,
     inputAdapter,
     initialSearchText,
     items,
     manageListExternally,
+    multiple,
     onClose,
     open,
     queryAnchor,
@@ -166,6 +174,42 @@ function CaptureQuickPanel({ onCapture }: { onCapture: (context: QuickPanelConte
   }, [context, onCapture])
 
   return null
+}
+
+function createMutableTrackedInput(initialText = '', initialCursor = initialText.length) {
+  let text = initialText
+  let cursorOffset = initialCursor
+  const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+  const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+    text = `${text.slice(0, from)}${text.slice(to)}`
+    cursorOffset = from
+  })
+  const inputAdapter: QuickPanelInputAdapter = {
+    getText: () => text,
+    getCursorOffset: () => cursorOffset,
+    insertText: vi.fn(),
+    deleteTriggerRange,
+    focus: vi.fn(),
+    subscribeInput: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+  }
+
+  return {
+    deleteTriggerRange,
+    inputAdapter,
+    getText: () => text,
+    setText: (nextText: string, nextCursor = nextText.length) => {
+      text = nextText
+      cursorOffset = nextCursor
+    },
+    emitInput: () => {
+      listeners.forEach((listener) => listener({ cause: 'user-input' }))
+    }
+  }
 }
 
 function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: boolean) => void }) {
@@ -611,6 +655,704 @@ describe('QuickPanelView', () => {
 
     expect(childAction).toHaveBeenCalledTimes(1)
     expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
+  it('consumes a button-tracked live filter when a multi-select panel is dismissed', async () => {
+    // Bug: keepLiveFilter retains the typed query across picks, but Esc/outside-click never
+    // consume it, so "card" stays in the composer draft and is sent with the message.
+    const captureDispatch = vi.fn()
+    const action = vi.fn()
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    expect(screen.queryByText('Other note')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Card note'))
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe('card')
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
+  })
+
+  it('keeps leftover composer text when selecting from a slash-opened submenu', async () => {
+    // Bug: a stale queryAnchor of 0 after slash-trigger deletion lets consumeInputQuery wipe
+    // leftover draft such as `hello world` when a Quick Phrases/skills item is selected.
+    const action = vi.fn()
+    let text = 'hello world'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'prompt', label: 'Prompt 1', icon: 'zap', action }]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Prompt 1'))
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe('hello world')
+  })
+
+  it('consumes a button-tracked live filter only once when selecting a non-menu resource', async () => {
+    // Bug: handleItemAction called consumeInputQuery(), then handleClose/consumeQueryOnDismiss
+    // consumed again and deleted the same prefix from the inserted resource text.
+    const inserted = 'card-note'
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const insertText = vi.fn((value: string) => {
+      text = `${text.slice(0, cursorOffset)}${value}${text.slice(cursorOffset)}`
+      cursorOffset += value.length
+    })
+    const action = vi.fn(({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
+      inputAdapter?.insertText(inserted)
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText,
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'card-note', label: 'Card note', icon: 'card', action }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Card note'))
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(insertText).toHaveBeenCalledWith(inserted)
+    expect(text).toBe(inserted)
+  })
+
+  it('consumes a newly typed filter after an earlier keepOpenOnAction selection', async () => {
+    // Bug: editable MCP status panels stay open (keepOpenOnAction). consumeInputQueryOnce marks the
+    // first pick as consumed, so a later typed filter remains in the composer draft.
+    const firstAction = vi.fn()
+    const secondAction = vi.fn()
+    const tracked = createMutableTrackedInput('fs')
+    const items: QuickPanelListItem[] = [
+      {
+        id: 'mcp-status:filesystem',
+        label: 'filesystem',
+        icon: 'mcp',
+        action: firstAction,
+        keepOpenOnAction: true
+      },
+      {
+        id: 'mcp-status:browser',
+        label: 'browser',
+        icon: 'mcp',
+        action: secondAction,
+        keepOpenOnAction: true
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={tracked.inputAdapter}
+          items={items}
+          queryAnchor={0}
+          symbol="mcp-status"
+          title="MCP"
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('filesystem'))
+
+    expect(firstAction).toHaveBeenCalledTimes(1)
+    expect(tracked.deleteTriggerRange).toHaveBeenCalledTimes(1)
+    expect(tracked.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 2 })
+    expect(tracked.getText()).toBe('')
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+
+    act(() => {
+      tracked.setText('br')
+      tracked.emitInput()
+    })
+
+    fireEvent.click(await screen.findByText('browser'))
+
+    expect(secondAction).toHaveBeenCalledTimes(1)
+    expect(tracked.deleteTriggerRange).toHaveBeenCalledTimes(2)
+    expect(tracked.deleteTriggerRange).toHaveBeenLastCalledWith({ from: 0, to: 2 })
+    expect(tracked.getText()).toBe('')
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+  })
+
+  it('does not consume composer text when the root tool panel is dismissed', async () => {
+    // Bug: keepLiveFilter = trackInputQuery && type:button also matches the "+" root panel,
+    // so Esc deleted real message draft typed while the menu was open.
+    const captureDispatch = vi.fn()
+    let text = 'hello draft'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'hello', label: 'hello draft', icon: 'paperclip', action: vi.fn() },
+            { id: 'web-search', label: 'Web Search', icon: 'search', action: vi.fn() }
+          ]}
+          queryAnchor={0}
+          symbol="+"
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('hello draft')
+    expect(screen.queryByText('Web Search')).not.toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe('hello draft')
+  })
+
+  it('consumes a live filter when the panel is toggled closed without going through Esc', async () => {
+    // Bug: toolbar toggle and KB close-on-next-input call provider.close, skipping handleClose.
+    const action = vi.fn()
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let closePanel: QuickPanelContextType['close'] | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+
+    act(() => {
+      closePanel?.('toggle')
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
+  })
+
+  it('consumes a button-tracked live filter when a visible panel is replaced', async () => {
+    // Bug: ComposerSurfaceRuntime close('panel_replaced') + immediate open batches isVisible
+    // false→true, so the isVisible=false dismiss effect never runs and the filter stays in draft.
+    const action = vi.fn()
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+
+    act(() => {
+      quickPanel?.close('panel_replaced')
+      quickPanel?.open({
+        list: [{ id: 'next', label: 'Next panel', icon: 'next', action: vi.fn() }],
+        symbol: '@',
+        title: 'Next',
+        triggerInfo: { type: 'button', position: 0 },
+        queryAnchor: 0,
+        trackInputQuery: true,
+        consumeQueryOnDismiss: true
+      })
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('')
+    expect(await screen.findByText('Next panel')).toBeTruthy()
+  })
+
+  it('keeps the new trigger when a live-filter panel is replaced by a direct input suggestion', async () => {
+    // Bug: generation-change reclaim used the incoming input-tracked ctx, so direct open()
+    // (no close('panel_replaced')) deleted the new trigger and closed the replacement panel.
+    const action = vi.fn()
+    let text = ''
+    let cursorOffset = 0
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+
+    text = '@'
+    cursorOffset = 1
+    act(() => {
+      quickPanel?.open({
+        list: [{ id: 'mention', label: 'Mention user', icon: 'mention', action: vi.fn() }],
+        symbol: '@',
+        title: 'Mentions',
+        triggerInfo: { type: 'input', position: 0, originalText: '@' },
+        queryAnchor: 0,
+        trackInputQuery: true,
+        manageListExternally: true
+      })
+    })
+
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+    expect(text).toBe('@')
+    expect(await screen.findByText('Mention user')).toBeTruthy()
+    expect(screen.queryByText('Card note')).toBeNull()
+  })
+
+  it('consumes only the live-filter prefix when close happens after extra composer input', async () => {
+    // Bug: consume used [anchor, cursor], so a keystroke after a KB pick deleted the new char too.
+    const action = vi.fn()
+    let text = 'card'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = `${text.slice(0, from)}${text.slice(to)}`
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    let closePanel: QuickPanelContextType['close'] | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(text).toBe('card')
+
+    text = 'cardX'
+    cursorOffset = text.length
+    act(() => {
+      closePanel?.('knowledge_base_input_resumed')
+    })
+
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(text).toBe('X')
+  })
+
+  it('does not consume the first resume character typed in the same tick as dismiss', async () => {
+    // Bug: updateSearchFromInput and KB close-on-next-input run in one input event, so
+    // dismiss consume widens to include the resume character and deletes it.
+    const action = vi.fn()
+    const input = createMutableTrackedInput('card')
+    let closePanel: QuickPanelContextType['close'] | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={input.inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(input.getText()).toBe('card')
+
+    const unsubscribe = input.inputAdapter.subscribeInput?.(() => {
+      closePanel?.('knowledge_base_input_resumed')
+    })
+    input.setText('cardX')
+    act(() => {
+      input.emitInput()
+    })
+    unsubscribe?.()
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(input.getText()).toBe('X')
+  })
+
+  it('does not consume slash leftover draft after a later content edit', async () => {
+    // Bug: after slash-trigger deletion the view reconstructs queryAnchor at 0, so a later
+    // leftover edit becomes slice(0, cursor) and dismiss deletes the leftover draft.
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const leftover = 'hello world'
+    const input = createMutableTrackedInput(leftover, 0)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={input.inputAdapter}
+          items={[{ id: 'prompt', label: 'Prompt 1', icon: 'zap', action }]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Prompt 1')
+
+    input.setText(`${leftover}!`)
+    act(() => {
+      input.emitInput()
+    })
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(input.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(input.getText()).toBe(`${leftover}!`)
+  })
+
+  it('closes a button-tracked panel when its opening suffix changes', async () => {
+    const onClose = vi.fn()
+    const input = createMutableTrackedInput('original suffix', 0)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={input.inputAdapter}
+          items={[{ id: 'prompt', label: 'Prompt 1', icon: 'zap' }]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Prompt 1')
+
+    input.setText('edited suffix', 0)
+    act(() => {
+      input.emitInput()
+    })
+
+    await waitFor(() =>
+      expect(onClose).toHaveBeenCalledWith(expect.objectContaining({ action: 'input_session_invalid' }))
+    )
+    expect(input.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(input.getText()).toBe('edited suffix')
+  })
+
+  it('consumes only a caret-typed live filter when leftover draft stays after it', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const leftover = 'hello world'
+    const input = createMutableTrackedInput(leftover, 0)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={input.inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    expect(screen.getByText('Other note')).toBeInTheDocument()
+
+    input.setText(`card${leftover}`, 'card'.length)
+    act(() => {
+      input.emitInput()
+    })
+
+    await waitFor(() => expect(screen.queryByText('Other note')).not.toBeInTheDocument())
+    expect(screen.getByText('Card note')).toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(input.getText()).toBe(leftover)
+  })
+
+  it('tracks replacement text from a selected composer range without consuming surrounding draft', async () => {
+    const captureDispatch = vi.fn()
+    const input = createMutableTrackedInput('prefix SELECTED suffix', 'prefix '.length)
+    const inputAdapter = {
+      ...input.inputAdapter,
+      getSelectionEndOffset: () => 'prefix SELECTED'.length
+    } satisfies QuickPanelInputAdapter
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card' },
+            { id: 'other', label: 'Other note', icon: 'other' }
+          ]}
+          triggerInfo={{ type: 'button' }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    expect(screen.getByText('Other note')).toBeInTheDocument()
+
+    input.setText('prefix card suffix', 'prefix card'.length)
+    act(() => input.emitInput())
+
+    await waitFor(() => expect(screen.queryByText('Other note')).not.toBeInTheDocument())
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Escape').event)
+    })
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 'prefix '.length, to: 'prefix card'.length })
+    expect(input.getText()).toBe('prefix  suffix')
+  })
+
+  it('consumes a live filter on outside click without deleting leftover draft', async () => {
+    const action = vi.fn()
+    const leftover = 'hello world'
+    const input = createMutableTrackedInput(`card${leftover}`, 'card'.length)
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          inputAdapter={input.inputAdapter}
+          items={[
+            { id: 'card', label: 'Card note', icon: 'card', action },
+            { id: 'other', label: 'Other note', icon: 'other', action: vi.fn() }
+          ]}
+          multiple
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          consumeQueryOnDismiss
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Card note')
+    fireEvent.click(screen.getByText('Card note'))
+    expect(input.deleteTriggerRange).not.toHaveBeenCalled()
+
+    act(() => {
+      document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+
+    expect(input.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 4 })
+    expect(input.getText()).toBe(leftover)
   })
 
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
@@ -1283,6 +2025,101 @@ describe('QuickPanelView', () => {
 
     fireEvent.click(screen.getByText('Customize toolbar'))
     expect(action).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['Tab', 'Enter'] as const)(
+    'activates a bottom-fixed item with %s when search collapses the list',
+    async (key) => {
+      // Bug: collapsed panels still render fixedToBottom Manage/Add, but Tab/Enter return
+      // early on isCollapsed, so keyboard cannot activate the only remaining action.
+      const action = vi.fn()
+      const captureDispatch = vi.fn()
+      const inputAdapter: QuickPanelInputAdapter = {
+        deleteTriggerRange: vi.fn(),
+        focus: vi.fn(),
+        getCursorOffset: () => 0,
+        getText: () => '',
+        insertText: vi.fn()
+      }
+      const items: QuickPanelListItem[] = [
+        { id: 'regular', label: 'Regular action', icon: 'r', action: vi.fn() },
+        { id: 'manage', label: 'Manage', icon: 'settings', fixedToBottom: true, action }
+      ]
+
+      render(
+        <QuickPanelProvider>
+          <PanelHarness
+            captureDispatch={captureDispatch}
+            inputAdapter={inputAdapter}
+            items={items}
+            queryAnchor={0}
+            triggerInfo={{ type: 'button', position: 0 }}
+            trackInputQuery
+            initialSearchText="zzz"
+          />
+        </QuickPanelProvider>
+      )
+
+      await screen.findByText('No results')
+      expect(within(screen.getByTestId('quick-panel-fixed-bottom')).getByText('Manage')).toBeInTheDocument()
+
+      const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+      act(() => {
+        dispatchKeyDown(createKeyDownEvent(key).event)
+      })
+
+      expect(action).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'enter',
+          item: expect.objectContaining({ id: 'manage' })
+        })
+      )
+    }
+  )
+
+  it('activates a bottom-fixed item with ArrowDown then Enter when search collapses the list', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 0,
+      getText: () => '',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [
+      { id: 'regular', label: 'Regular action', icon: 'r', action: vi.fn() },
+      { id: 'manage', label: 'Manage', icon: 'settings', fixedToBottom: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={items}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          initialSearchText="zzz"
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('No results')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowDown').event)
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
+    })
+
+    expect(action).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        item: expect.objectContaining({ id: 'manage' })
+      })
+    )
   })
 
   it('keeps the exit layout stable when closing', async () => {

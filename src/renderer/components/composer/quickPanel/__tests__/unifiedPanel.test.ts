@@ -3,7 +3,11 @@ import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
-import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
+import {
+  createUnifiedQuickPanelOpenOptions,
+  hasUnifiedQuickPanelRootContent,
+  prepareComposerQuickPanelSearch
+} from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
@@ -51,6 +55,133 @@ beforeEach(() => {
   quickPanel.getPanelGeneration.mockReturnValue(0)
   quickPanel.registerKeyDownHandler.mockReset()
   quickPanel.registerKeyDownHandler.mockReturnValue(() => undefined)
+})
+
+describe('prepareComposerQuickPanelSearch', () => {
+  it('removes the slash category query before tracking submenu search', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 7,
+      getText: () => '/skills',
+      insertText: vi.fn()
+    }
+
+    expect(
+      prepareComposerQuickPanelSearch({
+        inputAdapter,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/skills' }
+      })
+    ).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 7 })
+    expect(inputAdapter.focus).toHaveBeenCalled()
+  })
+
+  it('does not return the pre-deletion queryAnchor after removing a slash trigger with leftover text', () => {
+    // Bug: returning searchAnchor after deleteTriggerRange lets consumeInputQuery wipe leftover
+    // composer text (`hello world`) when a slash-opened Quick Phrases/skills item is selected.
+    const trigger = '/prompt '
+    let text = `${trigger}hello world`
+    let cursorOffset = trigger.length
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(({ from, to }: { from: number; to: number }) => {
+        text = `${text.slice(0, from)}${text.slice(to)}`
+        cursorOffset = cursorOffset <= from ? cursorOffset : Math.max(from, cursorOffset - (to - from))
+      }),
+      focus: vi.fn(),
+      getCursorOffset: () => cursorOffset,
+      getText: () => text,
+      insertText: vi.fn()
+    }
+
+    const result = prepareComposerQuickPanelSearch({
+      inputAdapter,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: `${trigger}hello world` }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: trigger.length })
+    expect(text).toBe('hello world')
+    expect(result).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+  })
+
+  it('starts button-opened search at the cursor without changing existing text', () => {
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 12,
+      getText: () => 'existing text',
+      insertText: vi.fn()
+    }
+
+    expect(prepareComposerQuickPanelSearch({ inputAdapter })).toEqual({
+      queryAnchor: 12,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button', position: 12 }
+    })
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
+
+  it('does not delete leftover draft when a type:input trigger has no queryAnchor', () => {
+    // Bug: searchAnchor falls back to triggerInfo.position (0) when queryAnchor is undefined,
+    // so prepareComposerQuickPanelSearch wipes leftover composer text such as `/skills hello world`.
+    const leftover = '/skills hello world'
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => leftover.length,
+      getText: () => leftover,
+      insertText: vi.fn()
+    }
+
+    const result = prepareComposerQuickPanelSearch({
+      inputAdapter,
+      triggerInfo: { type: 'input', position: 0, originalText: leftover }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      queryAnchor: undefined,
+      trackInputQuery: true,
+      consumeQueryOnDismiss: true,
+      triggerInfo: { type: 'button' }
+    })
+  })
+
+  it('uses a live cursor offset as rangeEnd instead of the value captured at entry', () => {
+    // Bug: cursorOffset is snapshotted at function entry and reused as rangeEnd, so a later
+    // caret move (e.g. 8 → 19) deletes a stale shorter range and leaves trigger text.
+    const offsets = [8, 19]
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: vi.fn(() => offsets.shift() ?? 19),
+      getText: () => '/skills leftover',
+      insertText: vi.fn()
+    }
+
+    prepareComposerQuickPanelSearch({
+      inputAdapter,
+      queryAnchor: 0,
+      triggerInfo: { type: 'input', position: 0, originalText: '/skills leftover' }
+    })
+
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 19 })
+  })
 })
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
@@ -479,7 +610,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'popover',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -491,7 +622,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         source: 'root-panel',
         inputAdapter,
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'ask',
         triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
       })
@@ -543,7 +674,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         title: 'Thinking',
         symbol: 'thinking',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         triggerInfo: { type: 'button' },
         trackInputQuery: true,
         list: [expect.objectContaining({ label: 'Low' })]
@@ -566,10 +697,163 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
       expect.objectContaining({
         source: 'root-panel',
         parentPanel: options,
-        queryAnchor: 0,
+        queryAnchor: undefined,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
       })
+    )
+  })
+
+  it('does not treat leftover slash text as a resource submenu live filter', () => {
+    // Bug: slash-open handleItemAction consumes `/prompt ` then still forwards queryAnchor 0
+    // into openUnifiedPanelSubmenu, so leftover `hello world` is tracked and later wiped.
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'sparkles',
+          sources: ['root-panel'],
+          submenu: [
+            {
+              id: 'skill-search',
+              kind: 'command',
+              label: 'Search files',
+              icon: 'search',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/prompt hello world' }
+      }
+    )
+    const skills = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    skills.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: skills,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'prompt'
+    })
+
+    const opened = vi.mocked(quickPanel.open).mock.calls[0][0]
+    expect(opened.queryAnchor).toBeUndefined()
+    expect(opened.triggerInfo).toEqual({ type: 'button' })
+  })
+
+  it('does not forward a slash queryAnchor into a panel launcher that opens a resource submenu', () => {
+    // Bug: production slash-open still passed queryAnchor 0 into onToolLauncherSelect, so
+    // Knowledge Base / Quick Phrases / skills opened with leftover text as a live filter.
+    const leftover = 'hello world'
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'quick-phrases',
+          kind: 'panel',
+          label: 'Quick Phrases',
+          icon: 'zap',
+          sources: ['root-panel']
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: `/prompt ${leftover}` }
+      }
+    )
+    const phrases = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    phrases.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: phrases,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'prompt'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'quick-phrases' }),
+      expect.objectContaining({
+        queryAnchor: undefined,
+        triggerInfo: { type: 'input', position: 0, originalText: `/prompt ${leftover}` }
+      })
+    )
+  })
+
+  it('keeps a button-opened queryAnchor when opening a resource submenu', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'knowledge',
+          kind: 'group',
+          label: 'Knowledge',
+          icon: 'book',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'knowledge-file',
+              kind: 'command',
+              label: 'File',
+              icon: 'file',
+              sources: ['popover']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 12,
+        triggerInfo: { type: 'button', position: 12 }
+      }
+    )
+    const knowledge = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    knowledge.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: knowledge,
+      parentPanel: options,
+      queryAnchor: 12,
+      searchText: 'card'
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryAnchor: 12,
+        triggerInfo: { type: 'button' }
+      })
+    )
+
+    const childPanelOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
+    childPanelOptions.list[0].action?.({
+      action: 'enter',
+      context: actionContext,
+      item: childPanelOptions.list[0],
+      parentPanel: options,
+      queryAnchor: 12,
+      searchText: 'card'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'knowledge-file' }),
+      expect.objectContaining({ queryAnchor: 12 })
     )
   })
 
