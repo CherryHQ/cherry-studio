@@ -26,6 +26,7 @@ import {
   type ResolvedReasoningProfile,
   type ResolvedServiceTierControl
 } from '@data/services/ProviderRegistryService'
+import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -114,6 +115,12 @@ function assertManagedCherryAiDefaultModelMutationAllowed(
   }
 
   throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
+}
+
+function assertProvidersAvailable(providerIds: Iterable<string>): void {
+  for (const providerId of new Set(providerIds)) {
+    providerService.assertAvailable(providerId)
+  }
 }
 
 /**
@@ -629,6 +636,12 @@ class ModelService {
   list(query: ListModelsQuery): Model[] {
     const db = application.get('DbService').getDb()
 
+    if (query.providerId && !providerService.isAvailableByProviderId(query.providerId)) {
+      return []
+    }
+
+    const availableProviderIds = query.providerId ? undefined : providerService.listAvailableProviderIds()
+
     const conditions: SQL[] = []
 
     if (query.providerId) {
@@ -646,7 +659,9 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = this.enrichRowsFromRegistry(rows)
+    let models = this.enrichRowsFromRegistry(
+      availableProviderIds ? rows.filter((row) => availableProviderIds.has(row.providerId)) : rows
+    )
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {
@@ -779,22 +794,23 @@ class ModelService {
    *
    * Foreign services call this inside their own transaction when they need a
    * soft fallback instead of a thrown not-found error. The caller owns the
-   * domain-specific validation message; this method only returns the row.
+   * domain-specific validation message. Providers unavailable in the current
+   * edition are treated as missing before the row is enriched.
    */
   findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
     const [row] = tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1).all()
-    return row ? this.enrichRowsFromRegistry([row])[0] : null
+    return row && providerService.isAvailableByProviderId(row.providerId) ? this.enrichRowsFromRegistry([row])[0] : null
   }
 
-  /** Check model existence without resolving a registry-backed runtime model. */
+  /** Check model existence under a provider available in the current edition. */
   existsByIdTx(tx: Pick<DbType, 'select'>, id: string): boolean {
     const [row] = tx
-      .select({ id: userModelTable.id })
+      .select({ id: userModelTable.id, providerId: userModelTable.providerId })
       .from(userModelTable)
       .where(eq(userModelTable.id, id))
       .limit(1)
       .all()
-    return Boolean(row)
+    return row !== undefined && providerService.isAvailableByProviderId(row.providerId)
   }
 
   /**
@@ -822,7 +838,8 @@ class ModelService {
 
     const rows = tx.select().from(userModelTable).where(inArray(userModelTable.id, ids)).all()
 
-    for (const model of this.enrichRowsFromRegistry(rows)) {
+    const availableProviderIds = providerService.listAvailableProviderIds(rows.map((row) => row.providerId))
+    for (const model of this.enrichRowsFromRegistry(rows.filter((row) => availableProviderIds.has(row.providerId)))) {
       if (model.name) result.set(model.id, model.name)
     }
     return result
@@ -832,6 +849,8 @@ class ModelService {
    * Get a model by composite key (providerId + modelId)
    */
   getByKey(providerId: string, modelId: string): Model {
+    providerService.assertAvailable(providerId)
+
     const db = application.get('DbService').getDb()
 
     const [row] = db
@@ -869,6 +888,7 @@ class ModelService {
    */
   create(items: CreateModelInput[]): Model[] {
     if (items.length === 0) return []
+    assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
     for (const { dto } of items) {
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
@@ -927,6 +947,7 @@ class ModelService {
    * Update an existing model
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
+    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
@@ -974,6 +995,7 @@ class ModelService {
    */
   bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Model[] {
     if (items.length === 0) return []
+    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const db = application.get('DbService').getDb()
 
@@ -1034,6 +1056,7 @@ class ModelService {
    * one. Pins for removed models are purged in the same transaction.
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
+    providerService.assertAvailable(providerId)
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
@@ -1127,6 +1150,7 @@ class ModelService {
    * Delete a model
    */
   delete(providerId: string, modelId: string): void {
+    providerService.assertAvailable(providerId)
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
@@ -1159,6 +1183,7 @@ class ModelService {
    */
   bulkDelete(items: { providerId: string; modelId: string }[]): void {
     if (items.length === 0) return
+    assertProvidersAvailable(items.map((item) => item.providerId))
 
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
 

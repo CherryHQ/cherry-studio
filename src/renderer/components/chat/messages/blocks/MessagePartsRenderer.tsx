@@ -23,6 +23,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
 import {
+  isCitationSourcePart,
   type MessageCitations,
   resolveCitationMarkerParts,
   type ResolvedCitationMarkers,
@@ -49,7 +50,12 @@ import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
-import { useMessageListActions, useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListActiveTurnStatus,
+  useMessagePriorCitationParts,
+  useMessageRenderConfig
+} from '../MessageListProvider'
 import {
   getSessionToolTarget,
   isReportArtifactsToolResponse,
@@ -1365,6 +1371,7 @@ interface MessagePartsRendererContentProps extends Props {
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
   messageParts: CherryMessagePart[]
+  priorCitationParts: readonly CherryMessagePart[]
 }
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
@@ -1372,7 +1379,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   isActiveTurnProcessing,
   isStreamLive,
   message,
-  messageParts
+  messageParts,
+  priorCitationParts
 }: MessagePartsRendererContentProps) {
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
@@ -1475,7 +1483,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
-  const messageCitations = useMemo(() => resolveMessageCitations(messageParts), [messageParts])
+  // Settled tool parts keep their identity across streaming chunks, so citations only re-resolve
+  // when a source part changes, not on every text delta.
+  const nextCitationSourceParts = useMemo(() => messageParts.filter(isCitationSourcePart), [messageParts])
+  const citationSourceParts = useStableItemArray(nextCitationSourceParts)
+  const messageCitations = useMemo(
+    () => resolveMessageCitations(citationSourceParts, message.role === 'assistant' ? priorCitationParts : undefined),
+    [citationSourceParts, message.role, priorCitationParts]
+  )
   const citationProjectionByPart = useMemo(() => {
     if (message.role !== 'assistant' || messageCitations.all.length === 0) return EMPTY_CITATION_PROJECTIONS
     const textParts = messageParts.filter((part) => {
@@ -1568,6 +1583,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
   const topicTurnState = classifyTurn(topicStreamStatus)
   const isProcessing = useIsActiveTurnTarget(message)
@@ -1584,6 +1600,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       isStreamLive={isStreamLive}
       message={message}
       messageParts={messageParts}
+      priorCitationParts={priorCitationParts}
     />
   )
 }

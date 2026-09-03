@@ -7,6 +7,8 @@ import { MockCherrystudioUI } from './__mocks__/renderer/CherrystudioUI'
 import { resetPopupMocks } from './__mocks__/renderer/popup'
 import { resetToastMocks } from './__mocks__/renderer/toast'
 
+vi.stubGlobal('__APP_EDITION__', 'global')
+
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
 if (!bufferModule.SlowBuffer) {

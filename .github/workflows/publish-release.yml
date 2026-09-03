@@ -124,10 +124,12 @@ jobs:
           else
             MAKE_LATEST="true"
           fi
+          # PATCH without tag_name resets a draft to untagged-<sha>
           jq -n \
             --arg makeLatest "$MAKE_LATEST" \
+            --arg tag "$TAG" \
             --argjson prerelease "$PRERELEASE" \
-            '{draft: false, prerelease: $prerelease, make_latest: $makeLatest}' \
+            '{tag_name: $tag, draft: false, prerelease: $prerelease, make_latest: $makeLatest}' \
             > "$RUNNER_TEMP/publish-release.json"
 
           echo "Publishing $TAG with hotfix cutoff $HOTFIX_CUTOFF_SHA"

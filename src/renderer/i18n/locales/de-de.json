@@ -580,6 +580,7 @@
   "chat.default.name": "Cherry-Assistent",
   "chat.default.topic.name": "Standardthema",
   "chat.home.welcome_title": "Worüber sollen wir heute sprechen?",
+  "chat.input.ai_disclaimer": "KI-generierte Inhalte, nur zur Orientierung",
   "chat.input.cancel_editing": "Bearbeitung abbrechen",
   "chat.input.clear.content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
   "chat.input.clear.title": "Nachrichten leeren",

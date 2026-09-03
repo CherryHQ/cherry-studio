@@ -580,6 +580,7 @@
   "chat.default.name": "Cherry アシスタント",
   "chat.default.topic.name": "デフォルトトピック",
   "chat.home.welcome_title": "今日は何について話しましょうか？",
+  "chat.input.ai_disclaimer": "AI生成コンテンツです。参考情報としてご利用ください",
   "chat.input.cancel_editing": "編集をキャンセル",
   "chat.input.clear.content": "現在のトピックのすべてのメッセージをクリアしますか？",
   "chat.input.clear.title": "すべてのメッセージをクリアしますか？",

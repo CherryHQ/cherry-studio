@@ -580,6 +580,7 @@
   "chat.default.name": "Ассистент Cherry",
   "chat.default.topic.name": "Топик по умолчанию",
   "chat.home.welcome_title": "О чём поговорим сегодня?",
+  "chat.input.ai_disclaimer": "Контент сгенерирован ИИ и носит справочный характер",
   "chat.input.cancel_editing": "Отменить редактирование",
   "chat.input.clear.content": "Хотите очистить все сообщения текущего топика?",
   "chat.input.clear.title": "Очистить все сообщения?",

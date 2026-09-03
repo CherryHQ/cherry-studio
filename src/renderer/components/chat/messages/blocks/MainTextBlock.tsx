@@ -35,7 +35,7 @@ interface Props {
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
-  /** Tool/source-derived citations resolved from the message's own parts (assistant messages without legacy reference metadata). */
+  /** Tool/source-derived citations resolved from the message's own parts and earlier turns (assistant messages without legacy reference metadata). */
   messageCitations?: MessageCitations
   toolCitationProjection?: ResolvedCitationMarkers
   mentions?: Model[]
@@ -399,7 +399,7 @@ const MainTextBlock: React.FC<Props> = ({
     inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   // Legacy reference metadata (migrated v1 messages) wins; otherwise resolve
-  // [cite:id] markers against the message's own tool/source parts.
+  // [cite:id] markers against the message's own tool/source parts and earlier turns'.
   const toolCitations = useMemo(
     () =>
       citations.length === 0 && messageCitations?.all.length && toolCitationProjection
@@ -416,9 +416,9 @@ const MainTextBlock: React.FC<Props> = ({
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }
-      // No citation at all in this message, so no marker in it can resolve — a model reusing an id
-      // minted by an earlier turn is the usual way here (#19771). Drop them rather than printing
-      // internal ids. User text is left alone: a literal `[cite:…]` there is the author's own.
+      // No citation in this message or any loaded earlier turn, so no marker can resolve — an
+      // unloaded page or an invented id (#19771). Drop them rather than printing internal ids.
+      // User text is left alone: a literal `[cite:…]` there is the author's own.
       return role === 'assistant' ? stripCitationMarkers(rawText) : rawText
     },
     [citationReferences, citations, role, toolCitations]
