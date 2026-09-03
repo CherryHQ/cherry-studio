@@ -13,6 +13,7 @@ Delete no longer erases a topic, assistant, agent, agent session, painting, or i
 ## Why this matters to the user
 
 - An accidentally deleted item is recoverable from the Recycle Bin (Settings → Data → Recycle Bin) until the retention period expires.
+- Moving an agent to the Recycle Bin permanently deletes its scheduled tasks and channel subscriptions. Restoring the agent does not recreate them.
 - Restore does NOT bring back an item’s pinned state, tags, or — for assistants — group and prompt bindings. Those are removed at Delete time and must be re-applied manually. Messages and attachments always come back intact because Delete never touches them.
 - Restore behavior differs by type: restoring an agent also restores the sessions moved to the Recycle Bin with it, but restoring an assistant does NOT restore the conversations moved alongside it. Those stay in the Recycle Bin and must be restored individually.
 - Delete no longer frees disk space, and purging does not free it immediately either. “Empty Recycle Bin” starts reclaiming files right after it runs, but a large clear-out is drained across later background passes rather than all at once. Delete permanently removes only the database records; the attachments and generated images behind them are reclaimed by a background pass (on app start, then roughly every 30 minutes while idle, with about a one-hour grace window). Delete permanently for a file in the Files Recycle Bin is the one case that frees its blob straight away.

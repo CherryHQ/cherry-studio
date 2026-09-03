@@ -36,6 +36,8 @@ vi.mock('react-i18next', () => ({
           'library.delete.skill.content': 'Uninstall skill content',
           'library.delete.skill.title': 'Uninstall skill',
           'recycle_bin.already_moved': 'Already in Recycle Bin',
+          'recycle_bin.move.agent_tasks_warning':
+            'Scheduled tasks and channel subscriptions associated with this Agent will be permanently deleted and will not be restored if you restore the Agent.',
           'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
           'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
           'settings.prompts.delete': 'Delete prompt',
@@ -134,7 +136,9 @@ describe('ResourceDeleteConfirmDialog', () => {
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={onClose} />)
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Move to Recycle Bin?')
-    expect(screen.getByRole('dialog')).not.toHaveTextContent('library.delete.agent.content')
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Scheduled tasks and channel subscriptions associated with this Agent will be permanently deleted and will not be restored if you restore the Agent.'
+    )
     await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
 
     await waitFor(() =>
@@ -176,6 +180,10 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-1', 'session-2'] })
 
     render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
+
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(
+      'Scheduled tasks and channel subscriptions associated with this Agent will be permanently deleted and will not be restored if you restore the Agent.'
+    )
     await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
 
     await waitFor(() =>

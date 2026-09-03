@@ -198,7 +198,14 @@ const AgentDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'agent' }>
     t
   ])
 
-  return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={onDelete} />
+  return (
+    <DeleteDialogContent
+      resource={resource}
+      onClose={onClose}
+      onDelete={onDelete}
+      description={deleteTasksOnly ? undefined : t('recycle_bin.move.agent_tasks_warning')}
+    />
+  )
 }
 
 const SkillDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'skill' }>; onClose: () => void }> = ({
@@ -217,11 +224,12 @@ const PromptDeleteDialog: FC<{ resource: Extract<ResourceItem, { type: 'prompt' 
   return <DeleteDialogContent resource={resource} onClose={onClose} onDelete={deletePrompt} />
 }
 
-const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onDelete: () => Promise<void> }> = ({
-  resource,
-  onClose,
-  onDelete
-}) => {
+const DeleteDialogContent: FC<{
+  resource: ResourceItem
+  onClose: () => void
+  onDelete: () => Promise<void>
+  description?: string
+}> = ({ resource, onClose, onDelete, description: descriptionOverride }) => {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
 
@@ -241,7 +249,7 @@ const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onD
     if (resource.type === 'agent' || resource.type === 'assistant') {
       return {
         title: t('recycle_bin.move.confirm_title'),
-        description: undefined,
+        description: descriptionOverride,
         confirmText: t('recycle_bin.move.confirm_action')
       }
     }
@@ -260,7 +268,7 @@ const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onD
       }
     }
     return { title: '', description: undefined, confirmText: '' }
-  }, [resource.type, t])
+  }, [descriptionOverride, resource.type, t])
 
   return (
     <ConfirmDialog

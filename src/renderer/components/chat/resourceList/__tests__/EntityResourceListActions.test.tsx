@@ -1051,7 +1051,10 @@ describe('classic layout entity resource list actions', () => {
         })
       )
     )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
+    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).toHaveProperty(
+      'content',
+      'recycle_bin.move.agent_tasks_warning'
+    )
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
@@ -1157,6 +1160,7 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() =>
       expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     )
+    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
