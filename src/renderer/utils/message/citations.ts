@@ -570,11 +570,13 @@ export function toExportableCitations(
   parts: readonly CherryMessagePart[],
   priorParts: readonly CherryMessagePart[] = EMPTY_PARTS
 ): { content: string; cited: Citation[] } {
-  const {
-    content: resolved,
-    byMarker,
-    cited
-  } = resolveCitationMarkers(content, resolveMessageCitations(parts, priorParts))
+  // Earlier turns only answer ids own parts do not mint, so fold them only on an unresolved
+  // marker: eager folding made a whole-topic export quadratic in the number of search calls.
+  let resolution = resolveCitationMarkers(content, resolveMessageCitations(parts))
+  if (priorParts.length > 0 && hasUnresolvedMarker(resolution)) {
+    resolution = resolveCitationMarkers(content, resolveMessageCitations(parts, priorParts))
+  }
+  const { content: resolved, byMarker, cited } = resolution
   return {
     content: mapMarkdownOutsideCode(resolved, (text) =>
       text.replace(CITATION_MARKER_PATTERN, (_match, space: string, id: string) => {
@@ -584,6 +586,22 @@ export function toExportableCitations(
     ),
     cited
   }
+}
+
+function hasUnresolvedMarker({ content, byMarker }: ResolvedCitationMarkers): boolean {
+  let unresolved = false
+  mapMarkdownOutsideCode(content, (text) => {
+    if (!unresolved) {
+      for (const match of text.matchAll(CITATION_MARKER_PATTERN)) {
+        if (!byMarker.has(match[2])) {
+          unresolved = true
+          break
+        }
+      }
+    }
+    return text
+  })
+  return unresolved
 }
 
 /**

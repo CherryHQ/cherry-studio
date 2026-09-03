@@ -1,4 +1,4 @@
-import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Separator } from '@cherrystudio/ui'
+import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle, Scrollbar, Separator } from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -114,7 +114,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
           </div>
         </DialogHeader>
 
-        <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)] [&::-webkit-scrollbar]:w-1">
+        <Scrollbar className="max-h-[60vh] space-y-6 pr-1">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Badge
               variant="secondary"
@@ -158,7 +158,7 @@ const SkillDetailDialog: FC<Props> = ({ skill, open, onOpenChange }) => {
               </div>
             </div>
           </section>
-        </div>
+        </Scrollbar>
       </DialogContent>
     </Dialog>
   )
