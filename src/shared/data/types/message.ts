@@ -620,6 +620,78 @@ export interface TreeResponse {
 }
 
 // ============================================================================
+// Export Tree Types
+// ============================================================================
+
+/** How an unselected sibling variant was produced — drives the fold summary label. */
+export type ExportVariantSource = 'multi-model' | 'regenerate' | 'edit-resend'
+
+/**
+ * One conversational position on an export chain: the selected (chain) message
+ * plus the unselected sibling variants folded behind it. Variants that carry
+ * their own subtree are not variants here — they become branches instead.
+ */
+export interface ExportTurnNode {
+  /** Chain (selected) message id */
+  messageId: string
+  /** Chain message full content */
+  message: Message
+  /** Unselected sibling variants at this position (childless cohort members) */
+  variants: ExportVariantLeaf[]
+}
+
+/** A childless sibling variant kept for export, folded behind its chain member. */
+export interface ExportVariantLeaf {
+  messageId: string
+  message: Message
+  /** Production origin of the variant (summary label) */
+  source: ExportVariantSource
+}
+
+/**
+ * A subtree that left the chain: user-explored branches, reserved branches, and
+ * variant versions that were continued under. Recursive — a branch's own chain
+ * can fork further into `children`.
+ */
+export interface ExportBranchNode {
+  /** Id of the branch's first message (the fork's outgoing child) */
+  branchId: string
+  /** Breadth-first display index across the whole tree (fork-note numbering) */
+  index: number
+  /** Fork message id — the chain message the branch leaves; null when forking right after the topic start */
+  forkMessageId: string | null
+  /** Fork message preview (50 chars, for the fork-note label) */
+  forkPreview: string
+  /** Preview of the branch's first user question (title / file naming) */
+  firstUserQuestionPreview: string
+  /** Message count of the whole branch subtree (chain + variants + children, recursive) */
+  messageCount: number
+  /** The branch's own linear chain content (excludes the shared prefix) */
+  turns: ExportTurnNode[]
+  /** Sub-branches forking off this branch's chain */
+  children: ExportBranchNode[]
+}
+
+/**
+ * Whole-tree export model for topic branch export. Assembled server-side in one
+ * query set so renderers never re-derive tree logic (single source of truth).
+ */
+export interface ExportTreeResponse {
+  topicId: string
+  topicName: string
+  /** Topic's assistantId — embedded so renderers skip a `/topics/:id` round-trip */
+  assistantId: string | null
+  /** Current active node id (chain selection authority) */
+  activeNodeId: string | null
+  /** Active-path chain (root → active leaf) */
+  trunk: ExportTurnNode[]
+  /** Branches forking off the trunk (children nest recursively) */
+  branches: ExportBranchNode[]
+  /** Whole-tree stats for the export-mode dialog */
+  stats: { branchCount: number; totalMessageCount: number }
+}
+
+// ============================================================================
 // Branch Message Types
 // ============================================================================
 
