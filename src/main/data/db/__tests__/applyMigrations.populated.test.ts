@@ -122,6 +122,12 @@ describe('applyMigrations over a populated database', () => {
           is_enabled, is_hidden, order_key, created_at, updated_at)
        VALUES (?, 'operation-migration', ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`
     )
+    const insertWithModalities = sqlite.prepare(
+      `INSERT INTO user_model
+         (id, provider_id, model_id, preset_model_id, name, capabilities, input_modalities,
+          output_modalities, supports_streaming, is_enabled, is_hidden, order_key, created_at, updated_at)
+       VALUES (?, 'operation-migration', ?, NULL, ?, ?, ?, ?, 1, 1, 0, ?, ?, ?)`
+    )
     const cases = [
       ['empty', 'Empty', '[]'],
       ['feature', 'Feature', '["function-call"]'],
@@ -137,6 +143,31 @@ describe('applyMigrations over a populated database', () => {
       insert.run(`operation-migration::${modelId}`, modelId, null, name, capabilities, 1, `a${index}`, now, now)
     }
     insert.run('operation-migration::preset', 'preset', 'preset', null, null, null, 'a9', now, now)
+    // Audio in, text out, no text in: a dedicated transcription model, whose operation is transcription.
+    // Calling it text generation would put a Whisper row in the chat pickers and probe it with a chat request.
+    insertWithModalities.run(
+      'operation-migration::asr',
+      'asr',
+      'ASR',
+      '["audio-recognition"]',
+      '["audio"]',
+      '["text"]',
+      'a91',
+      now,
+      now
+    )
+    // Same capability list, but it also takes text — a multimodal chat model, not a transcriber.
+    insertWithModalities.run(
+      'operation-migration::audio-chat',
+      'audio-chat',
+      'Audio Chat',
+      '["audio-recognition"]',
+      '["text","audio"]',
+      '["text"]',
+      'a92',
+      now,
+      now
+    )
     // A preset-backed row's capability list is a delta over the registry, which already states the
     // model's operation — guessing text generation here turns an image model into a chat model.
     insert.run(
@@ -169,6 +200,8 @@ describe('applyMigrations over a populated database', () => {
       ['video', ['video-generation']],
       ['multi', ['text-generation', 'embedding']],
       ['preset', null],
+      ['asr', ['audio-recognition', 'audio-transcript']],
+      ['audio-chat', ['audio-recognition', 'text-generation']],
       ['preset-image', ['image-recognition']]
     ])
   })
