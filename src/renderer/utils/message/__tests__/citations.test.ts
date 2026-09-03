@@ -623,6 +623,62 @@ describe('cross-turn citations', () => {
     expect(content).toBe('Claim [1].')
     expect(cited.map((citation) => citation.url)).toEqual(['https://a.com/x'])
   })
+
+  it('exports an own id and a re-cited earlier id numbered by first appearance', () => {
+    const { content, cited } = toExportableCitations(
+      'Old [cite:old-2] then new [cite:new-1].',
+      [webToolPart(webResults('new'))],
+      [webToolPart(webResults('old'))]
+    )
+    expect(content).toBe('Old [1] then new [2].')
+    expect(cited.map((citation) => citation.url)).toEqual(['https://b.com/y', 'https://a.com/x'])
+  })
+
+  it('exports a re-cited earlier id that shares a URL with an own result as one source', () => {
+    const { content, cited } = toExportableCitations(
+      'A [cite:old-1] B [cite:new-1]',
+      [webToolPart(webResults('new'))],
+      [webToolPart(webResults('old'))]
+    )
+    expect(content).toBe('A [1] B [1]')
+    expect(cited).toHaveLength(1)
+  })
+
+  it('exports a re-cited earlier id that sits in a run behind an own id', () => {
+    const { content, cited } = toExportableCitations(
+      'Own [cite:new-1][cite:old-2].',
+      [webToolPart(webResults('new'))],
+      [webToolPart(webResults('old'))]
+    )
+    expect(content).toBe('Own [1][2].')
+    expect(cited.map((citation) => citation.url)).toEqual(['https://a.com/x', 'https://b.com/y'])
+  })
+
+  it('does not read earlier turns when every marker resolves from own parts', () => {
+    const untouchable = new Proxy([webToolPart(webResults('old'))], {
+      get(target, property) {
+        if (property === 'length') return target.length
+        throw new Error(`earlier turn part read via ${String(property)}`)
+      }
+    })
+    const { content, cited } = toExportableCitations(
+      'Own [cite:new-1] only.',
+      [webToolPart(webResults('new'))],
+      untouchable
+    )
+    expect(content).toBe('Own [1] only.')
+    expect(cited.map((citation) => citation.url)).toEqual(['https://a.com/x'])
+  })
+
+  it('still reads earlier turns for a marker inside prose when own parts have no citations', () => {
+    const { content, cited } = toExportableCitations(
+      'See `[cite:abc-1]` in code, and [cite:abc-2] in prose.',
+      [],
+      [webToolPart(webResults('abc'))]
+    )
+    expect(content).toBe('See `[cite:abc-1]` in code, and [1] in prose.')
+    expect(cited.map((citation) => citation.url)).toEqual(['https://b.com/y'])
+  })
 })
 
 describe('buildCitationPartsRegistry', () => {

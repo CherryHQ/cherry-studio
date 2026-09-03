@@ -23,7 +23,7 @@ export default defineProvider({
   },
   metadata: {
     website: {
-      apiKey: 'https://console.cloud.tencent.com/tokenhub/inference',
+      apiKey: 'https://console.cloud.tencent.com/tokenhub/apikey',
       docs: 'https://cloud.tencent.com/document/product/1823',
       models: 'https://cloud.tencent.com/document/product/1823/130079',
       official: 'https://cloud.tencent.com/product/tokenhub'

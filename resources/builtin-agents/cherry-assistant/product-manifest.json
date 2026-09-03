@@ -9,12 +9,12 @@
   "routes": {
     "primary": [
       {
-        "id": "assistants",
-        "path": "/app/chat"
-      },
-      {
         "id": "agents",
         "path": "/app/agents"
+      },
+      {
+        "id": "assistants",
+        "path": "/app/chat"
       },
       {
         "id": "paintings",
@@ -448,7 +448,7 @@
     }
   ],
   "providers": {
-    "version": "b4bc941f397194a1",
+    "version": "fc4a6b28db3e604d",
     "count": 61,
     "entries": [
       {
