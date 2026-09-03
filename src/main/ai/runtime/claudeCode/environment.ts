@@ -20,7 +20,7 @@ import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isAnthropicProvider, isExternalCliProvider } from '@shared/utils/provider'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 import {
   type Environment,
@@ -81,12 +81,24 @@ export function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const isTrustedAnthropic = provider != null && isAnthropicProvider(provider)
+  // Only the canonical Anthropic provider reports an accurate window; any
+  // user-configured relay that merely reuses the Anthropic endpoint must stay
+  // on the conservative margin or it can overstate the window (e.g. #18894).
+  const isTrustedAnthropic =
+    provider != null && (provider.presetProviderId === 'anthropic' || provider.id === 'anthropic')
   const effectiveContextWindow = isTrustedAnthropic
     ? contextWindow
     : Math.floor(contextWindow * COMPACTION_CLAUDE_SAFETY_MARGIN)
-  const budget = Math.floor((effectiveContextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
-  return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+  const inputRoom = effectiveContextWindow - requestedOutput
+  const budget = Math.floor(inputRoom * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+  const clamped = Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+  // The MIN clamp is a usability floor for trusted windows, but for
+  // untrusted relays it must not raise the budget above the
+  // safety-adjusted input room or it would exceed the real provider limit.
+  if (isTrustedAnthropic) {
+    return clamped
+  }
+  return Math.min(clamped, Math.max(inputRoom, 0))
 }
 
 // The CLI has no table for third-party models — it would request a generic 32,000 and cap them at
