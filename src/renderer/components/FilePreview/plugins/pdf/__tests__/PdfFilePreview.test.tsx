@@ -38,8 +38,7 @@ const mocks = vi.hoisted(() => ({
     length: number
   }>,
   safeOpen: vi.fn(),
-  toastError: vi.fn(),
-  viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
+  toastError: vi.fn()
 }))
 
 vi.mock('pdfjs-dist', () => ({
@@ -118,20 +117,12 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
     firstPagePromise = Promise.resolve()
-    pageColors: { background?: string; foreground: string }
     setDocument = mocks.pdfViewerSetDocument
     private currentPage = 1
     private scale = 1
 
-    constructor(
-      private options: {
-        eventBus: MockEventBus
-        pageColors: { background?: string; foreground: string }
-      }
-    ) {
-      this.pageColors = options.pageColors
+    constructor(private options: { eventBus: MockEventBus }) {
       mocks.pdfViewerConstructor(options)
-      mocks.viewerInstances.push(this)
     }
 
     get currentPageNumber() {
@@ -249,7 +240,6 @@ describe('PdfFilePreview', () => {
     mocks.pdfViewerPageNumbers.length = 0
     mocks.pdfViewerScaleValues.length = 0
     mocks.rangeTransportInstances.length = 0
-    mocks.viewerInstances.length = 0
     mocks.pdfDocument.numPages = 3
     initialDataTheme = document.documentElement.getAttribute('data-theme')
     themeBackground = 'rgb(10, 11, 12)'
@@ -302,10 +292,10 @@ describe('PdfFilePreview', () => {
       expect.objectContaining({
         annotationMode: 1,
         abortSignal: expect.any(AbortSignal),
-        pageColors: { background: 'rgb(10, 11, 12)', foreground: 'CanvasText' },
         supportsPinchToZoom: true
       })
     )
+    expect(mocks.pdfViewerConstructor.mock.calls[0][0]).not.toHaveProperty('pageColors')
     expect(screen.getByTestId('pdfjs-viewer-container')).toHaveClass('absolute', 'inset-0', 'overflow-auto')
     expect(screen.getByTestId('pdfjs-viewer')).toHaveClass('pdfViewer')
     expect(mocks.pdfViewerScaleValues).toContain('page-width')
@@ -391,9 +381,10 @@ describe('PdfFilePreview', () => {
     expect(await screen.findByText('file_preview.pdf.outline.empty')).toBeInTheDocument()
   })
 
-  it('updates PDF page colors when the app theme changes without rebuilding the viewer', async () => {
+  it('updates the PDF page background when the app theme changes without rebuilding the viewer', async () => {
     renderPreview()
-    await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
+    const viewer = screen.getByTestId('pdfjs-viewer')
+    await waitFor(() => expect(viewer.style.getPropertyValue('--page-bg-color')).toBe('rgb(10, 11, 12)'))
 
     themeBackground = 'rgb(30, 31, 32)'
     document.documentElement.setAttribute(
@@ -401,12 +392,7 @@ describe('PdfFilePreview', () => {
       initialDataTheme === 'pdf-test-theme' ? 'pdf-test-theme-updated' : 'pdf-test-theme'
     )
 
-    await waitFor(() =>
-      expect(mocks.viewerInstances[0].pageColors).toEqual({
-        background: 'rgb(30, 31, 32)',
-        foreground: 'CanvasText'
-      })
-    )
+    await waitFor(() => expect(viewer.style.getPropertyValue('--page-bg-color')).toBe('rgb(30, 31, 32)'))
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledTimes(1)
   })
 
