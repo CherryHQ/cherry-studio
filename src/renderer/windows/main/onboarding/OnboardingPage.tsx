@@ -19,7 +19,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
-import { useCherryCloudSession } from '@renderer/hooks/useCherryCloudSession'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
@@ -104,7 +104,7 @@ export default function OnboardingPage() {
     cancelLogin: handleCherryCloudLoginCancel,
     isCancellingLogin: isCancellingCloudLogin,
     isAuthorizing: isCloudAuthorizing
-  } = useCherryCloudSession(isCnEdition)
+  } = useCherryAccountSession(isCnEdition)
   cloudStatusRef.current = cloudStatus
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => !isManagedCherryProviderId(provider.id)).map((provider) => provider.id)

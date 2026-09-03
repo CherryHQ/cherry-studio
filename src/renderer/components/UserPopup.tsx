@@ -17,7 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useCherryCloudSession } from '@renderer/hooks/useCherryCloudSession'
+import { useCherryAccountSession } from '@renderer/hooks/useCherryAccountSession'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -52,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     isCancellingLogin,
     isRevokingSession,
     isAuthorizing
-  } = useCherryCloudSession(open)
+  } = useCherryAccountSession(open)
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {

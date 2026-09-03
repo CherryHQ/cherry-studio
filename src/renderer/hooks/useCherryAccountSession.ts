@@ -10,7 +10,7 @@ type CherryCloudStatusLoadState = 'error' | 'loading' | 'ready'
 
 type CherryCloudSessionAction = 'cancel' | 'login' | 'revoke'
 
-export function useCherryCloudSession(enabled = true) {
+export function useCherryAccountSession(enabled = true) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<CherryCloudStatus | null>(null)
   const [loadState, setLoadState] = useState<CherryCloudStatusLoadState>('loading')
