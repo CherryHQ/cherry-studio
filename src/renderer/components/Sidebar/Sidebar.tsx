@@ -24,6 +24,7 @@ export interface SidebarProps {
   logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
+  isFullscreen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
@@ -45,6 +46,7 @@ export function Sidebar({
   logo,
   user,
   isFloating = false,
+  isFullscreen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -200,7 +202,11 @@ export function Sidebar({
             clearHoverDismiss()
           }}>
           <div
-            className={cn('flex shrink-0 px-2', isMac ? 'h-10 items-start' : 'h-12 items-center', windowDragClassName)}>
+            className={cn(
+              'flex shrink-0 px-2',
+              isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
+              windowDragClassName
+            )}>
             {renderHeaderIdentity('default', true)}
           </div>
 
@@ -274,7 +280,7 @@ export function Sidebar({
       <div
         className={cn(
           'flex shrink-0',
-          isMac ? 'h-10 items-start' : 'h-12 items-center',
+          isMac && !isFullscreen ? 'h-10 items-start' : 'h-12 items-center',
           windowDragClassName,
           layout === 'full' ? 'px-2' : 'justify-center'
         )}>
