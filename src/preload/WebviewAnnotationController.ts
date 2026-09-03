@@ -326,6 +326,11 @@ interface ViewportRect {
   height: number
 }
 
+type EditorRequest =
+  | { mode: 'create-element'; element: Element }
+  | { mode: 'create-region'; element: Element; region: WebviewAnnotationRegion }
+  | { mode: 'edit'; element: Element; annotationId: string }
+
 const composedParent = (element: Element): Element | null => {
   if (element.parentElement) return element.parentElement
   const root = element.getRootNode()
@@ -752,7 +757,7 @@ export class WebviewAnnotationController {
     if (!element) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    this.openEditor(element)
+    this.openEditor({ mode: 'create-element', element })
   }
 
   private handleDocumentKeyDown = (event: KeyboardEvent) => {
@@ -852,19 +857,20 @@ export class WebviewAnnotationController {
       .filter((locator): locator is WebviewElementLocator => locator !== null)
       .slice(0, WEBVIEW_ANNOTATION_LIMITS.regionElements)
 
-    this.pendingRegion = { rect: pageRect, elements }
-    this.editorRegion = pageRect
-    this.openEditor(anchor)
+    this.openEditor({ mode: 'create-region', element: anchor, region: { rect: pageRect, elements } })
   }
 
-  private openEditor(element: Element, annotationId: string | null = null) {
+  private openEditor(request: EditorRequest) {
+    const annotationId = request.mode === 'edit' ? request.annotationId : null
     if (!this.locale || (!annotationId && this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations)) return
     this.ensureOverlay()
     if (!this.editor || !this.textarea || !this.saveButton) return
 
     const annotation = annotationId ? this.annotations.find((item) => item.id === annotationId) : undefined
-    this.editorElement = element
+    this.editorElement = request.element
     this.editorAnnotationId = annotationId
+    this.pendingRegion = request.mode === 'create-region' ? request.region : null
+    this.editorRegion = request.mode === 'create-region' ? request.region.rect : (annotation?.region?.rect ?? null)
     if (this.editorError) this.editorError.style.display = 'none'
     this.textarea.value = annotation?.comment ?? ''
     this.textarea.placeholder = this.locale.placeholder
@@ -872,7 +878,7 @@ export class WebviewAnnotationController {
     const deleteButton = this.editor.querySelector<HTMLButtonElement>('[data-action="delete"]')
     if (deleteButton) deleteButton.style.display = annotationId ? '' : 'none'
     this.editor.style.display = 'block'
-    this.highlightElement = element
+    this.highlightElement = request.element
     this.schedulePositionUpdate()
     this.textarea.focus()
   }
@@ -953,8 +959,7 @@ export class WebviewAnnotationController {
       pin.addEventListener('click', () => {
         const element = this.resolveAnnotationElement(annotation) ?? (annotation.region ? document.body : null)
         if (!element) return
-        if (annotation.region) this.editorRegion = annotation.region.rect
-        this.openEditor(element, annotation.id)
+        this.openEditor({ mode: 'edit', element, annotationId: annotation.id })
       })
       this.pinLayer?.appendChild(pin)
     })
