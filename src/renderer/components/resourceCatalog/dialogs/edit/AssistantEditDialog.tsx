@@ -1021,13 +1021,9 @@ function ContextManagementFields({
                         value={field.value}
                         onBlur={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
                       />
-                      {/* The unit belongs to a value, not to the placeholder prose,
-                          which already ends in "(80%)". */}
-                      {field.value !== null && (
-                        <InputGroupAddon align="inline-end">
-                          <InputGroupText>%</InputGroupText>
-                        </InputGroupAddon>
-                      )}
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupText>%</InputGroupText>
+                      </InputGroupAddon>
                     </InputGroup>
                   </FormControl>
                   <FormMessage />
