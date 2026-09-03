@@ -161,6 +161,7 @@ const TrashSection: FC<TrashSectionProps> = ({
   // Show offset prev/next whenever more than one page exists OR the user has
   // been stranded on a now-empty page past the first (so Prev remains reachable).
   const showOffsetControls = pagination?.kind === 'offset' && (pagination.totalPages > 1 || pagination.page > 1)
+  const isBatchActionDisabled = selectedItems.length === 0 || isLoading || Boolean(error) || isSectionBusy
 
   return (
     <>
@@ -181,23 +182,25 @@ const TrashSection: FC<TrashSectionProps> = ({
               </span>
             )}
           </div>
-          {!isLoading && !error && selectedItems.length > 0 && (
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" size="sm" disabled={isSectionBusy} onClick={handleRestoreSelected}>
-                {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={isSectionBusy}
-                onClick={() => requestPermanentDelete(selectedItems, true)}>
-                {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
-              </Button>
-              <Button variant="ghost" size="sm" disabled={isSectionBusy} onClick={() => setSelectedIds(new Set())}>
-                {t('settings.data.trash.selection.clear')}
-              </Button>
-            </div>
-          )}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline" size="sm" disabled={isBatchActionDisabled} onClick={handleRestoreSelected}>
+              {t('settings.data.trash.restore.selected', { count: selectedItems.length })}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isBatchActionDisabled}
+              onClick={() => requestPermanentDelete(selectedItems, true)}>
+              {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isBatchActionDisabled}
+              onClick={() => setSelectedIds(new Set())}>
+              {t('settings.data.trash.selection.clear')}
+            </Button>
+          </div>
         </div>
       )}
       {isLoading ? (

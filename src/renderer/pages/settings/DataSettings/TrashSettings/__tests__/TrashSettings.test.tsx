@@ -117,23 +117,27 @@ describe('TrashSettings permanent-delete confirmation', () => {
     await user.click(screen.getByRole('button', { name: 'Batch manage' }))
     expect(screen.getByRole('button', { name: 'Done' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('checkbox', { name: 'Select all visible items' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Restore 1' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore 0' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete Permanently 0' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled()
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted topic' }))
-    expect(screen.getByRole('button', { name: 'Restore 1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete Permanently 1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Clear selection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore 1' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Delete Permanently 1' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Clear selection' })).toBeEnabled()
 
     await chooseCategory(user, 'Topics', 'Sessions')
 
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Select Deleted session' })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Restore 0' })).toBeDisabled()
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted session' }))
     await user.click(screen.getByRole('button', { name: 'Clear selection' }))
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Restore 0' })).toBeDisabled()
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted session' }))
     await user.click(screen.getByRole('button', { name: 'Done' }))
