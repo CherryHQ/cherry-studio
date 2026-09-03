@@ -19,7 +19,7 @@ import { loggerService } from '@logger'
 import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
-import { resolveAgentTurnContextPrompt } from '@main/ai/runtime/agentPrompt'
+import { type AgentRuntimeContextSnapshot, resolveAgentTurnContextPrompt } from '@main/ai/runtime/agentPrompt'
 import {
   appendAgentAttachmentPaths,
   buildAgentUserContent,
@@ -75,12 +75,7 @@ import {
   registerMcpSessionCatalogSync
 } from './settingsBuilder'
 import { ClaudeCodeResultError, ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
-import type {
-  ClaudeCodeRuntimeContextSnapshot,
-  McpToolDisplayMetadata,
-  SteerHolder,
-  ToolApprovalEmitterHolder
-} from './types'
+import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 const HOST_MANAGED_SLASH_COMMANDS = new Set(['effort', 'fast'])
@@ -349,7 +344,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   private resumeToken?: string
-  private runtimeContext?: ClaudeCodeRuntimeContextSnapshot
+  private runtimeContext?: AgentRuntimeContextSnapshot
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
   private assistantFileToolsEnabled = false

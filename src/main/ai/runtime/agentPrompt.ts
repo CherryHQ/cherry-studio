@@ -40,13 +40,13 @@ export type AgentRuntimeContextSnapshot = {
 }
 
 export function captureAgentRuntimeContextSnapshot(
-  agent: Pick<AgentEntity, 'configuration' | 'modelName'>,
+  agent: Pick<AgentEntity, 'configuration' | 'modelName'> & { model?: AgentEntity['model'] },
   modelName?: string
 ): AgentRuntimeContextSnapshot | undefined {
   if (!agent.configuration?.runtime_context_enabled) return undefined
   return {
     template: agent.configuration.runtime_context_prompt,
-    modelName: modelName ?? agent.modelName ?? undefined
+    modelName: modelName ?? agent.modelName ?? agent.model ?? undefined
   }
 }
 
@@ -63,9 +63,7 @@ export async function resolveAgentTurnContextPrompt(input: {
   webSearchEnabled: boolean
   now?: Date
 }): Promise<string | undefined> {
-  const runtimeContext = input.snapshot
-    ? await buildRuntimeContextPrompt(input.snapshot.modelName, input.snapshot.template)
-    : undefined
+  const runtimeContext = await resolveAgentRuntimeContextPrompt(input.snapshot)
   const dateContext = input.webSearchEnabled ? buildWebSearchDateContext(input.now ?? new Date()) : undefined
   if (runtimeContext && dateContext) return `${runtimeContext}\n\n${dateContext}`
   return runtimeContext ?? dateContext

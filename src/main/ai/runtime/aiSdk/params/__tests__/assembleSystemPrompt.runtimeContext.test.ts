@@ -3,21 +3,8 @@ import os from 'node:os'
 import { getDeviceType } from '@main/utils/system'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-const preferenceGet = vi.hoisted(() =>
-  vi.fn((key: string) => {
-    if (key === 'app.user.name') return 'Test User'
-    if (key === 'app.language') return 'en-US'
-    return undefined
-  })
-)
-
-vi.mock('@application', () => ({
-  application: {
-    get: () => ({ get: preferenceGet })
-  }
-}))
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -55,13 +42,14 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 const model = { id: 'openai::gpt-4' as UniqueModelId, providerId: 'openai', name: 'GPT-4' } as Model
 
 describe('assembleSystemPrompt runtime context contract', () => {
+  beforeEach(() => {
+    MockMainPreferenceServiceUtils.resetMocks()
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', 'Test User')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
+  })
+
   afterEach(() => {
     vi.useRealTimers()
-    preferenceGet.mockImplementation((key: string) => {
-      if (key === 'app.user.name') return 'Test User'
-      if (key === 'app.language') return 'en-US'
-      return undefined
-    })
   })
 
   it('does not disclose environment fields when the toggle is off or absent', async () => {
@@ -99,10 +87,7 @@ describe('assembleSystemPrompt runtime context contract', () => {
   })
 
   it('does not hide a username resolution failure behind a successful empty block', async () => {
-    preferenceGet.mockImplementation((key: string) => {
-      if (key === 'app.language') return 'en-US'
-      return undefined
-    })
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.user.name', '')
 
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({

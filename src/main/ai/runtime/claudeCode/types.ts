@@ -1,4 +1,5 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
+import type { AgentRuntimeContextSnapshot } from '@main/ai/runtime/agentPrompt'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 
 import type { AgentRuntimeToolApprovalRequest, AgentRuntimeUserInput } from '../types'
@@ -63,13 +64,7 @@ export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'pr
   /** Display-only metadata for Claude Code MCP tool names. Not passed to the SDK. */
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
   /** Runtime-context inputs captured with the connection. Not passed to the SDK. */
-  runtimeContext?: ClaudeCodeRuntimeContextSnapshot
-}
-
-export type ClaudeCodeRuntimeContextSnapshot = {
-  /** Unresolved user template so volatile variables can be refreshed for each turn. */
-  template?: string
-  modelName?: string
+  runtimeContext?: AgentRuntimeContextSnapshot
 }
 
 export type ToolApprovalEmitterHolder = {

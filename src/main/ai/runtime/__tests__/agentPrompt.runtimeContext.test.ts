@@ -61,6 +61,19 @@ describe('agent runtime context snapshot', () => {
     })
   })
 
+  it('preserves the configured model id when no display name is available', () => {
+    expect(
+      captureAgentRuntimeContextSnapshot({
+        configuration: { runtime_context_enabled: true },
+        model: 'anthropic::claude-sonnet',
+        modelName: null
+      })
+    ).toEqual({
+      template: undefined,
+      modelName: 'anthropic::claude-sonnet'
+    })
+  })
+
   it('resolves the captured template with live environment values', async () => {
     const resolved = await resolveAgentRuntimeContextPrompt({
       template: 'User: {{username}}; OS: {{system}}; Model: {{model_name}}',
