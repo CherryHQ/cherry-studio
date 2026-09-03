@@ -131,15 +131,27 @@ function createWebview() {
   return element
 }
 
-function configuredDocumentId(webview: WebviewTag, fallback = LEGACY_DOCUMENT_ID) {
-  const configure = vi
+function configureCommands(webview: WebviewTag) {
+  return vi
     .mocked(webview.send)
     .mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
     .filter(
       (command): command is Extract<WebviewAnnotationHostCommand, { type: 'configure' }> => command.type === 'configure'
     )
-    .at(-1)
-  return configure?.documentId ?? fallback
+}
+
+function configuredDocumentId(webview: WebviewTag, fallback = LEGACY_DOCUMENT_ID) {
+  return configureCommands(webview).at(-1)?.documentId ?? fallback
+}
+
+function createDeferredSend() {
+  let resolve!: () => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<void>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, reject, resolve }
 }
 
 function dispatchGuestEvent(
@@ -375,6 +387,111 @@ describe('WebviewAnnotationControls', () => {
 
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeState)
+  })
+
+  it('invalidates a document when every overlapping initial configuration fails', async () => {
+    const webview = createWebview()
+    const firstConfiguration = createDeferredSend()
+    const secondConfiguration = createDeferredSend()
+    let configurationAttempt = 0
+    vi.mocked(webview.send).mockImplementation((_channel, command: WebviewAnnotationHostCommand) => {
+      if (command.type !== 'configure') return Promise.resolve()
+      return configurationAttempt++ === 0 ? firstConfiguration.promise : secondConfiguration.promise
+    })
+    const onAnnotationSaved = vi.fn()
+    const view = render(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    const documentId = configuredDocumentId(webview)
+    const pending = saveCreateEditor(webview, 'Never confirmed').command
+
+    themeState.current = 'light'
+    view.rerender(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    expect(configureCommands(webview)).toHaveLength(2)
+
+    await act(async () => {
+      secondConfiguration.reject(new Error('Latest configuration failed'))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      firstConfiguration.reject(new Error('Initial configuration failed late'))
+      await Promise.resolve()
+    })
+
+    const replaceRequestsBeforeState = replaceAnnotationRequests().length
+    act(() =>
+      dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: pending.id }] }, documentId)
+    )
+
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeState)
+  })
+
+  it('rolls overlapping configuration failures back to the last confirmed configuration', async () => {
+    const webview = createWebview()
+    const configurations = [createDeferredSend(), createDeferredSend(), createDeferredSend(), createDeferredSend()]
+    let configurationAttempt = 0
+    vi.mocked(webview.send).mockImplementation((_channel, command: WebviewAnnotationHostCommand) => {
+      if (command.type !== 'configure') return Promise.resolve()
+      return configurations[configurationAttempt++].promise
+    })
+    const view = render(
+      <WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />
+    )
+    const documentId = configuredDocumentId(webview)
+
+    await act(async () => {
+      configurations[0].resolve()
+      await Promise.resolve()
+    })
+
+    themeState.current = 'light'
+    view.rerender(
+      <WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />
+    )
+    themeState.current = 'dark'
+    view.rerender(
+      <WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />
+    )
+    expect(configureCommands(webview)).toHaveLength(3)
+
+    await act(async () => {
+      configurations[2].reject(new Error('Latest reconfiguration failed'))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      configurations[1].reject(new Error('Superseded reconfiguration failed late'))
+      await Promise.resolve()
+    })
+
+    const replaceRequestsBeforeState = replaceAnnotationRequests().length
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }, documentId))
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeState + 1)
+
+    themeState.current = 'light'
+    view.rerender(
+      <WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />
+    )
+    expect(configureCommands(webview)).toHaveLength(4)
+    expect(configureCommands(webview).at(-1)).toEqual(
+      expect.objectContaining({ documentId, theme: 'light', type: 'configure' })
+    )
   })
 
   it('synchronizes counts, copies Markdown, and clears after confirmation', async () => {

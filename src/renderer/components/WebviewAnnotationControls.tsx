@@ -45,10 +45,15 @@ interface AnnotationDocumentOwner {
   webview: WebviewTag
 }
 
+type AnnotationDocumentConfiguration = Pick<
+  Extract<WebviewAnnotationHostCommand, { type: 'configure' }>,
+  'locale' | 'theme'
+>
+
 interface CurrentAnnotationDocument extends AnnotationDocumentOwner {
-  configuration: Pick<Extract<WebviewAnnotationHostCommand, { type: 'configure' }>, 'locale' | 'theme'> | null
+  confirmedConfiguration: AnnotationDocumentConfiguration | null
   configurationAttempt: number
-  configurationPending: boolean
+  pendingConfiguration: AnnotationDocumentConfiguration | null
 }
 
 interface CreateSaveAttempt extends AnnotationDocumentOwner {
@@ -238,33 +243,33 @@ export function WebviewAnnotationControls({
   )
 
   const configureDocument = useCallback(
-    (document: AnnotationDocumentOwner, failClosed: boolean) => {
+    (document: AnnotationDocumentOwner) => {
       const current = currentDocumentRef.current
       if (!current || !isCurrentDocument(document)) return false
-      const nextConfiguration: CurrentAnnotationDocument['configuration'] = {
+      const nextConfiguration: AnnotationDocumentConfiguration = {
         locale,
         theme: theme === ThemeMode.dark ? 'dark' : 'light'
       }
       if (
-        current.configuration?.locale.edit === nextConfiguration.locale.edit &&
-        current.configuration.theme === nextConfiguration.theme
+        (current.pendingConfiguration?.locale.edit === nextConfiguration.locale.edit &&
+          current.pendingConfiguration.theme === nextConfiguration.theme) ||
+        (!current.pendingConfiguration &&
+          current.confirmedConfiguration?.locale.edit === nextConfiguration.locale.edit &&
+          current.confirmedConfiguration.theme === nextConfiguration.theme)
       ) {
         return false
       }
 
       const attempt: CurrentAnnotationDocument = {
         ...current,
-        configuration: nextConfiguration,
         configurationAttempt: current.configurationAttempt + 1,
-        configurationPending: true
+        pendingConfiguration: nextConfiguration
       }
       currentDocumentRef.current = attempt
 
       const handleFailure = (error: unknown) => {
         if (!isCurrentDocumentConfigurationAttempt(attempt)) return
-        currentDocumentRef.current = failClosed
-          ? null
-          : { ...attempt, configuration: current.configuration, configurationPending: false }
+        currentDocumentRef.current = attempt.confirmedConfiguration ? { ...attempt, pendingConfiguration: null } : null
         logger.debug('Failed to configure webview annotations', { targetId: attempt.targetId, error })
       }
 
@@ -277,7 +282,11 @@ export function WebviewAnnotationControls({
           })
           .then(() => {
             if (!isCurrentDocumentConfigurationAttempt(attempt)) return
-            const configured = { ...attempt, configurationPending: false }
+            const configured = {
+              ...attempt,
+              confirmedConfiguration: nextConfiguration,
+              pendingConfiguration: null
+            }
             currentDocumentRef.current = configured
             requestDocumentState(configured)
           }, handleFailure)
@@ -364,15 +373,15 @@ export function WebviewAnnotationControls({
     setState(EMPTY_STATE)
     setEditorSession(null)
     const document: CurrentAnnotationDocument = {
-      configuration: null,
+      confirmedConfiguration: null,
       configurationAttempt: 0,
-      configurationPending: false,
       documentId: crypto.randomUUID(),
+      pendingConfiguration: null,
       targetId: listenerTargetId,
       webview
     }
     currentDocumentRef.current = document
-    configureDocument(document, true)
+    configureDocument(document)
     void replaceMainSnapshot([], webview)
   })
 
@@ -390,8 +399,8 @@ export function WebviewAnnotationControls({
     if (!isMountedRef.current || webview !== webviewRef.current || listenerTargetId !== target.id) return
     const document = currentDocumentRef.current
     if (document && isCurrentDocument(document)) {
-      const configurationSent = configureDocument(document, false)
-      if (!configurationSent && !currentDocumentRef.current?.configurationPending) {
+      const configurationSent = configureDocument(document)
+      if (!configurationSent && !currentDocumentRef.current?.pendingConfiguration) {
         requestDocumentState(document)
       }
       return
@@ -421,8 +430,8 @@ export function WebviewAnnotationControls({
     if (!isWebviewReady) return
     const document = currentDocumentRef.current
     if (document && isCurrentDocument(document)) {
-      const configurationSent = configureDocument(document, false)
-      if (!configurationSent && !document.configurationPending) requestDocumentState(document)
+      const configurationSent = configureDocument(document)
+      if (!configurationSent && !document.pendingConfiguration) requestDocumentState(document)
       return
     }
     if (!awaitingDocumentReadyRef.current) startDocument(webviewRef.current, target.id)
