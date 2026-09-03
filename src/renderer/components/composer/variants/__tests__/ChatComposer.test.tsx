@@ -4414,6 +4414,11 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.draftTokens?.map((token) => token.label)).toEqual(
+        expect.arrayContaining(['a.pdf', 'b.png'])
+      )
+    })
     const rewrittenPdfToken = mocks.surfaceProps?.draftTokens?.find((token) => token.label === 'a.pdf')
     const rewrittenPngToken = mocks.surfaceProps?.draftTokens?.find((token) => token.label === 'b.png')
     expect(rewrittenPdfToken?.id).toMatch(/^file:.+/)
