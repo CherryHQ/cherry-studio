@@ -145,7 +145,7 @@
     "pdfjs-dist": "5.4.296",
     "ppu-paddle-ocr": "6.0.0",
     "registry-js": "1.16.1",
-    "selection-hook": "2.0.3",
+    "selection-hook": "2.1.1",
     "sharp": "0.35.3",
     "smol-toml": "^1.7.0",
     "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
