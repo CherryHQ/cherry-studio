@@ -1,14 +1,13 @@
-import type { ChildProcess } from 'node:child_process'
 import { realpath } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { getHermesHome } from '@main/services/codeCli'
-import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
+import { type ChildProcessHandle, type ProcessLogLine, ProcessState } from '@main/services/process'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { HermesDashboardStartFailureReason, HermesDashboardStatus } from '@shared/ipc/schemas/hermesDashboard'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
@@ -21,13 +20,12 @@ const DASHBOARD_HOST = '127.0.0.1'
 const START_TIMEOUT_MS = 30_000
 const HEALTH_PROBE_TIMEOUT_MS = 2_000
 const HEALTH_PROBE_INTERVAL_MS = 250
-const GRACEFUL_STOP_TIMEOUT_MS = 3_000
-const FORCE_STOP_TIMEOUT_MS = 1_000
 const OUTPUT_CAPTURE_LIMIT = 32 * 1024
 const DIAGNOSTIC_LIMIT = 2_000
+const HERMES_DASHBOARD_PROCESS_ID = 'hermes-dashboard'
 
 interface HermesDashboardRuntime {
-  env: NodeJS.ProcessEnv
+  env: Record<string, string>
   executablePath: string
   home: AbsoluteFilePath
 }
@@ -44,13 +42,14 @@ class HermesDashboardStartError extends Error {
 
 @Injectable('HermesDashboardService')
 @ServicePhase(Phase.WhenReady)
+@DependsOn(['ProcessManager'])
 export class HermesDashboardService extends BaseService {
   private readonly operationMutex = new Mutex()
   private readonly startupAbortControllers = new Set<AbortController>()
-  private child: ChildProcess | null = null
+  private processHandle: ChildProcessHandle | null = null
   private isLifecycleStopping = false
   private status: HermesDashboardStatus = 'stopped'
-  private stoppingChild: ChildProcess | null = null
+  private stoppingHandle: ChildProcessHandle | null = null
   private url: string | undefined
 
   protected onInit(): void {
@@ -69,7 +68,7 @@ export class HermesDashboardService extends BaseService {
   /** Serializes native Hermes config mutations with the Dashboard lifecycle. */
   async writeConfigFiles<T>(write: () => Promise<T>): Promise<T> {
     return this.operationMutex.runExclusive(async () => {
-      if (this.child || this.stoppingChild || this.status === 'starting' || this.status === 'running') {
+      if (this.processHandle || this.stoppingHandle || this.status === 'starting' || this.status === 'running') {
         throw new Error('Hermes Agent web UI is running, so its configuration cannot be changed')
       }
       return write()
@@ -93,14 +92,14 @@ export class HermesDashboardService extends BaseService {
         if (startupAbortController.signal.aborted) {
           return { success: false, reason: 'cancelled', message: 'Hermes Dashboard startup was cancelled' }
         }
-        if (this.child && this.status === 'running' && this.url) {
+        if (this.processHandle && this.status === 'running' && this.url) {
           return { success: true, url: this.url }
         }
 
         try {
           // Reaping a leftover child belongs inside the try so a failing stop is
           // mapped to a failure Result, not thrown out of start().
-          if (this.child) await this.stopOwnedProcessLocked()
+          if (this.processHandle) await this.stopOwnedProcessLocked()
           this.updateStatus('starting')
           const runtime = await this.resolveRuntime()
           if (startupAbortController.signal.aborted) {
@@ -112,7 +111,7 @@ export class HermesDashboardService extends BaseService {
           }
           const url = `http://${DASHBOARD_HOST}:${port}`
           await this.spawnAndWaitForReady(runtime, port, url, startupAbortController.signal)
-          if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
+          if (!this.processHandle || this.processHandle.state !== ProcessState.Running) {
             throw new HermesDashboardStartError(
               'startup_failed',
               'Hermes Dashboard exited immediately after becoming ready'
@@ -175,34 +174,47 @@ export class HermesDashboardService extends BaseService {
     url: string,
     signal: AbortSignal
   ): Promise<void> {
-    const child = crossPlatformSpawn(
-      runtime.executablePath,
-      ['dashboard', '--host', DASHBOARD_HOST, '--port', String(port), '--no-open'],
-      {
-        env: runtime.env,
-        detached: !isWin,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true
-      }
-    )
-    this.child = child
-    const handleTermination = (code: number | null, childSignal: NodeJS.Signals | null) =>
-      this.handleChildTermination(child, code, childSignal)
-    child.once('exit', handleTermination)
-    child.once('close', handleTermination)
-    child.on('error', (error) => {
-      if (this.child === child && this.status === 'running') this.updateStatus('error')
-      logger.warn('Managed Hermes Dashboard process error', { message: sanitizeDiagnostic(error.message) })
-    })
+    const pm = application.get('ProcessManager')
+    const existing = pm.get(HERMES_DASHBOARD_PROCESS_ID)
+    if (existing) {
+      await existing.stop()
+      await pm.unregister(HERMES_DASHBOARD_PROCESS_ID)
+    }
 
-    await waitForReady(child, url, runtime.home, signal)
+    const handle = pm.register({
+      id: HERMES_DASHBOARD_PROCESS_ID,
+      command: runtime.executablePath,
+      args: ['dashboard', '--host', DASHBOARD_HOST, '--port', String(port), '--no-open'],
+      env: runtime.env,
+      detached: !isWin,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    this.processHandle = handle
+
+    const previousOnExited = handle.onExited
+    handle.onExited = (code, childSignal) => {
+      previousOnExited?.(code, childSignal)
+      this.handleProcessTermination(handle, code, childSignal)
+      void pm
+        .unregister(HERMES_DASHBOARD_PROCESS_ID)
+        .catch((error: unknown) => logger.warn('Failed to unregister Hermes Dashboard process', error as Error))
+    }
+
+    const readiness = waitForReady(handle, url, runtime.home, signal)
+    void readiness.catch(() => undefined)
+    await handle.start()
+    await readiness
   }
 
-  private handleChildTermination(child: ChildProcess, code: number | null, signal: NodeJS.Signals | null): void {
-    if (this.child !== child) return
-    this.child = null
-    if (this.stoppingChild === child) {
-      this.stoppingChild = null
+  private handleProcessTermination(
+    handle: ChildProcessHandle,
+    code: number | null,
+    signal: NodeJS.Signals | null
+  ): void {
+    if (this.processHandle !== handle) return
+    this.processHandle = null
+    if (this.stoppingHandle === handle) {
+      this.stoppingHandle = null
       this.updateStatus('stopped')
       return
     }
@@ -223,24 +235,16 @@ export class HermesDashboardService extends BaseService {
   }
 
   private async stopOwnedProcessLocked(): Promise<void> {
-    const child = this.child
-    if (!child) return
-    if (!child.pid) {
-      this.child = null
-      if (this.stoppingChild === child) this.stoppingChild = null
-      return
-    }
-    this.stoppingChild = child
+    const handle = this.processHandle
+    if (!handle) return
+    this.stoppingHandle = handle
     try {
-      await terminateProcessTree(child, false, 'Hermes Dashboard')
-      if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
-
-      await terminateProcessTree(child, true, 'Hermes Dashboard')
-      if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
-        throw new Error('Hermes Dashboard did not exit after forced termination')
-      }
+      await handle.stop()
+      await application.get('ProcessManager').unregister(HERMES_DASHBOARD_PROCESS_ID)
+      if (this.processHandle === handle) this.processHandle = null
+      if (this.stoppingHandle === handle) this.stoppingHandle = null
     } catch (error) {
-      if (this.stoppingChild === child) this.stoppingChild = null
+      if (this.stoppingHandle === handle) this.stoppingHandle = null
       throw error
     }
   }
@@ -321,7 +325,7 @@ function isMissingDashboardDependencyDiagnostic(value: string): boolean {
 }
 
 function waitForReady(
-  child: ChildProcess,
+  handle: ChildProcessHandle,
   url: string,
   expectedHome: AbsoluteFilePath,
   signal: AbortSignal
@@ -335,14 +339,9 @@ function waitForReady(
     const cleanup = () => {
       clearTimeout(timeout)
       clearInterval(healthInterval)
-      child.stdout?.off('data', onStdout)
-      child.stderr?.off('data', onStderr)
-      child.off('error', onError)
-      child.off('exit', onClose)
-      child.off('close', onClose)
+      if (handle.onLog === onLog) handle.onLog = previousOnLog
+      if (handle.onExited === onExited) handle.onExited = previousOnExited
       signal.removeEventListener('abort', onAbort)
-      child.stdout?.resume()
-      child.stderr?.resume()
     }
     const fail = (error: Error) => {
       if (settled) return
@@ -381,26 +380,25 @@ function waitForReady(
           checkingHealth = false
         })
     }
-    const onStdout = (chunk: Buffer) => {
-      stdout = appendBounded(stdout, chunk)
+    const previousOnLog = handle.onLog
+    const onLog = (line: ProcessLogLine) => {
+      previousOnLog?.(line)
+      if (line.stream === 'stdout') stdout = appendBounded(stdout, line.data)
+      else stderr = appendBounded(stderr, line.data)
     }
-    const onStderr = (chunk: Buffer) => {
-      stderr = appendBounded(stderr, chunk)
-    }
-    const onError = (error: Error) => fail(error)
     const onAbort = () => fail(new Error('Hermes Dashboard startup was cancelled'))
-    const onClose = (code: number | null, childSignal: NodeJS.Signals | null) =>
+    const previousOnExited = handle.onExited
+    const onExited = (code: number | null, childSignal: NodeJS.Signals | null) => {
+      previousOnExited?.(code, childSignal)
       fail(
         new Error(`Hermes Dashboard exited before it was ready (code ${String(code)}, signal ${String(childSignal)})`)
       )
+    }
     const timeout = setTimeout(() => fail(new Error('Hermes Dashboard startup timed out')), START_TIMEOUT_MS)
     const healthInterval = setInterval(checkHealth, HEALTH_PROBE_INTERVAL_MS)
 
-    child.stdout?.on('data', onStdout)
-    child.stderr?.on('data', onStderr)
-    child.once('error', onError)
-    child.once('exit', onClose)
-    child.once('close', onClose)
+    handle.onLog = onLog
+    handle.onExited = onExited
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) onAbort()
     else checkHealth()

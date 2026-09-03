@@ -1,12 +1,10 @@
-import type { ChildProcess } from 'node:child_process'
-
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
-import { crossPlatformSpawn, terminateProcessTree, waitForProcessExit } from '@main/utils/processRunner'
+import { type ChildProcessHandle, type ProcessLogLine, ProcessState } from '@main/services/process'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { BinaryAvailability } from '@shared/types/binary'
@@ -31,10 +29,9 @@ import {
 const logger = loggerService.withContext('DeepSeekHarnessService')
 
 const START_TIMEOUT_MS = 30_000
-const GRACEFUL_STOP_TIMEOUT_MS = 3000
-const FORCE_STOP_TIMEOUT_MS = 1000
 const OUTPUT_CAPTURE_LIMIT = 32 * 1024
 const DIAGNOSTIC_LIMIT = 2000
+const DEEPSEEK_HARNESS_PROCESS_ID = 'deepseek-harness'
 const NO_KEY_PLACEHOLDER = 'no-key-required'
 const GATEWAY_ROUTE = 'cherry-studio-codemate-gateway'
 const GATEWAY_CREDENTIAL_REF = 'CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY'
@@ -49,18 +46,18 @@ interface DeepSeekHarnessStartInput extends DeepSeekHarnessSettings {
 
 interface DeepSeekHarnessRuntime {
   path: string
-  env: NodeJS.ProcessEnv
+  env: Record<string, string>
 }
 
 @Injectable('DeepSeekHarnessService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ApiGatewayService'])
+@DependsOn(['ApiGatewayService', 'ProcessManager'])
 export class DeepSeekHarnessService extends BaseService {
   private readonly operationMutex = new Mutex()
   private status: DeepSeekHarnessStatus = 'stopped'
   private url: string | undefined
-  private child: ChildProcess | null = null
-  private stoppingChild: ChildProcess | null = null
+  private processHandle: ChildProcessHandle | null = null
+  private stoppingHandle: ChildProcessHandle | null = null
   private runningPermissionMode: DeepSeekHarnessPermissionMode | undefined
   private readonly startupAbortControllers = new Set<AbortController>()
   // Bumped by every setStatus broadcast; request paths use it to detect no-op completions.
@@ -99,18 +96,18 @@ export class DeepSeekHarnessService extends BaseService {
           return { success: false, message: 'DeepSeek Harness startup was cancelled' }
         }
         if (
-          this.child &&
+          this.processHandle &&
           this.status === 'running' &&
           this.url &&
           this.runningPermissionMode === input.permissionMode
         ) {
-          const runningChild = this.child
+          const runningHandle = this.processHandle
           const transitionBefore = this.statusTransitionId
           try {
             const { receipt } = await this.syncConfig(input)
             if (
               startupAbortController.signal.aborted ||
-              this.child !== runningChild ||
+              this.processHandle !== runningHandle ||
               this.status !== 'running' ||
               !this.url
             ) {
@@ -130,7 +127,7 @@ export class DeepSeekHarnessService extends BaseService {
             return { success: false, message: sanitizeDiagnostic(message) }
           }
         }
-        if (this.child) await this.stopOwnedProcessLocked()
+        if (this.processHandle) await this.stopOwnedProcessLocked()
         if (startupAbortController.signal.aborted) {
           return { success: false, message: 'DeepSeek Harness startup was cancelled' }
         }
@@ -155,7 +152,7 @@ export class DeepSeekHarnessService extends BaseService {
             input.permissionMode,
             startupAbortController.signal
           )
-          if (!this.child || this.child.exitCode !== null || this.child.signalCode !== null) {
+          if (!this.processHandle || this.processHandle.state !== ProcessState.Running) {
             throw new Error('DeepSeek Harness exited immediately after becoming ready')
           }
           this.url = url
@@ -279,45 +276,63 @@ export class DeepSeekHarnessService extends BaseService {
     permissionMode: DeepSeekHarnessPermissionMode,
     signal: AbortSignal
   ): Promise<string> {
-    const env = {
+    const env: NodeJS.ProcessEnv = {
       ...runtime.env,
       DSH_HOME: application.getPath('external.deepseek_harness.config'),
       DSH_PERMISSION_MODE: permissionMode
     }
     for (const name of Object.keys(env)) {
-      if (MANAGED_CREDENTIAL_ENV.test(name)) delete env[name]
+      if (MANAGED_CREDENTIAL_ENV.test(name)) env[name] = undefined
     }
 
-    const child = crossPlatformSpawn(runtime.path, ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'], {
+    const pm = application.get('ProcessManager')
+    const existing = pm.get(DEEPSEEK_HARNESS_PROCESS_ID)
+    if (existing) {
+      await existing.stop()
+      await pm.unregister(DEEPSEEK_HARNESS_PROCESS_ID)
+    }
+
+    const handle = pm.register({
+      id: DEEPSEEK_HARNESS_PROCESS_ID,
+      command: runtime.path,
+      args: ['web', '--host', '127.0.0.1', '--port', '0', '--no-open'],
       cwd: application.getPath('feature.deepseek_harness.workspace'),
       env,
       detached: !isWin,
       stdio: ['ignore', 'pipe', 'pipe']
     })
-    this.child = child
-    const handleTermination = (code: number | null, signal: NodeJS.Signals | null) =>
-      this.handleChildTermination(child, code, signal)
-    child.once('exit', handleTermination)
-    child.once('close', handleTermination)
-    child.on('error', (error) => {
-      if (this.child === child && this.status === 'running') this.setStatus('error')
-      logger.warn('Managed DeepSeek Harness process error', { message: sanitizeDiagnostic(error.message) })
-    })
+    this.processHandle = handle
 
+    const previousOnExited = handle.onExited
+    handle.onExited = (code, childSignal) => {
+      previousOnExited?.(code, childSignal)
+      this.handleProcessTermination(handle, code, childSignal)
+      void pm
+        .unregister(DEEPSEEK_HARNESS_PROCESS_ID)
+        .catch((error: unknown) => logger.warn('Failed to unregister DeepSeek Harness process', error as Error))
+    }
+
+    const readiness = waitForReady(handle, projection.credentialValue, signal)
+    void readiness.catch(() => undefined)
     try {
-      return await waitForReady(child, projection.credentialValue, signal)
+      await handle.start()
+      return await readiness
     } catch (error) {
       throw error instanceof Error ? error : new Error('DeepSeek Harness failed during startup')
     }
   }
 
-  private handleChildTermination(child: ChildProcess, code: number | null, signal: NodeJS.Signals | null): void {
-    if (this.child !== child) return
-    this.child = null
+  private handleProcessTermination(
+    handle: ChildProcessHandle,
+    code: number | null,
+    signal: NodeJS.Signals | null
+  ): void {
+    if (this.processHandle !== handle) return
+    this.processHandle = null
     this.url = undefined
     this.runningPermissionMode = undefined
-    if (this.stoppingChild === child) {
-      this.stoppingChild = null
+    if (this.stoppingHandle === handle) {
+      this.stoppingHandle = null
       // A teardown that began after the state already left starting/running (failed-launch
       // cleanup sets 'error' first) must not revive 'stopped'.
       if (this.status === 'starting' || this.status === 'running') this.setStatus('stopped')
@@ -330,15 +345,17 @@ export class DeepSeekHarnessService extends BaseService {
   }
 
   private async stopOwnedProcessLocked(): Promise<void> {
-    const child = this.child
-    if (!child) return
-    this.stoppingChild = child
-    await terminateProcessTree(child, false, 'DeepSeek Harness')
-    if (await waitForProcessExit(child, GRACEFUL_STOP_TIMEOUT_MS)) return
-
-    await terminateProcessTree(child, true, 'DeepSeek Harness')
-    if (!(await waitForProcessExit(child, FORCE_STOP_TIMEOUT_MS))) {
-      throw new Error('DeepSeek Harness did not exit after forced termination')
+    const handle = this.processHandle
+    if (!handle) return
+    this.stoppingHandle = handle
+    try {
+      await handle.stop()
+      await application.get('ProcessManager').unregister(DEEPSEEK_HARNESS_PROCESS_ID)
+      if (this.processHandle === handle) this.processHandle = null
+      if (this.stoppingHandle === handle) this.stoppingHandle = null
+    } catch (error) {
+      if (this.stoppingHandle === handle) this.stoppingHandle = null
+      throw error
     }
   }
 }
@@ -367,7 +384,7 @@ async function assertWebReady(url: string): Promise<void> {
   if (response.status !== 200) throw new Error(`DeepSeek Harness Web UI returned HTTP ${response.status}`)
 }
 
-function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal): Promise<string> {
+function waitForReady(handle: ChildProcessHandle, secret: string, signal: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     let stdout = ''
     let stderr = ''
@@ -376,14 +393,9 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
 
     const cleanup = () => {
       clearTimeout(timeout)
-      child.stdout?.off('data', onStdout)
-      child.stderr?.off('data', onStderr)
-      child.off('error', onError)
-      child.off('exit', onClose)
-      child.off('close', onClose)
+      if (handle.onLog === onLog) handle.onLog = previousOnLog
+      if (handle.onExited === onExited) handle.onExited = previousOnExited
       signal.removeEventListener('abort', onAbort)
-      child.stdout?.resume()
-      child.stderr?.resume()
     }
     const fail = (error: Error) => {
       if (settled) return
@@ -392,8 +404,14 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
       const diagnostic = sanitizeDiagnostic([error.message, stderr, stdout].filter(Boolean).join('\n'), secret)
       reject(new Error(diagnostic || 'DeepSeek Harness failed during startup'))
     }
-    const onStdout = (chunk: Buffer) => {
-      stdout = appendBounded(stdout, chunk)
+    const previousOnLog = handle.onLog
+    const onLog = (line: ProcessLogLine) => {
+      previousOnLog?.(line)
+      if (line.stream === 'stderr') {
+        stderr = appendBounded(stderr, line.data)
+        return
+      }
+      stdout = appendBounded(stdout, line.data)
       const url = parseReadyUrl(stdout)
       if (!url || checkingUrl) return
       checkingUrl = true
@@ -406,20 +424,16 @@ function waitForReady(child: ChildProcess, secret: string, signal: AbortSignal):
         })
         .catch((error) => fail(error instanceof Error ? error : new Error('DeepSeek Harness Web UI is unavailable')))
     }
-    const onStderr = (chunk: Buffer) => {
-      stderr = appendBounded(stderr, chunk)
-    }
-    const onError = (error: Error) => fail(error)
     const onAbort = () => fail(new Error('DeepSeek Harness startup was cancelled'))
-    const onClose = (code: number | null, signal: NodeJS.Signals | null) =>
+    const previousOnExited = handle.onExited
+    const onExited = (code: number | null, signal: NodeJS.Signals | null) => {
+      previousOnExited?.(code, signal)
       fail(new Error(`DeepSeek Harness exited before it was ready (code ${String(code)}, signal ${String(signal)})`))
+    }
     const timeout = setTimeout(() => fail(new Error('DeepSeek Harness startup timed out')), START_TIMEOUT_MS)
 
-    child.stdout?.on('data', onStdout)
-    child.stderr?.on('data', onStderr)
-    child.once('error', onError)
-    child.once('exit', onClose)
-    child.once('close', onClose)
+    handle.onLog = onLog
+    handle.onExited = onExited
     signal.addEventListener('abort', onAbort, { once: true })
     if (signal.aborted) onAbort()
   })

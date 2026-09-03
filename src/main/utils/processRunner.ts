@@ -150,23 +150,24 @@ export async function terminateProcessTree(child: ChildProcess, force: boolean, 
   }
 }
 
-/** Resolve true once the child exits within `timeoutMs` (or has already exited); false on timeout. */
+/** Resolve true once the child exits within `timeoutMs`; false on timeout. */
 export function waitForProcessExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true)
+
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
-      child.off('exit', onClose)
-      child.off('close', onClose)
+      child.off('exit', onExit)
+      child.off('close', onExit)
       resolve(false)
     }, timeoutMs)
-    const onClose = () => {
+    const onExit = () => {
       clearTimeout(timeout)
-      child.off('exit', onClose)
-      child.off('close', onClose)
+      child.off('exit', onExit)
+      child.off('close', onExit)
       resolve(true)
     }
-    child.once('exit', onClose)
-    child.once('close', onClose)
+    child.once('exit', onExit)
+    child.once('close', onExit)
   })
 }
 

@@ -6,12 +6,14 @@ import { loggerService } from '@logger'
 import {
   BaseService,
   Conditional,
+  DependsOn,
   Injectable,
   onCpuVendor,
   onPlatform,
   Phase,
   ServicePhase
 } from '@main/core/lifecycle'
+import { ProcessState } from '@main/services/process'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -38,6 +40,7 @@ interface OvmsConfig {
 @Injectable('OvmsManager')
 @ServicePhase(Phase.WhenReady)
 @Conditional(onPlatform('win32'), onCpuVendor('intel'))
+@DependsOn(['ProcessManager'])
 export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
 
@@ -118,14 +121,24 @@ export class OvmsManager extends BaseService {
    */
   public async stopOvms(): Promise<{ success: boolean; message?: string }> {
     try {
-      // close the OVMS process
-      await execAsync(
-        `powershell -Command "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like 'ovms.exe*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`
-      )
+      const pm = application.get('ProcessManager')
+      const handle = pm.get('ovms-server')
 
-      // Reset the ovms instance
+      const managedWasActive =
+        handle !== undefined && (handle.state === ProcessState.Running || handle.state === ProcessState.Stopping)
+
+      if (handle) {
+        await handle.stop()
+        await pm.unregister('ovms-server')
+      }
+      if (!managedWasActive) {
+        // Fallback: kill externally-started OVMS processes by name (existing behavior)
+        await execAsync(
+          `powershell -Command "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -like 'ovms.exe*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"`
+        )
+      }
+
       this.ovms = null
-
       logger.info('OVMS process stopped successfully')
       return { success: true, message: 'OVMS process stopped successfully' }
     } catch (error) {
@@ -167,13 +180,35 @@ export class OvmsManager extends BaseService {
         return { success: false, message: 'run.bat not found' }
       }
 
-      // Run run.bat without waiting for it to complete
-      logger.info(`Starting OVMS with run.bat: ${runBatPath}`)
-      exec(`"${runBatPath}"`, { cwd: ovmsDir }, (error) => {
-        if (error) {
-          logger.error(`Error running run.bat: ${error}`)
+      const pm = application.get('ProcessManager')
+
+      // Clean up previous handle if it's not running
+      const existing = pm.get('ovms-server')
+      if (existing) {
+        if (existing.state === ProcessState.Starting) {
+          await existing.start()
         }
+        if (existing.state === ProcessState.Running) {
+          logger.info('OVMS is already running')
+          return { success: true, message: 'OVMS is already running' }
+        }
+        await existing.stop()
+        await pm.unregister('ovms-server')
+      }
+
+      // Register and start via ProcessManager
+      logger.info(`Starting OVMS with run.bat: ${runBatPath}`)
+      const handle = pm.register({
+        id: 'ovms-server',
+        command: runBatPath,
+        cwd: ovmsDir
       })
+      try {
+        await handle.start()
+      } catch (error) {
+        await pm.unregister('ovms-server')
+        throw error
+      }
 
       logger.info('OVMS started successfully')
       return { success: true }
@@ -195,6 +230,17 @@ export class OvmsManager extends BaseService {
       if (!(await fs.pathExists(ovmsPath))) {
         logger.info(`OVMS executable not found at: ${ovmsPath}`)
         return 'not-installed'
+      }
+
+      // Check ProcessManager first for handles we started
+      try {
+        const pm = application.get('ProcessManager')
+        const handle = pm.get('ovms-server')
+        if (handle && handle.state === ProcessState.Running) {
+          return 'running'
+        }
+      } catch {
+        // PM may not be ready yet; fall through to PowerShell check
       }
 
       // Check if OVMS process is running

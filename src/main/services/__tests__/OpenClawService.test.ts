@@ -13,6 +13,18 @@ const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
 const broadcastMock = vi.hoisted(() => vi.fn())
+const processHandleMock = vi.hoisted(() => ({
+  state: 'idle',
+  onLog: undefined as ((line: { stream: 'stdout' | 'stderr'; data: string }) => void) | undefined,
+  onExited: undefined as ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined,
+  start: vi.fn(),
+  stop: vi.fn()
+}))
+const processManagerMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  register: vi.fn(),
+  unregister: vi.fn()
+}))
 
 function createSpawnChild() {
   return Object.assign(new EventEmitter(), {
@@ -104,6 +116,7 @@ vi.mock('@application', () => ({
       if (name === 'BinaryManager') return binaryManagerMock
       if (name === 'IpcApiService') return { broadcast: broadcastMock }
       if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
+      if (name === 'ProcessManager') return processManagerMock
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn()
@@ -207,6 +220,14 @@ describe('OpenClawService gateway status state machine', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     platformMock.isWin = false
+    processHandleMock.state = 'idle'
+    processHandleMock.onLog = undefined
+    processHandleMock.onExited = undefined
+    processHandleMock.start.mockResolvedValue(undefined)
+    processHandleMock.stop.mockResolvedValue(undefined)
+    processManagerMock.get.mockReturnValue(undefined)
+    processManagerMock.register.mockReturnValue(processHandleMock)
+    processManagerMock.unregister.mockResolvedValue(undefined)
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
     })
@@ -739,12 +760,33 @@ describe('OpenClawService gateway status state machine', () => {
       expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['openclaw'])
     })
 
-    it('rejects concurrent startup calls', async () => {
-      ;(service as any).gatewayStatus = 'starting'
+    it('rejects a second start while the first is in asynchronous preflight', async () => {
+      let finishValidation!: () => void
+      validateConfigSpy.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishValidation = () =>
+              resolve({
+                valid: true,
+                path: '/mock/.openclaw/openclaw.json',
+                issues: [],
+                warnings: []
+              })
+          })
+      )
+      checkPortOpenSpy.mockResolvedValue(false)
+      startAndWaitSpy.mockResolvedValue(undefined)
 
-      const result = await service.startGateway()
+      const firstStart = service.startGateway()
+      await vi.waitFor(() => expect(validateConfigSpy).toHaveBeenCalledOnce())
+      const secondStart = await service.startGateway()
 
-      expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
+      expect(secondStart).toEqual({ success: false, message: 'Gateway is already starting' })
+      expect(validateConfigSpy).toHaveBeenCalledOnce()
+
+      finishValidation()
+      await expect(firstStart).resolves.toEqual({ success: true })
+      expect(startAndWaitSpy).toHaveBeenCalledOnce()
     })
 
     it('rejects an invalid formal config before checking or stopping the gateway port', async () => {
@@ -792,12 +834,10 @@ describe('OpenClawService gateway status state machine', () => {
       })
     })
 
-    it('spawns a system OpenClaw with the raw user environment and formal config path', async () => {
-      const child = createSpawnChild()
+    it('registers a system OpenClaw with the raw user environment and formal config path', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
       findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
       startAndWaitSpy.mockRestore()
-      crossPlatformSpawnMock.mockReturnValue(child)
       vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
         status: 'healthy',
         gatewayPort: 18790
@@ -808,27 +848,26 @@ describe('OpenClawService gateway status state machine', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       await expect(started).resolves.toEqual({ success: true })
-      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        '/usr/local/bin/openclaw',
-        ['gateway', 'run', '--force'],
-        expect.objectContaining({
-          env: {
-            PATH: '/usr/local/bin:/usr/bin',
-            MISE_DATA_DIR: '/user/mise',
-            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
-            OPENCLAW_NO_AUTO_UPDATE: '1'
-          }
-        })
-      )
-      expect(child.unref).toHaveBeenCalledOnce()
+      expect(processManagerMock.register).toHaveBeenCalledWith({
+        id: 'openclaw-gateway',
+        command: '/usr/local/bin/openclaw',
+        args: ['gateway', 'run', '--force'],
+        env: {
+          PATH: '/usr/local/bin:/usr/bin',
+          MISE_DATA_DIR: '/user/mise',
+          OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+          OPENCLAW_NO_AUTO_UPDATE: '1'
+        },
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      expect(processHandleMock.start).toHaveBeenCalledOnce()
     })
 
-    it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
-      const child = createSpawnChild()
+    it('registers a managed OpenClaw with the refreshed environment and formal config path', async () => {
       checkPortOpenSpy.mockResolvedValue(false)
       findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
       startAndWaitSpy.mockRestore()
-      crossPlatformSpawnMock.mockReturnValue(child)
       vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
         status: 'healthy',
         gatewayPort: 18790
@@ -839,30 +878,24 @@ describe('OpenClawService gateway status state machine', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       await expect(started).resolves.toEqual({ success: true })
-      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        '/mock/bin/openclaw',
-        ['gateway', 'run', '--force'],
-        expect.objectContaining({
-          env: {
-            PATH: '/mock/bin:/usr/bin',
-            MISE_DATA_DIR: '/mock/mise',
-            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
-            OPENCLAW_NO_AUTO_UPDATE: '1'
-          }
-        })
-      )
-      expect(child.unref).toHaveBeenCalledOnce()
+      expect(processManagerMock.register).toHaveBeenCalledWith({
+        id: 'openclaw-gateway',
+        command: '/mock/bin/openclaw',
+        args: ['gateway', 'run', '--force'],
+        env: {
+          PATH: '/mock/bin:/usr/bin',
+          MISE_DATA_DIR: '/mock/mise',
+          OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+          OPENCLAW_NO_AUTO_UPDATE: '1'
+        },
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      expect(processHandleMock.start).toHaveBeenCalledOnce()
     })
 
-    it('launches a system OpenClaw .cmd through the process runner on Windows', async () => {
+    it('registers a system OpenClaw .cmd without detaching on Windows', async () => {
       platformMock.isWin = true
-      const child = {
-        stdout: { on: vi.fn() },
-        stderr: { on: vi.fn() },
-        on: vi.fn(),
-        unref: vi.fn()
-      }
-      crossPlatformSpawnMock.mockReturnValue(child)
       vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
         status: 'healthy',
         gatewayPort: 18790
@@ -875,21 +908,39 @@ describe('OpenClawService gateway status state machine', () => {
       await vi.advanceTimersByTimeAsync(1000)
 
       await expect(started).resolves.toBeUndefined()
-      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
-        'C:\\Users\\V\\AppData\\Roaming\\npm\\openclaw.cmd',
-        ['gateway', 'run', '--force'],
-        expect.objectContaining({
-          detached: false,
-          env: {
-            Path: 'C:\\Windows\\System32',
-            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
-            OPENCLAW_NO_AUTO_UPDATE: '1'
-          },
-          stdio: ['ignore', 'pipe', 'pipe'],
-          windowsHide: true
-        })
-      )
-      expect(child.unref).toHaveBeenCalledOnce()
+      expect(processManagerMock.register).toHaveBeenCalledWith({
+        id: 'openclaw-gateway',
+        command: 'C:\\Users\\V\\AppData\\Roaming\\npm\\openclaw.cmd',
+        args: ['gateway', 'run', '--force'],
+        detached: false,
+        env: {
+          Path: 'C:\\Windows\\System32',
+          OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+          OPENCLAW_NO_AUTO_UPDATE: '1'
+        },
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      expect(processHandleMock.start).toHaveBeenCalledOnce()
+    })
+
+    it('stops and unregisters a managed gateway when the health check times out', async () => {
+      startAndWaitSpy.mockRestore()
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'unhealthy',
+        gatewayPort: 18790,
+        error: 'connection refused'
+      })
+      processManagerMock.get.mockReturnValueOnce(undefined).mockReturnValue(processHandleMock)
+      processHandleMock.state = 'running'
+      vi.useFakeTimers()
+
+      const started = (service as any).startAndWaitForGateway('/mock/bin/openclaw', { PATH: '/mock/bin' })
+      const failed = expect(started).rejects.toThrow('Gateway failed to start within 30000ms')
+      await vi.advanceTimersByTimeAsync(30000)
+
+      await failed
+      expect(processHandleMock.stop).toHaveBeenCalledOnce()
+      expect(processManagerMock.unregister).toHaveBeenCalledWith('openclaw-gateway')
     })
 
     it('stops stale gateway and restarts when port is in use by our gateway', async () => {
@@ -977,6 +1028,19 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── stopGateway ─────────────────────────────────────────────
 
   describe('stopGateway', () => {
+    it('stops a managed gateway through ProcessManager without process-name fallback', async () => {
+      processHandleMock.state = 'running'
+      processManagerMock.get.mockReturnValue(processHandleMock)
+      const killAllSpy = vi.spyOn(service as any, 'killAllOpenClawProcesses')
+      checkPortOpenSpy.mockResolvedValue(false)
+
+      await expect(service.stopGateway()).resolves.toEqual({ success: true })
+
+      expect(processHandleMock.stop).toHaveBeenCalledOnce()
+      expect(processManagerMock.unregister).toHaveBeenCalledWith('openclaw-gateway')
+      expect(killAllSpy).not.toHaveBeenCalled()
+    })
+
     it('transitions to stopped on successful stop', async () => {
       ;(service as any).gatewayStatus = 'running'
       checkPortOpenSpy.mockResolvedValue(false)

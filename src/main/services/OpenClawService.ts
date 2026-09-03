@@ -12,6 +12,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/legacyTypes'
 import { t } from '@main/i18n'
+import { ProcessState } from '@main/services/process'
 import { atomicWriteFile, remove } from '@main/utils/file'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
@@ -41,6 +42,7 @@ const openclawConfigPath = (): AbsoluteFilePath =>
 const openclawConfigBakPath = () => path.join(openclawConfigDir(), 'openclaw.json.bak')
 const openclawLegacyConfigPath = () => path.join(openclawConfigDir(), 'openclaw.cherry.json')
 const DEFAULT_GATEWAY_PORT = 18790
+const OPENCLAW_GATEWAY_PROCESS_ID = 'openclaw-gateway'
 const GATEWAY_PROBE_INTERVAL_MS = 5000
 const OPENCLAW_COMMAND_TIMEOUT_MS = 10000
 const OPENCLAW_COMMAND_CAPTURE_LIMIT_BYTES = 1024 * 1024
@@ -384,11 +386,12 @@ function isVertexProvider(provider: Provider): provider is VertexProvider {
 
 @Injectable('OpenClawService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager'])
+@DependsOn(['WindowManager', 'ProcessManager'])
 export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  private gatewayStartPromise: Promise<OperationResult> | undefined
   // Bumped by every setGatewayStatus; probes discard results from an older generation.
   private gatewayTransitionId = 0
 
@@ -752,6 +755,20 @@ export class OpenClawService extends BaseService {
    * Start the OpenClaw Gateway
    */
   public async startGateway(port?: number): Promise<OperationResult> {
+    if (this.gatewayStartPromise) {
+      return { success: false, message: 'Gateway is already starting' }
+    }
+
+    const startPromise = this.startGatewayOnce(port)
+    this.gatewayStartPromise = startPromise
+    try {
+      return await startPromise
+    } finally {
+      if (this.gatewayStartPromise === startPromise) this.gatewayStartPromise = undefined
+    }
+  }
+
+  private async startGatewayOnce(port?: number): Promise<OperationResult> {
     // Guard before touching the port so a concurrent-start rejection cannot repoint
     // it, and an omitted port keeps the preference-synced value instead of the default.
     if (this.gatewayStatus === 'starting') {
@@ -805,19 +822,21 @@ export class OpenClawService extends BaseService {
 
   /**
    * Start gateway via `openclaw gateway run --force` and wait for it to become ready.
-   * Spawns the gateway as a detached process so its lifecycle is independent.
-   * Uses process termination to stop it later.
+   * The ProcessManager owns gateways started by this service.
    */
   private async startAndWaitForGateway(openclawPath: string, shellEnv: Record<string, string>): Promise<void> {
     const args = ['gateway', 'run', '--force']
 
     logger.info(`Starting gateway: ${openclawPath} ${args.join(' ')}`)
 
-    // Spawn the gateway process. We poll for readiness via health check.
-    // On Windows, avoid detached: true as it creates a visible console window.
-    // Instead, use windowsHide: true without detached - proc.unref() ensures
-    // the parent can exit independently.
-    const proc = crossPlatformSpawn(openclawPath, args, {
+    const pm = application.get('ProcessManager')
+
+    if (pm.get(OPENCLAW_GATEWAY_PROCESS_ID)) await this.stopManagedGateway()
+
+    const handle = pm.register({
+      id: OPENCLAW_GATEWAY_PROCESS_ID,
+      command: openclawPath,
+      args,
       // OpenClaw's own auto-updater would swap the binary underneath us, desyncing the
       // version BinaryManager installed and reports. This is OpenClaw's documented kill
       // switch, scoped to the gateway process we spawn.
@@ -826,84 +845,108 @@ export class OpenClawService extends BaseService {
         OPENCLAW_CONFIG_PATH: openclawConfigPath(),
         OPENCLAW_NO_AUTO_UPDATE: '1'
       },
-      detached: !isWin, // Only detach on non-Windows to avoid console flash
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
+      detached: !isWin,
+      stdio: ['ignore', 'pipe', 'pipe']
     })
-    proc.unref()
 
-    // Collect early exit errors (e.g. binary crash on startup)
+    // Set up callback chain BEFORE start() to avoid missing early events
     let earlyExitError = ''
     let stdoutOutput = ''
     let stderrOutput = ''
-    proc.stdout?.on('data', (data) => {
-      stdoutOutput += data.toString()
-    })
-    proc.stderr?.on('data', (data) => {
-      stderrOutput += data.toString()
-    })
-    proc.on('error', (err) => {
-      earlyExitError = err.message
-    })
-    proc.on('exit', (code) => {
-      // Capture output from both streams for diagnostics
+
+    const prevOnLog = handle.onLog
+    handle.onLog = (line) => {
+      prevOnLog?.(line)
+      if (line.stream === 'stdout') {
+        stdoutOutput += line.data
+      } else {
+        stderrOutput += line.data
+      }
+    }
+
+    const prevOnExited = handle.onExited
+    handle.onExited = (code, signal) => {
+      prevOnExited?.(code, signal)
       const combinedOutput = [stderrOutput.trim(), stdoutOutput.trim()].filter(Boolean).join('\n')
       const detail = combinedOutput.split('\n').filter(Boolean).slice(0, 5).join('\n')
       if (code !== 0) {
         earlyExitError = detail || `gateway exited with code ${code}`
       } else {
-        // Process exited with code 0 but gateway may not be healthy (e.g. daemonized child failed)
         earlyExitError = detail
           ? `gateway exited with code 0 but output: ${detail}`
           : 'gateway process exited with code 0 before becoming healthy'
       }
-    })
-
-    // Wait for gateway to become ready (max 30 seconds)
-    const maxWaitMs = 30000
-    const pollIntervalMs = 1000
-    const startTime = Date.now()
-    let pollCount = 0
-    let lastError = ''
-
-    while (Date.now() - startTime < maxWaitMs) {
-      await new Promise((r) => setTimeout(r, pollIntervalMs))
-      pollCount++
-
-      // Check if the process crashed early
-      if (earlyExitError) {
-        throw new Error(earlyExitError)
-      }
-
-      logger.debug(`Polling gateway health (attempt ${pollCount})...`)
-      const healthResult = await this.checkGatewayHealthWithError()
-      if (healthResult.status === 'healthy') {
-        logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
-        return
-      }
-      lastError = healthResult.error
     }
 
-    // Combine all available diagnostics: health check errors, stderr, and stdout
-    const diagnostics = [
-      lastError ? `health: ${lastError}` : '',
-      stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
-      stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
-    ]
-      .filter(Boolean)
-      .join('\n')
-    const detail = diagnostics ? `\n${diagnostics}` : ''
-    throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+    try {
+      await handle.start()
+
+      // Wait for gateway to become ready (max 30 seconds)
+      const maxWaitMs = 30000
+      const pollIntervalMs = 1000
+      const startTime = Date.now()
+      let pollCount = 0
+      let lastError = ''
+
+      while (Date.now() - startTime < maxWaitMs) {
+        await new Promise((r) => setTimeout(r, pollIntervalMs))
+        pollCount++
+
+        if (earlyExitError) {
+          throw new Error(earlyExitError)
+        }
+
+        logger.debug(`Polling gateway health (attempt ${pollCount})...`)
+        const healthResult = await this.checkGatewayHealthWithError()
+        if (healthResult.status === 'healthy') {
+          logger.info(`Gateway is healthy (verified after ${pollCount} polls)`)
+          return
+        }
+        lastError = healthResult.error
+      }
+
+      const diagnostics = [
+        lastError ? `health: ${lastError}` : '',
+        stderrOutput.trim() ? `stderr: ${stderrOutput.trim().split('\n').slice(0, 5).join('\n')}` : '',
+        stdoutOutput.trim() ? `stdout: ${stdoutOutput.trim().split('\n').slice(0, 5).join('\n')}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n')
+      const detail = diagnostics ? `\n${diagnostics}` : ''
+      throw new Error(`Gateway failed to start within ${maxWaitMs}ms (${pollCount} polls)${detail}`)
+    } catch (error) {
+      try {
+        await this.stopManagedGateway()
+      } catch (cleanupError) {
+        logger.error('Failed to clean up gateway after startup failure', cleanupError as Error)
+      }
+      throw error
+    }
+  }
+
+  private async stopManagedGateway(): Promise<boolean> {
+    const pm = application.get('ProcessManager')
+    const handle = pm.get(OPENCLAW_GATEWAY_PROCESS_ID)
+    if (!handle) return false
+
+    const wasActive =
+      handle.state === ProcessState.Starting ||
+      handle.state === ProcessState.Running ||
+      handle.state === ProcessState.Stopping
+    await handle.stop()
+    await pm.unregister(OPENCLAW_GATEWAY_PROCESS_ID)
+    return wasActive
   }
 
   /**
    * Stop the OpenClaw Gateway.
-   * Kills all openclaw processes to ensure clean shutdown.
+   * Uses the managed handle when available, otherwise falls back to external process discovery.
    */
   public async stopGateway(): Promise<OperationResult> {
     const transitionBefore = this.gatewayTransitionId
     try {
-      this.killAllOpenClawProcesses()
+      const stoppedManagedGateway = await this.stopManagedGateway()
+      if (!stoppedManagedGateway) this.killAllOpenClawProcesses()
 
       const stillRunning = await this.waitForGatewayStop()
       if (stillRunning) {

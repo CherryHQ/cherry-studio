@@ -108,6 +108,7 @@ Per-subsystem depth lives in dedicated docs; this page owns only the directory l
 | Subsystem | Location | Reference |
 |---|---|---|
 | Service lifecycle (IoC, phased bootstrap) | `core/lifecycle/`, `core/application/` | [Lifecycle Reference](../lifecycle/README.md) |
+| Managed child processes | `services/process/` | [Process Manager Reference](../process-manager/README.md) |
 | Startup phases (preboot / bootstrap / running) | `core/preboot/`, `core/application/` | [core/README](../../../src/main/core/README.md) |
 | Window manager | `core/window/` | [Window Manager Reference](../window-manager/README.md) |
 | Scheduler & jobs | `core/scheduler/`, `core/job/` | [Job & Scheduler Reference](../job-and-scheduler/README.md) |

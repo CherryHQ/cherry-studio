@@ -217,6 +217,12 @@
 | [Sandbox](./references/mini-app/sandbox.md) | What a mini app cannot do — blocked Web Storage, default-deny network, CORS on own files, navigation and popups — and what to use instead |
 | [Theming](./references/mini-app/theming.md) | Matching Cherry's look from a mini app — the served /__cherry/theme.css, the stable CSS variable contract, dark mode, fonts and Tailwind mapping |
 
+### Process Manager
+
+| Document | Description |
+|----------|-------------|
+| [Process Manager](./references/process-manager/README.md) | Registry ownership, startup state, and bounded shutdown for app-owned external child processes |
+
 ### Provider Model
 
 | Document | Description |

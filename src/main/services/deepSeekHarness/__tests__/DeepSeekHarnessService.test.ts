@@ -47,6 +47,12 @@ vi.mock('@main/utils/processRunner', async (importOriginal) => ({
   crossPlatformSpawn: mocks.spawn
 }))
 vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async () => ({
+    PATH: '/system/bin',
+    CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY: 'stale-inherited-key',
+    CHERRY_STUDIO_CODEMATE_GATEWAY_API_KEY: 'stale-gateway-key',
+    CHERRY_STUDIO_CODEMATE_USER_API_KEY: 'unrelated'
+  })),
   getRawShellEnv: vi.fn(async () => ({
     PATH: '/system/bin',
     CHERRY_STUDIO_CODEMATE_481BD06FDD6C_API_KEY: 'stale-inherited-key',
@@ -68,6 +74,7 @@ vi.mock('../config', async () => {
 })
 
 const { DeepSeekHarnessService } = await import('../DeepSeekHarnessService')
+const { ProcessManager } = await import('../../process')
 
 class FakeChild extends EventEmitter {
   stdout = new PassThrough()
@@ -75,6 +82,8 @@ class FakeChild extends EventEmitter {
   pid: number
   exitCode: number | null = null
   signalCode: NodeJS.Signals | null = null
+  kill = vi.fn()
+  unref = vi.fn()
 
   constructor(pid: number) {
     super()
@@ -123,12 +132,14 @@ const startInput = {
 describe('DeepSeekHarnessService', () => {
   const children: FakeChild[] = []
   let processKill: MockInstance<typeof process.kill>
+  let processManager: InstanceType<typeof ProcessManager>
 
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     mocks.isWin = false
     children.length = 0
+    processManager = new ProcessManager()
     mocks.appGetPath.mockImplementation((key: string) => {
       if (key === 'external.deepseek_harness.config') return '/mock/home/.dsh'
       if (key === 'feature.deepseek_harness.workspace') return '/mock/userData/Data/DeepSeekHarness/Workspace'
@@ -160,6 +171,7 @@ describe('DeepSeekHarnessService', () => {
       if (name === 'IpcApiService') {
         return { broadcast: mocks.broadcast }
       }
+      if (name === 'ProcessManager') return processManager
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.providerGet.mockReturnValue(provider)
@@ -194,7 +206,10 @@ describe('DeepSeekHarnessService', () => {
     const child = new FakeChild(41000 + children.length)
     children.push(child)
     mocks.spawn.mockImplementationOnce(() => {
-      queueMicrotask(() => action(child))
+      queueMicrotask(() => {
+        child.emit('spawn')
+        action(child)
+      })
       return child as unknown as NodeChildProcess.ChildProcess
     })
     return child
@@ -219,7 +234,9 @@ describe('DeepSeekHarnessService', () => {
     expect(mocks.spawn.mock.calls[0][2].env).toHaveProperty('CHERRY_STUDIO_CODEMATE_USER_API_KEY', 'unrelated')
     expect(mocks.spawn.mock.calls[0][2].env).toHaveProperty('DSH_PERMISSION_MODE', 'workspace-write')
     expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:43123/', expect.anything())
+    expect(processManager.get('deepseek-harness')?.state).toBe('running')
     await service.stop()
+    expect(processManager.get('deepseek-harness')).toBeUndefined()
   })
 
   it('restarts only the managed child when its launch permission changes', async () => {
@@ -347,6 +364,7 @@ describe('DeepSeekHarnessService', () => {
     expect(result).toEqual({ success: false, message: expect.stringContaining('startup timed out') })
     expect(processKill).toHaveBeenCalledWith(-child.pid, 'SIGTERM')
     expect(mocks.rollbackConfig).toHaveBeenCalledOnce()
+    expect(processManager.get('deepseek-harness')).toBeUndefined()
   })
 
   it('escalates from SIGTERM to SIGKILL after the upstream cleanup window', async () => {
