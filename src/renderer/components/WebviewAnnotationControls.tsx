@@ -22,7 +22,7 @@ import {
 import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -32,10 +32,17 @@ const WEBVIEW_ATTACH_MAX_ATTEMPTS = 300
 const EDITOR_WIDTH_PX = 320
 const EDITOR_ESTIMATED_HEIGHT_PX = 168
 const EDITOR_MARGIN_PX = 8
+const WEBVIEW_ANNOTATION_COMMIT_TIMEOUT_MS = 5_000
 
 type AnnotationEditorSession =
   | { mode: 'create'; selection: WebviewPendingSelection }
   | { mode: 'edit'; annotationId: string; anchor: WebviewAnchorRect }
+
+interface PendingCreateSave {
+  id: string
+  page: WebviewAnnotationSavedPayload['page']
+  timeout: ReturnType<typeof setTimeout>
+}
 
 export interface WebviewAnnotationSavedPayload {
   annotation: WebviewAnnotation
@@ -63,6 +70,11 @@ export function WebviewAnnotationControls({
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
+  const [isCreateSaving, setIsCreateSaving] = useState(false)
+  const pendingCreateSaveRef = useRef<PendingCreateSave | null>(null)
+  const notifyAnnotationSaved = useEffectEvent((annotation: WebviewAnnotation, page: PendingCreateSave['page']) => {
+    onAnnotationSaved?.({ annotation, page })
+  })
 
   const locale = useMemo(() => ({ edit: t('webview.annotation.edit') }), [t])
 
@@ -98,10 +110,20 @@ export function WebviewAnnotationControls({
     [target, webviewRef]
   )
 
+  const clearPendingCreateSave = useCallback((id?: string) => {
+    const pending = pendingCreateSaveRef.current
+    if (!pending || (id && pending.id !== id)) return false
+    clearTimeout(pending.timeout)
+    pendingCreateSaveRef.current = null
+    setIsCreateSaving(false)
+    return true
+  }, [])
+
   useEffect(() => {
+    clearPendingCreateSave()
     setState(EMPTY_STATE)
     setEditorSession(null)
-  }, [target.id])
+  }, [clearPendingCreateSave, target.id])
 
   useEffect(() => {
     let attachedWebview: WebviewTag | null = null
@@ -119,6 +141,14 @@ export function WebviewAnnotationControls({
           const nextState = isHostActive ? guestEvent.state : { ...guestEvent.state, enabled: false }
           setState(nextState)
           void replaceMainSnapshot(nextState.annotations, attachedWebview)
+          const pendingSave = pendingCreateSaveRef.current
+          const savedAnnotation = pendingSave
+            ? guestEvent.state.annotations.find((annotation) => annotation.id === pendingSave.id)
+            : undefined
+          if (pendingSave && savedAnnotation && clearPendingCreateSave(pendingSave.id)) {
+            setEditorSession(null)
+            notifyAnnotationSaved(savedAnnotation, pendingSave.page)
+          }
           if (!isHostActive && guestEvent.state.enabled) {
             sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
           }
@@ -128,6 +158,7 @@ export function WebviewAnnotationControls({
           if (isHostActive) setEditorSession({ mode: 'create', selection: guestEvent.selection })
           break
         case 'selection_cleared':
+          clearPendingCreateSave()
           setEditorSession((current) => (current?.mode === 'create' ? null : current))
           break
         case 'annotation_activated':
@@ -139,6 +170,7 @@ export function WebviewAnnotationControls({
     }
 
     const resetForNavigation = () => {
+      clearPendingCreateSave()
       setState(EMPTY_STATE)
       setEditorSession(null)
       sendCommand({ type: 'reset' }, attachedWebview)
@@ -158,6 +190,7 @@ export function WebviewAnnotationControls({
     }
 
     const detach = () => {
+      clearPendingCreateSave()
       if (!attachedWebview) return
       attachedWebview.removeEventListener('ipc-message', handleGuestMessage)
       attachedWebview.removeEventListener('did-start-loading', resetForNavigation)
@@ -195,7 +228,9 @@ export function WebviewAnnotationControls({
       if (attachedWebview) sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
       detach()
     }
-  }, [isHostActive, locale, replaceMainSnapshot, sendCommand, theme, webviewRef])
+    // `notifyAnnotationSaved` is an Effect Event and must not reconnect guest listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearPendingCreateSave, isHostActive, locale, replaceMainSnapshot, sendCommand, theme, webviewRef])
 
   useEffect(() => {
     if (!isWebviewReady) return
@@ -223,12 +258,13 @@ export function WebviewAnnotationControls({
 
   const closeEditor = useCallback(
     (cancelPendingSelection: boolean) => {
+      clearPendingCreateSave()
       setEditorSession((current) => {
         if (cancelPendingSelection && current?.mode === 'create') sendCommand({ type: 'cancel_pending' })
         return null
       })
     },
-    [sendCommand]
+    [clearPendingCreateSave, sendCommand]
   )
 
   const handleEditorSave = useCallback(
@@ -236,33 +272,42 @@ export function WebviewAnnotationControls({
       const session = editorSession
       if (!session) return
       if (session.mode === 'create') {
-        const id = crypto.randomUUID()
-        if (!sendCommand({ type: 'commit_pending', id, comment })) return
+        if (pendingCreateSaveRef.current) return
         const webview = webviewRef.current
+        if (!webview || !isWebviewReady) return
+        const id = crypto.randomUUID()
         let url = ''
         let title = ''
         try {
-          url = webview?.getURL() ?? ''
-          title = webview?.getTitle() ?? ''
+          url = webview.getURL()
+          title = webview.getTitle()
         } catch (error) {
           logger.debug('Webview page metadata is unavailable for the saved annotation', { targetId: target.id, error })
         }
-        onAnnotationSaved?.({
-          annotation: {
-            id,
-            comment,
-            createdAt: Date.now(),
-            element: session.selection.element,
-            ...(session.selection.region ? { region: session.selection.region } : {})
-          },
-          page: { url, title }
-        })
+        const timeout = setTimeout(() => {
+          if (!clearPendingCreateSave(id)) return
+          logger.debug('Timed out waiting for the webview annotation commit', { targetId: target.id, id })
+        }, WEBVIEW_ANNOTATION_COMMIT_TIMEOUT_MS)
+        pendingCreateSaveRef.current = { id, page: { url, title }, timeout }
+        setIsCreateSaving(true)
+        try {
+          void webview
+            .send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'commit_pending', id, comment })
+            .catch((error) => {
+              if (!clearPendingCreateSave(id)) return
+              logger.debug('Failed to send webview annotation command', { targetId: target.id, error })
+            })
+        } catch (error) {
+          if (clearPendingCreateSave(id)) {
+            logger.debug('Webview annotation guest is not ready', { targetId: target.id, error })
+          }
+        }
       } else {
         sendCommand({ type: 'update_annotation', id: session.annotationId, comment })
+        setEditorSession(null)
       }
-      setEditorSession(null)
     },
-    [editorSession, onAnnotationSaved, sendCommand, target.id, webviewRef]
+    [clearPendingCreateSave, editorSession, isWebviewReady, sendCommand, target.id, webviewRef]
   )
 
   const handleEditorDelete = useCallback(() => {
@@ -378,6 +423,7 @@ export function WebviewAnnotationControls({
               : ''
           }
           canDelete={editorSession.mode === 'edit'}
+          isSaving={editorSession.mode === 'create' && isCreateSaving}
           onSave={handleEditorSave}
           onCancel={() => closeEditor(true)}
           onDelete={handleEditorDelete}
@@ -392,6 +438,7 @@ interface WebviewAnnotationEditorProps {
   anchor: WebviewAnchorRect
   initialComment: string
   canDelete: boolean
+  isSaving: boolean
   onSave: (comment: string) => void
   onCancel: () => void
   onDelete: () => void
@@ -407,6 +454,7 @@ function WebviewAnnotationEditor({
   anchor,
   initialComment,
   canDelete,
+  isSaving,
   onSave,
   onCancel,
   onDelete
@@ -459,7 +507,7 @@ function WebviewAnnotationEditor({
           const text = serializeComposerDocument(view.state.doc.toJSON())
             .text.trim()
             .slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
-          if (text) onSave(text)
+          if (text && !isSaving) onSave(text)
           return true
         }
         return false
@@ -491,7 +539,12 @@ function WebviewAnnotationEditor({
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           {t('webview.annotation.cancel')}
         </Button>
-        <Button type="button" size="sm" disabled={!trimmedComment} onClick={() => onSave(trimmedComment)}>
+        <Button
+          type="button"
+          size="sm"
+          loading={isSaving}
+          disabled={!trimmedComment || isSaving}
+          onClick={() => onSave(trimmedComment)}>
           {t('webview.annotation.save')}
         </Button>
       </div>

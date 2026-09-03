@@ -22,7 +22,12 @@ vi.mock('@renderer/services/toast', () => ({
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'dark' }) }))
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children, ...props }: { children: ReactNode }) => <span {...props}>{children}</span>,
-  Button: ({ children, type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  Button: ({
+    children,
+    type = 'button',
+    loading: _loading,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
     <button type={type} {...props}>
       {children}
     </button>
@@ -129,6 +134,33 @@ function dispatchGuestEvent(webview: WebviewTag, guestEvent: WebviewAnnotationGu
 
 function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationState) {
   dispatchGuestEvent(webview, { type: 'state_changed', state })
+}
+
+function commitCommands(webview: WebviewTag) {
+  return vi
+    .mocked(webview.send)
+    .mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
+    .filter(
+      (command): command is Extract<WebviewAnnotationHostCommand, { type: 'commit_pending' }> =>
+        command.type === 'commit_pending'
+    )
+}
+
+function openCreateEditor(webview: WebviewTag) {
+  act(() =>
+    dispatchGuestEvent(webview, {
+      type: 'selection_pending',
+      selection: { element: annotation.element, anchor: { x: 10, y: 20, width: 100, height: 40 } }
+    })
+  )
+  return screen.getByPlaceholderText('描述需要修改的内容或你注意到的问题…')
+}
+
+function saveCreateEditor(webview: WebviewTag, comment: string) {
+  const textarea = openCreateEditor(webview)
+  fireEvent.change(textarea, { target: { value: comment } })
+  fireEvent.click(screen.getByRole('button', { name: '保存' }))
+  return { command: commitCommands(webview).at(-1)!, textarea }
 }
 
 const target = { id: 'mini-app:demo', label: 'Demo' }
@@ -249,8 +281,15 @@ describe('WebviewAnnotationControls', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('# Resolved annotations')
   })
 
-  it('opens the host editor for a pending selection and reports the saved annotation', async () => {
+  it('reports a created annotation exactly once only after its authoritative guest snapshot arrives', async () => {
     const webview = createWebview()
+    let rejectCommit: ((reason?: unknown) => void) | undefined
+    const commitPromise = new Promise<void>((_resolve, reject) => {
+      rejectCommit = reject
+    })
+    vi.mocked(webview.send).mockImplementation((_channel, command: WebviewAnnotationHostCommand) =>
+      command.type === 'commit_pending' ? commitPromise : Promise.resolve()
+    )
     const onAnnotationSaved = vi.fn()
     render(
       <WebviewAnnotationControls
@@ -262,27 +301,152 @@ describe('WebviewAnnotationControls', () => {
       />
     )
 
-    act(() =>
-      dispatchGuestEvent(webview, {
-        type: 'selection_pending',
-        selection: { element: annotation.element, anchor: { x: 10, y: 20, width: 100, height: 40 } }
-      })
-    )
+    const { command } = saveCreateEditor(webview, '整理这块重叠区域')
+    expect(command).toMatchObject({ comment: '整理这块重叠区域' })
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('描述需要修改的内容或你注意到的问题…')).toBeInTheDocument()
 
-    const textarea = await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')
-    fireEvent.change(textarea, { target: { value: '整理这块重叠区域' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+    expect(screen.getByPlaceholderText('描述需要修改的内容或你注意到的问题…')).toBeInTheDocument()
 
-    const commit = vi
-      .mocked(webview.send)
-      .mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
-      .find((command) => command.type === 'commit_pending')
-    expect(commit).toMatchObject({ comment: '整理这块重叠区域' })
+    vi.mocked(webview.getURL).mockReturnValue('https://example.com/changed-after-save')
+    const guestAnnotation = {
+      ...annotation,
+      id: command.id,
+      comment: 'Guest canonical comment',
+      createdAt: 99
+    }
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [guestAnnotation] }))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [guestAnnotation] }))
+
     expect(onAnnotationSaved).toHaveBeenCalledWith({
-      annotation: expect.objectContaining({ comment: '整理这块重叠区域', element: annotation.element }),
+      annotation: guestAnnotation,
       page: { url: 'https://example.com/page?secret=yes#part', title: 'Demo page' }
     })
+    expect(onAnnotationSaved).toHaveBeenCalledTimes(1)
     expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+
+    await act(async () => {
+      rejectCommit?.(new Error('Late send rejection'))
+      await Promise.resolve()
+    })
+    expect(onAnnotationSaved).toHaveBeenCalledTimes(1)
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+  })
+
+  it('gates repeated saves and keeps the editor retryable when sending the commit rejects', async () => {
+    let rejectCommit: ((reason?: unknown) => void) | undefined
+    const commitPromise = new Promise<void>((_resolve, reject) => {
+      rejectCommit = reject
+    })
+    const webview = createWebview()
+    vi.mocked(webview.send).mockImplementation((_channel, command: WebviewAnnotationHostCommand) =>
+      command.type === 'commit_pending' ? commitPromise : Promise.resolve()
+    )
+    const onAnnotationSaved = vi.fn()
+    render(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+
+    const { textarea } = saveCreateEditor(webview, 'Retry this annotation')
+    expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(commitCommands(webview)).toHaveLength(1)
+
+    act(() => rejectCommit?.(new Error('Guest detached')))
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存' })).not.toBeDisabled())
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+
+    vi.mocked(webview.send).mockResolvedValue(undefined)
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(commitCommands(webview)).toHaveLength(2)
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+  })
+
+  it('restores retry when no authoritative snapshot acknowledges the commit', () => {
+    vi.useFakeTimers()
+    try {
+      const webview = createWebview()
+      const onAnnotationSaved = vi.fn()
+      render(
+        <WebviewAnnotationControls
+          webviewRef={{ current: webview }}
+          isWebviewReady
+          isHostActive
+          target={target}
+          onAnnotationSaved={onAnnotationSaved}
+        />
+      )
+
+      saveCreateEditor(webview, 'Wait for the guest')
+      expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
+
+      act(() => vi.advanceTimersByTime(5_000))
+
+      expect(screen.getByRole('button', { name: '保存' })).not.toBeDisabled()
+      expect(onAnnotationSaved).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: '保存' }))
+      expect(commitCommands(webview)).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('invalidates pending creates on cancel, navigation, target changes, and host detach', () => {
+    const webview = createWebview()
+    const onAnnotationSaved = vi.fn()
+    const view = render(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+
+    const cancelled = saveCreateEditor(webview, 'Cancel this').command
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: cancelled.id }] }))
+
+    const navigated = saveCreateEditor(webview, 'Navigate away').command
+    act(() => webview.dispatchEvent(new Event('did-start-loading')))
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: navigated.id }] }))
+
+    const targetChanged = saveCreateEditor(webview, 'Switch target').command
+    const nextTarget = { id: 'mini-app:other', label: 'Other' }
+    view.rerender(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive
+        target={nextTarget}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: targetChanged.id }] }))
+
+    const detached = saveCreateEditor(webview, 'Detach host').command
+    view.rerender(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive={false}
+        target={nextTarget}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: detached.id }] }))
+
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
   })
 
   it('edits and deletes an existing annotation through the host editor', async () => {
