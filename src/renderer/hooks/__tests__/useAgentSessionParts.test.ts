@@ -506,20 +506,50 @@ describe('useAgentSessionParts', () => {
     const { result } = renderHook(() => useAgentSessionParts('session-1'))
 
     let firstDelete!: Promise<void>
+    let duplicateDelete!: Promise<void>
     act(() => {
       firstDelete = result.current.deleteMessage('message-1')
-      return undefined
+      duplicateDelete = result.current.deleteMessage('message-1')
     })
-    await act(async () => {
-      await result.current.deleteMessage('message-1')
-    })
+    expect(live.trigger).toHaveBeenCalledOnce()
     await act(async () => {
       resolveDelete()
-      await firstDelete
+      await Promise.all([firstDelete, duplicateDelete])
     })
 
-    expect(live.trigger).toHaveBeenCalledOnce()
     expect(live.getIds()).toEqual([])
+  })
+
+  it('shares an in-flight DELETE failure with duplicate callers', async () => {
+    const live = mockLiveAgentSessionParts([sessionMessageRow('message-1')])
+    let rejectDelete!: (error: Error) => void
+    live.trigger.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectDelete = reject
+        })
+    )
+    const { result } = renderHook(() => useAgentSessionParts('session-1'))
+
+    let firstDelete!: Promise<void>
+    let duplicateDelete!: Promise<void>
+    act(() => {
+      firstDelete = result.current.deleteMessage('message-1')
+      duplicateDelete = result.current.deleteMessage('message-1')
+    })
+
+    let outcomes!: PromiseSettledResult<void>[]
+    await act(async () => {
+      rejectDelete(new Error('delete failed'))
+      outcomes = await Promise.allSettled([firstDelete, duplicateDelete])
+    })
+
+    expect(outcomes).toEqual([
+      expect.objectContaining({ status: 'rejected', reason: expect.objectContaining({ message: 'delete failed' }) }),
+      expect.objectContaining({ status: 'rejected', reason: expect.objectContaining({ message: 'delete failed' }) })
+    ])
+    expect(live.trigger).toHaveBeenCalledOnce()
+    expect(live.getIds()).toEqual(['message-1'])
   })
 
   it('applies a late DELETE success to the session where deletion began', async () => {
