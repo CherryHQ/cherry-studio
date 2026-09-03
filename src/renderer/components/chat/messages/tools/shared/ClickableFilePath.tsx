@@ -4,6 +4,7 @@ import { getOpenTargetBadge, getOpenTargetLabel, OpenTargetIcon } from '@rendere
 import { useExternalOpenTargets } from '@renderer/hooks/useExternalOpenTargets'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import type { ExternalOpenTarget } from '@shared/types/externalApp'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MoreHorizontal } from 'lucide-react'
@@ -36,6 +37,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   )
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
   const openPath = interactive ? actions?.openPath : undefined
+  const isDirectory = interactive ? actions?.isDirectory : undefined
   const notifyError = actions?.notifyError
   const canOpen = Boolean(openArtifactFile || openPath)
   const hasAbsoluteTargetPath = AbsoluteFilePathSchema.safeParse(targetPath).success
@@ -57,20 +59,14 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     async (e: React.MouseEvent | React.KeyboardEvent) => {
       if (!canOpen) return
       e.stopPropagation()
-      try {
-        // Agent surfaces own the file-vs-directory decision so every entry
-        // point routes consistently. Surfaces without an in-app files pane
-        // keep opening paths through the system default handler.
-        if (openArtifactFile) {
-          await openArtifactFile(targetPath)
-        } else {
-          await openPath?.(targetPath)
-        }
-      } catch {
-        notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
-      }
+      await openFileTarget(targetPath, {
+        openArtifactFile,
+        openPath,
+        isDirectory,
+        onError: () => notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
+      })
     },
-    [canOpen, notifyError, openArtifactFile, openPath, t, targetPath]
+    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
   )
 
   const handleKeyDown = useCallback(

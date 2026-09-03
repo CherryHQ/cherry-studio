@@ -1832,7 +1832,7 @@ const TopicRow = memo(function TopicRow({
           : null
   const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
-  const showLeadingSlot = displayMode !== 'time' && !topic.pinned
+  const showLeadingSlot = displayMode !== 'time'
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = !topic.pinned
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)

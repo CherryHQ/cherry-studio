@@ -36,7 +36,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
@@ -776,6 +776,7 @@ const AgentComposerInner = ({
   } = useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools')
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter(agent?.type)
+  const isModelDisabled = useAgentModelDisabled()
   const isModelUnavailable = Boolean(agent) && !model && !modelPending
   const missingModelMessage = isModelUnavailable ? t('code.model_required') : undefined
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
@@ -1691,6 +1692,7 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
+    isModelDisabled,
     renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     onWorkspaceChange,

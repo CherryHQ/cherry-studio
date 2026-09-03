@@ -1,6 +1,15 @@
-import { EditableNumber, InfoTooltip, Switch } from '@cherrystudio/ui'
+import {
+  InfoTooltip,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInputNumber,
+  InputGroupText,
+  InputNumber,
+  Switch
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
   SettingDescription,
   SettingDivider,
@@ -23,8 +32,6 @@ import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const chatModelFilter = (model: Model) => !isNonChatModel(model)
-
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">
     {title}
@@ -43,6 +50,7 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
  */
 export const ContextManagementSettings = () => {
   const { t } = useTranslation()
+  const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
   const { theme } = useTheme()
   const [enabled, setEnabled] = usePreference('chat.context_settings.enabled')
   const [maxMessages, setMaxMessages] = usePreference('chat.context_settings.max_messages')
@@ -69,7 +77,7 @@ export const ContextManagementSettings = () => {
       <SettingDescription>{t('settings.models.context_management.scope_description')}</SettingDescription>
       <SettingDivider />
       {/* Outside the master switch: scope is not an overflow policy. */}
-      <SettingRow>
+      <SettingRow id="setting-general-context-max-messages" className="scroll-mt-6">
         <div className="min-w-0 flex-1">
           <SettingRowTitleWithTooltip
             title={t('settings.models.context_management.max_messages')}
@@ -77,23 +85,19 @@ export const ContextManagementSettings = () => {
           />
         </div>
         <div className="w-[220px] shrink-0">
-          <EditableNumber
-            block
+          <InputNumber
             min={1}
             step={1}
-            precision={0}
-            align="start"
-            changeOnBlur
             aria-label={t('settings.models.context_management.max_messages')}
             placeholder={t('settings.models.context_management.max_messages_unlimited')}
-            className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+            className="h-8 rounded-lg px-2.5"
             value={maxMessages}
-            onChange={(value) => void setMaxMessages(value === null ? null : Math.floor(value))}
+            onBlur={(value) => void setMaxMessages(value === null ? null : Math.floor(value))}
           />
         </div>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-general-context-enabled" className="scroll-mt-6">
         <div className="min-w-0 flex-1">
           <SettingRowTitleWithTooltip
             title={t('settings.models.context_management.enabled')}
@@ -119,20 +123,16 @@ export const ContextManagementSettings = () => {
               />
             </div>
             <div className="w-[220px] shrink-0">
-              <EditableNumber
-                block
+              <InputNumber
                 // Floor: this doubles as fs_read's per-call cap, and below it a
                 // single gutter-prefixed line already overflows.
                 min={MIN_TRUNCATE_THRESHOLD}
                 // step=1000 made the 50000 default a stepMismatch.
                 step={1}
-                precision={0}
-                align="start"
-                changeOnBlur
                 aria-label={t('settings.models.context_management.truncate_threshold')}
-                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                className="h-8 rounded-lg px-2.5"
                 value={truncateThreshold}
-                onChange={(value) => {
+                onBlur={(value) => {
                   if (typeof value !== 'number' || !Number.isFinite(value)) return
                   void setTruncateThreshold(Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value)))
                 }}
@@ -164,20 +164,20 @@ export const ContextManagementSettings = () => {
                   />
                 </div>
                 <div className="w-[220px] shrink-0">
-                  <EditableNumber
-                    block
-                    min={MIN_COMPRESS_THRESHOLD_PERCENT}
-                    max={MAX_COMPRESS_THRESHOLD_PERCENT}
-                    step={5}
-                    precision={0}
-                    suffix="%"
-                    align="start"
-                    changeOnBlur
-                    aria-label={t('settings.models.context_management.compress_threshold')}
-                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
-                    value={compressThreshold}
-                    onChange={(value) => void setCompressThreshold(clampThresholdPercent(value))}
-                  />
+                  <InputGroup className="h-8 rounded-lg">
+                    <InputGroupInputNumber
+                      min={MIN_COMPRESS_THRESHOLD_PERCENT}
+                      max={MAX_COMPRESS_THRESHOLD_PERCENT}
+                      step={5}
+                      aria-label={t('settings.models.context_management.compress_threshold')}
+                      className="px-2.5"
+                      value={compressThreshold}
+                      onBlur={(value) => void setCompressThreshold(clampThresholdPercent(value))}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
                 </div>
               </SettingRow>
               <SettingDivider />
