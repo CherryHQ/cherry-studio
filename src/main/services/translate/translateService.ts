@@ -18,6 +18,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { translateLanguageService } from '@main/data/services/TranslateLanguageService'
 import { isTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -119,13 +120,16 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const { providerId, modelId } = parseUniqueModelId(modelIdRaw)
+    let provider: ReturnType<typeof providerService.getByProviderId> | undefined
     let model: ReturnType<typeof modelService.getByKey> | undefined
     try {
+      provider = providerService.getByProviderId(providerId)
       model = modelService.getByKey(providerId, modelId)
     } catch {
+      provider = undefined
       model = undefined
     }
-    if (!model) {
+    if (!provider || !model) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)

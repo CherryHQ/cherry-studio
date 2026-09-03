@@ -205,6 +205,25 @@ describe('ProviderSettingsPage', () => {
     expect(screen.queryByText('provider-setting-cherryai')).not.toBeInTheDocument()
   })
 
+  it('falls back when the remembered provider is no longer returned', async () => {
+    MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'openai')
+    useProvidersMock.mockReturnValue({
+      providers: [
+        { id: 'zhipu', name: 'ZhiPu', isEnabled: true },
+        { id: 'custom-provider', name: 'Custom Provider', isEnabled: true }
+      ],
+      hasLoaded: true,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+
+    render(<ProviderSettingsPage />)
+
+    expect(await screen.findByText('provider-setting-zhipu')).toBeInTheDocument()
+    expect(screen.queryByText('provider-setting-openai')).not.toBeInTheDocument()
+  })
+
   it('passes a stable provider selector to deep-link import across rerenders', () => {
     const { rerender } = render(<ProviderSettingsPage />)
     const firstSelector = vi.mocked(useProviderDeepLinkImport).mock.calls.at(-1)?.[1]

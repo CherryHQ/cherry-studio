@@ -579,6 +579,7 @@
   "chat.default.name": "Cherry 助理",
   "chat.default.topic.name": "預設對話",
   "chat.home.welcome_title": "今天我們要談些什麼？",
+  "chat.input.ai_disclaimer": "內容由 AI 生成，僅供參考",
   "chat.input.cancel_editing": "取消編輯",
   "chat.input.clear.content": "您想要清除目前對話的所有訊息嗎？",
   "chat.input.clear.title": "清除所有訊息？",

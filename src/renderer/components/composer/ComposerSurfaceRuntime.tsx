@@ -163,6 +163,8 @@ export interface ComposerSurfaceProps {
   editable?: boolean
   fontSize: number
   narrowMode: boolean
+  /** Opts this composer into the China-edition AI-generated content disclaimer. */
+  showAiDisclaimer?: boolean
   /** Extra padding on both sides matching the message column's anchor-rail gutter,
    * keeping the composer centred and its margins symmetric while the rail shows. */
   railGutterPx?: number
@@ -536,7 +538,8 @@ export default function ComposerSurfaceRuntime({
   sendAccessory,
   deferQuickPanel = false,
   initialTextSelection,
-  deferredIntent
+  deferredIntent,
+  showAiDisclaimer = false
 }: ComposerSurfaceProps) {
   const [editorReady, setEditorReady] = useState(!deferQuickPanel)
   const quickPanelReady = !deferQuickPanel || editorReady
@@ -2375,6 +2378,11 @@ export default function ComposerSurfaceRuntime({
               {inputbarStack}
             </>
           )}
+          {showAiDisclaimer ? (
+            <div className="-mt-3 pt-1.5 pb-2.5 text-center text-[11px] text-muted-foreground">
+              {t('chat.input.ai_disclaimer')}
+            </div>
+          ) : null}
         </div>
       </div>
     </NarrowLayout>
