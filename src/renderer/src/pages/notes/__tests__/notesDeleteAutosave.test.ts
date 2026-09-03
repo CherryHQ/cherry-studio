@@ -160,7 +160,6 @@ describe('notes delete / autosave guards', () => {
       const deletePath = '/notes/a.md'
       const deleteType: 'file' | 'folder' = 'file'
       // snapshot at delete start
-      const preDeleteContent = 'draft-a'
       const preDeletePath = '/notes/a.md'
       // simulate switch: refs now point to new note
       const lastContent = 'draft-b'
