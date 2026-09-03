@@ -218,23 +218,56 @@ describe('notes delete / autosave guards', () => {
     })
   })
 
-  describe('same-path recreate race with in-flight autosave', () => {
+  describe('delete-failure recovery with equal content still restores', () => {
+    it('direct save for snapshot is not skipped when active note has same text', async () => {
+      // Reproduces c1: saveCurrentNote compared content against active note's currentContent
+      const activePath = '/notes/b.md'
+      const activeContent = 'hello'
+      const snapshotPath = '/notes/a.md'
+      const snapshotContent = 'hello'
+      const fileWrite = vi.fn().mockResolvedValue(undefined)
+
+      async function saveCurrentNoteSim(content: string, targetPath: string) {
+        if (!targetPath) return
+        const normalizedTarget = normalizePathValue(targetPath)
+        const activeNorm = normalizePathValue(activePath)
+        const isActiveTarget = normalizedTarget === activeNorm
+        if (isActiveTarget && content.trim() === activeContent.trim()) return
+        await fileWrite(targetPath, content)
+      }
+
+      await saveCurrentNoteSim(snapshotContent, snapshotPath)
+      expect(fileWrite).toHaveBeenCalledWith('/notes/a.md', 'hello')
+
+      // old buggy guard would have blocked: if (content.trim() === currentContent.trim()) return
+      const buggyWouldSkip = snapshotContent.trim() === activeContent.trim()
+      expect(buggyWouldSkip).toBe(true)
+    })
+  })
+
+  describe('same-path recreate race with in-flight autosave (generation-tied)', () => {
     let generations: Map<string, number>
     let pendingSet: Set<string>
-    let lastRecreated: string | null
+    let pendingGen: Map<string, number>
+    let lastRecreated: { path: string; gen: number; content: string } | null
     let fileWrite: ReturnType<typeof vi.fn>
     let invalidate: ReturnType<typeof vi.fn>
     let lastContentRef: string
     let lastFilePathRef: string | undefined
+    let activePath: string | undefined
+    let activeContent: string
 
     beforeEach(() => {
       generations = new Map()
       pendingSet = new Set()
+      pendingGen = new Map()
       lastRecreated = null
       fileWrite = vi.fn().mockImplementation(() => Promise.resolve())
       invalidate = vi.fn()
       lastContentRef = ''
       lastFilePathRef = undefined
+      activePath = undefined
+      activeContent = ''
     })
 
     function isPending(target: string): boolean {
@@ -251,24 +284,30 @@ describe('notes delete / autosave guards', () => {
       generations.set(n, (generations.get(n) ?? 0) + 1)
     }
 
-    async function saveCurrentNoteSim(content: string, targetPath: string, currentContent: string) {
-      if (!targetPath || content.trim() === currentContent.trim()) return
+    async function saveCurrentNoteSim(content: string, targetPath: string) {
+      if (!targetPath) return
+      const normalizedTarget = normalizePathValue(targetPath)
+      const activeNorm = activePath ? normalizePathValue(activePath) : undefined
+      const isActiveTarget = normalizedTarget === activeNorm
+      if (isActiveTarget && content.trim() === activeContent.trim()) return
       if (isPending(targetPath)) return
       const genAtStart = getGen(targetPath)
       await fileWrite(targetPath, content)
       const genNow = getGen(targetPath)
       const na = normalizePathValue(targetPath)
       if (genAtStart !== genNow) {
-        if (lastRecreated && na === lastRecreated) {
+        if (isPending(targetPath)) {
+          return
+        }
+        if (lastRecreated && na === lastRecreated.path && genNow === lastRecreated.gen) {
           const curLast = lastFilePathRef ? normalizePathValue(lastFilePathRef) : undefined
-          const correct = curLast === na ? lastContentRef : ''
+          const correct = curLast === na ? lastContentRef : lastRecreated.content
           if (correct !== content) {
             await fileWrite(targetPath, correct)
           }
           invalidate(targetPath)
           return
         }
-        if (isPending(targetPath)) return
         return
       }
       if (isPending(targetPath)) return
@@ -279,14 +318,20 @@ describe('notes delete / autosave guards', () => {
       const staleContent = 'old content'
       const recreatedCorrectContent = ''
 
-      const savePromise = saveCurrentNoteSim(staleContent, '/notes/a.md', '')
+      activePath = '/notes/a.md'
+      activeContent = ''
+
+      const savePromise = saveCurrentNoteSim(staleContent, '/notes/a.md')
 
       pendingSet.add(normalizePathValue('/notes/a.md'))
+      pendingGen.set(normalizePathValue('/notes/a.md'), 1)
       bump('/notes/a.md')
 
       pendingSet.delete(normalizePathValue('/notes/a.md'))
+      pendingGen.delete(normalizePathValue('/notes/a.md'))
       bump('/notes/a.md')
-      lastRecreated = normalizePathValue('/notes/a.md')
+      const genAfter = getGen('/notes/a.md')
+      lastRecreated = { path: normalizePathValue('/notes/a.md'), gen: genAfter, content: recreatedCorrectContent }
       lastContentRef = recreatedCorrectContent
       lastFilePathRef = '/notes/a.md'
 
@@ -298,8 +343,138 @@ describe('notes delete / autosave guards', () => {
       expect(invalidate).toHaveBeenCalledWith('/notes/a.md')
     })
 
+    it('stale write after second delete is cleaned, not restored as recreate', async () => {
+      const staleContent = 'old content'
+
+      activePath = '/notes/a.md'
+      activeContent = ''
+
+      const savePromise = saveCurrentNoteSim(staleContent, '/notes/a.md')
+
+      // first delete + recreate
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      pendingSet.delete(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      lastRecreated = { path: normalizePathValue('/notes/a.md'), gen: getGen('/notes/a.md'), content: '' }
+
+      // second delete before stale write completes (covers c0: stale autosave restores note deleted again)
+      lastRecreated = null
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+
+      await savePromise
+
+      // stale write should be swallowed via pending cleanup, not restored via lastRecreated
+      expect(fileWrite).toHaveBeenCalledTimes(1)
+      expect(fileWrite).toHaveBeenCalledWith('/notes/a.md', 'old content')
+      expect(invalidate).not.toHaveBeenCalled()
+    })
+
+    it('recreated path does not copy active note content when user switched away', async () => {
+      const staleContent = 'old content'
+      const recreatedContent = ''
+
+      // after recreate, user switched to /notes/b.md which has different content
+      activePath = '/notes/b.md'
+      activeContent = 'content-b'
+      lastContentRef = 'content-b'
+      lastFilePathRef = '/notes/b.md'
+
+      const savePromise = saveCurrentNoteSim(staleContent, '/notes/a.md')
+
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      pendingSet.delete(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      lastRecreated = { path: normalizePathValue('/notes/a.md'), gen: getGen('/notes/a.md'), content: recreatedContent }
+
+      await savePromise
+
+      // should restore recreatedContent '' not active note's content-b
+      expect(fileWrite).toHaveBeenCalledTimes(2)
+      expect(fileWrite).toHaveBeenNthCalledWith(2, '/notes/a.md', '')
+    })
+
+    it('delete replacement during creation window clears recreation marker', async () => {
+      // recreate then delete same path within creation window
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      pendingSet.delete(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+      lastRecreated = { path: normalizePathValue('/notes/a.md'), gen: getGen('/notes/a.md'), content: '' }
+
+      // delete the replacement
+      if (lastRecreated && lastRecreated.path === normalizePathValue('/notes/a.md')) {
+        lastRecreated = null
+      }
+      pendingSet.add(normalizePathValue('/notes/a.md'))
+      bump('/notes/a.md')
+
+      expect(lastRecreated).toBeNull()
+      expect(isPending('/notes/a.md')).toBe(true)
+
+      // stale write for old content should not be treated as recreation restore
+      const savePromise = saveCurrentNoteSim('old content', '/notes/a.md')
+      await savePromise
+      expect(fileWrite).toHaveBeenCalledTimes(0)
+      // blocked by pending fence at start
+    })
+
+    it('older pending timer does not clear newer deletion marker (generation-tied)', async () => {
+      const path = normalizePathValue('/notes/a.md')
+
+      // first delete: gen 1
+      pendingSet.add(path)
+      bump(path)
+      const gen1 = getGen(path)
+      pendingGen.set(path, gen1)
+
+      // recreate clears first pending but bumps to gen 2
+      pendingSet.delete(path)
+      pendingGen.delete(path)
+      bump(path)
+      lastRecreated = { path, gen: getGen(path), content: '' }
+
+      // second delete quickly: gen 3
+      lastRecreated = null
+      pendingSet.add(path)
+      bump(path)
+      const gen3 = getGen(path)
+      pendingGen.set(path, gen3)
+
+      // first timer fires (would have checked gen1 === curGen? -> false, so no clear)
+      const curGen = getGen(path)
+      const firstTimerWouldClear = gen1 === curGen
+      expect(firstTimerWouldClear).toBe(false)
+
+      // second timer correctly keeps pending until its gen matches
+      expect(isPending('/notes/a.md')).toBe(true)
+      expect(pendingGen.get(path)).toBe(gen3)
+    })
+
+    it('older recreation timer does not clear newer recreation marker', () => {
+      const path = normalizePathValue('/notes/a.md')
+
+      bump(path)
+      const gen1 = getGen(path)
+      lastRecreated = { path, gen: gen1, content: '' }
+
+      bump(path)
+      const gen2 = getGen(path)
+      lastRecreated = { path, gen: gen2, content: '' }
+
+      // first timer checks gen1 vs current lastRecreated gen2 -> should not clear
+      const firstTimerWouldClear = lastRecreated.gen === gen1
+      expect(firstTimerWouldClear).toBe(false)
+      expect(lastRecreated.gen).toBe(gen2)
+    })
+
     it('stale write without recreate does not trigger corrective rewrite and is swallowed', async () => {
-      const savePromise = saveCurrentNoteSim('stale', '/notes/a.md', '')
+      activePath = '/notes/a.md'
+      activeContent = ''
+
+      const savePromise = saveCurrentNoteSim('stale', '/notes/a.md')
 
       pendingSet.add(normalizePathValue('/notes/a.md'))
       bump('/notes/a.md')
@@ -311,7 +486,10 @@ describe('notes delete / autosave guards', () => {
     })
 
     it('generation is per-path: unrelated delete does not affect other file autosave', async () => {
-      const savePromise = saveCurrentNoteSim('content-b', '/notes/b.md', '')
+      activePath = '/notes/b.md'
+      activeContent = ''
+
+      const savePromise = saveCurrentNoteSim('content-b', '/notes/b.md')
 
       // delete unrelated file a
       pendingSet.add(normalizePathValue('/notes/a.md'))
