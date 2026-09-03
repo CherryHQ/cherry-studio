@@ -10,6 +10,7 @@
 import { application } from '@application'
 import type { ModelEndpointContractInput, ModelLookupResult } from '@cherrystudio/provider-registry'
 import { getModelEndpointContractIssues, inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -680,6 +681,30 @@ class ModelService {
       })
     }
 
+    // `knowledge_base.embedding_model_id` has no ON DELETE clause, so deleting a referenced model
+    // aborts the whole reconcile transaction. Skip those rows instead of failing the batch.
+    const knowledgeBaseModelIds = new Set(
+      db
+        .select({ id: knowledgeBaseTable.embeddingModelId })
+        .from(knowledgeBaseTable)
+        .where(
+          inArray(
+            knowledgeBaseTable.embeddingModelId,
+            rows.map((row) => row.id)
+          )
+        )
+        .all()
+        .map((row) => row.id)
+        .filter((id): id is string => id != null)
+    )
+    if (knowledgeBaseModelIds.size > 0) {
+      logger.warn('Skipped knowledge-base embedding model removal during reconcile', {
+        providerId,
+        skippedCount: knowledgeBaseModelIds.size,
+        skippedIds: [...knowledgeBaseModelIds]
+      })
+    }
+
     const removableCustomModelIds = new Set([...customModelIds].filter((id) => !userDefaultIds.has(id)))
 
     if (managedDefaultIds.size > 0) {
@@ -700,7 +725,11 @@ class ModelService {
 
     return {
       toRemove: toRemove.filter(
-        (id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id) && !removableCustomModelIds.has(id)
+        (id) =>
+          !managedDefaultIds.has(id) &&
+          !userDefaultIds.has(id) &&
+          !removableCustomModelIds.has(id) &&
+          !knowledgeBaseModelIds.has(id)
       ),
       presetBackedRemovalIds
     }
@@ -1241,7 +1270,14 @@ class ModelService {
             .orderBy(asc(userModelTable.orderKey))
             .all() as UserModelRow[]
         }),
-      createModelsSqliteHandlers(values)
+      {
+        ...createModelsSqliteHandlers(values),
+        // The provider is asserted before the transaction, so a foreign key violation here is the
+        // delete side: a row still referenced by another table, not a missing parent.
+        ...(payload.toRemove.length > 0
+          ? deleteModelsSqliteHandlers(`${payload.toRemove.length} model(s) during reconcile`)
+          : {})
+      }
     )
 
     if (deletedIds.length > 0) pinService.notifyPurged()

@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "すべてのモデルを削除",
   "settings.models.manage.remove_model": "モデルを削除",
   "settings.models.manage.remove_skipped_default_in_use": "{{count}} 個のデフォルトモデルをスキップしました",
+  "settings.models.manage.remove_skipped_in_use": "使用中のモデルを {{count}} 件スキップしました",
   "settings.models.manage.remove_whole_group": "グループ全体を削除",
   "settings.models.manage.search_models_placeholder": "モデルを検索…",
   "settings.models.manage.stale_badge": "期限切れ",

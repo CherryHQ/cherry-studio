@@ -122,7 +122,15 @@ export default defineCreator({
       id: 'gemini-3-pro-image-preview',
       name: 'gemini-3-pro-image-preview',
       family: 'gemini-pro',
-      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      capabilities: [
+        'text-generation',
+        'function-call',
+        'reasoning',
+        'image-recognition',
+        'image-generation',
+        'structured-output',
+        'file-input'
+      ],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

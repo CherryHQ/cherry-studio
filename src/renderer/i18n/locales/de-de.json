@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "Alle Modelle entfernen",
   "settings.models.manage.remove_model": "Modell entfernen",
   "settings.models.manage.remove_skipped_default_in_use": "{{count}} Standardmodell(e) übersprungen",
+  "settings.models.manage.remove_skipped_in_use": "{{count}} noch verwendete Modelle übersprungen",
   "settings.models.manage.remove_whole_group": "Gesamte Gruppe entfernen",
   "settings.models.manage.search_models_placeholder": "Modelle suchen…",
   "settings.models.manage.stale_badge": "Ungültig",

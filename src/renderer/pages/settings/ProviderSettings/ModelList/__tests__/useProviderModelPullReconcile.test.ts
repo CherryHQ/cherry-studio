@@ -426,7 +426,7 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.cleanStaleModels()
     })
 
-    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_default_in_use')
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.remove_skipped_in_use')
   })
 
   it('shows an operation failure toast when cleaning stale models fails', async () => {

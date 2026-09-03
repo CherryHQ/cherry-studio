@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "Supprimer tous les modèles",
   "settings.models.manage.remove_model": "Supprimer le modèle",
   "settings.models.manage.remove_skipped_default_in_use": "{{count}} modèle(s) par défaut ignoré(s)",
+  "settings.models.manage.remove_skipped_in_use": "{{count}} modèle(s) encore utilisé(s) ignoré(s)",
   "settings.models.manage.remove_whole_group": "Supprimer tout le groupe",
   "settings.models.manage.search_models_placeholder": "Rechercher des modèles…",
   "settings.models.manage.stale_badge": "Obsolète",

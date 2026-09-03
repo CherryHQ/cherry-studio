@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "Удалить все модели",
   "settings.models.manage.remove_model": "Удалить модель",
   "settings.models.manage.remove_skipped_default_in_use": "Пропущено моделей по умолчанию: {{count}}",
+  "settings.models.manage.remove_skipped_in_use": "Пропущено моделей, которые ещё используются: {{count}}",
   "settings.models.manage.remove_whole_group": "Удалить всю группу",
   "settings.models.manage.search_models_placeholder": "Поиск моделей…",
   "settings.models.manage.stale_badge": "Устаревшая",
