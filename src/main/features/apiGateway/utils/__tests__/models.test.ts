@@ -230,7 +230,7 @@ describe('api gateway model listing', () => {
       providerId: CHERRY_CLOUD_PROVIDER_ID,
       apiModelId: 'deepseek-free',
       ownedBy: 'CherryAI',
-      capabilities: []
+      capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
     }
 
     beforeEach(() => {
@@ -241,7 +241,15 @@ describe('api gateway model listing', () => {
       mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
         providerId === CHERRY_CLOUD_PROVIDER_ID
           ? [cloudModel]
-          : [{ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', ownedBy: 'OpenAI', capabilities: [] }]
+          : [
+              {
+                id: 'openai::gpt-4o',
+                providerId: 'openai',
+                apiModelId: 'gpt-4o',
+                ownedBy: 'OpenAI',
+                capabilities: [MODEL_CAPABILITY.TEXT_GENERATION]
+              }
+            ]
       )
       mocks.getProvider.mockReturnValue({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'CherryAI', isEnabled: true })
     })
