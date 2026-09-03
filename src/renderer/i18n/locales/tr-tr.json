@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "Tüm modelleri kaldır",
   "settings.models.manage.remove_model": "Modeli sil",
   "settings.models.manage.remove_skipped_default_in_use": "{{count}} varsayılan model atlandı",
+  "settings.models.manage.remove_skipped_in_use": "Hâlâ kullanımda olan {{count}} model atlandı",
   "settings.models.manage.remove_whole_group": "Grubu sil",
   "settings.models.manage.search_models_placeholder": "Model ara…",
   "settings.models.manage.stale_badge": "Eski",

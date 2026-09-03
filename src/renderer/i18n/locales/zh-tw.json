@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "移除全部模型",
   "settings.models.manage.remove_model": "刪除模型",
   "settings.models.manage.remove_skipped_default_in_use": "已跳過 {{count}} 個預設模型",
+  "settings.models.manage.remove_skipped_in_use": "已略過 {{count}} 個仍在使用的模型",
   "settings.models.manage.remove_whole_group": "刪除群組",
   "settings.models.manage.search_models_placeholder": "搜尋模型…",
   "settings.models.manage.stale_badge": "失效",

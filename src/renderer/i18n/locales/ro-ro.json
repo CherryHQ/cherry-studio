@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "Elimină toate modelele",
   "settings.models.manage.remove_model": "Elimină modelul",
   "settings.models.manage.remove_skipped_default_in_use": "Au fost omise {{count}} modele implicite",
+  "settings.models.manage.remove_skipped_in_use": "Au fost omise {{count}} modele încă în uz",
   "settings.models.manage.remove_whole_group": "Elimină întregul grup",
   "settings.models.manage.search_models_placeholder": "Caută modele…",
   "settings.models.manage.stale_badge": "Expirat",

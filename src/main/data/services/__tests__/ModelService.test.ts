@@ -2733,6 +2733,34 @@ describe('ModelService.reconcileForProvider', () => {
     expect(pins.find((pin) => pin.id === lastPin.id)).toBeUndefined()
   })
 
+  it('keeps a knowledge base embedding model instead of aborting the whole reconcile', async () => {
+    // Deleting a referenced embedding model raises a foreign key error that rolls the transaction
+    // back, so a single knowledge base used to make "clean stale models" fail for every model at
+    // once — and report it as a missing provider.
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const embedding = createUniqueModelId('openai', 'text-embedding-3-large')
+    const stale = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'text-embedding-3-large', { id: embedding, presetModelId: 'text-embedding-3-large' }),
+        modelRow('openai', 'gpt-4o', { id: stale, presetModelId: 'gpt-4o' })
+      ])
+    await dbh.db.insert(knowledgeBaseTable).values({
+      name: 'Docs',
+      dimensions: 1536,
+      embeddingModelId: embedding,
+      status: 'completed',
+      error: null,
+      chunkSize: 1024,
+      chunkOverlap: 200
+    })
+
+    const result = modelService.reconcileForProvider('openai', { toAdd: [], toRemove: [embedding, stale] })
+
+    expect(result.map((model) => model.id)).toEqual([embedding])
+  })
+
   it('warns when toRemove references IDs that do not exist for this provider', async () => {
     // S2 regression coverage: stale renderer state passes a toRemove with a
     // non-existent id; reconcile completes but logs the count mismatch.

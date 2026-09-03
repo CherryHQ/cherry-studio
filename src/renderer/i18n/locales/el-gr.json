@@ -4317,6 +4317,7 @@
   "settings.models.manage.remove_listed": "Αφαίρεση όλων των μοντέλων",
   "settings.models.manage.remove_model": "Αφαίρεση Μοντέλου",
   "settings.models.manage.remove_skipped_default_in_use": "Παραλείφθηκαν {{count}} προεπιλεγμένα μοντέλα",
+  "settings.models.manage.remove_skipped_in_use": "Παραλείφθηκαν {{count}} μοντέλα που είναι ακόμη σε χρήση",
   "settings.models.manage.remove_whole_group": "Αφαίρεση ολόκληρης ομάδας",
   "settings.models.manage.search_models_placeholder": "Αναζήτηση μοντέλων…",
   "settings.models.manage.stale_badge": "Μη έγκυρο",
