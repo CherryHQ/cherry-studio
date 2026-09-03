@@ -244,9 +244,18 @@ const LOCAL_PREVIEW_URL_PATTERN =
   /https?:\/\/(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])(?::\d{1,5})?(?:[/?#][^\s<>"'`]*)?/gi
 const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
 
-export type AgentPreviewUrlCandidate =
-  | { key: string; type: 'url'; url: string }
-  | { key: string; type: 'deferred'; ref: DeferredToolResultRef }
+export interface AgentPreviewUrlSource {
+  messageId: string
+  partIndex: number
+}
+
+export interface AgentPreviewUrlFrontier {
+  messageId: string
+  partsLength: number
+}
+
+export type AgentPreviewUrlCandidate = AgentPreviewUrlSource &
+  ({ key: string; type: 'url'; url: string } | { key: string; type: 'deferred'; ref: DeferredToolResultRef })
 
 function extractLatestLocalPreviewUrl(text: string): string | null {
   const matches = text.match(LOCAL_PREVIEW_URL_PATTERN)
@@ -280,7 +289,7 @@ export function findAgentPreviewUrlCandidates(
   const entries = getOrderedMessageParts(messages, partsByMessageId)
 
   for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
-    const parts = entries[entryIndex].parts
+    const { message, parts } = entries[entryIndex]
     for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
       const part = parts[partIndex]
       if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
@@ -290,12 +299,20 @@ export function findAgentPreviewUrlCandidates(
         const excerpt = output.excerpt
         const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
         if (excerptUrl) {
-          candidates.push({ key: `url:${excerptUrl}`, type: 'url', url: excerptUrl })
+          candidates.push({
+            key: `url:${message.id}\0${partIndex}\0${excerptUrl}`,
+            messageId: message.id,
+            partIndex,
+            type: 'url',
+            url: excerptUrl
+          })
           return candidates
         }
         const ref = output.$deferredToolResult
         candidates.push({
-          key: `deferred:${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}`,
+          key: `deferred:${message.id}\0${partIndex}\0${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}`,
+          messageId: message.id,
+          partIndex,
           type: 'deferred',
           ref
         })
@@ -304,7 +321,13 @@ export function findAgentPreviewUrlCandidates(
 
       const url = findAgentPreviewUrlInOutput(output)
       if (!url) continue
-      candidates.push({ key: `url:${url}`, type: 'url', url })
+      candidates.push({
+        key: `url:${message.id}\0${partIndex}\0${url}`,
+        messageId: message.id,
+        partIndex,
+        type: 'url',
+        url
+      })
       return candidates
     }
   }
@@ -312,19 +335,29 @@ export function findAgentPreviewUrlCandidates(
   return candidates
 }
 
-/** Identifies preview-relevant changes at the newest edge without treating older pagination as new output. */
-export function getAgentPreviewUrlFrontierKey(
+/** Captures the current time frontier without materializing deferred outputs. */
+export function getAgentPreviewUrlFrontier(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): string {
+): AgentPreviewUrlFrontier | null {
   const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
-  if (!entry) return ''
-  const candidates = findAgentPreviewUrlCandidates([entry.message], { [entry.message.id]: entry.parts })
-  return [
-    `message:${entry.message.id}`,
-    `parts:${entry.parts.length}`,
-    ...candidates.map((candidate) => candidate.key)
-  ].join('\0')
+  return entry ? { messageId: entry.message.id, partsLength: entry.parts.length } : null
+}
+
+/** Returns whether a source was appended after a previously captured time frontier. */
+export function isAgentPreviewUrlSourceAfterFrontier(
+  source: AgentPreviewUrlSource,
+  frontier: AgentPreviewUrlFrontier | null,
+  messages: CherryUIMessage[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): boolean {
+  if (!frontier) return true
+  const entries = getOrderedMessageParts(messages, partsByMessageId)
+  const frontierIndex = entries.findIndex(({ message }) => message.id === frontier.messageId)
+  const sourceIndex = entries.findIndex(({ message }) => message.id === source.messageId)
+  if (frontierIndex < 0 || sourceIndex < 0) return false
+  if (sourceIndex !== frontierIndex) return sourceIndex > frontierIndex
+  return source.partIndex >= frontier.partsLength
 }
 
 /** Finds a browser-ready URL only from concrete shell/task output, never from prompt text. */

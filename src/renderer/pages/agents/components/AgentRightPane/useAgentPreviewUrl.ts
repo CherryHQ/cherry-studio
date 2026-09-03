@@ -3,22 +3,13 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import { useEffect, useMemo, useState } from 'react'
 
 import {
+  type AgentPreviewUrlSource,
   findAgentPreviewUrlCandidates,
-  findAgentPreviewUrlInOutput,
-  getAgentPreviewUrlFrontierKey
+  findAgentPreviewUrlInOutput
 } from './agentRightPaneProjection'
 
 function buildSearchKey(sessionId: string | undefined, candidateKeys: string[]): string {
   return `${sessionId ?? ''}\0${candidateKeys.join('\0')}`
-}
-
-/** Identifies preview-relevant progress at the newest edge without materializing deferred outputs. */
-export function getAgentPreviewUrlGenerationKey(
-  sessionId: string | undefined,
-  messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
-): string {
-  return buildSearchKey(sessionId, sessionId ? [getAgentPreviewUrlFrontierKey(messages, partsByMessageId)] : [])
 }
 
 /** Resolves deferred preview candidates one at a time until the newest available URL is known. */
@@ -27,14 +18,10 @@ export function useAgentPreviewUrl(
   sessionId: string | undefined,
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>
-): { generationKey: string; url: string | null } {
+): { source: AgentPreviewUrlSource | null; url: string | null } {
   const candidates = useMemo(
     () => (enabled && sessionId ? findAgentPreviewUrlCandidates(messages, partsByMessageId) : []),
     [enabled, messages, partsByMessageId, sessionId]
-  )
-  const generationKey = useMemo(
-    () => getAgentPreviewUrlGenerationKey(sessionId, messages, partsByMessageId),
-    [messages, partsByMessageId, sessionId]
   )
   const searchKey = buildSearchKey(
     sessionId,
@@ -64,7 +51,7 @@ export function useAgentPreviewUrl(
   }, [candidate, cursor.searchKey, index, isLoading, resolvedUrl, searchKey])
 
   return {
-    generationKey,
+    source: resolvedUrl && candidate ? candidate : null,
     url: resolvedUrl
   }
 }

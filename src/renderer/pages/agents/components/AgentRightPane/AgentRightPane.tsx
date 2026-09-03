@@ -81,15 +81,19 @@ import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
+  type AgentPreviewUrlFrontier,
+  type AgentPreviewUrlSource,
   type AgentRightPaneStatus,
   type AgentRunLiveness,
   type AgentRunTask,
   type AgentStatusTask,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
-  buildAgentToolFlowProjection
+  buildAgentToolFlowProjection,
+  getAgentPreviewUrlFrontier,
+  isAgentPreviewUrlSourceAfterFrontier
 } from './agentRightPaneProjection'
-import { getAgentPreviewUrlGenerationKey, useAgentPreviewUrl } from './useAgentPreviewUrl'
+import { useAgentPreviewUrl } from './useAgentPreviewUrl'
 
 const logger = loggerService.withContext('AgentRightPane')
 
@@ -171,12 +175,12 @@ interface AgentRightPaneRuntime {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   browserUrl: string | null
-  acceptDetectedBrowserUrl: (url: string | null, generationKey: string) => void
+  acceptDetectedBrowserUrl: (url: string | null, source: AgentPreviewUrlSource | null) => void
 }
 
 interface ExplicitBrowserBaseline {
   sessionId?: string
-  generationKey: string
+  frontier: AgentPreviewUrlFrontier | null
   url: string
 }
 
@@ -427,22 +431,22 @@ function AgentRightPaneStateProvider({
   // until the transition is accepted so a new tree can never write an old path.
   const [fileWorkspace, setFileWorkspace] = useState(() => ({ key: workspaceKey, path: workspacePath }))
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
-  const previewUrlGenerationKey = useMemo(
-    () => getAgentPreviewUrlGenerationKey(sessionId, messages, partsByMessageId),
-    [messages, partsByMessageId, sessionId]
+  const previewUrlFrontier = useMemo(
+    () => getAgentPreviewUrlFrontier(messages, partsByMessageId),
+    [messages, partsByMessageId]
   )
-  const previewUrlGenerationKeyRef = useRef(previewUrlGenerationKey)
+  const previewUrlFrontierRef = useRef(previewUrlFrontier)
   useLayoutEffect(() => {
-    previewUrlGenerationKeyRef.current = previewUrlGenerationKey
-  }, [previewUrlGenerationKey])
+    previewUrlFrontierRef.current = previewUrlFrontier
+  }, [previewUrlFrontier])
   useLayoutEffect(() => {
     if (explicitBrowserBaselineRef.current?.sessionId !== sessionId) explicitBrowserBaselineRef.current = null
   }, [sessionId])
   // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
   const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
   const acceptDetectedBrowserUrl = useCallback(
-    (url: string | null, generationKey: string) => {
-      if (!url) return
+    (url: string | null, source: AgentPreviewUrlSource | null) => {
+      if (!url || !source) return
       const detected = detectedBrowserUrlRef.current
       const isNewDetectedUrl = detected.sessionId !== sessionId || detected.url !== url
       detectedBrowserUrlRef.current = { sessionId, url }
@@ -451,14 +455,15 @@ function AgentRightPaneStateProvider({
         baseline &&
         baseline.sessionId === sessionId &&
         browserUrl === baseline.url &&
-        (baseline.generationKey === generationKey || !isNewDetectedUrl)
+        (!isNewDetectedUrl ||
+          !isAgentPreviewUrlSourceAfterFrontier(source, baseline.frontier, messages, partsByMessageId))
       ) {
         return
       }
       explicitBrowserBaselineRef.current = null
       if (browserUrl !== url) setBrowserUrlState({ sessionId, url })
     },
-    [browserUrl, sessionId]
+    [browserUrl, messages, partsByMessageId, sessionId]
   )
   const runtime = useMemo<AgentRightPaneRuntime>(
     () => ({ messages, partsByMessageId, browserUrl, acceptDetectedBrowserUrl }),
@@ -466,7 +471,7 @@ function AgentRightPaneStateProvider({
   )
   const openBrowserUrl = useCallback(
     (url: string) => {
-      explicitBrowserBaselineRef.current = { sessionId, generationKey: previewUrlGenerationKeyRef.current, url }
+      explicitBrowserBaselineRef.current = { sessionId, frontier: previewUrlFrontierRef.current, url }
       setBrowserUrlState({ sessionId, url })
     },
     [sessionId]
@@ -768,8 +773,8 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   const detectedPreview = useAgentPreviewUrl(active, sessionId, runtime.messages, runtime.partsByMessageId)
 
   useEffect(() => {
-    if (active) acceptDetectedBrowserUrl(detectedPreview.url, detectedPreview.generationKey)
-  }, [acceptDetectedBrowserUrl, active, detectedPreview.generationKey, detectedPreview.url])
+    if (active) acceptDetectedBrowserUrl(detectedPreview.url, detectedPreview.source)
+  }, [acceptDetectedBrowserUrl, active, detectedPreview.source, detectedPreview.url])
 
   const target = useMemo(
     () => ({

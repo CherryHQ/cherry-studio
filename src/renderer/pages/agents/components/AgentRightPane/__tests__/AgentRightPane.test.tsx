@@ -1187,6 +1187,83 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
 
+  it.each([
+    { outcome: 'contains no URL', suffix: 'no-url' },
+    { outcome: 'request rejects', suffix: 'rejected' },
+    { outcome: 'contains a URL', suffix: 'url' }
+  ])('uses the deferred source position when a newer deferred result $outcome', async ({ outcome, suffix }) => {
+    const sessionId = `session-source-${suffix}`
+    const olderRef = {
+      topicId: `agent-session:${sessionId}`,
+      messageId: `m-source-old-${suffix}`,
+      toolCallId: `bash-source-old-${suffix}`
+    }
+    const newerRef = {
+      topicId: `agent-session:${sessionId}`,
+      messageId: `m-source-new-${suffix}`,
+      toolCallId: `bash-source-new-${suffix}`
+    }
+    const olderResult = createDeferredPromise<{ found: true; output: string }>()
+    const newerResult = createDeferredPromise<{ found: true; output: string }>()
+    ipcRequestMock.mockImplementation((_route: string, ref: { toolCallId: string }) =>
+      ref.toolCallId === olderRef.toolCallId ? olderResult.promise : newerResult.promise
+    )
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+    const olderPart = createPreviewToolPart(olderRef.toolCallId, 'BashOutput', {
+      $deferredToolResult: olderRef
+    })
+    const olderMessage = createPreviewMessage(olderRef.messageId, [olderPart])
+    const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={partsByMessageId}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', olderRef))
+
+    const newerPart = createPreviewToolPart(newerRef.toolCallId, 'TaskOutput', {
+      $deferredToolResult: newerRef
+    })
+    const newerMessage = createPreviewMessage(newerRef.messageId, [newerPart])
+    rerender(
+      renderPane([olderMessage, newerMessage], {
+        [olderMessage.id]: [olderPart],
+        [newerMessage.id]: [newerPart]
+      })
+    )
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', newerRef))
+
+    await act(async () => {
+      if (outcome === 'request rejects') newerResult.reject(new Error('newer result lookup failed'))
+      else {
+        newerResult.resolve({
+          found: true,
+          output: outcome === 'contains a URL' ? 'Ready at http://localhost:7050/' : 'Build completed'
+        })
+      }
+    })
+
+    if (outcome === 'contains a URL') {
+      await waitFor(() =>
+        expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:7050/')
+      )
+      return
+    }
+
+    await act(async () => olderResult.resolve({ found: true, output: 'Ready at http://localhost:7000/' }))
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+  })
+
   it('registers the sidebar command independently and prioritizes the resource pane', () => {
     render(
       <TestAgentRightPane
