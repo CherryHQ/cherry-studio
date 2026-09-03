@@ -122,6 +122,8 @@ function toolResultToOutput(
         lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
         relocatedParts.push({ type: 'text', text: anchor }, file)
       }
+    } else if (block.type === 'tool_reference') {
+      lines.push(JSON.stringify({ type: block.type, tool_name: block.tool_name }))
     }
   }
   return { output: lines.join('\n'), relocatedParts }
@@ -134,11 +136,57 @@ function textContentToString(content: MessageCreateParams['system'] | MessagePar
   return content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n')
 }
 
-/**
- * The Claude Agent SDK puts `system` messages inside `messages` (agent/skill catalogs,
- * deferred-tool notices), which `MessageParam` does not model.
- */
-type AgentInputMessage = MessageParam | { role: 'system'; content: MessageParam['content'] }
+type AnthropicToolDefinition = NonNullable<MessageCreateParams['tools']>[number]
+type AgentSystemMessage = {
+  role: 'system'
+  content: MessageParam['content']
+  tools?: MessageCreateParams['tools']
+}
+
+/** The Agent SDK adds harness state and dynamically-loaded tools as inline system messages. */
+type AgentInputMessage = MessageParam | AgentSystemMessage
+
+function collectToolDefinitions(params: MessageCreateParams, includeInlineTools: boolean): AnthropicToolDefinition[] {
+  const definitions = new Map<string, AnthropicToolDefinition>()
+  for (const toolDefinition of params.tools ?? []) definitions.set(toolDefinition.name, toolDefinition)
+
+  if (!includeInlineTools) return [...definitions.values()]
+  for (const message of params.messages as AgentInputMessage[]) {
+    if (message.role !== 'system') continue
+    for (const toolDefinition of message.tools ?? []) definitions.set(toolDefinition.name, toolDefinition)
+  }
+
+  return [...definitions.values()]
+}
+
+function collectLoadedToolNames(messages: AgentInputMessage[]): Set<string> {
+  const names = new Set<string>()
+  for (const message of messages) {
+    if (message.role === 'system') {
+      for (const toolDefinition of message.tools ?? []) names.add(toolDefinition.name)
+    }
+    if (!Array.isArray(message.content)) continue
+
+    for (const block of message.content) {
+      if (block.type === 'tool_use' && block.name === 'ToolSearch') {
+        const query =
+          block.input && typeof block.input === 'object' && 'query' in block.input ? block.input.query : undefined
+        if (typeof query === 'string' && query.startsWith('select:')) {
+          for (const name of query.slice('select:'.length).split(',')) {
+            const selectedName = name.trim()
+            if (selectedName) names.add(selectedName)
+          }
+        }
+        continue
+      }
+      if (block.type !== 'tool_result' || !Array.isArray(block.content)) continue
+      for (const resultBlock of block.content) {
+        if (resultBlock.type === 'tool_reference') names.add(resultBlock.tool_name)
+      }
+    }
+  }
+  return names
+}
 
 /**
  * Reasoning cache interface for storing provider-specific reasoning state
@@ -156,13 +204,19 @@ export interface ReasoningCache {
 export class AnthropicMessageConverter implements IMessageConverter<MessageCreateParams> {
   private googleReasoningCache?: ReasoningCache
   private openRouterReasoningCache?: ReasoningCache
+  private readonly enableDeferredToolLoading: boolean
   private mappedTools?: MessageCreateParams['tools']
   private readonly providerToolNames = new Map<string, string>()
   private readonly clientToolNames = new Map<string, string>()
 
-  constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
+  constructor(options?: {
+    googleReasoningCache?: ReasoningCache
+    openRouterReasoningCache?: ReasoningCache
+    enableDeferredToolLoading?: boolean
+  }) {
     this.googleReasoningCache = options?.googleReasoningCache
     this.openRouterReasoningCache = options?.openRouterReasoningCache
+    this.enableDeferredToolLoading = options?.enableDeferredToolLoading === true
   }
 
   /**
@@ -180,7 +234,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * cache. `hoistSystemMessages` folds them only for targets that reject them.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
-    this.prepareToolNames(params.tools)
+    this.prepareToolNames(collectToolDefinitions(params, this.enableDeferredToolLoading))
     const messages: CherryUIMessage[] = []
 
     // Array covariance widens without a cast, so `role` narrows natively from here on.
@@ -312,9 +366,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * Convert Anthropic tools to an AI SDK `ToolSet` (client tools, no `execute`).
    */
   toAiSdkTools(params: MessageCreateParams): ToolSet | undefined {
-    const tools = params.tools
-    if (!tools || tools.length === 0) return undefined
+    const tools = collectToolDefinitions(params, this.enableDeferredToolLoading)
+    if (tools.length === 0) return undefined
     this.prepareToolNames(tools)
+    const loadedToolNames = this.enableDeferredToolLoading
+      ? collectLoadedToolNames(params.messages as AgentInputMessage[])
+      : undefined
 
     const aiSdkTools: ToolSet = {}
     for (const anthropicTool of tools) {
@@ -323,6 +380,9 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       // Client tools always carry `input_schema`; without it this is a server tool
       // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
       if (!rawSchema) continue
+      // Older Agent SDK builds omit defer_loading from MCP tool definitions.
+      const deferred = toolDef.defer_loading === true || toolDef.name.startsWith('mcp__')
+      if (deferred && loadedToolNames && !loadedToolNames.has(toolDef.name)) continue
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 
       const aiTool = tool({

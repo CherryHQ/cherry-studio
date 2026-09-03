@@ -150,10 +150,10 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         break
 
       // === Tool Events ===
-      // Client tools resolve in one `tool-input-available` chunk (full input,
-      // no incremental input deltas to accumulate). Cache reasoning signatures
-      // off its providerMetadata, then frame the Anthropic tool_use block.
-      case 'tool-input-available': {
+      // The gateway does not execute client tools, so forward even calls that its local schema cannot validate.
+      // The outer client owns execution, validation, and recovery.
+      case 'tool-input-available':
+      case 'tool-input-error': {
         const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata as Record<string, any> | undefined
         const thoughtSignature = meta?.google?.thoughtSignature

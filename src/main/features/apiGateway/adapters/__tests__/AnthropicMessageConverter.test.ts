@@ -190,6 +190,31 @@ describe('AnthropicMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('preserves loaded tool references in the ToolSearch result', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'search_1', name: 'ToolSearch', input: { query: 'select:get_weather' } }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'search_1',
+                content: [{ type: 'tool_reference', tool_name: 'get_weather' }]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect((msgs[0].parts[0] as { output?: string }).output).toContain('get_weather')
+  })
+
   it('relocates tool_result images into user file parts and keeps placeholders in the output', () => {
     const msgs = converter.toUIMessages(
       params({
@@ -375,6 +400,171 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     )
 
     expect(tools).toBeUndefined()
+  })
+
+  it('keeps deferred tools eagerly available when local ToolSearch emulation is disabled', () => {
+    const tools = converter.toAiSdkTools(
+      params({
+        tools: [
+          {
+            name: 'get_weather',
+            description: 'Get weather',
+            input_schema: { type: 'object', properties: {} },
+            defer_loading: true
+          }
+        ]
+      })
+    )
+
+    expect(Object.keys(tools ?? {})).toEqual(['get_weather'])
+  })
+
+  it('keeps deferred tools out of the provider request until ToolSearch references them', () => {
+    const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
+    const toolDefinitions = [
+      {
+        name: 'always_available',
+        description: 'Always available',
+        input_schema: { type: 'object', properties: {} }
+      },
+      {
+        name: 'get_weather',
+        description: 'Get weather',
+        input_schema: { type: 'object', properties: { city: { type: 'string' } } },
+        defer_loading: true
+      }
+    ] as MessageCreateParams['tools']
+
+    expect(Object.keys(deferredConverter.toAiSdkTools(params({ tools: toolDefinitions })) ?? {})).toEqual([
+      'always_available'
+    ])
+
+    const loaded = deferredConverter.toAiSdkTools(
+      params({
+        tools: toolDefinitions,
+        messages: [
+          {
+            role: 'assistant',
+            content: [{ type: 'tool_use', id: 'search_1', name: 'ToolSearch', input: { query: 'select:get_weather' } }]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'search_1',
+                content: [{ type: 'tool_reference', tool_name: 'get_weather' }]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(Object.keys(loaded ?? {})).toEqual(['always_available', 'get_weather'])
+  })
+
+  it('defers MCP tools omitted from the older Agent SDK defer metadata', () => {
+    const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
+    const toolDefinitions = [
+      {
+        name: 'Bash',
+        description: 'Run a command',
+        input_schema: { type: 'object', properties: { command: { type: 'string' } } }
+      },
+      {
+        name: 'mcp__assistant__product_info',
+        description: 'Read product information',
+        input_schema: { type: 'object', properties: { source: { type: 'string' } } }
+      }
+    ] as MessageCreateParams['tools']
+
+    expect(Object.keys(deferredConverter.toAiSdkTools(params({ tools: toolDefinitions })) ?? {})).toEqual(['Bash'])
+
+    const loaded = deferredConverter.toAiSdkTools(
+      params({
+        tools: toolDefinitions,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'search_1',
+                content: [{ type: 'tool_reference', tool_name: 'mcp__assistant__product_info' }]
+              }
+            ]
+          }
+        ] as MessageCreateParams['messages']
+      })
+    )
+
+    expect(Object.keys(loaded ?? {})).toEqual(['Bash', 'mcp__assistant__product_info'])
+  })
+
+  it('loads exact ToolSearch selections when the older Agent SDK strips tool references', () => {
+    const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
+    const tools = deferredConverter.toAiSdkTools(
+      params({
+        tools: [
+          {
+            name: 'mcp__assistant__product_info',
+            description: 'Read product information',
+            input_schema: { type: 'object', properties: { source: { type: 'string' } }, required: ['source'] }
+          }
+        ],
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'search_1',
+                name: 'ToolSearch',
+                input: { query: 'select:mcp__assistant__product_info' }
+              }
+            ]
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'search_1',
+                content: '[Tool references removed - tool search not enabled]'
+              }
+            ]
+          }
+        ]
+      })
+    )
+
+    expect(Object.keys(tools ?? {})).toEqual(['mcp__assistant__product_info'])
+  })
+
+  it('loads tool schemas carried by an Agent SDK inline system message', () => {
+    const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
+    const tools = deferredConverter.toAiSdkTools(
+      params({
+        tools: [{ type: 'tool_search_tool_regex_20251119', name: 'tool_search_tool_regex' }] as never,
+        messages: [
+          {
+            role: 'system',
+            content: 'The following tools are now available.',
+            tools: [
+              {
+                name: 'mcp__assistant__product_info',
+                description: 'Read product information',
+                input_schema: { type: 'object', properties: { source: { type: 'string' } } },
+                defer_loading: true
+              }
+            ]
+          }
+        ] as never
+      })
+    )
+
+    expect(Object.keys(tools ?? {})).toEqual(['mcp__assistant__product_info'])
   })
 
   it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {

@@ -353,7 +353,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('strips ENABLE_TOOL_SEARCH when the connection model rejects dynamically-loaded tools', async () => {
+  it('disables ToolSearch when the connection model rejects dynamically-loaded tools', async () => {
     // The settings builder force-enables ToolSearch for every agent; the route must undo that for
     // models whose provider rejects dynamic tool declarations (Kimi non-K3 → tokenization failed).
     mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
@@ -361,7 +361,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
-    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+    expect(request?.settings.env).toHaveProperty('ENABLE_TOOL_SEARCH', 'false')
   })
 
   it('keeps ENABLE_TOOL_SEARCH for models that accept dynamically-loaded tools', async () => {
@@ -371,6 +371,36 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
     expect(request?.settings.env).toMatchObject({ ENABLE_TOOL_SEARCH: 'auto' })
+  })
+
+  it('keeps ToolSearch for compatible models routed through the local gateway', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-chat' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'deepseek',
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'deepseek-chat', apiModelId: 'deepseek-chat' })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:23333')
+    expect(request?.settings.env).toHaveProperty('ENABLE_TOOL_SEARCH', 'auto')
+  })
+
+  it('disables ToolSearch for incompatible models routed through the local gateway', async () => {
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ENABLE_TOOL_SEARCH: 'auto' } })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'moonshot::kimi-for-coding' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'moonshot',
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.moonshot.cn' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'kimi-for-coding', apiModelId: 'kimi-for-coding' })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:23333')
+    expect(request?.settings.env).toHaveProperty('ENABLE_TOOL_SEARCH', 'false')
   })
 
   it('gates ToolSearch on the per-turn connection model, not the agent model', async () => {
@@ -390,7 +420,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
 
     expect(request?.settings.env).toMatchObject({ ANTHROPIC_MODEL: 'kimi-for-coding' })
-    expect(request?.settings.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+    expect(request?.settings.env).toHaveProperty('ENABLE_TOOL_SEARCH', 'false')
   })
 
   it('captures the baseline from the same agent snapshot that materializes the request', async () => {
