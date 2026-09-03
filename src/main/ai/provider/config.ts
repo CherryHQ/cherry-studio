@@ -124,7 +124,8 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.ppio,
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
-  SystemProviderIds.dmxapi
+  SystemProviderIds.dmxapi,
+  SystemProviderIds.tokenhub
 ] as const
 
 // ── SDK Config Building ──
@@ -315,7 +316,7 @@ export async function resolveProviderAiSdkConfig(
     // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
     // minimal body only, no OpenAI-only extras they would reject.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
-    // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // modelscope / ppio / doubao / dmxapi / tokenhub: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
     // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id

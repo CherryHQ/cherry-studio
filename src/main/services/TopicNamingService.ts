@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
+import { getAppLanguage } from '@main/i18n'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -17,6 +18,7 @@ import {
   sanitizeConversationTitle,
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'
+import { languageEnglishNameMap } from '@shared/utils/languages'
 import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('TopicNamingService')
@@ -65,7 +67,8 @@ const DEFAULT_AGENT_SESSION_NAMES = new Set([
   'unbenannt',
   'sans nom',
   'sin nombre',
-  'fără nume'
+  'fără nume',
+  'adsız'
 ])
 
 type StructuredMessage = {
@@ -388,7 +391,7 @@ export class TopicNamingService {
   private resolveNamingPrompt(): string {
     const preferenceService = application.get('PreferenceService')
     const configuredPrompt = preferenceService.get('topic.naming_prompt')
-    const language = preferenceService.get('app.language') || 'en-us'
+    const language = languageEnglishNameMap[getAppLanguage()]
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 

@@ -3,6 +3,7 @@ import { openaiCompatible } from './types'
 export default openaiCompatible({
   id: 'modelscope',
   name: 'ModelScope',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api-inference.modelscope.cn/v1/',
   anthropic: 'https://api-inference.modelscope.cn',
   website: {
