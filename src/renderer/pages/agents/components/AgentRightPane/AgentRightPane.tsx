@@ -16,7 +16,6 @@ import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
   getArtifactPaneSelectionPath,
-  isWindowsUncPath,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import {
@@ -40,6 +39,7 @@ import {
   isSelectableFileNode,
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
+import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/panes/useArtifactPanePreviewNavigation'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
@@ -169,23 +169,6 @@ function isSameFileSelection(
   )
 }
 
-function createInputFileSelection(
-  input: MessageInputFilePreview,
-  workspacePath: string | undefined,
-  previewPath: MessageInputFilePreview['previewPath']
-): ArtifactPaneFileSelection | null {
-  const selection = resolveArtifactPaneFileSelection(workspacePath, previewPath)
-  if (!selection) return null
-
-  return {
-    ...selection,
-    displayName: input.displayName,
-    displayPath: input.originalPath ?? previewPath,
-    previewType: 'file',
-    readOnly: true
-  }
-}
-
 interface AgentFlowTab {
   toolCallId: string
   toolName?: string
@@ -238,12 +221,6 @@ interface AgentRightPaneActions {
   setSelectedFile: (file: string | null) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
-}
-
-interface FilePreviewReturnTarget {
-  closePane: boolean
-  panelId?: string
-  selection: ArtifactPaneFileSelection | null
 }
 
 interface AgentRightPanelScope {
@@ -343,21 +320,22 @@ function AgentRightPaneActionsProvider({
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
   const panelActions = useRightPanelActions()
-  const panelState = useRightPanelState()
-  const artifactOpenRequestRef = useRef(0)
-  const filePreviewReturnRef = useRef<FilePreviewReturnTarget | null>(null)
-  // Invalidate in-flight artifact-open requests when the session or workspace
-  // changes (and on unmount), so a late getMetadata resolution cannot restore a
-  // preview that the switch just cleared.
-  useEffect(() => {
-    return () => {
-      artifactOpenRequestRef.current += 1
-      filePreviewReturnRef.current = null
-    }
-  }, [sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
   const canPreviewInputFileInRightPane = conversationState === 'ready'
+  const {
+    clearReturnTarget,
+    closeFilePreview,
+    openFileSelection,
+    previewInputFile: previewInputFileInRightPane
+  } = useArtifactPanePreviewNavigation({
+    enabled: canPreviewInputFileInRightPane,
+    paneId: FILES_PANE_ID,
+    previewFileSelection,
+    requestFileSelection,
+    scopeKey: sessionId,
+    workspacePath
+  })
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
@@ -369,126 +347,17 @@ function AgentRightPaneActionsProvider({
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
-      const requestId = artifactOpenRequestRef.current + 1
-      artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      filePreviewReturnRef.current = {
-        closePane: !panelState.presentationOpen,
-        panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
-        selection: previewFileSelection
-      }
-      panelActions.tryOpen(FILES_PANE_ID, { userInitiated: true })
-
-      if (!selection) {
-        requestFileSelection(null)
-        return
-      }
-
-      void ipcApi
-        .request('file.get_metadata', createFilePathHandle(getArtifactPaneSelectionPath(selection)))
-        .then((metadata) => {
-          if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
-        })
-        .catch(() => {
-          if (artifactOpenRequestRef.current !== requestId) return
-          // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
-          requestFileSelection(selection)
-        })
+      openFileSelection(selection)
     },
-    [
-      canOpenArtifactFile,
-      panelActions,
-      panelState.activePanelId,
-      panelState.presentationOpen,
-      previewFileSelection,
-      requestFileSelection,
-      workspacePath
-    ]
+    [canOpenArtifactFile, openFileSelection, workspacePath]
   )
-  const previewInputFileInRightPane = useCallback(
-    (input: MessageInputFilePreview) => {
-      if (!canPreviewInputFileInRightPane) return
-      const requestId = artifactOpenRequestRef.current + 1
-      artifactOpenRequestRef.current = requestId
-      const returnTarget = {
-        closePane: !panelState.presentationOpen,
-        panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
-        selection: previewFileSelection
-      }
-
-      const initialSelection = createInputFileSelection(input, workspacePath, input.previewPath)
-      if (!initialSelection) {
-        requestFileSelection(null)
-        return
-      }
-
-      if (!filePreviewReturnRef.current) filePreviewReturnRef.current = returnTarget
-
-      requestFileSelection(initialSelection)
-      panelActions.requestOpen(FILES_PANE_ID, { userInitiated: true })
-
-      void (async () => {
-        let previewPath = input.previewPath
-
-        if (input.originalPath && input.originalPath !== input.previewPath && !isWindowsUncPath(input.originalPath)) {
-          try {
-            const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
-            if (artifactOpenRequestRef.current !== requestId) return
-            if (originalMetadata?.kind === 'file') previewPath = input.originalPath
-          } catch {
-            if (artifactOpenRequestRef.current !== requestId) return
-          }
-        }
-
-        const selection = createInputFileSelection(input, workspacePath, previewPath)
-        if (!selection) {
-          requestFileSelection(null)
-          return
-        }
-
-        try {
-          const metadata = await ipcApi.request(
-            'file.get_metadata',
-            createFilePathHandle(getArtifactPaneSelectionPath(selection))
-          )
-          if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
-        } catch {
-          if (artifactOpenRequestRef.current !== requestId) return
-          requestFileSelection(selection)
-        }
-      })()
-    },
-    [
-      canPreviewInputFileInRightPane,
-      panelActions,
-      panelState.activePanelId,
-      panelState.presentationOpen,
-      previewFileSelection,
-      requestFileSelection,
-      workspacePath
-    ]
-  )
-  const closeFilePreview = useCallback(() => {
-    artifactOpenRequestRef.current += 1
-    const returnTarget = filePreviewReturnRef.current
-    filePreviewReturnRef.current = null
-    requestFileSelection(returnTarget?.selection ?? null)
-
-    if (!returnTarget) return
-    if (returnTarget.closePane) {
-      panelActions.close()
-      return
-    }
-    if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
-  }, [panelActions, requestFileSelection])
   const setSelectedFile = useCallback(
     (file: string | null) => {
-      filePreviewReturnRef.current = null
+      clearReturnTarget()
       selectFile(file)
     },
-    [selectFile]
+    [clearReturnTarget, selectFile]
   )
   const actions = useMemo<AgentRightPaneActions>(
     () => ({

@@ -65,7 +65,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ),
   getArtifactPaneSelectionPath: (selection: ArtifactPanePath.ArtifactPaneFileSelection) =>
     `${selection.workspacePath}/${selection.filePath}`,
-  isWindowsUncPath: (path: string) => /^\\\\[^\\]+\\[^\\]+/.test(path),
   resolveArtifactPaneFileSelection: resolveArtifactPaneFileSelectionMock
 }))
 
@@ -308,6 +307,36 @@ describe('TopicRightPane', () => {
     })
   })
 
+  it('uses the managed copy when the displayed original is a Windows UNC path', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockResolvedValue({ kind: 'file' })
+
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <OpenInputFilePreviewButton originalPath={'\\\\server\\share\\report.docx' as AbsoluteFilePath} />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.docx'
+      )
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-display-path', '\\\\server\\share\\report.docx')
+    expect(ipcRequestMock).toHaveBeenCalledTimes(1)
+    expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/internal/message-files/report.docx'
+    })
+  })
+
   it('closes the right pane when returning from an input preview opened from closed state', async () => {
     const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
       '@renderer/components/chat/panes/artifactPanePath'
@@ -380,36 +409,6 @@ describe('TopicRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
-  })
-
-  it('keeps a UNC original path display-only and previews the managed copy', async () => {
-    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
-      '@renderer/components/chat/panes/artifactPanePath'
-    )
-    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
-    ipcRequestMock.mockResolvedValueOnce({ kind: 'file' })
-
-    render(
-      <TopicRightPane.Scope topicId="topic-a">
-        <OpenInputFilePreviewButton originalPath={'\\\\server\\share\\report.docx' as AbsoluteFilePath} />
-        <TopicRightPane.Viewport />
-      </TopicRightPane.Scope>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
-        'data-preview-path',
-        '/internal/message-files/report.docx'
-      )
-    })
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-display-path', '\\\\server\\share\\report.docx')
-    expect(ipcRequestMock).toHaveBeenCalledTimes(1)
-    expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
-      kind: 'path',
-      path: '/internal/message-files/report.docx'
-    })
   })
 
   it('returns to the previously active pane when closing an input preview', async () => {

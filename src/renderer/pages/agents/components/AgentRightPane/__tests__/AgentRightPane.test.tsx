@@ -313,8 +313,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   getArtifactPaneSelectionPath: (
     await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath')
   ).getArtifactPaneSelectionPath,
-  isWindowsUncPath: (await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath'))
-    .isWindowsUncPath,
   resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
@@ -1138,61 +1136,15 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('keeps the original closed return target when switching between input previews', async () => {
+  it('uses the managed copy when the displayed original is a Windows UNC path', async () => {
     const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
       '@renderer/components/chat/panes/artifactPanePath'
     )
     resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
-    ipcRequestMock
-      .mockRejectedValueOnce(new Error('missing original'))
-      .mockResolvedValueOnce({ kind: 'file' })
-      .mockRejectedValueOnce(new Error('missing original'))
-      .mockResolvedValueOnce({ kind: 'file' })
+    ipcRequestMock.mockResolvedValue({ kind: 'file' })
 
     render(
       <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
-        <OpenInputFilePreviewButton label="open first preview" />
-        <OpenInputFilePreviewButton
-          displayName="second.md"
-          label="open second preview"
-          previewPath={'/internal/message-files/second.md' as AbsoluteFilePath}
-          originalPath={'/Users/alice/second.md' as AbsoluteFilePath}
-        />
-        <AgentRightPane.Viewport />
-      </TestAgentRightPane>
-    )
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
-    fireEvent.click(screen.getByRole('button', { name: 'open first preview' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
-        'data-preview-path',
-        '/internal/message-files/report.md'
-      )
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'open second preview' }))
-    await waitFor(() => {
-      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
-        'data-preview-path',
-        '/internal/message-files/second.md'
-      )
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
-
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
-  })
-
-  it('keeps a UNC original path display-only and previews the managed copy', async () => {
-    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
-      '@renderer/components/chat/panes/artifactPanePath'
-    )
-    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
-    ipcRequestMock.mockResolvedValueOnce({ kind: 'file' })
-
-    render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <OpenInputFilePreviewButton originalPath={'\\\\server\\share\\report.md' as AbsoluteFilePath} />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
@@ -1249,6 +1201,50 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('preserves the closed-pane return target when switching between input previews', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock
+      .mockRejectedValueOnce(new Error('missing original'))
+      .mockResolvedValueOnce({ kind: 'file' })
+      .mockRejectedValueOnce(new Error('missing original'))
+      .mockResolvedValueOnce({ kind: 'file' })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton label="open first preview" />
+        <OpenInputFilePreviewButton
+          displayName="second.md"
+          label="open second preview"
+          originalPath={'/Users/alice/second.md' as AbsoluteFilePath}
+          previewPath={'/internal/message-files/second.md' as AbsoluteFilePath}
+        />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open first preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.md'
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'open second preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/second.md'
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('rejects direct relative artifact opening from a relative workspace before metadata lookup', async () => {

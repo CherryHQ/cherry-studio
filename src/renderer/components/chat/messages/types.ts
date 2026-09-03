@@ -1,7 +1,7 @@
-import type { ComposerInputFilePreview } from '@renderer/components/composer/filePreview'
 import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
+import type { InputFilePreview } from '@renderer/types/inputFilePreview'
 import type { Citation, MessageUiState } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
@@ -176,7 +176,7 @@ export interface OpenAgentToolFlowInput {
   title?: string
 }
 
-export type MessageInputFilePreview = ComposerInputFilePreview
+export type MessageInputFilePreview = InputFilePreview
 
 export interface RemoveMessageErrorPartInput {
   messageId: string

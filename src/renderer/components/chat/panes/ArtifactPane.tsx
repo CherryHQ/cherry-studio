@@ -61,7 +61,6 @@ export type { ArtifactPaneFileSelection } from './artifactPanePath'
 export {
   getArtifactPaneSelectionDisplayPath,
   getArtifactPaneSelectionPath,
-  isWindowsUncPath,
   normalizeArtifactPaneFilePath,
   resolveArtifactPaneFileSelection
 } from './artifactPanePath'
