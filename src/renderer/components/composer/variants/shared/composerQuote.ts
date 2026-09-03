@@ -23,11 +23,14 @@ interface QuoteInsertionActions {
  * the composer's imperative actions ref. The insertion runs through `useEffectEvent` so the
  * IPC listener subscribes once and stays stable across renders.
  */
-export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(actionsRef: RefObject<T>): void {
+export function useComposerQuoteInsertion<T extends QuoteInsertionActions>(
+  actionsRef: RefObject<T>,
+  enabled = true
+): void {
   const { t } = useTranslation()
 
   const insertQuote = useEffectEvent((selectedText: string) => {
-    if (!selectedText) return
+    if (!enabled || !selectedText) return
     actionsRef.current.insertToken(createQuoteToken(selectedText, t('selection.action.builtin.quote')))
   })
 

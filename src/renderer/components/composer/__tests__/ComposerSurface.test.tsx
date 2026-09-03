@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ComposerContextProvider } from '../ComposerContext'
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurfaceRuntime'
+import pasteHandling from '../paste/pasteHandling'
 import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
@@ -528,6 +529,19 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions?.immediatelyRender).toBe(true)
     expect(mocks.focus).toHaveBeenCalledWith('end')
+  })
+
+  it('does not register the document paste handler while the composer is not editable', () => {
+    const registerHandler = vi.mocked(pasteHandling.registerHandler)
+    registerHandler.mockClear()
+
+    const view = render(<ComposerSurface {...baseProps} editable={false} />)
+
+    expect(registerHandler).not.toHaveBeenCalled()
+
+    view.rerender(<ComposerSurface {...baseProps} editable />)
+
+    expect(registerHandler).toHaveBeenCalledWith('inputbar', mocks.pasteHandler)
   })
 
   it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {

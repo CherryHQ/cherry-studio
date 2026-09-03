@@ -26,7 +26,7 @@ export function withComposerFilePartMeta(
   return withCherryMeta(part, {
     ...(fileEntryId ? { fileEntryId } : {}),
     fileTokenSourceId: attachment.fileTokenSourceId,
-    ...(attachment.composerFileKind ? { composerFileKind: attachment.composerFileKind } : {})
+    composerFileKind: attachment.composerFileKind
   })
 }
 
