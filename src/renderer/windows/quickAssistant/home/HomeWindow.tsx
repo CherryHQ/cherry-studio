@@ -78,7 +78,10 @@ export const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessa
   })
 }
 
-const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
+const HomeWindow: FC<{ draggable?: boolean; autoReadClipboard?: boolean }> = ({
+  draggable = true,
+  autoReadClipboard = true
+}) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [windowStyle] = usePreference('ui.window_style')
@@ -290,8 +293,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   useIpcOn('quick_assistant.shown', onWindowShow)
 
   useEffect(() => {
-    void readClipboard()
-  }, [readClipboard])
+    // The embedded settings preview must not read on mount, or merely enabling
+    // the quick assistant would silently expose clipboard contents.
+    if (autoReadClipboard) void readClipboard()
+  }, [autoReadClipboard, readClipboard])
 
   const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
 
