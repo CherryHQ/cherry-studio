@@ -2839,6 +2839,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    await mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
     corruptQueue.push({
       type: 'result',
       subtype: 'error_during_execution',
@@ -2886,6 +2887,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    await mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'corrupt-token' })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'text-delta', delta: 'hello' } }
@@ -2950,6 +2952,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    await mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
     staleQueue.push({
       type: 'result',
       subtype: 'error_during_execution',
@@ -2993,6 +2996,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
+    await mocks.createClaudeQuery.mock.calls[0][0].prompt[Symbol.asyncIterator]().next()
     const staleResult = {
       type: 'result',
       subtype: 'error_during_execution',
@@ -3058,6 +3062,67 @@ describe('ClaudeCodeRuntimeDriver', () => {
     )
     expect(seen).not.toContainEqual({ type: 'turn-complete' })
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('does not let a stale resumed failure consume a newly accepted delivery', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    let sdkInput!: AsyncIterable<any>
+    mocks.createClaudeQuery.mockImplementation(({ prompt }) => {
+      sdkInput = prompt
+      return query
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'resume-before-quota-failure'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+    const delivery = {
+      ...userMessage(),
+      id: 'delivery-new',
+      data: { parts: [{ type: 'text', text: 'investigate the newly accepted issue' }] },
+      delivery: {
+        status: 'delivering',
+        turnRef: 'assistant-new',
+        replyPolicy: 'completion',
+        requestId: 'delivery-new'
+      }
+    }
+
+    await connection.send({ message: delivery })
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-before-quota-failure' })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-before-quota-failure',
+      usage: {},
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: 402,
+      result: 'API Error: insufficient quota'
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const acceptedInput = await sdkInput[Symbol.asyncIterator]().next()
+    expect(acceptedInput.value.message.content).toContain('investigate the newly accepted issue')
+
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-after-delivery' })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-after-delivery', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete') break
+    }
+
+    expect(seen).not.toContainEqual(expect.objectContaining({ type: 'error' }))
+    expect(seen.filter((event) => event?.chunk?.type === 'text-delta')).toHaveLength(1)
+    expect(seen).toContainEqual({ type: 'turn-complete' })
     void connection.close()
   })
 

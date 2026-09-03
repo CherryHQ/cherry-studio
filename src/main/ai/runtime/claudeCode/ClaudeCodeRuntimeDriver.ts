@@ -93,16 +93,24 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
 
 type ResumeRecoveryReason = 'conversation-not-found' | 'duplicate-tool-use-id'
 
-/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
-function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
-  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
-  if (error.errors.some((entry) => /no conversation found with session id/i.test(entry))) {
+function classifyResumeRecoveryResult(
+  subtype: SDKResultMessage['subtype'],
+  errors: readonly string[]
+): ResumeRecoveryReason | undefined {
+  if (subtype !== 'error_during_execution') return undefined
+  if (errors.some((entry) => /no conversation found with session id/i.test(entry))) {
     return 'conversation-not-found'
   }
-  if (error.errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
+  if (errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
     return 'duplicate-tool-use-id'
   }
   return undefined
+}
+
+/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
+function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
+  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
+  return classifyResumeRecoveryResult(error.subtype, error.errors)
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -285,19 +293,21 @@ function mergePendingInvocation(current: PendingInvocationUsage, next: PendingIn
 export { buildAgentUserContent }
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
-  private readonly messages: SDKUserMessage[] = []
+  private readonly messages: Array<{ message: SDKUserMessage; onConsumed?: () => void }> = []
   private waitResolve?: (value: IteratorResult<SDKUserMessage>) => void
   private closed = false
 
-  push(message: SDKUserMessage): void {
-    if (this.closed) return
+  push(message: SDKUserMessage, onConsumed?: () => void): boolean {
+    if (this.closed) return false
     if (this.waitResolve) {
       const resolve = this.waitResolve
       this.waitResolve = undefined
+      onConsumed?.()
       resolve({ value: message, done: false })
-      return
+      return true
     }
-    this.messages.push(message)
+    this.messages.push({ message, onConsumed })
+    return true
   }
 
   close(): void {
@@ -313,7 +323,10 @@ class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
     return {
       next: () => {
         const next = this.messages.shift()
-        if (next) return Promise.resolve({ value: next, done: false })
+        if (next) {
+          next.onConsumed?.()
+          return Promise.resolve({ value: next.message, done: false })
+        }
         if (this.closed) return Promise.resolve({ value: undefined as unknown as SDKUserMessage, done: true })
         return new Promise<IteratorResult<SDKUserMessage>>((resolve) => {
           this.waitResolve = resolve
@@ -351,6 +364,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly pendingInvocations = new Map<string, PendingInvocationUsage>()
   private readonly streamInvocationIdsByLane = new Map<string, string>()
   private readonly committedInvocationIds = new Set<string>()
+  private pendingInputClaims = 0
+  private initialResumedInputClaimed: boolean
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
@@ -364,6 +379,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   constructor(private readonly input: AgentRuntimeConnectInput) {
     this.resumeToken = input.resumeToken
+    this.initialResumedInputClaimed = !input.resumeToken
   }
 
   async start(): Promise<this> {
@@ -476,14 +492,31 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
-    this.adapter?.beginTurn()
-
-    const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
-      supportsAttachmentReads: this.assistantFileToolsEnabled,
-      supportsImages: resolveModelImageSupport(this.input.modelId)
-    })
+    const requiresInputClaim = !this.initialResumedInputClaimed
+    if (requiresInputClaim) this.pendingInputClaims += 1
+    let sdkMessage: SDKUserMessage
+    try {
+      sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      })
+    } catch (error) {
+      if (requiresInputClaim) this.pendingInputClaims -= 1
+      throw error
+    }
     this.lastSdkUserMessage = sdkMessage
-    this.sdkInputQueue.push(sdkMessage)
+    if (!requiresInputClaim) this.adapter?.beginTurn()
+    const queued = this.sdkInputQueue.push(
+      sdkMessage,
+      requiresInputClaim
+        ? () => {
+            this.pendingInputClaims -= 1
+            this.initialResumedInputClaimed = true
+            this.adapter?.beginTurn()
+          }
+        : undefined
+    )
+    if (!queued && requiresInputClaim) this.pendingInputClaims -= 1
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -659,6 +692,23 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
+        const recoverableResumeResult =
+          message.type === 'result'
+            ? classifyResumeRecoveryResult(message.subtype, message.subtype === 'success' ? [] : (message.errors ?? []))
+            : undefined
+        if (
+          this.pendingInputClaims > 0 &&
+          this.adapter?.isTurnActive !== true &&
+          message.type !== 'system' &&
+          !recoverableResumeResult
+        ) {
+          if (message.type === 'result') {
+            logger.warn('Dropping stale resumed result before the pending host input was consumed', {
+              sessionId: this.input.sessionId
+            })
+          }
+          continue
+        }
         // A steer was injected this turn → the first TOP-LEVEL assistant message after it (the model's
         // post-steer response; subagent/nested messages carry a parent_tool_use_id and are skipped) is
         // where the host rolls A1a + A2. Emit the boundary BEFORE the adapter handles this message so it
@@ -779,7 +829,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.close()
     this.sdkInputQueue = new SdkInputQueue()
     if (this.lastSdkUserMessage) {
-      this.sdkInputQueue.push({ ...this.lastSdkUserMessage, session_id: '' })
+      this.sdkInputQueue.push(
+        { ...this.lastSdkUserMessage, session_id: '' },
+        this.pendingInputClaims > 0
+          ? () => {
+              this.pendingInputClaims -= 1
+              this.initialResumedInputClaimed = true
+              this.adapter?.beginTurn()
+            }
+          : undefined
+      )
     }
     this.query = createClaudeQuery({
       prompt: this.sdkInputQueue,
