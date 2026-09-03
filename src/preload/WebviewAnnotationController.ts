@@ -371,7 +371,7 @@ export class WebviewAnnotationController {
   private locale: WebviewAnnotationLocale | null = null
   private mutationObserver: MutationObserver | null = null
   private navigationRevision = 0
-  private observedRoots = new Set<Document | ShadowRoot>()
+  private observedRoots = new WeakSet<Document | ShadowRoot>()
   private overlayHost: HTMLDivElement | null = null
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
@@ -980,7 +980,7 @@ export class WebviewAnnotationController {
   private stopPositionTracking() {
     this.mutationObserver?.disconnect()
     this.mutationObserver = null
-    this.observedRoots.clear()
+    this.observedRoots = new WeakSet<Document | ShadowRoot>()
     window.removeEventListener('scroll', this.schedulePositionUpdate, true)
     window.removeEventListener('resize', this.schedulePositionUpdate)
     window.visualViewport?.removeEventListener('scroll', this.schedulePositionUpdate)
@@ -989,7 +989,7 @@ export class WebviewAnnotationController {
 
   private observeRoot(root: Document | ShadowRoot) {
     if (!this.mutationObserver || this.observedRoots.has(root)) return
-    this.mutationObserver.observe(root, { childList: true, subtree: true, attributes: true })
+    this.mutationObserver.observe(root, { childList: true, subtree: true, attributes: true, characterData: true })
     this.observedRoots.add(root)
   }
 
@@ -1026,6 +1026,8 @@ export class WebviewAnnotationController {
       const pin = this.pinLayer?.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
       if (!pin) return
       if (annotation.region) {
+        const knownElement = this.annotationElements.get(annotation.id)
+        if (knownElement && !knownElement.isConnected) this.annotationElements.delete(annotation.id)
         // Region pins are geometric: they follow window scroll, not element resolution.
         pin.style.display = ''
         pin.style.left = `${Math.max(4, annotation.region.rect.x - window.scrollX)}px`

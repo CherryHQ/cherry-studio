@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
+  WEBVIEW_ANNOTATION_LIMITS,
   type WebviewAnnotation,
   type WebviewAnnotationDocument,
   type WebviewResolvedAnnotationDocument
@@ -1099,5 +1100,47 @@ describe('WebviewService annotation security and lifecycle', () => {
     expect(markdown).toContain('Fix this')
     expect(markdown).toContain('Accessibility status: `debugger_unavailable`')
     expect(markdown).toContain('untrusted page data')
+  })
+
+  it('omits complete annotations instead of cutting exported Markdown mid-block', async () => {
+    const host = {}
+    const guest = createContents(7, host, { devToolsOpened: true })
+    const largeLocator = {
+      ...annotation.element,
+      selector: `#${'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.selector - 1)}`,
+      text: 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.text),
+      ariaLabel: 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.ariaLabel),
+      role: 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.role)
+    }
+    const annotations = Array.from({ length: WEBVIEW_ANNOTATION_LIMITS.annotations }, (_, index) => ({
+      ...annotation,
+      id: `123e4567-e89b-42d3-a456-${String(index).padStart(12, '0')}`,
+      comment: 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.comment),
+      element: largeLocator,
+      region: {
+        rect: { x: 0, y: 0, width: 100, height: 100 },
+        elements: Array.from({ length: WEBVIEW_ANNOTATION_LIMITS.regionElements }, () => largeLocator)
+      }
+    }))
+    guestById.set(7, guest)
+    getWindow.mockReturnValue({ webContents: host })
+    service.replaceAnnotations(
+      {
+        webviewId: 7,
+        navigationRevision: 0,
+        target: { id: 'mini-app:demo', label: 'Demo' },
+        annotations
+      },
+      'owner'
+    )
+
+    const markdown = await service.getAnnotationsMarkdown(7, 'owner')
+    const annotationHeadings = markdown.match(/^### \d+\. Annotation$/gm) ?? []
+    const accessibilityStatuses = markdown.match(/^- Accessibility status:/gm) ?? []
+
+    expect(markdown.length).toBeLessThanOrEqual(WEBVIEW_ANNOTATION_LIMITS.exportMarkdown)
+    expect(annotationHeadings.length).toBeGreaterThan(0)
+    expect(accessibilityStatuses).toHaveLength(annotationHeadings.length)
+    expect(markdown).toMatch(/> Output truncated: \d+ annotations omitted\.$/)
   })
 })

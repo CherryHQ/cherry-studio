@@ -823,7 +823,10 @@ export class WebviewService extends BaseService {
       }
     }
 
-    return markdown.slice(0, WEBVIEW_ANNOTATION_LIMITS.exportMarkdown)
+    return formatWebviewAnnotations(copyDocuments, {
+      includeSafetyNotice: true,
+      maxChars: WEBVIEW_ANNOTATION_LIMITS.exportMarkdown
+    }).text
   }
 
   /**
