@@ -387,7 +387,8 @@ const renderPartsTree = (
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
   renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
-  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = []
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistImageAttachments = false
 ) => {
   const value: MessageListProviderValue = {
     state: {
@@ -416,7 +417,7 @@ const renderPartsTree = (
   return (
     <MessageListProvider value={value}>
       <PartsProvider value={{ [message.id]: parts }}>
-        <MessagePartsRenderer message={message} />
+        <MessagePartsRenderer message={message} hoistImageAttachments={hoistImageAttachments} />
       </PartsProvider>
     </MessageListProvider>
   )
@@ -427,8 +428,9 @@ const renderParts = (
   message: MessageListItem = msg(),
   actions: MessageListProviderValue['actions'] = {},
   renderConfig: MessageListProviderValue['state']['renderConfig'] = defaultMessageRenderConfig,
-  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = []
-) => render(renderPartsTree(parts, message, actions, renderConfig, history))
+  history: Array<{ message: MessageListItem; parts: CherryMessagePart[] }> = [],
+  hoistImageAttachments = false
+) => render(renderPartsTree(parts, message, actions, renderConfig, history, hoistImageAttachments))
 
 function activateTurn(status?: string): void {
   mockIsActiveTurnTarget.mockReturnValue(true)
@@ -915,6 +917,57 @@ describe('MessagePartsRenderer', () => {
       expect(token).toHaveTextContent('photo.png')
       expect(token?.querySelector('[data-file-token-icon-thumbnail]')).toHaveAttribute('src', 'file:///tmp/photo.png')
       expect(screen.queryByTestId('mock-image-block')).toBeNull()
+    })
+
+    it('drops hoisted sent images from the inline flow and keeps their token chips hidden', () => {
+      renderParts(
+        [
+          {
+            type: 'text',
+            text: 'look at this',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [{ id: 'file:hoisted-image', kind: 'file', label: 'photo.png', index: 0, textOffset: 0 }]
+                }
+              }
+            }
+          },
+          {
+            type: 'file',
+            url: 'file:///tmp/photo.png',
+            mediaType: 'image/png',
+            filename: 'photo.png',
+            providerMetadata: { cherry: { fileTokenSourceId: 'hoisted-image' } }
+          }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(screen.getByText('look at this')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-image-block')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+    })
+
+    // The bubble collapses via `empty:hidden`, so an image-only message must leave the subtree empty.
+    it('renders nothing when a hoisted image is the only content', () => {
+      const { container } = renderParts(
+        [
+          { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' }
+        ] as unknown as CherryMessagePart[],
+        msg({ role: 'user' }),
+        {},
+        defaultMessageRenderConfig,
+        [],
+        true
+      )
+
+      expect(container).toBeEmptyDOMElement()
     })
 
     it('links pasted-text token previews through fileTokenSourceId without rendering a duplicate attachment', () => {

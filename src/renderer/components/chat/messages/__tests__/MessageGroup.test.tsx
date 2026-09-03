@@ -175,6 +175,12 @@ vi.mock('../frame/MessageErrorBoundary', () => ({
   default: mocks.MessageErrorBoundary
 }))
 
+vi.mock('../blocks/ImageBlock', () => ({
+  default: ({ images }: { images: string[] }) => (
+    <div data-testid="hoisted-image-block" data-images={JSON.stringify(images)} />
+  )
+}))
+
 vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
@@ -585,6 +591,35 @@ describe('MessageGroup', () => {
     const { container } = render(<MessageGroup messages={messages} />)
 
     expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
+  })
+
+  it('renders sent image attachments outside the user bubble', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const messages = [{ ...createMessage('msg-1', 0, 'vertical'), role: 'user' as const }]
+
+    const { container } = render(
+      <MessageGroup
+        messages={messages}
+        partsByMessageId={{
+          'msg-1': [
+            { type: 'text', text: 'look at this' },
+            { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' }
+          ] as CherryMessagePart[]
+        }}
+      />
+    )
+
+    const imageBlock = screen.getByTestId('hoisted-image-block')
+    expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
+    expect(container.querySelector('#message-msg-1 .message-content-container')?.contains(imageBlock)).toBe(false)
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {

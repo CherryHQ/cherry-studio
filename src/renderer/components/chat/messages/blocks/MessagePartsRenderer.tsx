@@ -186,6 +186,8 @@ const AnimatedBlockWrapper: React.FC<{
 
 interface Props {
   message: MessageListItem
+  /** Image attachments are rendered outside this subtree (see `getImageAttachmentUrls`). */
+  hoistImageAttachments?: boolean
 }
 
 // ============================================================================
@@ -202,6 +204,14 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
   if (part.type !== 'file' || !('url' in part)) return undefined
   const filePart = part as { url?: string; mediaType?: string }
   return filePart.url || undefined
+}
+
+/** Image attachments a hoisting container renders in place of the inline image blocks. */
+export function getImageAttachmentUrls(parts: readonly CherryMessagePart[]): string[] {
+  return parts.flatMap((part) => {
+    const url = isImageFilePart(part) ? extractImageUrl(part) : undefined
+    return url ? [url] : []
+  })
 }
 
 /** Get video filePath from a data-video part. */
@@ -225,6 +235,7 @@ interface RenderGroupedEntryOptions {
   messageCitations?: MessageCitations
   citationProjectionByPart?: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
@@ -235,6 +246,7 @@ interface RenderGroupedEntryOptions {
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
+const EMPTY_HIDDEN_COMPOSER_TOKENS: ReadonlySet<ComposerMessageToken> = new Set()
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -280,6 +292,7 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
 }
 
 interface VisibleComposerFileToken {
+  token: ComposerMessageToken
   sourceId?: string
   names: Set<string>
 }
@@ -322,7 +335,7 @@ function getVisibleComposerFileTokens(
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
-      return [{ sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
+      return [{ token, sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
     })
   })
 }
@@ -376,12 +389,21 @@ function findUniqueVisibleFileTokenIndex(
   return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
 }
 
-function getDisplayEntries(
+function getDisplayProjection(
   entries: readonly PartEntry[],
   message: MessageListItem,
-  visibleComposerFileTokens: readonly VisibleComposerFileToken[]
-): PartEntry[] {
-  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) return [...entries]
+  visibleComposerFileTokens: readonly VisibleComposerFileToken[],
+  hoistImageAttachments: boolean
+): { entries: PartEntry[]; hiddenImageTokens: ReadonlySet<ComposerMessageToken> } {
+  const isHoistedEntry = (entry: PartEntry) =>
+    hoistImageAttachments && isImageFilePart(entry.part) && !!extractImageUrl(entry.part)
+
+  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
+    return {
+      entries: entries.filter((entry) => !isHoistedEntry(entry)),
+      hiddenImageTokens: EMPTY_HIDDEN_COMPOSER_TOKENS
+    }
+  }
 
   const fileEntryNameCounts = new Map<string, number>()
   for (const entry of entries) {
@@ -392,34 +414,46 @@ function getDisplayEntries(
   }
 
   const usedTokenIndexes = new Set<number>()
-  return entries.filter((entry) => {
-    if ((entry.part.type as string) !== 'file') return true
+  const displayEntries: PartEntry[] = []
+  const hiddenImageTokens = new Set<ComposerMessageToken>()
+  for (const entry of entries) {
+    if ((entry.part.type as string) !== 'file') {
+      displayEntries.push(entry)
+      continue
+    }
 
     const sourceId = getFileEntrySourceId(entry)
-    const sourceMatchIndex = sourceId
+    let matchIndex = sourceId
       ? findUniqueVisibleFileTokenIndex(
           visibleComposerFileTokens,
           usedTokenIndexes,
           (token) => token.sourceId === sourceId
         )
       : undefined
-    if (sourceMatchIndex !== undefined) {
-      usedTokenIndexes.add(sourceMatchIndex)
-      return false
+
+    if (matchIndex === undefined) {
+      const name = getFileEntryName(entry)
+      matchIndex =
+        name && fileEntryNameCounts.get(name) === 1
+          ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) =>
+              token.names.has(name)
+            )
+          : undefined
     }
 
-    const name = getFileEntryName(entry)
-    const nameMatchIndex =
-      name && fileEntryNameCounts.get(name) === 1
-        ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) => token.names.has(name))
-        : undefined
-    if (nameMatchIndex !== undefined) {
-      usedTokenIndexes.add(nameMatchIndex)
-      return false
+    if (matchIndex === undefined) {
+      if (!isHoistedEntry(entry)) displayEntries.push(entry)
+      continue
     }
 
-    return true
-  })
+    usedTokenIndexes.add(matchIndex)
+    if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
+      if (!isHoistedEntry(entry)) displayEntries.push(entry)
+      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
+    }
+  }
+
+  return { entries: displayEntries, hiddenImageTokens }
 }
 
 function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
@@ -595,6 +629,7 @@ function renderPart(
           role={message.role}
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
+          hiddenComposerTokens={options?.hiddenComposerTokens}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
@@ -661,7 +696,7 @@ function renderPart(
       if (filePart.mediaType?.startsWith('image/')) {
         const url = filePart.url
         if (!url) return null
-        return <ImageBlock key={partId} images={[url]} isSingle={true} />
+        return <ImageBlock key={partId} images={[url]} isSingle={true} thumbnail={message.role === 'user'} />
       }
       if (!filePart.url) {
         logger.warn('File part has no url, skipping', { filename: filePart.filename })
@@ -834,16 +869,17 @@ function renderGroupedEntry(
       const images = entry.map((e) => extractImageUrl(e.part)).filter(Boolean) as string[]
       if (images.length === 0) return null
 
+      const thumbnail = message.role === 'user'
       if (images.length === 1) {
         return (
           <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-            <ImageBlock images={images} isSingle={true} />
+            <ImageBlock images={images} isSingle={true} thumbnail={thumbnail} />
           </AnimatedBlockWrapper>
         )
       }
       return (
         <AnimatedBlockWrapper key={groupKey} enableAnimation={enableAnimation}>
-          <ImageBlock images={images} isSingle={false} />
+          <ImageBlock images={images} isSingle={false} thumbnail={thumbnail} />
         </AnimatedBlockWrapper>
       )
     }
@@ -1353,6 +1389,7 @@ interface MessagePartsRendererContentProps extends Props {
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
+  hoistImageAttachments,
   isActiveTurnProcessing,
   isStreamLive,
   message,
@@ -1431,10 +1468,11 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
     [expandedTextPartIds, message, messageParts]
   )
-  const displayEntries = useMemo(
-    () => getDisplayEntries(partEntries, message, visibleComposerFileTokens),
-    [message, partEntries, visibleComposerFileTokens]
+  const displayProjection = useMemo(
+    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistImageAttachments),
+    [hoistImageAttachments, message, partEntries, visibleComposerFileTokens]
   )
+  const displayEntries = displayProjection.entries
   const hasVisibleNonArtifactEntry = useMemo(
     () =>
       displayEntries.some(
@@ -1469,6 +1507,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       expandedTextPartIds,
       messageCitations,
       readOnlyFilePreviews,
+      hiddenComposerTokens: displayProjection.hiddenImageTokens,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange,
       onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
@@ -1481,7 +1520,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       handleTextPlayoutSettledChange,
       handleRemoveTranslation,
       messageCitations,
-      readOnlyFilePreviews
+      readOnlyFilePreviews,
+      displayProjection.hiddenImageTokens
     ]
   )
   const canRenderReportArtifacts =
@@ -1537,7 +1577,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
 })
 
-const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
+const MessagePartsRenderer: React.FC<Props> = ({ message, hoistImageAttachments }) => {
   const messageParts = useMessageParts(message.id)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
@@ -1552,6 +1592,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}
+      hoistImageAttachments={hoistImageAttachments}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}
       message={message}
