@@ -191,23 +191,31 @@ describe('TopicRightPane', () => {
   }
 
   function OpenInputFilePreviewButton({
-    originalPath = '/Users/alice/report.docx' as AbsoluteFilePath
+    displayName = 'report.docx',
+    label = 'open input preview',
+    mediaType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    originalPath = '/Users/alice/report.docx' as AbsoluteFilePath,
+    previewPath = '/internal/message-files/report.docx' as AbsoluteFilePath
   }: {
+    displayName?: string
+    label?: string
+    mediaType?: string
     originalPath?: AbsoluteFilePath
-  } = {}) {
+    previewPath?: AbsoluteFilePath
+  }) {
     const actions = useOptionalTopicRightPaneActions()
     return (
       <button
         type="button"
         onClick={() =>
           actions?.previewInputFile({
-            displayName: 'report.docx',
-            previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
+            displayName,
+            previewPath,
             originalPath,
-            mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            mediaType
           })
         }>
-        open input preview
+        {label}
       </button>
     )
   }
@@ -357,7 +365,7 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
-  it('preserves the closed-pane return target across consecutive input previews', async () => {
+  it('keeps the original closed return target when switching between input previews', async () => {
     const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
       '@renderer/components/chat/panes/artifactPanePath'
     )
@@ -370,15 +378,33 @@ describe('TopicRightPane', () => {
 
     render(
       <TopicRightPane.Scope topicId="topic-a">
-        <OpenInputFilePreviewButton />
+        <OpenInputFilePreviewButton label="open first preview" />
+        <OpenInputFilePreviewButton
+          displayName="second.docx"
+          label="open second preview"
+          previewPath={'/internal/message-files/second.docx' as AbsoluteFilePath}
+          originalPath={'/Users/alice/second.docx' as AbsoluteFilePath}
+        />
         <TopicRightPane.Viewport />
       </TopicRightPane.Scope>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledTimes(2))
-    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledTimes(4))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'open first preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.docx'
+      )
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open second preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/second.docx'
+      )
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 

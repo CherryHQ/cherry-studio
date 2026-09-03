@@ -529,10 +529,18 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
 }
 
 function OpenInputFilePreviewButton({
-  originalPath = '/Users/alice/report.md' as AbsoluteFilePath
+  displayName = 'report.md',
+  label = 'open input preview',
+  mediaType = 'text/markdown',
+  originalPath = '/Users/alice/report.md' as AbsoluteFilePath,
+  previewPath = '/internal/message-files/report.md' as AbsoluteFilePath
 }: {
+  displayName?: string
+  label?: string
+  mediaType?: string
   originalPath?: AbsoluteFilePath
-} = {}) {
+  previewPath?: AbsoluteFilePath
+}) {
   const { canPreviewInputFileInRightPane, previewInputFileInRightPane } = useAgentRightPaneActions()
   return (
     <>
@@ -542,13 +550,13 @@ function OpenInputFilePreviewButton({
         disabled={!canPreviewInputFileInRightPane}
         onClick={() =>
           previewInputFileInRightPane({
-            displayName: 'report.md',
-            previewPath: '/internal/message-files/report.md' as AbsoluteFilePath,
+            displayName,
+            previewPath,
             originalPath,
-            mediaType: 'text/markdown'
+            mediaType
           })
         }>
-        open input preview
+        {label}
       </button>
     </>
   )
@@ -1195,7 +1203,7 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
-  it('preserves the closed-pane return target across consecutive input previews', async () => {
+  it('preserves the closed-pane return target when switching between input previews', async () => {
     const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
       '@renderer/components/chat/panes/artifactPanePath'
     )
@@ -1208,15 +1216,31 @@ describe('AgentRightPane', () => {
 
     render(
       <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
-        <OpenInputFilePreviewButton />
+        <OpenInputFilePreviewButton label="open first preview" />
+        <OpenInputFilePreviewButton
+          displayName="second.md"
+          label="open second preview"
+          originalPath={'/Users/alice/second.md' as AbsoluteFilePath}
+          previewPath={'/internal/message-files/second.md' as AbsoluteFilePath}
+        />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledTimes(2))
-    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
-    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledTimes(4))
+    fireEvent.click(screen.getByRole('button', { name: 'open first preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.md'
+      )
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'open second preview' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/second.md'
+      )
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
