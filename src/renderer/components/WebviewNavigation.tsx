@@ -350,7 +350,7 @@ export function WebviewNavigation({
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          className="h-7 rounded-md border-input bg-background px-2.5 text-foreground-secondary text-xs shadow-none focus-visible:text-foreground"
+          className="h-7 rounded-md border-input bg-background px-2.5 text-muted-foreground text-xs shadow-none focus-visible:text-foreground"
         />
       </form>
 
@@ -382,6 +382,6 @@ export function WebviewNavigation({
 }
 
 const navigationButtonClassName = cn(
-  'rounded text-foreground-secondary shadow-none active:scale-95',
+  'rounded text-muted-foreground shadow-none active:scale-95',
   'hover:text-foreground disabled:cursor-default disabled:active:scale-100 disabled:hover:bg-transparent'
 )

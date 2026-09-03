@@ -104,7 +104,11 @@ export function WebviewBrowser({
           <div
             role="alert"
             className="absolute inset-0 flex items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
-            {t('webview.browser.load_failed')}
+            {t(
+              securityProfile === WebviewSecurityProfile.AgentHtmlArtifact
+                ? 'webview.navigation.load_failed'
+                : 'webview.browser.load_failed'
+            )}
           </div>
         ) : null}
       </div>

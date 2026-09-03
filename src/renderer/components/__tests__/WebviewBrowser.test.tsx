@@ -60,7 +60,10 @@ describe('WebviewBrowser', () => {
       reload: vi.fn()
     })
 
-    expect(screen.getByRole('textbox', { name: 'webview.navigation.address' })).toBeDisabled()
+    const addressInput = screen.getByRole('textbox', { name: 'webview.navigation.address' })
+    expect(addressInput).toBeDisabled()
+    expect(addressInput).toHaveClass('text-muted-foreground')
+    expect(screen.getByRole('button', { name: 'webview.navigation.back' })).toHaveClass('text-muted-foreground')
     expect(screen.getByRole('status')).toHaveTextContent('webview.browser.loading')
 
     act(() => {
@@ -84,6 +87,40 @@ describe('WebviewBrowser', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent('webview.browser.load_failed')
+  })
+
+  it('uses generic load-failure copy for an HTML artifact', () => {
+    vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
+    const { container } = render(
+      <WebviewBrowser
+        initialUrl="file:///workspace/index.html"
+        securityProfile="agent-html-artifact"
+        isHostActive
+        target={{ id: 'artifact-file:index', label: 'index.html' }}
+      />
+    )
+    const webview = container.querySelector('webview') as unknown as WebviewTag
+    Object.assign(webview, {
+      canGoBack: vi.fn(() => false),
+      canGoForward: vi.fn(() => false),
+      getURL: vi.fn(() => 'file:///workspace/index.html'),
+      getWebContentsId: vi.fn(() => 43),
+      loadURL: vi.fn().mockResolvedValue(undefined),
+      reload: vi.fn()
+    })
+
+    act(() => {
+      webview.dispatchEvent(
+        Object.assign(new Event('did-fail-load'), {
+          errorCode: -6,
+          errorDescription: 'ERR_FILE_NOT_FOUND',
+          isMainFrame: true,
+          validatedURL: 'file:///workspace/index.html'
+        })
+      )
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('webview.navigation.load_failed')
   })
 
   it('keeps same-origin dev navigation in one guest but replaces it before authorizing a new origin', () => {
