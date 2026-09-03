@@ -86,6 +86,10 @@ const logger = loggerService.withContext('AiService')
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
+
+/** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
+const PROBE_INPUT_IMAGE_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
 
 /** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
@@ -1171,9 +1175,19 @@ export class AiService extends BaseService {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
     } else if (isGenerateImageModel(model) && !hasChatPrimaryEndpoint) {
       // Image-only models reject /chat/completions with a 400 — probe the image endpoint.
+      // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
+      // `generate` mode: the bare default leaves the job path without a transport
+      // descriptor, failing before any provider request. Probe their first declared
+      // mode with a tiny inline PNG instead.
+      const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
+      const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
       probe = this.generateImage({
         ...probeRequest,
         prompt: 'a red circle',
+        ...(editOnly && {
+          mode: Object.keys(imageSupport!.modes)[0] as ImageGenerationMode,
+          inputImages: [PROBE_INPUT_IMAGE_DATA_URL]
+        }),
         paramValues: {},
         cleanupPolicy: 'delete_when_unreferenced'
       })

@@ -1639,6 +1639,61 @@ describe('AiService tool approval', () => {
     expect(imageSpy).not.toHaveBeenCalled()
   })
 
+  // Edit-only image models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
+  // `generate` mode — the bare default leaves the job path without a transport
+  // descriptor and the check failed before any provider request.
+  it('probes edit-only image models with their declared mode and an inline input image', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-edit-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-edit-image',
+      name: 'Test Edit Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: { edit: { vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation' } } }
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-edit-image' })
+
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('test-provider', 'test-edit-image')
+    expect(imageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'edit',
+        inputImages: [expect.stringContaining('data:image/png;base64,')]
+      })
+    )
+  })
+
+  it('keeps generate-capable image probes mode-less', async () => {
+    const service = createService()
+    const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-image',
+      providerId: 'test-provider',
+      apiModelId: 'test-image',
+      name: 'Test Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: { generate: { vendorTransport: { endpoint: '/v1/images/generations' } } }
+    })
+
+    await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
+
+    expect(imageSpy).toHaveBeenCalledWith(expect.not.objectContaining({ mode: expect.anything() }))
+    expect(imageSpy).toHaveBeenCalledWith(expect.not.objectContaining({ inputImages: expect.anything() }))
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
