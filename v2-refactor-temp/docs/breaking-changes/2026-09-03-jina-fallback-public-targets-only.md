@@ -2,7 +2,7 @@
 title: Web fetch no longer hands private or unresolvable URLs to Jina Reader
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#19920"
 date: 2026-09-03
 ---
 
