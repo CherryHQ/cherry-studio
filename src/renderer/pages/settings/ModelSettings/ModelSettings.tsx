@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, InputNumber, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
@@ -65,6 +65,8 @@ interface ModelSettingRowProps {
   children: ReactNode
   rowRef?: Ref<HTMLDivElement>
   showFocusGuide?: boolean
+  /** Search anchor id; only passed by the settings-page (non-compact) mount */
+  id?: string
 }
 
 const ModelSettingRow: FC<ModelSettingRowProps> = ({
@@ -75,9 +77,10 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({
   inlineWhenCompact,
   children,
   rowRef,
-  showFocusGuide
+  showFocusGuide,
+  id
 }) => (
-  <div ref={rowRef}>
+  <div ref={rowRef} id={id} className={id ? 'scroll-mt-6' : undefined}>
     <SettingRow
       className={cn(
         compact
@@ -250,6 +253,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           )}
           <ModelSettingRow
             compact={compact}
+            id={compact ? undefined : 'setting-model-default-assistant-model'}
             rowRef={defaultRowRef}
             showFocusGuide={focus === 'default' && showFocusGuide}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -267,6 +271,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
+            id={compact ? undefined : 'setting-model-quick-model'}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={
               <>
@@ -297,6 +302,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
+            id={compact ? undefined : 'setting-model-translate-model'}
             rowRef={translateRowRef}
             showFocusGuide={focus === 'translate' && showFocusGuide}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -335,6 +341,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               <SettingDivider />
               <ModelSettingRow
                 compact={compact}
+                id={compact ? undefined : 'setting-model-painting-model'}
                 icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
                 title={t('settings.models.painting_model')}
                 description={showDescription ? t('settings.models.painting_model_description') : undefined}>
@@ -353,6 +360,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <ModelSettingRow
             compact={compact}
             inlineWhenCompact
+            id={compact ? undefined : 'setting-model-retry-enabled'}
             icon={<RefreshCcw size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={
               <>
@@ -375,18 +383,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 inlineWhenCompact
                 icon={null}
                 title={t('settings.models.retry.max_attempts')}>
-                <Input
-                  type="number"
+                <InputNumber
                   min={1}
                   max={10}
+                  step={1}
                   className={compact ? 'h-7 w-16 px-2' : 'w-24'}
                   aria-label={t('settings.models.retry.max_attempts')}
                   value={retryMaxAttempts}
-                  // Clamp on change: an empty field gives Number('') === 0, which a
-                  // range guard would reject — trapping the edit. Clamp instead.
-                  onChange={(e) =>
-                    void setRetryMaxAttempts(Math.min(10, Math.max(1, Math.trunc(Number(e.target.value)) || 1)))
-                  }
+                  onBlur={(value) => void setRetryMaxAttempts(value ?? 1)}
                 />
               </ModelSettingRow>
               <SettingDivider />
