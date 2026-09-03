@@ -49,8 +49,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import HeaderNavbar from './HeaderNavbar'
-import { getEffectiveGeneration as getEffectiveGenerationGuard, isPendingDeleteForPath } from './notesGuards'
 import NotesEditor from './NotesEditor'
+import { getEffectiveGeneration as getEffectiveGenerationGuard, isPendingDeleteForPath } from './notesGuards'
 import NotesSidebar from './NotesSidebar'
 
 const logger = loggerService.withContext('NotesPage')

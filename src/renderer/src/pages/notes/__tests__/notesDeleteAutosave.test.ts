@@ -1,5 +1,6 @@
 import { normalizePathValue } from '@renderer/services/NotesTreeService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import {
   getEffectiveGeneration,
   isActiveRelated,
