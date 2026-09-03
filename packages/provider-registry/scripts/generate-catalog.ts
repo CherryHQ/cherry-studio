@@ -32,7 +32,7 @@ import {
   getModelEndpointContractIssues,
   MODEL_OPERATION_CAPABILITIES
 } from '../src/registry-utils'
-import { type ModelCapability, SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
+import { MODALITY, MODEL_CAPABILITY, type ModelCapability, SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
@@ -481,12 +481,22 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     if (kind === 'embedding') m.outputModalities = ['vector']
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
-  // Every model declares at least one operation. Models already identified as
-  // embedding, rerank, or media keep those operations without gaining text.
-  const operationCapabilities = new Set<string>(MODEL_OPERATION_CAPABILITIES)
+  // Every model declares at least one operation. Infer dedicated audio-to-text
+  // models before the generic text fallback so ASR rows cannot enter chat routes.
+  const operationCapabilities = new Set<ModelCapability>(MODEL_OPERATION_CAPABILITIES)
   for (const m of models.values()) {
-    if ((m.capabilities ?? []).some((capability: string) => operationCapabilities.has(capability))) continue
-    m.capabilities = [...(m.capabilities ?? []), 'text-generation']
+    const capabilities = (m.capabilities ?? []) as ModelCapability[]
+    if (capabilities.some((capability) => operationCapabilities.has(capability))) continue
+
+    const isDedicatedAudioTranscript =
+      m.inputModalities?.includes(MODALITY.AUDIO) &&
+      !m.inputModalities.includes(MODALITY.TEXT) &&
+      m.outputModalities?.length === 1 &&
+      m.outputModalities?.includes(MODALITY.TEXT)
+    m.capabilities = [
+      ...capabilities,
+      isDedicatedAudioTranscript ? MODEL_CAPABILITY.AUDIO_TRANSCRIPT : MODEL_CAPABILITY.TEXT_GENERATION
+    ]
   }
   // Server-tool eligibility is compiled separately from provider declarations.
   // Remove any stale/upstream web-search capability so it cannot become a

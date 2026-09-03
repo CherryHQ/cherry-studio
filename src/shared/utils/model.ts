@@ -85,7 +85,9 @@ export const isTextToImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) &&
   !model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION)
 
-export const isNonChatModel = (model: Model): boolean => !model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION)
+export const isNonChatModel = (model: Model): boolean =>
+  !model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION) ||
+  (!!model.inputModalities?.length && !model.inputModalities.includes(MODALITY.TEXT))
 
 /**
  * Models the API gateway can route — the single predicate shared by the gateway's

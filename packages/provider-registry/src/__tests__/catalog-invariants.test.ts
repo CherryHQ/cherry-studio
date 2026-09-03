@@ -280,6 +280,25 @@ describe('catalog invariants (data/*.json)', () => {
     ).toEqual([])
   })
 
+  it('classifies dedicated audio-to-text models as transcription instead of text generation', () => {
+    const invalid = models
+      .filter(
+        (model) =>
+          model.inputModalities?.includes('audio') &&
+          !model.inputModalities.includes('text') &&
+          model.outputModalities?.length === 1 &&
+          model.outputModalities.includes('text')
+      )
+      .filter(
+        (model) =>
+          !model.capabilities?.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) ||
+          model.capabilities.includes(MODEL_CAPABILITY.TEXT_GENERATION)
+      )
+      .map((model) => model.id)
+
+    expect(invalid).toEqual([])
+  })
+
   it('keeps Jina ColBERT models as embedding and rerank models', () => {
     expect(models.find((model) => model.id === 'jina-colbert-v2')?.capabilities).toEqual(
       expect.arrayContaining([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])

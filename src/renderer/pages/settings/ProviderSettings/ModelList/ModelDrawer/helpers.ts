@@ -159,6 +159,10 @@ export function buildModelInputModalities(
   const managedModalities = new Set<Modality>([MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO])
   const next = original.filter((modality) => !managedModalities.has(modality))
 
+  if (classification.operationCapabilities.has(MODEL_CAPABILITY.TEXT_GENERATION) && !next.includes(MODALITY.TEXT)) {
+    next.push(MODALITY.TEXT)
+  }
+
   for (const modality of [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO] as const) {
     if (classification.inputModalities.has(modality)) {
       next.push(modality)

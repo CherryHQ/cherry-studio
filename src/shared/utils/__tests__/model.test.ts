@@ -108,6 +108,21 @@ describe('shared model capability helpers', () => {
       expect(isNonChatModel(multimodalChatModel)).toBe(false)
     })
 
+    it('excludes text-generating models whose declared inputs do not include text', () => {
+      const audioOnlyTextModel: Model = {
+        ...createModel([MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.AUDIO_RECOGNITION]),
+        inputModalities: ['audio'],
+        outputModalities: ['text']
+      }
+
+      expect(isNonChatModel(audioOnlyTextModel)).toBe(true)
+    })
+
+    it('keeps missing and empty input modalities as implicit text input', () => {
+      expect(isNonChatModel(createModel())).toBe(false)
+      expect(isNonChatModel({ ...createModel(), inputModalities: [] })).toBe(false)
+    })
+
     it('classifies dedicated speech-to-text / text-to-speech by explicit capability', () => {
       expect(isSpeechToTextModel(createModel([MODEL_CAPABILITY.AUDIO_TRANSCRIPT]))).toBe(true)
       expect(isTextToSpeechModel(createModel([MODEL_CAPABILITY.AUDIO_GENERATION]))).toBe(true)

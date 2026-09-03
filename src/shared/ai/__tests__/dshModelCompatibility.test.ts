@@ -80,10 +80,10 @@ describe('isDshCompatibleModel', () => {
     ).toBe(false)
   })
 
-  it('does not use input modalities as a compatibility restriction', () => {
-    expect(isDshCompatibleModel(azureProvider, makeModel({ contextWindow: undefined }))).toBe(true)
+  it('requires gateway fallback models to accept text input', () => {
     expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: [] }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(true)
-    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['text', 'image'] }))).toBe(true)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['image'] }))).toBe(false)
+    expect(isDshCompatibleModel(azureProvider, makeModel({ inputModalities: ['audio'] }))).toBe(false)
   })
 })
