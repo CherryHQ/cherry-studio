@@ -1,3 +1,4 @@
+import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -23,7 +24,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
 vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/ai/runtime/agentApiGateway')>()),
+  ...(await importOriginal<typeof AgentApiGateway>()),
   ApiGatewayNotRunningError: mocks.ApiGatewayNotRunningError,
   resolveApiGatewayRuntime: mocks.resolveApiGatewayRuntime
 }))

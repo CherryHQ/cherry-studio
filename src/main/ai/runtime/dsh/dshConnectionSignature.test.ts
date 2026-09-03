@@ -1,3 +1,4 @@
+import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,7 +51,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 
 vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ usesDshGateway: mocks.usesDshGateway }))
 vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@main/ai/runtime/agentApiGateway')>()),
+  ...(await importOriginal<typeof AgentApiGateway>()),
   gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
 }))
 
