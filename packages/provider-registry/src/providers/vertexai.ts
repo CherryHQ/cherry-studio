@@ -34,7 +34,7 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: [...claudeWebSearchModels, ...geminiWebToolModels],
-      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview']
+      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview', 'gemini-3-1-flash-image']
     },
     // Gemini-only: @ai-sdk/google-vertex/anthropic exposes no webFetch tool,
     // so Claude-on-Vertex cannot serve url-context.
