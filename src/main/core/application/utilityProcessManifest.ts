@@ -1,4 +1,4 @@
-import { embeddingInferenceProcess, ocrInferenceProcess } from '@main/ai/localModel/runtime/inferenceProcess'
+import { embeddingInferenceProcess, ocrInferenceProcess } from '@main/ai/localModel'
 import type { UtilityProcessManifest } from '@main/core/utilityProcess/types'
 
 /**

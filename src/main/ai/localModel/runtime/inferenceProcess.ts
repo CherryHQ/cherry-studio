@@ -3,10 +3,7 @@ import { defineUtilityProcess } from '@main/core/utilityProcess/defineUtilityPro
 import type { UtilityProcessMethod } from '@main/core/utilityProcess/types'
 import type { LocalModelCapability } from '@shared/data/presets/localModel'
 
-import type {
-  EmbeddingCountTokensPayload,
-  EmbeddingEmbedPayload
-} from '../capabilities/embedding/protocol'
+import type { EmbeddingCountTokensPayload, EmbeddingEmbedPayload } from '../capabilities/embedding/protocol'
 import type { OcrLine, OcrRecognizePayload } from '../capabilities/ocr/protocol'
 import { bundleForCapability } from '../catalog/catalog'
 import { localModelStorageService } from '../installation/LocalModelStorageService'

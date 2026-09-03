@@ -3,3 +3,4 @@ export { LOCAL_EMBEDDING_MAX_INPUT_TOKENS, LOCAL_EMBEDDING_MAX_OVERLAP_TOKENS } 
 export { OcrInferenceService } from './capabilities/ocr/OcrInferenceService'
 export type { OcrLine, OcrRecognizeSource } from './capabilities/ocr/protocol'
 export { localModelService } from './LocalModelService'
+export { embeddingInferenceProcess, ocrInferenceProcess } from './runtime/inferenceProcess'

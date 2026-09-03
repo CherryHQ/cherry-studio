@@ -47,8 +47,8 @@ import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
 import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
 
-import type { InferenceInitData } from '../protocol'
 import { InferenceServiceBase } from '../InferenceServiceBase'
+import type { InferenceInitData } from '../protocol'
 
 /**
  * The base owns three things after the process machinery moved into `core/utilityProcess`:
