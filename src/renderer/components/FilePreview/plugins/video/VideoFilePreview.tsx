@@ -233,12 +233,15 @@ export default function VideoFilePreview({ filePath, fileName, refreshKey }: Fil
           <div
             ref={setVideoShell}
             data-testid="video-preview-shell"
-            className="relative flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-md bg-black">
+            className={cn(
+              'relative flex h-full w-full items-center justify-center overflow-hidden bg-black',
+              fullscreen ? 'rounded-none' : 'rounded-md'
+            )}>
             <video
               ref={videoRef}
               key={`${filePath}:${refreshKey}`}
               aria-label={fileName}
-              className="block max-h-full max-w-full"
+              className="block h-full w-full object-contain"
               disablePictureInPicture
               disableRemotePlayback
               preload="metadata"

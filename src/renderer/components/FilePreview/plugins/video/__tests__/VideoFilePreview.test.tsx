@@ -150,6 +150,29 @@ describe('VideoFilePreview', () => {
     expect(video).toHaveAttribute('src', 'file:///tmp/videos/demo%20clip.mp4')
   })
 
+  it('sizes the shell and video to fill the available preview area', () => {
+    renderPreview()
+
+    const shell = screen.getByTestId('video-preview-shell')
+    const video = screen.getByLabelText('demo clip.mp4')
+
+    expect(shell).toHaveClass('h-full', 'w-full', 'rounded-md')
+    expect(shell).not.toHaveClass('max-h-full', 'max-w-full')
+    expect(video).toHaveClass('h-full', 'w-full', 'object-contain')
+    expect(video).not.toHaveClass('max-h-full', 'max-w-full')
+
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      value: shell
+    })
+    act(() => {
+      document.dispatchEvent(new Event('fullscreenchange'))
+    })
+
+    expect(shell).toHaveClass('rounded-none')
+    expect(shell).not.toHaveClass('rounded-md')
+  })
+
   it('shows loading feedback until metadata loads, then shows custom controls', () => {
     renderPreview()
 
