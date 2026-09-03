@@ -135,6 +135,7 @@ jobs:
             node scripts/release/validate-release-state.js build-start
 
   release:
+    name: Build ${{ matrix.edition }} (${{ matrix.os }})
     needs: prepare
     runs-on: ${{ matrix.os }}
     permissions:
@@ -142,6 +143,7 @@ jobs:
 
     strategy:
       matrix:
+        edition: [global, cn]
         os: ${{ fromJSON(
           github.event.inputs.platform == 'all' && '["macos-latest", "windows-latest", "ubuntu-latest"]' ||
           github.event.inputs.platform == 'linux' && '["ubuntu-latest"]' ||
@@ -191,7 +193,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm libevdev-dev libxtst-dev libx11-dev libxfixes-dev libwayland-dev
-          pnpm build:linux
+          pnpm ${{ matrix.edition == 'cn' && 'build:linux:cn' || 'build:linux' }}
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -205,7 +207,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          pnpm build:mac
+          pnpm ${{ matrix.edition == 'cn' && 'build:mac:cn' || 'build:mac' }}
         env:
           CSC_FOR_PULL_REQUEST: true
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -223,7 +225,7 @@ jobs:
       - name: Build Windows
         if: matrix.os == 'windows-latest'
         run: |
-          pnpm build:win
+          pnpm ${{ matrix.edition == 'cn' && 'build:win:cn' || 'build:win' }}
         env:
           ELECTRON_BUILDER_7Z_FILTER: BCJ
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -233,17 +235,25 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
 
+      - name: Validate edition release artifacts
+        run: node scripts/release/validate-edition-artifacts.js "${{ matrix.edition }}"
+
+      - name: Resolve update manifest channel
+        id: release-channel
+        shell: bash
+        run: |
+          CHANNEL="$(node -p "require('./scripts/release/edition').getReleaseChannel(require('./package.json').version, '${{ matrix.edition }}')")"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+
       - name: Stage Windows release artifacts
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.exe
             dist/*.zip
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
+            dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
           compression-level: 0
@@ -252,13 +262,11 @@ jobs:
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.zip
             dist/*.dmg
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
+            dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
           compression-level: 0
@@ -267,22 +275,20 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v7
         with:
-          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}
+          name: release-${{ needs.prepare.outputs.tag }}-${{ matrix.os }}-${{ matrix.edition }}
           path: |
             dist/*.AppImage
             dist/*.snap
             dist/*.deb
             dist/*.rpm
             dist/*.tar.gz
-            dist/latest*.yml
-            dist/rc*.yml
-            dist/beta*.yml
+            dist/${{ steps.release-channel.outputs.channel }}*.yml
             dist/*.blockmap
           if-no-files-found: error
           compression-level: 0
 
       - name: Stage stable release history
-        if: matrix.os == 'ubuntu-latest' && !contains(needs.prepare.outputs.tag, '-')
+        if: matrix.os == 'ubuntu-latest' && matrix.edition == 'global' && !contains(needs.prepare.outputs.tag, '-')
         uses: actions/upload-artifact@v7
         with:
           name: release-${{ needs.prepare.outputs.tag }}-history
@@ -456,18 +462,28 @@ jobs:
         env:
           BRANCH: ${{ github.ref_name }}
           GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ contains(needs.prepare.outputs.tag, '-') }}
           RELEASE_ID: ${{ steps.draft-release.outputs.id }}
           REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
+          # every release branch forks from main, so GitHub cannot infer the previous tag by ancestry
+          PREVIOUS_TAG="$(gh api "repos/$REPO/releases?per_page=100" | jq -r \
+            --arg tag "$TAG" \
+            --argjson includePrereleases "$PRERELEASE" \
+            '[.[] | select(.draft | not) | select(.tag_name != $tag) | select($includePrereleases or (.prerelease | not))]
+             | sort_by(.published_at) | last | .tag_name')
+          echo "Generating changes since $PREVIOUS_TAG"
           gh api --method POST "repos/$REPO/releases/generate-notes" \
             -f tag_name="$TAG" \
+            -f previous_tag_name="$PREVIOUS_TAG" \
             --jq '.body' > "$RUNNER_TEMP/generated-release-notes.md"
           node scripts/release/compose-release-body.js \
             electron-builder.yml \
             "$RUNNER_TEMP/generated-release-notes.md" \
             "$RUNNER_TEMP/release-body.md"
-          jq -Rs '{body: .}' < "$RUNNER_TEMP/release-body.md" > "$RUNNER_TEMP/release-body.json"
+          # PATCH without tag_name resets a draft to untagged-<sha>
+          jq -Rs --arg tag "$TAG" '{tag_name: $tag, body: .}' < "$RUNNER_TEMP/release-body.md" > "$RUNNER_TEMP/release-body.json"
           RELEASE="$(gh api --method PATCH "repos/$REPO/releases/$RELEASE_ID" \
             --input "$RUNNER_TEMP/release-body.json")"
           BRANCH_SHA="$(gh api "repos/$REPO/git/ref/heads/$BRANCH" --jq '.object.sha')"

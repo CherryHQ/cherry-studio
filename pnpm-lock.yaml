@@ -191,8 +191,8 @@ importers:
         specifier: 1.16.1
         version: 1.16.1
       selection-hook:
-        specifier: 2.0.3
-        version: 2.0.3
+        specifier: 2.1.1
+        version: 2.1.1
       sharp:
         specifier: 0.35.3
         version: 0.35.3(@types/node@24.10.4)
@@ -14509,8 +14509,8 @@ packages:
   selderee@0.11.0:
     resolution: {integrity: sha512-5TF+l7p4+OsnP8BCCvSyZiSPc4x4//p5uPwK8TCnVPJYRmU2aYKMpOXvw8zM5a5JvuuCGN1jmsMwuU2W02ukfA==}
 
-  selection-hook@2.0.3:
-    resolution: {integrity: sha512-wo9xqfRG9lnJWtzFCvl3XBDjV/Qfm9QG/hS8IFsWgSgjJdaJCv7oDtFGefAozpNAx5WvalSjdyLKmIOXHT0Xtw==}
+  selection-hook@2.1.1:
+    resolution: {integrity: sha512-8ZqU2ModYR7Ji2s/T4GUgxBeZw2oeOJZeYMyMT6kxZUPkJUD193kGLIF1mxqlV6pYSmo0CBGi9mW8468PsMuYA==}
     engines: {node: '>=18.0.0'}
 
   semver-compare@1.0.0:
@@ -30409,7 +30409,7 @@ snapshots:
     dependencies:
       parseley: 0.12.1
 
-  selection-hook@2.0.3:
+  selection-hook@2.1.1:
     dependencies:
       node-addon-api: 8.5.0
       node-gyp-build: 4.8.4

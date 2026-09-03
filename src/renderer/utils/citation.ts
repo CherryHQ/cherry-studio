@@ -6,7 +6,7 @@
  * This module lives in the renderer because it encodes business knowledge:
  * the LLM provider enumeration, each provider's wire format for citation
  * markers, and how to project our chat `Citation` shape into rendered markers.
- * Tooltip data stays out-of-band in the current message's trusted registry. The markdown package
+ * Tooltip data stays out-of-band in the message's trusted registry. The markdown package
  * upstream is intentionally provider-agnostic.
  */
 
@@ -210,9 +210,9 @@ export const CITATION_MARKER_PATTERN = /([ \t]?)\[cite:([\w-]+)\]/g
  * tool-result ids keep their `<prefix>-<n>` form.
  *
  * An id that resolves to nothing is dropped rather than echoed: the id is an
- * internal, message-scoped handle, so printing it puts implementation detail on
- * screen (#19771). A model that reuses an id minted in an earlier turn is the
- * common way to get here, and its markers cannot be resolved from this message.
+ * internal, conversation-scoped handle, so printing it puts implementation
+ * detail on screen (#19771). An id from a turn that is not loaded, or one the
+ * model invented, is how a marker gets here.
  */
 export function mapCitationMarksToTags(content: string, citationMap: Map<string, Citation>): string {
   return mapMarkdownOutsideCode(content, (text) =>
