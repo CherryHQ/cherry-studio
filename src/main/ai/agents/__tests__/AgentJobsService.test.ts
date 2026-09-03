@@ -6,9 +6,12 @@
  * state-aware pause/resume no-ops, and trigger equality filtering.
  */
 
+import '@data/services/AgentSessionMessageService'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -152,6 +155,7 @@ describe('AgentJobsService', () => {
   })
 
   afterAll(async () => {
+    await service._doStop()
     await jobManager._doStop()
     await scheduler._doStop()
     BaseService.resetInstances()
@@ -613,7 +617,7 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
     })
 
-    it('deleting an agent removes its schedules and disposes their timers (orphan cleanup)', async () => {
+    it('deletes every Agent task through JobManager while preserving other agents tasks', async () => {
       seedAgent(OTHER_AGENT_ID)
       const own = service.createTask(AGENT_ID, form)
       const second = service.createTask(AGENT_ID, { ...form, name: 'hourly-rollup' })
@@ -630,37 +634,102 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
     })
 
-    it('reconciles schedules left behind for trashed agents', async () => {
+    it('reconciles tasks for trashed and missing agents while preserving active agents', async () => {
       seedAgent(OTHER_AGENT_ID)
-      const orphaned = service.createTask(AGENT_ID, form)
-      const foreign = service.createTask(OTHER_AGENT_ID, { ...form, name: 'foreign-task' })
+      seedAgent('agent-active')
+      const trashed = service.createTask(AGENT_ID, form)
+      const missing = service.createTask(OTHER_AGENT_ID, { ...form, name: 'missing-agent-task' })
+      const active = service.createTask('agent-active', { ...form, name: 'active-agent-task' })
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+      dbh.db.delete(agentTable).where(eq(agentTable.id, OTHER_AGENT_ID)).run()
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(await service.deleteOrphanedSchedules()).toBe(1)
+      expect(await service.deleteSchedulesForInactiveAgents()).toBe(2)
 
-      expect(jobScheduleService.getById(orphaned.id)).toBeNull()
-      expect(jobScheduleService.getById(foreign.id)).not.toBeNull()
-      expect(scheduler.has(`schedule:${orphaned.id}`)).toBe(false)
-      expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
+      expect(jobScheduleService.getById(trashed.id)).toBeNull()
+      expect(jobScheduleService.getById(missing.id)).toBeNull()
+      expect(jobScheduleService.getById(active.id)).not.toBeNull()
+      expect(scheduler.has(`schedule:${trashed.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${missing.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${active.id}`)).toBe(true)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [orphaned.id] },
-        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [orphaned.id] },
-        { endpoint: '/agent-tasks/:taskId', entityIds: [orphaned.id] },
-        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [orphaned.id] }
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [trashed.id, missing.id] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [trashed.id, missing.id] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [trashed.id, missing.id] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [trashed.id, missing.id] }
       ])
     })
 
-    it('agent deletion fires the cleanup through onAgentDeleted', async () => {
+    it('trashing an Agent permanently removes its task, timer, and subscriptions; restore does not recreate them', async () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+      const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
+
+      expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
+
+      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
+      expect(subscriptionRows(task.id)).toHaveLength(0)
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+
+      agentService.restoreAgent(AGENT_ID)
+
+      expect(jobScheduleService.getById(task.id)).toBeNull()
+      expect(subscriptionRows(task.id)).toHaveLength(0)
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('permanent deletion cleans up a task left behind when trash event handling was interrupted', async () => {
       const task = service.createTask(AGENT_ID, form)
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
 
-      // The full deleteAgent path needs the data-service registry (out of
-      // scope here); fire the real emitter the subscription listens on.
-      ;(
-        agentService as unknown as { _onAgentDeleted: { fire: (e: { agentId: string }) => void } }
-      )._onAgentDeleted.fire({ agentId: AGENT_ID })
+      expect(agentService.deleteAgent(AGENT_ID, { permanent: true }).deleted).toBe(true)
 
-      // The subscription is fire-and-forget; let the microtask queue drain.
+      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('rejects every by-id task command after its Agent becomes inactive', async () => {
+      const enabledTask = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      const pausedTask = service.createTask(AGENT_ID, { ...form, name: 'paused-task' })
+      await service.pauseTask(AGENT_ID, pausedTask.id)
+      const session = agentSessionService.create({
+        agentId: AGENT_ID,
+        name: 'Scheduled task',
+        workspace: { type: 'system' }
+      })
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+
+      expect(service.updateTask(AGENT_ID, enabledTask.id, { name: 'must-not-update' })).toBeNull()
+      expect(await service.pauseTask(AGENT_ID, enabledTask.id)).toBeNull()
+      expect(service.resumeTask(AGENT_ID, pausedTask.id)).toBeNull()
+      expect(await service.runTask(AGENT_ID, enabledTask.id)).toBe(false)
+      expect(await service.deleteTask(AGENT_ID, enabledTask.id)).toBe(false)
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: enabledTask.id,
+          sessionId: session.id,
+          agentId: AGENT_ID,
+          workspace: { type: 'system' },
+          reuseRevision: 0
+        })
+      ).toBe(false)
+
+      expect(jobScheduleService.getById(enabledTask.id)).toMatchObject({ enabled: true, name: form.name })
+      expect(jobScheduleService.getById(pausedTask.id)).toMatchObject({ enabled: false, name: 'paused-task' })
+      expect(
+        dbh.db
+          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .from(agentSessionTable)
+          .where(eq(agentSessionTable.id, session.id))
+          .get()
+      ).toEqual({ taskScheduleId: null })
+    })
+
+    it('runs inactive-Agent reconciliation once after all services are ready', async () => {
+      const task = service.createTask(AGENT_ID, form)
+      dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
+
+      await service._doAllReady()
+
       await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
     })

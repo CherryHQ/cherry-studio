@@ -63,8 +63,8 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
  * writes: mutate inside one `withWriteTx`, then sync the timer on the
  * deterministic post-commit path.
  *
- * Every by-id command guards through `agentTaskService.getTask`, which rejects
- * non-`agent.task` schedules and other agents' tasks in one lookup.
+ * Every by-id command first requires an active Agent, then guards through
+ * `agentTaskService.getTask`, which rejects non-task and foreign schedules.
  */
 @Injectable('AgentJobsService')
 @ServicePhase(Phase.WhenReady)
@@ -73,17 +73,19 @@ export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 
-    // Deleting an agent used to leave its schedules behind: nothing listened
-    // to onAgentDeleted, so every interval kept firing for an agent that no
-    // longer exists, each run failing with 'Agent not found'. The event fires
-    // post-commit, after the agent row is already gone.
-    this.registerDisposable(
-      agentService.onAgentDeleted(({ agentId }) => {
-        void this.deleteSchedulesForAgent(agentId).catch((error) => {
-          logger.warn('Failed to delete schedules for removed agent', { agentId, error })
-        })
+    const deleteAgentTasks = ({ agentId }: { agentId: string }) => {
+      void this.deleteSchedulesForAgent(agentId).catch((error) => {
+        logger.warn('Failed to delete tasks for inactive Agent', { agentId, error })
       })
-    )
+    }
+    this.registerDisposable(agentService.onAgentTrashed(deleteAgentTasks))
+    this.registerDisposable(agentService.onAgentPurged(deleteAgentTasks))
+  }
+
+  protected override onAllReady(): void {
+    void this.deleteSchedulesForInactiveAgents().catch((error) => {
+      logger.warn('Failed to reconcile tasks for inactive Agents after startup', { error })
+    })
   }
 
   createTask(agentId: string, form: AgentTaskForm): ScheduledTaskEntity {
@@ -127,7 +129,7 @@ export class AgentJobsService extends BaseService {
   }
 
   updateTask(agentId: string, taskId: string, patch: AgentTaskPatch): ScheduledTaskEntity | null {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     this.assertPromptNotReserved(patch.prompt)
     if (patch.channelIds !== undefined) {
@@ -194,11 +196,11 @@ export class AgentJobsService extends BaseService {
     if (reuseConfigChanged || bindingCleared) agentTaskService.notifyReadModelChange([taskId])
 
     logger.info('Task updated', { taskId, agentId })
-    return agentTaskService.getTask(agentId, taskId)
+    return this.getActiveTask(agentId, taskId)
   }
 
   async pauseTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity | null> {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     // State-aware no-op: `setEnabled`'s changes>0 only reflects row existence,
     // and pausing an already-paused task would still bump `updatedAt`. The
@@ -206,23 +208,23 @@ export class AgentJobsService extends BaseService {
     if (!existing.enabled) return existing
     await application.get('JobManager').pauseJobScheduleById(taskId)
     logger.info('Task paused', { taskId, agentId })
-    return agentTaskService.getTask(agentId, taskId)
+    return this.getActiveTask(agentId, taskId)
   }
 
   resumeTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return null
     // State-aware no-op: resuming an already-enabled task would re-register
     // the SchedulerService timer and reset an interval's phase.
     if (existing.enabled) return existing
     application.get('JobManager').resumeJobScheduleById(taskId)
     logger.info('Task resumed', { taskId, agentId })
-    return agentTaskService.getTask(agentId, taskId)
+    return this.getActiveTask(agentId, taskId)
   }
 
   /** @returns `false` when the task is not found / not owned by `agentId` (no distinction — no existence leak). */
   async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return false
     // Channel subscriptions cascade via the agentChannelTaskTable FK; historical
     // jobs keep their rows with scheduleId set NULL (ON DELETE SET NULL).
@@ -232,9 +234,9 @@ export class AgentJobsService extends BaseService {
   }
 
   /**
-   * Delete every `agent.task` schedule owned by `agentId` — the schedule-side
-   * half of agent deletion. Historical jobs keep their rows with `scheduleId`
-   * set NULL (`ON DELETE SET NULL`, same as `deleteTask`).
+   * Delete every `agent.task` schedule owned by `agentId`. Historical jobs
+   * keep their rows with `scheduleId` set NULL (`ON DELETE SET NULL`, same as
+   * `deleteTask`).
    *
    * @returns How many schedule rows were removed.
    */
@@ -251,14 +253,14 @@ export class AgentJobsService extends BaseService {
       }
     }
     if (deletedIds.length > 0) {
-      logger.info('Deleted task schedules for removed agent', { agentId, deleted: deletedIds.length })
+      logger.info('Deleted Agent tasks', { agentId, deleted: deletedIds.length })
       agentTaskService.notifyReadModelChange(deletedIds)
     }
     return deletedIds.length
   }
 
-  /** Reconcile schedules whose owning agent was trashed or removed before event cleanup completed. */
-  async deleteOrphanedSchedules(): Promise<number> {
+  /** Reconcile schedules whose owning Agent is trashed or no longer exists. */
+  async deleteSchedulesForInactiveAgents(): Promise<number> {
     const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
       const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
       return template !== null && !agentService.agentExists(template.agentId)
@@ -271,7 +273,7 @@ export class AgentJobsService extends BaseService {
       }
     }
     if (deletedIds.length > 0) {
-      logger.info('Deleted orphaned agent task schedules', { deleted: deletedIds.length })
+      logger.info('Deleted tasks for inactive Agents', { deleted: deletedIds.length })
       agentTaskService.notifyReadModelChange(deletedIds)
     }
     return deletedIds.length
@@ -279,7 +281,7 @@ export class AgentJobsService extends BaseService {
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
   async runTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = agentTaskService.getTask(agentId, taskId)
+    const existing = this.getActiveTask(agentId, taskId)
     if (!existing) return false
     return application.get('JobManager').triggerJobScheduleNowById(taskId)
   }
@@ -296,6 +298,7 @@ export class AgentJobsService extends BaseService {
     workspace: AgentSessionWorkspaceSource
     reuseRevision: number
   }): boolean {
+    if (!agentService.agentExists(params.agentId)) return false
     const bound = application.get('DbService').withWriteTx((tx) => {
       const snapshot = jobScheduleService.getByIdTx(tx, params.scheduleId)
       if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return false
@@ -329,6 +332,11 @@ export class AgentJobsService extends BaseService {
     if (!agentService.getAgent(agentId)) {
       throw new Error(`Agent not found: ${agentId}`)
     }
+  }
+
+  private getActiveTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+    if (!agentService.agentExists(agentId)) return null
+    return agentTaskService.getTask(agentId, taskId)
   }
 
   /**

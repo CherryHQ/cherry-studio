@@ -51,7 +51,11 @@ export interface AgentCreatedEvent {
   agent: AgentEntity
 }
 
-export interface AgentDeletedEvent {
+export interface AgentTrashedEvent {
+  agentId: string
+}
+
+export interface AgentPurgedEvent {
   agentId: string
 }
 
@@ -251,8 +255,11 @@ export class AgentService {
   private readonly _onAgentUpdated = new Emitter<AgentUpdatedEvent>()
   readonly onAgentUpdated: Event<AgentUpdatedEvent> = this._onAgentUpdated.event
 
-  private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
-  readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
+  private readonly _onAgentTrashed = new Emitter<AgentTrashedEvent>()
+  readonly onAgentTrashed: Event<AgentTrashedEvent> = this._onAgentTrashed.event
+
+  private readonly _onAgentPurged = new Emitter<AgentPurgedEvent>()
+  readonly onAgentPurged: Event<AgentPurgedEvent> = this._onAgentPurged.event
 
   notifyReadModelChange(agentIds: readonly string[], kind: 'membership' | 'projection'): void {
     if (agentIds.length === 0) return
@@ -261,6 +268,15 @@ export class AgentService {
       { endpoint: '/agents', kind, entityIds },
       { endpoint: '/agents/:agentId', entityIds }
     ])
+  }
+
+  /** Publish the post-commit effects of a retention purge. */
+  notifyPurged(agentIds: readonly string[]): void {
+    if (agentIds.length === 0) return
+    const entityIds = [...new Set(agentIds)]
+    this.notifyReadModelChange(entityIds, 'membership')
+    promptService.notifyTargetBindingsChanged()
+    for (const agentId of entityIds) this._onAgentPurged.fire({ agentId })
   }
 
   /**
@@ -869,7 +885,8 @@ export class AgentService {
         { endpoint: '/agents/:agentId', routeParams: { agentId: id }, entityIds: [id] }
       ])
       promptService.notifyTargetBindingsChanged()
-      this._onAgentDeleted.fire({ agentId: id })
+      if (permanent) this._onAgentPurged.fire({ agentId: id })
+      else this._onAgentTrashed.fire({ agentId: id })
     }
     if (deleted) pinService.notifyPurged()
     const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
@@ -888,7 +905,10 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
-  /** Restore a trashed agent, together with the sessions moved to the Recycle Bin with it. */
+  /**
+   * Restore a trashed agent and the sessions trashed with it. Task schedules
+   * and channel subscriptions are permanently deleted on trash and are not restored.
+   */
   restoreAgent(id: string): AgentEntity {
     const { row, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
       const [trashed] = tx

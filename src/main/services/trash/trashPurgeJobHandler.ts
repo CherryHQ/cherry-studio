@@ -59,10 +59,7 @@ const PURGE_DOMAINS: ReadonlyArray<{
     purgeExpiredTx: (tx, cutoffMs, limit) => agentService.purgeExpiredTx(tx, cutoffMs, limit),
     // Retention is the first and only moment a trashed agent's prompt bindings are
     // dropped — they deliberately survive Delete — so this is the only chance to say so.
-    notifyPurged: (ids) => {
-      agentService.notifyReadModelChange(ids, 'membership')
-      promptService.notifyTargetBindingsChanged()
-    }
+    notifyPurged: (ids) => agentService.notifyPurged(ids)
   },
   {
     name: 'assistant',
@@ -135,7 +132,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.
     ctx.signal.throwIfAborted()
-    await application.get('AgentJobsService').deleteOrphanedSchedules()
+    await application.get('AgentJobsService').deleteSchedulesForInactiveAgents()
     ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
 
     // Filesystem reclamation strictly AFTER all transactions committed.
