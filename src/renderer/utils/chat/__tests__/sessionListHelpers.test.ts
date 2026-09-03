@@ -16,6 +16,7 @@ import {
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
   SESSION_PINNED_GROUP_ID,
+  SESSION_UNKNOWN_AGENT_GROUP_ID,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
@@ -115,14 +116,30 @@ describe('SessionList helpers', () => {
     expect(normalizeSessionDropPayload(crossGroupPayload)).toBe(crossGroupPayload)
   })
 
-  it('allows drag only inside the same non-pinned display group', () => {
+  it('allows drag inside the same non-pinned display group, plus re-linking out of the unknown-agent group', () => {
     const cases = [
       ['same agent group', 'agent', 'session:agent:agent-a', 'session:agent:agent-a', true],
       ['different agent groups', 'agent', 'session:agent:agent-a', 'session:agent:agent-b', false],
       ['same workdir group', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-a', true],
       ['different workdir groups', 'workdir', 'session:workspace:ws-a', 'session:workspace:ws-b', false],
       ['pinned group', 'workdir', 'session:pinned', 'session:pinned', false],
-      ['time mode', 'time', 'session:workspace:ws-a', 'session:workspace:ws-a', false]
+      ['time mode', 'time', 'session:workspace:ws-a', 'session:workspace:ws-a', false],
+      ['unknown agent group to a real agent', 'agent', SESSION_UNKNOWN_AGENT_GROUP_ID, 'session:agent:agent-a', true],
+      ['unknown agent group to pinned', 'agent', SESSION_UNKNOWN_AGENT_GROUP_ID, SESSION_PINNED_GROUP_ID, false],
+      [
+        'a real agent back into the unknown agent group',
+        'agent',
+        'session:agent:agent-a',
+        SESSION_UNKNOWN_AGENT_GROUP_ID,
+        false
+      ],
+      [
+        'unknown agent group in workdir mode',
+        'workdir',
+        SESSION_UNKNOWN_AGENT_GROUP_ID,
+        'session:workspace:ws-a',
+        false
+      ]
     ] as const
 
     for (const [label, mode, sourceGroupId, targetGroupId, expected] of cases) {

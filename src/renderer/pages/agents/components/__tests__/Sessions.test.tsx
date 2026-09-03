@@ -3127,6 +3127,72 @@ describe('Sessions', () => {
     )
   })
 
+  it('re-links a session dropped out of the unlinked group onto a real agent', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    sessionDataMocks.updateSession.mockResolvedValue(createSession({ id: 'session-x', agentId: 'agent-a' }))
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-x', name: 'Orphan session', agentId: null, orderKey: 'x' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    startDraggingSession('session-x')
+    expect(screen.getByText('Alpha session').closest('[data-drop-blocked="true"]')).toBeNull()
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-x'),
+          id: 'item:session-x',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-a'), id: 'item:session-a', rect: { top: 10, height: 20 } }
+      })
+    })
+
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
+        { id: 'session-x', agentId: 'agent-a' },
+        { showSuccessToast: false }
+      )
+    )
+    await vi.waitFor(() =>
+      expect(sessionDataMocks.reorderSession).toHaveBeenCalledWith('session-x', { after: 'session-a' })
+    )
+  })
+
+  it('leaves an unlinked session where it is when the re-link write fails', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    sessionDataMocks.updateSession.mockResolvedValue(undefined)
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-x', name: 'Orphan session', agentId: null, orderKey: 'x' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    startDraggingSession('session-x')
+
+    act(() => {
+      dndMocks.onDragEnd?.({
+        active: {
+          data: sortableData('item:session-x'),
+          id: 'item:session-x',
+          rect: { current: { initial: null, translated: { top: 100, height: 20 } } }
+        },
+        over: { data: sortableData('item:session-a'), id: 'item:session-a', rect: { top: 10, height: 20 } }
+      })
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.updateSession).toHaveBeenCalled())
+    expect(sessionDataMocks.reorderSession).not.toHaveBeenCalled()
+  })
+
   it('reorders workspace groups through the workspace order endpoint', async () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setupSessions({

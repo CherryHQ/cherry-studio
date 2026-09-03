@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "Săptămâna aceasta",
   "agent.session.group.today": "Astăzi",
   "agent.session.group.unknown_agent": "Agent necunoscut",
-  "agent.session.group.unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
+  "agent.session.group.unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Trageți o sesiune peste un agent existent pentru a o reasocia și a continua să o utilizați.",
   "agent.session.group.yesterday": "Ieri",
   "agent.session.list.title": "Sarcini",
   "agent.session.model_switch_confirm.confirm": "Schimbă modelul",

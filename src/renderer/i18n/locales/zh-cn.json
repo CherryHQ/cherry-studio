@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "本周",
   "agent.session.group.today": "今天",
   "agent.session.group.unknown_agent": "未关联智能体",
-  "agent.session.group.unknown_agent_tip": "这是未关联智能体的历史会话分组，并非真实智能体。仅供查看，无法继续运行。",
+  "agent.session.group.unknown_agent_tip": "这是未关联智能体的历史会话分组，并非真实智能体。请将会话拖到现有智能体后继续使用。",
   "agent.session.group.yesterday": "昨天",
   "agent.session.list.title": "任务",
   "agent.session.model_switch_confirm.confirm": "切换模型",

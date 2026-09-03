@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "Cette semaine",
   "agent.session.group.today": "Aujourd'hui",
   "agent.session.group.unknown_agent": "Agent inconnu",
-  "agent.session.group.unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter.",
+  "agent.session.group.unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Faites glisser une session sur un agent existant pour la relier à nouveau et continuer à l'utiliser.",
   "agent.session.group.yesterday": "Hier",
   "agent.session.list.title": "Tâches",
   "agent.session.model_switch_confirm.confirm": "Changer de modèle",

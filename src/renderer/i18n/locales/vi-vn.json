@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "Tuần này",
   "agent.session.group.today": "Hôm nay",
   "agent.session.group.unknown_agent": "Agent không xác định",
-  "agent.session.group.unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này.",
+  "agent.session.group.unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Kéo một phiên vào Agent hiện có để liên kết lại và tiếp tục sử dụng.",
   "agent.session.group.yesterday": "Hôm qua",
   "agent.session.list.title": "Nhiệm vụ",
   "agent.session.model_switch_confirm.confirm": "Chuyển đổi mô hình",

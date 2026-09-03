@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "今週",
   "agent.session.group.today": "今日",
   "agent.session.group.unknown_agent": "不明なエージェント",
-  "agent.session.group.unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。",
+  "agent.session.group.unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。既存のエージェントにセッションをドラッグすると、再度リンクして引き続き使用できます。",
   "agent.session.group.yesterday": "昨日",
   "agent.session.list.title": "タスク",
   "agent.session.model_switch_confirm.confirm": "モデル切り替え",

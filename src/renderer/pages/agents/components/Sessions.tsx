@@ -1453,9 +1453,16 @@ const Sessions = ({
   )
 
   const canDropSessionItem = useCallback(
-    ({ sourceGroupId, targetGroupId }: { sourceGroupId: string; targetGroupId: string }) =>
-      itemDragReady && canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId }),
-    [displayMode, itemDragReady]
+    ({ sourceGroupId, targetGroupId }: { sourceGroupId: string; targetGroupId: string }) => {
+      if (!itemDragReady || !canDropSessionItemInDisplayGroup({ mode: displayMode, sourceGroupId, targetGroupId })) {
+        return false
+      }
+      if (sourceGroupId === targetGroupId) return true
+
+      const targetAgentId = getAgentIdFromSessionGroupId(targetGroupId)
+      return !!targetAgentId && agentById.has(targetAgentId)
+    },
+    [agentById, displayMode, itemDragReady]
   )
 
   const canDragSessionGroup = useCallback(
@@ -1600,6 +1607,23 @@ const Sessions = ({
 
       const normalizedPayload = normalizeSessionDropPayload(payload)
       const anchor = buildSessionDropAnchor(normalizedPayload)
+
+      if (payload.sourceGroupId !== payload.targetGroupId) {
+        const targetAgentId = getAgentIdFromSessionGroupId(payload.targetGroupId)
+        if (!targetAgentId || !agentById.has(targetAgentId)) return
+
+        // Group membership is derived from the persisted `agentId`, so the row can only leave the
+        // unknown-agent bucket once the server owns the new one — an optimistic overlay can't move it.
+        const relinked = await updateSession(
+          { id: payload.activeId, agentId: targetAgentId },
+          { showSuccessToast: false }
+        )
+        if (!relinked) return
+
+        await reorderSession(payload.activeId, anchor)
+        return
+      }
+
       setOptimisticMove(normalizedPayload)
 
       const reordered = await reorderSession(payload.activeId, anchor)
@@ -1620,6 +1644,7 @@ const Sessions = ({
       reorderWorkspace,
       sessionItems,
       t,
+      updateSession,
       workdirDragReady,
       workdirDisplay,
       workspaceRowsForDisplay
@@ -1983,7 +2008,7 @@ const Sessions = ({
         groups: displayMode === 'agent' ? agentDragReady : workdirDragReady,
         items: itemDragReady,
         itemSameGroup: itemDragReady,
-        itemCrossGroup: false
+        itemCrossGroup: agentDragReady
       }}
       canDragGroup={canDragSessionGroup}
       canDropGroup={canDropSessionGroup}
