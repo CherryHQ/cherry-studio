@@ -132,17 +132,6 @@ function ensureDefaultModelPreferencesTx(tx: TxLike): void {
           value
         })
         .run()
-      continue
-    }
-
-    // PreferenceSeeder inserts DefaultPreferences nulls first; overwrite those so
-    // fresh DBs still receive CherryAI UniqueModelId defaults.
-    if (existing.value === null) {
-      logger.warn('Self-healed null default model preference', { key, value })
-      tx.update(preferenceTable)
-        .set({ value })
-        .where(and(eq(preferenceTable.scope, scope), eq(preferenceTable.key, key)))
-        .run()
     }
   }
 }

@@ -204,6 +204,31 @@ describe('SeedRunner', () => {
     }
   })
 
+  it('preserves persisted null default model preferences during production seeding', async () => {
+    dbh.db
+      .insert(preferenceTable)
+      .values(
+        DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
+          scope: 'default',
+          key,
+          value: null
+        }))
+      )
+      .run()
+
+    new SeedRunner(dbh.db).runAll(seeders)
+
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      const [row] = dbh.db
+        .select()
+        .from(preferenceTable)
+        .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
+        .limit(1)
+        .all()
+      expect(row?.value).toBeNull()
+    }
+  })
+
   it('repairs invalid JSON model-id preferences before later production seeders read preferences', async () => {
     mockMainLoggerService.warn.mockClear()
     const repairKey = 'feature.openclaw.selected_model_id'
