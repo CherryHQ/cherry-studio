@@ -31,7 +31,9 @@ const privateController = (controller: WebviewAnnotationController) =>
     marqueeRect: unknown
     pendingRegion: unknown
     pinLayer: HTMLDivElement | null
-    openEditor: (element: Element, annotationId?: string | null) => void
+    openEditor: (
+      request: { mode: 'create-element'; element: Element } | { mode: 'edit'; element: Element; annotationId: string }
+    ) => void
     saveEditor: () => void
     deleteEditorAnnotation: () => void
     textarea: HTMLTextAreaElement
@@ -145,12 +147,12 @@ describe('WebviewAnnotationController interactions', () => {
     expect(controller.getState().annotations[0].comment).toBe('Use a clearer label')
 
     const annotationId = controller.getState().annotations[0].id
-    internals.openEditor(button, annotationId)
+    internals.openEditor({ mode: 'edit', element: button, annotationId })
     internals.textarea.value = 'Updated note'
     internals.saveEditor()
     expect(controller.getState().annotations[0].comment).toBe('Updated note')
 
-    internals.openEditor(button, annotationId)
+    internals.openEditor({ mode: 'edit', element: button, annotationId })
     internals.deleteEditorAnnotation()
     expect(controller.getState().annotations).toEqual([])
   })
@@ -160,7 +162,7 @@ describe('WebviewAnnotationController interactions', () => {
     button.id = 'keyboard-target'
     document.body.appendChild(button)
     const internals = privateController(controller)
-    internals.openEditor(button)
+    internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Keyboard note'
 
     internals.textarea.dispatchEvent(
@@ -177,7 +179,7 @@ describe('WebviewAnnotationController interactions', () => {
     first.id = 'replaceable'
     document.body.appendChild(first)
     const internals = privateController(controller)
-    internals.openEditor(first)
+    internals.openEditor({ mode: 'create-element', element: first })
     internals.textarea.value = 'Keep tracking this'
     internals.saveEditor()
     const annotationId = controller.getState().annotations[0].id
@@ -195,7 +197,7 @@ describe('WebviewAnnotationController interactions', () => {
     button.id = 'removed-target'
     document.body.appendChild(button)
     const internals = privateController(controller)
-    internals.openEditor(button)
+    internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Do not retain this element'
     internals.saveEditor()
     const annotationId = controller.getState().annotations[0].id
@@ -254,7 +256,7 @@ describe('WebviewAnnotationController interactions', () => {
         }) as DOMRect
     )
     const internals = privateController(controller)
-    internals.openEditor(button)
+    internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Follow this label'
     internals.saveEditor()
     const pin = internals.pinLayer?.querySelector<HTMLElement>('button')
@@ -272,7 +274,7 @@ describe('WebviewAnnotationController interactions', () => {
     button.id = 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.selector)
     document.body.appendChild(button)
     const internals = privateController(controller)
-    internals.openEditor(button)
+    internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Keep this draft'
 
     internals.saveEditor()
@@ -329,6 +331,28 @@ describe('WebviewAnnotationController interactions', () => {
       '#overlap-b',
       '#card'
     ])
+  })
+
+  it('does not carry a pending region into a subsequent element annotation', () => {
+    const regionTarget = document.createElement('div')
+    regionTarget.id = 'region-target'
+    const elementTarget = document.createElement('button')
+    elementTarget.id = 'element-target'
+    document.body.append(regionTarget, elementTarget)
+    mockRect(regionTarget, 0, 0, 400, 400)
+
+    regionTarget.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 200, 200))
+    regionTarget.dispatchEvent(pointerEvent('pointerup', 200, 200))
+    regionTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+
+    elementTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    const internals = privateController(controller)
+    internals.textarea.value = 'Annotate only this element'
+    internals.saveEditor()
+
+    expect(controller.getState().annotations[0].element.selector).toBe('#element-target')
+    expect(controller.getState().annotations[0].region).toBeUndefined()
   })
 
   it('keeps sub-threshold drags on the single-element click flow', () => {
@@ -429,7 +453,7 @@ describe('WebviewAnnotationController interactions', () => {
     button.id = 'stale-page-target'
     document.body.appendChild(button)
     const internals = privateController(controller)
-    internals.openEditor(button)
+    internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Stale page note'
     internals.saveEditor()
     expect(controller.getState().annotations).toHaveLength(1)
@@ -455,7 +479,7 @@ describe('WebviewAnnotationController interactions', () => {
       const element = document.createElement('button')
       element.id = `target-${index}`
       document.body.appendChild(element)
-      internals.openEditor(element)
+      internals.openEditor({ mode: 'create-element', element })
       if (!internals.editorElement) continue
       internals.textarea.value = 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.comment + 50)
       internals.saveEditor()
