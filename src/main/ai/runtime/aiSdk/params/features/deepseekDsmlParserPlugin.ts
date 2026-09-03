@@ -247,13 +247,14 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
 
               if (chunk.type === 'text-end' || chunk.type === 'reasoning-end') {
                 const contentId = chunk.id
+                const contentType = chunk.type === 'text-end' ? 'text' : 'reasoning'
                 if (inDsml) {
                   logger.warn(`${chunk.type} with unclosed DSML block, flushing as content`)
-                  enqueueContentDelta(controller, activeContentType, contentId, dsmlOpenTag + dsmlBuffer)
+                  enqueueContentDelta(controller, contentType, contentId, dsmlOpenTag + dsmlBuffer)
                   dsmlBuffer = ''
                   inDsml = false
                 } else if (contentBuffer) {
-                  enqueueContentDelta(controller, activeContentType, contentId, contentBuffer)
+                  enqueueContentDelta(controller, contentType, contentId, contentBuffer)
                   contentBuffer = ''
                 }
                 controller.enqueue(chunk)

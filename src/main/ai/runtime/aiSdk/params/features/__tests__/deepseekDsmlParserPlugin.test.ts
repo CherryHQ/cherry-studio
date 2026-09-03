@@ -68,10 +68,13 @@ async function runStream(
   toolNames: string[] = [],
   contentType: 'text' | 'reasoning' = 'text'
 ) {
+  return runSourceStream(buildSourceStream(deltas, finishReasonUnified, contentType), toolNames)
+}
+
+async function runSourceStream(source: ReadableStream<LanguageModelV3StreamPart>, toolNames: string[] = []) {
   const middleware = await getMiddleware()
   expect(middleware.wrapStream).toBeDefined()
 
-  const source = buildSourceStream(deltas, finishReasonUnified, contentType)
   const wrapped = await middleware.wrapStream!({
     doStream: async () => ({ stream: source, request: { body: {} }, response: { headers: {} } }),
 
@@ -281,6 +284,46 @@ describe('deepseekDsmlParserPlugin', () => {
     expect(events.find((event) => event.type === 'finish')).toMatchObject({
       finishReason: { unified: 'tool-calls' }
     })
+  })
+
+  it('keeps buffered reasoning content in the reasoning channel when text starts before reasoning ends', async () => {
+    const partialDsml = '<｜DSML｜tool_'
+    const parts: LanguageModelV3StreamPart[] = [
+      { type: 'stream-start', warnings: [] },
+      { type: 'reasoning-start', id: 'reasoning-0' },
+      { type: 'reasoning-delta', id: 'reasoning-0', delta: `thinking\n${partialDsml}` },
+      { type: 'text-start', id: 'txt-0' },
+      { type: 'reasoning-end', id: 'reasoning-0' },
+      { type: 'text-delta', id: 'txt-0', delta: 'answer' },
+      { type: 'text-end', id: 'txt-0' },
+      {
+        type: 'finish',
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: {
+          inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+          outputTokens: { total: 1, text: 1, reasoning: 0 }
+        }
+      }
+    ]
+    const events = await runSourceStream(
+      new ReadableStream<LanguageModelV3StreamPart>({
+        start(controller) {
+          for (const part of parts) controller.enqueue(part)
+          controller.close()
+        }
+      })
+    )
+
+    expect(
+      events
+        .filter((event) => event.type === 'reasoning-delta')
+        .filter((event) => event.id === 'reasoning-0')
+        .map((event) => event.delta)
+        .join('')
+    ).toBe(`thinking\n${partialDsml}`)
+    expect(events.filter((event) => event.type === 'text-delta')).toEqual([
+      { type: 'text-delta', id: 'txt-0', delta: 'answer' }
+    ])
   })
 
   it('converts the ToolSearch tool-tag variant emitted by DeepSeek into a tool call', async () => {

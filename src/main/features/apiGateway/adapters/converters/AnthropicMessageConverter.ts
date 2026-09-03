@@ -381,7 +381,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       // (bash/web_search/text_editor/tool_search/…) only Anthropic's own backend executes.
       if (!rawSchema) continue
       // Older Agent SDK builds omit defer_loading from MCP tool definitions.
-      const deferred = toolDef.defer_loading === true || toolDef.name.startsWith('mcp__')
+      const deferred = toolDef.defer_loading ?? toolDef.name.startsWith('mcp__')
       if (deferred && loadedToolNames && !loadedToolNames.has(toolDef.name)) continue
       const schema = jsonSchemaToZod(rawSchema as JsonSchemaLike)
 

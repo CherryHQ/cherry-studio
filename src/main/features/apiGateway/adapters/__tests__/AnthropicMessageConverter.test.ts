@@ -502,6 +502,24 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     expect(Object.keys(loaded ?? {})).toEqual(['Bash', 'mcp__assistant__product_info'])
   })
 
+  it('keeps explicitly eager MCP tools available without ToolSearch', () => {
+    const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
+    const tools = deferredConverter.toAiSdkTools(
+      params({
+        tools: [
+          {
+            name: 'mcp__assistant__product_info',
+            description: 'Read product information',
+            input_schema: { type: 'object', properties: { source: { type: 'string' } } },
+            defer_loading: false
+          }
+        ]
+      })
+    )
+
+    expect(Object.keys(tools ?? {})).toEqual(['mcp__assistant__product_info'])
+  })
+
   it('loads exact ToolSearch selections when the older Agent SDK strips tool references', () => {
     const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
     const tools = deferredConverter.toAiSdkTools(
