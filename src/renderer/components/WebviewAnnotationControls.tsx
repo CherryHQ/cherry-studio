@@ -13,6 +13,7 @@ import {
   WEBVIEW_ANNOTATION_LIMITS,
   type WebviewAnchorRect,
   type WebviewAnnotation,
+  type WebviewAnnotationGuestEvent,
   WebviewAnnotationGuestEventSchema,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationState,
@@ -22,7 +23,7 @@ import {
 import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
@@ -38,12 +39,26 @@ type AnnotationEditorSession =
   | { mode: 'create'; selection: WebviewPendingSelection }
   | { mode: 'edit'; annotationId: string; anchor: WebviewAnchorRect }
 
-interface PendingCreateSave {
+interface CreateSaveAttempt {
+  attempt: number
   id: string
-  page: WebviewAnnotationSavedPayload['page']
   targetId: string
-  timeout: ReturnType<typeof setTimeout>
   webview: WebviewTag
+}
+
+interface PendingCreateSave extends CreateSaveAttempt {
+  page: WebviewAnnotationSavedPayload['page']
+  status: 'awaiting' | 'retryable'
+  timeout: ReturnType<typeof setTimeout> | null
+}
+
+function isSameCreateSaveAttempt(pending: PendingCreateSave, attempt: CreateSaveAttempt) {
+  return (
+    pending.id === attempt.id &&
+    pending.attempt === attempt.attempt &&
+    pending.targetId === attempt.targetId &&
+    pending.webview === attempt.webview
+  )
 }
 
 export interface WebviewAnnotationSavedPayload {
@@ -74,6 +89,12 @@ export function WebviewAnnotationControls({
   const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
   const [isCreateSaving, setIsCreateSaving] = useState(false)
   const pendingCreateSaveRef = useRef<PendingCreateSave | null>(null)
+  const currentWebview = webviewRef.current
+  const committedOwnerRef = useRef({ isHostActive, targetId: target.id, webview: currentWebview })
+
+  useLayoutEffect(() => {
+    committedOwnerRef.current = { isHostActive, targetId: target.id, webview: currentWebview }
+  }, [currentWebview, isHostActive, target.id])
 
   const locale = useMemo(() => ({ edit: t('webview.annotation.edit') }), [t])
 
@@ -109,59 +130,71 @@ export function WebviewAnnotationControls({
     [target, webviewRef]
   )
 
-  const clearPendingCreateSave = useCallback((id?: string) => {
-    const pending = pendingCreateSaveRef.current
-    if (!pending || (id && pending.id !== id)) return false
-    clearTimeout(pending.timeout)
-    pendingCreateSaveRef.current = null
-    setIsCreateSaving(false)
-    return true
+  const setPendingCreateSave = useCallback((next: PendingCreateSave | null) => {
+    const current = pendingCreateSaveRef.current
+    if (current?.timeout && current.timeout !== next?.timeout) clearTimeout(current.timeout)
+    pendingCreateSaveRef.current = next
+    setIsCreateSaving(next?.status === 'awaiting')
   }, [])
 
-  const reconcilePendingCreateSave = useEffectEvent(
-    (annotations: readonly WebviewAnnotation[], eventWebview: WebviewTag | null) => {
+  const clearPendingCreateSave = useCallback(
+    (id?: string) => {
       const pending = pendingCreateSaveRef.current
-      if (
-        !pending ||
-        !isHostActive ||
-        pending.targetId !== target.id ||
-        pending.webview !== webviewRef.current ||
-        pending.webview !== eventWebview
-      ) {
-        return
-      }
-      const savedAnnotation = annotations.find((annotation) => annotation.id === pending.id)
-      if (!savedAnnotation || !clearPendingCreateSave(pending.id)) return
-      setEditorSession(null)
-      onAnnotationSaved?.({ annotation: savedAnnotation, page: pending.page })
-    }
+      if (!pending || (id && pending.id !== id)) return false
+      setPendingCreateSave(null)
+      return true
+    },
+    [setPendingCreateSave]
   )
 
-  useEffect(() => {
-    clearPendingCreateSave()
-    setState(EMPTY_STATE)
-    setEditorSession(null)
-  }, [clearPendingCreateSave, target.id])
+  const isCurrentCreateSaveAttempt = useCallback((attempt: CreateSaveAttempt) => {
+    const pending = pendingCreateSaveRef.current
+    const owner = committedOwnerRef.current
+    return (
+      !!pending &&
+      isSameCreateSaveAttempt(pending, attempt) &&
+      owner.isHostActive &&
+      owner.targetId === attempt.targetId &&
+      owner.webview === attempt.webview
+    )
+  }, [])
 
-  useEffect(() => {
-    let attachedWebview: WebviewTag | null = null
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-    let disposed = false
-    let attachAttempts = 0
+  const markCreateSaveRetryable = useCallback(
+    (attempt: CreateSaveAttempt) => {
+      const pending = pendingCreateSaveRef.current
+      if (!pending || pending.status !== 'awaiting' || !isCurrentCreateSaveAttempt(attempt)) return false
+      setPendingCreateSave({ ...pending, status: 'retryable', timeout: null })
+      return true
+    },
+    [isCurrentCreateSaveAttempt, setPendingCreateSave]
+  )
 
-    const handleGuestMessage = (event: Electron.IpcMessageEvent) => {
-      if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
-      const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
-      if (!parsed.success) return
-      const guestEvent = parsed.data
+  const handleGuestEvent = useEffectEvent(
+    (guestEvent: WebviewAnnotationGuestEvent, eventWebview: WebviewTag | null, listenerTargetId: string) => {
+      if (!eventWebview || eventWebview !== webviewRef.current || listenerTargetId !== target.id) return
+
       switch (guestEvent.type) {
         case 'state_changed': {
           const nextState = isHostActive ? guestEvent.state : { ...guestEvent.state, enabled: false }
           setState(nextState)
-          void replaceMainSnapshot(nextState.annotations, attachedWebview)
-          reconcilePendingCreateSave(guestEvent.state.annotations, attachedWebview)
+          void replaceMainSnapshot(nextState.annotations, eventWebview)
+          const pending = pendingCreateSaveRef.current
+          const savedAnnotation = pending
+            ? guestEvent.state.annotations.find((annotation) => annotation.id === pending.id)
+            : undefined
+          if (
+            isHostActive &&
+            pending &&
+            pending.targetId === target.id &&
+            pending.webview === eventWebview &&
+            savedAnnotation &&
+            clearPendingCreateSave(pending.id)
+          ) {
+            setEditorSession(null)
+            onAnnotationSaved?.({ annotation: savedAnnotation, page: pending.page })
+          }
           if (!isHostActive && guestEvent.state.enabled) {
-            sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
+            sendCommand({ type: 'set_enabled', enabled: false }, eventWebview)
           }
           break
         }
@@ -179,35 +212,76 @@ export function WebviewAnnotationControls({
           break
       }
     }
+  )
 
-    const resetForNavigation = () => {
-      clearPendingCreateSave()
-      setState(EMPTY_STATE)
-      setEditorSession(null)
-      sendCommand({ type: 'reset' }, attachedWebview)
-      void replaceMainSnapshot([], attachedWebview)
+  const configureGuest = useEffectEvent((webview: WebviewTag | null) => {
+    sendCommand(
+      {
+        type: 'configure',
+        locale,
+        theme: theme === ThemeMode.dark ? 'dark' : 'light'
+      },
+      webview
+    )
+    sendCommand({ type: 'request_state' }, webview)
+  })
+
+  const disableGuest = useEffectEvent((webview: WebviewTag) => {
+    sendCommand({ type: 'set_enabled', enabled: false }, webview)
+  })
+
+  const resetForNavigation = useEffectEvent((webview: WebviewTag | null, listenerTargetId: string) => {
+    if (!webview || webview !== webviewRef.current || listenerTargetId !== target.id) return
+    clearPendingCreateSave()
+    setState(EMPTY_STATE)
+    setEditorSession(null)
+    sendCommand({ type: 'reset' }, webview)
+    void replaceMainSnapshot([], webview)
+  })
+
+  useEffect(() => {
+    clearPendingCreateSave()
+    setState(EMPTY_STATE)
+    setEditorSession(null)
+  }, [clearPendingCreateSave, target.id])
+
+  useEffect(() => {
+    const pending = pendingCreateSaveRef.current
+    if (pending && pending.webview !== currentWebview) clearPendingCreateSave(pending.id)
+  }, [clearPendingCreateSave, currentWebview])
+
+  useEffect(
+    () => () => {
+      const pending = pendingCreateSaveRef.current
+      if (pending?.timeout) clearTimeout(pending.timeout)
+      pendingCreateSaveRef.current = null
+    },
+    []
+  )
+
+  useEffect(() => {
+    let attachedWebview: WebviewTag | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+    let disposed = false
+    let attachAttempts = 0
+
+    const handleGuestMessage = (event: Electron.IpcMessageEvent) => {
+      if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
+      const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
+      if (!parsed.success) return
+      handleGuestEvent(parsed.data, attachedWebview, target.id)
     }
 
-    const configureGuest = () => {
-      sendCommand(
-        {
-          type: 'configure',
-          locale,
-          theme: theme === ThemeMode.dark ? 'dark' : 'light'
-        },
-        attachedWebview
-      )
-      sendCommand({ type: 'request_state' }, attachedWebview)
-    }
+    const handleDomReady = () => configureGuest(attachedWebview)
+    const handleNavigation = () => resetForNavigation(attachedWebview, target.id)
 
     const detach = () => {
-      clearPendingCreateSave()
       if (!attachedWebview) return
       attachedWebview.removeEventListener('ipc-message', handleGuestMessage)
-      attachedWebview.removeEventListener('did-start-loading', resetForNavigation)
-      attachedWebview.removeEventListener('did-navigate', resetForNavigation)
-      attachedWebview.removeEventListener('did-navigate-in-page', resetForNavigation)
-      attachedWebview.removeEventListener('dom-ready', configureGuest)
+      attachedWebview.removeEventListener('did-start-loading', handleNavigation)
+      attachedWebview.removeEventListener('did-navigate', handleNavigation)
+      attachedWebview.removeEventListener('did-navigate-in-page', handleNavigation)
+      attachedWebview.removeEventListener('dom-ready', handleDomReady)
       attachedWebview = null
     }
 
@@ -225,23 +299,23 @@ export function WebviewAnnotationControls({
       detach()
       attachedWebview = webview
       webview.addEventListener('ipc-message', handleGuestMessage)
-      webview.addEventListener('did-start-loading', resetForNavigation)
-      webview.addEventListener('did-navigate', resetForNavigation)
-      webview.addEventListener('did-navigate-in-page', resetForNavigation)
-      webview.addEventListener('dom-ready', configureGuest)
-      configureGuest()
+      webview.addEventListener('did-start-loading', handleNavigation)
+      webview.addEventListener('did-navigate', handleNavigation)
+      webview.addEventListener('did-navigate-in-page', handleNavigation)
+      webview.addEventListener('dom-ready', handleDomReady)
+      configureGuest(webview)
     }
 
     attach()
     return () => {
       disposed = true
       if (retryTimer) clearTimeout(retryTimer)
-      if (attachedWebview) sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
+      if (attachedWebview) disableGuest(attachedWebview)
       detach()
     }
-    // `reconcilePendingCreateSave` reads the latest committed owner without reconnecting guest listeners.
+    // Effect Events read current configuration and owner state without reconnecting guest listeners.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearPendingCreateSave, isHostActive, locale, replaceMainSnapshot, sendCommand, theme, webviewRef])
+  }, [currentWebview, isHostActive, target.id])
 
   useEffect(() => {
     if (!isWebviewReady) return
@@ -254,11 +328,14 @@ export function WebviewAnnotationControls({
   }, [isWebviewReady, locale, sendCommand, theme])
 
   useEffect(() => {
-    if (isHostActive || !state.enabled) return
-    setState((current) => ({ ...current, enabled: false }))
+    if (isHostActive) return
+    clearPendingCreateSave()
     setEditorSession(null)
-    sendCommand({ type: 'set_enabled', enabled: false })
-  }, [isHostActive, sendCommand, state.enabled])
+    if (state.enabled) {
+      setState((current) => ({ ...current, enabled: false }))
+      sendCommand({ type: 'set_enabled', enabled: false })
+    }
+  }, [clearPendingCreateSave, isHostActive, sendCommand, state.enabled])
 
   const handleToggle = () => {
     const enabled = !state.enabled
@@ -278,39 +355,82 @@ export function WebviewAnnotationControls({
     [clearPendingCreateSave, sendCommand]
   )
 
+  const requestCreateSaveState = useCallback(
+    (attempt: CreateSaveAttempt) => {
+      if (!isCurrentCreateSaveAttempt(attempt)) return
+      try {
+        void attempt.webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'request_state' }).catch((error) => {
+          if (!markCreateSaveRetryable(attempt)) return
+          logger.debug('Failed to request committed webview annotation state', {
+            targetId: attempt.targetId,
+            error
+          })
+        })
+      } catch (error) {
+        if (!markCreateSaveRetryable(attempt)) return
+        logger.debug('Webview annotation guest is not ready to report committed state', {
+          targetId: attempt.targetId,
+          error
+        })
+      }
+    },
+    [isCurrentCreateSaveAttempt, markCreateSaveRetryable]
+  )
+
   const handleEditorSave = useCallback(
     (comment: string) => {
       const session = editorSession
       if (!session) return
       if (session.mode === 'create') {
-        if (pendingCreateSaveRef.current) return
+        const pending = pendingCreateSaveRef.current
+        if (pending?.status === 'awaiting') return
         const webview = webviewRef.current
         if (!webview || !isWebviewReady) return
-        const id = crypto.randomUUID()
-        let url = ''
-        let title = ''
-        try {
-          url = webview.getURL()
-          title = webview.getTitle()
-        } catch (error) {
-          logger.debug('Webview page metadata is unavailable for the saved annotation', { targetId: target.id, error })
+        if (pending && (pending.targetId !== target.id || pending.webview !== webview)) return
+
+        let page = pending?.page
+        if (!page) {
+          let url = ''
+          let title = ''
+          try {
+            url = webview.getURL()
+            title = webview.getTitle()
+          } catch (error) {
+            logger.debug('Webview page metadata is unavailable for the saved annotation', {
+              targetId: target.id,
+              error
+            })
+          }
+          page = { url, title }
+        }
+
+        const attempt: CreateSaveAttempt = {
+          attempt: (pending?.attempt ?? 0) + 1,
+          id: pending?.id ?? crypto.randomUUID(),
+          targetId: target.id,
+          webview
         }
         const timeout = setTimeout(() => {
-          if (!clearPendingCreateSave(id)) return
-          logger.debug('Timed out waiting for the webview annotation commit', { targetId: target.id, id })
+          if (!markCreateSaveRetryable(attempt)) return
+          logger.debug('Timed out waiting for the webview annotation commit', {
+            targetId: attempt.targetId,
+            id: attempt.id
+          })
         }, WEBVIEW_ANNOTATION_COMMIT_TIMEOUT_MS)
-        pendingCreateSaveRef.current = { id, page: { url, title }, targetId: target.id, timeout, webview }
-        setIsCreateSaving(true)
+        setPendingCreateSave({ ...attempt, page, status: 'awaiting', timeout })
         try {
           void webview
-            .send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'commit_pending', id, comment })
-            .catch((error) => {
-              if (!clearPendingCreateSave(id)) return
-              logger.debug('Failed to send webview annotation command', { targetId: target.id, error })
-            })
+            .send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'commit_pending', id: attempt.id, comment })
+            .then(
+              () => requestCreateSaveState(attempt),
+              (error) => {
+                if (!markCreateSaveRetryable(attempt)) return
+                logger.debug('Failed to send webview annotation command', { targetId: attempt.targetId, error })
+              }
+            )
         } catch (error) {
-          if (clearPendingCreateSave(id)) {
-            logger.debug('Webview annotation guest is not ready', { targetId: target.id, error })
+          if (markCreateSaveRetryable(attempt)) {
+            logger.debug('Webview annotation guest is not ready', { targetId: attempt.targetId, error })
           }
         }
       } else {
@@ -318,7 +438,16 @@ export function WebviewAnnotationControls({
         setEditorSession(null)
       }
     },
-    [clearPendingCreateSave, editorSession, isWebviewReady, sendCommand, target.id, webviewRef]
+    [
+      editorSession,
+      isWebviewReady,
+      markCreateSaveRetryable,
+      requestCreateSaveState,
+      sendCommand,
+      setPendingCreateSave,
+      target.id,
+      webviewRef
+    ]
   )
 
   const handleEditorDelete = useCallback(() => {
