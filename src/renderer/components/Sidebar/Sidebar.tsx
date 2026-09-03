@@ -2,12 +2,11 @@ import './Sidebar.css'
 
 import { MenuItem } from '@cherrystudio/ui'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
-import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
+import { getSidebarDisplayWidth, getSidebarLayout, SIDEBAR_HIDDEN_GUTTER } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
@@ -24,6 +23,8 @@ export interface SidebarProps {
   logo?: React.ReactNode
   user?: SidebarUser
   isFloating?: boolean
+  /** Holds the hover overlay open while the pointer sits on the window-chrome toggle. */
+  keepOpen?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
@@ -45,6 +46,7 @@ export function Sidebar({
   logo,
   user,
   isFloating = false,
+  keepOpen = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
@@ -130,6 +132,24 @@ export function Sidebar({
 
   useEffect(() => clearHoverDismiss, [clearHoverDismiss])
 
+  // The toggle paints over this panel but is a DOM sibling: reaching for it fires our
+  // mouseleave, and leaving it fires none of ours, so both edges are handled by hand.
+  const wasKeptOpen = useRef(keepOpen)
+  useEffect(() => {
+    if (keepOpen) {
+      wasKeptOpen.current = true
+      clearHoverDismiss()
+      return
+    }
+
+    if (!wasKeptOpen.current) return
+    wasKeptOpen.current = false
+
+    if (!floatingPointerInsideRef.current && !contextMenuOpenRef.current && !footerOverlayOpenRef.current) {
+      scheduleHoverDismiss()
+    }
+  }, [clearHoverDismiss, keepOpen, scheduleHoverDismiss])
+
   const handleContextMenuOpenChange = useCallback(
     (open: boolean) => {
       contextMenuOpenRef.current = open
@@ -183,10 +203,13 @@ export function Sidebar({
     return (
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
+          style={{ width }}
           className={cn(
-            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
+            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200',
             windowDragClassName,
-            isMac && 'pt-[env(titlebar-area-height)]'
+            // Always clear the shell's chrome row: the sidebar toggle is pinned there and
+            // paints over this panel, and only macOS windowed mode moves it out of the way.
+            'pt-11'
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
@@ -234,7 +257,7 @@ export function Sidebar({
   // --- Hidden sidebar (hover zone + resize handle) ---
   if (layout === 'hidden') {
     return (
-      <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
+      <div ref={sidebarRef} style={{ width: SIDEBAR_HIDDEN_GUTTER }} className="relative h-full shrink-0">
         <div
           className="absolute inset-y-0 left-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {

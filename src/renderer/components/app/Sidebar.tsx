@@ -25,10 +25,12 @@ import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import {
-  getSidebarDisplayWidth,
+  getSidebarColumnWidth,
   getSidebarLayout,
+  getSidebarPeekWidth,
   normalizeSidebarWidth,
   Sidebar as UISidebar,
+  SIDEBAR_PEEK_WIDTH,
   type SidebarUser,
   type SidebarVisibleLayout,
   UserAvatar
@@ -38,7 +40,19 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  keepPeekOpen = false,
+  peekOpen = false,
+  onPeekOpenChange
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  /** True while the pointer rests on the shell's sidebar toggle. */
+  keepPeekOpen?: boolean
+  /** Hover-reveal overlay visibility. The shell owns it so its toggle can pin what it shows. */
+  peekOpen?: boolean
+  onPeekOpenChange?: (open: boolean) => void
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
@@ -74,14 +88,18 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // intermediate 50-120px range uses a local preview width so the UI can
   // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [expandedWidth, setExpandedWidth] = usePersistCache('ui.sidebar.expanded_width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
+  // Reset on unmount: the settings tab drops the whole column, and a stale width would
+  // leave anything anchored to it laying out around a sidebar that is not there.
   useLayoutEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarColumnWidth(activeSidebarWidth)}px`)
   }, [activeSidebarWidth])
+  useLayoutEffect(() => () => document.documentElement.style.setProperty('--sidebar-width', '0px'), [])
 
   // Migration, not dead code: the resize path only persists normalized widths,
   // but older builds (three-state layout, default 65) persisted intermediate
@@ -98,6 +116,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     }
   }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
+  // The toggle restores the band the user was last in, and collapsing by drag never goes
+  // through the toggle, so the last visible width is tracked from the width itself.
+  useEffect(() => {
+    if (getSidebarLayout(sidebarWidth) === 'hidden' || sidebarWidth === expandedWidth) return
+    // The overlay's readability fallback is not a band the user chose: recording it
+    // when the toggle pins the overlay would overwrite an icon-rail memory for good.
+    if (sidebarWidth === SIDEBAR_PEEK_WIDTH) return
+
+    setExpandedWidth(sidebarWidth)
+  }, [expandedWidth, setExpandedWidth, sidebarWidth])
+
   // User avatar
   const avatar = useAvatar()
   const sidebarUser = useMemo<SidebarUser>(
@@ -113,9 +142,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [sidebarUser]
   )
 
-  // Floating sidebar (hover reveal when hidden)
-  const [hoverVisible, setHoverVisible] = useState(false)
   const layout = getSidebarLayout(activeSidebarWidth)
+
+  // Pinning the overlay from the toggle button leaves the hover flag set, and a
+  // later collapse would then pop the overlay open again with no pointer nearby.
+  useEffect(() => {
+    if (layout !== 'hidden') onPeekOpenChange?.(false)
+  }, [layout, onPeekOpenChange])
 
   // Menu items
   const pathname = activeTab?.url || '/'
@@ -377,16 +410,17 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       <UISidebar
         width={activeSidebarWidth}
         setWidth={setSidebarWidth}
-        onHoverChange={setHoverVisible}
+        onHoverChange={onPeekOpenChange}
         onResizePreview={setPreviewSidebarWidth}
         {...sidebarProps}
       />
-      {hoverVisible && layout === 'hidden' && (
+      {peekOpen && layout === 'hidden' && (
         <UISidebar
-          width={activeSidebarWidth}
+          width={getSidebarPeekWidth(expandedWidth)}
           setWidth={setSidebarWidth}
           isFloating
-          onDismiss={() => setHoverVisible(false)}
+          keepOpen={keepPeekOpen}
+          onDismiss={() => onPeekOpenChange?.(false)}
           {...sidebarProps}
         />
       )}

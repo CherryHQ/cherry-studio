@@ -5,7 +5,7 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as SidebarConstants from '../../Sidebar/constants'
@@ -51,6 +51,8 @@ const mocks = vi.hoisted(() => ({
     title: 'Chat'
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
+  expandedWidth: 50,
+  setExpandedWidth: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
@@ -68,8 +70,20 @@ const mocks = vi.hoisted(() => ({
   onEntriesReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
 }))
 
+// Key-aware on purpose: the sidebar reads two width keys, and aliasing them would make
+// the remembered-width effect a no-op that no test in this file could fail on.
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: () => {
+  usePersistCache: (key: string) => {
+    if (key === 'ui.sidebar.expanded_width') {
+      return [
+        mocks.expandedWidth,
+        (width: number) => {
+          mocks.expandedWidth = width
+          mocks.setExpandedWidth(width)
+        }
+      ]
+    }
+
     return [
       mocks.sidebarWidth,
       (width: number) => {
@@ -271,7 +285,8 @@ vi.mock('../../Sidebar', async () => {
       return isFloating ? (
         <div
           className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
-          data-testid="floating-sidebar">
+          data-testid="floating-sidebar"
+          data-width={width}>
           {typeof actions === 'function' ? actions('full') : actions}
           <button type="button" onClick={onDismiss}>
             dismiss
@@ -408,6 +423,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { SIDEBAR_ICON_WIDTH, SIDEBAR_PEEK_WIDTH } from '../../Sidebar/constants'
 import Sidebar from '../Sidebar'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
@@ -458,6 +474,7 @@ afterEach(() => {
   mocks.visibleMiniApps = null
   mocks.pinnedMiniApps = []
   mocks.sidebarWidth = 50
+  mocks.expandedWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
 })
@@ -496,10 +513,78 @@ describe('app Sidebar', () => {
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 
+  // The toggle button restores whatever this effect stored, so a regression here is
+  // invisible in the button's own tests — it just restores a plausible wrong width.
+  it('remembers the width the sidebar was last visible at', () => {
+    mocks.sidebarWidth = 240
+
+    render(<Sidebar />)
+
+    expect(mocks.setExpandedWidth).toHaveBeenCalledWith(240)
+  })
+
+  it('never remembers a hidden width', () => {
+    mocks.sidebarWidth = 0
+
+    render(<Sidebar />)
+
+    expect(mocks.setExpandedWidth).not.toHaveBeenCalled()
+  })
+
+  // Pinning the overlay from the toggle sets the sidebar to the overlay's readability
+  // fallback; remembering that width would turn an icon-rail user into a full-width
+  // user on every later restore.
+  it('never remembers the overlay fallback width', () => {
+    mocks.sidebarWidth = SIDEBAR_PEEK_WIDTH
+    mocks.expandedWidth = SIDEBAR_ICON_WIDTH
+
+    render(<Sidebar />)
+
+    expect(mocks.setExpandedWidth).not.toHaveBeenCalled()
+    expect(mocks.expandedWidth).toBe(SIDEBAR_ICON_WIDTH)
+  })
+
+  it('opens the hover overlay at the remembered width', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    mocks.expandedWidth = 240
+    const ShellHost = () => {
+      const [peekOpen, setPeekOpen] = useState(false)
+      return <Sidebar peekOpen={peekOpen} onPeekOpenChange={setPeekOpen} />
+    }
+    render(<ShellHost />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+
+    expect(screen.getByTestId('floating-sidebar')).toHaveAttribute('data-width', '240')
+  })
+
+  // An icon-band memory would render the overlay as a 50px rail, but it always draws
+  // labels, so it falls back to a readable width instead.
+  it('widens the hover overlay when the remembered width is an icon rail', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarWidth = 0
+    mocks.expandedWidth = SIDEBAR_ICON_WIDTH
+    const ShellHost = () => {
+      const [peekOpen, setPeekOpen] = useState(false)
+      return <Sidebar peekOpen={peekOpen} onPeekOpenChange={setPeekOpen} />
+    }
+    render(<ShellHost />)
+
+    await user.click(screen.getByRole('button', { name: 'reveal' }))
+
+    expect(screen.getByTestId('floating-sidebar')).toHaveAttribute('data-width', String(SIDEBAR_PEEK_WIDTH))
+  })
+
   it('keeps feedback mounted when the floating sidebar closes', async () => {
     const user = userEvent.setup()
     mocks.sidebarWidth = 0
-    render(<Sidebar />)
+    // The shell owns peek visibility so its toggle can pin what the overlay shows.
+    const ShellHost = () => {
+      const [peekOpen, setPeekOpen] = useState(false)
+      return <Sidebar peekOpen={peekOpen} onPeekOpenChange={setPeekOpen} />
+    }
+    render(<ShellHost />)
 
     await user.click(screen.getByRole('button', { name: 'reveal' }))
     const floatingSidebar = screen.getByTestId('floating-sidebar')

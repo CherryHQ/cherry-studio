@@ -10,8 +10,9 @@ import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTi
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { APP_SIDEBAR_TOGGLE_GLYPH_INSET, AppSidebarToggleButton } from '../app/AppSidebarToggleButton'
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
 import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
@@ -56,6 +57,8 @@ export const AppShell = () => {
     [activeTab, isSettingsTabActive, tabs]
   )
   const isFullscreen = useNativeFullscreen()
+  const [sidebarTogglePointerInside, setSidebarTogglePointerInside] = useState(false)
+  const [sidebarPeekOpen, setSidebarPeekOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
 
@@ -126,6 +129,15 @@ export const AppShell = () => {
     if (isSettingsTabActive) {
       GlobalSearchPopup.hide()
     }
+  }, [isSettingsTabActive])
+
+  // Settings unmounts the sidebar and its toggle, so neither can report the pointer
+  // leaving, and a peek left set would pop back open on return.
+  useEffect(() => {
+    if (!isSettingsTabActive) return
+
+    setSidebarPeekOpen(false)
+    setSidebarTogglePointerInside(false)
   }, [isSettingsTabActive])
 
   // The compact minimum tracks the active tab's route here, at window level.
@@ -222,6 +234,26 @@ export const AppShell = () => {
     </div>
   )
 
+  // Must stay the LAST child of the shell root: Electron composes draggable regions in
+  // DOM order, so an earlier `no-drag` is overwritten and real clicks never land.
+  const sidebarToggle = !isSettingsTabActive && (
+    <div
+      data-testid="app-sidebar-toggle-slot"
+      onMouseEnter={() => setSidebarTogglePointerInside(true)}
+      onMouseLeave={() => setSidebarTogglePointerInside(false)}
+      className="absolute top-0 z-50 flex h-11 items-center [-webkit-app-region:no-drag]"
+      // Without traffic lights to sit beside, the toggle anchors to the sidebar column so
+      // its leading edge lines up with the content below it.
+      style={{
+        left:
+          isMac && !isFullscreen
+            ? 'env(titlebar-area-x)'
+            : `calc(var(--sidebar-width, 0px) - ${APP_SIDEBAR_TOGGLE_GLYPH_INSET}px)`
+      }}>
+      <AppSidebarToggleButton peekOpen={sidebarPeekOpen} />
+    </div>
+  )
+
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       {tabBar}
@@ -233,11 +265,18 @@ export const AppShell = () => {
     return (
       <div
         className={cn(
-          'flex h-screen w-screen flex-row overflow-hidden text-foreground',
+          'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar />}
+        {!isSettingsTabActive && (
+          <Sidebar
+            keepPeekOpen={sidebarTogglePointerInside}
+            peekOpen={sidebarPeekOpen}
+            onPeekOpenChange={setSidebarPeekOpen}
+          />
+        )}
         {contentColumn}
+        {sidebarToggle}
       </div>
     )
   }
@@ -264,10 +303,15 @@ export const AppShell = () => {
               className="h-11 shrink-0 [-webkit-app-region:drag]"
             />
           )}
-          <Sidebar />
+          <Sidebar
+            keepPeekOpen={sidebarTogglePointerInside}
+            peekOpen={sidebarPeekOpen}
+            onPeekOpenChange={setSidebarPeekOpen}
+          />
         </div>
       )}
       {contentColumn}
+      {sidebarToggle}
     </div>
   )
 }

@@ -1,4 +1,9 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import {
+  APP_SIDEBAR_TOGGLE_GAP,
+  APP_SIDEBAR_TOGGLE_GLYPH_INSET,
+  APP_SIDEBAR_TOGGLE_SIZE
+} from '@renderer/components/app/AppSidebarToggleButton'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
@@ -147,7 +152,15 @@ const PinnedTabButton = ({
   )
 }
 
-const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+// The sidebar toggle is absolutely positioned over this row (see AppShell), so the tab
+// strip keeps its footprint clear. Beside the traffic lights the toggle holds a fixed
+// spot, and that reserve collapses to 0 once the sidebar grows to cover it; anchored to
+// the sidebar column the toggle always leads the strip, so that reserve is constant —
+// pulled in by the glyph inset, since the anchor already sits that far left. Both are
+// derived from the toggle's own geometry so they cannot drift into overlap or a gap.
+const SIDEBAR_TOGGLE_FOOTPRINT = APP_SIDEBAR_TOGGLE_SIZE + APP_SIDEBAR_TOGGLE_GAP
+const SIDEBAR_TOGGLE_RESERVE = `${SIDEBAR_TOGGLE_FOOTPRINT - APP_SIDEBAR_TOGGLE_GLYPH_INSET}px`
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = `max(0px, calc(env(titlebar-area-x, 0px) + ${SIDEBAR_TOGGLE_FOOTPRINT}px - var(--sidebar-width, 0px)))`
 
 type FocusedTabButtonProps = {
   tab: Tab
@@ -907,6 +920,16 @@ export const AppShellTabBar = ({
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  // The focused (settings) tab hides the sidebar and its toggle, so it only clears
+  // the traffic lights.
+  const tabStripPaddingLeft = isFocusedTab
+    ? isMac && !isFullscreen
+      ? 'env(titlebar-area-x)'
+      : undefined
+    : isMac && !isFullscreen
+      ? MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+      : SIDEBAR_TOGGLE_RESERVE
+
   return (
     <>
       <header
@@ -921,11 +944,7 @@ export const AppShellTabBar = ({
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
-          style={
-            isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
-              : undefined
-          }
+          style={{ paddingLeft: tabStripPaddingLeft }}
           onMouseEnter={() => {
             stripPointerInsideRef.current = true
             thawAfterCollapseRef.current = false
