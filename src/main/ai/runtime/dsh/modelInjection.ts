@@ -24,7 +24,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId, isGatewayRoutableModel, isReasoningModel, isVisionModel } from '@shared/utils/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
-import { getProviderAgentGatewayPolicy } from '../../provider/agentGatewayPolicy'
+import { requiresAgentGateway } from '../../provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { ApiGatewayNotRunningError, resolveApiGatewayRuntime } from '../agentApiGateway'
 import { resolveAgentContextWindow } from '../agentContextWindow'
@@ -167,9 +167,7 @@ export function resolveDshInjectionApi(provider: Provider, model: Model): DshApi
 
 /** Whether DSH must use the local Gateway by provider policy or protocol fallback. */
 export function usesDshGateway(provider: Provider, model: Model): boolean {
-  return (
-    getProviderAgentGatewayPolicy(provider.id) !== undefined || resolveDshInjectionApi(provider, model) === undefined
-  )
+  return requiresAgentGateway(provider.id) || resolveDshInjectionApi(provider, model) === undefined
 }
 
 /**
@@ -249,8 +247,8 @@ export function buildDshProviderInjection(
 }
 
 /**
- * Gateway-route counterpart of {@link buildDshProviderInjection}: the local API
- * Gateway fronts a model with no native dsh wire family as OpenAI-compatible.
+ * Gateway-route counterpart of {@link buildDshProviderInjection}: provider policy
+ * or a missing native dsh wire family routes the model through the local API Gateway.
  * The gateway key is a secret like any native key — it reaches the child only
  * through `CHERRY_DSH_API_KEY`, never the YAML. The session usage headers ride
  * the route's `headers` so the gateway can attach provider usage to the owning
@@ -345,7 +343,7 @@ export async function assertDshProviderUsable(uniqueModelId: UniqueModelId): Pro
   ])
 
   // Provider-declared Gateway routes authenticate at materialization time, not with a provider key.
-  if (getProviderAgentGatewayPolicy(provider.id)) {
+  if (requiresAgentGateway(provider.id)) {
     if (!isGatewayRoutableModel(model)) throw new DshUnsupportedProviderError(providerId)
     return
   }

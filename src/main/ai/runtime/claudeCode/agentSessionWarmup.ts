@@ -40,7 +40,7 @@ import {
   OLLAMA_PLACEHOLDER_AUTH_TOKEN
 } from '@shared/utils/provider'
 
-import { getProviderAgentGatewayPolicy } from '../../provider/agentGatewayPolicy'
+import { requiresAgentGateway } from '../../provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
 import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -694,7 +694,7 @@ function deriveRouteFacts(
 
   const shouldUseGateway = modelRefs.some(
     (ref) =>
-      getProviderAgentGatewayPolicy(ref.providerId) !== undefined ||
+      requiresAgentGateway(ref.providerId) ||
       ref.providerId !== primaryProvider.id ||
       !usesAnthropicMessagesEndpoint(ref)
   )

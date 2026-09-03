@@ -1,17 +1,14 @@
 import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { describe, expect, it } from 'vitest'
 
-import { getProviderAgentGatewayPolicy } from '../agentGatewayPolicy'
+import { requiresAgentGateway } from '../agentGatewayPolicy'
 
-describe('getProviderAgentGatewayPolicy', () => {
-  it('restricts the managed subscription provider to internal Agent requests', () => {
-    const policy = getProviderAgentGatewayPolicy(CHERRY_CLOUD_PROVIDER_ID)
-
-    expect(policy?.authorizeRequest({ isInternalAgentRequest: true })).toBe(true)
-    expect(policy?.authorizeRequest({ isInternalAgentRequest: false })).toBe(false)
+describe('requiresAgentGateway', () => {
+  it('routes the managed subscription provider through the Agent Gateway', () => {
+    expect(requiresAgentGateway(CHERRY_CLOUD_PROVIDER_ID)).toBe(true)
   })
 
   it('leaves ordinary providers on their normal route', () => {
-    expect(getProviderAgentGatewayPolicy('anthropic')).toBeUndefined()
+    expect(requiresAgentGateway('anthropic')).toBe(false)
   })
 })

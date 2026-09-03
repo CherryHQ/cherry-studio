@@ -34,7 +34,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { getRawModelId } from '@shared/utils/model'
 import { isLoginBasedProvider, resolveEndpointDialect } from '@shared/utils/provider'
 
-import { getProviderAgentGatewayPolicy } from '../../provider/agentGatewayPolicy'
+import { requiresAgentGateway } from '../../provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 import { resolveApiGatewayRuntime } from '../agentApiGateway'
@@ -227,7 +227,7 @@ function toPiHeaders(headers: Record<string, string> | undefined): Record<string
 
 /** Whether this provider declares that Pi must use Cherry's local Gateway route. */
 export function usesPiGateway(provider: Provider): boolean {
-  return getProviderAgentGatewayPolicy(provider.id) !== undefined
+  return requiresAgentGateway(provider.id)
 }
 
 /** Build a Pi route targeting Cherry's local Gateway while preserving the model's wire protocol. */

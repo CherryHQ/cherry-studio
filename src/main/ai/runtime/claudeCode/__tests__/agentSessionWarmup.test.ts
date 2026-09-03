@@ -1013,9 +1013,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       port: 23333,
       apiKey: 'gateway-key'
     })
-    mocks.preferenceGet.mockImplementation((key: string) =>
-      key === 'feature.api_gateway.api_key' ? 'gateway-key' : undefined
-    )
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: proxyUrl })
     mocks.buildSessionSettings.mockResolvedValue({ env: { HTTP_PROXY: proxyUrl } })
 
@@ -1227,7 +1224,12 @@ describe('deriveConnectionConfig', () => {
     mocks.findChannelBySessionId.mockReturnValue(null)
     mocks.findMcpServerByIdOrName.mockReturnValue(undefined)
     mocks.preferenceGet.mockReturnValue(undefined)
-    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333 })
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key'
+    })
     mocks.getAppLanguage.mockReturnValue('en-US')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getClaudeCodeLoginShellEnvironment.mockResolvedValue({})
@@ -1267,8 +1269,6 @@ describe('deriveConnectionConfig', () => {
     expect(result.ok).toBe(true)
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
-    // The gateway fingerprint reads the persisted preference instead of ensureValidApiKey.
-    expect(mocks.preferenceGet).toHaveBeenCalledWith('feature.api_gateway.api_key')
   })
 
   it('changes a Cloud route rebuild signature when the gateway key changes', async () => {
@@ -1286,14 +1286,20 @@ describe('deriveConnectionConfig', () => {
       group: CHERRY_CLOUD_MODEL_GROUP
     })
     mocks.apiGatewayIsRunning.mockReturnValue(true)
-    mocks.preferenceGet.mockImplementation((key: string) =>
-      key === 'feature.api_gateway.api_key' ? 'gateway-key-1' : undefined
-    )
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key-1'
+    })
     const first = await deriveSignature()
 
-    mocks.preferenceGet.mockImplementation((key: string) =>
-      key === 'feature.api_gateway.api_key' ? 'gateway-key-2' : undefined
-    )
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({
+      enabled: true,
+      host: '127.0.0.1',
+      port: 23333,
+      apiKey: 'gateway-key-2'
+    })
     const changed = await deriveSignature()
 
     expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
