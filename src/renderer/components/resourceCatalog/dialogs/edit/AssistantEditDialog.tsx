@@ -1007,8 +1007,10 @@ function ContextManagementFields({
                     label={t('library.config.basic.context_compress_threshold')}
                     help={t('library.config.basic.field.context_compress_threshold.hint')}
                   />
-                  <FormControl>
-                    <InputGroup className="h-8 rounded-lg">
+                  <InputGroup className="h-8 rounded-lg">
+                    {/* Inside the group, not around it: `FormControl` is a `Slot` and
+                        hands the label's `htmlFor` target to its immediate child. */}
+                    <FormControl>
                       <InputGroupInputNumber
                         min={MIN_COMPRESS_THRESHOLD_PERCENT}
                         max={MAX_COMPRESS_THRESHOLD_PERCENT}
@@ -1021,11 +1023,11 @@ function ContextManagementFields({
                         value={field.value}
                         onBlur={(value) => field.onChange(value === null ? null : clampThresholdPercent(value))}
                       />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupText>%</InputGroupText>
-                      </InputGroupAddon>
-                    </InputGroup>
-                  </FormControl>
+                    </FormControl>
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
                   <FormMessage />
                 </FormItem>
               )}

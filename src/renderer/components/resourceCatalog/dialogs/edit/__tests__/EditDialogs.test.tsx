@@ -386,6 +386,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.context_inherited': 'Following the global settings',
           'library.config.basic.context_count': 'Recent messages kept',
           'library.config.basic.context_truncate_threshold': 'Tool-output truncation threshold',
+          'library.config.basic.context_compress_enabled': 'Compress the context when it fills up',
+          'library.config.basic.context_compress_threshold': 'Compression trigger threshold',
           'library.config.basic.context_count_unlimited': 'Unlimited',
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
@@ -1380,6 +1382,24 @@ describe('edit dialogs', () => {
 
     expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
     expect(screen.queryByText('Following the global settings')).not.toBeInTheDocument()
+  })
+
+  // The compression trigger is a three-state override: empty means inherit, and the
+  // unit is a standing label on the field rather than part of any value.
+  it('offers the compression trigger as an inheritable field carrying its unit', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    fireEvent.click(await screen.findByRole('switch', { name: 'Customize context management' }))
+    const compress = await screen.findByRole('switch', { name: 'Compress the context when it fills up' })
+    if (compress.getAttribute('aria-checked') !== 'true') fireEvent.click(compress)
+
+    const threshold = await screen.findByRole('spinbutton', { name: 'Compression trigger threshold' })
+    expect(threshold).toHaveValue('')
+    expect(threshold).toHaveAttribute('aria-valuemin', '20')
+    expect(threshold).toHaveAttribute('aria-valuemax', '100')
+    expect(screen.getByText('%')).toBeVisible()
   })
 
   it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {
