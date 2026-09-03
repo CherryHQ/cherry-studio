@@ -206,6 +206,26 @@ export class AgentGlobalSkillService {
     ])
   }
 
+  notifySkillProjectionChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [skillId] },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
+  }
+
+  notifySkillMembershipChange(skillId: string): void {
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'membership', entityIds: [skillId] },
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [skillId]
+      },
+      { endpoint: '/skills/:skillId', entityIds: [skillId] }
+    ])
+  }
+
   /**
    * Assert every id in `skillIds` still exists in `agent_global_skill` within the
    * caller's write tx. Callers pre-validate the same ids outside the tx to surface

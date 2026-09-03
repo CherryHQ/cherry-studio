@@ -5,9 +5,15 @@ import { loggerService } from '@logger'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { pathExists } from '@main/utils/legacyFile'
 import { findSkillMdPath } from '@main/utils/markdownParser'
+import { SKILL_DIRECTORY_CONTENT_HASH_PREFIX } from '@shared/utils/skillMarketplace'
 import * as fs from 'fs'
 
 const logger = loggerService.withContext('SkillInstaller')
+
+export interface PreparedSkillInstall {
+  commit(): Promise<void>
+  rollback(): Promise<void>
+}
 
 /**
  * Filesystem operations for the global skill registry.
@@ -23,9 +29,24 @@ export class SkillInstaller {
    * already in place (in-place registration flow) and no copy is performed.
    */
   async install(sourceDir: string, destPath: string): Promise<void> {
+    const prepared = await this.prepareInstall(sourceDir, destPath)
+    try {
+      await prepared.commit()
+    } catch (error) {
+      try {
+        await prepared.rollback()
+      } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], `Failed to commit and restore Skill folder: ${destPath}`)
+      }
+      throw error
+    }
+  }
+
+  /** Publish verified files while keeping the prior directory available for rollback. */
+  async prepareInstall(sourceDir: string, destPath: string): Promise<PreparedSkillInstall> {
     if (path.resolve(sourceDir) === path.resolve(destPath)) {
       logger.debug('Source equals destination, skipping copy', { destPath })
-      return
+      return { commit: async () => undefined, rollback: async () => undefined }
     }
 
     const sourceHash = await this.computeDirectoryHash(sourceDir)
@@ -33,7 +54,6 @@ export class SkillInstaller {
     await this.removeCommittedCleanup(destPath)
 
     const backupPath = this.getBackupPath(destPath)
-    const cleanupPath = this.getCleanupPath(destPath)
     let hasBackup = false
     let publishStarted = false
 
@@ -55,24 +75,36 @@ export class SkillInstaller {
         throw new Error(`Installed skill content did not match the source: ${destPath}`)
       }
       logger.debug('Skill folder copied to destination', { destPath })
-
-      if (hasBackup) {
-        // Renaming the rollback marker is the atomic commit point. Once only `.cleanup` remains,
-        // recovery must keep the verified destination even if deleting the old tree is interrupted.
-        await fs.promises.rename(backupPath, cleanupPath)
-        hasBackup = false
-        await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
-      }
     } catch (error) {
-      // A failed backup rename leaves the old directory intact. Do not delete it unless publishing
-      // actually started; there is no backup to restore in that failure branch.
-      if (publishStarted) {
-        await this.safeRemoveDirectory(destPath, 'partial skill folder')
-      }
-      if (hasBackup) {
-        await this.safeRename(backupPath, destPath, 'skill folder backup')
+      if (!publishStarted) throw error
+      try {
+        await this.rollbackPublishedInstall(destPath, backupPath, hasBackup)
+      } catch (rollbackError) {
+        throw new AggregateError([error, rollbackError], `Failed to publish and restore Skill folder: ${destPath}`)
       }
       throw error
+    }
+
+    let state: 'pending' | 'committed' | 'rolled_back' = 'pending'
+    return {
+      commit: async () => {
+        if (state !== 'pending') return
+        if (hasBackup) {
+          const cleanupPath = this.getCleanupPath(destPath)
+          await fs.promises.rename(backupPath, cleanupPath)
+          hasBackup = false
+          state = 'committed'
+          await this.safeRemoveDirectory(cleanupPath, 'committed skill backup')
+          return
+        }
+        state = 'committed'
+      },
+      rollback: async () => {
+        if (state !== 'pending') return
+        await this.rollbackPublishedInstall(destPath, backupPath, hasBackup)
+        hasBackup = false
+        state = 'rolled_back'
+      }
     }
   }
 
@@ -143,16 +175,12 @@ export class SkillInstaller {
     }
   }
 
-  /**
-   * Compute SHA-256 hash of the SKILL.md content for change detection.
-   */
-  async computeContentHash(skillDir: string): Promise<string> {
-    const skillMdPath = await findSkillMdPath(skillDir)
-    if (!skillMdPath) {
-      throw new Error(`SKILL.md not found in ${skillDir}`)
-    }
-    const content = await fs.promises.readFile(skillMdPath, 'utf-8')
-    return createHash('sha256').update(content).digest('hex')
+  /** Compute the versioned full-directory hash persisted as the install baseline. */
+  async computeContentHash(
+    skillDir: string,
+    options: { ignoredRelativePaths?: readonly string[] } = {}
+  ): Promise<string> {
+    return `${SKILL_DIRECTORY_CONTENT_HASH_PREFIX}${await this.computeDirectoryHash(skillDir, options)}`
   }
 
   /**
@@ -229,17 +257,15 @@ export class SkillInstaller {
     await deleteDirectoryRecursive(cleanupPath)
   }
 
-  private async safeRename(from: string, to: string, label: string): Promise<void> {
+  private async rollbackPublishedInstall(destPath: string, backupPath: string, hasBackup: boolean): Promise<void> {
     try {
-      await fs.promises.rename(from, to)
-      logger.debug(`Restored ${label}`, { from, to })
+      await deleteDirectoryRecursive(destPath)
     } catch (error) {
-      logger.error(`Failed to restore ${label}`, {
-        from,
-        to,
-        error: error instanceof Error ? error.message : String(error)
-      })
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
+    if (!hasBackup) return
+    await fs.promises.rename(backupPath, destPath)
+    logger.debug('Restored skill folder backup', { backupPath, destPath })
   }
 
   private async safeRemoveDirectory(targetPath: string, label: string): Promise<void> {

@@ -9,6 +9,8 @@ import type { ContentHash } from '@shared/data/types/file'
 import type { AbsoluteFilePath, FileVersion, ReadResult } from '@shared/types/file'
 import mime from 'mime'
 
+import { runPathMutationExclusive } from '../pathMutationLock'
+
 export type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
 export type Base64ReadOptions = { encoding: 'base64' }
 export type BinaryReadOptions = { encoding: 'binary'; withContentHash?: boolean }
@@ -103,5 +105,5 @@ export async function writeIfUnchangedByPath(
   expected: FileVersion,
   expectedContentHash?: ContentHash
 ): Promise<FileVersion> {
-  return atomicWriteIfUnchanged(target, data, expected, expectedContentHash)
+  return runPathMutationExclusive(() => atomicWriteIfUnchanged(target, data, expected, expectedContentHash))
 }

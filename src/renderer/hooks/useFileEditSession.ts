@@ -78,6 +78,8 @@ export interface FileEditSession {
   discard: () => void
   /** Discard local edits, load disk content, resume autosave. */
   reload: () => Promise<void>
+  /** Rebase the current draft onto the latest disk version, then save it. */
+  keepDraft: () => Promise<void>
   /**
    * Write the pending edit immediately (e.g. before a file operation).
    * Rejects if the draft could not be persisted (I/O failure or conflict) so
@@ -372,6 +374,25 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     void mutate(model.key, disk, { revalidate: false })
   }, [debouncedWrite, mutate, syncFromModel])
 
+  const keepDraft = useCallback(async () => {
+    const model = modelRef.current
+    if (!model) return
+    debouncedWrite.cancel()
+    await model.chain
+    const disk = await readFile(model.handle)
+    if (modelRef.current !== model) return
+    model.snapshot = disk
+    model.conflict = false
+    model.lastWriteError = null
+    syncFromModel(model)
+    void mutate(model.key, disk, { revalidate: false })
+    requestWrite(model)
+    await model.chain
+    if (model.draft !== model.snapshot.content) {
+      throw model.lastWriteError ?? new Error('Current draft could not be saved')
+    }
+  }, [debouncedWrite, mutate, requestWrite, syncFromModel])
+
   const flush = useCallback(async () => {
     const model = modelRef.current
     debouncedWrite.cancel()
@@ -455,6 +476,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
       setDraft,
       discard,
       reload,
+      keepDraft,
       flush,
       notifyExternalChange
     }
@@ -472,6 +494,7 @@ export function useFileEditSession(handle: FileHandle | undefined): FileEditSess
     setDraft,
     discard,
     reload,
+    keepDraft,
     flush,
     notifyExternalChange
   ])

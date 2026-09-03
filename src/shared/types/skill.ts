@@ -157,6 +157,25 @@ export const InstalledSkillSchema = z.object({
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
+export const SkillRemoteUpdateCheckSchema = z.discriminatedUnion('state', [
+  z.strictObject({
+    state: z.literal('unsupported'),
+    reason: z.enum(['not_remote', 'missing_provenance'])
+  }),
+  z.strictObject({
+    state: z.literal('up_to_date'),
+    localChanges: z.boolean(),
+    remoteVersion: z.string().nullable()
+  }),
+  z.strictObject({
+    state: z.literal('available'),
+    localChanges: z.boolean(),
+    remoteVersion: z.string().nullable(),
+    revision: z.string().min(1)
+  })
+])
+export type SkillRemoteUpdateCheck = z.infer<typeof SkillRemoteUpdateCheckSchema>
+
 // ============================================================================
 // IPC option types
 // ============================================================================
