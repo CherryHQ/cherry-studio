@@ -315,7 +315,9 @@ describe('catalog invariants (data/*.json)', () => {
     const WEB_SEARCH_IMAGE_ALLOWLIST = new Set([
       'gemini-3-pro-image',
       'gemini-3-pro-image-preview',
-      'gemini-3-1-flash-image'
+      'gemini-3-1-flash-image',
+      // Retired upstream, still served (and grounded) by the gateways that alias it.
+      'gemini-3-1-flash-image-preview'
     ])
     const offenders = models
       .filter((model) => model.capabilities?.includes('image-generation'))

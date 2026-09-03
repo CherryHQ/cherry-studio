@@ -58,7 +58,12 @@ export default defineProvider({
       id: 'web-search',
       modelScope: 'model-dependent',
       modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
-      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview', 'gemini-3-1-flash-image'],
+      imageModelIds: [
+        'gemini-3-pro-image',
+        'gemini-3-pro-image-preview',
+        'gemini-3-1-flash-image',
+        'gemini-3-1-flash-image-preview'
+      ],
       vendors: ['anthropic', 'gemini', 'openai']
     },
     {
