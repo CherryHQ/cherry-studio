@@ -10,6 +10,7 @@ const harness = vi.hoisted(() => ({
   quickModel: undefined as Model | undefined,
   translateModel: undefined as Model | undefined,
   suggestionsModel: undefined as Model | undefined,
+  suggestionsModelIds: [] as Array<string | null | undefined>,
   setDefaultModel: vi.fn(),
   setQuickModel: vi.fn(),
   setTranslateModel: vi.fn(),
@@ -100,7 +101,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
     setTranslateModel: harness.setTranslateModel,
     setPaintingModel: harness.setPaintingModel
   }),
-  useModelById: () => ({ model: harness.suggestionsModel })
+  useModelById: (modelId: string | null | undefined) => {
+    harness.suggestionsModelIds.push(modelId)
+    return { model: harness.suggestionsModel }
+  }
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -166,6 +170,7 @@ describe('ModelSettings', () => {
     harness.quickModel = undefined
     harness.translateModel = undefined
     harness.suggestionsModel = undefined
+    harness.suggestionsModelIds = []
     harness.selectorCallbacks = []
     harness.selectorFilters = []
     harness.preferenceValues = {
@@ -319,6 +324,15 @@ describe('ModelSettings', () => {
     ).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('settings.models.conversation_suggestions.label'))
     expect(harness.preferenceSetters['chat.suggestions.enabled']).toHaveBeenCalledWith(true)
+  })
+
+  it('does not resolve a retained suggestions model while the feature is disabled', () => {
+    harness.preferenceValues['chat.suggestions.enabled'] = false
+    harness.preferenceValues['chat.suggestions.model_id'] = 'openai::gpt-4o-mini'
+
+    render(<ModelSettings showPaintingModel={false} showSettingsButton={false} />)
+
+    expect(harness.suggestionsModelIds).toEqual([null])
   })
 
   it('lets users reset a dedicated suggestions model to follow the default', () => {

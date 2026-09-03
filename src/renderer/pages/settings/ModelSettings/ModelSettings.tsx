@@ -159,7 +159,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
   const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
   const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
-  const { model: suggestionsModel } = useModelById(suggestionsModelId as UniqueModelId | null)
+  const { model: suggestionsModel } = useModelById(
+    suggestionsEnabled ? (suggestionsModelId as UniqueModelId | null) : null
+  )
 
   const chatModelFilter = useCallback(
     (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
