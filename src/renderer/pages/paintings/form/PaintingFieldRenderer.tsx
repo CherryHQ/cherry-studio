@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { type BaseConfigItem, isOptionsConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
-import { booleanOr, controlValue, finiteParamNumberOr, stringOr } from './fieldValue'
+import { booleanOr, controlValue, finiteNumberOr, stringOr } from './fieldValue'
 import { resolveOptions, resolveOptionValue } from './resolveOptions'
 
 /** Compact enough for the 300px params popover; wide enough for values like `16.5`. */
@@ -22,7 +22,7 @@ function isAllowedRangeDraft(raw: string): boolean {
 
 /** Empty, sign, trailing decimal, or trailing-zero fraction so the next digit can still be typed. */
 function isTransientRangeDraft(raw: string): boolean {
-  return raw === '' || raw === '-' || /^-?\d*\.$/.test(raw) || /^-?\d+\.\d*0$/.test(raw)
+  return raw === '' || raw === '-' || /^-?\d*\.$/.test(raw) || /^-?\d*\.\d*0$/.test(raw)
 }
 
 function parseRangeDraft(raw: string): number | null {
@@ -51,6 +51,8 @@ function PaintingRangeField({
   const snapStep = typeof step === 'number' && step > 0 ? step : undefined
   const [draft, setDraft] = useState<string | null>(null)
   const lastPushedRef = useRef(numericValue)
+  const constraintKey = `${fieldKey}:${min}:${max}:${snapStep ?? ''}`
+  const previousConstraintKeyRef = useRef(constraintKey)
 
   const commitRange = (raw: number) => {
     const next = snapStep === undefined ? Math.min(max, Math.max(min, raw)) : alignRangeValue(raw, min, max, snapStep)
@@ -67,10 +69,12 @@ function PaintingRangeField({
   }
 
   useEffect(() => {
-    if (numericValue === lastPushedRef.current) return
+    const constraintsChanged = constraintKey !== previousConstraintKeyRef.current
+    previousConstraintKeyRef.current = constraintKey
+    if (!constraintsChanged && numericValue === lastPushedRef.current) return
     lastPushedRef.current = numericValue
     setDraft((current) => (current === null ? current : String(numericValue)))
-  }, [numericValue])
+  }, [constraintKey, numericValue])
 
   const ariaValueNow = draft !== null && parseRangeDraft(draft) === null ? undefined : numericValue
 
@@ -222,7 +226,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'slider': {
-      const numericValue = finiteParamNumberOr(item.key, currentValue, item.initialValue)
+      const numericValue = finiteNumberOr(currentValue, item.initialValue)
       const { min, max } = item
       const label = item.title ? t(item.title) : fieldKey
       // Degenerate single-value range (e.g. numImages 1..1): the slider has

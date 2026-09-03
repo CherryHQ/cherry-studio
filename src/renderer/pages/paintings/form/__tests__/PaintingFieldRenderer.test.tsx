@@ -173,6 +173,29 @@ describe('PaintingFieldRenderer range contract', () => {
     expect(screen.getByTestId('slider')).toHaveProperty('value', '0.05')
   })
 
+  it('lets the user type 0.05 with a leading decimal point', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const refStrengthRange: BaseConfigItem = {
+      type: 'slider',
+      key: 'refStrength',
+      min: 0,
+      max: 1,
+      step: 0.05,
+      initialValue: 0.5
+    }
+    render(<ControlledRange item={refStrengthRange} initial={0.5} onChange={onChange} />)
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+    await user.keyboard('.05')
+
+    expect(input).toHaveProperty('value', '0.05')
+    expect(onChange).toHaveBeenLastCalledWith({ refStrength: 0.05 })
+    expect(screen.getByTestId('slider')).toHaveProperty('value', '0.05')
+  })
+
   it('shows the committed grid value when typed input snaps', async () => {
     const user = userEvent.setup()
     render(
@@ -244,6 +267,33 @@ describe('PaintingFieldRenderer range contract', () => {
     rerender(<PaintingFieldRenderer item={GUIDANCE_RANGE} painting={{ guidanceScale: 8 }} onChange={onChange} />)
 
     expect(input).toHaveProperty('value', '8')
+  })
+
+  it('replaces a focused draft when the range constraints change', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <PaintingFieldRenderer
+        item={{ ...GUIDANCE_RANGE, max: 20 }}
+        painting={{ guidanceScale: 1 }}
+        onChange={onChange}
+      />
+    )
+
+    const input = screen.getByRole('spinbutton')
+    await user.click(input)
+    await user.clear(input)
+    await user.keyboard('2.')
+
+    rerender(
+      <PaintingFieldRenderer
+        item={{ ...GUIDANCE_RANGE, max: 10 }}
+        painting={{ guidanceScale: 1 }}
+        onChange={onChange}
+      />
+    )
+
+    expect(input).toHaveProperty('value', '1')
   })
 
   it.each([0, -1])('does not pass non-positive step %s to the slider', (step) => {
@@ -380,7 +430,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
     expect(screen.getByTestId('select')).toHaveAttribute('data-value', '1024x1024')
   })
 
-  it('rejects a decimal persisted value for an integer-backed slider', () => {
+  it('displays a decimal persisted value for an integer-backed slider until it is edited', () => {
     const support = {
       modes: {
         generate: {
@@ -398,7 +448,7 @@ describe('PaintingFieldRenderer dynamic value boundary', () => {
       />
     )
 
-    expect(screen.getByRole('spinbutton')).toHaveDisplayValue('1')
+    expect(screen.getByRole('spinbutton')).toHaveDisplayValue('2.5')
     expect(submitted.numImages).toBeUndefined()
   })
 })
