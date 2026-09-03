@@ -30,6 +30,7 @@ const privateController = (controller: WebviewAnnotationController) =>
     editorError: HTMLDivElement | null
     marqueeRect: unknown
     pendingRegion: unknown
+    pinLayer: HTMLDivElement | null
     openEditor: (element: Element, annotationId?: string | null) => void
     saveEditor: () => void
     deleteEditorAnnotation: () => void
@@ -203,6 +204,67 @@ describe('WebviewAnnotationController interactions', () => {
     internals.updatePositions()
 
     expect(internals.annotationElements.has(annotationId)).toBe(false)
+  })
+
+  it('releases a disconnected region anchor', () => {
+    const container = document.createElement('div')
+    container.id = 'region-anchor'
+    const overlapA = document.createElement('div')
+    const overlapB = document.createElement('div')
+    container.append(overlapA, overlapB)
+    document.body.appendChild(container)
+    mockRect(container, 0, 0, 400, 400)
+    mockRect(overlapA, 20, 20, 100, 100)
+    mockRect(overlapB, 80, 80, 100, 100)
+
+    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    document.dispatchEvent(pointerEvent('pointermove', 200, 200))
+    container.dispatchEvent(pointerEvent('pointerup', 200, 200))
+
+    const internals = privateController(controller)
+    internals.textarea.value = 'Region note'
+    internals.saveEditor()
+    const annotationId = controller.getState().annotations[0].id
+
+    container.remove()
+    internals.updatePositions()
+
+    expect(internals.annotationElements.has(annotationId)).toBe(false)
+  })
+
+  it('repositions an annotation after direct text node updates', async () => {
+    const button = document.createElement('button')
+    button.id = 'live-label'
+    const text = document.createTextNode('Before')
+    button.appendChild(text)
+    document.body.appendChild(button)
+    let left = 10
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left,
+          top: 20,
+          right: left + 100,
+          bottom: 60,
+          width: 100,
+          height: 40,
+          x: left,
+          y: 20,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    const internals = privateController(controller)
+    internals.openEditor(button)
+    internals.textarea.value = 'Follow this label'
+    internals.saveEditor()
+    const pin = internals.pinLayer?.querySelector<HTMLElement>('button')
+
+    await vi.waitFor(() => expect(pin?.style.left).toBe('10px'))
+
+    left = 80
+    text.data = 'After'
+
+    await vi.waitFor(() => expect(pin?.style.left).toBe('80px'))
   })
 
   it('keeps the comment and explains when the selected element cannot be located', () => {
