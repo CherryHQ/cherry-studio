@@ -153,7 +153,7 @@ export class WebSearchService extends BaseService {
             }
 
             // Jina is a third party: private targets stay blocked here regardless of
-            // app.fetch.allow_private_network, which only governs the local fetch.
+            // app.fetch.allow_private_network. Ceiling: docs/references/security/remote-fetch.md
             try {
               const resolved = await resolveRemoteFetchUrl(input, { allowPrivateNetwork: false, signal })
               return { index, input: resolved.url }
