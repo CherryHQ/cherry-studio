@@ -31,6 +31,7 @@ const privateController = (controller: WebviewAnnotationController) =>
   controller as unknown as {
     annotationElements: Map<string, Element>
     marqueeRect: unknown
+    pinLayer: HTMLDivElement | null
     updatePositions: () => void
   }
 
@@ -172,6 +173,30 @@ describe('WebviewAnnotationController interactions', () => {
 
     controller.handleCommand({ type: 'delete_annotation', id: annotationId })
     expect(controller.getState().annotations).toEqual([])
+  })
+
+  it('cancels a pending selection before activating an existing annotation pin', () => {
+    const annotated = document.createElement('button')
+    annotated.id = 'annotated'
+    document.body.appendChild(annotated)
+    annotated.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    const annotationId = commit('Existing annotation')
+
+    const pending = document.createElement('button')
+    pending.id = 'pending'
+    document.body.appendChild(pending)
+    pending.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    const eventCountBeforePin = events.length
+
+    privateController(controller).pinLayer?.querySelector<HTMLButtonElement>('[data-annotation-id]')?.click()
+
+    expect(events.slice(eventCountBeforePin).map((event) => event.type)).toEqual([
+      'selection_cleared',
+      'annotation_activated'
+    ])
+    expect(events.at(-1)).toMatchObject({ type: 'annotation_activated', id: annotationId })
+    commit('Must not commit the cancelled pending selection')
+    expect(controller.getState().annotations).toHaveLength(1)
   })
 
   it('labels emitted state and selection events with the configured document', () => {

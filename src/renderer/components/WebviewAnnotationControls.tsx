@@ -330,6 +330,11 @@ export function WebviewAnnotationControls({
         case 'state_changed': {
           const nextState = isHostActive ? guestEvent.state : { ...guestEvent.state, enabled: false }
           setState(nextState)
+          setEditorSession((current) =>
+            current?.mode === 'edit' && !guestEvent.state.annotations.some(({ id }) => id === current.annotationId)
+              ? null
+              : current
+          )
           void replaceMainSnapshot(nextState.annotations, eventWebview)
           const pending = pendingCreateSaveRef.current
           const savedAnnotation = pending
@@ -673,6 +678,8 @@ export function WebviewAnnotationControls({
 
   const handleClear = () => {
     if (!sendCommand({ type: 'clear' })) return
+    clearPendingCreateSave()
+    setEditorSession(null)
     setClearConfirmOpen(false)
     setState((current) => ({ ...current, annotations: [] }))
     void replaceMainSnapshot([])

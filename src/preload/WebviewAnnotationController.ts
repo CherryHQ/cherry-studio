@@ -847,6 +847,7 @@ export class WebviewAnnotationController {
       pin.addEventListener('click', () => {
         const anchor = this.getAnnotationAnchorRect(annotation)
         if (!anchor) return
+        this.clearPending(true)
         this.emitEvent({ type: 'annotation_activated', id: annotation.id, anchor: this.toAnchorRect(anchor) })
       })
       this.pinLayer?.appendChild(pin)

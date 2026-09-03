@@ -1014,6 +1014,43 @@ describe('WebviewAnnotationControls', () => {
     })
   })
 
+  it('closes an edit session when clear removes its annotation', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'annotation_activated',
+        id: annotation.id,
+        anchor: { x: 5, y: 5, width: 60, height: 30 }
+      })
+    )
+    expect(await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '清空标注' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
+
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+  })
+
+  it('closes an edit session when authoritative state no longer contains its annotation', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'annotation_activated',
+        id: annotation.id,
+        anchor: { x: 5, y: 5, width: 60, height: 30 }
+      })
+    )
+    expect(await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')).toBeInTheDocument()
+
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [] }))
+
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+  })
+
   it('cancels a pending selection when the editor is dismissed', async () => {
     const webview = createWebview()
     render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
