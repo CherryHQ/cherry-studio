@@ -15,10 +15,7 @@ export function isPendingDeleteForPath(normalizedTarget: string, pendingSet: Set
   return false
 }
 
-export function getEffectiveGeneration(
-  normalizedTarget: string,
-  generations: Map<string, number>
-): number {
+export function getEffectiveGeneration(normalizedTarget: string, generations: Map<string, number>): number {
   let max = generations.get(normalizedTarget) ?? 0
   for (const [key, gen] of generations.entries()) {
     if ((normalizedTarget === key || normalizedTarget.startsWith(`${key}/`)) && gen > max) {
