@@ -73,6 +73,12 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
+    },
+
+    DELETE: async ({ params }) => {
+      const { deleted } = agentService.deleteAgent(params.agentId, { deleteSessions: false })
+      if (!deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      return undefined
     }
   },
 
