@@ -114,11 +114,16 @@ const TrashSection: FC<TrashSectionProps> = ({
       )
       return
     }
-    const key =
-      outcome.failed.length === 0
-        ? `settings.data.trash.${action}.batch_success`
-        : `settings.data.trash.${action}.batch_partial`
-    toast[outcome.failed.length === 0 ? 'success' : 'warning'](t(key, { count: succeeded, succeeded, failed }))
+    const options = { count: succeeded, succeeded, failed }
+    const message =
+      action === 'restore'
+        ? outcome.failed.length === 0
+          ? t('settings.data.trash.restore.batch_success', options)
+          : t('settings.data.trash.restore.batch_partial', options)
+        : outcome.failed.length === 0
+          ? t('settings.data.trash.permanent_delete.batch_success', options)
+          : t('settings.data.trash.permanent_delete.batch_partial', options)
+    toast[outcome.failed.length === 0 ? 'success' : 'warning'](message)
   }
 
   const handleRestoreSelected = async () => {
