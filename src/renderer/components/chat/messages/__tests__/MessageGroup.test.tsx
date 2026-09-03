@@ -181,6 +181,14 @@ vi.mock('../blocks/ImageBlock', () => ({
   )
 }))
 
+vi.mock('../frame/MessageAttachments', () => ({
+  default: ({ file }: { file: { origin_name: string; size: number; ext: string; path: string } }) => (
+    <div data-testid="hoisted-attachment" data-size={file.size} data-ext={file.ext} data-path={file.path}>
+      {file.origin_name}
+    </div>
+  )
+}))
+
 vi.mock('../list/MessageGroupMenuBar', () => ({
   default: mocks.MessageGroupMenuBar
 }))
@@ -593,7 +601,7 @@ describe('MessageGroup', () => {
     expect(container.querySelector('#message-msg-1 .message-content-container')).not.toHaveAttribute('tabindex')
   })
 
-  it('renders sent image attachments outside the user bubble', () => {
+  it('renders sent attachments outside the user bubble', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'fold',
       gridColumns: 2,
@@ -610,16 +618,51 @@ describe('MessageGroup', () => {
         messages={messages}
         partsByMessageId={{
           'msg-1': [
-            { type: 'text', text: 'look at this' },
-            { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' }
+            {
+              type: 'text',
+              text: 'look at this',
+              providerMetadata: {
+                cherry: {
+                  composer: {
+                    version: 1,
+                    tokens: [
+                      {
+                        id: 'file:doc-1',
+                        kind: 'file',
+                        label: 'report.pdf',
+                        index: 0,
+                        textOffset: 0,
+                        payload: { origin_name: 'report.pdf', ext: '.pdf', size: 2048 }
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            { type: 'file', url: 'file:///tmp/photo.png', mediaType: 'image/png', filename: 'photo.png' },
+            {
+              type: 'file',
+              url: 'file:///tmp/Application%20Support/report.pdf',
+              mediaType: 'application/pdf',
+              filename: 'report.pdf',
+              providerMetadata: { cherry: { fileTokenSourceId: 'doc-1' } }
+            }
           ] as CherryMessagePart[]
         }}
       />
     )
 
+    const bubble = container.querySelector('#message-msg-1 .message-content-container')
     const imageBlock = screen.getByTestId('hoisted-image-block')
+    const attachment = screen.getByTestId('hoisted-attachment')
     expect(imageBlock).toHaveAttribute('data-images', '["file:///tmp/photo.png"]')
-    expect(container.querySelector('#message-msg-1 .message-content-container')?.contains(imageBlock)).toBe(false)
+    expect(bubble?.contains(imageBlock)).toBe(false)
+    expect(bubble?.contains(attachment)).toBe(false)
+    // Size and extension live only on the composer token payload, never on the file part.
+    expect(attachment).toHaveAttribute('data-size', '2048')
+    expect(attachment).toHaveAttribute('data-ext', '.pdf')
+    // Preview / open feed this straight to fs, so it must be a decoded path, not URL text.
+    expect(attachment).toHaveAttribute('data-path', '/tmp/Application Support/report.pdf')
   })
 
   it('renders adapter-owned tail content only after its target assistant message', () => {

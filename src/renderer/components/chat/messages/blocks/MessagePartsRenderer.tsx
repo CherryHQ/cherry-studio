@@ -19,7 +19,7 @@ import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/comp
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { FILE_TYPE } from '@renderer/types/file'
+import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
 import {
   isCitationSourcePart,
@@ -38,8 +38,14 @@ import {
 import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
+import type {
+  CherryProviderMetadata,
+  ComposerMessageSnapshot,
+  ComposerMessageToken,
+  ComposerMessageTokenPayload
+} from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { getFileTypeByExt, tryFileUrlToPath } from '@shared/utils/file'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -186,8 +192,8 @@ const AnimatedBlockWrapper: React.FC<{
 
 interface Props {
   message: MessageListItem
-  /** Image attachments are rendered outside this subtree (see `getImageAttachmentUrls`). */
-  hoistImageAttachments?: boolean
+  /** File attachments are rendered outside this subtree (see `getHoistedAttachments`). */
+  hoistAttachments?: boolean
 }
 
 // ============================================================================
@@ -206,12 +212,81 @@ function extractImageUrl(part: CherryMessagePart): string | undefined {
   return filePart.url || undefined
 }
 
-/** Image attachments a hoisting container renders in place of the inline image blocks. */
-export function getImageAttachmentUrls(parts: readonly CherryMessagePart[]): string[] {
-  return parts.flatMap((part) => {
-    const url = isImageFilePart(part) ? extractImageUrl(part) : undefined
-    return url ? [url] : []
+function isHoistableFilePart(part: CherryMessagePart): boolean {
+  return (part.type as string) === 'file' && !!extractImageUrl(part)
+}
+
+// Size / ext / type never survive onto the file part — only the composer token payload keeps them,
+// so an attachment card built from the part alone reads "0.00 KB · OTHER".
+function findFileTokenPayload(
+  parts: readonly CherryMessagePart[],
+  part: CherryMessagePart
+): ComposerMessageTokenPayload | undefined {
+  const sourceId = getCherryMeta(part)?.fileTokenSourceId
+  const filename = (part as { filename?: string }).filename
+
+  for (const candidate of parts) {
+    const composer = getCherryMeta(candidate)?.composer
+    if (!composer) continue
+
+    const token = getDisplayComposerTokens(composer).find((candidateToken) => {
+      if (candidateToken.kind !== 'file') return false
+      if (sourceId) return readComposerFileTokenIdSuffix(candidateToken.id) === sourceId
+      return !!filename && getComposerFileTokenNames(candidateToken).has(filename)
+    })
+    if (token) return token.payload
+  }
+
+  return undefined
+}
+
+// A stored `file://` URL is percent-encoded, so stripping the scheme alone leaves
+// "Application%20Support" in a field the preview / open actions pass straight to fs.
+function readFilePartPath(url: string | undefined): string {
+  if (!url) return ''
+  // Not a file: URL — a producer that already stored a plain path.
+  return tryFileUrlToPath(url) ?? url
+}
+
+function toAttachmentFile(
+  part: CherryMessagePart,
+  partId: string,
+  createdAt: string,
+  payload?: ComposerMessageTokenPayload
+): FileMetadata {
+  const filePart = part as { url?: string; filename?: string }
+  const name = payload?.origin_name || payload?.name || filePart.filename || ''
+  const ext = payload?.ext || name.match(/\.[^.]+$/)?.[0] || ''
+  return {
+    id: partId,
+    name,
+    origin_name: name,
+    path: readFilePartPath(filePart.url),
+    size: payload?.size ?? 0,
+    ext,
+    type: payload?.type ?? (ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER),
+    created_at: createdAt,
+    count: 0
+  }
+}
+
+/** Attachments a hoisting container renders in place of the inline file blocks. */
+export function getHoistedAttachments(parts: readonly CherryMessagePart[], message: MessageListItem) {
+  const images: string[] = []
+  const files: FileMetadata[] = []
+
+  parts.forEach((part, index) => {
+    if (!isHoistableFilePart(part)) return
+    if (isImageFilePart(part)) {
+      images.push(extractImageUrl(part) as string)
+      return
+    }
+    files.push(
+      toAttachmentFile(part, `${message.id}-part-${index}`, message.createdAt, findFileTokenPayload(parts, part))
+    )
   })
+
+  return { images, files }
 }
 
 /** Get video filePath from a data-video part. */
@@ -389,14 +464,25 @@ function findUniqueVisibleFileTokenIndex(
   return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
 }
 
+// A blank text part still counts as content while it carries a visible token chip. Once every
+// one of its tokens is hoisted away, rendering it leaves an empty line inside the bubble.
+function rendersOnlyHoistedTokens(entry: PartEntry, hiddenTokens: ReadonlySet<ComposerMessageToken>): boolean {
+  const { part } = entry
+  if (part.type !== 'text' || part.text?.trim()) return false
+
+  const composer = getCherryMeta(part)?.composer
+  if (!composer) return false
+  const tokens = getDisplayComposerTokens(composer)
+  return tokens.length > 0 && tokens.every((token) => hiddenTokens.has(token))
+}
+
 function getDisplayProjection(
   entries: readonly PartEntry[],
   message: MessageListItem,
   visibleComposerFileTokens: readonly VisibleComposerFileToken[],
-  hoistImageAttachments: boolean
+  hoistAttachments: boolean
 ): { entries: PartEntry[]; hiddenImageTokens: ReadonlySet<ComposerMessageToken> } {
-  const isHoistedEntry = (entry: PartEntry) =>
-    hoistImageAttachments && isImageFilePart(entry.part) && !!extractImageUrl(entry.part)
+  const isHoistedEntry = (entry: PartEntry) => hoistAttachments && isHoistableFilePart(entry.part)
 
   if (message.role !== 'user' || visibleComposerFileTokens.length === 0) {
     return {
@@ -447,13 +533,18 @@ function getDisplayProjection(
     }
 
     usedTokenIndexes.add(matchIndex)
-    if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
-      if (!isHoistedEntry(entry)) displayEntries.push(entry)
+    if (isHoistedEntry(entry)) {
+      hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
+    } else if (isImageFilePart(entry.part) && extractImageUrl(entry.part)) {
+      displayEntries.push(entry)
       hiddenImageTokens.add(visibleComposerFileTokens[matchIndex].token)
     }
   }
 
-  return { entries: displayEntries, hiddenImageTokens }
+  return {
+    entries: displayEntries.filter((entry) => !rendersOnlyHoistedTokens(entry, hiddenImageTokens)),
+    hiddenImageTokens
+  }
 }
 
 function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
@@ -702,22 +793,7 @@ function renderPart(
         logger.warn('File part has no url, skipping', { filename: filePart.filename })
         return null
       }
-      return (
-        <MessageAttachments
-          key={partId}
-          file={{
-            id: partId,
-            name: filePart.filename || '',
-            origin_name: filePart.filename || '',
-            path: filePart.url.replace('file://', ''),
-            size: 0,
-            ext: '',
-            type: FILE_TYPE.OTHER,
-            created_at: message.createdAt,
-            count: 0
-          }}
-        />
-      )
+      return <MessageAttachments key={partId} file={toAttachmentFile(part, partId, message.createdAt)} />
     }
 
     case 'source-url':
@@ -1389,7 +1465,7 @@ interface MessagePartsRendererContentProps extends Props {
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
   collapseCompletedToolHistory,
-  hoistImageAttachments,
+  hoistAttachments,
   isActiveTurnProcessing,
   isStreamLive,
   message,
@@ -1469,8 +1545,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [expandedTextPartIds, message, messageParts]
   )
   const displayProjection = useMemo(
-    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistImageAttachments),
-    [hoistImageAttachments, message, partEntries, visibleComposerFileTokens]
+    () => getDisplayProjection(partEntries, message, visibleComposerFileTokens, !!hoistAttachments),
+    [hoistAttachments, message, partEntries, visibleComposerFileTokens]
   )
   const displayEntries = displayProjection.entries
   const hasVisibleNonArtifactEntry = useMemo(
@@ -1577,7 +1653,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   )
 })
 
-const MessagePartsRenderer: React.FC<Props> = ({ message, hoistImageAttachments }) => {
+const MessagePartsRenderer: React.FC<Props> = ({ message, hoistAttachments }) => {
   const messageParts = useMessageParts(message.id)
   const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
@@ -1592,7 +1668,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message, hoistImageAttachments 
   return (
     <MessagePartsRendererContent
       collapseCompletedToolHistory={collapseCompletedToolHistory}
-      hoistImageAttachments={hoistImageAttachments}
+      hoistAttachments={hoistAttachments}
       isActiveTurnProcessing={isActiveTurnProcessing}
       isStreamLive={isStreamLive}
       message={message}

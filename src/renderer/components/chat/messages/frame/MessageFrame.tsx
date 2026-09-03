@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import ImageBlock from '../blocks/ImageBlock'
 import { MessagePartsScopeProvider, useMessageParts } from '../blocks/MessagePartsContext'
-import { getImageAttachmentUrls } from '../blocks/MessagePartsRenderer'
+import { getHoistedAttachments } from '../blocks/MessagePartsRenderer'
 import { useScrollRuntimeNavigation } from '../list/ScrollOwnershipContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
@@ -27,6 +27,7 @@ import {
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
+import MessageAttachments from './MessageAttachments'
 import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
 import MessageErrorBoundary from './MessageErrorBoundary'
@@ -356,7 +357,7 @@ const UserBubbleMessage = ({
     void actions.openUserProfile?.()
   }, [actions])
   const messageParts = useMessageParts(message.id)
-  const attachmentImages = getImageAttachmentUrls(messageParts)
+  const attachments = getHoistedAttachments(messageParts, message)
 
   return (
     <div className="flex w-full flex-col items-end">
@@ -367,9 +368,14 @@ const UserBubbleMessage = ({
               <AgentSessionDeliveryBadge delivery={message.delivery} />
             </div>
           )}
-          {attachmentImages.length > 0 && (
-            <div className="mb-2 max-w-full">
-              <ImageBlock images={attachmentImages} thumbnail className="justify-end" />
+          {(attachments.images.length > 0 || attachments.files.length > 0) && (
+            <div className="flex max-w-full flex-col items-end">
+              {attachments.images.length > 0 && (
+                <ImageBlock images={attachments.images} thumbnail className="mb-2 justify-end" />
+              )}
+              {attachments.files.map((file) => (
+                <MessageAttachments key={file.id} file={file} />
+              ))}
             </div>
           )}
           <Scrollbar
@@ -381,7 +387,7 @@ const UserBubbleMessage = ({
               overflowY: 'visible'
             }}>
             <MessageErrorBoundary>
-              <MessageContent message={message} hoistImageAttachments />
+              <MessageContent message={message} hoistAttachments />
             </MessageErrorBoundary>
           </Scrollbar>
         </div>

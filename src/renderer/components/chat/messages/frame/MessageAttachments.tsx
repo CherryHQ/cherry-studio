@@ -52,7 +52,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           aria-label={fileName}>
           <div className="truncate text-foreground text-sm">{fileName}</div>
           <div className="text-muted-foreground text-xs">
-            {formatFileSize(file.size)} · {fileSuffix}
+            {file.size > 0 ? `${formatFileSize(file.size)} · ${fileSuffix}` : fileSuffix}
           </div>
         </button>
         <div className="flex shrink-0 items-center gap-2">

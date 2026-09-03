@@ -8,10 +8,10 @@ import type { MessageListItem } from '../types'
 
 interface Props {
   message: MessageListItem
-  hoistImageAttachments?: boolean
+  hoistAttachments?: boolean
 }
 
-const MessageContent: React.FC<Props> = ({ message, hoistImageAttachments }) => {
+const MessageContent: React.FC<Props> = ({ message, hoistAttachments }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -23,7 +23,7 @@ const MessageContent: React.FC<Props> = ({ message, hoistImageAttachments }) => 
           ))}
         </Flex>
       )}
-      <MessagePartsRenderer message={message} hoistImageAttachments={hoistImageAttachments} />
+      <MessagePartsRenderer message={message} hoistAttachments={hoistAttachments} />
     </>
   )
 }
