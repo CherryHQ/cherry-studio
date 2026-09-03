@@ -27,10 +27,11 @@ vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
     type = 'button',
-    loading: _loading,
+    loading,
+    disabled,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
-    <button type={type} {...props}>
+    <button type={type} disabled={disabled || loading} {...props}>
       {children}
     </button>
   ),
@@ -345,7 +346,9 @@ describe('WebviewAnnotationControls', () => {
     })
     expect(screen.queryByText('1')).not.toBeInTheDocument()
 
-    act(() => webview.dispatchEvent(new Event('dom-ready')))
+    act(() => {
+      webview.dispatchEvent(new Event('dom-ready'))
+    })
     await act(async () => {
       await Promise.resolve()
     })
@@ -682,7 +685,9 @@ describe('WebviewAnnotationControls', () => {
       expect(requestStateCommands(webview)).toHaveLength(initialStateRequests)
       expect(screen.getByRole('button', { name: '保存' })).toBeDisabled()
 
-      act(() => vi.advanceTimersByTime(5_000))
+      act(() => {
+        vi.advanceTimersByTime(5_000)
+      })
 
       expect(requestStateCommands(webview)).toHaveLength(initialStateRequests)
       expect(screen.getByRole('button', { name: '保存' })).not.toBeDisabled()
@@ -735,9 +740,13 @@ describe('WebviewAnnotationControls', () => {
     act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: cancelled.id }] }))
 
     const navigated = saveCreateEditor(webview, 'Navigate away').command
-    act(() => webview.dispatchEvent(new Event('did-start-loading')))
+    act(() => {
+      webview.dispatchEvent(new Event('did-start-loading'))
+    })
     act(() => dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: navigated.id }] }))
-    act(() => webview.dispatchEvent(new Event('dom-ready')))
+    act(() => {
+      webview.dispatchEvent(new Event('dom-ready'))
+    })
     await act(async () => {
       await Promise.resolve()
     })
