@@ -85,13 +85,6 @@ const logger = loggerService.withContext('AiService')
  */
 const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
-/** Operations `checkModel` can probe, in the order it prefers them. */
-const PROBE_OPERATIONS: readonly ModelOperationCapability[] = [
-  MODEL_CAPABILITY.RERANK,
-  MODEL_CAPABILITY.TEXT_GENERATION,
-  MODEL_CAPABILITY.EMBEDDING
-]
-
 const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
 
@@ -1165,13 +1158,15 @@ export class AiService extends BaseService {
     // NewAPI advertises chat models as `['embeddings', 'openai']`, so a model can carry both
     // operations; chat outranks embedding because the reverse probes a chat model with embedMany.
     const modelOperations = getModelOperationCapabilities(model.capabilities)
-    const operation = PROBE_OPERATIONS.find((candidate) => modelOperations.includes(candidate))
+    const operation = [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.TEXT_GENERATION, MODEL_CAPABILITY.EMBEDDING].find(
+      (candidate) => modelOperations.includes(candidate)
+    )
 
+    // Decided before the timeout is armed so an unprobeable model cannot leave a live timer behind.
     if (!operation) {
-      const unsupportedOperation = modelOperations.find((candidate) => !PROBE_OPERATIONS.includes(candidate))
       throw new Error(
-        unsupportedOperation
-          ? `Model health checks do not support the '${unsupportedOperation}' operation`
+        modelOperations[0]
+          ? `Model health checks do not support the '${modelOperations[0]}' operation`
           : 'Model has no operation that supports health checks'
       )
     }
@@ -1200,12 +1195,10 @@ export class AiService extends BaseService {
       })
     } else if (operation === MODEL_CAPABILITY.EMBEDDING) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
-    } else if (operation === MODEL_CAPABILITY.TEXT_GENERATION) {
+    } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.
       probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi', reasoningEffort: 'none' })
-    } else {
-      throw new Error(`Model health checks do not support the '${operation}' operation`)
     }
 
     try {
