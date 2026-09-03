@@ -2,6 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
 import i18n from '@renderer/i18n/resolver'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -77,6 +78,8 @@ describe('useMiniApps', () => {
     vi.mocked(preferenceService.get).mockResolvedValue([])
     vi.mocked(preferenceService.set).mockReset()
     vi.mocked(preferenceService.set).mockResolvedValue()
+    vi.mocked(preferenceService.update).mockReset()
+    vi.mocked(preferenceService.update).mockResolvedValue()
   })
 
   describe('display name', () => {
@@ -400,6 +403,36 @@ describe('useMiniApps', () => {
       })
     })
 
+    it('syncs one-off state and tabs opened while the update is pending', async () => {
+      const existing = createMiniApp('custom-app', { url: 'https://old.example.com', presetMiniAppId: null })
+      const updated = { ...existing, name: 'Updated App', url: 'https://new.example.com', logo: 'new-logo' }
+      let resolveUpdate: (value: MiniApp) => void = () => undefined
+      const trigger = vi.fn(
+        () =>
+          new Promise<MiniApp>((resolve) => {
+            resolveUpdate = resolve
+          })
+      )
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      const { result, rerender } = renderHook(() => useMiniApps())
+
+      let pendingUpdate: Promise<MiniApp>
+      act(() => {
+        pendingUpdate = result.current.updateCustomMiniApp('custom-app', { name: 'Updated App' })
+      })
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      mockTabs.tabs = [{ id: 'late-tab', url: '/app/mini-app/custom-app' }]
+      rerender()
+
+      await act(async () => {
+        resolveUpdate(updated)
+        await pendingUpdate
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('late-tab', { title: 'Updated App', icon: 'new-logo' })
+    })
+
     it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', { presetMiniAppId: null })
       const other = createMiniApp('other-app')
@@ -469,11 +502,11 @@ describe('useMiniApps', () => {
     it('should remove deleted custom miniapps from sidebar favorites', async () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      vi.mocked(preferenceService.get).mockResolvedValue([
+      const favorites: SidebarFavoriteItem[] = [
         { type: 'app', id: 'assistants' },
         { type: 'mini_app', id: 'custom-app' },
         { type: 'mini_app', id: 'other-app' }
-      ])
+      ]
 
       const { result } = renderHook(() => useMiniApps())
 
@@ -482,11 +515,24 @@ describe('useMiniApps', () => {
       })
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
-      expect(preferenceService.get).toHaveBeenCalledWith('ui.sidebar.favorites')
-      expect(preferenceService.set).toHaveBeenCalledWith('ui.sidebar.favorites', [
+      expect(preferenceService.update).toHaveBeenCalledWith('ui.sidebar.favorites', expect.any(Function))
+      const updater = vi.mocked(preferenceService.update).mock.calls[0][1]
+      expect(updater(favorites)).toEqual([
         { type: 'app', id: 'assistants' },
         { type: 'mini_app', id: 'other-app' }
       ])
+    })
+
+    it('rejects deletion when sidebar favorite cleanup cannot be persisted', async () => {
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      const cleanupError = new Error('preference write failed')
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      vi.mocked(preferenceService.update).mockRejectedValue(cleanupError)
+      const { result } = renderHook(() => useMiniApps())
+
+      await expect(result.current.removeCustomMiniApp('custom-app')).rejects.toMatchObject({
+        details: { originalError: 'preference write failed' }
+      })
     })
   })
 

@@ -10,6 +10,7 @@
  * (one round-trip for N keys), dedupe concurrent subscriptions, and re-attempt
  * subscription for keys that are cached but not yet subscribed.
  */
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Undo the global mock from renderer.setup.ts — we want the REAL PreferenceService
@@ -200,5 +201,44 @@ describe('renderer PreferenceService write consistency', () => {
     expect(set).toHaveBeenNthCalledWith(2, 'app.developer_mode.enabled', true)
     expect(service.getCachedValue('app.developer_mode.enabled')).toBe(true)
     expect(service.getPendingOptimisticUpdates()).toEqual([])
+  })
+
+  it('resolves a queued functional update from the latest persisted value', async () => {
+    const initialFavorites: SidebarFavoriteItem[] = [{ type: 'mini_app', id: 'deleted' }]
+    const concurrentlyAdded: SidebarFavoriteItem[] = [...initialFavorites, { type: 'mini_app', id: 'new-favorite' }]
+    get.mockResolvedValueOnce(initialFavorites)
+    let resolveFirst: () => void = () => undefined
+    set
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValueOnce(undefined)
+    const service = await createService()
+    await service.get('ui.sidebar.favorites')
+
+    const first = service.set('ui.sidebar.favorites', concurrentlyAdded)
+    const second = service.update('ui.sidebar.favorites', (favorites) =>
+      favorites.filter((favorite) => favorite.id !== 'deleted')
+    )
+
+    resolveFirst()
+    await Promise.all([first, second])
+
+    expect(set).toHaveBeenNthCalledWith(2, 'ui.sidebar.favorites', [{ type: 'mini_app', id: 'new-favorite' }])
+    expect(service.getCachedValue('ui.sidebar.favorites')).toEqual([{ type: 'mini_app', id: 'new-favorite' }])
+  })
+
+  it('does not persist a functional update that leaves the latest value unchanged', async () => {
+    const favorites: SidebarFavoriteItem[] = [{ type: 'mini_app', id: 'other-app' }]
+    get.mockResolvedValueOnce(favorites)
+    const service = await createService()
+
+    await service.update('ui.sidebar.favorites', (current) => current)
+
+    expect(set).not.toHaveBeenCalled()
+    expect(service.getCachedValue('ui.sidebar.favorites')).toBe(favorites)
   })
 })

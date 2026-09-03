@@ -117,9 +117,9 @@ const logger = loggerService.withContext('useMiniApps')
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 
 async function removeMiniAppSidebarFavorite(appId: string) {
-  const favorites = await preferenceService.get('ui.sidebar.favorites')
-  if (!getSidebarMiniAppFavoriteIds(favorites).includes(appId)) return
-  await preferenceService.set('ui.sidebar.favorites', removeSidebarMiniApp(favorites, appId))
+  await preferenceService.update('ui.sidebar.favorites', (favorites) =>
+    getSidebarMiniAppFavoriteIds(favorites).includes(appId) ? removeSidebarMiniApp(favorites, appId) : favorites
+  )
 }
 
 /** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
@@ -378,7 +378,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // so an app opened concurrently during the edit's await is seen here and
       // picks up the new url instead of being missed.
       const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
-      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
+      const openedOneOffApp =
+        openedOneOffMiniAppRef.current?.appId === updated.appId ? openedOneOffMiniAppRef.current : null
       const urlChanged =
         (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
         (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
@@ -398,13 +399,13 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = updated.logoSrc ?? updated.logo
-      for (const tab of tabsContext?.tabs ?? []) {
+      for (const tab of tabsContextRef.current?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContext?.updateTab(tab.id, { title, icon })
+          tabsContextRef.current?.updateTab(tab.id, { title, icon })
         }
       }
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
@@ -490,11 +491,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string) => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
-        try {
-          await cleanupOpenedCustomMiniApp(appId)
-        } catch (syncError) {
-          logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
-        }
+        await cleanupOpenedCustomMiniApp(appId)
         return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })

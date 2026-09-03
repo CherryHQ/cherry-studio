@@ -73,6 +73,11 @@ export const createMockPreferenceService = (customDefaults: Record<string, any> 
       return Promise.resolve()
     }),
 
+    update: vi.fn((key: string, updater: (currentValue: any) => any) => {
+      mergedDefaults[key] = updater(mergedDefaults[key])
+      return Promise.resolve()
+    }),
+
     setMultiple: vi.fn((values: Record<string, any>) => {
       Object.assign(mergedDefaults, values)
       return Promise.resolve()
