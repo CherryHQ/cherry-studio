@@ -12,6 +12,8 @@ import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
+export const ProviderEditionSchema = z.enum(['global', 'cn'])
+export type ProviderEdition = z.infer<typeof ProviderEditionSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Endpoint dialect
@@ -191,6 +193,8 @@ export const ProviderConfigSchema = z
     presetProviderId: ProviderIdSchema.optional(),
     /** Display name */
     name: z.string(),
+    /** App editions where this provider is available. Omitted means all editions. */
+    availableInEditions: z.array(ProviderEditionSchema).min(1).optional(),
     /** Provider description */
     description: z.string().optional(),
     /** Per-endpoint-type configuration (partial record — not all endpoint types need to be present) */

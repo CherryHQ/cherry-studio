@@ -372,6 +372,15 @@ describe('OnboardingPage', () => {
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
 
+  it('does not complete with a persisted model whose provider is unavailable', async () => {
+    selectedModelsMock.translateModel = { id: 'legacy::model', providerId: 'legacy', capabilities: [] }
+    render(<OnboardingPage />)
+
+    await openModelSelection()
+
+    expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
+  })
+
   it('excludes CherryAI models, hides painting, and rejects built-in selections', async () => {
     selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
     selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID, capabilities: [] }
