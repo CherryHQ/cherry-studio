@@ -2,8 +2,8 @@
  * Inline-citation guidance, appended to the system prompt only when a
  * citable lookup tool (web_search / web_fetch / kb_search / kb_read) is exposed
  * to the model — inline or deferred behind `tool_search`. The `[cite:id]`
- * markers it mandates are resolved by the renderer against the message's own
- * tool results (see `src/renderer/utils/message/citations.ts`).
+ * markers it mandates are resolved by the renderer against the tool results of
+ * the message and earlier turns (see `src/renderer/utils/message/citations.ts`).
  *
  * Wrapped in XML tags for parser-friendly structure (recommended by
  * Anthropic; tolerated well by other providers).

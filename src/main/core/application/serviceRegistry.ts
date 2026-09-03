@@ -7,8 +7,8 @@ import { AgentSessionDeliveryService } from '@main/ai/agentSession/AgentSessionD
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels'
-import { EmbeddingInferenceService } from '@main/ai/inference/EmbeddingInferenceService'
-import { OcrInferenceService } from '@main/ai/inference/OcrInferenceService'
+import { EmbeddingInferenceService } from '@main/ai/localModel'
+import { OcrInferenceService } from '@main/ai/localModel'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -35,6 +35,7 @@ import { AppService } from '@main/services/AppService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { AutoBackupService } from '@main/services/AutoBackupService'
 import { BinaryManager } from '@main/services/binaryManager'
+import { CherryCloudService } from '@main/services/cherryCloud/CherryCloudService'
 import { CitationPreviewService } from '@main/services/CitationPreviewService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -106,6 +107,7 @@ export const services = {
   CommandService,
   ConversationNavigationService,
   CitationPreviewService,
+  CherryCloudService,
   DeepSeekHarnessService,
   HermesDashboardService,
   LanTransferService,

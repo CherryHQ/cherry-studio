@@ -61,7 +61,7 @@ import { PopupHost } from '@renderer/components/PopupHost'
 
 import LocalModelDownloadPopup from '../LocalModelDownloadPopup'
 
-const OCR = { model: 'ocr', description: 'PaddleOCR PP-OCRv6 · ~140 MB' } as const
+const OCR = { id: 'pp-ocrv6-medium', description: 'PaddleOCR PP-OCRv6 · ~140 MB' } as const
 
 beforeEach(() => {
   localModel.status = 'not_downloaded'

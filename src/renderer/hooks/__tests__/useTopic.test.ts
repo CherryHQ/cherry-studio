@@ -120,6 +120,44 @@ describe('getTopicMessages', () => {
     expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
   })
 
+  it('lets a later message cite tool results from an earlier page', async () => {
+    const searchPart = {
+      type: 'tool-web_search' as const,
+      toolCallId: 'search-1',
+      state: 'output-available' as const,
+      input: { query: 'q' },
+      output: [{ id: '3f2a1b9c-1', title: 'First', url: 'https://a.com/x', content: 'alpha' }]
+    }
+    const searched = { ...apiMessage('searched'), role: 'assistant' as const, data: { parts: [searchPart] } }
+    const followUp = {
+      ...apiMessage('follow-up'),
+      role: 'assistant' as const,
+      data: { parts: [{ type: 'text' as const, text: 'still [cite:3f2a1b9c-1]' }] }
+    }
+
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: followUp }],
+        nextCursor: 'older-page',
+        activeNodeId: 'follow-up',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: searched }],
+        nextCursor: undefined,
+        activeNodeId: 'follow-up',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['searched', 'follow-up'])
+    expect(messages[0].priorCitationParts).toBeUndefined()
+    expect(messages[1].priorCitationParts).toEqual([searchPart])
+  })
+
   it('filters awaiting-input messages from sibling groups', async () => {
     const awaitingInputSibling = {
       ...apiMessage('awaiting-input-sibling'),

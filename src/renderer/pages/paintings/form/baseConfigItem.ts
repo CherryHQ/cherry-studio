@@ -1,12 +1,10 @@
 /**
  * Form field descriptor types produced by `imageGenerationToFields` and
- * consumed by `PaintingFieldRenderer`. The dispatcher in
- * `imageGenerationToFields` maps each registry `SupportSpec` arm onto a
- * `BaseConfigItem` whose `type` field selects a renderer in
- * `fieldRegistry`.
+ * consumed by `PaintingFieldRenderer`. `type` is the discriminant: every
+ * renderer receives only the constraints and initial value shape it supports.
  */
 
-type PrimitiveValue = string | number | boolean | undefined
+type PaintingParams = Record<string, unknown>
 
 export type OptionItem = {
   label?: string
@@ -17,40 +15,133 @@ export type OptionItem = {
   options?: OptionItem[]
 }
 
-export type BaseConfigItem = {
-  type:
-    | 'select'
-    | 'radio'
-    | 'slider'
-    | 'input'
-    | 'switch'
-    | 'textarea'
-    | 'image'
-    | 'customSize'
-    | 'iconRadio'
-    | 'styleToggle'
-    | 'sizeChips'
-  key?: string
+export type SizeValidation = {
+  minWidth?: number
+  maxWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  divisibleBy?: number
+  maxPixels?: number
+}
+
+type CommonConfigItem = {
+  key: string
   title?: string
   tooltip?: string
-  options?: OptionItem[] | ((config: BaseConfigItem, painting: Record<string, unknown>) => OptionItem[])
-  min?: number
-  max?: number
-  step?: number
-  initialValue?: PrimitiveValue
-  disabled?: boolean | ((config: BaseConfigItem, painting: Record<string, unknown>) => boolean)
-  condition?: (painting: Record<string, unknown>) => boolean
-  widthKey?: string
-  heightKey?: string
-  sizeKey?: string
-  validation?: {
-    minWidth?: number
-    maxWidth?: number
-    minHeight?: number
-    maxHeight?: number
-    divisibleBy?: number
-    maxPixels?: number
+  disabled?: boolean | ((config: BaseConfigItem, painting: PaintingParams) => boolean)
+  condition?: (painting: PaintingParams) => boolean
+}
+
+type NonSliderConstraints = {
+  min?: never
+  max?: never
+  step?: never
+}
+
+type OptionSource = OptionItem[] | ((config: BaseConfigItem, painting: PaintingParams) => OptionItem[])
+
+export type SelectConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'select'
+    options: OptionSource
+    initialValue?: string
   }
-  columns?: number
-  toggleMode?: 'single' | 'multi'
+
+export type RadioConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'radio'
+    options: OptionSource
+    initialValue?: string | number
+  }
+
+export type SliderConfigItem = CommonConfigItem & {
+  type: 'slider'
+  min: number
+  max: number
+  step?: number
+  initialValue: number
+  options?: never
+}
+
+export type InputConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'input'
+    initialValue?: string
+    options?: never
+  }
+
+export type SwitchConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'switch'
+    initialValue: boolean
+    options?: never
+  }
+
+export type TextareaConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'textarea'
+    initialValue?: string
+    options?: never
+  }
+
+export type ImageConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'image'
+    initialValue?: string
+    options?: never
+  }
+
+export type CustomSizeConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'customSize'
+    widthKey: string
+    heightKey: string
+    sizeKey: string
+    validation: SizeValidation
+    initialValue?: never
+    options?: never
+  }
+
+export type IconRadioConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'iconRadio'
+    options: OptionSource
+    columns?: number
+    initialValue?: string | number
+  }
+
+export type StyleToggleConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'styleToggle'
+    options: OptionSource
+    toggleMode?: 'single' | 'multi'
+    initialValue?: string
+  }
+
+export type SizeChipsConfigItem = CommonConfigItem &
+  NonSliderConstraints & {
+    type: 'sizeChips'
+    options: OptionSource
+    columns?: number
+    initialValue?: string
+  }
+
+export type OptionsConfigItem =
+  | SelectConfigItem
+  | RadioConfigItem
+  | IconRadioConfigItem
+  | StyleToggleConfigItem
+  | SizeChipsConfigItem
+
+export type BaseConfigItem =
+  | OptionsConfigItem
+  | SliderConfigItem
+  | InputConfigItem
+  | SwitchConfigItem
+  | TextareaConfigItem
+  | ImageConfigItem
+  | CustomSizeConfigItem
+
+export function isOptionsConfigItem(item: BaseConfigItem): item is OptionsConfigItem {
+  return ['select', 'radio', 'iconRadio', 'styleToggle', 'sizeChips'].includes(item.type)
 }
