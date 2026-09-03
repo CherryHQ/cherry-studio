@@ -83,23 +83,33 @@ describe('Cherry Cloud response contracts', () => {
           {
             id: 'claude-test',
             display_name: 'Claude Test',
-            endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
             context_window: 200_000,
             max_output_tokens: 8_192
           }
         ]
       }).success
     ).toBe(false)
+  })
+
+  it('defaults missing capabilities and ignores unknown capability values', () => {
+    const model = {
+      id: 'claude-test',
+      display_name: 'Claude Test',
+      endpoint_type: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      context_window: 200_000,
+      max_output_tokens: 8_192
+    }
+
+    expect(cloudModelListSchema.parse({ data: [model] }).data[0].capabilities).toEqual([])
+    expect(
+      cloudModelListSchema.parse({
+        data: [{ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, 'future-capability'] }]
+      }).data[0].capabilities
+    ).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(cloudModelListSchema.safeParse({ data: [{ ...model, capabilities: null }] }).success).toBe(false)
     expect(
       cloudModelListSchema.safeParse({
-        data: [
-          {
-            id: 'claude-test',
-            display_name: 'Claude Test',
-            context_window: 200_000,
-            max_output_tokens: 8_192
-          }
-        ]
+        data: [{ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, 1] }]
       }).success
     ).toBe(false)
   })
