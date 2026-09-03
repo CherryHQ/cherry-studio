@@ -1256,6 +1256,7 @@
   "error.lastError": "Letzter Fehler",
   "error.maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
   "error.message": "Fehlermeldung",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> hat die Antwort ohne Abschlussgrund beendet. Die Teilantwort wurde beibehalten; versuchen Sie die Anfrage erneut.",
   "error.missing_user_message": "Modellresponse kann nicht gewechselt werden: Ursprüngliche Benutzernachricht wurde gelöscht. Bitte senden Sie eine neue Nachricht, um eine Response von diesem Modell zu erhalten",
   "error.model.exists": "Modell existiert bereits",
   "error.model.not_exists": "Modell existiert nicht",

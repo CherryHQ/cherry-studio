@@ -1256,6 +1256,7 @@
   "error.lastError": "最後のエラー",
   "error.maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
   "error.message": "エラーメッセージ",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> が終了理由を返さずに応答を終了しました。途中までの応答は保持されています。リクエストを再試行してください。",
   "error.missing_user_message": "モデル応答を切り替えられません：元のユーザーメッセージが削除されました。このモデルで応答を得るには、新しいメッセージを送信してください",
   "error.model.exists": "モデルが既に存在します",
   "error.model.not_exists": "モデルが存在しません",

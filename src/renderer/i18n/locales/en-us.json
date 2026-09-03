@@ -1256,6 +1256,7 @@
   "error.lastError": "Last Error",
   "error.maxEmbeddingsPerCall": "Max Embeddings Per Call",
   "error.message": "Error Message",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> ended the response without a finish reason. The partial response was kept; retry the request.",
   "error.missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
   "error.model.exists": "Model already exists",
   "error.model.not_exists": "Model does not exist",

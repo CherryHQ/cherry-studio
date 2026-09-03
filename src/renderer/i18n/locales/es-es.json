@@ -1256,6 +1256,7 @@
   "error.lastError": "Último error",
   "error.maxEmbeddingsPerCall": "máximo de embeddings por llamada",
   "error.message": "Mensaje de error",
+  "error.missing_finish_reason": "<provider>{{provider}}</provider> finalizó la respuesta sin indicar un motivo. Se conservó la respuesta parcial; vuelve a intentar la solicitud.",
   "error.missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
   "error.model.exists": "El modelo ya existe",
   "error.model.not_exists": "El modelo no existe",
