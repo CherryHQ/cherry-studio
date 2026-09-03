@@ -1,3 +1,5 @@
+import type * as MiniAppMutationServiceModule from '@renderer/services/MiniAppMutationService'
+import { miniAppMutationService } from '@renderer/services/MiniAppMutationService'
 import { toast } from '@renderer/services/toast'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -35,20 +37,30 @@ function resolveStatusOrder(callIndex: number, apps: readonly MiniApp[] = mocks.
   return typeof order === 'function' ? order(apps) : order
 }
 
-vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({
-    allApps: mocks.allApps,
-    miniApps: mocks.miniApps,
-    disabled: mocks.disabled,
-    effectiveRegion: mocks.effectiveRegion,
-    updateAppStatus: mocks.updateAppStatus,
-    setAppStatusBulk: mocks.setAppStatusBulk,
-    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
-  })
-}))
+vi.mock('@renderer/hooks/useMiniApps', async () => {
+  const { miniAppMutationService } = await vi.importActual<typeof MiniAppMutationServiceModule>(
+    '@renderer/services/MiniAppMutationService'
+  )
+
+  return {
+    useMiniApps: () => ({
+      allApps: mocks.allApps,
+      miniApps: mocks.miniApps,
+      disabled: mocks.disabled,
+      effectiveRegion: mocks.effectiveRegion,
+      updateAppStatus: (...args: Parameters<typeof mocks.updateAppStatus>) =>
+        miniAppMutationService.enqueue(() => mocks.updateAppStatus(...args)),
+      setAppStatusBulk: (...args: Parameters<typeof mocks.setAppStatusBulk>) =>
+        miniAppMutationService.enqueue(() => mocks.setAppStatusBulk(...args)),
+      reorderMiniAppsByStatus: (...args: Parameters<typeof mocks.reorderMiniAppsByStatus>) =>
+        miniAppMutationService.enqueue(() => mocks.reorderMiniAppsByStatus(...args))
+    })
+  }
+})
 
 describe('useMiniAppVisibility', () => {
   beforeEach(() => {
+    miniAppMutationService.resetForTesting()
     mocks.miniApps = [stubApp('a'), stubApp('b')]
     mocks.disabled = [{ ...stubApp('c'), status: 'disabled' }]
     mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
@@ -138,12 +150,12 @@ describe('useMiniAppVisibility', () => {
     })
 
     expect(result.current.visible.map((a) => a.appId)).toEqual(['a', 'b', 'c'])
-    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2)
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
     expect(resolveStatusOrder(0)).toEqual({ before: 'c' })
-    expect(resolveStatusOrder(1)).toEqual({ before: 'b' })
 
     firstRestore.resolve()
-    await firstRestore.promise
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(resolveStatusOrder(1)).toEqual({ before: 'b' })
   })
 
   it('recomputes a queued restore anchor after an earlier restore fails', async () => {
@@ -171,11 +183,12 @@ describe('useMiniAppVisibility', () => {
       result.current.show(hiddenA)
     })
 
-    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2)
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
     expect(resolveStatusOrder(0)).toEqual({ before: 'c' })
 
     firstRestore.reject(new Error('restore failed'))
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
     expect(resolveStatusOrder(1)).toEqual({ before: 'c' })
   })
 
@@ -207,7 +220,7 @@ describe('useMiniAppVisibility', () => {
       result.current.show(hiddenA)
     })
 
-    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2)
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
     expect(resolveStatusOrder(0)).toEqual({ before: 'c' })
 
     mocks.miniApps = [appB, appC]
@@ -216,7 +229,7 @@ describe('useMiniAppVisibility', () => {
     rerender()
     firstRestore.resolve()
 
-    await firstRestore.promise
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
     expect(resolveStatusOrder(1)).toEqual({ before: 'b' })
   })
 
@@ -233,8 +246,9 @@ describe('useMiniAppVisibility', () => {
       result.current.show(hiddenC)
       result.current.show(hiddenD)
     })
-    void mocks.updateAppStatus('external', 'pinned')
+    void miniAppMutationService.enqueue(() => mocks.updateAppStatus('external', 'pinned'))
 
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
     firstRestore.resolve()
     await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(3))
     expect(mocks.updateAppStatus.mock.calls.map(([appId]) => appId)).toEqual(['c', 'd', 'external'])
@@ -249,15 +263,17 @@ describe('useMiniAppVisibility', () => {
     const shownApp = result.current.visible.find((app) => app.appId === 'c')!
     act(() => result.current.hide(shownApp))
 
-    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2)
-    expect(mocks.updateAppStatus.mock.calls.map(([appId, status]) => [appId, status])).toEqual([
-      ['c', 'enabled'],
-      ['c', 'disabled']
-    ])
+    expect(mocks.updateAppStatus).toHaveBeenCalledTimes(1)
+    expect(mocks.updateAppStatus).toHaveBeenCalledWith('c', 'enabled', expect.any(Function))
     expect(resolveStatusOrder(0)).toEqual({ position: 'last' })
 
     showRequest.resolve()
     await showRequest.promise
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus.mock.calls.map(([appId, status]) => [appId, status])).toEqual([
+      ['c', 'enabled'],
+      ['c', 'disabled']
+    ])
   })
 
   it('reset restores the canonical order when pinned and enabled apps are interleaved', async () => {
@@ -475,12 +491,13 @@ describe('useMiniAppVisibility', () => {
     await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1))
     act(() => result.current.reorderVisible(2, 1))
 
-    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(2)
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(1)
+    first.resolve()
+    await waitFor(() => expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledTimes(2))
     expect(mocks.reorderMiniAppsByStatus.mock.calls.map(([, apps]) => apps.map((app: MiniApp) => app.appId))).toEqual([
       ['c', 'a', 'b'],
       ['c', 'b', 'a']
     ])
-    first.resolve()
     second.resolve()
     await Promise.all([first.promise, second.promise])
   })
