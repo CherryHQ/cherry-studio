@@ -1,6 +1,6 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { TreeResponse } from '@shared/data/types/message'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -102,6 +102,7 @@ const branchedTree: TreeResponse = {
       id: 'user-1',
       parentId: 'virtual-root',
       role: 'user',
+      hasContent: true,
       preview: 'Question',
       status: 'success',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -111,6 +112,7 @@ const branchedTree: TreeResponse = {
       id: 'answer-1',
       parentId: 'user-1',
       role: 'assistant',
+      hasContent: true,
       preview: 'Answer',
       status: 'success',
       createdAt: '2026-01-01T00:01:00.000Z',
@@ -120,6 +122,7 @@ const branchedTree: TreeResponse = {
       id: 'user-main',
       parentId: 'answer-1',
       role: 'user',
+      hasContent: true,
       preview: 'Original route',
       status: 'success',
       createdAt: '2026-01-01T00:02:00.000Z',
@@ -129,6 +132,7 @@ const branchedTree: TreeResponse = {
       id: 'user-branch',
       parentId: 'answer-1',
       role: 'user',
+      hasContent: true,
       preview: 'Try another model',
       status: 'success',
       createdAt: '2026-01-01T00:03:00.000Z',
@@ -138,6 +142,7 @@ const branchedTree: TreeResponse = {
       id: 'answer-branch',
       parentId: 'user-branch',
       role: 'assistant',
+      hasContent: true,
       preview: 'Alternative answer',
       status: 'success',
       createdAt: '2026-01-01T00:04:00.000Z',
@@ -180,21 +185,43 @@ describe('TopicBranchSwitcher', () => {
     expect(trigger).not.toHaveTextContent('Try another model')
   })
 
-  it('switches to a leaf, closes on success, and skips requests for the current branch', async () => {
+  it('switches once, closes on success, and skips requests for the current branch', async () => {
+    let resolveSwitch!: () => void
+    mocks.setActiveNode.mockReturnValueOnce(new Promise<void>((resolve) => (resolveSwitch = resolve)))
+    mocks.tree = {
+      ...branchedTree,
+      nodes: [
+        ...branchedTree.nodes,
+        {
+          ...branchedTree.nodes[2],
+          id: 'user-third',
+          preview: 'Third route',
+          createdAt: '2026-01-01T00:05:00.000Z'
+        }
+      ]
+    }
     const user = userEvent.setup()
     render(<TopicBranchSwitcher topic={topic} anchor={anchor} />)
 
-    const trigger = screen.getByRole('button', { name: 'Try another model, 2 branches' })
+    const trigger = screen.getByRole('button', { name: 'Try another model, 3 branches' })
     await user.click(trigger)
-    await user.click(screen.getByRole('button', { name: /^Main / }))
+    const mainBranch = screen.getByRole('button', { name: /^Main / })
+    const thirdBranch = screen.getByRole('button', { name: /^Third route / })
 
-    await waitFor(() => {
-      expect(mocks.setActiveNode).toHaveBeenCalledWith({
-        params: { id: 'topic-1' },
-        body: { nodeId: 'user-main' }
-      })
+    act(() => {
+      mainBranch.click()
+      thirdBranch.click()
     })
-    expect(screen.queryByLabelText('Branches')).not.toBeInTheDocument()
+
+    expect(mocks.setActiveNode).toHaveBeenCalledOnce()
+    expect(mocks.setActiveNode).toHaveBeenCalledWith({
+      params: { id: 'topic-1' },
+      body: { nodeId: 'user-main' }
+    })
+    expect(thirdBranch).toBeDisabled()
+
+    resolveSwitch()
+    await waitFor(() => expect(screen.queryByLabelText('Branches')).not.toBeInTheDocument())
 
     await user.click(trigger)
     await user.click(screen.getByRole('button', { name: /^Try another model / }))
@@ -231,6 +258,7 @@ describe('TopicBranchSwitcher', () => {
   })
 
   it('runs the same branch actions from the ellipsis and context menus', async () => {
+    let resolveCopy!: () => void
     const user = userEvent.setup()
     render(<TopicBranchSwitcher topic={topic} anchor={anchor} />)
 
@@ -248,14 +276,24 @@ describe('TopicBranchSwitcher', () => {
       )
     })
 
+    mocks.copyBranch.mockReturnValueOnce(new Promise<void>((resolve) => (resolveCopy = resolve)))
     await user.click(screen.getByRole('button', { name: 'Try another model, 2 branches' }))
     fireEvent.contextMenu(screen.getByRole('button', { name: /^Main / }))
-    await user.click(await screen.findByRole('menuitem', { name: 'Copy as New Conversation' }))
+    const copyAction = await screen.findByRole('menuitem', { name: 'Copy as New Conversation' })
 
+    act(() => {
+      copyAction.click()
+      copyAction.click()
+    })
+
+    expect(mocks.copyBranch).toHaveBeenCalledOnce()
     expect(mocks.copyBranch).toHaveBeenCalledWith({
       params: { id: 'topic-1' },
       body: { nodeId: 'user-main' }
     })
+
+    resolveCopy()
+    await waitFor(() => expect(mocks.toastSuccess).toHaveBeenCalledWith('Copied to a new conversation'))
   })
 
   it('opens, traverses, and selects from the keyboard, then returns focus on Escape', async () => {

@@ -37,7 +37,7 @@ function collectPath(endpoint: ProjectedNode, nodesById: Map<string, ProjectedNo
 
 const hasMessagePreview = (node: ProjectedNode) => node.preview.trim().length > 0
 const countTurns = (nodes: ProjectedNode[]) =>
-  nodes.filter((node) => node.role === 'user' && hasMessagePreview(node)).length
+  nodes.filter((node) => node.role === 'user' && node.hasContent && !node.isContextBoundary).length
 
 function findForkIndex(
   path: ProjectedNode[],

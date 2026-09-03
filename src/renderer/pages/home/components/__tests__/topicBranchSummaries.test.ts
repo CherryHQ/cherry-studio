@@ -8,6 +8,7 @@ function node(id: string, parentId: string, createdAt: string, overrides: Partia
     id,
     parentId,
     role: 'user',
+    hasContent: true,
     preview: id,
     status: 'success',
     createdAt,
@@ -140,12 +141,16 @@ describe('buildTopicBranchSummaries', () => {
     })
   })
 
-  it('keeps blank reserved and active non-leaf paths visible without counting empty turns', () => {
+  it('counts attachment-only turns while keeping blank reserved and active non-leaf paths visible', () => {
     const result = buildTopicBranchSummaries(
       tree({
         activeNodeId: 'answer-1',
         nodes: [
-          node('user-1', 'virtual-root', '2026-01-01T00:00:00.000Z', { preview: 'Start', hasChildren: true }),
+          node('user-1', 'virtual-root', '2026-01-01T00:00:00.000Z', {
+            preview: '',
+            hasContent: true,
+            hasChildren: true
+          }),
           node('answer-1', 'user-1', '2026-01-01T00:01:00.000Z', {
             role: 'assistant',
             preview: 'Answer',
@@ -154,6 +159,7 @@ describe('buildTopicBranchSummaries', () => {
           node('user-main', 'answer-1', '2026-01-01T00:02:00.000Z', { preview: 'Continue' }),
           node('user-empty', 'answer-1', '2026-01-01T00:03:00.000Z', {
             preview: '   ',
+            hasContent: false,
             isAwaitingInput: true
           })
         ]

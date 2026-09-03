@@ -54,6 +54,7 @@ interface BranchAction {
   id: string
   label: string
   icon: ReactNode
+  disabled?: boolean
   run: () => void
 }
 
@@ -61,7 +62,7 @@ function BranchActionItems({ actions, kind }: { actions: BranchAction[]; kind: '
   const Item = kind === 'dropdown' ? DropdownMenuItem : ContextMenuItem
 
   return actions.map((action) => (
-    <Item key={action.id} onSelect={action.run}>
+    <Item key={action.id} disabled={action.disabled} onSelect={action.run}>
       {action.icon}
       {action.label}
     </Item>
@@ -71,7 +72,9 @@ function BranchActionItems({ actions, kind }: { actions: BranchAction[]; kind: '
 function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [isBranchWritePending, setIsBranchWritePending] = useState(false)
   const actionMenuOpenRef = useRef(false)
+  const branchWriteInFlightRef = useRef(false)
   const activeButtonRef = useRef<HTMLButtonElement>(null)
   const activeRowRef = useRef<HTMLDivElement>(null)
   const [exportMenuOptions] = useMultiplePreferences(EXPORT_MENU_PREFERENCES)
@@ -160,7 +163,10 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
         setOpen(false)
         return
       }
+      if (branchWriteInFlightRef.current) return
 
+      branchWriteInFlightRef.current = true
+      setIsBranchWritePending(true)
       try {
         await setActiveNode({ params: { id: topic.id }, body: { nodeId: branch.nodeId } })
         setOpen(false)
@@ -168,6 +174,9 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
         logger.error('Failed to switch topic branch', cause as Error)
         toast.error(t('chat.branch_switcher.switch_failed'))
         void refetch()
+      } finally {
+        branchWriteInFlightRef.current = false
+        setIsBranchWritePending(false)
       }
     },
     [refetch, setActiveNode, t, topic.id]
@@ -189,6 +198,10 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
 
   const handleCopy = useCallback(
     async (branch: TopicBranchSummary) => {
+      if (branchWriteInFlightRef.current) return
+
+      branchWriteInFlightRef.current = true
+      setIsBranchWritePending(true)
       try {
         await copyBranchToNewTopic({ params: { id: topic.id }, body: { nodeId: branch.nodeId } })
         setOpen(false)
@@ -196,6 +209,9 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
       } catch (cause) {
         logger.error('Failed to copy topic branch to a new conversation', cause as Error)
         toast.error(t('chat.branch_switcher.copy_failed'))
+      } finally {
+        branchWriteInFlightRef.current = false
+        setIsBranchWritePending(false)
       }
     },
     [copyBranchToNewTopic, t, topic.id]
@@ -227,10 +243,11 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
         id: 'copy',
         label: t('chat.message.flow.copy_topic.label'),
         icon: <CopyPlus />,
+        disabled: isBranchWritePending,
         run: () => void handleCopy(branch)
       }
     ],
-    [exportMenuOptions.markdown, exportMenuOptions.markdownReason, handleCopy, handleExport, t]
+    [exportMenuOptions.markdown, exportMenuOptions.markdownReason, handleCopy, handleExport, isBranchWritePending, t]
   )
 
   if (endpointCount < 2 || !currentBranch) return anchor
@@ -270,6 +287,7 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
           event.preventDefault()
           activeButtonRef.current?.focus()
         }}
+        aria-busy={isBranchWritePending || undefined}
         aria-label={t('chat.branch_switcher.branches')}>
         {error && (
           <div className="mb-1 rounded-md bg-destructive/10 px-2 py-1.5 text-destructive text-xs" role="alert">
@@ -288,7 +306,9 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
                     ref={branch.isActive ? activeRowRef : undefined}
                     className={cn(
                       'group flex min-w-0 items-center rounded-lg',
-                      branch.isActive ? 'bg-accent/60' : 'focus-within:bg-accent/40 hover:bg-accent/30'
+                      branch.isActive
+                        ? 'bg-accent/60'
+                        : !isBranchWritePending && 'focus-within:bg-accent/40 hover:bg-accent/30'
                     )}
                     role="listitem"
                     data-branch-node-id={branch.nodeId}>
@@ -297,6 +317,7 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
                       type="button"
                       className="flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none"
                       aria-current={branch.isActive ? 'true' : undefined}
+                      disabled={isBranchWritePending}
                       onClick={() => void handleBranchSelect(branch)}>
                       <span
                         className={
@@ -320,6 +341,7 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
                           variant="ghost"
                           size="icon-sm"
                           className="mr-1 size-7 shrink-0 opacity-70 shadow-none hover:opacity-100 focus-visible:opacity-100"
+                          disabled={isBranchWritePending}
                           aria-label={t('chat.branch_switcher.actions', { name })}>
                           <MoreHorizontal />
                         </Button>
