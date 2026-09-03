@@ -4836,6 +4836,7 @@
   "settings.shortcuts.show_app": "Mostrar aplicación",
   "settings.shortcuts.show_settings": "Abrir configuración",
   "settings.shortcuts.title": "Atajos",
+  "settings.shortcuts.toggle_dev_tools": "Alternar herramientas de desarrollo",
   "settings.shortcuts.toggle_left_sidebar": "Alternar barra lateral izquierda",
   "settings.shortcuts.toggle_new_context": "Limpiar contexto",
   "settings.shortcuts.toggle_right_sidebar": "Alternar barra lateral derecha",

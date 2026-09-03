@@ -109,6 +109,23 @@ describe('AppMenuService', () => {
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
   })
 
+  it('routes DevTools through the renderer command instead of the focused-WebContents role', async () => {
+    await (service as any).onInit()
+
+    const window = { id: 1 } as BrowserWindow
+    const viewSubmenu = latestTemplate()[3].submenu as MenuItemConstructorOptions[]
+    const devToolsItem = viewSubmenu.find((item) => item.label === 'Toggle Developer Tools')
+
+    // Electron's `toggleDevTools` role dispatches on getFocusedWebContents(), which a hidden
+    // MiniApp <webview> guest keeps owning — only the renderer knows which tab is on screen.
+    expect(devToolsItem?.role).toBeUndefined()
+    expect(devToolsItem?.accelerator).toBe('CommandOrControl+Alt+I')
+
+    devToolsItem?.click?.(undefined as never, window as never, undefined as never)
+
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.devtools.toggle', window)
+  })
+
   it('opens the About settings route from the native app menu', async () => {
     await (service as any).onInit()
 

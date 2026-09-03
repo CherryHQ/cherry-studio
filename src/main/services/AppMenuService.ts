@@ -17,7 +17,13 @@ import {
 import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'
 
-const appMenuCommands: CommandId[] = ['app.settings.open', 'app.zoom.in', 'app.zoom.out', 'app.zoom.reset']
+const appMenuCommands: CommandId[] = [
+  'app.settings.open',
+  'app.zoom.in',
+  'app.zoom.out',
+  'app.zoom.reset',
+  'app.devtools.toggle'
+]
 
 const appMenuShortcutCommands = new Set(appMenuCommands)
 
@@ -65,7 +71,8 @@ export class AppMenuService extends BaseService {
       'app.settings.open': t('settings.title'),
       'app.zoom.reset': t('appMenu.resetZoom'),
       'app.zoom.in': t('appMenu.zoomIn'),
-      'app.zoom.out': t('appMenu.zoomOut')
+      'app.zoom.out': t('appMenu.zoomOut'),
+      'app.devtools.toggle': t('appMenu.toggleDevTools')
     })
     const getCommandItem = (command: CommandId): NativeCommandMenuItem => {
       const item = commandItems.get(command)
@@ -123,7 +130,9 @@ export class AppMenuService extends BaseService {
         children: [
           { type: 'role', role: 'reload', label: t('appMenu.reload') },
           { type: 'role', role: 'forceReload', label: t('appMenu.forceReload') },
-          { type: 'role', role: 'toggleDevTools', label: t('appMenu.toggleDevTools') },
+          // Not the `toggleDevTools` role: it resolves through the focused WebContents,
+          // which a hidden MiniApp guest keeps owning. The renderer picks the target.
+          getCommandItem('app.devtools.toggle'),
           { type: 'separator' },
           getCommandItem('app.zoom.reset'),
           getCommandItem('app.zoom.in'),

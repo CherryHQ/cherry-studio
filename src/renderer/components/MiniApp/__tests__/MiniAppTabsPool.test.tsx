@@ -26,6 +26,8 @@ vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
       ref={(el) => {
         // A local app's <webview> mounts only after `runtime.prepare`; `deferAttach`
         // replays that late attach when the test says so.
+        // The real ref is a <webview> tag; the pool calls openDevTools() on it.
+        if (el) (el as unknown as { openDevTools: () => void }).openDevTools = () => mocks.openDevTools(appid)
         if (el && mocks.deferAttach.has(appid)) mocks.pendingAttach.set(appid, () => onSetRefCallback(appid, el))
         else onSetRefCallback(appid, el)
         if (onLoadedCallback) mocks.loadHandlers.set(appid, onLoadedCallback)
@@ -49,6 +51,8 @@ const stubApp = (id: string): MiniApp => ({
 })
 
 const mocks = vi.hoisted(() => ({
+  openDevTools: vi.fn(),
+  commandHandlers: new Map<string, { handler: () => void; enabled: boolean }>(),
   openedKeepAliveMiniApps: [] as MiniApp[],
   currentMiniAppId: '',
   splitOpen: false,
@@ -88,6 +92,9 @@ const emitIpc = (event: string, payload: unknown) => act(() => ipc.handlers.get(
 vi.mock('@renderer/hooks/command', () => ({
   useCommandContextKey: (key: string, value: unknown) => {
     mocks.contextKeys.push({ key, value })
+  },
+  useCommandHandler: (command: string, handler: () => void, options?: { enabled?: boolean }) => {
+    mocks.commandHandlers.set(command, { handler, enabled: options?.enabled !== false })
   }
 }))
 
@@ -174,6 +181,8 @@ describe('MiniAppTabsPool', () => {
     mocks.focusHandlers.clear()
     mocks.loadHandlers.clear()
     mocks.contextKeys = []
+    mocks.commandHandlers.clear()
+    mocks.openDevTools.mockReset()
   })
 
   /** Latest value the pool published for `webview.focused`. */
@@ -206,6 +215,59 @@ describe('MiniAppTabsPool', () => {
       mocks.focusHandlers.get('alpha')!('alpha', false)
     })
     expect(focusedKey()).toBe(false)
+  })
+
+  /** The DevTools command registration the pool currently exposes. */
+  const devToolsEntry = () => mocks.commandHandlers.get('app.devtools.toggle')
+
+  it('inspects the visible MiniApp pane instead of the host window', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    expect(devToolsEntry()?.enabled).toBe(true)
+    act(() => devToolsEntry()!.handler())
+    expect(mocks.openDevTools).toHaveBeenCalledWith('alpha')
+  })
+
+  it('hands the shortcut back to the host when no MiniApp pane is on screen', () => {
+    // Pooled but hidden: the guest still owns Electron's focused WebContents, which is
+    // exactly why the shortcut used to open the MiniApp console from unrelated tabs.
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/chat' }
+    ]
+    mocks.activeTabId = 't2'
+
+    render(<MiniAppTabsPool />)
+
+    // Disabled, so CommandProvider's findLast falls through to the AppShell handler.
+    expect(devToolsEntry()?.enabled).toBe(false)
+  })
+
+  it('inspects the focused pane while the split shows two MiniApps', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.splitOpen = true
+    mocks.splitMiniAppId = 'bravo'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    act(() => devToolsEntry()!.handler())
+    expect(mocks.openDevTools).toHaveBeenLastCalledWith('alpha')
+
+    act(() => {
+      mocks.focusHandlers.get('bravo')!('bravo', true)
+    })
+    act(() => devToolsEntry()!.handler())
+    expect(mocks.openDevTools).toHaveBeenLastCalledWith('bravo')
   })
 
   it('ignores a stale blur from a pane that no longer holds focus', () => {

@@ -4836,6 +4836,7 @@
   "settings.shortcuts.show_app": "App anzeigen/ausblenden",
   "settings.shortcuts.show_settings": "Einstellungen öffnen",
   "settings.shortcuts.title": "Tastenkürzel",
+  "settings.shortcuts.toggle_dev_tools": "Entwicklertools ein-/ausblenden",
   "settings.shortcuts.toggle_left_sidebar": "Linke Seitenleiste umschalten",
   "settings.shortcuts.toggle_new_context": "Kontext löschen",
   "settings.shortcuts.toggle_right_sidebar": "Rechte Seitenleiste umschalten",

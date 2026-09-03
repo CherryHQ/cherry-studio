@@ -4836,6 +4836,7 @@
   "settings.shortcuts.show_app": "Show/Hide App",
   "settings.shortcuts.show_settings": "Open Settings",
   "settings.shortcuts.title": "Keyboard Shortcuts",
+  "settings.shortcuts.toggle_dev_tools": "Toggle Developer Tools",
   "settings.shortcuts.toggle_left_sidebar": "Toggle Left Sidebar",
   "settings.shortcuts.toggle_new_context": "Clear Context",
   "settings.shortcuts.toggle_right_sidebar": "Toggle Right Sidebar",
