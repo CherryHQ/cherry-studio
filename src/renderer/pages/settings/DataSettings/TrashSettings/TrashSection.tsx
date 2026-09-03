@@ -193,13 +193,15 @@ const TrashSection: FC<TrashSectionProps> = ({
               onClick={() => requestPermanentDelete(selectedItems, true)}>
               {t('settings.data.trash.permanent_delete.selected', { count: selectedItems.length })}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={isBatchActionDisabled}
-              onClick={() => setSelectedIds(new Set())}>
-              {t('settings.data.trash.selection.clear')}
-            </Button>
+            {selectedItems.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isBatchActionDisabled}
+                onClick={() => setSelectedIds(new Set())}>
+                {t('settings.data.trash.selection.clear')}
+              </Button>
+            )}
           </div>
         </div>
       )}

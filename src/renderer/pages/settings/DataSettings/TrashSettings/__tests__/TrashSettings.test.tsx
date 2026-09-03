@@ -119,7 +119,7 @@ describe('TrashSettings permanent-delete confirmation', () => {
     expect(screen.getByRole('checkbox', { name: 'Select all visible items' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Restore 0' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Delete Permanently 0' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted topic' }))
     expect(screen.getByRole('button', { name: 'Restore 1' })).toBeEnabled()
@@ -132,12 +132,14 @@ describe('TrashSettings permanent-delete confirmation', () => {
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Select Deleted session' })).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Restore 0' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted session' }))
     await user.click(screen.getByRole('button', { name: 'Clear selection' }))
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(screen.queryByText('1 selected')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Restore 0' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Clear selection' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('checkbox', { name: 'Select Deleted session' }))
     await user.click(screen.getByRole('button', { name: 'Done' }))
