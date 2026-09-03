@@ -22,9 +22,46 @@ import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
 import { paintingClasses } from './paintingPrimitives'
 
-const PaintingPage: FC = () => {
+interface PaintingTemplateShowcaseStageProps {
+  painting: PaintingData
+  onSelect: (prompt: string) => void
+}
+
+const PaintingTemplateShowcaseStage: FC<PaintingTemplateShowcaseStageProps> = ({ painting, onSelect }) => {
   const { t } = useTranslation()
   const { templates: promptPresets } = usePaintingTemplateCatalog()
+
+  return (
+    <section
+      data-testid="painting-template-stage"
+      className="absolute inset-0 z-0 mx-auto flex min-h-0 w-full max-w-5xl items-center justify-center overflow-hidden px-3 pt-3 pb-36 [container-type:size]">
+      <div className="flex h-full max-h-80 min-h-0 w-full flex-col items-center">
+        <h1 className="max-w-xl shrink-0 text-center font-bold tracking-tight [font-size:clamp(var(--font-size-heading-sm),4cqw,var(--font-size-heading-md))] [line-height:1.1]">
+          {t('paintings.showcase.title')}
+        </h1>
+
+        <div className="mt-[clamp(8px,5cqh,30px)] flex min-h-0 w-full flex-1 flex-col items-center">
+          {promptPresets.length > 0 ? (
+            <PaintingTemplateShowcase
+              paintingId={painting.id}
+              prompt={painting.prompt ?? ''}
+              templates={promptPresets}
+              onSelect={onSelect}
+            />
+          ) : (
+            <Artboard painting={painting} isLoading={false} />
+          )}
+
+          <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-muted-foreground text-xs leading-5">
+            {t('paintings.showcase.caption')}
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+const PaintingPage: FC = () => {
   const providerOptions = usePaintingProviderOptions()
   const draftDefaults = usePaintingDraftDefaults(providerOptions)
 
@@ -136,32 +173,10 @@ const PaintingPage: FC = () => {
                   {!showTemplateShowcase && <Artboard painting={composerPainting} isLoading={generating} />}
                 </div>
                 {showTemplateShowcase && (
-                  <section
-                    data-testid="painting-template-stage"
-                    className="absolute inset-0 z-0 mx-auto flex min-h-0 w-full max-w-5xl items-center justify-center overflow-hidden px-3 pt-3 pb-36 [container-type:size]">
-                    <div className="flex h-full max-h-80 min-h-0 w-full flex-col items-center">
-                      <h1 className="max-w-xl shrink-0 text-center font-bold tracking-tight [font-size:clamp(var(--font-size-heading-sm),4cqw,var(--font-size-heading-md))] [line-height:1.1]">
-                        {t('paintings.showcase.title')}
-                      </h1>
-
-                      <div className="mt-[clamp(8px,5cqh,30px)] flex min-h-0 w-full flex-1 flex-col items-center">
-                        {promptPresets.length > 0 ? (
-                          <PaintingTemplateShowcase
-                            paintingId={composerPainting.id}
-                            prompt={composerPainting.prompt}
-                            templates={promptPresets}
-                            onSelect={(prompt) => patchPainting({ prompt })}
-                          />
-                        ) : (
-                          <Artboard painting={composerPainting} isLoading={false} />
-                        )}
-
-                        <p className="mt-[clamp(4px,2cqh,10px)] max-w-lg shrink-0 px-4 pb-1 text-center text-muted-foreground text-xs leading-5">
-                          {t('paintings.showcase.caption')}
-                        </p>
-                      </div>
-                    </div>
-                  </section>
+                  <PaintingTemplateShowcaseStage
+                    painting={composerPainting}
+                    onSelect={(prompt) => patchPainting({ prompt })}
+                  />
                 )}
                 <div className={paintingClasses.promptDock}>
                   <div className="mx-auto w-full max-w-5xl">
