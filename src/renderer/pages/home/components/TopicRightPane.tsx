@@ -77,6 +77,10 @@ interface TopicRightPaneActions {
   setFileTreeSearchKeyword: (keyword: string) => void
 }
 
+function isStandaloneInputFilePreview(selection: ArtifactPaneFileSelection | null): boolean {
+  return selection?.previewType === 'file' && selection.readOnly === true && Boolean(selection.displayPath)
+}
+
 type TopicBranchLiveStateSetter = (topicId: string, state: TopicMessageFlowLiveState | null) => void
 
 interface TopicBranchLiveStateStore {
@@ -341,10 +345,11 @@ function TopicRightPaneProvider({
   const [selectedFile, setSelectedFileState] = useState<string | null>(null)
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const fileWorkspacePath = previewFileSelection?.workspacePath
+  const standaloneInputFilePreview = isStandaloneInputFilePreview(previewFileSelection)
+  const fileWorkspacePath = standaloneInputFilePreview ? undefined : previewFileSelection?.workspacePath
   const requestFileSelection = useCallback((selection: ArtifactPaneFileSelection | null) => {
     setPreviewFileSelection(selection)
-    setSelectedFileState(selection?.filePath ?? null)
+    setSelectedFileState(isStandaloneInputFilePreview(selection) ? null : (selection?.filePath ?? null))
   }, [])
   const closeFilePreview = useCallback(() => requestFileSelection(null), [requestFileSelection])
   const selectFile = useCallback(

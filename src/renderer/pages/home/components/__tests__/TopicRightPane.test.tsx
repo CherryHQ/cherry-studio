@@ -14,6 +14,15 @@ const useCommandHandlerMock = vi.hoisted(() => vi.fn())
 const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const resolveArtifactPaneFileSelectionMock = vi.hoisted(() => vi.fn())
+const useArtifactFileTreeModelMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    errorKind: undefined,
+    hasLoaded: true,
+    nodeById: new Map(),
+    refresh: vi.fn(),
+    reloadExpandedDirectories: vi.fn()
+  }))
+)
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
@@ -22,13 +31,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
-  useArtifactFileTreeModel: () => ({
-    errorKind: undefined,
-    hasLoaded: true,
-    nodeById: new Map(),
-    refresh: vi.fn(),
-    reloadExpandedDirectories: vi.fn()
-  })
+  useArtifactFileTreeModel: useArtifactFileTreeModelMock
 }))
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
@@ -178,6 +181,7 @@ describe('TopicRightPane', () => {
     useCommandHandlerMock.mockClear()
     ipcRequestMock.mockReset()
     resolveArtifactPaneFileSelectionMock.mockReset()
+    useArtifactFileTreeModelMock.mockClear()
     developerModeEnabled.mockReturnValue(true)
   })
 
@@ -363,6 +367,37 @@ describe('TopicRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('does not expose the parent directory as a browsable workspace for input previews', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockRejectedValueOnce(new Error('missing original')).mockResolvedValueOnce({ kind: 'file' })
+
+    render(
+      <TopicRightPane.Scope topicId="topic-a">
+        <OpenInputFilePreviewButton />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.docx'
+      )
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
+    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        workspacePath: undefined,
+        selectedFile: null
+      })
+    )
   })
 
   it('keeps the original closed return target when switching between input previews', async () => {
