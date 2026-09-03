@@ -1,7 +1,7 @@
 ---
 description: Design RFC for the core/utilityProcess V1 generic layer (#19621) — interface, protocol, failure policy, build mechanism, and experiment evidence
 sources:
-  - src/main/ai/inference/InferenceServiceBase.ts
+  - src/main/ai/localModel/runtime/InferenceServiceBase.ts
   - src/main/ai/tools/codeMode/runtime.ts
   - src/main/services/screenshot/windowEnumerator.ts
   - src/main/services/readableContent/ReadableContentService.ts
@@ -154,7 +154,7 @@ MessagePort → serveUtilityProcess → typed handler`.
 ```mermaid
 flowchart LR
   subgraph MAIN["Main process"]
-    DOM["Consumer domain<br/>ai/inference · codeMode later"]
+    DOM["Consumer domain<br/>ai/localModel · codeMode later"]
     CLIENT["UtilityProcessClient<br/>request · stop · withStopped"]
     MGR["UtilityProcessManager<br/>generation · breaker · idle TTL"]
     ADAPTER["Electron adapter<br/>utilityProcess.fork"]
@@ -341,7 +341,8 @@ deliverable.
 
 ### 7.3 Corrections to the issue's inventory
 
-- `InferenceServiceBase` lives at `src/main/ai/inference/`, not `ai/localModel/runtime/`.
+- `InferenceServiceBase` lived at `src/main/ai/inference/` when this RFC was written; #19580 has
+  since moved it to `ai/localModel/runtime/`, matching the issue's inventory.
 - There is a **fourth** worker host the issue misses, and it already disproves "every host is an
   eval'd string": `services/readableContent/ReadableContentService.ts` has imported a real file
   worker via `?nodeWorker` since #16893 and ships in releases. This is the production precedent
@@ -373,7 +374,7 @@ cannot silently vanish.
 ## 8. Migration sketch: `InferenceServiceBase` (paper validation, not part of V1)
 
 The interface above was checked against the real first consumer line by line. Today's
-`src/main/ai/inference/InferenceServiceBase.ts` (~380 lines) keeps, per subclass: an eval'd
+`src/main/ai/localModel/runtime/InferenceServiceBase.ts` (~380 lines) keeps, per subclass: an eval'd
 worker source, a `pending` map with abort listeners, `workerGeneration` guards against
 superseded workers' `error`/`exit`, a `closing` flag, an idle timer, log relay, and
 respawn-on-config-change. Under V1:
