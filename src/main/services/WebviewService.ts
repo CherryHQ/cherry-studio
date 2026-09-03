@@ -226,7 +226,7 @@ export class WebviewService extends BaseService {
   private readonly preloadAttachedContents = new WeakSet<Electron.WebContents>()
   private readonly initializedWebviews = new WeakSet<Electron.WebContents>()
   private readonly accessibilityCaptureQueues = new Map<number, AccessibilityCaptureQueue>()
-  private readonly annotationNavigationRevisions = new Map<number, number>()
+  private readonly annotationNavigationRevisions = new WeakMap<Electron.WebContents, number>()
 
   protected async onInit() {
     this.initSessionUserAgent()
@@ -236,7 +236,6 @@ export class WebviewService extends BaseService {
   protected async onStop() {
     application.get('CacheService').delete(ANNOTATION_CACHE_KEY)
     this.accessibilityCaptureQueues.clear()
-    this.annotationNavigationRevisions.clear()
   }
 
   /**
@@ -321,8 +320,8 @@ export class WebviewService extends BaseService {
       return
     }
     this.initializedWebviews.add(contents)
-    if (!this.annotationNavigationRevisions.has(contents.id)) {
-      this.annotationNavigationRevisions.set(contents.id, 0)
+    if (!this.annotationNavigationRevisions.has(contents)) {
+      this.annotationNavigationRevisions.set(contents, 0)
     }
 
     const clearAnnotations = () => this.clearAnnotations(contents.id)
@@ -330,7 +329,7 @@ export class WebviewService extends BaseService {
       if (contents.isDestroyed()) return
       const command: WebviewAnnotationHostCommand = {
         type: 'reset_for_navigation',
-        navigationRevision: this.annotationNavigationRevisions.get(contents.id) ?? 0
+        navigationRevision: this.annotationNavigationRevisions.get(contents) ?? 0
       }
       try {
         contents.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)
@@ -339,15 +338,15 @@ export class WebviewService extends BaseService {
       }
     }
     const invalidateAnnotations = (notifyGuest: boolean) => {
-      const revision = (this.annotationNavigationRevisions.get(contents.id) ?? 0) + 1
-      this.annotationNavigationRevisions.set(contents.id, revision)
+      const revision = (this.annotationNavigationRevisions.get(contents) ?? 0) + 1
+      this.annotationNavigationRevisions.set(contents, revision)
       clearAnnotations()
       if (notifyGuest) sendNavigationReset()
     }
     const handleDestroyed = () => {
       clearAnnotations()
       this.accessibilityCaptureQueues.delete(contents.id)
-      this.annotationNavigationRevisions.delete(contents.id)
+      this.annotationNavigationRevisions.delete(contents)
       this.initializedWebviews.delete(contents)
     }
     const handleNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
@@ -366,7 +365,6 @@ export class WebviewService extends BaseService {
         contents.removeListener('dom-ready', sendNavigationReset)
         contents.removeListener('destroyed', handleDestroyed)
       }
-      this.annotationNavigationRevisions.delete(contents.id)
       this.initializedWebviews.delete(contents)
     })
   }
@@ -403,6 +401,8 @@ export class WebviewService extends BaseService {
 
   replaceAnnotations(input: ReplaceAnnotationsInput, senderId: WindowId | null): void {
     const guest = this.requireOwnedWebview(input.webviewId, senderId)
+    if (input.navigationRevision !== (this.annotationNavigationRevisions.get(guest) ?? 0)) return
+
     const registry = { ...this.getAnnotationRegistry() }
     const key = String(input.webviewId)
 
@@ -411,8 +411,6 @@ export class WebviewService extends BaseService {
       this.setAnnotationRegistry(registry)
       return
     }
-
-    if (input.navigationRevision !== (this.annotationNavigationRevisions.get(input.webviewId) ?? 0)) return
 
     registry[key] = {
       webviewId: input.webviewId,
