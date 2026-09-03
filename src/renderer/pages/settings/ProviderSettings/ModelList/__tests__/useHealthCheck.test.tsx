@@ -135,7 +135,7 @@ describe('useHealthCheck', () => {
         new Promise<ModelWithStatus[]>((resolve) => {
           onChecked = callback
           finishCheck = resolve
-          expect(options.models).toEqual([chatModel, imageModel, rerankModel])
+          expect(options.models).toEqual([chatModel, rerankModel])
         })
     )
 
@@ -150,21 +150,21 @@ describe('useHealthCheck', () => {
     expect(result.current.isChecking).toBe(true)
     expect(result.current.modelStatuses).toEqual([
       expect.objectContaining({ kind: 'checking', model: chatModel }),
-      expect.objectContaining({ kind: 'checking', model: imageModel }),
+      expect.objectContaining({ kind: 'skipped', model: imageModel }),
       expect.objectContaining({ kind: 'checking', model: rerankModel })
     ])
 
-    act(() => onChecked?.(okResult(rerankModel), 2))
+    act(() => onChecked?.(okResult(rerankModel), 1))
     expect(result.current.modelStatuses[2]).toMatchObject({ kind: 'ok', model: rerankModel })
 
     await act(async () => {
-      finishCheck?.([okResult(chatModel), okResult(imageModel), okResult(rerankModel)])
+      finishCheck?.([okResult(chatModel), okResult(rerankModel)])
       await Promise.resolve()
     })
 
     expect(result.current.isChecking).toBe(false)
     expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
-    expect(toastSuccessMock).not.toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
+    expect(toastSuccessMock).toHaveBeenCalledWith(expect.stringContaining('model_status_skipped'))
   })
 
   it('uses the latest models after credentials are prepared', async () => {
@@ -376,7 +376,7 @@ describe('useHealthCheck', () => {
   })
 
   it('prunes only deleted model results after a completed run', async () => {
-    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(imageModel), okResult(rerankModel)])
+    checkModelsHealthMock.mockResolvedValue([okResult(chatModel), okResult(rerankModel)])
     const { result, rerender } = renderHook(() => useHealthCheck('openai', getCredentialsState()))
     await act(async () => {
       await result.current.startHealthCheck({ keySelection: { mode: 'all' }, isConcurrent: true, timeout: 15000 })
