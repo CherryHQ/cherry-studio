@@ -357,7 +357,7 @@ const UserBubbleMessage = ({
     void actions.openUserProfile?.()
   }, [actions])
   const messageParts = useMessageParts(message.id)
-  const attachments = getHoistedAttachments(messageParts, message)
+  const attachments = getHoistedAttachments(messageParts)
 
   return (
     <div className="flex w-full flex-col items-end">

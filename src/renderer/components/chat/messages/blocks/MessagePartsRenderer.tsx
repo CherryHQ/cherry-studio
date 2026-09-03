@@ -228,24 +228,20 @@ function toFileAttachment(part: CherryMessagePart, key: string): HoistedFileAtta
 // Must agree with what the hoisting container actually renders, or a dropped entry
 // leaves no attachment at all.
 function isHoistableFilePart(part: CherryMessagePart): boolean {
-  if ((part.type as string) !== 'file') return false
-  return isImageFilePart(part) ? !!extractImageUrl(part) : !!fileHandleFromPart(part)
+  return isImageFilePart(part) && !!extractImageUrl(part)
 }
 
 /** Attachments a hoisting container renders in place of the inline file blocks. */
-export function getHoistedAttachments(parts: readonly CherryMessagePart[], message: MessageListItem) {
+export function getHoistedAttachments(parts: readonly CherryMessagePart[]) {
   const images: string[] = []
   const files: HoistedFileAttachment[] = []
 
-  parts.forEach((part, index) => {
+  parts.forEach((part) => {
     if ((part.type as string) !== 'file') return
     if (isImageFilePart(part)) {
       const url = extractImageUrl(part)
       if (url) images.push(url)
-      return
     }
-    const attachment = toFileAttachment(part, `${message.id}-part-${index}`)
-    if (attachment) files.push(attachment)
   })
 
   return { images, files }

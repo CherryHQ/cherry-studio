@@ -192,7 +192,7 @@ describe('useAgentMessageListProviderValue', () => {
     })
   })
 
-  it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
+  it('adapts CherryUIMessage input and injects supported agent capabilities', async () => {
     const topic = {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
@@ -315,6 +315,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.previewInputFile).toBe(previewInputFile)
     expect(value?.actions.resolvePath?.('dist/report.md')).toBe('/tmp/workspace/dist/report.md')
+    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
@@ -324,6 +325,20 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+
+    ipcApiRequest.mockResolvedValueOnce({ kind: 'file' })
+    await expect(value?.actions.isDirectory?.('dist/report.md')).resolves.toBe(false)
+    expect(ipcApiRequest).toHaveBeenLastCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/tmp/workspace/dist/report.md'
+    })
+
+    ipcApiRequest.mockResolvedValueOnce({ kind: 'directory' })
+    await expect(value?.actions.isDirectory?.('dist')).resolves.toBe(true)
+    expect(ipcApiRequest).toHaveBeenLastCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/tmp/workspace/dist'
+    })
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(openRouteMock).toHaveBeenCalledWith('/settings/provider', { id: 'provider-1' })

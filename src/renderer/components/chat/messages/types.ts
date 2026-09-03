@@ -370,6 +370,7 @@ export interface MessageListActions {
   resolvePath?: (path: string) => string
   previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   previewInputFileInRightPane?: (input: MessageInputFilePreview) => void | Promise<void>
+  isDirectory?: (path: string) => Promise<boolean>
   openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void

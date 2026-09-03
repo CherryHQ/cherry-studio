@@ -43,6 +43,7 @@ import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/pane
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import ComposerFloatingCapsule from '@renderer/components/composer/ComposerFloatingCapsule'
+import { FilePreviewNavigationProvider } from '@renderer/components/FilePreview'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
@@ -57,6 +58,7 @@ import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import { isDeferredToolOutput } from '@shared/ai/transport'
@@ -291,6 +293,7 @@ export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | n
 }
 
 interface AgentRightPaneActionsProviderProps {
+  artifactOpenRequestRef: { current: number }
   children: ReactNode
   conversationState: AgentConversationState
   sessionId?: string
@@ -306,6 +309,7 @@ interface AgentRightPaneActionsProviderProps {
 }
 
 function AgentRightPaneActionsProvider({
+  artifactOpenRequestRef,
   children,
   conversationState,
   sessionId,
@@ -319,7 +323,16 @@ function AgentRightPaneActionsProvider({
   setFileTreeSearchKeyword,
   workspaceCurrent
 }: AgentRightPaneActionsProviderProps) {
+  const { t } = useTranslation()
   const panelActions = useRightPanelActions()
+  // Invalidate in-flight artifact-open requests when the session or workspace
+  // changes (and on unmount), so a late getMetadata resolution cannot restore a
+  // preview that the switch just cleared.
+  useEffect(() => {
+    return () => {
+      artifactOpenRequestRef.current += 1
+    }
+  }, [artifactOpenRequestRef, sessionId, workspacePath])
   const canOpenAgentToolFlow = conversationState === 'ready' && Boolean(sessionId)
   const canOpenArtifactFile = workspaceCurrent && Boolean(workspacePath) && panelActions.canOpen(FILES_PANE_ID)
   const canPreviewInputFileInRightPane = conversationState === 'ready'
@@ -347,10 +360,52 @@ function AgentRightPaneActionsProvider({
   const openArtifactFile = useCallback(
     (path: string) => {
       if (!canOpenArtifactFile) return
+      const requestId = artifactOpenRequestRef.current + 1
+      artifactOpenRequestRef.current = requestId
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
-      openFileSelection(selection)
+      panelActions.tryOpen(FILES_PANE_ID, { userInitiated: true })
+
+      if (!selection) {
+        requestFileSelection(null)
+        return
+      }
+
+      const targetPath = getArtifactPaneSelectionPath(selection)
+      void openFileTarget(targetPath, {
+        openArtifactFile: () => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          openFileSelection(selection)
+        },
+        openPath: async (path) => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          await window.api.file.openPath(path)
+          if (artifactOpenRequestRef.current !== requestId) return
+          requestFileSelection(null)
+        },
+        isDirectory: async () => {
+          try {
+            const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(targetPath))
+            return metadata?.kind === 'directory'
+          } catch {
+            // Preserve the existing missing/inaccessible-file behavior: the preview reports the error.
+            return false
+          }
+        },
+        onError: () => {
+          if (artifactOpenRequestRef.current !== requestId) return
+          toast.error(t('chat.input.tools.open_file_error', { path: targetPath }))
+        }
+      })
     },
-    [canOpenArtifactFile, openFileSelection, workspacePath]
+    [
+      artifactOpenRequestRef,
+      canOpenArtifactFile,
+      openFileSelection,
+      panelActions,
+      requestFileSelection,
+      t,
+      workspacePath
+    ]
   )
   const setSelectedFile = useCallback(
     (file: string | null) => {
@@ -426,6 +481,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const [showDirtyLeaveConfirmation, setShowDirtyLeaveConfirmation] = useState(false)
+  const artifactOpenRequestRef = useRef(0)
   const pendingFileTransitionRef = useRef<(() => void) | null>(null)
   const workspaceKey = buildAgentFileWorkspaceKey(workspaceId, workspacePath)
   // External route/session changes can update props before this subtree gets a
@@ -494,6 +550,7 @@ function AgentRightPaneStateProvider({
   const requestFileSelection = useCallback(
     (selection: ArtifactPaneFileSelection | null) => {
       if (isSameFileSelection(previewFileSelection, selection)) return
+      artifactOpenRequestRef.current += 1
       requestFileTransition(() => {
         setEditMode('preview')
         setPreviewFileSelection(selection)
@@ -631,6 +688,7 @@ function AgentRightPaneStateProvider({
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
+                artifactOpenRequestRef={artifactOpenRequestRef}
                 conversationState={conversationState}
                 sessionId={sessionId}
                 workspacePath={workspacePath}
@@ -702,7 +760,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
     lastSelectableFileRef.current = null
     actions.setSelectedFile(null)
   }, [actions, model.hasLoaded, model.nodeById, state.previewFileSelection, state.selectedFile, state.workspacePath])
-  return (
+  const pane = (
     <ArtifactPaneView
       headerVariant="pane"
       paneTitle={scope.filesTitle}
@@ -720,6 +778,15 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
+  )
+  const workspacePath = AbsoluteFilePathSchema.safeParse(state.workspacePath)
+
+  return actions.canOpenArtifactFile && workspacePath.success ? (
+    <FilePreviewNavigationProvider openFile={actions.openArtifactFile} workspacePath={workspacePath.data}>
+      {pane}
+    </FilePreviewNavigationProvider>
+  ) : (
+    pane
   )
 }
 
@@ -760,8 +827,8 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
     isLoading: false,
     hasOlder: false,
     openAgentToolFlow: actions.openAgentToolFlow,
-    openArtifactFile: actions.openArtifactFile,
-    previewInputFile: actions.previewInputFileInRightPane,
+    openArtifactFile: actions.canOpenArtifactFile ? actions.openArtifactFile : undefined,
+    previewInputFile: actions.canPreviewInputFileInRightPane ? actions.previewInputFileInRightPane : undefined,
     messageNavigation,
     // Tool output is commonly workspace-relative (`dist/report.md`). Without the
     // root, open/reveal cannot resolve it and the directory probe fails closed.

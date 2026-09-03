@@ -9,7 +9,8 @@ import MarkdownFilePreview from '../MarkdownFilePreview'
 
 const mocks = vi.hoisted(() => ({
   codeViewer: vi.fn(),
-  readText: vi.fn()
+  readText: vi.fn(),
+  withFullMarkdown: vi.fn(() => ({}))
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({
@@ -58,7 +59,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  withFullMarkdown: () => ({})
+  withFullMarkdown: mocks.withFullMarkdown
 }))
 
 vi.mock('react-i18next', () => ({
@@ -105,6 +106,7 @@ describe('MarkdownFilePreview', () => {
     expect(await screen.findByTestId('markdown-preview')).toHaveTextContent('# File preview')
     expect(screen.getByTestId('markdown-preview').parentElement).toHaveClass('pt-4')
     expect(mocks.readText).toHaveBeenCalledWith(filePath)
+    expect(mocks.withFullMarkdown).toHaveBeenCalledWith({ singleDollarMath: true })
   })
 
   it('shows the empty state for empty content', async () => {

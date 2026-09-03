@@ -14,6 +14,7 @@ export {
 export { FILE_NAME_MAX_LENGTH, sanitizeFilename, validateFileName, type ValidateFileNameResult } from './filename'
 export { fileTypeMap, getFileTypeByExt } from './fileType'
 export { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from './handle'
+export { parseWindowsPath } from './pathSpec'
 export {
   type PosixRelativeFilePath,
   PosixRelativeFilePathSchema,

@@ -934,7 +934,9 @@ describe('MessagePartsRenderer', () => {
       expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
     })
 
-    it('hoists non-image attachments and hides their token chips', () => {
+    it('keeps non-image attachment tokens visible when attachments are hoisted', () => {
+      const previewInputFile = vi.fn()
+
       renderParts(
         [
           {
@@ -958,7 +960,7 @@ describe('MessagePartsRenderer', () => {
           }
         ] as unknown as CherryMessagePart[],
         msg({ role: 'user' }),
-        {},
+        { previewInputFile },
         defaultMessageRenderConfig,
         [],
         true
@@ -966,10 +968,23 @@ describe('MessagePartsRenderer', () => {
 
       expect(screen.getByText('see the doc')).toBeInTheDocument()
       expect(screen.queryByTestId('mock-attachments')).toBeNull()
-      expect(document.querySelector('[data-composer-token-kind="file"]')).toBeNull()
+      expect(document.querySelector('[data-composer-token-kind="file"]')).toHaveTextContent('report.pdf')
+
+      const preview = latestMainTextProps(0)?.readOnlyFilePreviews.get('hoisted-doc')
+      latestMainTextProps(0)?.onReadOnlyFilePreviewActivate(preview, {
+        id: 'file:hoisted-doc',
+        kind: 'file',
+        label: 'report.pdf'
+      })
+
+      expect(previewInputFile).toHaveBeenCalledWith({
+        displayName: 'report.pdf',
+        previewPath: '/tmp/report.pdf',
+        mediaType: 'application/pdf'
+      })
     })
 
-    it('hoists attachments that carry no composer token', () => {
+    it('keeps non-image attachments without composer tokens in the inline flow when attachments are hoisted', () => {
       renderParts(
         [
           { type: 'text', text: 'see the doc' },
@@ -983,7 +998,7 @@ describe('MessagePartsRenderer', () => {
       )
 
       expect(screen.getByText('see the doc')).toBeInTheDocument()
-      expect(screen.queryByTestId('mock-attachments')).toBeNull()
+      expect(screen.getByTestId('mock-attachments')).toHaveAttribute('data-file-name', 'report.pdf')
     })
 
     // A blank text part stays "substantive" while it carries a token chip, so hoisting every

@@ -28,13 +28,11 @@ describe('artifactPanePath', () => {
     expect(resolveArtifactPaneFileSelection('D:/work', 'D:notes/report.md')).toBeNull()
   })
 
-  it.each(['\\\\server\\share\\report.md', '//server/share/report.md'])(
-    'rejects UNC paths that cannot survive the artifact path canonicalizer: %s',
-    (path) => {
-      expect(resolveArtifactPaneFileSelection(undefined, path)).toBeNull()
-      expect(resolveArtifactPaneFileSelection('/tmp/workspace', path)).toBeNull()
-    }
-  )
+  it('preserves a UNC file outside the current workspace', () => {
+    const selection = resolveArtifactPaneFileSelection('D:/work', '\\\\server\\share\\docs\\report.md')
+
+    expect(selection && getArtifactPaneSelectionPath(selection)).toBe('\\\\server\\share\\docs\\report.md')
+  })
 })
 
 describe('getCopyableAbsolutePath', () => {
