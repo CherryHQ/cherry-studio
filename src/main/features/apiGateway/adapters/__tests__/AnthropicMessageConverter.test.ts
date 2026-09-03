@@ -464,7 +464,7 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
     expect(Object.keys(loaded ?? {})).toEqual(['always_available', 'get_weather'])
   })
 
-  it('defers MCP tools omitted from the older Agent SDK defer metadata', () => {
+  it('keeps MCP tools eager when the caller does not mark them as deferred', () => {
     const deferredConverter = new AnthropicMessageConverter({ enableDeferredToolLoading: true })
     const toolDefinitions = [
       {
@@ -479,27 +479,10 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
       }
     ] as MessageCreateParams['tools']
 
-    expect(Object.keys(deferredConverter.toAiSdkTools(params({ tools: toolDefinitions })) ?? {})).toEqual(['Bash'])
-
-    const loaded = deferredConverter.toAiSdkTools(
-      params({
-        tools: toolDefinitions,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                tool_use_id: 'search_1',
-                content: [{ type: 'tool_reference', tool_name: 'mcp__assistant__product_info' }]
-              }
-            ]
-          }
-        ] as MessageCreateParams['messages']
-      })
-    )
-
-    expect(Object.keys(loaded ?? {})).toEqual(['Bash', 'mcp__assistant__product_info'])
+    expect(Object.keys(deferredConverter.toAiSdkTools(params({ tools: toolDefinitions })) ?? {})).toEqual([
+      'Bash',
+      'mcp__assistant__product_info'
+    ])
   })
 
   it('keeps explicitly eager MCP tools available without ToolSearch', () => {
@@ -528,7 +511,8 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
           {
             name: 'mcp__assistant__product_info',
             description: 'Read product information',
-            input_schema: { type: 'object', properties: { source: { type: 'string' } }, required: ['source'] }
+            input_schema: { type: 'object', properties: { source: { type: 'string' } }, required: ['source'] },
+            defer_loading: true
           }
         ],
         messages: [
