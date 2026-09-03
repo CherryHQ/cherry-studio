@@ -9594,15 +9594,7 @@
       }
     },
     {
-      "capabilities": [
-        "text-generation",
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input"
-      ],
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-3-pro-image-preview",
