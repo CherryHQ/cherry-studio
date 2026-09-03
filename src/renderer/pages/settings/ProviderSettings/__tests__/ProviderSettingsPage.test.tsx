@@ -189,6 +189,36 @@ describe('ProviderSettingsPage', () => {
     })
   })
 
+  it('holds a first-visit deep link until providers load instead of consuming it blind', () => {
+    searchMock = { id: 'anthropic' }
+    useProvidersMock.mockReturnValue({
+      providers: [],
+      hasLoaded: false,
+      isLoading: true,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+    const view = render(<ProviderSettingsPage />)
+
+    // No providers yet: the param must survive (no strip navigation) and the
+    // fallback must not claim the first slot
+    expect(navigateMock).not.toHaveBeenCalled()
+    expect(screen.getByText(i18n.t('common.loading'))).toBeInTheDocument()
+
+    useProvidersMock.mockReturnValue({
+      providers,
+      hasLoaded: true,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined)
+    })
+    view.rerender(<ProviderSettingsPage />)
+
+    expect(screen.getByText('provider-setting-anthropic')).toBeInTheDocument()
+    expect(screen.getByTestId('selected-provider-id')).toHaveTextContent('anthropic')
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/provider', search: {}, replace: true })
+  })
+
   it('does not select CherryAI when it is remembered or requested by URL', async () => {
     MockUseCacheUtils.setPersistCacheValue('settings.provider.last_selected_provider_id', 'cherryai')
     searchMock = { id: 'cherryai' }
