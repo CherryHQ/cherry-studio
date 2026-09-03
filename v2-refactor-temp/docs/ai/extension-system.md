@@ -14,7 +14,7 @@
 | 宿主与贡献点的分工 | 宿主管信封、安装、生命周期、加载代码；**每个 kind 的 schema 与注册/注销由该子系统自己拥有**（VS Code contribution point 模型） |
 | 开发方式 | `@cherrystudio/extension-sdk` 写 TypeScript（`defineExtension` / `defineProvider`），`cherry-ext build` 生成 `manifest.json` + 单文件 `main.js`；开发者不手写 manifest |
 | Provider 贡献点的稳定 API | **全部 Cherry 自有类型，不暴露 AI SDK**。L0 数据 = registry `ProviderConfig` + `headers` / `configuration` / `models`；L1 钩子 = `listModels` / `acquireCredential` / `refreshCredential` / `transformRequest`；L2 模型接口 = `languageModel` / `embeddingModel` / `imageModel` / `rerankModel`，宿主内部适配到 AI SDK |
-| id | 扩展 id 反向域名；贡献项 id 局部，宿主合成 `扩展id[.局部id]`；内置 id 无 `.` 故永不冲突 |
+| id | 扩展 id 反向域名；贡献项 id 局部且必填，宿主恒合成 `扩展id.局部id`；内置 id 无 `.` 故永不冲突 |
 | Runtime v1 | 主进程内 `import()`；受信任代码模型。**仅用于用户自选文件/URL 安装** |
 | Runtime v2（API 不变） | Electron `utilityProcess` + `fetch` 反向桥。**我们自己分发索引之前必须落地** |
 | 版本 | manifest `apiVersion: 1` + `minAppVersion`；SDK 类型只增不改，破坏性变更走 `…V2`；AI SDK 版本对扩展不可见，升级只改宿主 adapter |
@@ -101,13 +101,15 @@ TokenDance 只走 OpenAI / Anthropic / Gemini 标准协议，`defineProvider` �
 export interface ContributionPoint<TItem, TModule = never> {
   kind: string                              // 'providers'
   schema: z.ZodType<TItem>                  // 该 kind 的 item schema，子系统拥有
-  /** 安装/启用时调用；纯数据 kind 的 module 为 undefined。返回注销函数。 */
+  /** 安装/启用时调用；纯数据 kind 的 module 为 undefined。**全有或全无**：抛错时必须自己已经清干净。返回注销函数。 */
   register(ext: ExtensionRef, items: TItem[], module?: TModule): Promise<() => void>
 }
 export interface ExtensionRef { id: string; version: string; dir: string }
 ```
 
 各子系统在自己目录里实现并注册（`providerContributionPoint.ts` 放在 `src/main/ai/provider/`，`webSearchContributionPoint.ts` 放在 `src/main/services/webSearch/`）。宿主维护 `Map<kind, ContributionPoint>`，安装时按 kind 分发。
+
+回滚只有靠"全有或全无"才成立：宿主手里只有**已成功返回**的注销函数，`register` 抛错时它拿不到任何句柄。所以"注册到第 3 个 provider 才失败"这种局部状态必须由该 kind 自己回收（先全量校验、再一次性注册；或就地 unregister 已注册项后再抛）。宿主负责的只是跨 kind 那一层：kind B 失败 ⇒ 调 kind A 返回的注销函数 ⇒ 整个扩展回到未启用。
 
 > 纪律：这个接口在 **第二个 kind 落地时** 才抽出来。P0/P1 阶段宿主直接调 provider 的注册函数——单一使用者不建抽象。但 manifest 的 `contributes` 形状从第一天就是 map，避免以后迁移用户已安装的包。
 
@@ -138,10 +140,10 @@ export interface ExtensionRef { id: string; version: string; dir: string }
 |---|---|---|
 | 归档检查 | `packageInstall/archive` + 参数 | `requiredFiles = manifest.main ? [main] : []`；无保留目录 |
 | 预览 → 同意卡 → 确认 | 账本 + `assertManifestUnchanged` + hash 重算 | 同意卡摘要：贡献 kind 列表、`network` 主机、**是否含 `main`（"将以应用权限运行"）** |
-| 落盘 | staging + 三棵树轮换 | 目标目录 `{userData}/Data/Extensions/<id>@<version>/`（版本目录：ESM `import()` 按 URL 缓存） |
-| 记录 | — | 新表 `extension` + `extension_installation`，字段抄 `mini_app_installation`（`manifestJson` / `contentHash` / `source` / `previous*` 回滚）；无 `grant` 表——v1 的权限只是同意卡上的披露，没有运行时门（§5） |
+| 落盘 | staging + 三棵树轮换 | 新增三个路径键（照抄 mini app 的分法，`pathRegistry.ts`）：`feature.extension.packages` = `{userData}/Data/Extensions/packages`（每个扩展一个 `<id>@<version>/` 目录——带版本是因为 ESM `import()` 按 URL 永久缓存）、`feature.extension.snapshots` = `…/Extensions/snapshots`（回滚快照，与 packages 平级）、`feature.extension.publish_journal` = `…/Extensions/.publish-journal`。一律经 `application.getPath()` 取，代码里不拼路径 |
+| 记录 | — | 新表 `extension` + `extension_installation`，字段抄 `mini_app_installation`（`manifestJson` / `contentHash` / `source` / `previous*` 回滚）+ **`isEnabled`**；无 `grant` 表——v1 的权限只是同意卡上的披露，没有运行时门（§5） |
 | 崩溃恢复 | journal 机制 + 参数 | `committedHashOf` 查 `extension_installation` |
-| 启用 / 禁用 / 卸载 | 状态机形状 | 禁用 = 调用所有 kind 的注销函数；卸载保留业务行（provider 的 key 是用户的），但**必须在同一事务里把当前 preset 的连接事实固化进 `user_provider` 行并把 `presetProviderId` 置空**——行降级为普通自定义 provider（§4.7 第 7 项） |
+| 启用 / 禁用 / 卸载 | 状态机形状 | 禁用 = 写 `extension.isEnabled = false` **再**调用所有 kind 的注销函数——状态在库里，开机扫目录时跳过禁用的扩展（只进内存的禁用会在下次启动复活，等于没禁）；卸载保留业务行（provider 的 key 是用户的），但**必须在同一事务里把当前 preset 的连接事实固化进 `user_provider` 行并把 `presetProviderId` 置空**——行降级为普通自定义 provider（§4.7 第 7 项） |
 | 升级 | 更新评审账本 + 三棵树 | 新版本目录 → `import` 新 → 校验信封与各 kind 的 items → 每个 kind 在扩展锁内**注销旧、注册新**；任一步失败 ⇒ 重新注册旧模块，旧版本继续服务（generation 语义，见下） |
 
 安装只做"解压 + 校验 + 拷贝"，**不执行任何脚本**。
@@ -211,8 +213,9 @@ export default defineExtension({
   contributes: {
     providers: [
       defineProvider({
-        // ↓ 与 packages/provider-registry 的 defineProvider 同一套字段与校验，
-        //   但去掉 id / name：宿主按 §4.2 合成 id、用信封 name 取本地化显示名
+        // ↓ 与 packages/provider-registry 的 defineProvider 同一套字段与校验，但 id 是**局部**的，
+        //   宿主合成 providerId = 'space.tokendance.cherry.chat'；name / presetProviderId 也归宿主（§4.2）
+        id: 'chat',
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: { /* … */ },
         headers: { 'X-App-URL': 'app://cherryai.com.cn' },
@@ -227,15 +230,19 @@ export default defineExtension({
 
 `cherry-ext build`：类型检查 → 用 tsdown 打成单文件 ESM `dist/main.js`（依赖全部内联）→ **静态求值 `defineExtension` 的数据部分抽成 `manifest.json`**（与 `packages/provider-registry/scripts/generate-catalog.ts` 从 `defineProvider` 抽 `providers.json` 是同一个动作）→ 计算 icon sha256 → `pack` 打 zip。`cherry-ext dev` 装进开发实例并 watch（LM Studio `lms dev` 的形态）。
 
+**manifest 与运行时代码靠局部 id 对齐。** `hooks` 是函数，抽取器序列化不了，所以它在 manifest 里只留名字：`{ "id": "chat", …数据…, "hooks": ["listModels", "acquireCredential"] }`（同意卡据此显示"该 provider 会自行获取凭证"）。启用时宿主 `import(main)` 拿到同一个 `defineExtension` 对象，按 `kind + 局部 id` 把内存里的函数挂到 manifest 的数据项上。两边对不上就拒绝启用：manifest 有而模块没有的 id、声明了 `hooks` 却没有对应函数、模块多出 manifest 里没有的贡献项——全部报错，不做"以模块为准"的兜底。理由：manifest 是用户同意过、`extension_installation.manifestJson` 存下来的那一份，运行时贡献必须是它的子集，否则同意卡就成了摆设。纯数据扩展没有 `main`，这一步跳过。
+
 manifest 仍然是**安装时契约**：宿主校验它、同意卡展示它、`extension_installation.manifestJson` 存它。开发者永远不手写它。长期看，`packages/provider-registry/src/providers/*.ts` 里的内置 provider 就是"恰好随 app 打包的扩展"——同一个 `defineProvider`，同一个抽取器。
 
 ### 4.2 id 命名空间
 
 - 扩展 id：反向域名（`space.tokendance.cherry`），与 mini app 同一规则；索引/市场保证唯一，本地安装遇同 id 走升级或重装流程。
-- **贡献项的 id 是扩展内局部的**，运行时 id 由宿主合成：一个扩展只贡献一个 provider 时 `providerId = 扩展 id`；多个时 `${扩展 id}.${局部 id}`。所有 kind 同规则（VS Code 也是宿主把 `vendor/id` 拼起来）。
+- **每个贡献项必须有局部 id，运行时 id 恒为 `${扩展 id}.${局部 id}`**——没有"只有一个就省掉后缀"的捷径。捷径会制造一个升级即毁数据的坑：v1.0 只贡献一个 provider ⇒ `providerId = space.tokendance.cherry`，v1.1 加第二个 ⇒ 第一个变成 `space.tokendance.cherry.chat`，而 `user_provider` / `user_model` 以及引用模型的历史消息都还指着旧 id，用户的 key 和模型列表凭空消失。局部 id 一旦发布就是不可变的持久化键，改它等同于删旧建新。所有 kind 同规则（VS Code 也是宿主把 `vendor/id` 拼起来）。
 - 内置 registry 的 provider id 没有一个含 `.`（已核对 `providers.json`），所以扩展 provider 与内置永不冲突；扩展之间的唯一性由扩展 id 唯一性直接推出。
 - 约束：providerId 不能含 `::`（unique model id 分隔符）和 `/`（`/providers/:providerId` 路由无通配）——`.` 两者都安全。
-- **身份字段一律由宿主填，扩展写不了。** registry 的 `ProviderConfigSchema` 要求 `id`（`ProviderIdSchema`）与 `name`（裸 `string`），`ProviderModelOverrideSchema` 要求 `providerId` + `modelId`；这三个里扩展只知道 `modelId`。所以 SDK 的 `defineProvider` 接 `Omit<ProviderConfig, 'id' | 'name'>`，`models[]` 与 `listModels()` 接 `Omit<ProviderModelOverride, 'providerId'>`，宿主在注册时补齐：`id` = 合成 providerId，`name` = `resolveLocalizedText(manifest.name)`，`providerId` = 合成 providerId。扩展伪造 id 的可能性被类型和 schema 同时挡掉——冲突不可能来自扩展作者的手误。
+- **身份字段一律由宿主填，扩展写不了。** registry 的 `ProviderConfigSchema` 要求 `id`（`ProviderIdSchema`）与 `name`（裸 `string`），`ProviderModelOverrideSchema` 要求 `providerId` + `modelId`；这三个里扩展只知道 `modelId`。所以 SDK 的 `defineProvider` 接 `Omit<ProviderConfig, 'id' | 'name' | 'presetProviderId'>` + `{ id: 局部 id; label?: LocalizedName }`，`models[]` 与 `listModels()` 接 `Omit<ProviderModelOverride, 'providerId'>`，宿主在注册时补齐：`id` / `providerId` = 合成 id，`name` = `resolveLocalizedText(label ?? manifest.name)`，`presetProviderId` = 合成 id 自身。
+- `presetProviderId` 一起 `Omit` 掉不是洁癖：它是分组键，`resolveProviderPreset` 会拿它去解析内置预置（`zai → zhipu` 就是这么工作的），扩展若填 `'openai'`，自己的行就会继承 openai 的 `endpointConfigs`——**一个由不受信数据指定凭证去向的口子**。宿主恒等赋值，扩展碰不到。
+- 贡献多个 provider 时 `label` 必填：`name` 默认取信封名，两个 provider 会在设置页显示成同名两行。SDK 在 `contributes.providers.length > 1 && !label` 时构建期报错，而不是留给用户去猜。
 
 ### 4.3 数据（L0）
 
@@ -376,7 +383,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 ```
 1. ProviderRegistryService：contribution 层（bundled → 扩展贡献），isRegistryProvider 对扩展 provider 为 true
-   → verify: GET /providers/space.tokendance.cherry/preset 返回 manifest 的 endpointConfigs
+   → verify: GET /providers/space.tokendance.cherry.chat/preset 返回 manifest 的 endpointConfigs
 
 2. registry schema：加 headers / website.credits / website.activity / configuration；getExtraHeaders 合并 provider.headers（删两处特判）
    → verify: aiSdk / pi / dsh 三条路径的 header 测试改成读 provider.headers
@@ -438,10 +445,10 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 这四条在 v1（方案 A，进程内）下同样成立——A 只是把桥换成直接调用。谁写了一个 `Request` 入参的 fetch 调用，A 下能跑、C 下崩，所以子集从第一天就是 SDK 类型的一部分，而不是 P3 的迁移说明。
 - A 的边界：VS Code 和 LM Studio 这两个让插件当 provider **且有市场**的 GUI 应用都隔离了插件进程；不隔离的（opencode / n8n / Obsidian）都是"用户亲手装"的场景。所以 A 只覆盖用户自选文件 / URL 安装；我们自己分发索引之前，C 必须先落地。
-- A 的纪律：只加载 `feature.extensions` 下用户显式安装的目录；同意卡写明"含代码，以应用权限运行"；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
+- A 的纪律：只加载 `feature.extension.packages` 下用户显式安装的目录；同意卡写明"含代码，以应用权限运行"；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
 - 加载：`import(pathToFileURL(main).href)`；`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联，宿主**不**给扩展解析自己的 `node_modules`——版本由宿主决定的依赖就是隐式 API。扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
 
-宿主服务：`ExtensionHostService`（`BaseService`，WhenReady，放 `src/main/services/extension/`——业务无关但可移除，按 main-process 架构文档的规则归 `services/` 而不是 `core/`；贡献点实现各自留在子系统目录）。职责：扫目录 → 校验信封 → `import(main)` → 按 kind 分发给 `ContributionPoint.register` → 持有注销函数。IpcApi：`extension.list` / `extension.preview` / `extension.confirm` / `extension.set_enabled` / `extension.remove`（与 mini app 的路由形状一致）。
+宿主服务：`ExtensionHostService`（`BaseService`，WhenReady，放 `src/main/services/extension/`——业务无关但可移除，按 main-process 架构文档的规则归 `services/` 而不是 `core/`；贡献点实现各自留在子系统目录）。职责：扫目录（跳过 `isEnabled = false` 的）→ 校验信封 → `import(main)` → 按 kind 分发 → 持有注销函数。**分发在 P0/P1 是一个写死的 `if (kind === 'providers')` 直调**，§3.1 的 `ContributionPoint` 接口到 P2 第二个 kind 落地时才存在；本文其余地方说"调各 kind 的 register / 注销函数"指的是这个能力，不是说接口那天就在。IpcApi：`extension.list` / `extension.preview` / `extension.confirm` / `extension.set_enabled` / `extension.remove`（与 mini app 的路由形状一致）。
 
 ## 6. 分发
 
@@ -531,7 +538,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 ### 7.3 pi / dsh / openclaw：三个"第一方全是插件"的系统为什么复杂
 
-三个仓库都在 2026-09-03 更新到最新 main/master 后逐文件统计（pi-mono `e44d75c20`、deepseek-harness `76fda72979`、openclaw `b5f9636c016`）。
+三个仓库都在 2026-09-03 更新到最新 main/master 后逐文件统计（pi-mono `e44d75c20`、deepseek-harness `76fda72979`、openclaw `b5f9636c016`）。口径：各仓库插件相关目录下非测试 TS/JS 的物理行数，方法数与事件数按导出面手点。**换个人重数会有出入**——"哪些目录算插件运行时"没有客观边界，行数本身也含注释与空行。所以下面的结论只用到数量级差（几千 vs 几万 vs 百万、十几个方法 vs 八十几个），不依赖任何单个数字；把某一格改动 30% 不会改变任何一条结论。
 
 | | pi（pi-mono） | dsh（deepseek-harness） | openclaw |
 |---|---|---|---|
@@ -598,6 +605,11 @@ P3 排在 P4 前是硬约束，不是偏好。P2 之前不抽 `ContributionPoint
 | 2026-09-04 | `Credential` 的 oauth 变体带 `clientId` | 评审；`AuthConfigOAuth.clientId` 是必填，否则"宿主直接落库"不成立（§4.4） | 已定 |
 | 2026-09-04 | 宿主能力的线上子集写进 SDK 类型：无 `URL`、无回调函数、`fetch` 收窄到字符串 URL + 普通 init | 评审；否则 §5 的"换 C 时扩展零改动"只是承诺（§5） | 已定 |
 | 2026-09-04 | 索引与包地址双源（GitHub + GitCode，`url`/`urlCn` 成对），走 `mirrorOrder` + sha256 | 评审；与 `ProviderRegistryUpdaterService`、mini app 分发 manifest 同一规矩（§6） | 已定 |
+| 2026-09-04 | 局部 id 必填，运行时 id 恒为 `扩展id.局部id`，没有"单贡献省后缀"的捷径 | 评审；捷径会让"1 个 provider → 2 个"的升级改掉已持久化的 providerId，用户的 key / 模型 / 历史引用全部悬空（§4.2） | 已定 |
+| 2026-09-04 | manifest 数据项与模块内实现按 `kind + 局部 id` 对齐，对不上就拒绝启用 | 评审；`hooks` 是函数、序列化不进 manifest，没有对齐规则就等于运行时可以超出用户同意过的那份 manifest（§4.1） | 已定 |
+| 2026-09-04 | `presetProviderId` 也 `Omit` 掉，宿主恒等赋值；多 provider 时 `label` 必填 | 评审；前者是"不受信数据指定凭证去向"的口子，后者会让设置页出现同名两行（§4.2） | 已定 |
+| 2026-09-04 | 禁用状态落 `extension.isEnabled`，开机跳过；扩展目录走 `feature.extension.*` 三个路径键 | 评审；只进内存的禁用下次启动就复活，拼路径违反"路径集中获取"（§3.2） | 已定 |
+| 2026-09-04 | `ContributionPoint.register` 契约为"全有或全无"，宿主只做跨 kind 回滚 | 评审；register 抛错时宿主拿不到注销函数，kind 内的局部注册只能由 kind 自己收（§3.1） | 已定 |
 | — | 第二个 kind 选 `webSearchProviders` 还是 `channels` | 前者接口最小（两个方法、构造函数表）；后者已经是自注册工厂表，改动最少。文档暂按前者 | **待定** |
 | — | `transformResponse` 钩子 | 仓库里只有 ark 一处响应归一化；第二个实例出现时按 `transformRequest` 同形加 | 暂不做 |
 | — | 服务端工具（`toolFactories`）、网关按模型路由、营销位面板 | 函数值跨进程不可搬 / 多数可由 `models[].endpointTypes` 表达 / 无第三方需求 | 暂不做 |
