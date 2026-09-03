@@ -78,7 +78,8 @@ function activeNodeIdAfterOptimisticTransform(
   if (nextItems.some((item) => item.message.id === activeNodeId)) return activeNodeId
 
   const previousActive = previousItems.find((item) => item.message.id === activeNodeId)
-  if (!previousActive?.siblingsGroup?.length) return activeNodeId
+  if (!previousActive) return activeNodeId
+  if (!previousActive.siblingsGroup?.length) return previousActive.message.parentId
 
   const previousSiblingIds = new Set(previousActive.siblingsGroup.map((sibling) => sibling.id))
   const promoted = nextItems.find((item) => previousSiblingIds.has(item.message.id))
