@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
+import type { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
+import { getWebviewPartition } from '@shared/utils/webviewSecurity'
 import type {
   DidFailLoadEvent,
   DidNavigateEvent,
@@ -16,7 +18,7 @@ const logger = loggerService.withContext('WebviewHost')
 interface Props {
   id: string
   src: string
-  partition?: string
+  securityProfile: WebviewSecurityProfile
   reloadKey?: number | string
   allowPopups?: boolean
   openLinksExternal?: boolean
@@ -43,7 +45,7 @@ interface Props {
 export function WebviewHost({
   id,
   src,
-  partition = 'persist:webview',
+  securityProfile,
   reloadKey,
   allowPopups = false,
   openLinksExternal = true,
@@ -178,9 +180,10 @@ export function WebviewHost({
 
   return (
     <webview
+      key={securityProfile}
       {...elementAttributes}
       ref={handleRef}
-      partition={partition}
+      partition={getWebviewPartition(securityProfile)}
       useragent={userAgent}
       aria-label={ariaLabel}
       data-testid={testId}

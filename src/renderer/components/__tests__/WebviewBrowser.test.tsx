@@ -44,6 +44,7 @@ describe('WebviewBrowser', () => {
     const { container } = render(
       <WebviewBrowser
         initialUrl="http://localhost:5173/"
+        securityProfile="agent-dev-preview"
         isHostActive
         target={{ id: 'agent-browser:session-a', label: 'Frontend task' }}
         toolbarActions={<button type="button">Pane controls</button>}
@@ -83,5 +84,64 @@ describe('WebviewBrowser', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent('webview.browser.load_failed')
+  })
+
+  it('keeps same-origin dev navigation in one guest but replaces it before authorizing a new origin', () => {
+    vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
+    const target = { id: 'agent-browser:session-a', label: 'Frontend task' }
+    const view = render(
+      <WebviewBrowser
+        initialUrl="http://localhost:5173/"
+        securityProfile="agent-dev-preview"
+        isHostActive
+        target={target}
+      />
+    )
+    const firstGuest = view.container.querySelector('webview')
+
+    view.rerender(
+      <WebviewBrowser
+        initialUrl="http://localhost:5173/dashboard"
+        securityProfile="agent-dev-preview"
+        isHostActive
+        target={target}
+      />
+    )
+    expect(view.container.querySelector('webview')).toBe(firstGuest)
+
+    view.rerender(
+      <WebviewBrowser
+        initialUrl="http://localhost:4173/"
+        securityProfile="agent-dev-preview"
+        isHostActive
+        target={target}
+      />
+    )
+    expect(view.container.querySelector('webview')).not.toBe(firstGuest)
+  })
+
+  it('replaces an artifact guest when the authorized file changes', () => {
+    vi.spyOn(mockRendererLoggerService, 'debug').mockImplementation(() => {})
+    const target = { id: 'artifact-file:index', label: 'index.html' }
+    const view = render(
+      <WebviewBrowser
+        initialUrl="file:///workspace/index.html"
+        securityProfile="agent-html-artifact"
+        isHostActive
+        target={target}
+      />
+    )
+    const firstGuest = view.container.querySelector('webview')
+
+    view.rerender(
+      <WebviewBrowser
+        initialUrl="file:///workspace/about.html"
+        securityProfile="agent-html-artifact"
+        isHostActive
+        target={target}
+      />
+    )
+
+    expect(view.container.querySelector('webview')).not.toBe(firstGuest)
   })
 })

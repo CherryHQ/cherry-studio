@@ -59,6 +59,7 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
 import { createFilePathHandle, toSafeFileUrl, type TreeDirRoot } from '@shared/utils/file'
 import { formatAgentWebviewAnnotationPrompt } from '@shared/utils/webviewAnnotations'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import {
   Activity,
   Bot,
@@ -804,6 +805,11 @@ function AgentBrowserRightPanel({ active, scope }: RightPanelComponentProps<Agen
   return (
     <WebviewBrowser
       initialUrl={runtime.browserUrl ?? BLANK_BROWSER_URL}
+      securityProfile={
+        runtime.browserUrl?.startsWith('file:')
+          ? WebviewSecurityProfile.AgentHtmlArtifact
+          : WebviewSecurityProfile.AgentDevPreview
+      }
       target={target}
       isHostActive={active}
       onAnnotationSaved={handleAnnotationSaved}

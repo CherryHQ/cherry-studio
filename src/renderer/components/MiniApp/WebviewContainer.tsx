@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { WebviewHost } from '@renderer/components/WebviewHost'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type { DidNavigateEvent, DidNavigateInPageEvent, DidStartNavigationEvent, WebviewTag } from 'electron'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -110,7 +111,7 @@ const WebviewContainer = memo(
       <WebviewHost
         id={`mini-app:${appid}`}
         src={url}
-        partition="persist:webview"
+        securityProfile={WebviewSecurityProfile.MiniApp}
         allowPopups
         openLinksExternal={openLinkExternal}
         elementAttributes={{ 'data-mini-app-id': appid }}

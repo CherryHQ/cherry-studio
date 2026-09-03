@@ -1,4 +1,5 @@
 import type { WebviewAnnotationTarget } from '@shared/types/webview'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import type { DidFailLoadEvent, WebviewTag } from 'electron'
 import { LoaderCircle } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -12,6 +13,7 @@ import WebviewSearch from './WebviewSearch'
 
 interface Props {
   initialUrl: string
+  securityProfile: typeof WebviewSecurityProfile.AgentDevPreview | typeof WebviewSecurityProfile.AgentHtmlArtifact
   target: WebviewAnnotationTarget
   isHostActive: boolean
   reloadKey?: number | string
@@ -19,9 +21,10 @@ interface Props {
   onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
 
-/** A reusable browser surface for Agent panes, artifact previews, and future WebView hosts. */
+/** A shared browser surface for Agent previews and explicitly opened HTML artifacts. */
 export function WebviewBrowser({
   initialUrl,
+  securityProfile,
   target,
   isHostActive,
   reloadKey,
@@ -33,6 +36,7 @@ export function WebviewBrowser({
   const [isReady, setIsReady] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
+  const guestAuthorizationKey = getGuestAuthorizationKey(securityProfile, initialUrl)
 
   const handleWebviewChange = useCallback((webview: WebviewTag | null) => {
     webviewRef.current = webview
@@ -74,8 +78,10 @@ export function WebviewBrowser({
       <div className="relative min-h-0 flex-1 bg-white">
         <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={target.id} />
         <WebviewHost
+          key={guestAuthorizationKey}
           id={target.id}
           src={initialUrl}
+          securityProfile={securityProfile}
           reloadKey={reloadKey}
           ariaLabel={target.label}
           testId="webview-browser-guest"
@@ -104,4 +110,17 @@ export function WebviewBrowser({
       </div>
     </div>
   )
+}
+
+function getGuestAuthorizationKey(securityProfile: Props['securityProfile'], initialUrl: string): string {
+  if (securityProfile === WebviewSecurityProfile.AgentHtmlArtifact) return `${securityProfile}:${initialUrl}`
+  if (initialUrl === 'about:blank') return `${securityProfile}:${initialUrl}`
+
+  try {
+    const url = new URL(initialUrl)
+    if (url.hostname === '0.0.0.0') url.hostname = 'localhost'
+    return `${securityProfile}:${url.origin}`
+  } catch {
+    return `${securityProfile}:${initialUrl}`
+  }
 }

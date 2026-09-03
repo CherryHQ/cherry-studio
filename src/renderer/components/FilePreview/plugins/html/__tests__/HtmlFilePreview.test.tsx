@@ -15,12 +15,18 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/WebviewBrowser', () => ({
-  WebviewBrowser: (props: { initialUrl: string; reloadKey?: number; target: { id: string; label: string } }) => {
+  WebviewBrowser: (props: {
+    initialUrl: string
+    reloadKey?: number
+    securityProfile: string
+    target: { id: string; label: string }
+  }) => {
     mocks.webviewBrowser(props)
     return (
       <div
         data-testid="webview-browser"
         data-url={props.initialUrl}
+        data-security-profile={props.securityProfile}
         data-target-id={props.target.id}
         data-target-label={props.target.label}
       />
@@ -207,6 +213,7 @@ describe('HtmlFilePreview', () => {
     const browser = await screen.findByTestId('webview-browser')
     expect(browser.getAttribute('data-url')).toMatch(/^file:\/\/.*index\.html$/)
     expect(browser).toHaveAttribute('data-target-label', 'index.html')
+    expect(browser).toHaveAttribute('data-security-profile', 'agent-html-artifact')
     expect(mocks.readText).not.toHaveBeenCalled()
     expect(screen.queryByTestId('html-frame')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()

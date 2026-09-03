@@ -33,6 +33,7 @@ describe('WebviewHost', () => {
       <WebviewHost
         id="agent-browser:session-a"
         src="http://localhost:5173/"
+        securityProfile="agent-dev-preview"
         reloadKey={0}
         allowPopups
         openLinksExternal={false}
@@ -48,7 +49,7 @@ describe('WebviewHost', () => {
       reload
     })
 
-    expect(webview).toHaveAttribute('partition', 'persist:webview')
+    expect(webview).toHaveAttribute('partition', 'agent-dev-preview')
     expect(webview).toHaveAttribute('allowpopups', 'true')
     expect(webview).toHaveAttribute('data-owner', 'agent-pane')
     expect(webview).toHaveAttribute('src', 'http://localhost:5173/')
@@ -77,6 +78,7 @@ describe('WebviewHost', () => {
       <WebviewHost
         id="agent-browser:session-a"
         src="http://localhost:5173/"
+        securityProfile="agent-dev-preview"
         reloadKey={1}
         onWebviewChange={onWebviewChange}
       />
@@ -85,5 +87,18 @@ describe('WebviewHost', () => {
 
     view.unmount()
     expect(onWebviewChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('replaces the guest when its security profile changes', () => {
+    const view = render(<WebviewHost id="changing-profile" src="about:blank" securityProfile="agent-dev-preview" />)
+    const firstGuest = view.container.querySelector('webview')
+
+    view.rerender(
+      <WebviewHost id="changing-profile" src="file:///workspace/index.html" securityProfile="agent-html-artifact" />
+    )
+
+    const secondGuest = view.container.querySelector('webview')
+    expect(secondGuest).not.toBe(firstGuest)
+    expect(secondGuest).toHaveAttribute('partition', 'agent-html-artifact')
   })
 })

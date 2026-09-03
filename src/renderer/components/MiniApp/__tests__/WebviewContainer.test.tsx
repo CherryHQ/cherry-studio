@@ -60,6 +60,7 @@ describe('WebviewContainer', () => {
     )
     const webview = container.querySelector('webview')
     expect(webview).not.toBeNull()
+    expect(webview).toHaveAttribute('partition', 'persist:webview')
 
     act(() => {
       webview?.dispatchEvent(new Event('did-finish-load'))

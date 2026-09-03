@@ -314,6 +314,7 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
 vi.mock('@renderer/components/WebviewBrowser', () => ({
   WebviewBrowser: (props: {
     initialUrl: string
+    securityProfile: string
     target: { id: string; label: string }
     isHostActive: boolean
     onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
@@ -321,7 +322,11 @@ vi.mock('@renderer/components/WebviewBrowser', () => ({
   }) => {
     webviewBrowserMock(props)
     return (
-      <div data-testid="webview-browser" data-url={props.initialUrl} data-target-id={props.target.id}>
+      <div
+        data-testid="webview-browser"
+        data-url={props.initialUrl}
+        data-security-profile={props.securityProfile}
+        data-target-id={props.target.id}>
         {props.toolbarActions}
       </div>
     )
@@ -614,6 +619,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.browser' }))
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'about:blank')
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-security-profile', 'agent-dev-preview')
   })
 
   it('inserts saved annotations with a visible, boundary-safe prompt payload', async () => {
@@ -696,6 +702,7 @@ describe('AgentRightPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
 
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/index.html')
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-security-profile', 'agent-html-artifact')
     expect(ipcRequestMock).not.toHaveBeenCalledWith('file.get_metadata', expect.anything())
   })
 
@@ -1018,6 +1025,7 @@ describe('AgentRightPane', () => {
 
     const browser = screen.getByTestId('webview-browser')
     expect(browser).toHaveAttribute('data-url', 'http://localhost:5173/')
+    expect(browser).toHaveAttribute('data-security-profile', 'agent-dev-preview')
     expect(browser).toHaveAttribute('data-target-id', 'agent-browser:session-a')
     expect(webviewBrowserMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ isHostActive: true, target: { id: 'agent-browser:session-a', label: 'Frontend task' } })

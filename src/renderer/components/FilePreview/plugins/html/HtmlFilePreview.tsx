@@ -8,6 +8,7 @@ import { WebviewBrowser } from '@renderer/components/WebviewBrowser'
 import { getFilePreviewExtension } from '@renderer/utils/filePreview'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
 import { toSafeFileUrl } from '@shared/utils/file'
+import { WebviewSecurityProfile } from '@shared/utils/webviewSecurity'
 import FileCode from 'lucide-react/dist/esm/icons/file-code'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
 import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle'
@@ -175,7 +176,13 @@ export default function HtmlFilePreview({
     return (
       <FilePreviewLayout.Frame>
         <div className="min-h-0 flex-1">
-          <WebviewBrowser initialUrl={baseUrl} reloadKey={refreshKey} isHostActive target={artifactTarget} />
+          <WebviewBrowser
+            initialUrl={baseUrl}
+            securityProfile={WebviewSecurityProfile.AgentHtmlArtifact}
+            reloadKey={refreshKey}
+            isHostActive
+            target={artifactTarget}
+          />
         </div>
       </FilePreviewLayout.Frame>
     )
