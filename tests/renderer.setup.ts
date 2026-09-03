@@ -170,6 +170,7 @@ vi.mock('@cherrystudio/ui', async () => {
   // Real implementation: its filtering/normalization contract is what callers
   // are tested against, and a stub would drift from it.
   const { InputNumber } = await import('@cherrystudio/ui/components/primitives/input-number')
+  const { InputGroupInputNumber } = await import('@cherrystudio/ui/components/primitives/input-group')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
@@ -259,6 +260,7 @@ vi.mock('@cherrystudio/ui', async () => {
           )
         : null,
     InputNumber,
+    InputGroupInputNumber,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
