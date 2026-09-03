@@ -821,6 +821,19 @@ describe('ArtifactPane', () => {
     expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
   })
 
+  it.each(['/', '/tmp/..'])(
+    'blocks a filesystem root before requesting its directory tree: %s',
+    async (workspacePath) => {
+      render(<ArtifactPane workspacePath={workspacePath} />)
+
+      await waitFor(() =>
+        expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+      )
+      expect(mocks.treeCreate).not.toHaveBeenCalled()
+      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+    }
+  )
+
   it('requests the workspace tree from DirectoryTreeBuilder', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
 

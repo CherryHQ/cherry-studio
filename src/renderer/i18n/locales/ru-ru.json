@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "Выберите рабочий каталог",
   "agent.session.workspace_selector.search_placeholder": "Поиск рабочих каталогов",
   "agent.session.workspace_selector.select_failed": "Не удалось выбрать папку.",
+  "agent.session.workspace_status.filesystem_root": "Корни файловой системы нельзя использовать как рабочие пространства. Выберите подпапку: {{path}}",
   "agent.session.workspace_status.inaccessible": "Путь к рабочей области недоступен: {{path}}",
   "agent.session_delivery.from": "От {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "Принято",

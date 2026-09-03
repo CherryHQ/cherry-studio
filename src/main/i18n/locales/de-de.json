@@ -4,6 +4,7 @@
   "agent.session.new": "Neue Aufgabe",
   "agent.session.run_status.busy": "Die Agent-Sitzung ist beschäftigt. Bitte versuchen Sie es in Kürze erneut.",
   "agent.session.run_status.unavailable": "Die Agent-Sitzung ist nicht mehr verfügbar.",
+  "agent.session.workspace_status.filesystem_root": "Dateisystem-Stammverzeichnisse können nicht als Arbeitsbereiche verwendet werden. Wähle einen Unterordner: {{path}}",
   "agent.session.workspace_status.inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
   "agent.session.workspace_status.missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
   "agent.session.workspace_status.not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}",

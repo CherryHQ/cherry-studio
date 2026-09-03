@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "選擇工作目錄",
   "agent.session.workspace_selector.search_placeholder": "搜尋工作目錄",
   "agent.session.workspace_selector.select_failed": "選擇資料夾失敗。",
+  "agent.session.workspace_status.filesystem_root": "檔案系統根目錄不能用作工作區，請選擇一個子資料夾：{{path}}",
   "agent.session.workspace_status.inaccessible": "工作區路徑無法存取：{{path}}",
   "agent.session_delivery.from": "來自 {{agent}} / {{session}}",
   "agent.session_delivery.status.accepted": "已接受",

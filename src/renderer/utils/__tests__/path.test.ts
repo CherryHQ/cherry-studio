@@ -2,10 +2,26 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
-import { getRelativePath, isPathInside, isSamePath } from '../path'
+import { getRelativePath, isFilesystemRoot, isPathInside, isSamePath } from '../path'
 
 /** Fixture helper — these are shape-valid absolute paths, so the brand is safe to assert. */
 const p = (value: string) => value as AbsoluteFilePath
+
+describe('isFilesystemRoot', () => {
+  it.each(['/', '/./', '/tmp/..', 'C:\\', 'C:/', 'C:\\tmp\\..', '\\\\server\\share', '\\\\server\\share\\'])(
+    'identifies a path that resolves to a filesystem root: %s',
+    (value) => {
+      expect(isFilesystemRoot(p(value))).toBe(true)
+    }
+  )
+
+  it.each(['/tmp/project', 'C:\\work', '\\\\server\\share\\project'])(
+    'does not reject a nested directory: %s',
+    (value) => {
+      expect(isFilesystemRoot(p(value))).toBe(false)
+    }
+  )
+})
 
 describe('isSamePath', () => {
   it('treats a path as the same as itself', () => {

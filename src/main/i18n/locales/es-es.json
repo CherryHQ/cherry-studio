@@ -4,6 +4,7 @@
   "agent.session.new": "Nueva tarea",
   "agent.session.run_status.busy": "La sesión del Agent está ocupada. Inténtalo de nuevo en breve.",
   "agent.session.run_status.unavailable": "La sesión del Agent ya no está disponible.",
+  "agent.session.workspace_status.filesystem_root": "Las raíces del sistema de archivos no se pueden usar como espacios de trabajo. Elige una subcarpeta: {{path}}",
   "agent.session.workspace_status.inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
   "agent.session.workspace_status.missing": "La ruta del espacio de trabajo no existe: {{path}}",
   "agent.session.workspace_status.not_directory": "La ruta del espacio de trabajo no es una carpeta: {{path}}",

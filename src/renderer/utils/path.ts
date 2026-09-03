@@ -14,13 +14,36 @@
  */
 
 import type { AbsoluteFilePath } from '@shared/types/file'
-import { canonicalizeFilePath, type PosixRelativeFilePath } from '@shared/utils/file'
+import { canonicalizeFilePath, parseWindowsPath, type PosixRelativeFilePath } from '@shared/utils/file'
 
 /**
  * A Windows drive path (`C:\…` / `C:/…`) — the only shape in which a backslash
  * is a separator. On POSIX a backslash is an ordinary filename character.
  */
 const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
+const isWindowsUncPath = (path: string) => path.startsWith('\\\\')
+
+function resolvesToParsedRoot(segments: string[]): boolean {
+  let depth = 0
+  for (const segment of segments) {
+    if (segment === '.') continue
+    if (segment === '..') {
+      depth = Math.max(0, depth - 1)
+      continue
+    }
+    depth += 1
+  }
+  return depth === 0
+}
+
+/** True iff `candidate` resolves to a POSIX, Windows drive, or UNC share root. */
+export const isFilesystemRoot = (candidate: AbsoluteFilePath): boolean => {
+  if (isWindowsDrivePath(candidate) || isWindowsUncPath(candidate)) {
+    const parsed = parseWindowsPath(candidate)
+    return parsed.isAbsolute && resolvesToParsedRoot(parsed.segments)
+  }
+  return toPathKey(candidate) === '/'
+}
 
 /**
  * Byte-faithful canonical comparison form — or `null` when the path has no

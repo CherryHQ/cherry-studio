@@ -4,6 +4,7 @@
   "agent.session.new": "Yeni görev",
   "agent.session.run_status.busy": "Ajan Oturumu meşgul. Lütfen kısa süre sonra tekrar deneyin.",
   "agent.session.run_status.unavailable": "Ajan Oturumu artık kullanılamıyor.",
+  "agent.session.workspace_status.filesystem_root": "Dosya sistemi kökleri çalışma alanı olarak kullanılamaz. Bir alt klasör seçin: {{path}}",
   "agent.session.workspace_status.inaccessible": "Çalışma alanı yoluna erişilemiyor: {{path}}",
   "agent.session.workspace_status.missing": "Çalışma alanı yolu mevcut değil: {{path}}",
   "agent.session.workspace_status.not_directory": "Çalışma alanı yolu bir dizin değil: {{path}}",

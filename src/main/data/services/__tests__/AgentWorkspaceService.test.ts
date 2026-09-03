@@ -136,6 +136,17 @@ describe('AgentWorkspaceService', () => {
     })
   })
 
+  it.each(['/', '/./', '/tmp/..'])(
+    'rejects a user workspace that resolves to the filesystem root: %s',
+    async (value) => {
+      await expect(findOrCreateWorkspace(value)).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+
+      expect(await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, '/'))).toEqual([])
+    }
+  )
+
   it('throws not found for missing workspaces', async () => {
     expect(captureError(() => agentWorkspaceService.getById('missing-workspace'))).toMatchObject({
       code: ErrorCode.NOT_FOUND

@@ -4,6 +4,7 @@
   "agent.session.new": "Sarcină nouă",
   "agent.session.run_status.busy": "Sesiunea Agent este ocupată. Încercați din nou în curând.",
   "agent.session.run_status.unavailable": "Sesiunea Agent nu mai este disponibilă.",
+  "agent.session.workspace_status.filesystem_root": "Rădăcinile sistemului de fișiere nu pot fi folosite ca spații de lucru. Alege un subfolder: {{path}}",
   "agent.session.workspace_status.inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
   "agent.session.workspace_status.missing": "Calea către spațiul de lucru nu există: {{path}}",
   "agent.session.workspace_status.not_directory": "Calea spațiului de lucru nu este un director: {{path}}",

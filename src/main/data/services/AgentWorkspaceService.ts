@@ -7,6 +7,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { isFilesystemRoot } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -73,6 +74,9 @@ export class AgentWorkspaceService {
     }
     if (!path.isAbsolute(trimmed)) {
       throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
+    }
+    if (isFilesystemRoot(trimmed)) {
+      throw DataApiErrorFactory.validation({ path: ['Filesystem roots cannot be used as Agent workspaces'] })
     }
     const normalized = path.normalize(trimmed)
     const root = path.parse(normalized).root

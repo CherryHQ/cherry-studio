@@ -246,6 +246,7 @@
   "agent.session.workspace_selector.placeholder": "作業フォルダーを選択",
   "agent.session.workspace_selector.search_placeholder": "作業フォルダーを検索",
   "agent.session.workspace_selector.select_failed": "フォルダーを選択できませんでした。",
+  "agent.session.workspace_status.filesystem_root": "ファイルシステムのルートはワークスペースとして使用できません。サブフォルダーを選択してください: {{path}}",
   "agent.session.workspace_status.inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
   "agent.session_delivery.from": "{{agent}} / {{session}} から",
   "agent.session_delivery.status.accepted": "受付済み",
