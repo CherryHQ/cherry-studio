@@ -1,10 +1,5 @@
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
-import {
-  type ArtifactPaneFileSelection,
-  ArtifactPaneView,
-  getArtifactPaneSelectionPath,
-  resolveArtifactPaneFileSelection
-} from '@renderer/components/chat/panes/ArtifactPane'
+import { type ArtifactPaneFileSelection, ArtifactPaneView } from '@renderer/components/chat/panes/ArtifactPane'
 import {
   createResourcePaneCapability,
   RESOURCE_PANE_TAB,
@@ -17,18 +12,13 @@ import {
   RightPanelProvider,
   RightPanelShortcut,
   RightPanelViewport,
-  useRightPanelActions,
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import { useArtifactFileTreeModel } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
+import { useArtifactPanePreviewNavigation } from '@renderer/components/chat/panes/useArtifactPanePreviewNavigation'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import type {
-  ComposerInputFilePreview,
-  ComposerInputFilePreviewAction
-} from '@renderer/components/composer/filePreview'
+import type { ComposerInputFilePreviewAction } from '@renderer/components/composer/filePreview'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { ipcApi } from '@renderer/ipc'
-import { createFilePathHandle } from '@shared/utils/file'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import {
@@ -93,12 +83,6 @@ interface TopicBranchLiveStateStore {
   getSnapshot: (topicId: string) => TopicMessageFlowLiveState | null
   setSnapshot: TopicBranchLiveStateSetter
   subscribe: (topicId: string, listener: () => void) => () => void
-}
-
-interface FilePreviewReturnTarget {
-  closePane: boolean
-  panelId?: string
-  selection: ArtifactPaneFileSelection | null
 }
 
 function createTopicBranchLiveStateStore(): TopicBranchLiveStateStore {
@@ -215,22 +199,6 @@ function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicR
   )
 }
 
-function createInputFileSelection(
-  input: ComposerInputFilePreview,
-  previewPath: ComposerInputFilePreview['previewPath']
-): ArtifactPaneFileSelection | null {
-  const selection = resolveArtifactPaneFileSelection(undefined, previewPath)
-  if (!selection) return null
-
-  return {
-    ...selection,
-    displayName: input.displayName,
-    displayPath: input.originalPath ?? previewPath,
-    previewType: 'file',
-    readOnly: true
-  }
-}
-
 function TopicFilePreviewRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
   const state = useTopicRightPaneFileState()
   const actions = useTopicRightPaneActions()
@@ -278,88 +246,18 @@ function TopicRightPaneActionsProvider({
   setFileTreeSearchKeyword: (keyword: string) => void
   topicId?: string
 }>) {
-  const panelActions = useRightPanelActions()
-  const panelState = useRightPanelState()
-  const previewRequestRef = useRef(0)
-  const previewReturnRef = useRef<FilePreviewReturnTarget | null>(null)
-  useEffect(() => {
-    return () => {
-      previewRequestRef.current += 1
-      previewReturnRef.current = null
-    }
-  }, [topicId])
-  const previewInputFile = useCallback(
-    (input: ComposerInputFilePreview) => {
-      const requestId = previewRequestRef.current + 1
-      previewRequestRef.current = requestId
-      previewReturnRef.current = {
-        closePane: !panelState.presentationOpen,
-        panelId: panelState.presentationOpen ? panelState.activePanelId : undefined,
-        selection: previewFileSelection
-      }
-
-      const initialSelection = createInputFileSelection(input, input.previewPath)
-      if (!initialSelection) {
-        requestFileSelection(null)
-        return
-      }
-
-      requestFileSelection(initialSelection)
-      panelActions.requestOpen(FILE_PREVIEW_PANE_ID, { userInitiated: true })
-
-      void (async () => {
-        let previewPath = input.previewPath
-
-        if (input.originalPath && input.originalPath !== input.previewPath) {
-          try {
-            const originalMetadata = await ipcApi.request('file.get_metadata', createFilePathHandle(input.originalPath))
-            if (previewRequestRef.current !== requestId) return
-            if (originalMetadata?.kind === 'file') previewPath = input.originalPath
-          } catch {
-            if (previewRequestRef.current !== requestId) return
-          }
-        }
-
-        const selection = createInputFileSelection(input, previewPath)
-        if (!selection) {
-          requestFileSelection(null)
-          return
-        }
-
-        try {
-          const metadata = await ipcApi.request(
-            'file.get_metadata',
-            createFilePathHandle(getArtifactPaneSelectionPath(selection))
-          )
-          if (previewRequestRef.current !== requestId) return
-          requestFileSelection(metadata?.kind === 'directory' ? null : selection)
-        } catch {
-          if (previewRequestRef.current !== requestId) return
-          requestFileSelection(selection)
-        }
-      })()
-    },
-    [panelActions, panelState.activePanelId, panelState.presentationOpen, previewFileSelection, requestFileSelection]
-  )
-  const closeFilePreview = useCallback(() => {
-    previewRequestRef.current += 1
-    const returnTarget = previewReturnRef.current
-    previewReturnRef.current = null
-    requestFileSelection(returnTarget?.selection ?? null)
-
-    if (!returnTarget) return
-    if (returnTarget.closePane) {
-      panelActions.close()
-      return
-    }
-    if (returnTarget.panelId) panelActions.requestOpen(returnTarget.panelId)
-  }, [panelActions, requestFileSelection])
+  const { clearReturnTarget, closeFilePreview, previewInputFile } = useArtifactPanePreviewNavigation({
+    paneId: FILE_PREVIEW_PANE_ID,
+    previewFileSelection,
+    requestFileSelection,
+    scopeKey: topicId
+  })
   const setSelectedFile = useCallback(
     (file: string | null) => {
-      previewReturnRef.current = null
+      clearReturnTarget()
       selectFile(file)
     },
-    [selectFile]
+    [clearReturnTarget, selectFile]
   )
   const actions = useMemo<TopicRightPaneActions>(
     () => ({

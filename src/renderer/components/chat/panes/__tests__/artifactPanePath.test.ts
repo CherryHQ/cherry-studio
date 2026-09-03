@@ -27,6 +27,14 @@ describe('artifactPanePath', () => {
   it('rejects an ambiguous Windows drive-relative path instead of redirecting it to the drive root', () => {
     expect(resolveArtifactPaneFileSelection('D:/work', 'D:notes/report.md')).toBeNull()
   })
+
+  it.each(['\\\\server\\share\\report.md', '//server/share/report.md'])(
+    'rejects UNC paths that cannot survive the artifact path canonicalizer: %s',
+    (path) => {
+      expect(resolveArtifactPaneFileSelection(undefined, path)).toBeNull()
+      expect(resolveArtifactPaneFileSelection('/tmp/workspace', path)).toBeNull()
+    }
+  )
 })
 
 describe('getCopyableAbsolutePath', () => {

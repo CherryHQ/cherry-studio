@@ -11,14 +11,26 @@ import { canonicalizeFilePath } from '@shared/utils/file'
 /** Synthetic id/path for the workspace root node in the projected file tree. */
 export const WORKSPACE_ROOT_ID = '__workspace_root__'
 
-export interface ArtifactPaneFileSelection {
+interface ArtifactPaneFileSelectionBase {
   workspacePath: string
   filePath: string
+}
+
+interface ArtifactPaneArtifactSelection extends ArtifactPaneFileSelectionBase {
+  previewType?: 'artifact'
+  displayName?: never
+  displayPath?: never
+  readOnly?: false
+}
+
+interface ArtifactPaneInputFileSelection extends ArtifactPaneFileSelectionBase {
   displayName?: string
   displayPath?: AbsoluteFilePath
-  previewType?: 'artifact' | 'file'
-  readOnly?: boolean
+  previewType: 'file'
+  readOnly: true
 }
+
+export type ArtifactPaneFileSelection = ArtifactPaneArtifactSelection | ArtifactPaneInputFileSelection
 
 /** The canonical absolute path a selection edits — the `useFileEditSession` key. */
 export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
@@ -53,6 +65,8 @@ export const normalizeTreePath = (path: string): string => {
   return withoutTrailingSlash
 }
 
+export const isUncPath = (path: string): boolean => /^(?:\\\\|\/\/)[^\\/]+[\\/]+[^\\/]+/.test(path.trim())
+
 export const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
 
 export const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
@@ -85,6 +99,8 @@ export const resolveArtifactPaneFileSelection = (
   workspacePath: string | undefined,
   rawPath: string
 ): ArtifactPaneFileSelection | null => {
+  if (isUncPath(rawPath)) return null
+
   const normalizedRawPath = normalizeTreePath(rawPath)
   if (!normalizedRawPath) return null
 

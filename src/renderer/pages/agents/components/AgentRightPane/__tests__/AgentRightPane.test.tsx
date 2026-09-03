@@ -528,7 +528,11 @@ function OpenArtifactButton({ path = 'report.md' }: { path?: string }) {
   )
 }
 
-function OpenInputFilePreviewButton() {
+function OpenInputFilePreviewButton({
+  originalPath = '/Users/alice/report.md' as AbsoluteFilePath
+}: {
+  originalPath?: AbsoluteFilePath
+} = {}) {
   const { canPreviewInputFileInRightPane, previewInputFileInRightPane } = useAgentRightPaneActions()
   return (
     <>
@@ -540,7 +544,7 @@ function OpenInputFilePreviewButton() {
           previewInputFileInRightPane({
             displayName: 'report.md',
             previewPath: '/internal/message-files/report.md' as AbsoluteFilePath,
-            originalPath: '/Users/alice/report.md' as AbsoluteFilePath,
+            originalPath,
             mediaType: 'text/markdown'
           })
         }>
@@ -1124,6 +1128,36 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
+  it('uses the managed copy when the displayed original is a Windows UNC path', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock.mockResolvedValue({ kind: 'file' })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton originalPath={'\\\\server\\share\\report.md' as AbsoluteFilePath} />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-pane')).toHaveAttribute(
+        'data-preview-path',
+        '/internal/message-files/report.md'
+      )
+    })
+    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-display-path', '\\\\server\\share\\report.md')
+    expect(ipcRequestMock).toHaveBeenCalledTimes(1)
+    expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+      kind: 'path',
+      path: '/internal/message-files/report.md'
+    })
+  })
+
   it('returns to the previously active Agent pane when closing an input preview', async () => {
     const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
       '@renderer/components/chat/panes/artifactPanePath'
@@ -1159,6 +1193,34 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.status')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('preserves the closed-pane return target across consecutive input previews', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+    ipcRequestMock
+      .mockRejectedValueOnce(new Error('missing original'))
+      .mockResolvedValueOnce({ kind: 'file' })
+      .mockRejectedValueOnce(new Error('missing original'))
+      .mockResolvedValueOnce({ kind: 'file' })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
+        <OpenInputFilePreviewButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledTimes(2))
+    fireEvent.click(screen.getByRole('button', { name: 'open input preview' }))
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledTimes(4))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
   })
 
   it('rejects direct relative artifact opening from a relative workspace before metadata lookup', async () => {
