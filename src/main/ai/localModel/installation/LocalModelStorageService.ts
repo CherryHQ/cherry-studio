@@ -8,6 +8,7 @@ import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import {
   artifactEntryPath,
   type ArtifactRegistryId,
+  artifactStagingDir,
   installArtifact,
   isArtifactInstalled,
   removeArtifact
@@ -167,6 +168,35 @@ export class LocalModelStorageService {
 
   isArtifactReady(id: SharedArtifactId): boolean {
     return isArtifactInstalled(getSharedArtifact(id))
+  }
+
+  /**
+   * Delete the partials a download that never finished left behind: `<file>.tmp-<uuid>`
+   * beside each bundle file, and the staging directory of every shared runtime the bundle
+   * needs. A quit, crash or kill ends the writer before it can unlink its own tmp file,
+   * and every retry writes a fresh uuid, so without this sweep the leftovers accumulate.
+   * Startup only — while a download runs, its tmp file belongs to the writer.
+   */
+  async sweepStaleDownloads(bundle: ModelBundle): Promise<void> {
+    const installDir = this.bundleInstallDir(bundle)
+    for (const file of bundle.files) {
+      const target = this.bundleFilePath(bundle, file, installDir)
+      const dir = path.dirname(target)
+      const prefix = `${path.basename(target)}.tmp-`
+      let entries: string[]
+      try {
+        entries = await fs.promises.readdir(dir)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        throw error
+      }
+      for (const entry of entries) {
+        if (entry.startsWith(prefix)) await fs.promises.rm(path.join(dir, entry), { force: true })
+      }
+    }
+    for (const id of new Set(bundle.requires)) {
+      await fs.promises.rm(artifactStagingDir(getSharedArtifact(id)), { recursive: true, force: true })
+    }
   }
 
   isArtifactSupported(id: SharedArtifactId): boolean {

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -27,6 +27,7 @@ vi.mock('@application', async () => {
 
 vi.mock('../../acquisition/tarballArtifact', () => ({
   artifactEntryPath: () => '/binding.node',
+  artifactStagingDir: () => path.join(installDir, 'runtime', '.tmp'),
   installArtifact,
   isArtifactInstalled: artifactInstalled,
   removeArtifact
@@ -108,6 +109,28 @@ describe('scanBundleFiles', () => {
     mkdirSync(path.join(installDir, 'nested', 'b.onnx'), { recursive: true })
 
     expect(localModelStorageService.scanBundleFiles(BUNDLE).status).toBe('incomplete')
+  })
+})
+
+describe('sweepStaleDownloads', () => {
+  it('removes atomic-write partials beside bundle files and the runtime staging dir, nothing else', async () => {
+    writeBundleFile('a.onnx', 20)
+    writeBundleFile('a.onnx.tmp-0f5f1e6e-3d8a-4a44-9b1c-9a1f6e0d8b11', 5)
+    writeBundleFile('nested/b.onnx.tmp-1b2c3d4e-5f60-4718-8a9b-0c1d2e3f4a5b', 5)
+    writeBundleFile('nested/notes.txt', 5)
+    writeBundleFile('runtime/.tmp/onnxruntime-node-1.0.0.tgz.tmp-2c3d4e5f-6071-4829-9bac-1d2e3f4a5b6c', 5)
+
+    await localModelStorageService.sweepStaleDownloads(BUNDLE)
+
+    expect(existsSync(path.join(installDir, 'a.onnx'))).toBe(true)
+    expect(existsSync(path.join(installDir, 'nested', 'notes.txt'))).toBe(true)
+    expect(readdirSync(installDir).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+    expect(readdirSync(path.join(installDir, 'nested')).filter((entry) => entry.includes('.tmp-'))).toEqual([])
+    expect(existsSync(path.join(installDir, 'runtime', '.tmp'))).toBe(false)
+  })
+
+  it('is a no-op for a bundle whose directories were never created', async () => {
+    await expect(localModelStorageService.sweepStaleDownloads(BUNDLE)).resolves.toBeUndefined()
   })
 })
 
