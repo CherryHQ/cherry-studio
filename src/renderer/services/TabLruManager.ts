@@ -31,7 +31,7 @@ export type TabLimits = typeof TAB_LIMITS
  * 功能：
  * - 当活跃标签数超过软上限时，选择 LRU 候选进行休眠
  * - 硬保险丝作为极端兜底，防止内存失控
- * - 支持豁免机制：当前标签、默认聊天标签、置顶标签不参与软上限休眠
+ * - 支持豁免机制：当前标签、默认聊天标签、运行中任务和置顶标签不参与软上限休眠
  */
 export class TabLruManager {
   private softCap: number
@@ -47,7 +47,7 @@ export class TabLruManager {
    *
    * 策略：
    * - 超过 softCap：休眠到 softCap
-   * - 超过 hardCap：强制休眠到 softCap（忽略部分豁免，仅保留当前+默认聊天标签）
+   * - 超过 hardCap：强制休眠到 softCap（忽略置顶豁免，但保留当前、默认聊天和任务标签）
    *
    * @param tabs 所有标签
    * @param activeTabId 当前活动标签 ID
@@ -117,7 +117,7 @@ export class TabLruManager {
   }
 
   /**
-   * 硬保险丝候选列表（仅豁免当前标签和默认聊天标签）
+   * 硬保险丝候选列表（豁免当前标签、默认聊天和运行中/待审批任务）
    */
   private getHardCapCandidates(tabs: Tab[], activeTabId: string): Tab[] {
     return tabs
@@ -126,7 +126,9 @@ export class TabLruManager {
   }
 
   private isHardExempt(tab: Tab, activeTabId: string): boolean {
-    return tab.id === activeTabId || tab.id === 'home' || tab.isDormant === true
+    return (
+      tab.id === activeTabId || tab.id === 'home' || tab.metadata?.preventDormancy === true || tab.isDormant === true
+    )
   }
 
   private getLRUCandidates(tabs: Tab[], activeTabId: string): Tab[] {
@@ -141,6 +143,7 @@ export class TabLruManager {
    * 豁免条件：
    * - 当前活动标签
    * - 默认聊天标签 (id === 'home')
+   * - 运行中或等待审批的任务标签
    * - 置顶标签 (isPinned)
    * - 已休眠的标签（不重复处理）
    */
@@ -148,6 +151,7 @@ export class TabLruManager {
     return (
       tab.id === activeTabId || // 当前活动标签
       tab.id === 'home' || // 默认聊天标签（须与 TabsContext 的 DEFAULT_TAB.id 一致）
+      tab.metadata?.preventDormancy === true || // 运行中或等待用户操作
       tab.isPinned === true || // 置顶标签
       tab.isDormant === true // 已休眠的不再参与
     )

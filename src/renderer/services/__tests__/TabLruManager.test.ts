@@ -105,6 +105,23 @@ describe('TabLruManager', () => {
         expect(result).not.toContain('pinned-tab')
       })
 
+      it('does not hibernate a workspace with a running or approval task', () => {
+        const now = Date.now()
+        const tabs = [
+          createTab('busy-tab', {
+            lastAccessTime: now - 10000,
+            metadata: { preventDormancy: true }
+          }),
+          ...Array.from({ length: TAB_LIMITS.softCap + 1 }, (_, i) =>
+            createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
+          )
+        ]
+
+        const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.softCap}`)
+
+        expect(result).not.toContain('busy-tab')
+      })
+
       it('should not hibernate already dormant tabs', () => {
         const now = Date.now()
         const tabs = [
@@ -148,6 +165,23 @@ describe('TabLruManager', () => {
 
         expect(result).not.toContain('home')
         expect(result).not.toContain(activeTabId)
+      })
+
+      it('keeps task-owned workspaces protected at the hard cap', () => {
+        const now = Date.now()
+        const tabs = [
+          createTab('busy-tab', {
+            lastAccessTime: now - 30000,
+            metadata: { preventDormancy: true }
+          }),
+          ...Array.from({ length: TAB_LIMITS.hardCap + 2 }, (_, i) =>
+            createTab(`tab-${i}`, { lastAccessTime: now + i * 1000 })
+          )
+        ]
+
+        const result = manager.checkAndGetDormantCandidates(tabs, `tab-${TAB_LIMITS.hardCap + 1}`)
+
+        expect(result).not.toContain('busy-tab')
       })
     })
 

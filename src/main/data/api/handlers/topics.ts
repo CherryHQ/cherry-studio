@@ -9,6 +9,7 @@
  * - Scoped reorder (single + batch) via OrderEndpoints
  */
 
+import { application } from '@application'
 import { topicService } from '@data/services/TopicService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -39,7 +40,9 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ query }) => {
       const parsed = DeleteTopicsQuerySchema.parse(query)
-      return topicService.deleteByIds(parsed.ids)
+      const result = topicService.deleteByIds(parsed.ids)
+      application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedIds)
+      return result
     }
   },
 
@@ -69,6 +72,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ params }) => {
       topicService.delete(params.id)
+      application.get('AiStreamManager').clearConversationTaskStatuses([params.id])
       return undefined
     }
   },
@@ -96,7 +100,9 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
   '/assistants/:assistantId/topics': {
     DELETE: async ({ params }) => {
-      return topicService.deleteByAssistantId(params.assistantId)
+      const result = topicService.deleteByAssistantId(params.assistantId)
+      application.get('AiStreamManager').clearConversationTaskStatuses(result.deletedIds)
+      return result
     }
   },
 

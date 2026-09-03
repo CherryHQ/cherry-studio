@@ -31,6 +31,7 @@ type AppShellTabBarProps = {
   activeTabId: string
   isFullscreen?: boolean
   isFocusedTab?: boolean
+  legacyCombinedLayout?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   closeTabs: (ids: readonly string[], activateId?: string) => void
@@ -592,6 +593,7 @@ export const AppShellTabBar = ({
   activeTabId,
   isFullscreen = false,
   isFocusedTab = false,
+  legacyCombinedLayout = false,
   setActiveTab,
   closeTab,
   closeTabs,
@@ -810,7 +812,10 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
+    openTab('/app/launchpad', {
+      title: t('title.launchpad'),
+      ...(legacyCombinedLayout ? { forceNew: true } : {})
+    })
   }
 
   // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────
@@ -923,7 +928,13 @@ export const AppShellTabBar = ({
           data-testid="app-shell-tab-strip"
           style={
             isMac && !isFullscreen
-              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
+              ? {
+                  paddingLeft: isFocusedTab
+                    ? 'env(titlebar-area-x)'
+                    : legacyCombinedLayout
+                      ? MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE
+                      : 'env(titlebar-area-x, 0px)'
+                }
               : undefined
           }
           onMouseEnter={() => {
@@ -1188,10 +1199,10 @@ export const AppShellTabBar = ({
                 </Tooltip>
               </div>
             )}
-            <WindowControls />
+            {legacyCombinedLayout ? <WindowControls /> : <ShellTabBarActions showSettings />}
           </div>
         ) : (
-          <ShellTabBarActions />
+          <ShellTabBarActions showSettings={!legacyCombinedLayout} />
         )}
       </header>
     </>

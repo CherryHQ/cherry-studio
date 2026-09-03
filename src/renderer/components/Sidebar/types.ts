@@ -36,6 +36,10 @@ export interface ResolvedSidebarEntry {
   isActive: (active: SidebarActiveState) => boolean
   onOpen: () => void
   onOpenNewTab?: () => void
+  status?: {
+    value: 'action-required' | 'completed' | 'error' | 'running'
+    label: string
+  }
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 

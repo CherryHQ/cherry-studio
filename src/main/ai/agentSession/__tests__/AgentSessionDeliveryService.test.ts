@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   hasLiveStream: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
+  clearConversationTaskStatuses: vi.fn(),
   hasTerminalPersistenceInFlight: vi.fn(),
   runtimeBusy: vi.fn(),
   closeSession: vi.fn(),
@@ -101,6 +102,7 @@ const manager = {
   withDispatchLock: (_topicId: string, fn: () => Promise<void>) => fn(),
   hasLiveStream: mocks.hasLiveStream,
   pauseRuntimeTurn: mocks.pauseRuntimeTurn,
+  clearConversationTaskStatuses: mocks.clearConversationTaskStatuses,
   hasTerminalPersistenceInFlight: mocks.hasTerminalPersistenceInFlight,
   send: mocks.send
 }
@@ -621,6 +623,7 @@ describe('AgentSessionDeliveryService', () => {
     await flush()
 
     expect(order).toEqual(['commit', 'close', 'kick-result'])
+    expect(mocks.clearConversationTaskStatuses).toHaveBeenCalledWith(['agent-session:target'])
   })
 
   it('closes duplicate placeholder runtimes through the delivery owner', async () => {

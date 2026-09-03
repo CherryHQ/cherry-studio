@@ -69,6 +69,7 @@ vi.mock('react-i18next', () => ({
         'settings.dependencies.title': '环境依赖',
         'settings.dependencies.localModels.title': '本地模型',
         'settings.general.common.title': zhCN['settings.general.common.title'],
+        'settings.lab.title': '实验室',
         'settings.menuGroups.automation': '效率',
         'settings.menuGroups.capabilities': '工具',
         'settings.menuGroups.personal': '偏好',
@@ -130,7 +131,7 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/local-models' })
   })
 
-  it('keeps document processing and OCR together in tools and dependencies in the system group', () => {
+  it('keeps document processing and OCR together and places experimental settings in the system group', () => {
     render(<SettingsPage />)
 
     expect(screen.getByText('工具')).toBeInTheDocument()
@@ -141,10 +142,14 @@ describe('SettingsPage', () => {
     expect(ocrItem.nextElementSibling).toHaveAttribute('data-testid', 'menu-divider')
 
     const dependenciesItem = screen.getByRole('button', { name: '环境依赖' })
+    const labItem = screen.getByRole('button', { name: '实验室' })
     expect(screen.queryByRole('button', { name: '系统' })).not.toBeInTheDocument()
     expect(screen.getByText('系统').nextElementSibling).toBe(dependenciesItem)
+    expect(dependenciesItem.nextElementSibling).toBe(labItem)
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
+    fireEvent.click(labItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/lab' })
   })
 
   it('places Skills below MCP and prompt management directly below Skills', () => {

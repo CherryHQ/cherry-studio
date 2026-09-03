@@ -33,6 +33,30 @@ export function SidebarList({ layout, ...props }: SidebarListProps) {
 
 type ListProps = Omit<SidebarListProps, 'layout'>
 
+const STATUS_DOT_CLASS = {
+  'action-required': 'bg-warning',
+  error: 'bg-error',
+  running: 'animate-pulse bg-primary',
+  completed: 'bg-success'
+} as const
+
+function SidebarEntryStatus({
+  status,
+  iconLayout
+}: {
+  status: NonNullable<ResolvedSidebarEntry['status']>
+  iconLayout: boolean
+}) {
+  return (
+    <span
+      role="img"
+      aria-label={status.label}
+      data-sidebar-status={status.value}
+      className={`${iconLayout ? 'absolute right-1 bottom-1 ring-2 ring-sidebar' : '-translate-y-1/2 absolute top-1/2 right-3'} pointer-events-none size-2 rounded-full ${STATUS_DOT_CLASS[status.value]}`}
+    />
+  )
+}
+
 function EntryContextMenu({
   children,
   items,
@@ -91,6 +115,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-full" />}
                 {entry.renderIcon(18, 'lg')}
+                {entry.status && <SidebarEntryStatus status={entry.status} iconLayout />}
               </button>
             </EntryContextMenu>
           </SidebarTooltip>
@@ -125,6 +150,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
               />
             </EntryContextMenu>
             {isActive && <ActiveIndicator className="rounded-xl" />}
+            {entry.status && <SidebarEntryStatus status={entry.status} iconLayout={false} />}
           </div>
         )
       }}

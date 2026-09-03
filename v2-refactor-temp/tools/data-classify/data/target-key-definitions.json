@@ -180,6 +180,13 @@
       "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
     },
     {
+      "targetKey": "ui.navigation.layout",
+      "type": "PreferenceTypes.NavigationLayout",
+      "defaultValue": "both",
+      "status": "classified",
+      "description": "Main-window navigation layout: sidebar workspaces, top tabs, or the legacy combined layout"
+    },
+    {
       "targetKey": "ui.launchpad.app_order",
       "type": "PreferenceTypes.SidebarFavorite[]",
       "defaultValue": [],

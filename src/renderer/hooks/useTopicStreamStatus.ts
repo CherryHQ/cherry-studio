@@ -3,8 +3,14 @@
 // marker is a separate cross-window shared cache key.
 
 import { loggerService } from '@logger'
+import { cacheService } from '@renderer/data/CacheService'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import {
+  type ActiveExecution,
+  classifyTurn,
+  TOPIC_COMPLETION_SEEN_CACHE_KEY,
+  type TopicStreamStatus
+} from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
@@ -50,8 +56,9 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const markSeen = useCallback(() => {
     if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
       setLastSeenCompletion(lastCompletedAt)
+      cacheService.setShared(TOPIC_COMPLETION_SEEN_CACHE_KEY, { topicId, completedAt: lastCompletedAt })
     }
-  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
+  }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion, topicId])
 
   return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
 }

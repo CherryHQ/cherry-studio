@@ -19,6 +19,8 @@ const calculatorApp: MiniAppType = {
 }
 
 const mocks = vi.hoisted(() => ({
+  closeWorkspace: vi.fn(),
+  navigationLayout: 'both' as 'sidebar' | 'tabs' | 'both',
   openTab: vi.fn(),
   updateAppStatus: vi.fn(() => Promise.resolve()),
   removeCustomMiniApp: vi.fn(() => Promise.resolve()),
@@ -123,6 +125,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
+    closeWorkspace: mocks.closeWorkspace,
+    navigationLayout: mocks.navigationLayout,
     openTab: mocks.openTab
   })
 }))
@@ -145,6 +149,7 @@ afterEach(() => {
   mocks.pinned = []
   mocks.openedKeepAliveMiniApps = []
   mocks.splitMiniAppId = ''
+  mocks.navigationLayout = 'both'
   mocks.sidebarFavorites = [{ type: 'app', id: 'assistants' }]
 })
 
@@ -200,7 +205,7 @@ describe('MiniApp launchpad pin menu', () => {
     expect(iconClip).not.toContainElement(indicator)
   })
 
-  it('removes a mini app from sidebar favorites', () => {
+  it('removes a mini app from Sidebar favorites without closing its tab in the combined layout', () => {
     mocks.sidebarFavorites = [
       { type: 'app', id: 'assistants' },
       { type: 'mini_app', id: 'calculator' },
@@ -215,6 +220,47 @@ describe('MiniApp launchpad pin menu', () => {
       { type: 'app', id: 'assistants' },
       { type: 'mini_app', id: 'weather' }
     ])
+    expect(mocks.closeWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('closes the removed mini app workspace in the Sidebar layout', () => {
+    mocks.navigationLayout = 'sidebar'
+    mocks.sidebarFavorites = [
+      { type: 'app', id: 'assistants' },
+      { type: 'mini_app', id: 'calculator' }
+    ]
+    mocks.pinned = [calculatorApp]
+
+    render(<MiniApp app={calculatorApp} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
+
+    expect(mocks.closeWorkspace).toHaveBeenCalledWith('mini-app:calculator')
+  })
+
+  it('collapses the split pane when the hidden mini app is the one in it', async () => {
+    const enabledApp = { ...calculatorApp, status: 'enabled' as const }
+    mocks.miniApps = [enabledApp]
+    mocks.splitMiniAppId = 'calculator'
+
+    render(<MiniApp app={enabledApp} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))
+    await waitFor(() => expect(mocks.setOpenedKeepAliveMiniApps).toHaveBeenCalled())
+
+    expect(mocks.setSplitMiniAppId).toHaveBeenCalledWith('')
+    expect(mocks.setSplitOpen).toHaveBeenCalledWith(false)
+  })
+
+  it('keeps the split pane when the hidden mini app is not the one in it', async () => {
+    const enabledApp = { ...calculatorApp, status: 'enabled' as const }
+    mocks.miniApps = [enabledApp]
+    mocks.splitMiniAppId = 'weather'
+
+    render(<MiniApp app={enabledApp} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))
+    await waitFor(() => expect(mocks.setOpenedKeepAliveMiniApps).toHaveBeenCalled())
+
+    expect(mocks.setSplitMiniAppId).not.toHaveBeenCalled()
+    expect(mocks.setSplitOpen).not.toHaveBeenCalled()
   })
 
   it('collapses the split pane when the hidden mini app is the one in it', async () => {

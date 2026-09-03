@@ -493,6 +493,28 @@ describe('Sidebar resize handle', () => {
     expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
   })
 
+  it('renders an accessible aggregated status dot on an app entry', () => {
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={[
+          {
+            ...entries[0],
+            status: { value: 'action-required', label: 'Action required' }
+          }
+        ]}
+      />
+    )
+
+    const status = screen.getByRole('img', { name: 'Action required' })
+
+    expect(status).toHaveAttribute('data-sidebar-status', 'action-required')
+    // The overlay must leave the underlying MenuItem as the pointer target.
+    expect(status).toHaveClass('pointer-events-none')
+  })
+
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
     render(
       <Sidebar
@@ -655,6 +677,35 @@ describe('Sidebar resize handle', () => {
 
     expect(document.body).toHaveTextContent('theme-full')
     expect(document.body).not.toHaveTextContent('theme-icon')
+  })
+
+  it('renders the fixed action directly after the sortable list in icon, full, and floating layouts', () => {
+    const fixedAction = (layout: 'icon' | 'full') => <button type="button">add-{layout}</button>
+    const commonProps = {
+      setWidth: vi.fn(),
+      active: { activeItem: 'chat' },
+      entries,
+      fixedAction,
+      onEntriesReorder: vi.fn()
+    }
+    const { rerender } = render(<Sidebar {...commonProps} width={SIDEBAR_ICON_WIDTH} />)
+
+    const expectActionAfterMenu = (name: string) => {
+      const action = screen.getByRole('button', { name })
+      const navigation = action.closest('[data-slot="sidebar-navigation"]')
+
+      expect(navigation).not.toBeNull()
+      expect(action.closest('[data-slot="sidebar-fixed-action"]')).toBe(navigation?.lastElementChild)
+    }
+
+    expectActionAfterMenu('add-icon')
+    expect(uiMocks.sortableCalls.at(-1)?.items).toEqual(entries)
+
+    rerender(<Sidebar {...commonProps} width={SIDEBAR_FULL_THRESHOLD} />)
+    expectActionAfterMenu('add-full')
+
+    rerender(<Sidebar {...commonProps} width={SIDEBAR_FULL_THRESHOLD} isFloating />)
+    expectActionAfterMenu('add-full')
   })
 
   it('triggers onOpenNewTab on middle-click (auxclick with button 1) in icon layout', () => {

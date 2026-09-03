@@ -1,4 +1,11 @@
+import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import {
+  TOPIC_COMPLETION_SEEN_CACHE_KEY,
+  TOPIC_STATUS_INDEX_CACHE_KEY,
+  type TopicCompletionSeenEvent,
+  type TopicStatusSnapshotEntry
+} from '@shared/ai/transport'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamManagerConfig, StreamListener } from '../types'
@@ -117,6 +124,58 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
     await settleDispatch(0)
     await settleDispatch(1)
     await Promise.all([pa, pb])
+  })
+
+  it('prunes an acknowledged completion from the workspace status index', () => {
+    const cacheService = application.get('CacheService')
+    const doneEntry: TopicStatusSnapshotEntry = {
+      status: 'done',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: 42
+    }
+    const approvalEntry: TopicStatusSnapshotEntry = {
+      ...doneEntry,
+      awaitingApprovalAnchors: [{ executionId: 'provider::model', attemptId: 1 }]
+    }
+    cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, { completed: doneEntry, approval: approvalEntry })
+
+    const subscription = vi
+      .mocked(cacheService.subscribeSharedChange)
+      .mock.calls.find(([key]) => key === TOPIC_COMPLETION_SEEN_CACHE_KEY)
+    const onCompletionSeen = subscription?.[1] as
+      | ((event: TopicCompletionSeenEvent | null | undefined) => void)
+      | undefined
+
+    expect(onCompletionSeen).toBeDefined()
+    onCompletionSeen?.({ topicId: 'completed', completedAt: 42 })
+    onCompletionSeen?.({ topicId: 'approval', completedAt: 42 })
+
+    expect(cacheService.getShared(TOPIC_STATUS_INDEX_CACHE_KEY)).toEqual({ approval: approvalEntry })
+  })
+
+  it('removes deleted conversations from the workspace status index', () => {
+    const cacheService = application.get('CacheService')
+    const errorEntry: TopicStatusSnapshotEntry = {
+      status: 'error',
+      activeExecutions: [],
+      awaitingApprovalAnchors: []
+    }
+    const doneEntry: TopicStatusSnapshotEntry = {
+      status: 'done',
+      activeExecutions: [],
+      awaitingApprovalAnchors: [],
+      lastCompletedAt: 42
+    }
+    cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, { failed: errorEntry, completed: doneEntry })
+    cacheService.setShared('topic.stream.statuses.failed', errorEntry)
+    cacheService.setShared('topic.stream.statuses.completed', doneEntry)
+
+    mgr.clearConversationTaskStatuses(['failed', 'completed'])
+
+    expect(cacheService.getShared(TOPIC_STATUS_INDEX_CACHE_KEY)).toEqual({})
+    expect(cacheService.getShared('topic.stream.statuses.failed')).toBeNull()
+    expect(cacheService.getShared('topic.stream.statuses.completed')).toBeNull()
   })
 })
 

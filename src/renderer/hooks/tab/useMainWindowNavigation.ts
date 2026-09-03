@@ -95,11 +95,11 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
  *   request-id dedupe, delivered to `attachTab`.
  *
  * Settings paths land in the singleton settings tab; everything else goes
- * through `openTab`'s exact-URL dedupe.
+ * through the layout-aware `openRoute` boundary.
  */
 export function useMainWindowNavigation() {
   const openSettingsRoute = useOpenSettingsRoute()
-  const { attachTab, openTab } = useTabs()
+  const { attachTab, openRoute } = useTabs()
   const initData = useWindowInitData<MainWindowInitData>()
   const handledNavigationRequestIdRef = useRef<number | null>(null)
 
@@ -107,11 +107,12 @@ export function useMainWindowNavigation() {
     (to: string) => {
       if (isSettingsPath(to)) {
         openSettingsRoute(to)
-      } else {
-        openTab(to)
+        return
       }
+
+      openRoute(to)
     },
-    [openSettingsRoute, openTab]
+    [openRoute, openSettingsRoute]
   )
 
   useIpcOn('navigation.open_route_requested', ({ to }) => handleRoute(to))

@@ -377,18 +377,34 @@ type SidebarLeafFavoriteType = 'mini_app' | 'agent' | 'assistant'
 const isSidebarLeafFavorite = (item: SidebarFavoriteItem, type: SidebarLeafFavoriteType, id: string) =>
   item.type === type && item.id === id
 
+function setSidebarLeafFavoritePinned(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  type: SidebarLeafFavoriteType,
+  id: string,
+  pinned: boolean
+): SidebarFavoriteItem[] {
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  if (!pinned) {
+    return preserveForwardCompatibleSidebarFavoriteItems(
+      favorites,
+      items.filter((item) => !isSidebarLeafFavorite(item, type, id))
+    )
+  }
+
+  if (items.some((item) => isSidebarLeafFavorite(item, type, id))) {
+    return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+  }
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+}
+
 /** Toggle a leaf favorite in place: present → filtered out, absent → appended to the end. */
 function toggleSidebarLeafFavorite(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   type: SidebarLeafFavoriteType,
   id: string
 ): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-
-  if (items.some((item) => isSidebarLeafFavorite(item, type, id))) {
-    return removeSidebarLeafFavorite(favorites, type, id)
-  }
-  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, { type, id }])
+  const pinned = getOrderedVisibleSidebarFavoriteItems(favorites).some((item) => isSidebarLeafFavorite(item, type, id))
+  return setSidebarLeafFavoritePinned(favorites, type, id, !pinned)
 }
 
 /** Remove a leaf favorite, preserving everything else in place. */
@@ -397,10 +413,7 @@ function removeSidebarLeafFavorite(
   type: SidebarLeafFavoriteType,
   id: string
 ): SidebarFavoriteItem[] {
-  return preserveForwardCompatibleSidebarFavoriteItems(
-    favorites,
-    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !isSidebarLeafFavorite(item, type, id))
-  )
+  return setSidebarLeafFavoritePinned(favorites, type, id, false)
 }
 
 /** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
@@ -409,6 +422,14 @@ export function toggleSidebarMiniApp(
   id: string
 ): SidebarFavoriteItem[] {
   return toggleSidebarLeafFavorite(favorites, 'mini_app', id)
+}
+
+export function setSidebarMiniAppPinned(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  id: string,
+  pinned: boolean
+): SidebarFavoriteItem[] {
+  return setSidebarLeafFavoritePinned(favorites, 'mini_app', id, pinned)
 }
 
 /** Remove a mini app favorite, preserving everything else in place. */

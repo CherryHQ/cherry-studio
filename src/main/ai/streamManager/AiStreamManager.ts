@@ -26,9 +26,14 @@ import type {
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenResponse
+  AiStreamOpenResponse,
+  TopicCompletionSeenEvent
 } from '@shared/ai/transport'
-import { aiStreamAdmissionReasons } from '@shared/ai/transport'
+import {
+  aiStreamAdmissionReasons,
+  TOPIC_COMPLETION_SEEN_CACHE_KEY,
+  TOPIC_STATUS_INDEX_CACHE_KEY
+} from '@shared/ai/transport'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
@@ -386,6 +391,14 @@ export class AiStreamManager extends BaseService {
   }
 
   protected async onInit(): Promise<void> {
+    const cacheService = application.get('CacheService')
+    this.registerDisposable(
+      cacheService.subscribeSharedChange(TOPIC_COMPLETION_SEEN_CACHE_KEY, (event) => {
+        this.acknowledgeTopicCompletion(event)
+      })
+    )
+    this.acknowledgeTopicCompletion(cacheService.getShared(TOPIC_COMPLETION_SEEN_CACHE_KEY))
+
     // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     this.reconcileStalePendingMessages()
@@ -597,6 +610,58 @@ export class AiStreamManager extends BaseService {
       messageService.markMessagesError(staleIds)
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
+    }
+  }
+
+  private acknowledgeTopicCompletion(event: TopicCompletionSeenEvent | null | undefined): void {
+    if (!event) return
+
+    const cacheService = application.get('CacheService')
+    const index = cacheService.getShared(TOPIC_STATUS_INDEX_CACHE_KEY)
+    const entry = index?.[event.topicId]
+    if (
+      entry?.status !== 'done' ||
+      entry.lastCompletedAt !== event.completedAt ||
+      entry.awaitingApprovalAnchors.length > 0
+    ) {
+      return
+    }
+
+    const nextIndex = { ...index }
+    delete nextIndex[event.topicId]
+    cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, nextIndex)
+  }
+
+  public clearConversationTaskStatuses(topicIds: readonly string[]): void {
+    const uniqueTopicIds = [...new Set(topicIds)]
+    if (uniqueTopicIds.length === 0) return
+
+    for (const topicId of uniqueTopicIds) {
+      const stream = this.activeStreams.get(topicId)
+      if (stream) {
+        stream.isPersistentConversation = false
+        stream.taskStatusBroadcastSuppressed = true
+      }
+    }
+
+    try {
+      const cacheService = application.get('CacheService')
+      const index = cacheService.getShared(TOPIC_STATUS_INDEX_CACHE_KEY) ?? {}
+      const nextIndex = { ...index }
+      let changed = false
+
+      for (const topicId of uniqueTopicIds) {
+        if (topicId in nextIndex) {
+          delete nextIndex[topicId]
+          changed = true
+        }
+        cacheService.setShared(`topic.stream.statuses.${topicId}`, null)
+        cacheService.setShared(`topic.stream.last_seen_completion.${topicId}`, null)
+      }
+
+      if (changed) cacheService.setShared(TOPIC_STATUS_INDEX_CACHE_KEY, nextIndex)
+    } catch (error) {
+      logger.warn('Failed to clear deleted conversation task statuses', { topicIds: uniqueTopicIds, error })
     }
   }
 

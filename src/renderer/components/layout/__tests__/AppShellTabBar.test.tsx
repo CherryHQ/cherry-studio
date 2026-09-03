@@ -88,7 +88,11 @@ vi.mock('../ShellTabBarActions', async () => {
   const actual = await vi.importActual<typeof ShellTabBarActionsModule>('../ShellTabBarActions')
   return {
     ...actual,
-    ShellTabBarActions: () => <div data-testid="shell-tab-actions" />
+    ShellTabBarActions: ({ showSettings }: { showSettings?: boolean }) => (
+      <div data-show-settings={showSettings || undefined} data-testid="shell-tab-actions">
+        <div data-testid="window-controls" />
+      </div>
+    )
   }
 })
 
@@ -223,7 +227,40 @@ describe('AppShellTabBar', () => {
 
     await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
+    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad' })
+  })
+
+  it('keeps the legacy new-tab behavior when the Sidebar is also visible', async () => {
+    const user = userEvent.setup()
+    const openTab = vi.fn()
+
+    renderTabBar({ legacyCombinedLayout: true, openTab })
+
+    await user.click(screen.getByRole('button', { name: 'Launchpad' }))
+
     expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad', forceNew: true })
+    expect(screen.getByTestId('shell-tab-actions')).not.toHaveAttribute('data-show-settings')
+  })
+
+  it('subtracts the visible Sidebar width from the legacy macOS traffic-light reserve', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar({ legacyCombinedLayout: true })
+
+    // This CSS formula is the pre-layout-selector contract for the combined shell.
+    expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
+      paddingLeft: 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
+    })
+  })
+
+  it('keeps the full macOS traffic-light reserve when the Sidebar is hidden', () => {
+    mocks.platformState.isMac = true
+
+    renderTabBar()
+
+    expect(screen.getByTestId('app-shell-tab-strip')).toHaveStyle({
+      paddingLeft: 'env(titlebar-area-x, 0px)'
+    })
   })
 
   it('renders preset and installed mini app icons at the same circular size', () => {
@@ -265,7 +302,7 @@ describe('AppShellTabBar', () => {
     expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Launchpad' })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('shell-tab-actions')).toHaveAttribute('data-show-settings', 'true')
     expect(screen.getByTestId('window-controls')).toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.pin')).not.toBeInTheDocument()
     expect(screen.queryByTestId('menu-tab.move-to-first')).not.toBeInTheDocument()
@@ -276,6 +313,20 @@ describe('AppShellTabBar', () => {
     expect(detachButton).toHaveTextContent('')
     await user.click(detachButton)
     expect(detachTab).toHaveBeenCalledWith(settingsTab.id)
+  })
+
+  it('preserves the legacy focused Settings actions in the combined layout', () => {
+    const settingsTab = createTab('settings', { url: '/settings/provider', title: 'Settings' })
+
+    renderTabBar({
+      tabs: [settingsTab],
+      activeTabId: settingsTab.id,
+      isFocusedTab: true,
+      legacyCombinedLayout: true
+    })
+
+    expect(screen.queryByTestId('shell-tab-actions')).not.toBeInTheDocument()
+    expect(screen.getByTestId('window-controls')).toBeInTheDocument()
   })
 
   it('detaches the focused tab when dragged outside the tab bar', () => {

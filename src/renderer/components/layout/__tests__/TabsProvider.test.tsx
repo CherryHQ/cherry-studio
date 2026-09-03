@@ -4,12 +4,23 @@ import '@testing-library/jest-dom/vitest'
 import { TAB_LIMITS } from '@renderer/services/TabLruManager'
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let currentLanguage = 'en'
+let navigationLayout: 'sidebar' | 'tabs' | 'both' = 'tabs'
+const sidebarMocks = vi.hoisted(() => ({
+  ensureFavoritesPinned: vi.fn(),
+  favorites: [
+    { type: 'app' as const, id: 'assistants' as const },
+    { type: 'app' as const, id: 'agents' as const },
+    { type: 'app' as const, id: 'files' as const }
+  ] as SidebarFavoriteItem[]
+}))
 
 const PINNED_FILES_TAB: Tab = {
   id: 'files',
@@ -90,6 +101,17 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
     if (key === 'ui.tab.active_tab_id') return [activeTabIdValue, setActiveTabIdMock]
     return [pinnedTabsValue, setPinnedTabsMock]
   }
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [navigationLayout, vi.fn()]
+}))
+
+vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
+  useSidebarFavorites: () => ({
+    favorites: sidebarMocks.favorites,
+    ensureFavoritesPinned: sidebarMocks.ensureFavoritesPinned
+  })
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -290,6 +312,63 @@ function TabSnapshot() {
   )
 }
 
+function WorkspaceControls() {
+  const {
+    activateWorkspace,
+    activeTabId,
+    closeTab,
+    closeFocusedRoute,
+    closeWorkspace,
+    navigationLayout,
+    openRoute,
+    setActiveTab,
+    tabBarTabs,
+    tabs,
+    updateTab
+  } = useTabsContext()
+
+  return (
+    <div>
+      <button type="button" onClick={() => openRoute('/app/chat?topicId=second', { forceNew: true })}>
+        Open second chat
+      </button>
+      <button type="button" onClick={() => openRoute('/settings/appearance')}>
+        Open settings
+      </button>
+      <button type="button" onClick={() => openRoute('/app/release-notes')}>
+        Open release notes
+      </button>
+      <button type="button" onClick={() => openRoute('/app/notes')}>
+        Open notes
+      </button>
+      <button type="button" onClick={() => setActiveTab('home')}>
+        Activate home workspace
+      </button>
+      <button type="button" onClick={() => updateTab(activeTabId, { url: '/app/agents' })}>
+        Rewrite active route
+      </button>
+      <button type="button" onClick={closeFocusedRoute}>
+        Close focused
+      </button>
+      <button type="button" onClick={() => activateWorkspace('launchpad', '/app/launchpad')}>
+        Open launchpad
+      </button>
+      <button type="button" onClick={() => closeWorkspace('app:assistants')}>
+        Close chat workspace
+      </button>
+      <button type="button" onClick={() => closeTab(activeTabId)}>
+        Close active tab
+      </button>
+      <div data-testid="workspace-layout">{navigationLayout}</div>
+      <div data-testid="workspace-active">{activeTabId}</div>
+      <div data-testid="workspace-tabs">
+        {tabs.map((tab) => `${tab.id}:${tab.workspaceKey ?? 'focused'}:${tab.url}`).join(',')}
+      </div>
+      <div data-testid="tab-bar-tabs">{tabBarTabs.map((tab) => tab.id).join(',')}</div>
+    </div>
+  )
+}
+
 function CloseTabOnMount({ tabId }: { tabId: string }) {
   const { closeTab } = useTabsContext()
   const didCloseRef = useRef(false)
@@ -323,7 +402,7 @@ function CloseHomeAfterSecondTabOpens() {
   return <TabSnapshot />
 }
 
-// Opens the same URL as the initial tab with forceNew, the way the tab bar's + button does.
+// Opens the same URL as the initial tab with forceNew to verify the explicit duplicate-tab escape hatch.
 function ForceNewSameUrlOpener() {
   const { openTab } = useTabsContext()
   const didOpenRef = useRef(false)
@@ -401,9 +480,22 @@ function TransientMiniAppPinner() {
 
 beforeEach(() => {
   currentLanguage = 'en'
+  navigationLayout = 'tabs'
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
+  sidebarMocks.favorites = [
+    { type: 'app', id: 'assistants' },
+    { type: 'app', id: 'agents' },
+    { type: 'app', id: 'files' }
+  ]
+  sidebarMocks.ensureFavoritesPinned.mockImplementation((items: readonly SidebarFavoriteItem[]) => {
+    for (const item of items) {
+      if (!sidebarMocks.favorites.some((favorite) => favorite.type === item.type && favorite.id === item.id)) {
+        sidebarMocks.favorites = [...sidebarMocks.favorites, item]
+      }
+    }
+  })
   conversationTabActionRender.mockClear()
 })
 
@@ -413,6 +505,521 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('restores the full multi-tab session in the combined layout', () => {
+    navigationLayout = 'both'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      { id: 'chat-id', type: 'route', url: '/app/chat', title: 'Chat', lastAccessTime: 2, isDormant: false },
+      { id: 'agent-id', type: 'route', url: '/app/agents', title: 'Agent', lastAccessTime: 1, isDormant: false }
+    ]
+    activeTabIdValue = 'chat-id'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both')
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent('chat-id,agent-id')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('chat-id:focused:/app/chat')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('agent-id:focused:/app/agents')
+  })
+
+  it('preserves legacy independent utility tabs in the combined layout', async () => {
+    navigationLayout = 'both'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open release notes' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/release-notes'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance')
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').split(',')).toHaveLength(3)
+    expect((screen.getByTestId('tab-bar-tabs').textContent ?? '').split(',')).toHaveLength(3)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate home workspace' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('home'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/settings/appearance')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('/app/release-notes')
+  })
+
+  it('keeps workspace identity aligned when legacy navigation rewrites a tab route', async () => {
+    navigationLayout = 'both'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rewrite active route' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('home:app:agents:/app/agents'))
+  })
+
+  it('keeps one mounted workspace per app in sidebar layout', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'older-chat',
+        type: 'route',
+        url: '/app/chat?topicId=older',
+        title: 'Older',
+        lastAccessTime: 1,
+        isDormant: false
+      },
+      {
+        id: 'active-chat',
+        type: 'route',
+        url: '/app/chat?topicId=active',
+        title: 'Active',
+        lastAccessTime: 2,
+        isDormant: false
+      }
+    ]
+    activeTabIdValue = 'active-chat'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(
+        'active-chat:app:assistants:/app/chat?topicId=active'
+      )
+    )
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('older-chat')
+  })
+
+  it('moves restored pinned tabs into unpinned Sidebar workspaces', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = [PINNED_FILES_TAB]
+    normalTabsValue = [HOME_TAB]
+    activeTabIdValue = 'home'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('files:app:files:/app/files'))
+    expect(setPinnedTabsMock).toHaveBeenCalledWith([])
+  })
+
+  it('keeps the focused route source when duplicate tabs collapse into Sidebar workspaces', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'newer-chat',
+        type: 'route',
+        url: '/app/chat?topicId=newer',
+        title: 'Newer',
+        lastAccessTime: 10,
+        isDormant: false
+      },
+      {
+        id: 'source-chat',
+        type: 'route',
+        url: '/app/chat?topicId=source',
+        title: 'Source',
+        lastAccessTime: 1,
+        isDormant: false
+      },
+      {
+        id: 'settings',
+        type: 'route',
+        url: '/settings/appearance',
+        title: 'Settings',
+        metadata: { returnWorkspaceId: 'source-chat' },
+        lastAccessTime: 20,
+        isDormant: false
+      }
+    ]
+    activeTabIdValue = 'settings'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('source-chat:app:assistants'))
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('newer-chat')
+    expect(screen.getByTestId('workspace-active')).toHaveTextContent('settings')
+  })
+
+  it('reuses the chat workspace and ignores forceNew in sidebar layout', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open second chat' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('home:app:assistants:/app/chat?topicId=second')
+    )
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').split(',')).toHaveLength(1)
+  })
+
+  it('favorites a new Sidebar workspace with one preference write', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open notes' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('app:notes:/app/notes'))
+    expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledTimes(1)
+    expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledWith([{ type: 'app', id: 'notes' }])
+  })
+
+  it('uses one focused route and returns to its source workspace', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance'))
+    expect(screen.getByTestId('workspace-active')).not.toHaveTextContent('home')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close focused' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('home'))
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('/settings/appearance')
+  })
+
+  it('keeps a reused pinned focused route removable from persistent storage', async () => {
+    const pinnedFocusedTab: Tab = {
+      id: 'focused-settings',
+      type: 'route',
+      url: '/settings/appearance',
+      title: 'Settings',
+      metadata: { returnWorkspaceId: HOME_TAB.id },
+      lastAccessTime: 2,
+      isDormant: false,
+      isPinned: true
+    }
+    pinnedTabsValue = [pinnedFocusedTab]
+    normalTabsValue = [HOME_TAB]
+    activeTabIdValue = pinnedFocusedTab.id
+    const user = userEvent.setup()
+    const view = render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open release notes' }))
+    const replaceUpdater = [...setPinnedTabsMock.mock.calls]
+      .reverse()
+      .map(([value]) => value)
+      .find((value) => typeof value === 'function') as ((tabs: Tab[]) => Tab[]) | undefined
+    expect(replaceUpdater).toBeTypeOf('function')
+    pinnedTabsValue = replaceUpdater!(pinnedTabsValue)
+    expect(pinnedTabsValue).toEqual([
+      expect.objectContaining({ id: pinnedFocusedTab.id, url: '/app/release-notes', isPinned: true })
+    ])
+
+    view.rerender(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+    setPinnedTabsMock.mockClear()
+    await user.click(screen.getByRole('button', { name: 'Close focused' }))
+
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+    const closeUpdater = setPinnedTabsMock.mock.calls.at(-1)?.[0] as ((tabs: Tab[]) => Tab[]) | undefined
+    expect(closeUpdater).toBeTypeOf('function')
+    expect(closeUpdater!(pinnedTabsValue)).toEqual([])
+  })
+
+  it('releases the focused route when a Sidebar workspace is selected', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open launchpad' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('/settings/appearance'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('launchpad:/app/launchpad')
+  })
+
+  it('releases the focused route when a regular tab is opened', async () => {
+    navigationLayout = 'tabs'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open second chat' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('/settings/appearance'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('app:assistants:/app/chat?topicId=second')
+  })
+
+  it('reuses the fixed Launchpad workspace and falls back to it when the last app is removed', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open launchpad' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open launchpad' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('launchpad:/app/launchpad'))
+    expect((screen.getByTestId('workspace-tabs').textContent ?? '').match(/:launchpad:/g) ?? []).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close chat workspace' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).not.toHaveTextContent('home'))
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('home:app:assistants')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(':launchpad:/app/launchpad')
+  })
+
+  it('restores the legacy single-tab state when switching from Sidebar to the combined layout', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      { id: 'agent-id', type: 'route', url: '/app/agents', title: 'Agent', lastAccessTime: 3, isDormant: false },
+      {
+        id: 'launch-id',
+        type: 'route',
+        url: '/app/launchpad',
+        title: 'Launchpad',
+        lastAccessTime: 2,
+        isDormant: false
+      },
+      { id: 'chat-id', type: 'route', url: '/app/chat', title: 'Chat', lastAccessTime: 1, isDormant: false }
+    ]
+    activeTabIdValue = 'agent-id'
+
+    const view = render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('sidebar'))
+
+    navigationLayout = 'both'
+    view.rerender(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
+    await waitFor(() => expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^agent-id$/))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('agent-id:app:agents:')
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('launch-id')
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('chat-id')
+    expect(screen.getByTestId('workspace-active')).toHaveTextContent('agent-id')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open second chat' }))
+    await waitFor(() => expect(screen.getByTestId('tab-bar-tabs').textContent?.split(',')).toHaveLength(2))
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent('agent-id')
+  })
+
+  it('keeps the focused route and its source as visible tabs when switching to the combined layout', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    const view = render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance'))
+    const focusedTabId = screen.getByTestId('workspace-active').textContent ?? ''
+
+    navigationLayout = 'both'
+    view.rerender(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('home:app:assistants:/app/chat')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent(`${focusedTabId}:focused:/settings/appearance`)
+    expect(screen.getByTestId('tab-bar-tabs').textContent?.split(',')).toEqual(['home', focusedTabId])
+    expect(screen.getByTestId('workspace-active')).toHaveTextContent(focusedTabId)
+  })
+
+  it('releases hidden Sidebar workspaces when switching from tabs to the combined layout', async () => {
+    navigationLayout = 'tabs'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'hidden-chat',
+        type: 'route',
+        url: '/app/chat',
+        title: 'Chat',
+        workspaceKey: 'app:assistants',
+        isTabBarVisible: false,
+        isDormant: true
+      },
+      {
+        id: 'visible-agent',
+        type: 'route',
+        url: '/app/agents',
+        title: 'Agent',
+        workspaceKey: 'app:agents',
+        isTabBarVisible: true,
+        isDormant: false
+      }
+    ]
+    activeTabIdValue = 'visible-agent'
+
+    const view = render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^visible-agent$/)
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('hidden-chat:app:assistants:')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('visible-agent:app:agents:')
+
+    navigationLayout = 'both'
+    view.rerender(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('both'))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('hidden-chat'))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('visible-agent:app:agents:')
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^visible-agent$/)
+  })
+
+  it('reuses a hidden Launchpad workspace after the last visible top tab closes', async () => {
+    navigationLayout = 'tabs'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      {
+        id: 'visible-chat',
+        type: 'route',
+        url: '/app/chat',
+        title: 'Chat',
+        workspaceKey: 'app:assistants',
+        isTabBarVisible: true,
+        isDormant: false
+      },
+      {
+        id: 'hidden-launchpad',
+        type: 'route',
+        url: '/app/launchpad',
+        title: 'Launchpad',
+        workspaceKey: 'launchpad',
+        isTabBarVisible: false,
+        isDormant: true
+      }
+    ]
+    activeTabIdValue = 'visible-chat'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close active tab' }))
+
+    await waitFor(() => expect(screen.getByTestId('workspace-active')).toHaveTextContent('hidden-launchpad'))
+    expect(screen.getByTestId('tab-bar-tabs')).toHaveTextContent(/^hidden-launchpad$/)
+    expect(screen.getByTestId('workspace-tabs')).not.toHaveTextContent('visible-chat')
+  })
+
+  it('keeps the active focused route when switching from Sidebar to tabs', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+
+    const view = render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    await waitFor(() => expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance'))
+    const focusedTabId = screen.getByTestId('workspace-active').textContent
+
+    navigationLayout = 'tabs'
+    view.rerender(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('workspace-layout')).toHaveTextContent('tabs'))
+    expect(screen.getByTestId('workspace-active')).toHaveTextContent(focusedTabId ?? '')
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('focused:/settings/appearance')
+  })
+
+  it('auto-favorites a non-favorite workspace when tabs collapse into Sidebar layout', async () => {
+    navigationLayout = 'sidebar'
+    pinnedTabsValue = []
+    normalTabsValue = [
+      { id: 'notes-id', type: 'route', url: '/app/notes', title: 'Notes', lastAccessTime: 1, isDormant: false }
+    ]
+    activeTabIdValue = 'notes-id'
+
+    render(
+      <TabsProvider initialDefaultTab={null}>
+        <WorkspaceControls />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(sidebarMocks.ensureFavoritesPinned).toHaveBeenCalledWith([{ type: 'app', id: 'notes' }]))
+    expect(screen.getByTestId('workspace-tabs')).toHaveTextContent('notes-id:app:notes:/app/notes')
+  })
+
   it('keeps conversation tab actions isolated while reading the latest tab state', async () => {
     render(
       <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>

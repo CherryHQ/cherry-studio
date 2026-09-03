@@ -3053,6 +3053,13 @@ describe('AiStreamManager', () => {
         .map((entry) => entry?.status)
         .filter((s): s is string => s !== undefined)
 
+    const indexedStatusFor = (topicId: string) =>
+      (
+        sharedCacheStore.get('topic.stream.status_index') as
+          | Record<string, { status: string; lastCompletedAt?: number }>
+          | undefined
+      )?.[topicId]
+
     beforeEach(() => {
       sharedCacheStore.clear()
       fakeCacheService.setShared.mockClear()
@@ -3244,6 +3251,7 @@ describe('AiStreamManager', () => {
           completedAt: 1_234
         }
       ])
+      expect(indexedStatusFor('topic-1')).toMatchObject({ status: 'done', lastCompletedAt: 1_234 })
     })
 
     it('does not report a completion for a stream without a persistent completion target', async () => {
@@ -3255,6 +3263,25 @@ describe('AiStreamManager', () => {
       })
       await mgr.onExecutionDone('topic-1', 'p::m')
 
+      expect(conversationCompletedEvents).toEqual([])
+      expect(indexedStatusFor('topic-1')).toBeUndefined()
+    })
+
+    it('does not recreate task status when a deleted conversation stream later completes', async () => {
+      startSingle(mgr, {
+        topicId: 'topic-1',
+        modelId: 'p::m',
+        request: req('topic-1'),
+        listeners: [new FakeListener('l:topic-1')],
+        isPersistentConversation: true
+      })
+
+      mgr.clearConversationTaskStatuses(['topic-1'])
+      mgr.onChunk('topic-1', 'p::m', chunk('still running'))
+      await mgr.onExecutionDone('topic-1', 'p::m')
+
+      expect(statusWritesFor('topic-1').at(-1)).toBeNull()
+      expect(indexedStatusFor('topic-1')).toBeUndefined()
       expect(conversationCompletedEvents).toEqual([])
     })
 
@@ -3343,6 +3370,7 @@ describe('AiStreamManager', () => {
       expect(abortedEntry?.status).toBe('aborted')
       expect(abortedEntry?.lastCompletedAt).toBeUndefined()
       expect(conversationCompletedEvents).toEqual([])
+      expect(indexedStatusFor('t')).toBeUndefined()
     })
 
     it('records aborted when the user stops the stream', async () => {
@@ -3372,6 +3400,7 @@ describe('AiStreamManager', () => {
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
       expect(conversationCompletedEvents).toEqual([])
+      expect(indexedStatusFor('t')?.status).toBe('error')
     })
 
     it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {

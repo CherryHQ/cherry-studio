@@ -14,7 +14,8 @@ const {
   reorderMock,
   reuseOrCreatePlaceholderMock,
   setActiveNodeMock,
-  updateMock
+  updateMock,
+  clearConversationTaskStatusesMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   deleteByAssistantIdMock: vi.fn(),
@@ -29,7 +30,17 @@ const {
   reorderMock: vi.fn(),
   reuseOrCreatePlaceholderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
-  updateMock: vi.fn()
+  updateMock: vi.fn(),
+  clearConversationTaskStatusesMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: (name: string) => {
+      if (name === 'AiStreamManager') return { clearConversationTaskStatuses: clearConversationTaskStatusesMock }
+      throw new Error(`Unexpected application.get(${name})`)
+    }
+  }
 }))
 
 vi.mock('@data/services/TopicService', () => ({
@@ -61,7 +72,7 @@ describe('topicHandlers', () => {
   describe('/topics', () => {
     it('delegates selected topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByIdsMock.mockResolvedValueOnce(result)
+      deleteByIdsMock.mockReturnValueOnce(result)
 
       await expect(
         topicHandlers['/topics'].DELETE({
@@ -71,11 +82,12 @@ describe('topicHandlers', () => {
 
       expect(deleteByIdsMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
       expect(deleteMock).not.toHaveBeenCalled()
+      expect(clearConversationTaskStatusesMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
     })
 
     it('trims comma-separated topic ids before delegating', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByIdsMock.mockResolvedValueOnce(result)
+      deleteByIdsMock.mockReturnValueOnce(result)
 
       await expect(
         topicHandlers['/topics'].DELETE({
@@ -129,6 +141,15 @@ describe('topicHandlers', () => {
     })
   })
 
+  describe('/topics/:id', () => {
+    it('clears task status after deleting a topic', async () => {
+      await topicHandlers['/topics/:id'].DELETE({ params: { id: 'topic-a' } } as never)
+
+      expect(deleteMock).toHaveBeenCalledWith('topic-a')
+      expect(clearConversationTaskStatusesMock).toHaveBeenCalledWith(['topic-a'])
+    })
+  })
+
   describe('/topics/reusable-placeholder', () => {
     it('forwards the exact nullable owner and exclusion to the atomic service operation', async () => {
       const response = { topic: { id: 'topic-created' }, created: true }
@@ -163,7 +184,7 @@ describe('topicHandlers', () => {
   describe('/assistants/:assistantId/topics', () => {
     it('delegates assistant-scoped topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByAssistantIdMock.mockResolvedValueOnce(result)
+      deleteByAssistantIdMock.mockReturnValueOnce(result)
 
       await expect(
         topicHandlers['/assistants/:assistantId/topics'].DELETE({
@@ -173,6 +194,7 @@ describe('topicHandlers', () => {
 
       expect(deleteByAssistantIdMock).toHaveBeenCalledWith('assistant-1')
       expect(deleteByIdsMock).not.toHaveBeenCalled()
+      expect(clearConversationTaskStatusesMock).toHaveBeenCalledWith(['topic-a', 'topic-b'])
     })
   })
 

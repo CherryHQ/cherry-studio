@@ -89,7 +89,7 @@ const MiniApp: FC<Props> = ({
   const update = useMiniAppUpdate(app.appId, { name: app.name })
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState(false)
-  const { openTab } = useTabs()
+  const { closeWorkspace, navigationLayout, openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
@@ -158,6 +158,7 @@ const MiniApp: FC<Props> = ({
 
   const handleToggleSidebarFavorite = () => {
     toggleMiniApp(app.appId)
+    if (isSidebarFavorite && navigationLayout === 'sidebar') closeWorkspace(`mini-app:${app.appId}`)
   }
 
   const handleHide = () => {

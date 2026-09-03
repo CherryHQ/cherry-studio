@@ -8,6 +8,7 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { getWorkspaceKeyForUrl } from '@renderer/utils/navigationWorkspace'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import type { SubWindowInitData } from '@shared/types/subWindow'
@@ -54,16 +55,18 @@ export const SubWindowAppShell = () => {
   // clear the per-entity icon override so a mini-app logo doesn't stick onto
   // an unrelated route after navigation inside the same tab.
   const handleUrlChange = (tabId: string, url: string) => {
+    const workspaceKey = getWorkspaceKeyForUrl(url)
     // Chat / agent tabs are page-titled (topic / session name + emoji set by
     // their page); only sync the url so navigating topics doesn't wipe them.
     if (isPageTitledRoute(url)) {
-      updateTab(tabId, { url })
+      updateTab(tabId, { url, workspaceKey })
       return
     }
     updateTab(tabId, {
       url,
       title: getDefaultRouteTitle(url),
       icon: undefined,
+      workspaceKey,
       metadata: undefined
     })
   }

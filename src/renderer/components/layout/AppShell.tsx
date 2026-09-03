@@ -5,12 +5,13 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useNativeFullscreen } from '@renderer/hooks/useNativeFullscreen'
 import { ipcApi } from '@renderer/ipc'
 import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
+import { getTabWorkspaceKey, getWorkspaceKeyForUrl } from '@renderer/utils/navigationWorkspace'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import Sidebar from '../app/Sidebar'
 import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
@@ -18,7 +19,9 @@ import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
+import { AppShellTitleBar } from './AppShellTitleBar'
 import { TabRouter } from './TabRouter'
+import { TabTaskDormancyRuntime } from './TabTaskDormancyRuntime'
 
 // Routes whose pages stay usable below the global minimum window width.
 const isCompactMinWidthRoute = (url?: string): boolean =>
@@ -28,6 +31,7 @@ export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const {
     tabs,
+    tabBarTabs,
     activeTabId,
     setActiveTab,
     closeTab,
@@ -37,27 +41,35 @@ export const AppShell = () => {
     pinTab,
     unpinTab,
     detachTab,
-    openTab
+    openTab,
+    navigationLayout,
+    closeFocusedRoute
   } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
-  const canCycleTabs = tabs.length > 1 && !!activeTab
   const isSettingsTabActive = isSettingsPath(activeTab?.url)
-  const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
+  const previousLegacyTabIdRef = useRef<string | undefined>(undefined)
   if (activeTab && !isSettingsTabActive) {
-    previousWorkspaceTabIdRef.current = activeTab.id
-  } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
-    previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+    previousLegacyTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousLegacyTabIdRef.current) {
+    previousLegacyTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
       if (isSettingsPath(tab.url)) return latest
       return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
     }, undefined)?.id
   }
-  const tabBarTabs = useMemo(
-    () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
-    [activeTab, isSettingsTabActive, tabs]
+  const isFocusedTabActive =
+    navigationLayout === 'both' ? isSettingsTabActive : !!activeTab && !getTabWorkspaceKey(activeTab)
+  const showsTabBar = navigationLayout !== 'sidebar'
+  const showsSidebar = navigationLayout === 'sidebar' || (navigationLayout === 'both' && !isFocusedTabActive)
+  const visibleTabBarTabs = useMemo(
+    () => (isFocusedTabActive && activeTab ? [activeTab] : tabBarTabs),
+    [activeTab, isFocusedTabActive, tabBarTabs]
   )
+  const canCycleTabs = visibleTabBarTabs.length > 1 && visibleTabBarTabs.some((tab) => tab.id === activeTabId)
   const isFullscreen = useNativeFullscreen()
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const hasMiniAppTab = tabs.some((tab) => miniAppIdFromTabUrl(tab.url) !== null)
+  const hadMiniAppTabRef = useRef(hasMiniAppTab)
 
   // Split state is window-wide and does not follow the last mini-app tab out, so
   // the next mini app would open into a stale split with its app still pooled.
@@ -74,48 +86,64 @@ export const AppShell = () => {
     [setSplitMiniAppId, setSplitOpen, splitOpen, tabs]
   )
 
+  useEffect(() => {
+    const hadMiniAppTab = hadMiniAppTabRef.current
+    hadMiniAppTabRef.current = hasMiniAppTab
+    if (!splitOpen || hasMiniAppTab || !hadMiniAppTab) return
+    setSplitOpen(false)
+    setSplitMiniAppId('')
+  }, [hasMiniAppTab, setSplitMiniAppId, setSplitOpen, splitOpen])
+
   const handleCloseTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
-      if (isSettingsPath(tab?.url)) {
-        closeTabs([id], previousWorkspaceTabIdRef.current)
+      if (navigationLayout === 'both' && isSettingsPath(tab?.url)) {
+        closeTabs([id], previousLegacyTabIdRef.current)
+        return
+      }
+      if (navigationLayout !== 'both' && tab && !getTabWorkspaceKey(tab)) {
+        closeFocusedRoute()
         return
       }
       clearSplitWithLastMiniAppTab(id, tab?.url)
       closeTab(id)
     },
-    [clearSplitWithLastMiniAppTab, closeTab, closeTabs, tabs]
+    [clearSplitWithLastMiniAppTab, closeFocusedRoute, closeTab, closeTabs, navigationLayout, tabs]
   )
 
   const handleDetachTab = useCallback(
     (id: string) => {
       const tab = tabs.find((candidate) => candidate.id === id)
+      const returnWorkspaceId =
+        typeof tab?.metadata?.returnWorkspaceId === 'string' ? tab.metadata.returnWorkspaceId : undefined
       clearSplitWithLastMiniAppTab(id, tab?.url)
       detachTab(id)
-      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
-        setActiveTab(previousWorkspaceTabIdRef.current)
+      if (navigationLayout === 'both' && isSettingsPath(tab?.url) && previousLegacyTabIdRef.current) {
+        setActiveTab(previousLegacyTabIdRef.current)
+      } else if (tab && !getTabWorkspaceKey(tab) && returnWorkspaceId) {
+        setActiveTab(returnWorkspaceId)
       }
     },
-    [clearSplitWithLastMiniAppTab, detachTab, setActiveTab, tabs]
+    [clearSplitWithLastMiniAppTab, detachTab, navigationLayout, setActiveTab, tabs]
   )
 
   const handleOpenGlobalSearch = useCallback(() => {
-    if (isSettingsTabActive) return
+    if (navigationLayout === 'both' && isSettingsTabActive) return
     void GlobalSearchPopup.show()
-  }, [isSettingsTabActive])
+  }, [isSettingsTabActive, navigationLayout])
 
   // Pinned tabs join the same flat cycle, matching Chrome / VS Code Ctrl+Tab.
   const cycleTab = useCallback(
     (direction: 'next' | 'prev') => {
-      if (tabs.length <= 1) return
-      const currentIndex = tabs.findIndex((t) => t.id === activeTabId)
+      if (visibleTabBarTabs.length <= 1) return
+      const currentIndex = visibleTabBarTabs.findIndex((t) => t.id === activeTabId)
       if (currentIndex === -1) return
 
       const offset = direction === 'next' ? 1 : -1
-      const nextIndex = (currentIndex + offset + tabs.length) % tabs.length
-      setActiveTab(tabs[nextIndex].id)
+      const nextIndex = (currentIndex + offset + visibleTabBarTabs.length) % visibleTabBarTabs.length
+      setActiveTab(visibleTabBarTabs[nextIndex].id)
     },
-    [tabs, activeTabId, setActiveTab]
+    [visibleTabBarTabs, activeTabId, setActiveTab]
   )
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
@@ -123,10 +151,8 @@ export const AppShell = () => {
   useCommandHandler('tab.prev', () => cycleTab('prev'), { enabled: canCycleTabs })
 
   useEffect(() => {
-    if (isSettingsTabActive) {
-      GlobalSearchPopup.hide()
-    }
-  }, [isSettingsTabActive])
+    if (navigationLayout === 'both' && isSettingsTabActive) GlobalSearchPopup.hide()
+  }, [isSettingsTabActive, navigationLayout])
 
   // The compact minimum tracks the active tab's route here, at window level.
   // It must not live in the pages themselves: they sit inside <Activity>, whose
@@ -164,14 +190,16 @@ export const AppShell = () => {
   const handleUrlChange = (tabId: string, url: string) => {
     const isPageTitled = isPageTitledRoute(url)
     const tab = tabs.find((candidate) => candidate.id === tabId)
+    const workspaceKey = getWorkspaceKeyForUrl(url)
     const patch = isPageTitled
-      ? { url, lastAccessTime: Date.now() }
+      ? { url, workspaceKey, lastAccessTime: Date.now() }
       : {
           url,
           title: getDefaultRouteTitle(url),
           icon: undefined,
+          workspaceKey,
           lastAccessTime: Date.now(),
-          metadata: undefined
+          metadata: workspaceKey ? undefined : tab?.metadata
         }
     updateTab(tabId, patch)
 
@@ -182,10 +210,11 @@ export const AppShell = () => {
 
   const tabBar = (
     <AppShellTabBar
-      tabs={tabBarTabs}
+      tabs={visibleTabBarTabs}
       activeTabId={activeTabId}
       isFullscreen={isFullscreen}
-      isFocusedTab={isSettingsTabActive}
+      isFocusedTab={isFocusedTabActive}
+      legacyCombinedLayout={navigationLayout === 'both'}
       setActiveTab={setActiveTab}
       closeTab={handleCloseTab}
       closeTabs={closeTabs}
@@ -197,8 +226,17 @@ export const AppShell = () => {
     />
   )
 
+  const titleBar = (
+    <AppShellTitleBar
+      activeTab={activeTab}
+      isFocused={isFocusedTabActive}
+      isFullscreen={isFullscreen}
+      onBack={closeFocusedRoute}
+    />
+  )
+
   const contentArea = (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', showsSidebar ? 'pr-2' : 'px-2')}>
       <main
         data-ui="app.content"
         className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
@@ -207,12 +245,14 @@ export const AppShell = () => {
           {tabs
             .filter((t) => t.type === 'route' && !t.isDormant)
             .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
+              <Fragment key={tab.id}>
+                {navigationLayout !== 'sidebar' && <TabTaskDormancyRuntime tab={tab} updateTab={updateTab} />}
+                <TabRouter
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              </Fragment>
             ))}
         </ResourceViewSourceProvider>
 
@@ -224,7 +264,7 @@ export const AppShell = () => {
 
   const contentColumn = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      {tabBar}
+      {showsTabBar ? tabBar : titleBar}
       {contentArea}
     </div>
   )
@@ -236,7 +276,7 @@ export const AppShell = () => {
           'flex h-screen w-screen flex-row overflow-hidden text-foreground',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
         )}>
-        {!isSettingsTabActive && <Sidebar />}
+        {showsSidebar && <Sidebar />}
         {contentColumn}
       </div>
     )
@@ -255,7 +295,7 @@ export const AppShell = () => {
           className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
         />
       )}
-      {!isSettingsTabActive && (
+      {showsSidebar && (
         <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
           {!isFullscreen && (
             <div

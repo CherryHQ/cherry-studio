@@ -38,9 +38,16 @@ export type {
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
+  TopicCompletionSeenEvent,
   TopicStatusSnapshotEntry,
+  TopicStatusSnapshotIndex,
   TopicStreamStatus
 } from './stream'
-export { aiStreamAdmissionReasons, isAiStreamAdmissionReason } from './stream'
+export {
+  aiStreamAdmissionReasons,
+  isAiStreamAdmissionReason,
+  TOPIC_COMPLETION_SEEN_CACHE_KEY,
+  TOPIC_STATUS_INDEX_CACHE_KEY
+} from './stream'
 export type { TurnStateFlags } from './turnState'
 export { classifyTurn, TURN_STATE } from './turnState'
