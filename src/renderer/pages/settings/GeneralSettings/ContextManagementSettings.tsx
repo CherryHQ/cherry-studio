@@ -69,7 +69,7 @@ export const ContextManagementSettings = () => {
       <SettingDescription>{t('settings.models.context_management.scope_description')}</SettingDescription>
       <SettingDivider />
       {/* Outside the master switch: scope is not an overflow policy. */}
-      <SettingRow>
+      <SettingRow id="setting-general-context-max-messages" className="scroll-mt-6">
         <div className="min-w-0 flex-1">
           <SettingRowTitleWithTooltip
             title={t('settings.models.context_management.max_messages')}
@@ -93,7 +93,7 @@ export const ContextManagementSettings = () => {
         </div>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-general-context-enabled" className="scroll-mt-6">
         <div className="min-w-0 flex-1">
           <SettingRowTitleWithTooltip
             title={t('settings.models.context_management.enabled')}

@@ -41,4 +41,4 @@ export {
   type TreeNodeStats,
   type TreeRootPath
 } from './tree'
-export { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from './url'
+export { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl, tryFileUrlToPath } from './url'

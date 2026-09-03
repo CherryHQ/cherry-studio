@@ -548,7 +548,7 @@
   overflow: visible !important;
 }
 
-.markdown img {
+.markdown img:not([data-file-token-icon-thumbnail]) {
   display: block;
   max-width: 100%;
   height: auto;
