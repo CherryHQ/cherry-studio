@@ -1,3 +1,4 @@
+import { formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -11,15 +12,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockPreferenceGet, mockProcessMessage, mockGetModels, mockIsInternalRequestToken } = vi.hoisted(() => ({
-  mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
-    async () =>
-      new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
-  ),
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
-  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token')
-}))
+const { mockPreferenceGet, mockProcessMessage, mockGetModels, mockResolveGeminiModel, mockIsInternalRequestToken } =
+  vi.hoisted(() => ({
+    mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
+    mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
+      async () =>
+        new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
+    ),
+    mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+    mockResolveGeminiModel: vi.fn((model: string) => model),
+    mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token')
+  }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -56,7 +59,8 @@ vi.mock('../../proxyStream', () => ({
 }))
 
 vi.mock('../../utils/models', () => ({
-  getModels: mockGetModels
+  getModels: mockGetModels,
+  resolveGeminiGatewayModelAddress: mockResolveGeminiModel
 }))
 
 // Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so
@@ -431,6 +435,7 @@ describe('API gateway routes (integration)', () => {
     })
 
     it('normalizes an Antigravity custom model path to the gateway model address', async () => {
+      mockResolveGeminiModel.mockReturnValueOnce('provider-a:models/gemini-flash')
       await read(
         await post(app, '/v1beta/models/provider-a/models/models/gemini-flash:streamGenerateContent', geminiBody)
       )
@@ -441,9 +446,10 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
-    it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
+    it('routes a legacy gemini-cli suffix through the model resolver', async () => {
       // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
       // normalization can't rewrite names ending in "flash"; the route must strip it.
+      mockResolveGeminiModel.mockReturnValueOnce('618d8838:agent/deepseek-v4-flash')
       await read(
         await post(app, '/v1beta/models/618d8838:agent/deepseek-v4-flash@cherry:streamGenerateContent', geminiBody)
       )
@@ -453,10 +459,27 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
+    it('routes a real apiModelId ending in @cherry without stripping content', async () => {
+      await read(await post(app, '/v1beta/models/provider-a:model@cherry:generateContent', geminiBody))
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'provider-a:model@cherry',
+        streaming: false
+      })
+    })
+
+    it('does not infer Antigravity from /models/ inside a generic provider id', async () => {
+      await read(await post(app, '/v1beta/models/team/models/west:gemini-2.5-pro:generateContent', geminiBody))
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'team/models/west:gemini-2.5-pro',
+        streaming: false
+      })
+    })
+
     it('routes a sentinel-suffixed model whose apiModelId itself contains "/models/"', async () => {
       // Fireworks ids are `accounts/fireworks/models/<name>` (16 of them in the registry), so
       // deciding the address protocol by looking for "/models/" misreads them as Antigravity
       // paths and rejects a perfectly valid gemini-cli request.
+      mockResolveGeminiModel.mockReturnValueOnce('fireworks:accounts/fireworks/models/deepseek-v4-flash')
       await read(
         await post(
           app,
@@ -470,10 +493,10 @@ describe('API gateway routes (integration)', () => {
       })
     })
 
-    it('rejects a model still ending in the reserved @cherry suffix after one strip → 400', async () => {
-      // The sentinel is reserved: the route strips exactly one trailing `@cherry`, so a model that
-      // STILL ends in it (a real id ending in the reserved marker, or a doubled sentinel) is
-      // ambiguous and never advertised by GET /models — reject rather than route to the wrong id.
+    it('rejects an ambiguous legacy suffix → 400', async () => {
+      mockResolveGeminiModel.mockImplementationOnce(() => {
+        throw new Error('Ambiguous legacy gateway model address')
+      })
       const { status, body } = await read(
         await post(app, '/v1beta/models/weird:model@cherry@cherry:generateContent', geminiBody)
       )
@@ -490,6 +513,26 @@ describe('API gateway routes (integration)', () => {
       expect(typeof body.totalTokens).toBe('number')
       expect(body.totalTokens).toBeGreaterThan(0)
       expect(mockProcessMessage).not.toHaveBeenCalled()
+      expect(mockResolveGeminiModel).toHaveBeenCalledWith('deepseek:deepseek-chat')
+    })
+
+    it('countTokens decodes a tagged model without consulting the catalog resolver', async () => {
+      const taggedModel = formatGeminiGatewayModelId('deepseek', 'deepseek-chat')
+      const { status, body } = await read(await post(app, `/v1beta/models/${taggedModel}:countTokens`, geminiBody))
+
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
+      expect(mockResolveGeminiModel).not.toHaveBeenCalled()
+    })
+
+    it('countTokens keeps its local fallback when catalog resolution fails', async () => {
+      mockResolveGeminiModel.mockImplementationOnce(() => {
+        throw new Error('Model is not available')
+      })
+      const { status, body } = await read(await post(app, '/v1beta/models/unknown-model:countTokens', geminiBody))
+
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
     })
 
     // Media is now counted (converted → shared walker, or the provider's remote count) rather

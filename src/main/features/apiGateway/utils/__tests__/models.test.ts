@@ -1,11 +1,13 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { formatAntigravityGatewayModelPath, formatGeminiGatewayModelId } from '@shared/utils/apiGateway'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getProvider: vi.fn(),
   listProviders: vi.fn(),
-  listModels: vi.fn()
+  listModels: vi.fn(),
+  loggerWarn: vi.fn()
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -23,11 +25,11 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn() }))
   }
 }))
 
-import { getModels, resolveGatewayModelAddress } from '../models'
+import { getModels, resolveGatewayModelAddress, resolveGeminiGatewayModelAddress } from '../models'
 
 describe('api gateway model listing', () => {
   beforeEach(() => {
@@ -85,6 +87,91 @@ describe('api gateway model listing', () => {
       uniqueModelId: 'openai::gpt-4o',
       model: resolvedModel
     })
+  })
+
+  it('resolves tagged Gemini and Antigravity addresses through the enabled model catalog', () => {
+    mocks.getProvider.mockImplementation((providerId: string) => ({
+      id: providerId,
+      name: providerId,
+      isEnabled: true
+    }))
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
+      {
+        id: `${providerId}::model`,
+        providerId,
+        apiModelId: 'model@cherry',
+        capabilities: [],
+        isEnabled: true
+      }
+    ])
+
+    expect(resolveGeminiGatewayModelAddress(formatGeminiGatewayModelId('provider-a', 'model@cherry'))).toBe(
+      'provider-a:model@cherry'
+    )
+    expect(resolveGeminiGatewayModelAddress(formatAntigravityGatewayModelPath('provider-a', 'model@cherry'))).toBe(
+      'provider-a:model@cherry'
+    )
+  })
+
+  it('uses the only available legacy interpretation and rejects an ambiguous one', () => {
+    mocks.getProvider.mockImplementation((providerId: string) => ({
+      id: providerId,
+      name: providerId,
+      isEnabled: true
+    }))
+    const available = new Set(['model'])
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
+      Array.from(available, (apiModelId) => ({
+        id: `${providerId}::${apiModelId}`,
+        providerId,
+        apiModelId,
+        capabilities: [],
+        isEnabled: true
+      }))
+    )
+
+    expect(resolveGeminiGatewayModelAddress('provider-a:model@cherry')).toBe('provider-a:model')
+
+    available.add('model@cherry')
+    expect(() => resolveGeminiGatewayModelAddress('provider-a:model@cherry')).toThrow(
+      /Ambiguous legacy gateway model address/
+    )
+  })
+
+  it('does not guess between generic and legacy Antigravity path interpretations', () => {
+    const catalog = new Map<string, string[]>([['team/models/west', ['model']]])
+    mocks.getProvider.mockImplementation((providerId: string) => {
+      if (!catalog.has(providerId)) throw new Error('Provider not found')
+      return { id: providerId, name: providerId, isEnabled: true }
+    })
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) =>
+      (catalog.get(providerId) ?? []).map((apiModelId) => ({
+        id: `${providerId}::${apiModelId}`,
+        providerId,
+        apiModelId,
+        capabilities: [],
+        isEnabled: true
+      }))
+    )
+
+    expect(resolveGeminiGatewayModelAddress('team/models/west:model')).toBe('team/models/west:model')
+
+    catalog.clear()
+    catalog.set('team', ['west:model'])
+    expect(resolveGeminiGatewayModelAddress('team/models/west:model')).toBe('team:west:model')
+
+    catalog.set('team/models/west', ['model'])
+    expect(() => resolveGeminiGatewayModelAddress('team/models/west:model')).toThrow(
+      /Ambiguous legacy gateway model address/
+    )
+
+    catalog.clear()
+    catalog.set('cherry-gw-v1', ['gemini-2.5-pro'])
+    expect(resolveGeminiGatewayModelAddress('cherry-gw-v1/models/gemini-2.5-pro')).toBe('cherry-gw-v1:gemini-2.5-pro')
+
+    catalog.clear()
+    catalog.set('cherry-gw-v2', ['future-model'])
+    expect(resolveGeminiGatewayModelAddress('cherry-gw-v2/models/future-model')).toBe('cherry-gw-v2:future-model')
   })
 
   // The listing shares isGatewayRoutableModel with the renderer's gateway picker: it must never
@@ -163,6 +250,30 @@ describe('api gateway model listing', () => {
     const response = await getModels()
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
+  })
+
+  it('logs an unaddressable model without dropping surrounding valid models', async () => {
+    mocks.listProviders.mockReturnValue([
+      { id: 'openai', name: 'OpenAI' },
+      { id: 'corp:west', name: 'Corp West' },
+      { id: 'anthropic', name: 'Anthropic' }
+    ])
+    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => {
+      const apiModelIds = providerId === 'corp:west' ? ['model-a', 'model-b'] : ['model']
+      return apiModelIds.map((apiModelId) => ({
+        id: `${providerId}::${apiModelId}`,
+        providerId,
+        apiModelId,
+        ownedBy: providerId,
+        capabilities: []
+      }))
+    })
+
+    const response = await getModels()
+
+    expect(response.data.map((model) => model.id)).toEqual(['openai:model', 'anthropic:model'])
+    expect(mocks.loggerWarn).toHaveBeenCalledOnce()
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.stringContaining('corp:west'))
   })
 
   // Reviewer A1: an external-cli provider (e.g. claude-code) authenticates via its own CLI login,

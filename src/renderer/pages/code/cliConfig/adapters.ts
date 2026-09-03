@@ -1,7 +1,13 @@
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, isApiGatewayProviderId, normalizeDeepSeekHarnessSettings } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
-import { GEMINI_GATEWAY_MODEL_SUFFIX, stripGeminiGatewayModelSuffix } from '@shared/utils/apiGateway'
+import {
+  formatGatewayModelId,
+  formatGeminiGatewayModelId,
+  parseGatewayModelId,
+  parseGeminiGatewayModelId,
+  parseLegacyGeminiGatewayModelId
+} from '@shared/utils/apiGateway'
 import { type CliConfigWriteFile, type FileConfiguredCli, getCliConfigTargets } from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
 import { type Document, isMap, isScalar } from 'yaml'
@@ -559,6 +565,27 @@ const openCodeAdapter: CliConfigAdapter = {
   }
 }
 
+function parseGeminiConfigModel(model: string, allowLegacy = false): { isGateway: boolean; model: string } {
+  try {
+    const tagged = parseGeminiGatewayModelId(model)
+    if (tagged) {
+      return { isGateway: true, model: formatGatewayModelId(tagged.providerId, tagged.apiModelId) }
+    }
+  } catch {
+    return { isGateway: false, model }
+  }
+
+  const legacy = allowLegacy ? parseLegacyGeminiGatewayModelId(model) : undefined
+  if (legacy) {
+    return { isGateway: true, model: formatGatewayModelId(legacy.providerId, legacy.apiModelId) }
+  }
+  return { isGateway: false, model }
+}
+
+function isLegacyGeminiGatewayConfig(env: Map<string, string>): boolean {
+  return env.get('GOOGLE_GENAI_API_VERSION') === 'v1beta' && (env.get('GEMINI_API_KEY') ?? '').startsWith('cs-sk-')
+}
+
 const geminiAdapter: CliConfigAdapter = {
   targets: getCliConfigTargets(CodeCli.GEMINI_CLI),
   providerBaseUrls: (provider) => [normalizeUrl(resolveGeminiBaseUrl(provider))].filter(Boolean),
@@ -570,10 +597,8 @@ const geminiAdapter: CliConfigAdapter = {
     const settings = readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files, read)
     const baseUrl = resolveGeminiBaseUrl(provider)
     const isGateway = isApiGatewayProviderId(provider.id)
-    // Gateway addresses carry the sentinel suffix so gemini-cli's model
-    // normalization can't rewrite them (see GEMINI_GATEWAY_MODEL_SUFFIX);
-    // extractConnection strips it back off for connection matching.
-    const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
+    const address = isGateway ? parseGatewayModelId(model) : undefined
+    const settingsModel = address ? formatGeminiGatewayModelId(address.providerId, address.apiModelId) : model
     return [
       makeDraftFile(
         'gemini-env',
@@ -597,21 +622,21 @@ const geminiAdapter: CliConfigAdapter = {
   },
   updateDraftConfig(files, connection, configBlob) {
     const envText = getDraftFile(files, 'gemini-env')?.content ?? ''
+    const env = parseDotenv(envText)
     const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
     const model = requireDraftValue(connection.model, 'Gemini model')
-    // A gateway draft carries the sentinel in settings.model.name; extractConnection
-    // strips it for connection matching, so re-append it here (and re-force the API
-    // version) to preserve the gateway identity through a foreign-edit round trip —
-    // gemini-cli reads settings.model.name, so a bare `flash`-ending address written
-    // back would be re-normalized on a direct terminal launch.
-    const isGateway = (stringValue(asRecord(settings.model).name) ?? '').endsWith(GEMINI_GATEWAY_MODEL_SUFFIX)
-    const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
+    const currentModel = stringValue(asRecord(settings.model).name)
+    const isGateway = currentModel
+      ? parseGeminiConfigModel(currentModel, isLegacyGeminiGatewayConfig(env)).isGateway
+      : false
+    const address = isGateway ? parseGatewayModelId(model) : undefined
+    const settingsModel = address ? formatGeminiGatewayModelId(address.providerId, address.apiModelId) : model
     return replaceDraftContent(
       replaceDraftContent(
         files,
         'gemini-env',
         renderDotenvFile(
-          buildGeminiEnvConfig(parseDotenv(envText), {
+          buildGeminiEnvConfig(env, {
             apiKey: connection.apiKey ?? '',
             baseUrl: connection.baseUrl ?? '',
             gateway: isGateway
@@ -651,7 +676,7 @@ const geminiAdapter: CliConfigAdapter = {
     return {
       baseUrl: stringValue(env.get('GOOGLE_GEMINI_BASE_URL')),
       apiKey: stringValue(env.get('GEMINI_API_KEY')),
-      model: model === undefined ? model : stripGeminiGatewayModelSuffix(model)
+      model: model === undefined ? model : parseGeminiConfigModel(model, isLegacyGeminiGatewayConfig(env)).model
     }
   },
   extractConfig(files) {

@@ -5,7 +5,7 @@ import { providerService } from '@data/services/ProviderService'
 import { atomicWriteFile } from '@main/utils/file'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { ANTIGRAVITY_MODEL_PATH_SEPARATOR, formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
+import { formatAntigravityGatewayModelPath, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { resolveGeminiBaseUrl } from '@shared/utils/gemini'
 
 import { isShellSafeModelId } from './shellQuote'
@@ -58,15 +58,7 @@ export async function prepareAntigravityLaunch(input: NormalRunInput): Promise<A
     })
     apiKey = gatewayApiKey
     baseUrl = gatewayClientOrigin(host, port)
-    // Only this path form is ambiguous about the separator: the route splits on the first
-    // one, so a provider id carrying it would address the wrong provider.
-    if (input.providerId.includes(ANTIGRAVITY_MODEL_PATH_SEPARATOR)) {
-      throw new Error(
-        `Provider id "${input.providerId}" contains "${ANTIGRAVITY_MODEL_PATH_SEPARATOR}" and cannot be addressed by antigravity-cli`
-      )
-    }
-    const gatewayModel = formatGatewayModelId(input.providerId, input.model)
-    model = `gemini-api://${gatewayModel.replace(':', ANTIGRAVITY_MODEL_PATH_SEPARATOR)}`
+    model = `gemini-api://${formatAntigravityGatewayModelPath(input.providerId, input.model)}`
   } else {
     const provider = providerService.getByProviderId(input.providerId)
     apiKey = providerService.getRotatedApiKey(provider.id)

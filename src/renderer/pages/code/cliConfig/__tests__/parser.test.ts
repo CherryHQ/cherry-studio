@@ -97,6 +97,28 @@ describe('extractConnectionFromCliConfigDraft', () => {
     expect(extractConnectionFromCliConfigDraft(cliTool, files)).toEqual({ baseUrl, apiKey: 'sk-secret', model })
   })
 
+  it('preserves a direct Gemini model id ending in @cherry', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'model@cherry')
+    expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('model@cherry')
+  })
+
+  it('preserves a direct Gemini model id containing a colon and ending in @cherry', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'publisher:model@cherry')
+    const envFile = files.find((file) => file.target === 'gemini-env')!
+    envFile.content += 'GOOGLE_GENAI_API_VERSION=v1beta\n'
+    expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('publisher:model@cherry')
+  })
+
+  it('preserves an unknown future Gemini gateway token for downgrade-safe editing', async () => {
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro')
+    const settingsFile = files.find((file) => file.target === 'gemini-settings')!
+    const settings = JSON.parse(settingsFile.content)
+    settings.model.name = 'cherry-gw-v2.future@cherry'
+    settingsFile.content = JSON.stringify(settings)
+
+    expect(extractConnectionFromCliConfigDraft(CodeCli.GEMINI_CLI, files)?.model).toBe('cherry-gw-v2.future@cherry')
+  })
+
   it('returns null for an unknown tool', () => {
     expect(extractConnectionFromCliConfigDraft('nope', [])).toBeNull()
   })

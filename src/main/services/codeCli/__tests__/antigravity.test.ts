@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { parseAntigravityGatewayModelPath } from '@shared/utils/apiGateway'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -101,26 +102,30 @@ describe('prepareAntigravityLaunch', () => {
       GEMINI_API_KEY: 'gateway-secret',
       GOOGLE_GEMINI_BASE_URL: 'http://127.0.0.1:24444'
     })
-    expect(result.model).toBe('gemini-api://provider-a/models/models/gemini-flash')
+    expect(parseAntigravityGatewayModelPath(result.model.slice('gemini-api://'.length))).toEqual({
+      providerId: 'provider-a',
+      apiModelId: 'models/gemini-flash'
+    })
     expect(result.model).not.toContain('@cherry')
     expect(mocks.getByProviderId).not.toHaveBeenCalled()
   })
 
-  it('rejects a gateway launch whose provider id carries the path separator', async () => {
-    // The route splits on the FIRST separator, so "team/models/west" would address provider
-    // "team". Only this path form is ambiguous, which is why the guard lives here.
+  it('encodes a gateway launch whose provider id carries the legacy path separator', async () => {
     mocks.getMultiple.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-secret' })
 
-    await expect(
-      prepareAntigravityLaunch({
-        mode: 'normal',
-        cliTool: CodeCli.ANTIGRAVITY_CLI,
-        providerId: 'team/models/west',
-        model: 'gemini-2.5-pro',
-        gateway: true,
-        directory: '/tmp/project'
-      })
-    ).rejects.toThrow(/cannot be addressed by antigravity-cli/)
+    const result = await prepareAntigravityLaunch({
+      mode: 'normal',
+      cliTool: CodeCli.ANTIGRAVITY_CLI,
+      providerId: 'team/models/west',
+      model: 'gemini-2.5-pro',
+      gateway: true,
+      directory: '/tmp/project'
+    })
+
+    expect(parseAntigravityGatewayModelPath(result.model.slice('gemini-api://'.length))).toEqual({
+      providerId: 'team/models/west',
+      apiModelId: 'gemini-2.5-pro'
+    })
   })
 
   it('rejects an unsafe model id without touching the isolated settings', async () => {
