@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
 import { t } from '@main/i18n'
 import { openSettingsInMainWindow } from '@main/services/mainWindowNavigation'
@@ -16,6 +17,8 @@ import {
 } from '@shared/utils/command'
 import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'
+
+const logger = loggerService.withContext('AppMenuService')
 
 const appMenuCommands: CommandId[] = [
   'app.settings.open',
@@ -189,7 +192,22 @@ export class AppMenuService extends BaseService {
 
     const template = toElectronMenuTemplate(items, {
       executeCommand: (command, context) => {
-        application.get('CommandService').execute(command, context.browserWindow as BrowserWindow | undefined)
+        const window = context.browserWindow as BrowserWindow | undefined
+        const commandService = application.get('CommandService')
+        if (commandService.hasHandler(command)) {
+          commandService.execute(command, window)
+          return
+        }
+        // Renderer-scoped: main owns no handler, and the menu already claimed the
+        // accelerator, so the key never reaches the renderer on its own.
+        const windowId = window
+          ? application.get('WindowManager').getWindowIdByWebContents(window.webContents)
+          : undefined
+        if (!windowId) {
+          logger.warn(`No window to run renderer command: ${command}`)
+          return
+        }
+        application.get('IpcApiService').send(windowId, 'app.command.execute', { command })
       }
     })
     const menu = Menu.buildFromTemplate(template)
