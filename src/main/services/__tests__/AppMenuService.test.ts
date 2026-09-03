@@ -119,7 +119,11 @@ describe('AppMenuService', () => {
     // Electron's `toggleDevTools` role dispatches on getFocusedWebContents(), which a hidden
     // MiniApp <webview> guest keeps owning — only the renderer knows which tab is on screen.
     expect(devToolsItem?.role).toBeUndefined()
-    expect(devToolsItem?.accelerator).toBe('CommandOrControl+Alt+I')
+    // Electron's own per-platform defaults for this action; the service resolves them
+    // from process.platform, so the expectation has to follow the runner.
+    expect(devToolsItem?.accelerator).toBe(
+      process.platform === 'darwin' ? 'CommandOrControl+Alt+I' : 'CommandOrControl+Shift+I'
+    )
 
     devToolsItem?.click?.(undefined as never, window as never, undefined as never)
 
