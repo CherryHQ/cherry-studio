@@ -22,7 +22,8 @@ vi.mock('@data/services/ProviderService', () => ({
   }
 }))
 vi.mock('@data/services/ModelService', () => ({ modelService: { getByKey: mocks.getByKey } }))
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/runtime/agentApiGateway')>()),
   ApiGatewayNotRunningError: mocks.ApiGatewayNotRunningError,
   resolveApiGatewayRuntime: mocks.resolveApiGatewayRuntime
 }))

@@ -40,10 +40,9 @@ import {
   OLLAMA_PLACEHOLDER_AUTH_TOKEN
 } from '@shared/utils/provider'
 
-import { requiresAgentGateway } from '../../provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
-import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,

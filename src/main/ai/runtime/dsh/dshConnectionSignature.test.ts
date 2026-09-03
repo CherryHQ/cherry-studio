@@ -49,7 +49,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 
 vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ usesDshGateway: mocks.usesDshGateway }))
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/runtime/agentApiGateway')>()),
   gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
 }))
 

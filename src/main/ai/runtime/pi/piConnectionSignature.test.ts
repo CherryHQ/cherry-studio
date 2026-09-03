@@ -47,7 +47,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     getSkillDirectory: mocks.getSkillDirectory
   }
 }))
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/runtime/agentApiGateway')>()),
   gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
 }))
 vi.mock('@main/ai/runtime/pi/modelInjection', () => ({ usesPiGateway: mocks.usesPiGateway }))

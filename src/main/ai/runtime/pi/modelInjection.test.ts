@@ -26,7 +26,8 @@ vi.mock('@application', async () => {
     OAuthRuntimeService: { hasToken: serviceMocks.hasToken }
   } as never)
 })
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@main/ai/runtime/agentApiGateway')>()),
   resolveApiGatewayRuntime: serviceMocks.resolveApiGatewayRuntime
 }))
 

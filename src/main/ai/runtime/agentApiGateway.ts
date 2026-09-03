@@ -6,8 +6,14 @@
 import { createHash } from 'node:crypto'
 
 import { application } from '@application'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { API_GATEWAY_REQUIRED_I18N_KEY } from '@shared/types/apiGateway'
 import { gatewayClientOrigin } from '@shared/utils/apiGateway'
+
+/** Whether Agent traffic for this provider must pass through Cherry's local API Gateway. */
+export function requiresAgentGateway(providerId: string): boolean {
+  return providerId === CHERRY_CLOUD_PROVIDER_ID
+}
 
 /**
  * Rotation-sensitive gateway identity for connection signatures: address, key, or state changes
