@@ -782,7 +782,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   const chipElement = (
     <span
       className={cn(
-        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-middle font-medium text-foreground text-xs leading-[1.4] transition-[color,box-shadow,border-color]',
         'group-focus-visible:border-primary',
         (props.readOnly || canOpenFilePreview) && 'focus-visible:border-primary focus-visible:outline-none',
         canOpenFilePreview && 'cursor-pointer',
