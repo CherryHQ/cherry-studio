@@ -1365,6 +1365,35 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('spinbutton', { name: 'Parameter value' })).toHaveValue('0')
   })
 
+  // `-` and `1e` are viable prefixes the field holds without reporting them, so the
+  // last thing the live callback saw was the clear that preceded them. Abandoning
+  // such an edit has to settle back to what it started from, not keep that clear.
+  it('restores a custom numeric parameter abandoned mid-keystroke', async () => {
+    const user = userEvent.setup()
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            customParameters: [{ name: 'temperature', type: 'number', value: 5 }]
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+
+    const input = await screen.findByRole('spinbutton', { name: 'Parameter value: temperature' })
+    await user.clear(input)
+    await user.type(input, '-')
+    await user.tab()
+
+    expect(input).toHaveValue('5')
+  })
+
   it('names the context override for what it does and states what is inherited while off', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 

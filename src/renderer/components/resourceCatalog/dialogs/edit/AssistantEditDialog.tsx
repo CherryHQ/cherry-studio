@@ -1258,6 +1258,10 @@ function CustomParameterRow({
                 aria-label={parameterValueLabel}
                 value={typeof param.value === 'number' ? param.value : null}
                 onValueChange={(value) => onValueChange(value ?? 0)}
+                // Settles an abandoned `-` / `1e` back to what the edit started
+                // from; the live callback stays silent on those, so without this
+                // the field keeps whatever the clear before them wrote.
+                onBlur={(value) => onValueChange(value ?? 0)}
               />
             ) : null}
             {param.type === 'boolean' ? (
