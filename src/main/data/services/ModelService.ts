@@ -10,7 +10,6 @@
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
 import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
-import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
@@ -33,11 +32,9 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
-  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID,
-  isManagedCherryAiDefaultModel,
-  isManagedCherryCloudModel
+  isManagedCherryAiDefaultModel
 } from '@shared/data/presets/cherryai'
 import type {
   EndpointType,
@@ -49,7 +46,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
-import { and, asc, eq, inArray, ne, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -124,11 +121,6 @@ function assertProvidersAvailable(providerIds: Iterable<string>): void {
   for (const providerId of new Set(providerIds)) {
     providerService.assertAvailable(providerId)
   }
-}
-
-function assertProviderModelsAreUserManaged(providerId: string, operation: string): void {
-  if (!isManagedCherryCloudModel(providerId)) return
-  throw DataApiErrorFactory.invalidOperation(operation, 'externally managed provider models cannot be modified')
 }
 
 /**
@@ -234,18 +226,8 @@ export interface CreateModelInput {
   registryData?: CreateModelRegistryData
 }
 
-export interface ManagedModelReconcilePayload {
-  toAdd: Array<Omit<CreateModelDto, 'providerId'>>
-  toUpdate: Array<{ modelId: string; patch: UpdateModelDto }>
-}
-
-export interface ManagedModelWriter {
-  reconcile(payload: ManagedModelReconcilePayload): Model[]
-}
-
 interface ProviderModelReconcilePayload {
   toAdd: CreateModelInput[]
-  toUpdate: Array<{ modelId: string; patch: UpdateModelDto }>
   toRemove: string[]
 }
 
@@ -680,10 +662,6 @@ class ModelService {
       conditions.push(eq(userModelTable.isEnabled, query.enabled))
     }
 
-    if (!query.includeAgentOnly) {
-      conditions.push(ne(userModelTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
-    }
-
     const rows = db
       .select()
       .from(userModelTable)
@@ -922,7 +900,6 @@ class ModelService {
     if (items.length === 0) return []
     assertProvidersAvailable(items.map(({ dto }) => dto.providerId))
     for (const { dto } of items) {
-      assertProviderModelsAreUserManaged(dto.providerId, `create model ${dto.providerId}/${dto.modelId}`)
       assertManagedCherryAiDefaultModelMutationAllowed(
         dto.providerId,
         dto.modelId,
@@ -981,7 +958,6 @@ class ModelService {
    */
   update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
     providerService.assertAvailable(providerId)
-    assertProviderModelsAreUserManaged(providerId, `update model ${providerId}/${modelId}`)
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
@@ -1034,7 +1010,6 @@ class ModelService {
     const db = application.get('DbService').getDb()
 
     for (const { providerId, modelId, patch } of items) {
-      assertProviderModelsAreUserManaged(providerId, `update model ${providerId}/${modelId}`)
       assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
     }
 
@@ -1092,7 +1067,6 @@ class ModelService {
    */
   reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
     providerService.assertAvailable(providerId)
-    assertProviderModelsAreUserManaged(providerId, `reconcile models for provider ${providerId}`)
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
@@ -1102,7 +1076,6 @@ class ModelService {
     const toRemove = removalFilter.toRemove
     const result = this.applyProviderModelReconcile(providerId, {
       toAdd: payload.toAdd,
-      toUpdate: [],
       toRemove
     })
     const actuallyDeleted = result.deletedIds.length
@@ -1138,36 +1111,6 @@ class ModelService {
     return result.models
   }
 
-  createManagedWriter(providerId: string): ManagedModelWriter {
-    if (!isManagedCherryCloudModel(providerId)) {
-      throw DataApiErrorFactory.invalidOperation(
-        `create managed model writer for ${providerId}`,
-        'provider models are not externally managed'
-      )
-    }
-
-    return Object.freeze({
-      reconcile: (payload: ManagedModelReconcilePayload): Model[] => {
-        if (payload.toAdd.length === 0 && payload.toUpdate.length === 0) {
-          return this.list({ providerId, includeAgentOnly: true })
-        }
-
-        const result = this.applyProviderModelReconcile(providerId, {
-          toAdd: payload.toAdd.map((dto) => ({ dto: { ...dto, providerId } })),
-          toUpdate: payload.toUpdate,
-          toRemove: []
-        })
-        notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
-        logger.info('Reconciled externally managed provider models', {
-          providerId,
-          added: payload.toAdd.length,
-          updated: payload.toUpdate.length
-        })
-        return result.models
-      }
-    })
-  }
-
   private applyProviderModelReconcile(
     providerId: string,
     payload: ProviderModelReconcilePayload
@@ -1192,24 +1135,6 @@ class ModelService {
                 'model',
                 deletedRows.map((row) => row.id)
               )
-            }
-          }
-
-          for (const { modelId, patch } of payload.toUpdate) {
-            const [existing] = tx
-              .select()
-              .from(userModelTable)
-              .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-              .limit(1)
-              .all()
-            if (!existing) throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
-
-            const updates = this.buildUpdates(existing, patch)
-            if (Object.keys(updates).length > 0) {
-              tx.update(userModelTable)
-                .set(updates)
-                .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-                .run()
             }
           }
 
@@ -1241,7 +1166,6 @@ class ModelService {
    */
   delete(providerId: string, modelId: string): void {
     providerService.assertAvailable(providerId)
-    assertProviderModelsAreUserManaged(providerId, `delete model ${providerId}/${modelId}`)
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
@@ -1279,7 +1203,6 @@ class ModelService {
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
 
     for (const item of items) {
-      assertProviderModelsAreUserManaged(item.providerId, `delete model ${item.providerId}/${item.modelId}`)
       assertManagedCherryAiDefaultModelMutationAllowed(
         item.providerId,
         item.modelId,
@@ -1341,10 +1264,4 @@ class ModelService {
   }
 }
 
-const modelServiceImplementation = new ModelService()
-
-export const modelService: Omit<ModelService, 'createManagedWriter'> = modelServiceImplementation
-
-export function createManagedModelWriter(providerId: string): ManagedModelWriter {
-  return modelServiceImplementation.createManagedWriter(providerId)
-}
+export const modelService = new ModelService()

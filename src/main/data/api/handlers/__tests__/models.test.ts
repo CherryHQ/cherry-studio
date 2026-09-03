@@ -136,9 +136,9 @@ describe('/models', () => {
   it('forwards a provided GET query to modelService.list', async () => {
     listMock.mockReturnValueOnce([])
 
-    await modelHandlers['/models'].GET({ query: { providerId: 'openai', includeAgentOnly: true } } as never)
+    await modelHandlers['/models'].GET({ query: { providerId: 'openai', enabled: true } } as never)
 
-    expect(listMock).toHaveBeenCalledWith({ providerId: 'openai', includeAgentOnly: true })
+    expect(listMock).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
   })
 
   it('passes registry data to modelService.create for a single-item array', async () => {

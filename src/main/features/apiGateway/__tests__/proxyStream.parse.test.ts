@@ -46,7 +46,8 @@ vi.mock('@application', () => ({
     })
   }
 }))
-vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
+// cn keeps Cherry Cloud agent-only, which the external-request rejection below relies on.
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'cn' }))
 vi.mock('@data/services/ProviderService', () => ({
   providerService: { getByProviderId: mockGetProvider }
 }))
@@ -102,9 +103,7 @@ function mockAvailableModel(providerId: string, internalModelId: string, apiMode
     group,
     capabilities: []
   }
-  mockListModels.mockImplementation(({ includeAgentOnly }: { includeAgentOnly?: boolean }) =>
-    providerId === CHERRY_CLOUD_PROVIDER_ID && !includeAgentOnly ? [] : [model]
-  )
+  mockListModels.mockReturnValue([model])
 }
 
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
@@ -251,7 +250,7 @@ describe('processMessage model-id parsing', () => {
         outputFormat: 'anthropic'
       })
     ).rejects.toMatchObject({ status: 400 })
-    expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
+    expect(mockListModels).not.toHaveBeenCalled()
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
@@ -272,11 +271,7 @@ describe('processMessage model-id parsing', () => {
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
-    expect(mockListModels).toHaveBeenCalledWith({
-      providerId: CHERRY_CLOUD_PROVIDER_ID,
-      enabled: true,
-      includeAgentOnly: true
-    })
+    expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
     void captured.opts!.listener!.onDone({} as any)
 
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })

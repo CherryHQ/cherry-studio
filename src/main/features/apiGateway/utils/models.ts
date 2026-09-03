@@ -1,12 +1,13 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { getAppEdition } from '@main/utils/appEdition'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isGatewayRoutableModel } from '@shared/utils/model'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isAgentOnlyProvider, isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('ApiGatewayModels')
 
@@ -85,10 +86,7 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
 }
 
 /** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
-export function resolveGatewayModelAddress(
-  modelAddress: string,
-  includeAgentOnly = false
-): ResolvedGatewayModelAddress {
+export function resolveGatewayModelAddress(modelAddress: string, allowAgentOnly = false): ResolvedGatewayModelAddress {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
     throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
@@ -109,14 +107,15 @@ export function resolveGatewayModelAddress(
   if (!provider.isEnabled || isExternalCliProvider(provider)) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
+  if (!allowAgentOnly && isAgentOnlyProvider(provider, getAppEdition())) {
+    throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
+  }
 
-  const model = modelService
-    .list({ providerId, enabled: true, ...(includeAgentOnly && { includeAgentOnly: true }) })
-    .find((candidate) => {
-      if (!isGatewayRoutableModel(candidate)) return false
-      const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
-      return candidateApiModelId === apiModelId
-    })
+  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
+    if (!isGatewayRoutableModel(candidate)) return false
+    const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
+    return candidateApiModelId === apiModelId
+  })
   if (!model) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
@@ -138,10 +137,10 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
       const provider = providers.find((p) => p.id === model.providerId)
-      // External-CLI providers (e.g. claude-code) authenticate via their own CLI login, not an
-      // app-side key, so the proxy's AI-SDK path cannot call them — never advertise their models
-      // even though they pass the routable-model predicate (matches the renderer picker's exclusion).
-      if (provider && isExternalCliProvider(provider)) {
+      // Agent-only providers (external-CLI, edition-gated Cherry Cloud) are never advertised to
+      // external callers even though they pass the routable-model predicate (matches the renderer
+      // picker's exclusion).
+      if (provider && isAgentOnlyProvider(provider, getAppEdition())) {
         continue
       }
       // Same routable-model predicate as the renderer's gateway picker — the

@@ -1,5 +1,6 @@
 import { application } from '@application'
-import { createManagedModelWriter, modelService } from '@data/services/ModelService'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
@@ -29,7 +30,6 @@ const PRODUCTION_API_ORIGINS = {
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60_000
 const CLOUD_CONTROL_REQUEST_TIMEOUT_MS = 30_000
 const CLOUD_MODEL_SYNC_CACHE_TTL_MS = 60_000
-const cherryCloudModelWriter = createManagedModelWriter(CHERRY_CLOUD_PROVIDER_ID)
 
 type CherryCloudRequestInit = Omit<RequestInit, 'body'> & { body?: string }
 type CherryCloudDevice = ReturnType<typeof createDeviceKeyPair>
@@ -609,7 +609,7 @@ export class CherryCloudService extends BaseService {
       max_output_tokens: number
     }>
   ): void {
-    const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID, includeAgentOnly: true })
+    const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
     const remoteByModelId = new Map(models.map((model) => [model.id, model]))
     const missing = models.filter((model) => !currentByModelId.has(model.id))
@@ -645,19 +645,29 @@ export class CherryCloudService extends BaseService {
       ]
     })
 
+    if (missing.length > 0) {
+      modelService.create(
+        missing.map((model) => ({
+          dto: {
+            providerId: CHERRY_CLOUD_PROVIDER_ID,
+            modelId: model.id,
+            name: model.display_name,
+            group: CHERRY_CLOUD_MODEL_GROUP,
+            endpointTypes: [model.endpoint_type],
+            contextWindow: model.context_window,
+            maxOutputTokens: model.max_output_tokens,
+            supportsStreaming: true
+          }
+        }))
+      )
+    }
+    if (updates.length > 0) {
+      modelService.bulkUpdate(
+        updates.map(({ modelId, patch }) => ({ providerId: CHERRY_CLOUD_PROVIDER_ID, modelId, patch }))
+      )
+    }
     if (missing.length > 0 || updates.length > 0) {
-      cherryCloudModelWriter.reconcile({
-        toAdd: missing.map((model) => ({
-          modelId: model.id,
-          name: model.display_name,
-          group: CHERRY_CLOUD_MODEL_GROUP,
-          endpointTypes: [model.endpoint_type],
-          contextWindow: model.context_window,
-          maxOutputTokens: model.max_output_tokens,
-          supportsStreaming: true
-        })),
-        toUpdate: updates
-      })
+      notifyDataApiDataChange([{ endpoint: '/models', kind: 'membership' }])
     }
   }
 

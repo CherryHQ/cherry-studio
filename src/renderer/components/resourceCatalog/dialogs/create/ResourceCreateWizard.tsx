@@ -138,10 +138,7 @@ export function ResourceCreateWizard({
   const agentModelFilter = useAgentModelFilter(kind === 'agent' ? agentType : undefined)
   const isModelDisabled = useAgentModelDisabled(open && kind === 'agent')
   const activeModelFilter = kind === 'agent' ? agentModelFilter : modelFilter
-  const { models: availableModels } = useModels(
-    { enabled: true, ...(kind === 'agent' && { includeAgentOnly: true }) },
-    { fetchEnabled: open }
-  )
+  const { models: availableModels } = useModels({ enabled: true }, { fetchEnabled: open })
   const { defaultModel } = useDefaultModel({ enabled: open })
   const { provider: defaultModelProvider } = useProviderById(open ? defaultModel?.providerId : undefined)
   const selectableDefaultModelId =

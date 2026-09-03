@@ -2,11 +2,12 @@ import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import { getSearchMatchScore } from '@renderer/utils/model'
 import { isProviderSettingsListVisibleProvider } from '@renderer/utils/providerSettings'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isAgentOnlyProvider } from '@shared/utils/provider'
 import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
@@ -87,7 +88,7 @@ export function useModelSelectorData({
     models,
     isLoading: isModelsLoading,
     refetch: refetchModels
-  } = useModels({ enabled: true, ...(includeAgentOnlyModels && { includeAgentOnly: true }) }, { fetchEnabled: enabled })
+  } = useModels({ enabled: true }, { fetchEnabled: enabled })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -104,11 +105,12 @@ export function useModelSelectorData({
     [filter]
   )
 
-  // External-CLI providers carry no credential that a normal request can use.
-  const agentOnlyProviderIds = useMemo(
-    () => new Set(providers.filter(isExternalCliProvider).map((provider) => provider.id)),
-    [providers]
-  )
+  const agentOnlyProviderIds = useMemo(() => {
+    const edition = getAppEdition()
+    return new Set(
+      providers.filter((provider) => isAgentOnlyProvider(provider, edition)).map((provider) => provider.id)
+    )
+  }, [providers])
 
   const sortedProviders = useMemo(
     () => sortProvidersByPriority(providers, prioritizedProviderIds),

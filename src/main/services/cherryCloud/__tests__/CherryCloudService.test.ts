@@ -11,8 +11,10 @@ const mocks = vi.hoisted(() => ({
     port: 49152,
     setExpiresAt: vi.fn()
   },
+  modelBulkUpdate: vi.fn(),
+  modelCreate: vi.fn(),
   modelList: vi.fn(),
-  modelReconcile: vi.fn(),
+  notifyDataChange: vi.fn(),
   netFetch: vi.fn(),
   openExternal: vi.fn(),
   savedDevice: null as { publicKey: string; privateKey: string } | null,
@@ -21,9 +23,14 @@ const mocks = vi.hoisted(() => ({
   sessionReplace: vi.fn()
 }))
 
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: mocks.notifyDataChange
+}))
+
 vi.mock('@data/services/ModelService', () => ({
-  createManagedModelWriter: () => ({ reconcile: mocks.modelReconcile }),
   modelService: {
+    bulkUpdate: mocks.modelBulkUpdate,
+    create: mocks.modelCreate,
     list: mocks.modelList
   }
 }))
@@ -277,7 +284,8 @@ async function createSignedInService(): Promise<CherryCloudService> {
   await service['syncEntitledModels']()
   mocks.netFetch.mockClear()
   mocks.broadcast.mockClear()
-  mocks.modelReconcile.mockClear()
+  mocks.modelCreate.mockClear()
+  mocks.modelBulkUpdate.mockClear()
   return service
 }
 
@@ -292,7 +300,8 @@ describe('CherryCloudService', () => {
     mocks.savedDevice = null
     mocks.savedSession = null
     mocks.modelList.mockReturnValue([])
-    mocks.modelReconcile.mockReturnValue([])
+    mocks.modelCreate.mockReturnValue([])
+    mocks.modelBulkUpdate.mockReturnValue([])
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
@@ -777,32 +786,35 @@ describe('CherryCloudService', () => {
       quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free']
     })
 
-    expect(mocks.modelReconcile).toHaveBeenCalledWith({
-      toAdd: [
-        expect.objectContaining({
+    expect(mocks.modelCreate).toHaveBeenCalledWith([
+      {
+        dto: {
+          providerId: 'cherryai-subscription',
           modelId: 'deepseek-free',
           name: 'DeepSeek Free',
           group: 'Cherry Cloud',
           endpointTypes: ['anthropic-messages'],
           contextWindow: 128_000,
-          maxOutputTokens: 8_192
-        }),
-        expect.objectContaining({
+          maxOutputTokens: 8_192,
+          supportsStreaming: true
+        }
+      },
+      {
+        dto: {
+          providerId: 'cherryai-subscription',
           modelId: 'deepseek-go',
           name: 'DeepSeek GO',
           group: 'Cherry Cloud',
           endpointTypes: ['openai-responses'],
           contextWindow: 256_000,
-          maxOutputTokens: 16_384
-        })
-      ],
-      toUpdate: []
-    })
-    expect(mocks.modelList).toHaveBeenCalledWith({
-      providerId: 'cherryai-subscription',
-      includeAgentOnly: true
-    })
-    expect(mocks.modelReconcile.mock.calls[0][0].toAdd[0]).not.toHaveProperty('availableFeatures')
+          maxOutputTokens: 16_384,
+          supportsStreaming: true
+        }
+      }
+    ])
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+    expect(mocks.modelList).toHaveBeenCalledWith({ providerId: 'cherryai-subscription' })
+    expect(mocks.notifyDataChange).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
     for (const [, init] of mocks.netFetch.mock.calls) {
       const headers = new Headers(init.headers)
       expect(headers.get('Authorization')).toBe(`Bearer ${token('F')}`)
@@ -822,7 +834,8 @@ describe('CherryCloudService', () => {
         isEnabled: true
       }
     ])
-    mocks.modelReconcile.mockClear()
+    mocks.modelCreate.mockClear()
+    mocks.modelBulkUpdate.mockClear()
 
     const service = await createService()
 
@@ -830,7 +843,8 @@ describe('CherryCloudService', () => {
       entitledModelIds: [],
       quotaExhaustedModelIds: []
     })
-    expect(mocks.modelReconcile).not.toHaveBeenCalled()
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
   })
 
   it('reuses a recent model snapshot and refreshes it after expiry', async () => {
@@ -926,7 +940,8 @@ describe('CherryCloudService', () => {
     catalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
     await syncFailure
-    expect(mocks.modelReconcile).not.toHaveBeenCalled()
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
   })
 
   it('starts a new model sync when the account changes during an older sync', async () => {
@@ -957,10 +972,8 @@ describe('CherryCloudService', () => {
     oldCatalogRequest.resolve(jsonResponse(cloudModelCatalog))
 
     await oldSyncFailure
-    expect(mocks.modelReconcile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toAdd: expect.arrayContaining([expect.objectContaining({ modelId: 'deepseek-free' })])
-      })
+    expect(mocks.modelCreate).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ dto: expect.objectContaining({ modelId: 'deepseek-free' }) })])
     )
   })
 
@@ -1298,7 +1311,8 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(mocks.savedSession).not.toBeNull()
-    expect(mocks.modelReconcile).not.toHaveBeenCalled()
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
     expect(mocks.netFetch).not.toHaveBeenCalled()
   })
@@ -1319,7 +1333,8 @@ describe('CherryCloudService', () => {
         )
       )
       await service['syncEntitledModels']()
-      mocks.modelReconcile.mockClear()
+      mocks.modelCreate.mockClear()
+      mocks.modelBulkUpdate.mockClear()
 
       await vi.advanceTimersByTimeAsync(5_000)
       await Promise.resolve()
@@ -1332,7 +1347,8 @@ describe('CherryCloudService', () => {
       })
       expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
       expect(mocks.savedSession).toBeNull()
-      expect(mocks.modelReconcile).not.toHaveBeenCalled()
+      expect(mocks.modelCreate).not.toHaveBeenCalled()
+      expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
     }

@@ -27,9 +27,7 @@ export const ListModelsQuerySchema = z.object({
   /** Filter by capability (ModelCapability string value) */
   capability: z.enum(objectValues(MODEL_CAPABILITY)).optional(),
   /** Filter by enabled status */
-  enabled: z.boolean().optional(),
-  /** Include models that are only available to Agent runtimes */
-  includeAgentOnly: z.boolean().optional()
+  enabled: z.boolean().optional()
 })
 export type ListModelsQuery = z.infer<typeof ListModelsQuerySchema>
 
