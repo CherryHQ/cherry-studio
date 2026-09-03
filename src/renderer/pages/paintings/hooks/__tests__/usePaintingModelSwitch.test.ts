@@ -75,4 +75,82 @@ describe('usePaintingModelSwitch', () => {
     expect(result.current.painting.model).toBe('new-model')
     expect(result.current.painting.params).toEqual({ numImages: 2 })
   })
+
+  it('keeps the last same-provider model selected when support requests finish out of order', async () => {
+    const supportResolvers = new Map<string, (support: ImageGenerationSupport) => void>()
+    prefetchMock.mockImplementation(async (_path, options) => {
+      const modelId = (options as { params?: { modelId?: string } } | undefined)?.params?.modelId
+      if (modelId === 'old-model') return { modes: { generate: { supports: {} } } }
+      return new Promise<ImageGenerationSupport>((resolve) => {
+        supportResolvers.set(modelId ?? '', resolve)
+      })
+    })
+
+    const { result } = renderHook(() => {
+      const [painting, setPainting] = useState(initialPainting)
+      const patchPainting = useCallback((updates: Partial<PaintingData>) => {
+        setPainting((current) => ({ ...current, ...updates }))
+      }, [])
+      const switchModel = usePaintingModelSwitch({
+        painting,
+        onPaintingChange: patchPainting,
+        ensureProviderCatalog: vi.fn()
+      })
+      return { painting, switchModel }
+    })
+
+    let firstSwitch: Promise<void> | undefined
+    let secondSwitch: Promise<void> | undefined
+    act(() => {
+      firstSwitch = result.current.switchModel({ providerId: 'silicon', modelId: 'first-model' })
+      secondSwitch = result.current.switchModel({ providerId: 'silicon', modelId: 'second-model' })
+    })
+
+    await act(async () => {
+      supportResolvers.get('second-model')?.({ modes: { generate: { supports: {} } } })
+      await secondSwitch
+    })
+    expect(result.current.painting.model).toBe('second-model')
+
+    await act(async () => {
+      supportResolvers.get('first-model')?.({ modes: { generate: { supports: {} } } })
+      await firstSwitch
+    })
+    expect(result.current.painting.model).toBe('second-model')
+  })
+
+  it('preserves prompt edits made while a cross-provider catalog is loading', async () => {
+    let resolveCatalog: (models: []) => void = () => undefined
+    const ensureProviderCatalog = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
+          resolveCatalog = resolve
+        })
+    )
+    const { result } = renderHook(() => {
+      const [painting, setPainting] = useState(initialPainting)
+      const patchPainting = useCallback((updates: Partial<PaintingData>) => {
+        setPainting((current) => ({ ...current, ...updates }))
+      }, [])
+      const switchModel = usePaintingModelSwitch({ painting, onPaintingChange: patchPainting, ensureProviderCatalog })
+      return { painting, setPainting, switchModel }
+    })
+
+    let switchPromise: Promise<void> | undefined
+    act(() => {
+      switchPromise = result.current.switchModel({ providerId: 'dashscope', modelId: 'wan-model' })
+    })
+    act(() => {
+      result.current.setPainting((current) => ({ ...current, prompt: 'edited while loading' }))
+    })
+
+    await act(async () => {
+      resolveCatalog([])
+      await switchPromise
+    })
+
+    expect(result.current.painting.providerId).toBe('dashscope')
+    expect(result.current.painting.model).toBe('wan-model')
+    expect(result.current.painting.prompt).toBe('edited while loading')
+  })
 })

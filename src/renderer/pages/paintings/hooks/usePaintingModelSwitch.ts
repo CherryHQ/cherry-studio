@@ -28,10 +28,15 @@ export function usePaintingModelSwitch({
   const currentProviderId = painting.providerId
   const paintingRef = useRef(painting)
   paintingRef.current = painting
+  const latestSwitchRef = useRef(0)
   const { models } = useModels(currentProviderId ? { providerId: currentProviderId } : undefined)
 
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
+      const switchId = ++latestSwitchRef.current
+      const paintingId = painting.id
+      const isCurrentSwitch = () => latestSwitchRef.current === switchId && paintingRef.current.id === paintingId
+
       if (providerId === currentProviderId) {
         // Reset stale fields the old model wrote but the new one doesn't
         // accept — the form writes into `painting.params`, so the reset
@@ -46,6 +51,7 @@ export function usePaintingModelSwitch({
           mode: tabToImageGenerationMode(painting.mode),
           currentValues: () => paintingRef.current.params ?? {}
         })
+        if (!isCurrentSwitch()) return
         // Drop attached input images when the target model can't accept them:
         // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
         // attachment left over from an edit model would otherwise still be
@@ -65,19 +71,22 @@ export function usePaintingModelSwitch({
       try {
         await ensureProviderCatalog(providerId)
       } catch (error) {
+        if (!isCurrentSwitch()) return
         // Cold-cache + DB/IPC failure must not silently revert the dropdown —
         // surface it like the generate path instead of swallowing the switch.
         logger.error('Failed to load provider catalog on model switch', error as Error)
         presentPaintingGenerateError(error)
         return
       }
+      if (!isCurrentSwitch()) return
       const targetPainting = createDefaultPainting({ providerId })
+      const latestPainting = paintingRef.current
 
       onPaintingChange({
         ...targetPainting,
-        id: painting.id,
-        files: painting.files,
-        prompt: painting.prompt,
+        id: latestPainting.id,
+        files: latestPainting.files,
+        prompt: latestPainting.prompt,
         providerId,
         mode: 'generate',
         model: modelId,
