@@ -337,7 +337,7 @@ describe('PageSidePanel', () => {
       expect(summary).toHaveFocus()
     })
 
-    it('keeps nested portal controls inside the modal focus scope', async () => {
+    it('keeps nested portal controls in an unclipped modal focus scope', async () => {
       function PortalAction() {
         const container = usePortalContainer()
         return container ? createPortal(<button type="button">Portal action</button>, container) : null
@@ -360,8 +360,15 @@ describe('PageSidePanel', () => {
       render(<ScopedPanel />)
       const dialog = await screen.findByRole('dialog')
       const portalAction = screen.getByRole('button', { name: 'Portal action' })
+      const portalHost = document.querySelector('[data-slot="page-side-panel-portal"]')
 
-      expect(dialog).toContainElement(portalAction)
+      expect(portalHost).toContainElement(portalAction)
+      expect(dialog).not.toContainElement(portalAction)
+      expect(portalHost?.parentElement).toBe(dialog.parentElement)
+
+      portalAction.focus()
+      fireEvent.keyDown(portalAction, { key: 'Tab' })
+      expect(screen.getByRole('button', { name: 'Panel action' })).toHaveFocus()
     })
   })
 

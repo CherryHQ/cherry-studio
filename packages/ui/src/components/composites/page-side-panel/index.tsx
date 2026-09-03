@@ -58,8 +58,10 @@ function PageSidePanel({
   const headerContent = header ?? standardTitle
   const hasHeader = !!headerContent || showCloseButton
   const headerId = useId()
+  const portalHostId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
-  const [panelElement, setPanelElement] = React.useState<HTMLDivElement | null>(null)
+  const portalHostRef = useRef<HTMLDivElement>(null)
+  const [portalHost, setPortalHost] = React.useState<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
   const scopedContainer = usePortalContainer()
@@ -68,7 +70,10 @@ function PageSidePanel({
     typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
   const handlePanelRef = useCallback((element: HTMLDivElement | null) => {
     panelRef.current = element
-    setPanelElement(element)
+  }, [])
+  const handlePortalHostRef = useCallback((element: HTMLDivElement | null) => {
+    portalHostRef.current = element
+    setPortalHost(element)
   }, [])
 
   const handleClose = useCallback(
@@ -88,32 +93,33 @@ function PageSidePanel({
       }
       if (event.key !== 'Tab' || !panelRef.current) return
 
-      const focusable = Array.from(
-        panelRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
-        )
-      ).filter((element) => {
-        const isContentEditable =
-          element.hasAttribute('contenteditable') && element.getAttribute('contenteditable') !== 'false'
-        if (
-          (!isContentEditable && element.tabIndex < 0) ||
-          (element instanceof HTMLInputElement && element.type === 'hidden')
-        ) {
-          return false
-        }
-
-        for (let current: HTMLElement | null = element; current && current !== panelRef.current; ) {
-          if (current.hidden || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) {
+      const focusableSelector =
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, textarea:not([disabled]), [contenteditable]:not([contenteditable="false"]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
+      const focusable = [panelRef.current, portalHostRef.current].flatMap((root) => {
+        if (!root) return []
+        return Array.from(root.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
+          const isContentEditable =
+            element.hasAttribute('contenteditable') && element.getAttribute('contenteditable') !== 'false'
+          if (
+            (!isContentEditable && element.tabIndex < 0) ||
+            (element instanceof HTMLInputElement && element.type === 'hidden')
+          ) {
             return false
           }
-          const style = window.getComputedStyle(current)
-          if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
-            return false
-          }
-          current = current.parentElement
-        }
 
-        return true
+          for (let current: HTMLElement | null = element; current && current !== root; ) {
+            if (current.hidden || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) {
+              return false
+            }
+            const style = window.getComputedStyle(current)
+            if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
+              return false
+            }
+            current = current.parentElement
+          }
+
+          return true
+        })
       })
       if (focusable.length === 0) {
         event.preventDefault()
@@ -169,6 +175,7 @@ function PageSidePanel({
             role="dialog"
             aria-modal="true"
             aria-labelledby={headerContent ? headerId : undefined}
+            aria-owns={portalHostId}
             tabIndex={-1}
             onKeyDown={handlePanelKeyDown}
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
@@ -182,7 +189,7 @@ function PageSidePanel({
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
-            <PortalContainerProvider container={panelElement}>
+            <PortalContainerProvider container={portalHost}>
               {hasHeader && (
                 <div
                   data-slot="page-side-panel-header"
@@ -235,6 +242,7 @@ function PageSidePanel({
               )}
             </PortalContainerProvider>
           </motion.aside>
+          <div ref={handlePortalHostRef} id={portalHostId} data-slot="page-side-panel-portal" className="contents" />
         </>
       )}
     </AnimatePresence>
