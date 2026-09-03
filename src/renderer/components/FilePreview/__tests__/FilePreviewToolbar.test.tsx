@@ -8,16 +8,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { FilePreviewModeTabs } from '../FilePreviewToolbar'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ComponentPropsWithoutRef<'button'> & { size?: string; variant?: string }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
+  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'> & { size?: string; variant?: string }) => {
+    const buttonProps = { ...props }
+    delete buttonProps.size
+    delete buttonProps.variant
+
+    return (
+      <button type="button" {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 

@@ -9,16 +9,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VideoFilePreview, { formatVideoTime } from '../VideoFilePreview'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    children,
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ComponentPropsWithoutRef<'button'> & { size?: string; variant?: string }) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
+  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'> & { size?: string; variant?: string }) => {
+    const buttonProps = { ...props }
+    delete buttonProps.size
+    delete buttonProps.variant
+
+    return (
+      <button type="button" {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   EmptyState: ({
     icon: Icon,
     title,
@@ -35,37 +36,45 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   MenuItem: ({
-    active: _active,
     label,
-    size: _size,
     ...props
-  }: ComponentPropsWithoutRef<'button'> & { active?: boolean; label: string; size?: string }) => (
-    <button type="button" {...props}>
-      {label}
-    </button>
-  ),
+  }: ComponentPropsWithoutRef<'button'> & { active?: boolean; label: string; size?: string }) => {
+    const buttonProps = { ...props }
+    delete buttonProps.active
+    delete buttonProps.size
+
+    return (
+      <button type="button" {...buttonProps}>
+        {label}
+      </button>
+    )
+  },
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({
     children,
-    align: _align,
     portalContainer,
-    side: _side,
-    sideOffset: _sideOffset,
     ...props
   }: ComponentPropsWithoutRef<'div'> & {
     align?: string
     portalContainer?: HTMLElement | null
     side?: string
     sideOffset?: number
-  }) => (
-    <div
-      {...props}
-      data-testid="video-popover-content"
-      data-portal-container={portalContainer?.getAttribute('data-testid') ?? ''}>
-      {children}
-    </div>
-  ),
+  }) => {
+    const divProps = { ...props }
+    delete divProps.align
+    delete divProps.side
+    delete divProps.sideOffset
+
+    return (
+      <div
+        {...divProps}
+        data-testid="video-popover-content"
+        data-portal-container={portalContainer?.getAttribute('data-testid') ?? ''}>
+        {children}
+      </div>
+    )
+  },
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
   Slider: ({
