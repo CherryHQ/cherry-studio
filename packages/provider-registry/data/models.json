@@ -8215,8 +8215,8 @@
       }
     },
     {
-      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation", "file-input"],
-      "contextWindow": 32768,
+      "capabilities": ["text-generation", "image-recognition", "image-generation"],
+      "contextWindow": 65536,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",
       "imageGeneration": {
@@ -8238,6 +8238,7 @@
         }
       },
       "inputModalities": ["text", "image"],
+      "maxOutputTokens": 32768,
       "metadata": {},
       "name": "gemini-2.5-flash-image",
       "outputModalities": ["text", "image"],
@@ -8255,24 +8256,6 @@
           "currency": "USD",
           "perMillionTokens": 30
         }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "budget",
-            "max": 24576,
-            "min": 0
-          },
-          {
-            "kind": "toggle"
-          }
-        ],
-        "supportedEfforts": ["none", "auto"],
-        "thinkingTokenLimits": {
-          "max": 24576,
-          "min": 0
-        },
-        "wireDialect": "budget"
       }
     },
     {
@@ -8601,7 +8584,6 @@
         "image-recognition",
         "image-generation",
         "video-recognition",
-        "structured-output",
         "file-input"
       ],
       "contextWindow": 131072,
@@ -8644,7 +8626,7 @@
         }
       },
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 65536,
+      "maxOutputTokens": 32768,
       "metadata": {},
       "name": "Nano Banana 2",
       "outputModalities": ["text", "image"],
@@ -8802,18 +8784,18 @@
     },
     {
       "capabilities": [
-        "function-call",
+        "text-generation",
         "reasoning",
         "image-recognition",
         "image-generation",
-        "structured-output",
+        "video-recognition",
         "file-input"
       ],
       "contextWindow": 65536,
       "family": "gemini-flash-lite",
       "id": "gemini-3-1-flash-lite-image",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 65536,
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 4096,
       "metadata": {},
       "name": "Nano Banana 2 Lite",
       "outputModalities": ["text", "image"],
@@ -9523,16 +9505,8 @@
       }
     },
     {
-      "capabilities": [
-        "text-generation",
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "image-generation",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 131072,
+      "capabilities": ["text-generation", "reasoning", "image-recognition", "image-generation"],
+      "contextWindow": 65536,
       "family": "gemini",
       "id": "gemini-3-pro-image",
       "imageGeneration": {

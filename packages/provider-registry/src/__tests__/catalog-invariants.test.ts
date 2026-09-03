@@ -310,7 +310,13 @@ describe('catalog invariants (data/*.json)', () => {
   // every other image model (e.g. gemini-2.5-flash-image) must not carry it. The generator already strips
   // PREFIX-inherited web-search from image rows; this catches a HAND-LISTED `web-search` slipping back in.
   it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
-    const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
+    // Google's model pages: search grounding is supported on Pro Image and 3.1 Flash Image, and
+    // not on 3.1 Flash Lite Image or 2.5 Flash Image.
+    const WEB_SEARCH_IMAGE_ALLOWLIST = new Set([
+      'gemini-3-pro-image',
+      'gemini-3-pro-image-preview',
+      'gemini-3-1-flash-image'
+    ])
     const offenders = models
       .filter((model) => model.capabilities?.includes('image-generation'))
       .filter((model) =>

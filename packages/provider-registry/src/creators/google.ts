@@ -95,8 +95,11 @@ export default defineCreator({
       id: 'gemini-2-5-flash-image',
       name: 'gemini-2.5-flash-image',
       family: 'gemini-flash',
-      // No web-search: only gemini-3 image models (Nano Banana Pro) ground on Google Search; 2.5 does not.
-      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      // No web-search: only gemini-3 image models ground on Google Search; 2.5 does not. Its model
+      // page also lists thinking, function calling, structured outputs and PDF input as unsupported.
+      capabilities: ['text-generation', 'image-recognition', 'image-generation'],
+      contextWindow: 65536,
+      maxOutputTokens: 32768,
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -538,9 +541,10 @@ export default defineCreator({
         'image-recognition',
         'image-generation',
         'video-recognition',
-        'structured-output',
         'file-input'
       ],
+      contextWindow: 131072,
+      maxOutputTokens: 32768,
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -580,6 +584,25 @@ export default defineCreator({
           }
         }
       }
+    },
+    {
+      // Upstream ingest reports function calling and structured outputs, which the model page lists
+      // as unsupported; hand-listed so the corrected set wins.
+      id: 'gemini-3-1-flash-lite-image',
+      name: 'Nano Banana 2 Lite',
+      family: 'gemini-flash-lite',
+      capabilities: [
+        'text-generation',
+        'reasoning',
+        'image-recognition',
+        'image-generation',
+        'video-recognition',
+        'file-input'
+      ],
+      contextWindow: 65536,
+      maxOutputTokens: 4096,
+      inputModalities: ['text', 'image', 'video'],
+      outputModalities: ['text', 'image']
     },
     {
       id: 'gemini-3-1-flash-image-preview',
@@ -665,15 +688,9 @@ export default defineCreator({
       id: 'gemini-3-pro-image',
       name: 'Nano Banana Pro (Gemini 3 Pro Image)',
       family: 'gemini',
-      capabilities: [
-        'text-generation',
-        'function-call',
-        'reasoning',
-        'image-recognition',
-        'image-generation',
-        'structured-output',
-        'file-input'
-      ],
+      capabilities: ['text-generation', 'reasoning', 'image-recognition', 'image-generation'],
+      contextWindow: 65536,
+      maxOutputTokens: 32768,
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
