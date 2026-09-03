@@ -2025,6 +2025,7 @@ export class MessageService {
           if (activeNodeStrategy === 'clear') {
             newActiveNodeId = null
           } else if (message.role === 'assistant' && message.siblingsGroupId !== 0) {
+            const deletedModelId = message.modelId
             const [survivingReply] = tx
               .select({ id: messageTable.id })
               .from(messageTable)
@@ -2035,9 +2036,9 @@ export class MessageService {
                   eq(messageTable.role, 'assistant'),
                   eq(messageTable.siblingsGroupId, message.siblingsGroupId),
                   ne(messageTable.id, id),
-                  message.modelId === null
+                  deletedModelId === null
                     ? isNotNull(messageTable.modelId)
-                    : ne(messageTable.modelId, message.modelId),
+                    : ne(messageTable.modelId, String(deletedModelId)),
                   isNull(messageTable.deletedAt)
                 )
               )
