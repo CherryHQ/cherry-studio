@@ -144,10 +144,6 @@ export interface ChatVirtualizerRuntime<T> {
   beginScrollbarDrag(): void
   /** Finish a native scrollbar drag and anchor the viewport at its final position. */
   endScrollbarDrag(): void
-  /** Mark Chromium middle-click autoscroll as active so freeze logic yields. */
-  beginAutoscroll(): void
-  /** Clear the autoscroll flag and re-anchor the viewport. */
-  endAutoscroll(): void
   /** Arm a candidate middle-click autoscroll; freeze still holds until scroll confirms it. */
   armAutoscrollCandidate(): void
   /** Confirm a candidate via real outer-scroller movement; starts freeze suppression. */
@@ -227,11 +223,31 @@ export function useChatVirtualizerRuntime<T>({
   const autoscrollCandidateRef = useRef(false)
   const autoscrollCandidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoscrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autoscrollCandidateScrollTopRef = useRef<number | null>(null)
+  const autoscrollSuppressConfirmRef = useRef(false)
+  const autoscrollSuppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const readNavigationActiveRef = useRef(false)
   const explicitNavigationBaseRef = useRef<ExplicitNavigationBase | null>(null)
   const lastScrollOffsetRef = useRef(0)
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastWheelDirRef = useRef<ScrollDirection>('none')
+  const clearAutoscrollSuppressTimer = useCallback(() => {
+    if (autoscrollSuppressTimerRef.current) {
+      clearTimeout(autoscrollSuppressTimerRef.current)
+      autoscrollSuppressTimerRef.current = null
+    }
+    autoscrollSuppressConfirmRef.current = false
+  }, [])
+  const suppressNextAutoscrollConfirm = useCallback(() => {
+    autoscrollSuppressConfirmRef.current = true
+    if (autoscrollSuppressTimerRef.current) {
+      clearTimeout(autoscrollSuppressTimerRef.current)
+    }
+    autoscrollSuppressTimerRef.current = setTimeout(() => {
+      autoscrollSuppressConfirmRef.current = false
+      autoscrollSuppressTimerRef.current = null
+    }, 50)
+  }, [])
   const markUserInput = useCallback((direction: ScrollDirection = 'none') => {
     pendingUserInputRef.current = { at: performance.now(), direction }
   }, [])
@@ -319,10 +335,13 @@ export function useChatVirtualizerRuntime<T>({
     if (!el) return
     smoothScroll.cancel()
     const target = getRealBottom(el, bottomFollowInsetRef.current)
+    if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
+      suppressNextAutoscrollConfirm()
+    }
     el.scrollTop = target
     lastScrollOffsetRef.current = target
     hideScrollToBottomButton()
-  }, [hideScrollToBottomButton, smoothScroll])
+  }, [hideScrollToBottomButton, smoothScroll, suppressNextAutoscrollConfirm])
 
   const autoStick = useAutoStickToBottom({
     isFollowing: viewportFollow.isFollowing,
@@ -426,6 +445,7 @@ export function useChatVirtualizerRuntime<T>({
       const currentTop = frozen.element.getBoundingClientRect().top - el.getBoundingClientRect().top
       const drift = currentTop - frozen.elementViewportTop
       if (Math.abs(drift) > FREEZE_REASSERT_TOLERANCE_PX) {
+        suppressNextAutoscrollConfirm()
         el.scrollTop += drift
       }
       return
@@ -433,9 +453,10 @@ export function useChatVirtualizerRuntime<T>({
 
     const target = Math.max(0, topPadding) + handle.getItemOffset(itemIndex) + frozen.offsetInItem
     if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
+      suppressNextAutoscrollConfirm()
       el.scrollTop = target
     }
-  }, [findDataIndexByKey, smoothScroll, topPadding])
+  }, [findDataIndexByKey, smoothScroll, suppressNextAutoscrollConfirm, topPadding])
 
   // Explicit reading actions freeze the current semantic anchor. Passive DOM
   // events, ordinary clicks and virtualizer compensation never call this path.
@@ -516,6 +537,8 @@ export function useChatVirtualizerRuntime<T>({
     if (!autoscrollActiveRef.current) return
     autoscrollActiveRef.current = false
     clearAutoscrollIdleTimer()
+    clearAutoscrollSuppressTimer()
+    autoscrollCandidateScrollTopRef.current = null
     pendingUserInputRef.current = null
     if (wheelTimeoutRef.current) {
       clearTimeout(wheelTimeoutRef.current)
@@ -523,22 +546,26 @@ export function useChatVirtualizerRuntime<T>({
     }
     lastWheelDirRef.current = 'none'
     settleUserScrollGesture()
-  }, [clearAutoscrollIdleTimer, settleUserScrollGesture])
+  }, [clearAutoscrollIdleTimer, clearAutoscrollSuppressTimer, settleUserScrollGesture])
 
   const dismissAutoscroll = useCallback(() => {
     const wasCandidate = autoscrollCandidateRef.current
     const wasActive = autoscrollActiveRef.current
     if (!wasCandidate && !wasActive) return
     autoscrollCandidateRef.current = false
+    autoscrollCandidateScrollTopRef.current = null
     clearAutoscrollCandidateTimer()
+    clearAutoscrollSuppressTimer()
     if (wasActive) {
       endAutoscrollInternal()
     }
-  }, [clearAutoscrollCandidateTimer, endAutoscrollInternal])
+  }, [clearAutoscrollCandidateTimer, clearAutoscrollSuppressTimer, endAutoscrollInternal])
 
   const beginAutoscroll = useCallback(() => {
     autoscrollCandidateRef.current = false
+    autoscrollCandidateScrollTopRef.current = null
     clearAutoscrollCandidateTimer()
+    clearAutoscrollSuppressTimer()
     if (autoscrollActiveRef.current) {
       clearAutoscrollIdleTimer()
     } else {
@@ -553,13 +580,38 @@ export function useChatVirtualizerRuntime<T>({
     clearAutoscrollIdleTimer()
     autoscrollIdleTimerRef.current = setTimeout(() => {
       autoscrollIdleTimerRef.current = null
-      endAutoscrollInternal()
+      if (!autoscrollActiveRef.current) return
+      autoscrollActiveRef.current = false
+      autoscrollCandidateRef.current = true
+      autoscrollCandidateScrollTopRef.current = scrollerRef.current?.scrollTop ?? null
+      clearAutoscrollCandidateTimer()
+      autoscrollCandidateTimerRef.current = setTimeout(() => {
+        autoscrollCandidateRef.current = false
+        autoscrollCandidateScrollTopRef.current = null
+        autoscrollCandidateTimerRef.current = null
+        clearAutoscrollSuppressTimer()
+        pendingUserInputRef.current = null
+        if (wheelTimeoutRef.current) {
+          clearTimeout(wheelTimeoutRef.current)
+          wheelTimeoutRef.current = null
+        }
+        lastWheelDirRef.current = 'none'
+        settleUserScrollGesture()
+      }, AUTOSCROLL_CANDIDATE_MS)
+      pendingUserInputRef.current = null
+      if (wheelTimeoutRef.current) {
+        clearTimeout(wheelTimeoutRef.current)
+        wheelTimeoutRef.current = null
+      }
+      lastWheelDirRef.current = 'none'
     }, AUTOSCROLL_IDLE_MS)
-  }, [clearAutoscrollCandidateTimer, clearAutoscrollIdleTimer, endAutoscrollInternal, markUserInput])
-
-  const endAutoscroll = useCallback(() => {
-    dismissAutoscroll()
-  }, [dismissAutoscroll])
+  }, [
+    clearAutoscrollCandidateTimer,
+    clearAutoscrollIdleTimer,
+    clearAutoscrollSuppressTimer,
+    markUserInput,
+    settleUserScrollGesture
+  ])
 
   const armAutoscrollCandidate = useCallback(() => {
     if (autoscrollCandidateRef.current || autoscrollActiveRef.current) {
@@ -567,14 +619,17 @@ export function useChatVirtualizerRuntime<T>({
       return
     }
     autoscrollCandidateRef.current = true
+    autoscrollCandidateScrollTopRef.current = scrollerRef.current?.scrollTop ?? null
     clearAutoscrollCandidateTimer()
     autoscrollCandidateTimerRef.current = setTimeout(() => {
       autoscrollCandidateRef.current = false
+      autoscrollCandidateScrollTopRef.current = null
       autoscrollCandidateTimerRef.current = null
     }, AUTOSCROLL_CANDIDATE_MS)
   }, [clearAutoscrollCandidateTimer, dismissAutoscroll])
 
   const confirmAutoscroll = useCallback(() => {
+    if (autoscrollSuppressConfirmRef.current) return
     if (!autoscrollCandidateRef.current && !autoscrollActiveRef.current) return
     beginAutoscroll()
   }, [beginAutoscroll])
@@ -583,8 +638,9 @@ export function useChatVirtualizerRuntime<T>({
     return () => {
       clearAutoscrollCandidateTimer()
       clearAutoscrollIdleTimer()
+      clearAutoscrollSuppressTimer()
     }
-  }, [clearAutoscrollCandidateTimer, clearAutoscrollIdleTimer])
+  }, [clearAutoscrollCandidateTimer, clearAutoscrollIdleTimer, clearAutoscrollSuppressTimer])
 
   const enterFollowingMode = useCallback(
     (reason: FollowingReason) => {
@@ -1000,11 +1056,15 @@ export function useChatVirtualizerRuntime<T>({
         readNavigationActiveRef.current = true
         smoothScroll.scrollTo(resolveTarget, { onComplete: finish })
       } else {
-        el.scrollTop = resolveTarget()
+        const target = resolveTarget()
+        if (Math.abs(el.scrollTop - target) > FREEZE_REASSERT_TOLERANCE_PX) {
+          suppressNextAutoscrollConfirm()
+        }
+        el.scrollTop = target
         takeUserControl('navigation', getPreferredAnchor?.() ?? null)
       }
     },
-    [clampToReachable, prepareReadingNavigation, smoothScroll, takeUserControl]
+    [clampToReachable, prepareReadingNavigation, smoothScroll, suppressNextAutoscrollConfirm, takeUserControl]
   )
 
   const scrollToBottom = useCallback(() => {
@@ -1151,8 +1211,6 @@ export function useChatVirtualizerRuntime<T>({
     markUserInput,
     beginScrollbarDrag,
     endScrollbarDrag,
-    beginAutoscroll,
-    endAutoscroll,
     armAutoscrollCandidate,
     confirmAutoscroll,
     dismissAutoscroll
