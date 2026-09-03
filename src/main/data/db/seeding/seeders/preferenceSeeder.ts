@@ -17,9 +17,7 @@ export class PreferenceSeeder implements ISeeder {
     const preferences = db.select().from(preferenceTable).all()
 
     // Convert existing preferences to a Map for quick lookup
-    const existingPrefs = new Map(
-      preferences.map((preference) => [`${preference.scope}.${preference.key}`, preference])
-    )
+    const existingPrefs = new Map(preferences.map((p) => [`${p.scope}.${p.key}`, p]))
 
     // Collect all new preferences to insert
     const newPreferences: Array<{
