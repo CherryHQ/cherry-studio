@@ -269,7 +269,14 @@ export function WebviewAnnotationControls({
 
       const handleFailure = (error: unknown) => {
         if (!isCurrentDocumentConfigurationAttempt(attempt)) return
-        currentDocumentRef.current = attempt.confirmedConfiguration ? { ...attempt, pendingConfiguration: null } : null
+        if (attempt.confirmedConfiguration) {
+          currentDocumentRef.current = { ...attempt, pendingConfiguration: null }
+        } else {
+          currentDocumentRef.current = null
+          clearPendingCreateSave()
+          setState(EMPTY_STATE)
+          setEditorSession(null)
+        }
         logger.debug('Failed to configure webview annotations', { targetId: attempt.targetId, error })
       }
 
@@ -295,7 +302,14 @@ export function WebviewAnnotationControls({
       }
       return true
     },
-    [isCurrentDocument, isCurrentDocumentConfigurationAttempt, locale, requestDocumentState, theme]
+    [
+      clearPendingCreateSave,
+      isCurrentDocument,
+      isCurrentDocumentConfigurationAttempt,
+      locale,
+      requestDocumentState,
+      theme
+    ]
   )
 
   const handleGuestEvent = useEffectEvent(

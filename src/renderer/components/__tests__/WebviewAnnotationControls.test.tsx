@@ -432,6 +432,7 @@ describe('WebviewAnnotationControls', () => {
       await Promise.resolve()
     })
 
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
     const replaceRequestsBeforeState = replaceAnnotationRequests().length
     act(() =>
       dispatchGuestState(webview, { enabled: true, annotations: [{ ...annotation, id: pending.id }] }, documentId)
