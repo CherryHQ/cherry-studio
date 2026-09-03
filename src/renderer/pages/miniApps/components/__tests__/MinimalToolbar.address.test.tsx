@@ -118,6 +118,30 @@ describe('MinimalToolbar address bar', () => {
     await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://cherry-ai.com/docs'))
   })
 
+  it('normalizes a hostname with an explicit port as HTTPS', async () => {
+    const { webview } = createWebview()
+    const user = userEvent.setup()
+    renderToolbar(webview)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    await user.clear(address)
+    await user.type(address, 'example.com:8080/path{Enter}')
+
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://example.com:8080/path'))
+  })
+
+  it('normalizes a local hostname with an explicit port as HTTP', async () => {
+    const { webview } = createWebview()
+    const user = userEvent.setup()
+    renderToolbar(webview)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    await user.clear(address)
+    await user.type(address, 'localhost:3000{Enter}')
+
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('http://localhost:3000'))
+  })
+
   it('tracks only main-frame navigation without overwriting an active edit', async () => {
     const { navigate, webview } = createWebview()
     const user = userEvent.setup()

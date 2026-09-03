@@ -28,15 +28,17 @@ const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
 const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
 const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
+const HOST_PORT_PATTERN = /^(?:\[[^\]]+\]|[^:/?#\s]+):\d+(?:[/?#]|$)/
 const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
 
 function normalizeAddress(value: string): string | null {
   const trimmedValue = value.trim()
   if (!trimmedValue) return null
 
-  const url = URL_SCHEME_PATTERN.test(trimmedValue)
-    ? trimmedValue
-    : `${LOCAL_ADDRESS_PATTERN.test(trimmedValue) ? 'http' : 'https'}://${trimmedValue}`
+  const url =
+    URL_SCHEME_PATTERN.test(trimmedValue) && !HOST_PORT_PATTERN.test(trimmedValue)
+      ? trimmedValue
+      : `${LOCAL_ADDRESS_PATTERN.test(trimmedValue) ? 'http' : 'https'}://${trimmedValue}`
 
   return MiniAppUrlSchema.safeParse(url).success ? url : null
 }
