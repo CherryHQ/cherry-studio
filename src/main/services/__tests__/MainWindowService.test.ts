@@ -1,3 +1,8 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -485,6 +490,27 @@ describe('MainWindowService', () => {
       await expect(dispatch('http://localhost:5173/')).resolves.toEqual({ cancel: false })
       await expect(dispatch('http://localhost:5173/dashboard')).resolves.toEqual({ cancel: false })
       await expect(dispatch('http://localhost:4173/')).resolves.toEqual({ cancel: true })
+    })
+
+    it('cancels remote requests from a bound Agent HTML artifact', async () => {
+      const tempDirectory = await mkdtemp(path.join(tmpdir(), 'cherry-agent-artifact-session-'))
+      const artifactPath = path.join(tempDirectory, 'index.html')
+      await writeFile(artifactPath, '<script src="https://cdn.example.com/app.js"></script>')
+
+      try {
+        await (svc as any).onInit()
+        const requestHandler = agentArtifactSessionMock.webRequest.onBeforeRequest.mock.calls[0]?.[1]
+        if (!requestHandler) throw new Error('Agent artifact request handler was not registered')
+        const dispatch = (url: string, resourceType: string) =>
+          new Promise<{ cancel: boolean }>((resolve) => {
+            requestHandler({ resourceType, url, webContentsId: 42 }, resolve)
+          })
+
+        await expect(dispatch(pathToFileURL(artifactPath).toString(), 'mainFrame')).resolves.toEqual({ cancel: false })
+        await expect(dispatch('https://cdn.example.com/app.js', 'script')).resolves.toEqual({ cancel: true })
+      } finally {
+        await rm(tempDirectory, { recursive: true, force: true })
+      }
     })
   })
 

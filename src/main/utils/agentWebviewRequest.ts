@@ -1,10 +1,9 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { isSameOrInside, lstat, realpath } from '@main/utils/file'
+import { lstat, realpath } from '@main/utils/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 
-import { isAllowedHtmlArtifactRequest } from './htmlArtifactRequest'
 import { sanitizeRemoteUrl } from './remoteUrlSafety'
 
 interface WebviewRequestDetails {
@@ -103,7 +102,7 @@ export class AgentHtmlArtifactRequestPolicy {
       }
 
       const [requestedPath, authorizedRoot] = await Promise.all([requestedPathPromise, authorizedRootPromise])
-      return Boolean(requestedPath && authorizedRoot && isSameOrInside(requestedPath, authorizedRoot))
+      return Boolean(requestedPath && authorizedRoot && isCanonicalPathInside(requestedPath, authorizedRoot))
     }
 
     const authorizedRootPromise = this.rootByWebContentsId.get(webContentsId)
@@ -113,10 +112,10 @@ export class AgentHtmlArtifactRequestPolicy {
 
     if (url.protocol === 'file:') {
       const requestedPath = await getCanonicalFilePath(url)
-      return requestedPath ? isSameOrInside(requestedPath, authorizedRoot) : false
+      return requestedPath ? isCanonicalPathInside(requestedPath, authorizedRoot) : false
     }
 
-    return isAllowedHtmlArtifactRequest(details.url)
+    return url.protocol === 'data:' || url.protocol === 'blob:'
   }
 
   forget(webContentsId: number): void {
@@ -126,6 +125,12 @@ export class AgentHtmlArtifactRequestPolicy {
   clear(): void {
     this.rootByWebContentsId.clear()
   }
+}
+
+export function isCanonicalPathInside(candidate: string, root: string): boolean {
+  if (candidate === root) return true
+  const rootWithSeparator = root.endsWith(path.sep) ? root : `${root}${path.sep}`
+  return candidate.startsWith(rootWithSeparator)
 }
 
 function getWebContentsId(details: WebviewRequestDetails): number | undefined {
