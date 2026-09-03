@@ -585,6 +585,7 @@
   "chat.home.suggestions.explore": "从几个不同角度和我探索一个有趣的话题",
   "chat.home.suggestions.learn": "教我一个可以立即应用的新概念",
   "chat.home.welcome_title": "今天想聊点什么？",
+  "chat.input.ai_disclaimer": "内容由 AI 生成，仅供参考",
   "chat.input.cancel_editing": "取消编辑",
   "chat.input.clear.content": "确定要清除当前对话所有消息吗？",
   "chat.input.clear.title": "清空消息",

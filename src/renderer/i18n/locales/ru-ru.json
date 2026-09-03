@@ -585,6 +585,7 @@
   "chat.home.suggestions.explore": "Исследуй со мной интересную тему с разных точек зрения",
   "chat.home.suggestions.learn": "Объясни мне полезную концепцию, которую можно сразу применить",
   "chat.home.welcome_title": "О чём поговорим сегодня?",
+  "chat.input.ai_disclaimer": "Контент сгенерирован ИИ и носит справочный характер",
   "chat.input.cancel_editing": "Отменить редактирование",
   "chat.input.clear.content": "Хотите очистить все сообщения текущего топика?",
   "chat.input.clear.title": "Очистить все сообщения?",

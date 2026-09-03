@@ -585,6 +585,7 @@
   "chat.home.suggestions.explore": "Erkunde mit mir ein interessantes Thema aus verschiedenen Perspektiven",
   "chat.home.suggestions.learn": "Erkläre mir ein nützliches Konzept, das ich sofort anwenden kann",
   "chat.home.welcome_title": "Worüber sollen wir heute sprechen?",
+  "chat.input.ai_disclaimer": "KI-generierte Inhalte, nur zur Orientierung",
   "chat.input.cancel_editing": "Bearbeitung abbrechen",
   "chat.input.clear.content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
   "chat.input.clear.title": "Nachrichten leeren",

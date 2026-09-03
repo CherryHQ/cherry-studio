@@ -585,6 +585,7 @@
   "chat.home.suggestions.explore": "Explora conmigo un tema interesante desde distintas perspectivas",
   "chat.home.suggestions.learn": "Enséñame un concepto útil que pueda aplicar de inmediato",
   "chat.home.welcome_title": "¿De qué hablaremos hoy?",
+  "chat.input.ai_disclaimer": "Contenido generado por IA, solo como referencia",
   "chat.input.cancel_editing": "Cancelar edición",
   "chat.input.clear.content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
   "chat.input.clear.title": "Limpiar mensajes",

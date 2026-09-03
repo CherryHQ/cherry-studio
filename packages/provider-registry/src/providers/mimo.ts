@@ -19,6 +19,7 @@ const anthropicWire: ReasoningWireProfile = modeWire('thinking.type', { off: 'di
 export default defineProvider({
   id: 'mimo',
   name: 'Xiaomi MiMo',
+  availableInEditions: ['global', 'cn'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
