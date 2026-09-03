@@ -1,5 +1,4 @@
-import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { MandatoryGateProvider } from '@renderer/components/MandatoryGateProvider'
 import { act, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,23 +16,25 @@ vi.mock('@renderer/hooks/useApiGateway', () => ({
 describe('ApiGatewayRequiredDialog', () => {
   beforeEach(() => {
     useIpcOnMock.mockReset()
-    MockUsePreferenceUtils.resetMocks()
   })
 
-  it('defers the gateway prompt until the mandatory privacy update is resolved', async () => {
-    MockUsePreferenceUtils.setMultiplePreferenceValues({
-      'app.privacy.data_collection.enabled': true,
-      'app.privacy.policy_version': 'previous'
-    })
-    const view = render(<ApiGatewayRequiredDialog sessionId="session-1" />)
+  it('defers the gateway prompt while a mandatory gate owns the window', async () => {
+    const view = render(
+      <MandatoryGateProvider open>
+        <ApiGatewayRequiredDialog sessionId="session-1" />
+      </MandatoryGateProvider>
+    )
     const onGatewayRequired = useIpcOnMock.mock.calls[0]?.[1]
 
     await act(async () => onGatewayRequired({ sessionId: 'session-1' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
-    view.rerender(<ApiGatewayRequiredDialog sessionId="session-1" />)
+    view.rerender(
+      <MandatoryGateProvider open={false}>
+        <ApiGatewayRequiredDialog sessionId="session-1" />
+      </MandatoryGateProvider>
+    )
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
