@@ -89,8 +89,19 @@ export function WebviewAnnotationControls({
   const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
   const [isCreateSaving, setIsCreateSaving] = useState(false)
   const pendingCreateSaveRef = useRef<PendingCreateSave | null>(null)
+  const isMountedRef = useRef(false)
   const currentWebview = webviewRef.current
   const committedOwnerRef = useRef({ isHostActive, targetId: target.id, webview: currentWebview })
+
+  useLayoutEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      const pending = pendingCreateSaveRef.current
+      if (pending?.timeout) clearTimeout(pending.timeout)
+      pendingCreateSaveRef.current = null
+    }
+  }, [])
 
   useLayoutEffect(() => {
     committedOwnerRef.current = { isHostActive, targetId: target.id, webview: currentWebview }
@@ -148,6 +159,7 @@ export function WebviewAnnotationControls({
   )
 
   const isCurrentCreateSaveAttempt = useCallback((attempt: CreateSaveAttempt) => {
+    if (!isMountedRef.current) return false
     const pending = pendingCreateSaveRef.current
     const owner = committedOwnerRef.current
     return (
@@ -171,7 +183,14 @@ export function WebviewAnnotationControls({
 
   const handleGuestEvent = useEffectEvent(
     (guestEvent: WebviewAnnotationGuestEvent, eventWebview: WebviewTag | null, listenerTargetId: string) => {
-      if (!eventWebview || eventWebview !== webviewRef.current || listenerTargetId !== target.id) return
+      if (
+        !isMountedRef.current ||
+        !eventWebview ||
+        eventWebview !== webviewRef.current ||
+        listenerTargetId !== target.id
+      ) {
+        return
+      }
 
       switch (guestEvent.type) {
         case 'state_changed': {
@@ -215,6 +234,7 @@ export function WebviewAnnotationControls({
   )
 
   const configureGuest = useEffectEvent((webview: WebviewTag | null) => {
+    if (!isMountedRef.current) return
     sendCommand(
       {
         type: 'configure',
@@ -231,7 +251,7 @@ export function WebviewAnnotationControls({
   })
 
   const resetForNavigation = useEffectEvent((webview: WebviewTag | null, listenerTargetId: string) => {
-    if (!webview || webview !== webviewRef.current || listenerTargetId !== target.id) return
+    if (!isMountedRef.current || !webview || webview !== webviewRef.current || listenerTargetId !== target.id) return
     clearPendingCreateSave()
     setState(EMPTY_STATE)
     setEditorSession(null)
@@ -249,15 +269,6 @@ export function WebviewAnnotationControls({
     const pending = pendingCreateSaveRef.current
     if (pending && pending.webview !== currentWebview) clearPendingCreateSave(pending.id)
   }, [clearPendingCreateSave, currentWebview])
-
-  useEffect(
-    () => () => {
-      const pending = pendingCreateSaveRef.current
-      if (pending?.timeout) clearTimeout(pending.timeout)
-      pendingCreateSaveRef.current = null
-    },
-    []
-  )
 
   useEffect(() => {
     let attachedWebview: WebviewTag | null = null

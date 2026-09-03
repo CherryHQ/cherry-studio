@@ -145,6 +145,7 @@ interface LayoutAckHarnessProps {
   target: WebviewAnnotationTarget
   onAnnotationSaved: (payload: WebviewAnnotationSavedPayload) => void
   layoutAck?: { webview: WebviewTag; state: WebviewAnnotationState }
+  renderControls?: boolean
 }
 
 function LayoutAckHarness({
@@ -153,13 +154,14 @@ function LayoutAckHarness({
   isHostActive,
   target,
   onAnnotationSaved,
-  layoutAck
+  layoutAck,
+  renderControls = true
 }: LayoutAckHarnessProps) {
   useLayoutEffect(() => {
     if (layoutAck) dispatchGuestState(layoutAck.webview, layoutAck.state)
   }, [layoutAck])
 
-  return (
+  return renderControls ? (
     <WebviewAnnotationControls
       webviewRef={webviewRef}
       isWebviewReady={isWebviewReady}
@@ -167,7 +169,7 @@ function LayoutAckHarness({
       target={target}
       onAnnotationSaved={onAnnotationSaved}
     />
-  )
+  ) : null
 }
 
 function commitCommands(webview: WebviewTag) {
@@ -641,6 +643,39 @@ describe('WebviewAnnotationControls', () => {
     expect(onAnnotationSaved).not.toHaveBeenCalled()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeDetach)
+  })
+
+  it('rejects a matching snapshot during unmount commit before passive listener cleanup', () => {
+    const webview = createWebview()
+    const webviewRef = { current: webview }
+    const onAnnotationSaved = vi.fn()
+    const view = render(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+    const pending = saveCreateEditor(webview, 'Unmount this annotation').command
+    const replaceRequestsBeforeUnmount = replaceAnnotationRequests().length
+
+    view.rerender(
+      <LayoutAckHarness
+        webviewRef={webviewRef}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+        layoutAck={{ webview, state: { enabled: true, annotations: [{ ...annotation, id: pending.id }] } }}
+        renderControls={false}
+      />
+    )
+
+    expect(onAnnotationSaved).not.toHaveBeenCalled()
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeUnmount)
   })
 
   it('keeps an in-flight create save across a theme update', () => {
