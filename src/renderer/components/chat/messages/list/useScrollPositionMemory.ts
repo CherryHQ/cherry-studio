@@ -24,7 +24,7 @@
 import { cacheService } from '@data/CacheService'
 import type { ChatScrollAnchor } from '@shared/data/cache/cacheValueTypes'
 import { type RefObject, useCallback, useEffect, useRef } from 'react'
-import type { VListHandle } from 'virtua'
+import type { CacheSnapshot, VListHandle } from 'virtua'
 
 export type { ChatScrollAnchor }
 
@@ -126,7 +126,21 @@ export interface ScrollPositionMemory {
 }
 
 const cacheKeyFor = (topicId: string) => `chat.scroll_anchor.${topicId}` as const
+const sizesKeyFor = (topicId: string) => `chat.scroll_sizes.${topicId}` as const
 const SAVE_THROTTLE_MS = 200
+
+/**
+ * Measured heights for this exact item list, or `undefined` when nothing usable
+ * is stored. Read during render — virtua only accepts a size cache at mount.
+ */
+export function readScrollSizes(topicId: string | undefined, itemKeys: readonly string[]): CacheSnapshot | undefined {
+  if (!topicId || itemKeys.length === 0) return undefined
+  const saved = cacheService.get(sizesKeyFor(topicId))
+  if (!saved) return undefined
+  const matchesList =
+    saved.count === itemKeys.length && saved.firstKey === itemKeys[0] && saved.lastKey === itemKeys[itemKeys.length - 1]
+  return matchesList ? (saved.snapshot as CacheSnapshot) : undefined
+}
 
 export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): ScrollPositionMemory {
   // Keep the latest inputs addressable from the stable callbacks/effect.
@@ -155,6 +169,20 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
       getOffsetAtIndex: (index) => handle.getItemOffset(index)
     })
     cacheService.set(cacheKeyFor(i.topicId), anchor)
+
+    // Only at rest: `immediate` comes from onScrollEnd, when every row the user
+    // just passed has been measured. Snapshotting on every throttled scroll tick
+    // would pay for a whole-list copy mid-gesture and capture the same sizes.
+    if (!immediate) return
+    const firstKey = i.getDataKeyAtIndex(0)
+    const lastKey = i.getDataKeyAtIndex(i.itemCount - 1)
+    if (!firstKey || !lastKey) return
+    cacheService.set(sizesKeyFor(i.topicId), {
+      snapshot: handle.cache,
+      count: i.itemCount,
+      firstKey,
+      lastKey
+    })
   }, [])
 
   // Restore once, as soon as the (remounted) list has items.

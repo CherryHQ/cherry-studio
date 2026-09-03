@@ -369,6 +369,7 @@ export function MessageVirtualList<T>({
                 data={runtime.wrappedItems}
                 itemSize={estimateSize}
                 bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+                cache={runtime.restoredSizeCache}
                 shift={runtime.shift}
                 keepMounted={runtime.keepMounted}
                 startMargin={topPadding}
