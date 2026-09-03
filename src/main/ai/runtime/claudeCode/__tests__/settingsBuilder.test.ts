@@ -581,13 +581,20 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
+    // Trusted channel keeps the full window so the floor is reachable; an
+    // untrusted relay would be capped to its safety-adjusted input room (44.8K).
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
-      {} as never,
+      trustedProvider,
       { contextWindow: 128_000 }
     )
 
@@ -685,14 +692,21 @@ describe('buildClaudeCodeSessionSettings', () => {
   )
 
   // The SDK rejects a window outside 100K-1M, so both boundaries must land inside it.
+  // Use a trusted Anthropic channel so the 100K floor is reachable; an untrusted
+  // relay at 100K would be capped to its safety-adjusted input room (28K).
   it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
+    const trustedProvider = {
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages'
+    } as never
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
         agentId: 'agent-1',
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
-      {} as never,
+      trustedProvider,
       { contextWindow }
     )
 
