@@ -281,7 +281,7 @@ export function buildDshGatewayInjection(
       maxTokens: model.maxOutputTokens ?? DEFAULT_MAX_TOKENS,
       input: isVisionModel(model) ? ['text', 'image'] : ['text'],
       reasoningEfforts: buildDshReasoningEfforts(model, reasoning),
-      compat: { supportsDeveloperRole: true }
+      ...(api === 'openai-completions' || api === 'openai-responses' ? { compat: { supportsDeveloperRole: true } } : {})
     },
     // The gateway middleware records provider usage; agent-sdk capture would double-count.
     usageCapture: { owner: 'provider-calls' }
