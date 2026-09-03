@@ -5,7 +5,7 @@ import { application } from '@application'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { ErrorCode } from '@shared/data/api/errors'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRY_CLOUD_PROVIDER_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, type Mock } from 'vitest'
@@ -147,17 +147,20 @@ describe('ProviderService.update', () => {
     expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
-  it('rejects PATCHes for the managed CherryAI provider', async () => {
+  it.each([
+    ['CherryAI', CHERRYAI_PROVIDER_ID],
+    ['Cherry Cloud', CHERRY_CLOUD_PROVIDER_ID]
+  ])('rejects PATCHes for the managed %s provider', async (_name, providerId) => {
     await dbh.db.insert(userProviderTable).values({
-      providerId: CHERRYAI_PROVIDER_ID,
-      name: 'CherryAI',
+      providerId,
+      name: _name,
       orderKey: 'a0',
       isEnabled: true
     })
 
     let err: unknown
     try {
-      providerService.update(CHERRYAI_PROVIDER_ID, { isEnabled: false })
+      providerService.update(providerId, { isEnabled: false })
     } catch (e) {
       err = e
     }
@@ -166,10 +169,7 @@ describe('ProviderService.update', () => {
       status: 400
     })
 
-    const [row] = await dbh.db
-      .select()
-      .from(userProviderTable)
-      .where(eq(userProviderTable.providerId, CHERRYAI_PROVIDER_ID))
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
     expect(row.isEnabled).toBe(true)
   })
 
