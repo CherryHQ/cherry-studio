@@ -116,6 +116,7 @@ interface AgentChatLayoutProps {
   centerSurface?: ConversationCenterSlot | null
   className?: string
   conversationState: 'pending' | 'ready' | 'unavailable'
+  isMessageHistoryLoading: boolean
   messages: CherryUIMessage[]
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onPaneCollapse?: () => void
@@ -455,6 +456,7 @@ const AgentChat = ({
       'multi-select-mode': Boolean(!centerSurface && sessionSnapshot && isMultiSelectMode)
     }),
     conversationState,
+    isMessageHistoryLoading: runtimeIsLoading,
     messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
     onFileNavigationRequestChange,
     onPaneAutoCollapseChange,
@@ -613,6 +615,7 @@ function AgentChatLayout({
   centerSurface,
   className,
   conversationState,
+  isMessageHistoryLoading,
   messages,
   onFileNavigationRequestChange,
   onPaneAutoCollapseChange,
@@ -635,6 +638,7 @@ function AgentChatLayout({
   return (
     <AgentRightPane.Scope
       conversationState={conversationState}
+      isMessageHistoryLoading={isMessageHistoryLoading}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
       workspaceType={sessionSnapshot?.workspace?.type}

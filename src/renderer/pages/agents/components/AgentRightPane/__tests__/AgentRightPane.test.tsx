@@ -765,6 +765,87 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
   })
 
+  it.each([{ kind: 'inline' }, { kind: 'deferred' }])(
+    'keeps a directly opened artifact when initial $kind history hydrates afterward',
+    async ({ kind }) => {
+      const sessionId = `session-${kind}-initial-history`
+      const deferredToolResult = {
+        topicId: `agent-session:${sessionId}`,
+        messageId: `m-${kind}-initial-history`,
+        toolCallId: `bash-${kind}-initial-history`
+      }
+      const result = createDeferredPromise<{ found: true; output: string }>()
+      if (kind === 'deferred') ipcRequestMock.mockReturnValue(result.promise)
+      resolveArtifactPaneFileSelectionMock.mockReturnValue({
+        workspacePath: '/workspace',
+        filePath: 'artifact.html'
+      })
+      const renderPane = (
+        messages: CherryUIMessage[],
+        partsByMessageId: Record<string, CherryMessagePart[]>,
+        isMessageHistoryLoading: boolean
+      ) => (
+        <TestAgentRightPane
+          sessionId={sessionId}
+          workspacePath="/workspace"
+          messages={messages}
+          partsByMessageId={partsByMessageId}
+          isMessageHistoryLoading={isMessageHistoryLoading}>
+          <OpenArtifactButton path="artifact.html" />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      const { rerender } = render(renderPane([], {}, true))
+      fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+      const hydratedPart = createPreviewToolPart(
+        deferredToolResult.toolCallId,
+        kind === 'deferred' ? 'BashOutput' : 'Bash',
+        kind === 'deferred' ? { $deferredToolResult: deferredToolResult } : 'Ready at http://localhost:6775/'
+      )
+      const hydratedMessage = createPreviewMessage(deferredToolResult.messageId, [hydratedPart])
+      rerender(renderPane([hydratedMessage], { [hydratedMessage.id]: [hydratedPart] }, false))
+      if (kind === 'deferred') {
+        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
+        await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6775/' }))
+      }
+
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+    }
+  )
+
+  it('accepts the first preview emitted after an empty initial history finishes loading', () => {
+    const sessionId = 'session-empty-initial-history'
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'artifact.html'
+    })
+    const renderPane = (
+      messages: CherryUIMessage[],
+      partsByMessageId: Record<string, CherryMessagePart[]>,
+      isMessageHistoryLoading: boolean
+    ) => (
+      <TestAgentRightPane
+        sessionId={sessionId}
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={partsByMessageId}
+        isMessageHistoryLoading={isMessageHistoryLoading}>
+        <OpenArtifactButton path="artifact.html" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    const { rerender } = render(renderPane([], {}, true))
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    rerender(renderPane([], {}, false))
+
+    const newPart = createPreviewToolPart('bash-after-empty-history', 'Bash', 'Ready at http://localhost:6790/')
+    const newMessage = createPreviewMessage('m-after-empty-history', [newPart])
+    rerender(renderPane([newMessage], { [newMessage.id]: [newPart] }, false))
+
+    expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:6790/')
+  })
+
   it('applies a preview URL from a candidate generation added after direct artifact opening', () => {
     const existingPart = createPreviewToolPart('bash-before-artifact', 'Bash', 'Ready at http://localhost:6800/')
     const existingMessage = createPreviewMessage('m-before-artifact', [existingPart])

@@ -182,6 +182,7 @@ interface AgentRightPaneRuntime {
 interface ExplicitBrowserBaseline {
   sessionId?: string
   frontier: AgentPreviewUrlFrontier | null
+  waitingForHistory: boolean
   url: string
 }
 
@@ -235,6 +236,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
   userOpenIntentSeq?: number
   revealRequest?: ResourceListRevealRequest
+  isMessageHistoryLoading?: boolean
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
@@ -405,7 +407,8 @@ function AgentRightPaneStateProvider({
   onOpenChange,
   onFileNavigationRequestChange,
   userOpenIntentSeq,
-  revealRequest
+  revealRequest,
+  isMessageHistoryLoading = false
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
   const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
@@ -444,10 +447,20 @@ function AgentRightPaneStateProvider({
   }, [sessionId])
   // Holds whatever the browser pane last showed: the detected dev-server URL or an opened HTML artifact.
   const browserUrl = browserUrlState.sessionId === sessionId ? browserUrlState.url : null
+  useLayoutEffect(() => {
+    const baseline = explicitBrowserBaselineRef.current
+    if (!baseline?.waitingForHistory || isMessageHistoryLoading) return
+    if (baseline.sessionId !== sessionId || browserUrl !== baseline.url) {
+      explicitBrowserBaselineRef.current = null
+      return
+    }
+    explicitBrowserBaselineRef.current = { ...baseline, frontier: previewUrlFrontier, waitingForHistory: false }
+  }, [browserUrl, isMessageHistoryLoading, previewUrlFrontier, sessionId])
   const acceptDetectedBrowserUrl = useCallback(
     (url: string | null, source: AgentPreviewUrlSource | null) => {
       if (!url || !source) return
       const baseline = explicitBrowserBaselineRef.current
+      if (baseline?.waitingForHistory) return
       if (
         baseline &&
         baseline.sessionId === sessionId &&
@@ -467,10 +480,16 @@ function AgentRightPaneStateProvider({
   )
   const openBrowserUrl = useCallback(
     (url: string) => {
-      explicitBrowserBaselineRef.current = { sessionId, frontier: previewUrlFrontierRef.current, url }
+      const frontier = previewUrlFrontierRef.current
+      explicitBrowserBaselineRef.current = {
+        sessionId,
+        frontier,
+        waitingForHistory: isMessageHistoryLoading && !frontier,
+        url
+      }
       setBrowserUrlState({ sessionId, url })
     },
-    [sessionId]
+    [isMessageHistoryLoading, sessionId]
   )
   const editPath =
     editMode === 'edit' && previewFileSelection ? getArtifactPaneSelectionPath(previewFileSelection) : undefined
