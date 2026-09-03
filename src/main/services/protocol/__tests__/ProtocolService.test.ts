@@ -200,16 +200,6 @@ describe('ProtocolService', () => {
     })
   })
 
-  it('drops retired Cherry Cloud protocol callbacks', async () => {
-    await markProtocolHandlingReady()
-
-    ;(service as any).handleProtocolUrl(
-      'cherrystudio://cloud-auth/callback?authorization_id=00000000-0000-4000-8000-000000000001&handoff_code=secret&state=state'
-    )
-
-    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
-  })
-
   describe('protocol URL readiness', () => {
     function getOpenUrlHandler() {
       const call = appMock.on.mock.calls.find((call) => call[0] === 'open-url')

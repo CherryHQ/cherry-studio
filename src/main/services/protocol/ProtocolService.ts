@@ -198,9 +198,6 @@ export class ProtocolService extends BaseService {
             .handleDeepLinkCallback(urlObj)
             .catch((error) => logger.error('Failed to handle OAuth callback', error as Error))
           return
-        case 'cloud-auth':
-          // Cherry Cloud auth is HTTP-loopback only; never broadcast stale handoff credentials.
-          return
       }
 
       // Default branch: deep link with no main-process handler. Fan out to every
