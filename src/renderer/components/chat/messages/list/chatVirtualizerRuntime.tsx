@@ -168,6 +168,8 @@ const USER_SCROLL_INPUT_WINDOW_MS = 250
 // confirm it before freeze logic yields. Both candidate and confirmed states
 // are time-bounded so a swallowed dismissal click cannot latch suppression.
 const AUTOSCROLL_CANDIDATE_MS = 1500
+// Must stay above virtua's 150ms scroll-end debounce: onScrollEnd settles the
+// user-scroll gesture first, so this timer only has to release the autoscroll latch.
 const AUTOSCROLL_IDLE_MS = 250
 // While the user holds the viewport frozen, snap scrollTop back to the freeze
 // anchor when a layout change drifts it by more than this. Kept above
@@ -223,7 +225,6 @@ export function useChatVirtualizerRuntime<T>({
   const autoscrollCandidateRef = useRef(false)
   const autoscrollCandidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const autoscrollIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const autoscrollCandidateScrollTopRef = useRef<number | null>(null)
   const autoscrollSuppressConfirmRef = useRef(false)
   const autoscrollSuppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const readNavigationActiveRef = useRef(false)
@@ -538,7 +539,6 @@ export function useChatVirtualizerRuntime<T>({
     autoscrollActiveRef.current = false
     clearAutoscrollIdleTimer()
     clearAutoscrollSuppressTimer()
-    autoscrollCandidateScrollTopRef.current = null
     pendingUserInputRef.current = null
     if (wheelTimeoutRef.current) {
       clearTimeout(wheelTimeoutRef.current)
@@ -553,7 +553,6 @@ export function useChatVirtualizerRuntime<T>({
     const wasActive = autoscrollActiveRef.current
     if (!wasCandidate && !wasActive) return
     autoscrollCandidateRef.current = false
-    autoscrollCandidateScrollTopRef.current = null
     clearAutoscrollCandidateTimer()
     clearAutoscrollSuppressTimer()
     if (wasActive) {
@@ -563,7 +562,6 @@ export function useChatVirtualizerRuntime<T>({
 
   const beginAutoscroll = useCallback(() => {
     autoscrollCandidateRef.current = false
-    autoscrollCandidateScrollTopRef.current = null
     clearAutoscrollCandidateTimer()
     clearAutoscrollSuppressTimer()
     if (autoscrollActiveRef.current) {
@@ -583,11 +581,9 @@ export function useChatVirtualizerRuntime<T>({
       if (!autoscrollActiveRef.current) return
       autoscrollActiveRef.current = false
       autoscrollCandidateRef.current = true
-      autoscrollCandidateScrollTopRef.current = scrollerRef.current?.scrollTop ?? null
       clearAutoscrollCandidateTimer()
       autoscrollCandidateTimerRef.current = setTimeout(() => {
         autoscrollCandidateRef.current = false
-        autoscrollCandidateScrollTopRef.current = null
         autoscrollCandidateTimerRef.current = null
         clearAutoscrollSuppressTimer()
         pendingUserInputRef.current = null
@@ -619,11 +615,9 @@ export function useChatVirtualizerRuntime<T>({
       return
     }
     autoscrollCandidateRef.current = true
-    autoscrollCandidateScrollTopRef.current = scrollerRef.current?.scrollTop ?? null
     clearAutoscrollCandidateTimer()
     autoscrollCandidateTimerRef.current = setTimeout(() => {
       autoscrollCandidateRef.current = false
-      autoscrollCandidateScrollTopRef.current = null
       autoscrollCandidateTimerRef.current = null
     }, AUTOSCROLL_CANDIDATE_MS)
   }, [clearAutoscrollCandidateTimer, dismissAutoscroll])

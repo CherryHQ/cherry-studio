@@ -3741,8 +3741,6 @@ describe('useChatVirtualizerRuntime', () => {
       // A later programmatic nudge (virtua compensation, streaming layout)
       // must NOT be mistaken for autoscroll and must NOT suppress the freeze,
       // and must NOT resume following at the live bottom.
-      const handle = { isFollowing: () => false } as MessageVirtualListHandle
-      void handle
       scrollTop = 560
       act(() => callbacks[0]?.([], {} as ResizeObserver))
       expect(scrollTop).toBe(500)
