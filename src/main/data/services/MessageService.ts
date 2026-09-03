@@ -33,6 +33,11 @@ import {
   type BranchMessagesResponse,
   type CherryMessagePart,
   coerceSearchRole,
+  type ExportBranchNode,
+  type ExportTreeResponse,
+  type ExportTurnNode,
+  type ExportVariantLeaf,
+  type ExportVariantSource,
   type Message,
   type MessageData,
   type MessageRuntimeStatsInput,
@@ -205,6 +210,14 @@ function truncatePreview(text: string): string {
   return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
 }
 
+/**
+ * Whether a message is exportable — mirrors the renderer's
+ * `isRenderableTopicMessage` (context boundaries and blank user turns stay out).
+ */
+function isExportRenderable(message: Message): boolean {
+  const parts = message.data?.parts ?? []
+  return !hasClearContextPart(parts) && !isBlankUserTurn({ role: message.role, status: message.status, parts })
+}
 function getStringField(value: unknown, key: string): string | undefined {
   if (!value || typeof value !== 'object') return undefined
 
@@ -670,6 +683,271 @@ export class MessageService {
       siblingsGroups,
       activeNodeId,
       rootId: virtualRootId
+    }
+  }
+
+  /**
+   * Whole-tree export model for branch-aware export.
+   *
+   * Assembles the active-path chain (trunk), folds childless sibling variants
+   * behind each chain position, and collects every off-chain subtree as a
+   * recursive branch. Unpaginated by design — export semantics is whole-tree;
+   * one query loads all live rows, the rest is in-memory.
+   *
+   * Chain rules:
+   * - trunk chain: follows the active path (`topic.activeNodeId` is authoritative)
+   * - branch chains: each level picks the newest logical child slot (the
+   *   branch's last-explored direction); earlier slots fork into child branches
+   * - a sibling variant keeps folding as a variant only while childless; a
+   *   variant that was continued under (has a subtree) forks as a branch
+   */
+  getExportTree(topicId: string): ExportTreeResponse {
+    const db = application.get('DbService').getDb()
+
+    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
+    if (!topic) {
+      throw DataApiErrorFactory.notFound('Topic', topicId)
+    }
+
+    const rows = db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .all()
+    const messages = rows.map(rowToMessage)
+    const byId = new Map(messages.map((m) => [m.id, m]))
+
+    const virtualRoot = messages.find((m) => m.parentId === null)
+    const renderable = new Set(
+      messages.filter((m) => m.id !== virtualRoot?.id && isExportRenderable(m)).map((m) => m.id)
+    )
+
+    // All-children index (unfiltered): blank reserved turns never surface as
+    // chain nodes themselves, but their descendants stay reachable below.
+    const childrenAll = new Map<string, Message[]>()
+    for (const m of messages) {
+      if (m.parentId === null) continue
+      const list = childrenAll.get(m.parentId) ?? []
+      list.push(m)
+      childrenAll.set(m.parentId, list)
+    }
+
+    // Logical renderable children of a node: direct renderable children plus
+    // renderable descendants reached through invisible (filtered) connectors.
+    const logicalChildren = (parentId: string): Message[] => {
+      const result: Message[] = []
+      const queue: string[] = [parentId]
+      while (queue.length > 0) {
+        const pid = queue.shift()!
+        for (const child of childrenAll.get(pid) ?? []) {
+          if (renderable.has(child.id)) {
+            result.push(child)
+          } else {
+            queue.push(child.id)
+          }
+        }
+      }
+      return result.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    }
+
+    const activePath = new Set<string>()
+    if (topic.activeNodeId) {
+      let cur: Message | undefined = byId.get(topic.activeNodeId)
+      while (cur) {
+        activePath.add(cur.id)
+        cur = cur.parentId ? byId.get(cur.parentId) : undefined
+      }
+    }
+
+    // Sibling cohorts (renderable only, must exceed one member to act as a group)
+    const cohorts = new Map<string, Message[]>()
+    for (const m of messages) {
+      if (!renderable.has(m.id) || m.parentId === null || m.siblingsGroupId === 0) continue
+      const key = `${m.parentId}:${m.siblingsGroupId}`
+      const list = cohorts.get(key) ?? []
+      list.push(m)
+      cohorts.set(key, list)
+    }
+    for (const [key, list] of cohorts) {
+      list.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      if (list.length <= 1) {
+        cohorts.delete(key)
+      }
+    }
+    const cohortOf = (m: Message): Message[] | undefined =>
+      m.parentId === null || m.siblingsGroupId === 0 ? undefined : cohorts.get(`${m.parentId}:${m.siblingsGroupId}`)
+    const cohortSource = (members: Message[]): ExportVariantSource => {
+      if (members.some((m) => m.role === 'user')) return 'edit-resend'
+      // Multi-model cohorts carry a modelId on every member (assistant
+      // placeholders set one each); createSibling rows (regenerate) have none.
+      const modelIds = members.map((m) => m.modelId)
+      if (modelIds.every((id) => id != null) && new Set(modelIds).size > 1) return 'multi-model'
+      return 'regenerate'
+    }
+
+    // Group children into slots: a cohort acts as one slot, plain children stand alone.
+    const slotify = (children: Message[]): Message[][] => {
+      const slots = new Map<string, Message[]>()
+      for (const child of children) {
+        const cohort = cohortOf(child)
+        const key = cohort ? `cohort:${child.parentId}:${child.siblingsGroupId}` : `plain:${child.id}`
+        const list = slots.get(key) ?? []
+        list.push(child)
+        slots.set(key, list)
+      }
+      return [...slots.values()]
+    }
+
+    // A slot's representative is the member a conversation can actually continue
+    // under: within a cohort, the member carrying a subtree is the explored
+    // version (regenerated siblings land childless); without one, the newest
+    // member is the slot's last state.
+    const slotRepresentative = (slot: Message[]): Message =>
+      slot.find((m) => logicalChildren(m.id).length > 0) ?? slot[slot.length - 1]
+
+    // Messages already placed on a chain. Cohort members reference each other
+    // sideways (same parent), so without this guard a variant continued under
+    // could fork its own chain member back as a branch and recurse forever.
+    const chained = new Set<string>()
+
+    interface ChainResult {
+      turns: ExportTurnNode[]
+      branchStarts: Message[]
+    }
+
+    const buildChain = (start: Message, pickNext: (current: Message) => Message | undefined): ChainResult => {
+      const turns: ExportTurnNode[] = []
+      const branchStarts: Message[] = []
+      let cur: Message | undefined = start
+      while (cur) {
+        chained.add(cur.id)
+        const turn: ExportTurnNode = { messageId: cur.id, message: cur, variants: [] }
+        const cohort = cohortOf(cur)
+        if (cohort) {
+          const source = cohortSource(cohort)
+          for (const v of cohort) {
+            if (v.id === cur.id || chained.has(v.id)) continue
+            // Childless variants fold behind the chain member; continued ones fork as branches
+            if (logicalChildren(v.id).length === 0) {
+              turn.variants.push({ messageId: v.id, message: v, source } satisfies ExportVariantLeaf)
+            } else {
+              branchStarts.push(v)
+            }
+          }
+        }
+        turns.push(turn)
+
+        const next = pickNext(cur)
+        for (const slot of slotify(logicalChildren(cur.id))) {
+          if (next && slot.some((m) => m.id === next.id)) continue
+          branchStarts.push(slotRepresentative(slot))
+        }
+        cur = next
+      }
+      return { turns, branchStarts }
+    }
+
+    const trunkNext = (cur: Message): Message | undefined => logicalChildren(cur.id).find((c) => activePath.has(c.id))
+
+    const branchNext = (cur: Message): Message | undefined => {
+      let best: Message | undefined
+      for (const slot of slotify(logicalChildren(cur.id))) {
+        const rep = slotRepresentative(slot)
+        if (
+          !best ||
+          rep.createdAt.localeCompare(best.createdAt) > 0 ||
+          (rep.createdAt === best.createdAt && rep.id > best.id)
+        ) {
+          best = rep
+        }
+      }
+      return best
+    }
+
+    // Fork = the chain message a branch leaves (walking up past invisible
+    // connectors like blank reserved turns); null when forking at topic start
+    const forkOf = (start: Message): string | null => {
+      let pid = start.parentId
+      while (pid && pid !== virtualRoot?.id) {
+        const parent = byId.get(pid)
+        if (!parent) return null
+        if (renderable.has(parent.id)) return parent.id
+        pid = parent.parentId
+      }
+      return null
+    }
+
+    const countSubtree = (root: Message): number => {
+      let n = 0
+      const queue: string[] = [root.id]
+      while (queue.length > 0) {
+        const pid = queue.shift()!
+        for (const child of childrenAll.get(pid) ?? []) {
+          if (renderable.has(child.id)) n += 1
+          queue.push(child.id)
+        }
+      }
+      return n
+    }
+
+    const firstUserPreview = (root: Message): string => {
+      const queue: Message[] = [root]
+      while (queue.length > 0) {
+        const m = queue.shift()!
+        if (renderable.has(m.id) && m.role === 'user') return extractPreview(m)
+        for (const child of childrenAll.get(m.id) ?? []) queue.push(child)
+      }
+      return ''
+    }
+
+    const buildBranch = (start: Message): ExportBranchNode => {
+      const { turns, branchStarts } = buildChain(start, branchNext)
+      const forkId = forkOf(start)
+      const forkMsg = forkId ? byId.get(forkId) : undefined
+      return {
+        branchId: start.id,
+        index: 0, // assigned breadth-first once the whole branch tree is built
+        forkMessageId: forkId,
+        forkPreview: forkMsg ? extractPreview(forkMsg) : '',
+        firstUserQuestionPreview: firstUserPreview(start),
+        messageCount: countSubtree(start) + 1,
+        turns,
+        children: branchStarts.map(buildBranch)
+      }
+    }
+
+    let trunk: ExportTurnNode[] = []
+    let branches: ExportBranchNode[] = []
+    if (virtualRoot && topic.activeNodeId) {
+      const start = logicalChildren(virtualRoot.id).find((c) => activePath.has(c.id))
+      if (start) {
+        const result = buildChain(start, trunkNext)
+        trunk = result.turns
+        branches = result.branchStarts.map(buildBranch)
+      }
+    }
+
+    // Breadth-first numbering: top-level branches get 1..n in trunk-fork order,
+    // then each branch's children — matching how a reader scans the document.
+    const ordered: ExportBranchNode[] = []
+    const queue = [...branches]
+    while (queue.length > 0) {
+      const branch = queue.shift()!
+      ordered.push(branch)
+      queue.push(...branch.children)
+    }
+    ordered.forEach((branch, i) => {
+      branch.index = i + 1
+    })
+
+    return {
+      topicId,
+      topicName: topic.name,
+      assistantId: topic.assistantId ?? null,
+      activeNodeId: topic.activeNodeId ?? null,
+      trunk,
+      branches,
+      stats: { branchCount: ordered.length, totalMessageCount: renderable.size }
     }
   }
 
