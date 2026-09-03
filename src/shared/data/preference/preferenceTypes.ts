@@ -86,6 +86,7 @@ export type LanguageVarious =
   | 'pt-PT'
   | 'ro-RO'
   | 'ru-RU'
+  | 'tr-TR'
   | 'vi-VN'
 
 export type WindowStyle = 'transparent' | 'opaque'

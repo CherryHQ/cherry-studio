@@ -13,7 +13,7 @@ import {
   resolveAgentNotificationContext,
   resolveLinkedNotifyChannel
 } from '@main/ai/runtime/agentMcpServers'
-import { resolveDshInjectionApi } from '@main/ai/runtime/dsh/modelInjection'
+import { usesDshGateway } from '@main/ai/runtime/dsh/modelInjection'
 import { skillService } from '@main/ai/skills/SkillService'
 import { getEffectiveAgentLanguage } from '@main/ai/utils/agentLanguage'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
@@ -95,6 +95,7 @@ export async function captureDshConnectionSnapshot(
   const notificationContext = resolveAgentNotificationContext(sessionId, agent.id, linkedChannel)
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
+  const gatewayCredentials = usesDshGateway(provider, model) ? gatewayCredentialsFingerprint() : null
 
   const signature = createHash('sha256')
     .update(
@@ -114,10 +115,7 @@ export async function captureDshConnectionSnapshot(
           notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
           effectiveLanguage: getEffectiveAgentLanguage(agent),
-          // Gateway routes pin their auth identity so a key edit or enable/running flip rebuilds
-          // the warm connection (claude's credentialsFingerprint parity); null on native routes.
-          gatewayCredentials:
-            resolveDshInjectionApi(provider, model) === undefined ? gatewayCredentialsFingerprint() : null
+          gatewayCredentials
         })
       )
     )

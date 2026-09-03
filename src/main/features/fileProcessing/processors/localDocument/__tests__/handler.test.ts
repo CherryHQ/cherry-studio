@@ -10,7 +10,6 @@ const {
   tempRoot,
   recognizeMock,
   isLocalModelReadyMock,
-  ocrModelPathsMock,
   toMarkdownBytesMock,
   formatFromExtensionMock,
   getTextMock,
@@ -29,7 +28,6 @@ const {
   tempRoot: process.platform === 'win32' ? 'C:\\mock\\file-processing-temp' : '/mock/file-processing-temp',
   recognizeMock: vi.fn(),
   isLocalModelReadyMock: vi.fn(),
-  ocrModelPathsMock: vi.fn(),
   toMarkdownBytesMock: vi.fn(),
   formatFromExtensionMock: vi.fn(),
   getTextMock: vi.fn(),
@@ -58,12 +56,8 @@ vi.mock('@application', async () => {
   return result
 })
 
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  ocrModelPaths: ocrModelPathsMock
-}))
-
-vi.mock('@main/services/localModel', () => ({
-  isLocalModelReady: isLocalModelReadyMock
+vi.mock('@main/ai/localModel', () => ({
+  localModelService: { isReady: isLocalModelReadyMock }
 }))
 
 vi.mock('@firecrawl/anydoc', () => ({
@@ -95,12 +89,6 @@ vi.mock('@main/utils/file', async (importOriginal) => ({
 vi.mock('../../../utils/ocr', () => ({ preprocessImage: preprocessImageMock }))
 
 import { localDocumentToMarkdownHandler } from '../documentToMarkdown/handler'
-
-const MODEL_PATHS = {
-  detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',
-  recognition: '/models/paddleocr/PP-OCRv6_medium_rec.onnx',
-  charactersDictionary: '/models/paddleocr/ppocrv6_dict.txt'
-}
 
 const PDF_BYTES = Buffer.from('%PDF-1.7 fake')
 
@@ -146,7 +134,6 @@ describe('localDocumentToMarkdownHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     isLocalModelReadyMock.mockReturnValue(true)
-    ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
     formatFromExtensionMock.mockReturnValue('pdf')
     readFileMock.mockResolvedValue(PDF_BYTES)
     getTextMock.mockResolvedValue({
@@ -255,12 +242,11 @@ describe('localDocumentToMarkdownHandler', () => {
       })
       expect(recognizeMock).toHaveBeenNthCalledWith(
         1,
-        MODEL_PATHS,
         { kind: 'path', imagePath: expect.any(String) },
         expect.anything()
       )
       // Each job renders into its own directory under the file-processing temp root.
-      const firstImagePath = recognizeMock.mock.calls[0][1].imagePath
+      const firstImagePath = recognizeMock.mock.calls[0][0].imagePath
       expect(path.dirname(path.dirname(firstImagePath))).toBe(tempRoot)
       expect(path.basename(path.dirname(firstImagePath))).toMatch(/^local-document-[\w-]+$/)
       expect(path.basename(firstImagePath)).toBe('page-1.png')

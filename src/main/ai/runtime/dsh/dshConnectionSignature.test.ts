@@ -1,4 +1,6 @@
+import type * as AgentApiGateway from '@main/ai/runtime/agentApiGateway'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -14,16 +16,20 @@ const mocks = vi.hoisted(() => ({
   listTools: vi.fn(),
   findBySessionId: vi.fn(),
   preferenceGet: vi.fn(),
-  getTurnTrustedNotifyChannels: vi.fn()
+  getTurnTrustedNotifyChannels: vi.fn(),
+  usesDshGateway: vi.fn(),
+  gatewayFingerprint: 'gateway-1'
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'PreferenceService') return { get: mocks.preferenceGet }
-      if (name === 'AgentSessionRuntimeService')
+      if (name === 'McpCatalogService') return { listTools: mocks.listTools }
+      if (name === 'AgentSessionRuntimeService') {
         return { getTurnTrustedNotifyChannels: mocks.getTurnTrustedNotifyChannels }
-      return { listTools: mocks.listTools }
+      }
+      throw new Error(`Unexpected service: ${name}`)
     }
   }
 }))
@@ -45,8 +51,11 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   }
 }))
 
-vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ resolveDshInjectionApi: vi.fn(() => undefined) }))
-vi.mock('@main/ai/runtime/agentApiGateway', () => ({ gatewayCredentialsFingerprint: vi.fn(() => 'gateway') }))
+vi.mock('@main/ai/runtime/dsh/modelInjection', () => ({ usesDshGateway: mocks.usesDshGateway }))
+vi.mock('@main/ai/runtime/agentApiGateway', async (importOriginal) => ({
+  ...(await importOriginal<typeof AgentApiGateway>()),
+  gatewayCredentialsFingerprint: () => mocks.gatewayFingerprint
+}))
 
 const { captureDshConnectionSnapshot } = await import('./dshConnectionSignature')
 
@@ -78,6 +87,8 @@ beforeEach(() => {
   mocks.findBySessionId.mockReturnValue(null)
   mocks.preferenceGet.mockReturnValue(null)
   mocks.getTurnTrustedNotifyChannels.mockReturnValue(undefined)
+  mocks.usesDshGateway.mockReturnValue(false)
+  mocks.gatewayFingerprint = 'gateway-1'
 })
 
 describe('captureDshConnectionSnapshot', () => {
@@ -161,5 +172,30 @@ describe('captureDshConnectionSnapshot', () => {
     await expect(captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).resolves.toMatchObject({
       linkedChannel: null
     })
+  })
+
+  it('rebuilds the Cloud route when the gateway connection identity changes', async () => {
+    mocks.usesDshGateway.mockReturnValue(true)
+    mocks.getProvider.mockResolvedValue({ id: CHERRY_CLOUD_PROVIDER_ID })
+    mocks.getModel.mockResolvedValue({
+      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      group: CHERRY_CLOUD_MODEL_GROUP
+    })
+    const captureCloud = () =>
+      captureDshConnectionSnapshot('session-1', agent.id, `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`)
+    const cloudSignature = (await captureCloud()).signature
+    mocks.gatewayFingerprint = 'gateway-2'
+    expect((await captureCloud()).signature).not.toBe(cloudSignature)
+  })
+
+  it('rebuilds non-Cloud gateway routes when the gateway identity changes', async () => {
+    mocks.usesDshGateway.mockReturnValue(true)
+    const gatewaySignature = (await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature
+    mocks.gatewayFingerprint = 'gateway-2'
+
+    expect((await captureDshConnectionSnapshot('session-1', agent.id, 'provider::model')).signature).not.toBe(
+      gatewaySignature
+    )
   })
 })

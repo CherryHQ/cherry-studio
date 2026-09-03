@@ -52,7 +52,12 @@ import {
 import type { ComposerChatTarget, ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { Model, ReasoningSummary, ServiceTierSelection, UniqueModelId } from '@shared/data/types/model'
+import {
+  type Model,
+  type ReasoningSummary,
+  type ServiceTierSelection,
+  type UniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
@@ -177,6 +182,9 @@ interface SavedComposerDraft {
   draftTokens: ComposerSerializedToken[]
   files: ComposerAttachment[]
   mentionedModels: Model[]
+  mentionedModelSelectorValue: Model[]
+  mentionedModelMultiSelectMode: boolean
+  mentionedModelSelectionWasPending: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   knowledgeBaseIds: string[]
 }
@@ -751,7 +759,8 @@ const ChatComposerInner = ({
     handleMentionedModelsSelect: selectMentionedModels,
     handleMentionedModelMultiSelectModeChange: changeMentionedModelMultiSelectMode,
     handleMentionedModelSelectorRestore: restoreMentionedModelSelector,
-    restoreMentionedModelDraft
+    restoreMentionedModelDraft,
+    restoreMentionedModelSelection
   } = useChatMentionedModels({
     enabled: useMentionedModelSelector,
     runtimeModel,
@@ -763,6 +772,9 @@ const ChatComposerInner = ({
     preserveExplicitSelectionOnRuntimeChange: !assistant && !assistantId,
     onModelSelect: handleModelSelect
   })
+  const mentionedModelSelectorValueRef = useLatest(mentionedModelSelectorValue)
+  const mentionedModelMultiSelectModeRef = useLatest(mentionedModelMultiSelectMode)
+  const runtimeModelRef = useLatest(runtimeModel)
 
   useEffect(() => {
     if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
@@ -867,6 +879,10 @@ const ChatComposerInner = ({
             ? [runtimeModel]
             : EMPTY_MODELS
   const effectiveSubmittedModel = effectiveSubmittedModels.length === 1 ? effectiveSubmittedModels[0] : undefined
+  // Persisted assistant refreshes may clear transient mentions; submit the visible selector
+  // snapshot so the next turn cannot fall back to stale assistant state.
+  const submittedMentionedModels =
+    assistant && useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
   // Without an assistant, persistent request controls have no owner. Keep per-turn Fast available.
   const speedControlModel = useMemo(
     () =>
@@ -1101,7 +1117,8 @@ const ChatComposerInner = ({
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
       mentionedModelIds:
         savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
-      modelMultiSelectMode: mentionedModelDraftRef.current.modelMultiSelectMode
+      modelMultiSelectMode:
+        savedDraft?.mentionedModelMultiSelectMode ?? mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
@@ -1118,9 +1135,26 @@ const ChatComposerInner = ({
     setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
-    setMentionedModels(savedDraft.mentionedModels)
+    const restoredSelectorModels =
+      savedDraft.mentionedModelSelectionWasPending && savedDraft.mentionedModelSelectorValue.length === 0
+        ? runtimeModelRef.current
+          ? [runtimeModelRef.current]
+          : []
+        : savedDraft.mentionedModelSelectorValue
+    restoreMentionedModelSelection(
+      restoredSelectorModels,
+      savedDraft.mentionedModels,
+      savedDraft.mentionedModelMultiSelectMode
+    )
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
-  }, [actionsRef, exitInputHistoryPreview, setFiles, setMentionedModels, setSelectedKnowledgeBases])
+  }, [
+    actionsRef,
+    exitInputHistoryPreview,
+    restoreMentionedModelSelection,
+    runtimeModelRef,
+    setFiles,
+    setSelectedKnowledgeBases
+  ])
 
   const handleCancelEditing = useCallback(() => {
     restoreSavedDraft()
@@ -1168,6 +1202,9 @@ const ChatComposerInner = ({
         draftTokens: currentDraft.tokens,
         files: currentTools?.files ?? filesRef.current,
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
+        mentionedModelSelectorValue: mentionedModelSelectorValueRef.current,
+        mentionedModelMultiSelectMode: mentionedModelMultiSelectModeRef.current,
+        mentionedModelSelectionWasPending: runtimeModelPending && mentionedModelSelectorValueRef.current.length === 0,
         selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
         knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
       }
@@ -1379,7 +1416,9 @@ const ChatComposerInner = ({
         // Allow attachment-only sends (matches v1 Inputbar + the send-enabled condition above).
         requireText: false,
         extra: () => ({
-          mentionedModels: mentionedModels.length ? mentionedModels.map((currentModel) => currentModel.id) : undefined,
+          mentionedModels: submittedMentionedModels.length
+            ? submittedMentionedModels.map((currentModel) => currentModel.id)
+            : undefined,
           reasoningEffort:
             assistantId && speedControlModel
               ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
@@ -1412,11 +1451,11 @@ const ChatComposerInner = ({
       chatTarget,
       fastMode,
       files,
-      mentionedModels,
       reasoningEffort,
       serviceTier,
       selectedKnowledgeBasesInScope,
-      speedControlModel
+      speedControlModel,
+      submittedMentionedModels
     ]
   )
 
@@ -1826,6 +1865,7 @@ const ChatComposerInner = ({
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface
+          showAiDisclaimer
           text={text}
           onTextChange={handleTextChange}
           tokens={tokens}
