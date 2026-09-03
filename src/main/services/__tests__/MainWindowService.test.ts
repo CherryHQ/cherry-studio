@@ -393,6 +393,24 @@ describe('MainWindowService', () => {
       expect(devEvent.preventDefault).toHaveBeenCalledOnce()
     })
 
+    it('rejects a remote file authority for the Agent artifact profile', () => {
+      ;(svc as any).setupWebviewSecurityProfiles(win)
+      const listener = win.webContents.on.mock.calls.find(([event]) => event === 'will-attach-webview')?.[1]
+      if (!listener) throw new Error('will-attach-webview listener was not registered')
+      const event = { preventDefault: vi.fn() }
+
+      listener(
+        event,
+        {},
+        {
+          partition: getWebviewPartition(WebviewSecurityProfile.AgentHtmlArtifact),
+          src: 'file://attacker/share/index.html'
+        }
+      )
+
+      expect(event.preventDefault).toHaveBeenCalledOnce()
+    })
+
     it('denies guest popups and top-level navigation away from the generated document', () => {
       ;(svc as any).setupWebviewSecurityProfiles(win)
       const listener = win.webContents.on.mock.calls.find(([event]) => event === 'did-attach-webview')?.[1]
@@ -508,6 +526,7 @@ describe('MainWindowService', () => {
 
         await expect(dispatch(pathToFileURL(artifactPath).toString(), 'mainFrame')).resolves.toEqual({ cancel: false })
         await expect(dispatch('https://cdn.example.com/app.js', 'script')).resolves.toEqual({ cancel: true })
+        await expect(dispatch('file://attacker/share/app.js', 'script')).resolves.toEqual({ cancel: true })
       } finally {
         await rm(tempDirectory, { recursive: true, force: true })
       }

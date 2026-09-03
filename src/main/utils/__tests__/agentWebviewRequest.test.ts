@@ -1,20 +1,42 @@
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import * as fileUtils from '@main/utils/file'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import {
   AgentDevPreviewRequestPolicy,
   AgentHtmlArtifactRequestPolicy,
-  isCanonicalPathInside
+  isCanonicalPathInside,
+  parseLocalArtifactFileUrl
 } from '../agentWebviewRequest'
 
 const request = (url: string, resourceType: string, webContentsId = 7) => ({
   resourceType,
   url,
   webContentsId
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('parseLocalArtifactFileUrl', () => {
+  it('accepts a local pathToFileURL result', () => {
+    const localUrl = pathToFileURL(path.resolve('artifact', 'index.html')).toString()
+
+    expect(parseLocalArtifactFileUrl(localUrl)).toBe(path.normalize(fileURLToPath(localUrl)))
+  })
+
+  it.each([
+    'file://attacker/share/index.html',
+    'file:////attacker/share/index.html',
+    'file://user:password@attacker/share/index.html'
+  ])('rejects non-local file URL %s', (url) => {
+    expect(parseLocalArtifactFileUrl(url)).toBeUndefined()
+  })
 })
 
 describe('isCanonicalPathInside', () => {
@@ -121,13 +143,81 @@ describe('AgentHtmlArtifactRequestPolicy', () => {
     await expect(policy.isAllowed(request(outsideFileUrl, 'script'))).resolves.toBe(false)
   })
 
-  it('blocks both parent traversal and symlink escapes from the artifact directory', async () => {
+  it('rejects lexical root escapes before filesystem access', async () => {
+    const lstatSpy = vi.spyOn(fileUtils, 'lstat')
+    const realpathSpy = vi.spyOn(fileUtils, 'realpath')
     const policy = new AgentHtmlArtifactRequestPolicy()
     await policy.isAllowed(request(artifactUrl, 'mainFrame'))
+    expect(realpathSpy).toHaveBeenCalled()
+    lstatSpy.mockClear()
+    realpathSpy.mockClear()
+
+    await expect(policy.isAllowed(request(outsideFileUrl, 'script'))).resolves.toBe(false)
+    expect(lstatSpy).not.toHaveBeenCalled()
+    expect(realpathSpy).not.toHaveBeenCalled()
+  })
+
+  it('blocks both parent traversal and symlink escapes from the artifact directory', async () => {
+    const realpathSpy = vi.spyOn(fileUtils, 'realpath')
+    const policy = new AgentHtmlArtifactRequestPolicy()
+    await policy.isAllowed(request(artifactUrl, 'mainFrame'))
+    realpathSpy.mockClear()
 
     const traversalUrl = new URL('../outside/secret.txt', `${pathToFileURL(artifactDirectory).toString()}/`).toString()
     await expect(policy.isAllowed(request(traversalUrl, 'script'))).resolves.toBe(false)
     await expect(policy.isAllowed(request(symlinkEscapeUrl, 'script'))).resolves.toBe(false)
+    expect(realpathSpy).not.toHaveBeenCalled()
+  })
+
+  it('rejects an initial artifact root link before following it', async () => {
+    const targetDirectory = path.join(tempRoot, 'initial-root-target')
+    const linkedDirectory = path.join(tempRoot, 'initial-root-link')
+    await mkdir(targetDirectory)
+    await writeFile(path.join(targetDirectory, 'index.html'), '<h1>linked root</h1>')
+    await symlink(targetDirectory, linkedDirectory, 'junction')
+    const realpathSpy = vi.spyOn(fileUtils, 'realpath')
+    const policy = new AgentHtmlArtifactRequestPolicy()
+
+    await expect(
+      policy.isAllowed(request(pathToFileURL(path.join(linkedDirectory, 'index.html')).toString(), 'mainFrame'))
+    ).resolves.toBe(false)
+    expect(realpathSpy).not.toHaveBeenCalled()
+  })
+
+  it('rejects an initial HTML link before following it', async () => {
+    const artifactRoot = path.join(tempRoot, 'initial-file-link')
+    const targetPath = path.join(tempRoot, 'initial-file-target.html')
+    await mkdir(artifactRoot)
+    await writeFile(targetPath, '<h1>linked file</h1>')
+    await symlink(targetPath, path.join(artifactRoot, 'index.html'))
+    const realpathSpy = vi.spyOn(fileUtils, 'realpath')
+    const policy = new AgentHtmlArtifactRequestPolicy()
+
+    await expect(
+      policy.isAllowed(request(pathToFileURL(path.join(artifactRoot, 'index.html')).toString(), 'mainFrame'))
+    ).resolves.toBe(false)
+    expect(realpathSpy).not.toHaveBeenCalled()
+  })
+
+  it('rejects remote file authorities without filesystem access', async () => {
+    const lstatSpy = vi.spyOn(fileUtils, 'lstat')
+    const realpathSpy = vi.spyOn(fileUtils, 'realpath')
+    const unboundPolicy = new AgentHtmlArtifactRequestPolicy()
+
+    await expect(unboundPolicy.isAllowed(request('file://attacker/share/index.html', 'mainFrame'))).resolves.toBe(false)
+    await expect(unboundPolicy.isAllowed(request('file:////attacker/share/index.html', 'mainFrame'))).resolves.toBe(
+      false
+    )
+    expect(lstatSpy).not.toHaveBeenCalled()
+    expect(realpathSpy).not.toHaveBeenCalled()
+
+    const boundPolicy = new AgentHtmlArtifactRequestPolicy()
+    await expect(boundPolicy.isAllowed(request(artifactUrl, 'mainFrame'))).resolves.toBe(true)
+    lstatSpy.mockClear()
+    realpathSpy.mockClear()
+    await expect(boundPolicy.isAllowed(request('file://attacker/share/app.js', 'script'))).resolves.toBe(false)
+    expect(lstatSpy).not.toHaveBeenCalled()
+    expect(realpathSpy).not.toHaveBeenCalled()
   })
 
   it('allows inline resources but blocks all remote network access', async () => {

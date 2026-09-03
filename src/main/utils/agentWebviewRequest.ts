@@ -15,6 +15,11 @@ interface WebviewRequestDetails {
 
 const MAIN_FRAME = 'mainFrame'
 
+interface AuthorizedArtifactRoot {
+  readonly lexical: AbsoluteFilePath
+  readonly canonical: AbsoluteFilePath
+}
+
 export function isAllowedAgentDevPreviewEntryUrl(rawUrl: string): boolean {
   if (!rawUrl || rawUrl === 'about:blank') return true
   const url = parseUrl(rawUrl)
@@ -23,14 +28,8 @@ export function isAllowedAgentDevPreviewEntryUrl(rawUrl: string): boolean {
 
 export function isAllowedAgentHtmlArtifactEntryUrl(rawUrl: string): boolean {
   if (!rawUrl || rawUrl === 'about:blank') return true
-  const url = parseUrl(rawUrl)
-  if (url?.protocol !== 'file:') return false
-
-  try {
-    return isHtmlPath(fileURLToPath(url))
-  } catch {
-    return false
-  }
+  const filePath = parseLocalArtifactFileUrl(rawUrl)
+  return Boolean(filePath && isHtmlPath(filePath))
 }
 
 export class AgentDevPreviewRequestPolicy {
@@ -80,7 +79,7 @@ export class AgentDevPreviewRequestPolicy {
  * The generic HTML artifact profile remains data-only and never uses this policy.
  */
 export class AgentHtmlArtifactRequestPolicy {
-  private readonly rootByWebContentsId = new Map<number, Promise<AbsoluteFilePath | undefined>>()
+  private readonly rootByWebContentsId = new Map<number, Promise<AuthorizedArtifactRoot | undefined>>()
 
   async isAllowed(details: WebviewRequestDetails): Promise<boolean> {
     if (details.url === 'about:blank') return true
@@ -92,17 +91,15 @@ export class AgentHtmlArtifactRequestPolicy {
 
     if (details.resourceType === MAIN_FRAME) {
       if (url.protocol !== 'file:') return false
-      const requestedPathPromise = getCanonicalHtmlFilePath(url)
       let authorizedRootPromise = this.rootByWebContentsId.get(webContentsId)
       if (!authorizedRootPromise) {
-        authorizedRootPromise = requestedPathPromise.then((requestedPath) =>
-          requestedPath ? AbsoluteFilePathSchema.parse(path.dirname(requestedPath)) : undefined
-        )
+        authorizedRootPromise = authorizeInitialArtifactRoot(url)
         this.rootByWebContentsId.set(webContentsId, authorizedRootPromise)
+        return Boolean(await authorizedRootPromise)
       }
 
-      const [requestedPath, authorizedRoot] = await Promise.all([requestedPathPromise, authorizedRootPromise])
-      return Boolean(requestedPath && authorizedRoot && isCanonicalPathInside(requestedPath, authorizedRoot))
+      const authorizedRoot = await authorizedRootPromise
+      return authorizedRoot ? isAllowedArtifactFile(url, authorizedRoot, true) : false
     }
 
     const authorizedRootPromise = this.rootByWebContentsId.get(webContentsId)
@@ -111,8 +108,7 @@ export class AgentHtmlArtifactRequestPolicy {
     if (!authorizedRoot) return false
 
     if (url.protocol === 'file:') {
-      const requestedPath = await getCanonicalFilePath(url)
-      return requestedPath ? isCanonicalPathInside(requestedPath, authorizedRoot) : false
+      return isAllowedArtifactFile(url, authorizedRoot, false)
     }
 
     return url.protocol === 'data:' || url.protocol === 'blob:'
@@ -131,6 +127,28 @@ export function isCanonicalPathInside(candidate: string, root: string): boolean 
   if (candidate === root) return true
   const rootWithSeparator = root.endsWith(path.sep) ? root : `${root}${path.sep}`
   return candidate.startsWith(rootWithSeparator)
+}
+
+export function parseLocalArtifactFileUrl(rawUrl: string | URL): AbsoluteFilePath | undefined {
+  const url = typeof rawUrl === 'string' ? parseUrl(rawUrl) : rawUrl
+  if (
+    !url ||
+    url.protocol !== 'file:' ||
+    url.hostname ||
+    url.username ||
+    url.password ||
+    url.pathname.startsWith('//')
+  ) {
+    return undefined
+  }
+
+  try {
+    const filePath = fileURLToPath(url)
+    if (filePath.startsWith('//') || filePath.startsWith('\\\\')) return undefined
+    return AbsoluteFilePathSchema.parse(path.normalize(filePath))
+  } catch {
+    return undefined
+  }
 }
 
 function getWebContentsId(details: WebviewRequestDetails): number | undefined {
@@ -180,22 +198,64 @@ function isAllowedPublicSecureRequest(url: URL): boolean {
   }
 }
 
-async function getCanonicalFilePath(url: URL): Promise<AbsoluteFilePath | undefined> {
+async function authorizeInitialArtifactRoot(url: URL): Promise<AuthorizedArtifactRoot | undefined> {
+  const lexicalPath = parseLocalArtifactFileUrl(url)
+  if (!lexicalPath || !isHtmlPath(lexicalPath)) return undefined
+
+  const lexicalRoot = AbsoluteFilePathSchema.parse(path.dirname(lexicalPath))
   try {
-    return await realpath(AbsoluteFilePathSchema.parse(fileURLToPath(url)))
+    const rootMetadata = await lstat(lexicalRoot)
+    if (!rootMetadata.isDirectory || rootMetadata.isSymbolicLink) return undefined
+
+    const fileMetadata = await lstat(lexicalPath)
+    if (!fileMetadata.isFile || fileMetadata.isSymbolicLink) return undefined
+
+    const [canonicalRoot, canonicalPath] = await Promise.all([realpath(lexicalRoot), realpath(lexicalPath)])
+    if (!isCanonicalPathInside(canonicalPath, canonicalRoot)) return undefined
+    return { lexical: lexicalRoot, canonical: canonicalRoot }
   } catch {
     return undefined
   }
 }
 
-async function getCanonicalHtmlFilePath(url: URL): Promise<AbsoluteFilePath | undefined> {
-  const canonicalPath = await getCanonicalFilePath(url)
-  if (!canonicalPath || !isHtmlPath(canonicalPath)) return undefined
+async function isAllowedArtifactFile(
+  url: URL,
+  authorizedRoot: AuthorizedArtifactRoot,
+  requireHtml: boolean
+): Promise<boolean> {
+  const lexicalPath = parseLocalArtifactFileUrl(url)
+  if (
+    !lexicalPath ||
+    (requireHtml && !isHtmlPath(lexicalPath)) ||
+    !isCanonicalPathInside(lexicalPath, authorizedRoot.lexical)
+  ) {
+    return false
+  }
+
   try {
-    const metadata = await lstat(canonicalPath)
-    return metadata.isFile ? canonicalPath : undefined
+    const rootMetadata = await lstat(authorizedRoot.lexical)
+    if (!rootMetadata.isDirectory || rootMetadata.isSymbolicLink) return false
+
+    let currentPath = authorizedRoot.lexical
+    let currentMetadata = rootMetadata
+    const rootWithSeparator = authorizedRoot.lexical.endsWith(path.sep)
+      ? authorizedRoot.lexical
+      : `${authorizedRoot.lexical}${path.sep}`
+    const pathSegments =
+      lexicalPath === authorizedRoot.lexical ? [] : lexicalPath.slice(rootWithSeparator.length).split(path.sep)
+
+    for (const segment of pathSegments) {
+      currentPath = AbsoluteFilePathSchema.parse(path.join(currentPath, segment))
+      currentMetadata = await lstat(currentPath)
+      if (currentMetadata.isSymbolicLink) return false
+      if (currentPath !== lexicalPath && !currentMetadata.isDirectory) return false
+    }
+
+    if (requireHtml && !currentMetadata.isFile) return false
+    const canonicalPath = await realpath(lexicalPath)
+    return isCanonicalPathInside(canonicalPath, authorizedRoot.canonical)
   } catch {
-    return undefined
+    return false
   }
 }
 
