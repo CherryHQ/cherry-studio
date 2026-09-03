@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "O que pretende fazer com o texto abaixo",
   "quickAssistant.tooltip.pin": "Fixar na frente",
   "recycle_bin.already_moved": "Já está na Reciclagem",
-  "recycle_bin.move.agent_tasks_warning": "As tarefas agendadas e as subscrições de canais associadas a este Agente serão eliminadas permanentemente e não serão restauradas se restaurar o Agente.",
   "recycle_bin.move.confirm_action": "Mover para a Reciclagem",
   "recycle_bin.move.confirm_title": "Mover para a Reciclagem?",
   "recycle_bin.move_failed": "Não foi possível mover para a Reciclagem",

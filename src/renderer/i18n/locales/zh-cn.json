@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "你想对下方文字做什么",
   "quickAssistant.tooltip.pin": "窗口置顶",
   "recycle_bin.already_moved": "已在回收站中",
-  "recycle_bin.move.agent_tasks_warning": "与此 Agent 关联的定时任务和频道订阅将被永久删除，恢复 Agent 后不会恢复。",
   "recycle_bin.move.confirm_action": "移至回收站",
   "recycle_bin.move.confirm_title": "移至回收站？",
   "recycle_bin.move_failed": "无法移至回收站",

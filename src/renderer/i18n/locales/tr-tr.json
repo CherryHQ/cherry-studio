@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "Bu metinle ne yapmak isteniyor?",
   "quickAssistant.tooltip.pin": "Pencereyi En Üstte Tut",
   "recycle_bin.already_moved": "Zaten Geri Dönüşüm Kutusu'nda",
-  "recycle_bin.move.agent_tasks_warning": "Bu Agent ile ilişkili zamanlanmış görevler ve kanal abonelikleri kalıcı olarak silinecek ve Agent geri yüklendiğinde geri getirilmeyecektir.",
   "recycle_bin.move.confirm_action": "Geri Dönüşüm Kutusu'na Taşı",
   "recycle_bin.move.confirm_title": "Geri Dönüşüm Kutusu'na taşınsın mı?",
   "recycle_bin.move_failed": "Geri Dönüşüm Kutusu'na taşınamadı",

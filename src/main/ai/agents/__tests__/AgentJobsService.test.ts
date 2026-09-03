@@ -15,6 +15,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler, JobScheduleRegistrationInput } from '@main/core/job/types'
@@ -634,50 +635,141 @@ describe('AgentJobsService', () => {
       expect(scheduler.has(`schedule:${foreign.id}`)).toBe(true)
     })
 
-    it('reconciles tasks for trashed and missing agents while preserving active agents', async () => {
+    it('reconciles trashed, restored, and missing Agent schedules without deleting retained tasks', async () => {
       seedAgent(OTHER_AGENT_ID)
       seedAgent('agent-active')
       const trashed = service.createTask(AGENT_ID, form)
       const missing = service.createTask(OTHER_AGENT_ID, { ...form, name: 'missing-agent-task' })
-      const active = service.createTask('agent-active', { ...form, name: 'active-agent-task' })
+      const restored = service.createTask('agent-active', { ...form, name: 'restored-agent-task' })
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
       dbh.db.delete(agentTable).where(eq(agentTable.id, OTHER_AGENT_ID)).run()
+      jobScheduleService.update(restored.id, {
+        enabled: false,
+        metadata: { ...jobScheduleService.getById(restored.id)?.metadata, agentTrash: { resumeOnRestore: true } }
+      })
+      jobManager.syncJobScheduleTimerById(restored.id)
       notifyDataApiDataChangeMock.mockClear()
 
-      expect(await service.deleteSchedulesForInactiveAgents()).toBe(2)
+      expect(await service.reconcileAgentSchedules()).toBe(3)
 
-      expect(jobScheduleService.getById(trashed.id)).toBeNull()
+      expect(jobScheduleService.getById(trashed.id)).toMatchObject({
+        enabled: false,
+        metadata: { agentTrash: { resumeOnRestore: true } }
+      })
       expect(jobScheduleService.getById(missing.id)).toBeNull()
-      expect(jobScheduleService.getById(active.id)).not.toBeNull()
+      expect(jobScheduleService.getById(restored.id)).toMatchObject({ enabled: true })
+      expect(jobScheduleService.getById(restored.id)?.metadata).not.toHaveProperty('agentTrash')
       expect(scheduler.has(`schedule:${trashed.id}`)).toBe(false)
       expect(scheduler.has(`schedule:${missing.id}`)).toBe(false)
-      expect(scheduler.has(`schedule:${active.id}`)).toBe(true)
+      expect(scheduler.has(`schedule:${restored.id}`)).toBe(true)
+    })
+
+    it('trashing preserves task configuration and subscriptions, then restores only tasks that were enabled', async () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+      const enabledTask = service.createTask(AGENT_ID, {
+        ...form,
+        channelIds: [CHANNEL_ID],
+        reuseSession: true
+      })
+      const pausedTask = service.createTask(AGENT_ID, {
+        ...form,
+        name: 'manually-paused',
+        channelIds: [CHANNEL_ID]
+      })
+      await service.pauseTask(AGENT_ID, pausedTask.id)
+      const enabledBeforeTrash = jobScheduleService.getById(enabledTask.id)
+      const pausedBeforeTrash = jobScheduleService.getById(pausedTask.id)
+
+      notifyDataApiDataChangeMock.mockClear()
+      expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
+
+      expect(jobScheduleService.getById(enabledTask.id)).toMatchObject({
+        name: enabledBeforeTrash?.name,
+        trigger: enabledBeforeTrash?.trigger,
+        jobInputTemplate: enabledBeforeTrash?.jobInputTemplate,
+        catchUpPolicy: enabledBeforeTrash?.catchUpPolicy,
+        enabled: false,
+        metadata: {
+          ...enabledBeforeTrash?.metadata,
+          agentTrash: { resumeOnRestore: true }
+        }
+      })
+      expect(jobScheduleService.getById(pausedTask.id)).toMatchObject({
+        name: pausedBeforeTrash?.name,
+        trigger: pausedBeforeTrash?.trigger,
+        jobInputTemplate: pausedBeforeTrash?.jobInputTemplate,
+        catchUpPolicy: pausedBeforeTrash?.catchUpPolicy,
+        enabled: false,
+        metadata: pausedBeforeTrash?.metadata
+      })
+      expect(jobScheduleService.getById(pausedTask.id)?.metadata).not.toHaveProperty('agentTrash')
+      expect(subscriptionRows(enabledTask.id)).toEqual([{ channelId: CHANNEL_ID, taskId: enabledTask.id }])
+      expect(subscriptionRows(pausedTask.id)).toEqual([{ channelId: CHANNEL_ID, taskId: pausedTask.id }])
+      expect(scheduler.has(`schedule:${enabledTask.id}`)).toBe(false)
+      expect(scheduler.has(`schedule:${pausedTask.id}`)).toBe(false)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [trashed.id, missing.id] },
-        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [trashed.id, missing.id] },
-        { endpoint: '/agent-tasks/:taskId', entityIds: [trashed.id, missing.id] },
-        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [trashed.id, missing.id] }
+        { endpoint: '/agent-tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] }
+      ])
+
+      notifyDataApiDataChangeMock.mockClear()
+      agentService.restoreAgent(AGENT_ID)
+
+      expect(jobScheduleService.getById(enabledTask.id)).toMatchObject({
+        enabled: true,
+        metadata: enabledBeforeTrash?.metadata
+      })
+      expect(jobScheduleService.getById(enabledTask.id)?.metadata).not.toHaveProperty('agentTrash')
+      expect(jobScheduleService.getById(pausedTask.id)).toMatchObject({
+        enabled: false,
+        metadata: pausedBeforeTrash?.metadata
+      })
+      expect(subscriptionRows(enabledTask.id)).toEqual([{ channelId: CHANNEL_ID, taskId: enabledTask.id }])
+      expect(subscriptionRows(pausedTask.id)).toEqual([{ channelId: CHANNEL_ID, taskId: pausedTask.id }])
+      expect(scheduler.has(`schedule:${enabledTask.id}`)).toBe(true)
+      expect(scheduler.has(`schedule:${pausedTask.id}`)).toBe(false)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'membership', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [enabledTask.id, pausedTask.id] }
       ])
     })
 
-    it('trashing an Agent permanently removes its task, timer, and subscriptions; restore does not recreate them', async () => {
-      seedChannel(CHANNEL_ID, AGENT_ID)
-      const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
+    it('restores the sticky task session trashed with its Agent', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      const session = agentSessionService.create({
+        agentId: AGENT_ID,
+        name: 'Scheduled task',
+        workspace: { type: 'system' }
+      })
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: session.id,
+          agentId: AGENT_ID,
+          workspace: { type: 'system' },
+          reuseRevision: 0
+        })
+      ).toBe(true)
+      expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBe(session.id)
 
       expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
-
-      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
-      expect(subscriptionRows(task.id)).toHaveLength(0)
-      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
-
       agentService.restoreAgent(AGENT_ID)
 
-      expect(jobScheduleService.getById(task.id)).toBeNull()
-      expect(subscriptionRows(task.id)).toHaveLength(0)
-      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+      expect(agentTaskService.getTask(AGENT_ID, task.id)?.reuseSessionId).toBe(session.id)
+      expect(
+        dbh.db
+          .select({ taskScheduleId: agentSessionTable.taskScheduleId })
+          .from(agentSessionTable)
+          .where(eq(agentSessionTable.id, session.id))
+          .get()
+      ).toEqual({ taskScheduleId: task.id })
     })
 
-    it('trashing an Agent also removes a legacy task whose template has no workspace', async () => {
+    it('trashing and restoring also preserves a legacy task whose template has no workspace', async () => {
       seedChannel(CHANNEL_ID, AGENT_ID)
       const task = jobManager.registerJobSchedule({
         type: 'agent.task',
@@ -698,15 +790,19 @@ describe('AgentJobsService', () => {
 
       expect(agentService.deleteAgent(AGENT_ID, { deleteSessions: true }).deleted).toBe(true)
 
-      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
-      expect(subscriptionRows(task.id)).toHaveLength(0)
+      expect(jobScheduleService.getById(task.id)).toMatchObject({
+        enabled: false,
+        metadata: { agentTrash: { resumeOnRestore: true } }
+      })
+      expect(subscriptionRows(task.id)).toEqual([{ channelId: CHANNEL_ID, taskId: task.id }])
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
 
       agentService.restoreAgent(AGENT_ID)
 
-      expect(jobScheduleService.getById(task.id)).toBeNull()
-      expect(subscriptionRows(task.id)).toHaveLength(0)
-      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+      expect(jobScheduleService.getById(task.id)).toMatchObject({ enabled: true })
+      expect(jobScheduleService.getById(task.id)?.metadata).not.toHaveProperty('agentTrash')
+      expect(subscriptionRows(task.id)).toEqual([{ channelId: CHANNEL_ID, taskId: task.id }])
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(true)
     })
 
     it('permanent deletion cleans up a task left behind when trash event handling was interrupted', async () => {
@@ -716,6 +812,21 @@ describe('AgentJobsService', () => {
       expect(agentService.deleteAgent(AGENT_ID, { permanent: true }).deleted).toBe(true)
 
       await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
+      expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
+    })
+
+    it('retention purge deletes retained schedules and cascades their channel subscriptions', async () => {
+      seedChannel(CHANNEL_ID, AGENT_ID)
+      const task = service.createTask(AGENT_ID, { ...form, channelIds: [CHANNEL_ID] })
+      agentService.deleteAgent(AGENT_ID)
+      expect(jobScheduleService.getById(task.id)).not.toBeNull()
+      expect(subscriptionRows(task.id)).toHaveLength(1)
+
+      const purgedIds = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, Number.MAX_SAFE_INTEGER, 10))
+      agentService.notifyPurged(purgedIds)
+
+      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
+      expect(subscriptionRows(task.id)).toHaveLength(0)
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
     })
 
@@ -756,13 +867,18 @@ describe('AgentJobsService', () => {
       ).toEqual({ taskScheduleId: null })
     })
 
-    it('runs inactive-Agent reconciliation once after all services are ready', async () => {
+    it('runs Agent schedule reconciliation once after all services are ready', async () => {
       const task = service.createTask(AGENT_ID, form)
       dbh.db.update(agentTable).set({ deletedAt: Date.now() }).where(eq(agentTable.id, AGENT_ID)).run()
 
       await service._doAllReady()
 
-      await vi.waitFor(() => expect(jobScheduleService.getById(task.id)).toBeNull())
+      await vi.waitFor(() =>
+        expect(jobScheduleService.getById(task.id)).toMatchObject({
+          enabled: false,
+          metadata: { agentTrash: { resumeOnRestore: true } }
+        })
+      )
       expect(scheduler.has(`schedule:${task.id}`)).toBe(false)
     })
 

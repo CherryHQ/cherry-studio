@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "Was möchten Sie mit dem folgenden Text tun",
   "quickAssistant.tooltip.pin": "Fenster immer im Vordergrund",
   "recycle_bin.already_moved": "Bereits im Papierkorb",
-  "recycle_bin.move.agent_tasks_warning": "Mit diesem Agenten verknüpfte geplante Aufgaben und Kanalabonnements werden dauerhaft gelöscht und beim Wiederherstellen des Agenten nicht wiederhergestellt.",
   "recycle_bin.move.confirm_action": "In den Papierkorb verschieben",
   "recycle_bin.move.confirm_title": "In den Papierkorb verschieben?",
   "recycle_bin.move_failed": "Konnte nicht in den Papierkorb verschoben werden",

@@ -1051,10 +1051,7 @@ describe('classic layout entity resource list actions', () => {
         })
       )
     )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).toHaveProperty(
-      'content',
-      'recycle_bin.move.agent_tasks_warning'
-    )
+    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },

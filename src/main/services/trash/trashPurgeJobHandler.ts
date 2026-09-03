@@ -132,7 +132,7 @@ export const trashPurgeJobHandler: JobHandlerFor<'trash.purge'> = {
     // Schedule reconciliation strictly AFTER all transactions committed. It runs even
     // when retention is disabled so an interrupted event cleanup heals on the next pass.
     ctx.signal.throwIfAborted()
-    await application.get('AgentJobsService').deleteSchedulesForInactiveAgents()
+    await application.get('AgentJobsService').reconcileAgentSchedules()
     ctx.reportProgress(Math.round(((PURGE_DOMAINS.length + 1) / totalSteps) * 100))
 
     // Filesystem reclamation strictly AFTER all transactions committed.

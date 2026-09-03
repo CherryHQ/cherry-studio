@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "¿Qué deseas hacer con el texto de abajo?",
   "quickAssistant.tooltip.pin": "Fijar en la parte superior",
   "recycle_bin.already_moved": "Ya está en la papelera",
-  "recycle_bin.move.agent_tasks_warning": "Las tareas programadas y las suscripciones a canales asociadas a este agente se eliminarán permanentemente y no se restaurarán al restaurar el agente.",
   "recycle_bin.move.confirm_action": "Mover a la papelera",
   "recycle_bin.move.confirm_title": "¿Mover a la papelera?",
   "recycle_bin.move_failed": "No se pudo mover a la papelera",

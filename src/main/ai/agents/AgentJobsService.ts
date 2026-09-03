@@ -27,6 +27,7 @@ const logger = loggerService.withContext('AgentJobsService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const DEFAULT_TIMEOUT_MINUTES = 2
+const AGENT_TRASH_METADATA_KEY = 'agentTrash'
 
 type AgentTaskJobInputTemplate = {
   agentId: string
@@ -62,6 +63,26 @@ function readAgentTaskJobInputTemplate(value: unknown): AgentTaskJobInputTemplat
   }
 }
 
+function shouldResumeAfterAgentRestore(metadata: Record<string, unknown>): boolean {
+  const marker = metadata[AGENT_TRASH_METADATA_KEY]
+  return (
+    typeof marker === 'object' &&
+    marker !== null &&
+    !Array.isArray(marker) &&
+    (marker as { resumeOnRestore?: unknown }).resumeOnRestore === true
+  )
+}
+
+function markForAgentRestore(metadata: Record<string, unknown>): Record<string, unknown> {
+  return { ...metadata, [AGENT_TRASH_METADATA_KEY]: { resumeOnRestore: true } }
+}
+
+function clearAgentRestoreMarker(metadata: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...metadata }
+  delete next[AGENT_TRASH_METADATA_KEY]
+  return next
+}
+
 /**
  * Sole command owner for agent scheduled tasks — the renderer (IpcApi
  * `ai.agent.task.*`) and MCP (`cherryAutonomyTools`) both mutate through this
@@ -80,18 +101,33 @@ export class AgentJobsService extends BaseService {
   protected async onInit(): Promise<void> {
     application.get('JobManager').registerHandler('agent.task', agentTaskJobHandler)
 
+    const suspendAgentTasks = ({ agentId }: { agentId: string }) => {
+      try {
+        this.suspendSchedulesForAgent(agentId)
+      } catch (error) {
+        logger.warn('Failed to suspend tasks for trashed Agent', { agentId, error })
+      }
+    }
+    const restoreAgentTasks = ({ agentId }: { agentId: string }) => {
+      try {
+        this.restoreSchedulesForAgent(agentId)
+      } catch (error) {
+        logger.warn('Failed to restore tasks for restored Agent', { agentId, error })
+      }
+    }
     const deleteAgentTasks = ({ agentId }: { agentId: string }) => {
       void this.deleteSchedulesForAgent(agentId).catch((error) => {
-        logger.warn('Failed to delete tasks for inactive Agent', { agentId, error })
+        logger.warn('Failed to delete tasks for purged Agent', { agentId, error })
       })
     }
-    this.registerDisposable(agentService.onAgentTrashed(deleteAgentTasks))
+    this.registerDisposable(agentService.onAgentTrashed(suspendAgentTasks))
+    this.registerDisposable(agentService.onAgentRestored(restoreAgentTasks))
     this.registerDisposable(agentService.onAgentPurged(deleteAgentTasks))
   }
 
   protected override onAllReady(): void {
-    void this.deleteSchedulesForInactiveAgents().catch((error) => {
-      logger.warn('Failed to reconcile tasks for inactive Agents after startup', { error })
+    void this.reconcileAgentSchedules().catch((error) => {
+      logger.warn('Failed to reconcile Agent tasks after startup', { error })
     })
   }
 
@@ -248,10 +284,7 @@ export class AgentJobsService extends BaseService {
    * @returns How many schedule rows were removed.
    */
   async deleteSchedulesForAgent(agentId: string): Promise<number> {
-    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((s) => {
-      const template = readAgentTaskJobInputTemplate(s.jobInputTemplate)
-      return template?.agentId === agentId
-    })
+    const schedules = this.listSchedulesForAgent(agentId)
 
     const deletedIds: string[] = []
     for (const schedule of schedules) {
@@ -266,24 +299,81 @@ export class AgentJobsService extends BaseService {
     return deletedIds.length
   }
 
-  /** Reconcile schedules whose owning Agent is trashed or no longer exists. */
-  async deleteSchedulesForInactiveAgents(): Promise<number> {
-    const schedules = jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
-      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
-      return template !== null && !agentService.agentExists(template.agentId)
+  /** Disable future fires while retaining the schedule and its channel subscriptions. */
+  suspendSchedulesForAgent(agentId: string): number {
+    const jobManager = application.get('JobManager')
+    const scheduleIds: string[] = []
+    const changedIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      for (const schedule of jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE })) {
+        const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+        if (template?.agentId !== agentId) continue
+        scheduleIds.push(schedule.id)
+        if (!schedule.enabled) continue
+        jobManager.updateJobScheduleTx(tx, schedule.id, {
+          enabled: false,
+          metadata: markForAgentRestore(schedule.metadata)
+        })
+        changedIds.push(schedule.id)
+      }
     })
+    for (const scheduleId of scheduleIds) jobManager.syncJobScheduleTimerById(scheduleId)
+    if (changedIds.length > 0) {
+      logger.info('Suspended tasks for trashed Agent', { agentId, suspended: changedIds.length })
+    }
+    agentTaskService.notifyReadModelChange(scheduleIds, 'membership')
+    return changedIds.length
+  }
 
-    const deletedIds: string[] = []
-    for (const schedule of schedules) {
-      if (await application.get('JobManager').unregisterJobScheduleById(schedule.id)) {
-        deletedIds.push(schedule.id)
+  /** Re-enable only schedules marked as enabled before their Agent was trashed. */
+  restoreSchedulesForAgent(agentId: string): number {
+    const jobManager = application.get('JobManager')
+    const scheduleIds: string[] = []
+    const restoredIds: string[] = []
+    application.get('DbService').withWriteTx((tx) => {
+      for (const schedule of jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE })) {
+        const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+        if (template?.agentId !== agentId) continue
+        scheduleIds.push(schedule.id)
+        if (!shouldResumeAfterAgentRestore(schedule.metadata)) continue
+        jobManager.updateJobScheduleTx(tx, schedule.id, {
+          enabled: true,
+          metadata: clearAgentRestoreMarker(schedule.metadata)
+        })
+        restoredIds.push(schedule.id)
+      }
+    })
+    for (const scheduleId of restoredIds) jobManager.syncJobScheduleTimerById(scheduleId)
+    if (restoredIds.length > 0) {
+      logger.info('Restored tasks for Agent', { agentId, restored: restoredIds.length })
+    }
+    agentTaskService.notifyReadModelChange(scheduleIds, 'membership')
+    return restoredIds.length
+  }
+
+  /** Heal interrupted trash/restore cleanup and remove schedules whose owner was purged. */
+  async reconcileAgentSchedules(): Promise<number> {
+    const agentIds = new Set<string>()
+    for (const schedule of jobScheduleService.listAll({ type: AGENT_TASK_TYPE })) {
+      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+      if (template) agentIds.add(template.agentId)
+    }
+
+    let changed = 0
+    for (const agentId of agentIds) {
+      switch (agentService.getLifecycleState(agentId)) {
+        case 'active':
+          changed += this.restoreSchedulesForAgent(agentId)
+          break
+        case 'trashed':
+          changed += this.suspendSchedulesForAgent(agentId)
+          break
+        case 'missing':
+          changed += await this.deleteSchedulesForAgent(agentId)
+          break
       }
     }
-    if (deletedIds.length > 0) {
-      logger.info('Deleted tasks for inactive Agents', { deleted: deletedIds.length })
-      agentTaskService.notifyReadModelChange(deletedIds)
-    }
-    return deletedIds.length
+    return changed
   }
 
   /** Run a scheduled agent task now (`ai.agent.task.run`). @returns whether the trigger fired (`false` = not found / not owned). */
@@ -344,6 +434,13 @@ export class AgentJobsService extends BaseService {
   private getActiveTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
     if (!agentService.agentExists(agentId)) return null
     return agentTaskService.getTask(agentId, taskId)
+  }
+
+  private listSchedulesForAgent(agentId: string) {
+    return jobScheduleService.listAll({ type: AGENT_TASK_TYPE }).filter((schedule) => {
+      const template = readAgentTaskJobInputTemplate(schedule.jobInputTemplate)
+      return template?.agentId === agentId
+    })
   }
 
   /**

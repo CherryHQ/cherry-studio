@@ -259,7 +259,6 @@ export function AgentResourceList({
       try {
         const confirmed = await popup.confirm({
           title: t('recycle_bin.move.confirm_title'),
-          ...(deleteTasksOnly ? {} : { content: t('recycle_bin.move.agent_tasks_warning') }),
           okText: t('recycle_bin.move.confirm_action'),
           cancelText: t('common.cancel'),
           centered: true,

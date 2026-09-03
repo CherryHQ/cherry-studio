@@ -969,15 +969,14 @@ export class AgentSessionService {
   }
 
   /**
-   * Move sessions to the Recycle Bin: write `deletedAt`, purge pins, detach any bound task
-   * schedule, and fail pending cross-session deliveries — a trashed session is
-   * as unreachable as a deleted one, so senders must not wait forever. Own
-   * messages are left untouched, so restore is lossless.
+   * Move sessions to the Recycle Bin: write `deletedAt`, purge pins, normally detach bound
+   * tasks, and fail pending deliveries. Agent-wide trash preserves bindings because it also
+   * suspends those tasks; own messages remain untouched so restore is lossless.
    */
   trashByIdsTx(
     tx: DbOrTx,
     ids: string[],
-    options: { requireAll?: boolean; deletedAt?: number } = {}
+    options: { requireAll?: boolean; deletedAt?: number; preserveTaskScheduleRelations?: boolean } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return { trashedIds: [], taskScheduleIds: [], deliveryResults: [] }
@@ -997,7 +996,7 @@ export class AgentSessionService {
 
     const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, trashedIds)
     const taskScheduleIds = rows.flatMap((row) => (row.taskScheduleId ? [row.taskScheduleId] : []))
-    if (taskScheduleIds.length > 0) {
+    if (taskScheduleIds.length > 0 && options.preserveTaskScheduleRelations !== true) {
       this.updateTaskScheduleRelationTx(
         tx,
         null,
@@ -1015,7 +1014,7 @@ export class AgentSessionService {
   trashByAgentIdTx(
     tx: DbOrTx,
     agentId: string,
-    options: { validateAgent?: boolean; deletedAt?: number } = {}
+    options: { validateAgent?: boolean; deletedAt?: number; preserveTaskScheduleRelations?: boolean } = {}
   ): { trashedIds: string[]; taskScheduleIds: string[]; deliveryResults: AgentSessionMessageEntity[] } {
     if (options.validateAgent ?? true) this.assertAgentExistsTx(tx, agentId)
     const ids = tx
@@ -1024,7 +1023,10 @@ export class AgentSessionService {
       .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
       .all()
       .map((row) => row.id)
-    return this.trashByIdsTx(tx, ids, { deletedAt: options.deletedAt })
+    return this.trashByIdsTx(tx, ids, {
+      deletedAt: options.deletedAt,
+      preserveTaskScheduleRelations: options.preserveTaskScheduleRelations
+    })
   }
 
   /**

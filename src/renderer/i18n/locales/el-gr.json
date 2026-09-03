@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "Τι θέλετε να κάνετε με αυτό το κείμενο;",
   "quickAssistant.tooltip.pin": "Καρφίτσωμα παραθύρου",
   "recycle_bin.already_moved": "Βρίσκεται ήδη στον Κάδο Ανακύκλωσης",
-  "recycle_bin.move.agent_tasks_warning": "Οι προγραμματισμένες εργασίες και οι συνδρομές καναλιών που σχετίζονται με αυτόν τον Agent θα διαγραφούν οριστικά και δεν θα αποκατασταθούν αν επαναφέρετε τον Agent.",
   "recycle_bin.move.confirm_action": "Μετακίνηση στον Κάδο Ανακύκλωσης",
   "recycle_bin.move.confirm_title": "Μετακίνηση στον Κάδο Ανακύκλωσης;",
   "recycle_bin.move_failed": "Δεν ήταν δυνατή η μετακίνηση στον Κάδο Ανακύκλωσης",

@@ -55,9 +55,15 @@ export interface AgentTrashedEvent {
   agentId: string
 }
 
+export interface AgentRestoredEvent {
+  agentId: string
+}
+
 export interface AgentPurgedEvent {
   agentId: string
 }
+
+export type AgentLifecycleState = 'active' | 'trashed' | 'missing'
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
@@ -257,6 +263,9 @@ export class AgentService {
 
   private readonly _onAgentTrashed = new Emitter<AgentTrashedEvent>()
   readonly onAgentTrashed: Event<AgentTrashedEvent> = this._onAgentTrashed.event
+
+  private readonly _onAgentRestored = new Emitter<AgentRestoredEvent>()
+  readonly onAgentRestored: Event<AgentRestoredEvent> = this._onAgentRestored.event
 
   private readonly _onAgentPurged = new Emitter<AgentPurgedEvent>()
   readonly onAgentPurged: Event<AgentPurgedEvent> = this._onAgentPurged.event
@@ -843,7 +852,11 @@ export class AgentService {
           const sessionIds = agentSessionService.listIdsByAgentTx(tx, id)
           const trashed =
             options.deleteSessions === true
-              ? agentSessionService.trashByAgentIdTx(tx, id, { validateAgent: false, deletedAt: trashedAt })
+              ? agentSessionService.trashByAgentIdTx(tx, id, {
+                  validateAgent: false,
+                  deletedAt: trashedAt,
+                  preserveTaskScheduleRelations: true
+                })
               : {
                   trashedIds: [],
                   taskScheduleIds: [],
@@ -905,10 +918,7 @@ export class AgentService {
     return { rowsAffected: result.changes }
   }
 
-  /**
-   * Restore a trashed agent and the sessions trashed with it. Task schedules
-   * and channel subscriptions are permanently deleted on trash and are not restored.
-   */
+  /** Restore a trashed agent and the sessions trashed with it. */
   restoreAgent(id: string): AgentEntity {
     const { row, restoredSessionIds } = application.get('DbService').withWriteTx((tx) => {
       const [trashed] = tx
@@ -939,6 +949,7 @@ export class AgentService {
       fetchKnowledgeBasesForAgents(database, [id]).get(id) ?? []
     )
     logger.info('Restored agent', { id })
+    this._onAgentRestored.fire({ agentId: id })
     return agent
   }
 
@@ -957,6 +968,12 @@ export class AgentService {
   agentExists(id: string): boolean {
     const result = this.findAgentRow(id)
     return !!result
+  }
+
+  getLifecycleState(id: string): AgentLifecycleState {
+    const row = this.findAgentRow(id, { includeDeleted: true })
+    if (!row) return 'missing'
+    return row.deletedAt == null ? 'active' : 'trashed'
   }
 
   /**

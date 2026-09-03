@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "Que souhaitez-vous faire avec le texte ci-dessous",
   "quickAssistant.tooltip.pin": "Garder la fenêtre au premier plan",
   "recycle_bin.already_moved": "Déjà dans la corbeille",
-  "recycle_bin.move.agent_tasks_warning": "Les tâches planifiées et les abonnements aux canaux associés à cet agent seront définitivement supprimés et ne seront pas restaurés si vous restaurez l’agent.",
   "recycle_bin.move.confirm_action": "Déplacer vers la corbeille",
   "recycle_bin.move.confirm_title": "Déplacer vers la corbeille ?",
   "recycle_bin.move_failed": "Impossible de déplacer vers la corbeille",

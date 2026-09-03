@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "Bạn muốn làm gì với văn bản này?",
   "quickAssistant.tooltip.pin": "Giữ cửa sổ ở trên cùng",
   "recycle_bin.already_moved": "Đã có trong thùng rác",
-  "recycle_bin.move.agent_tasks_warning": "Các tác vụ đã lên lịch và đăng ký kênh liên kết với Agent này sẽ bị xóa vĩnh viễn và sẽ không được khôi phục khi bạn khôi phục Agent.",
   "recycle_bin.move.confirm_action": "Chuyển vào thùng rác",
   "recycle_bin.move.confirm_title": "Chuyển vào thùng rác?",
   "recycle_bin.move_failed": "Không thể chuyển vào thùng rác",

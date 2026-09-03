@@ -642,8 +642,6 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
-        'recycle_bin.move.agent_tasks_warning':
-          'Scheduled tasks and channel subscriptions associated with this Agent will be permanently deleted and will not be restored if you restore the Agent.',
         'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
         'recycle_bin.already_moved': 'Already in Recycle Bin',
         'error.model.not_exists': 'Model does not exist',
@@ -3658,10 +3656,7 @@ describe('Sessions', () => {
         title: 'Move to Recycle Bin?'
       })
     )
-    expect(popup.confirm.mock.calls.at(-1)?.[0]).toHaveProperty(
-      'content',
-      'Scheduled tasks and channel subscriptions associated with this Agent will be permanently deleted and will not be restored if you restore the Agent.'
-    )
+    expect(popup.confirm.mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
     expect(dataApiMocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
       agentId: 'agent-a',

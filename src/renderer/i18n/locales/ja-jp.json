@@ -3027,7 +3027,6 @@
   "quickAssistant.input.placeholder.title": "下のテキストに対して何をしますか？",
   "quickAssistant.tooltip.pin": "上部ウィンドウ",
   "recycle_bin.already_moved": "すでにゴミ箱にあります",
-  "recycle_bin.move.agent_tasks_warning": "このエージェントに関連付けられたスケジュール済みタスクとチャンネル購読は完全に削除され、エージェントを復元しても元に戻りません。",
   "recycle_bin.move.confirm_action": "ゴミ箱に移動",
   "recycle_bin.move.confirm_title": "ゴミ箱に移動しますか？",
   "recycle_bin.move_failed": "ゴミ箱に移動できませんでした",

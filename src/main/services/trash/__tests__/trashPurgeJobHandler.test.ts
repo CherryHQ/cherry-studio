@@ -22,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { agentJobsServiceMock, fileManagerMock, notifyDataApiDataChangeMock, sweepAgentOrphansMock } = vi.hoisted(
   () => ({
-    agentJobsServiceMock: { deleteSchedulesForInactiveAgents: vi.fn(async () => 0) },
+    agentJobsServiceMock: { reconcileAgentSchedules: vi.fn(async () => 0) },
     fileManagerMock: { runSweep: vi.fn(async () => ({ outcome: 'completed' })) },
     notifyDataApiDataChangeMock: vi.fn(),
     sweepAgentOrphansMock: vi.fn(async () => ({ removed: [], failedDrivers: [] }))
@@ -77,8 +77,8 @@ describe('trashPurgeJobHandler', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
-    agentJobsServiceMock.deleteSchedulesForInactiveAgents.mockClear()
-    agentJobsServiceMock.deleteSchedulesForInactiveAgents.mockImplementation(async () => 0)
+    agentJobsServiceMock.reconcileAgentSchedules.mockClear()
+    agentJobsServiceMock.reconcileAgentSchedules.mockImplementation(async () => 0)
     fileManagerMock.runSweep.mockClear()
     fileManagerMock.runSweep.mockImplementation(async () => ({ outcome: 'completed' }))
     sweepAgentOrphansMock.mockClear()
@@ -249,7 +249,7 @@ describe('trashPurgeJobHandler', () => {
         .all().length
       purgedAgentEvents.push({ agentId, remainingRows })
     })
-    agentJobsServiceMock.deleteSchedulesForInactiveAgents.mockImplementation(async () => {
+    agentJobsServiceMock.reconcileAgentSchedules.mockImplementation(async () => {
       expiredAgentRowsAtScheduleSweepTime = dbh.db
         .select({ id: agentTable.id })
         .from(agentTable)
@@ -327,7 +327,7 @@ describe('trashPurgeJobHandler', () => {
     expect(fileIds).toContain('019606a0-0000-7000-8000-00000000cc03')
 
     // disk sweep ran after all DB purge transactions committed
-    expect(agentJobsServiceMock.deleteSchedulesForInactiveAgents).toHaveBeenCalledTimes(1)
+    expect(agentJobsServiceMock.reconcileAgentSchedules).toHaveBeenCalledTimes(1)
     expect(expiredAgentRowsAtScheduleSweepTime).toBe(0)
     expect(purgedAgentEvents).toEqual([{ agentId: 'agent-expired', remainingRows: 0 }])
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
@@ -428,7 +428,7 @@ describe('trashPurgeJobHandler', () => {
     // state, and it would otherwise never be reclaimed.
     expect(fileManagerMock.runSweep).toHaveBeenCalledTimes(1)
     expect(sweepAgentOrphansMock).toHaveBeenCalledTimes(1)
-    expect(agentJobsServiceMock.deleteSchedulesForInactiveAgents).toHaveBeenCalledTimes(1)
+    expect(agentJobsServiceMock.reconcileAgentSchedules).toHaveBeenCalledTimes(1)
   })
 
   it('emptyAll purges every trashed row regardless of retention, sparing active rows', async () => {
