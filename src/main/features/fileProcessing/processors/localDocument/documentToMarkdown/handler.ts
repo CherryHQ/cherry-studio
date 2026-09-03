@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 import { loggerService } from '@logger'
-import { isLocalModelReady } from '@main/services/localModel'
+import { localModelService } from '@main/ai/localModel'
 import { createPdfParser } from '@main/utils/pdf'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
@@ -55,7 +55,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     if (file.ext?.toLowerCase() !== 'pdf') {
       throw new Error(`Local document processing only supports PDF files, got ${file.ext ?? 'no extension'}`)
     }
-    if (!isLocalModelReady('ocr')) {
+    if (!localModelService.isReady('ocr')) {
       throw new Error('Local OCR model is not downloaded')
     }
 

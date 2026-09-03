@@ -85,6 +85,7 @@ const unnamedTranslations = [
   'locales/pt-pt',
   'locales/ro-ro',
   'locales/ru-ru',
+  'locales/tr-tr',
   'locales/vi-vn',
   'locales/zh-tw'
 ].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8'))['common.unnamed'])

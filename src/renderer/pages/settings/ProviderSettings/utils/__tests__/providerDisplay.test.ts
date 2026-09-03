@@ -2,8 +2,7 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-// isProviderSettingsListVisibleProvider only reads the provider id; stub the i18n +
-// CherryAI helpers the module imports so the test stays focused on visibility.
+// Stub imported i18n and provider helpers so these tests stay focused on provider eligibility.
 vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
 vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
 vi.mock('@shared/utils/provider', () => ({
@@ -12,7 +11,8 @@ vi.mock('@shared/utils/provider', () => ({
     p.authMethods !== undefined && p.authMethods.length > 0 && !p.authMethods.includes('api-key')
 }))
 
-const { isProviderPresetInstanceSource, isProviderSettingsListVisibleProvider } = await import('../providerDisplay')
+const { isProviderPresetInstanceSource } = await import('../providerDisplay')
+const { isProviderSettingsListVisibleProvider } = await import('@renderer/utils/providerSettings')
 
 const provider = (id: string): Provider => ({ id }) as Provider
 const presetSource = (overrides: Partial<Provider> = {}): Provider =>

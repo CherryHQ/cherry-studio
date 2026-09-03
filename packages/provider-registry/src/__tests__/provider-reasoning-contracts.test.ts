@@ -187,6 +187,41 @@ describe('provider reasoning contracts', () => {
     }
   )
 
+  // Poe serves Responses natively; Chat Completions remains fail-closed and
+  // retains only audited per-model wire contracts.
+  it('routes Poe chat through the Responses endpoint with standard reasoning', () => {
+    const poe = provider('poe')
+    expect(poe.defaultChatEndpoint).toBe('openai-responses')
+    expect(poe.endpointConfigs?.['openai-responses']?.reasoningFormat).toEqual({ type: 'openai-responses' })
+    expect(poe.endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire).toEqual({ disabled: true })
+  })
+
+  // Poe's Responses emulation breaks Claude streams, so the full official roster
+  // must prefer Anthropic Messages.
+  it('pins every official Poe Claude bot to anthropic-messages first', () => {
+    const expected = [
+      'claude-haiku-4-5',
+      'claude-opus-4-5',
+      'claude-opus-4-6',
+      'claude-opus-4-7',
+      'claude-opus-4-8',
+      'claude-sonnet-4-5',
+      'claude-sonnet-4-6'
+    ]
+    const claudeOverrides = provider('poe').overrides?.filter(({ modelId }) => modelId?.startsWith('claude-')) ?? []
+    expect(claudeOverrides.map(({ modelId }) => modelId).sort()).toEqual(expected)
+    for (const entry of claudeOverrides) {
+      expect(entry.endpointTypes?.[0], entry.modelId).toBe('anthropic-messages')
+    }
+  })
+
+  it.each([
+    ['gpt-oss-20b', 'accounts/fireworks/models/gpt-oss-20b'],
+    ['minimax-m2-7', 'accounts/fireworks/models/minimax-m2p7']
+  ])('keeps the Fireworks wire identity for de-listed model %s', (modelId, apiModelId) => {
+    expect(override('fireworks', modelId).apiModelId).toBe(apiModelId)
+  })
+
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(
       override('poe', 'gpt-5-4').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations

@@ -38,7 +38,13 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
-export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
+export default function Sidebar({
+  ref,
+  isFullscreen = false
+}: {
+  ref?: Ref<HTMLDivElement | null>
+  isFullscreen?: boolean
+}) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const {
@@ -109,15 +115,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [avatar, t, userName]
   )
   const sidebarLogo = useMemo(
-    () => (
-      <button
-        type="button"
-        aria-label={sidebarUser.name}
-        onClick={sidebarUser.onClick}
-        className="flex h-full w-full items-center justify-center rounded-full [-webkit-app-region:no-drag]">
-        <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />
-      </button>
-    ),
+    () => <UserAvatar user={sidebarUser} className="h-full w-full" ring={false} />,
     [sidebarUser]
   )
 
@@ -159,6 +157,13 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title, icon: options?.icon })
+        return
+      }
+
+      // Keep a Mini App's owning tab intact when leaving it so the global
+      // WebView pool can preserve the guest instead of treating it as closed.
+      if (miniAppIdFromTabUrl(activeTab?.url)) {
+        openTab(path, { title, icon: options?.icon })
         return
       }
 
@@ -357,10 +362,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
+    isFullscreen,
     entries,
     active: { activeItem, activeTabId: activeMiniAppId },
     title: sidebarUser.name,
     logo: sidebarLogo,
+    onHeaderClick: sidebarUser.onClick,
     actions: (footerLayout: SidebarVisibleLayout, onOverlayOpenChange?: (open: boolean) => void) => (
       <SidebarShellActions
         layout={footerLayout}

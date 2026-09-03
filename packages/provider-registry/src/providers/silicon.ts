@@ -49,6 +49,7 @@ const siliconReasoningModels = [
 export default openaiCompatible({
   id: 'silicon',
   name: 'Silicon',
+  availableInEditions: ['global', 'cn'],
   baseUrl: 'https://api.siliconflow.cn/v1',
   additionalEndpointConfigs: {
     'openai-embeddings': { adapterFamily: 'silicon' },

@@ -14,6 +14,7 @@ import pkg from './package.json'
 import { buildFlatContractCss } from './packages/ui/scripts/build-theme-css'
 import { chunkExportGuardPlugin } from './scripts/checkChunkExports'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+import { APP_EDITIONS, type AppEdition } from './src/shared/types/appEdition'
 import { parseReleaseHistory, validateCurrentReleaseHistory } from './src/shared/utils/releaseNotes'
 
 type ElectronBuilderConfig = {
@@ -41,6 +42,14 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
+
+export function resolveRendererEdition(value: string | undefined): AppEdition {
+  const edition = value?.trim().toLowerCase() || 'global'
+  if (APP_EDITIONS.includes(edition as AppEdition)) return edition as AppEdition
+  throw new Error(`Unsupported renderer edition: ${edition}`)
+}
+
+const rendererEdition = resolveRendererEdition(process.env.CHERRY_EDITION)
 
 // Bundle/externalize split for the main process: everything in `dependencies` is
 // marked `external` below (kept in node_modules of the packaged app), and everything
@@ -164,6 +173,7 @@ export default defineConfig({
   },
   renderer: {
     define: {
+      __APP_EDITION__: JSON.stringify(rendererEdition),
       __APP_RELEASE_HISTORY__: JSON.stringify(bundledReleaseHistory),
       __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
       __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)

@@ -121,27 +121,27 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-launch-onboot" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
           <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-launch-totray" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
           <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-tray-show" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
           <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-tray-onclose" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-prevent-sleep-when-busy" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
           <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
@@ -150,7 +150,7 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.proxy.mode.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-proxy-mode" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
           <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
         </SettingRow>
@@ -191,7 +191,7 @@ const GeneralSettings: FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-allow-private-network" className="scroll-mt-6">
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.fetch.allow_private_network')}</span>
             <InfoTooltip
@@ -206,7 +206,7 @@ const GeneralSettings: FC = () => {
           />
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-hardware-acceleration" className="scroll-mt-6">
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
@@ -217,7 +217,7 @@ const GeneralSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
-        <SettingRow>
+        <SettingRow id="setting-general-enable-developer-mode" className="scroll-mt-6">
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />

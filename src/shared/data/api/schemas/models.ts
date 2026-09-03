@@ -45,6 +45,8 @@ const validatePreferredEndpoint = (
   }
 }
 
+const PositiveModelTokenLimitSchema = z.number().int().positive()
+
 /** DTO for creating a new model */
 const CreateModelObjectSchema = z.strictObject({
   /** Provider ID */
@@ -70,11 +72,11 @@ const CreateModelObjectSchema = z.strictObject({
   /** Explicit routing choice among the supported endpoint types; `null` clears the pin. */
   preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).nullable().optional(),
   /** Context window size */
-  contextWindow: z.number().int().positive().optional(),
+  contextWindow: PositiveModelTokenLimitSchema.optional(),
   /** Maximum input tokens */
-  maxInputTokens: z.number().int().positive().optional(),
+  maxInputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Maximum output tokens */
-  maxOutputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: PositiveModelTokenLimitSchema.optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
   /** Parameter support (DB form) */
@@ -108,6 +110,10 @@ export const UpdateModelSchema = CreateModelObjectSchema.omit({
 })
   .partial()
   .extend({
+    /** `null` explicitly clears a stored limit; `undefined` or an absent key leaves it unchanged. */
+    contextWindow: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxInputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
+    maxOutputTokens: PositiveModelTokenLimitSchema.nullable().optional(),
     isEnabled: z.boolean().optional(),
     isHidden: z.boolean().optional(),
     isDeprecated: z.boolean().optional(),

@@ -63,7 +63,8 @@ const ProviderSettingsMergePatchSchema = z.object({
       enabled: z.boolean().nullable().optional(),
       tokenThreshold: z.number().nullable().optional(),
       cacheSystemMessage: z.boolean().nullable().optional(),
-      cacheLastNMessages: z.number().nullable().optional()
+      cacheLastNMessages: z.number().nullable().optional(),
+      ttl: ProviderSettingsSchema.shape.cacheControl.unwrap().shape.ttl.nullable().optional()
     })
     .nullable()
     .optional(),

@@ -20,9 +20,9 @@ export interface ModelBasicFormState {
   modelId: string
   name: string
   group: string
-  contextWindow: string
-  maxInputTokens: string
-  maxOutputTokens: string
+  contextWindow: number | null
+  maxInputTokens: number | null
+  maxOutputTokens: number | null
   endpointTypes?: ModelDrawerEndpointType[]
 }
 

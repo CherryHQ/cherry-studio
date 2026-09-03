@@ -77,6 +77,7 @@ vi.mock('@cherrystudio/ui', () => {
     ),
     DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+    Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Separator: () => <hr />
   }
 })

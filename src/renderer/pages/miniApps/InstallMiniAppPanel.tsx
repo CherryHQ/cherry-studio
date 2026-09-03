@@ -2,6 +2,8 @@ import {
   Alert,
   Button,
   DialogFooter,
+  Dropzone,
+  DropzoneEmptyState,
   Field,
   FieldLabel,
   InputGroup,
@@ -16,6 +18,8 @@ import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useMiniAppPackageDrop } from './useMiniAppPackageDrop'
 
 /** Enough shape to be worth a request: a scheme and a host. Main still decides https and the rest. */
 const looksLikeUrl = (value: string): boolean => {
@@ -35,6 +39,7 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
   const { t } = useTranslation()
   const [manifestUrl, setManifestUrl] = useState('')
   const { preview, busy, error, settle, cancelPreview, confirm } = useMiniAppInstallPreview(onClose)
+  const packageDropzone = useMiniAppPackageDrop(settle)
 
   const handlePick = () =>
     settle(() => ipcApi.request('mini_app.install.pick_and_preview'), 'miniApp.install.preview_error')
@@ -50,12 +55,20 @@ export const InstallMiniAppPicker: FC<{ onClose: () => void }> = ({ onClose }) =
   return (
     <>
       <div className="flex flex-col gap-4 py-4">
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-5">
-          <p className="text-center text-muted-foreground text-sm">{t('miniApp.install.pick_hint')}</p>
-          <Button variant="outline" onClick={handlePick} disabled={busy}>
-            {t('miniApp.install.choose_file')}
-          </Button>
-        </div>
+        <Dropzone
+          aria-label={t('miniApp.install.choose_file')}
+          data-ui="mini-apps.install-dropzone"
+          className="gap-3 border-dashed px-4 py-5"
+          disabled={busy}
+          {...packageDropzone}
+          onClick={handlePick}>
+          <DropzoneEmptyState>
+            <div className="flex flex-col items-center gap-3 text-center">
+              <p className="text-muted-foreground text-sm">{t('miniApp.install.pick_hint')}</p>
+              <span className="font-medium text-foreground text-sm">{t('miniApp.install.choose_file')}</span>
+            </div>
+          </DropzoneEmptyState>
+        </Dropzone>
 
         <Field>
           <FieldLabel htmlFor="miniapp-install-url">{t('miniApp.install.url_section')}</FieldLabel>

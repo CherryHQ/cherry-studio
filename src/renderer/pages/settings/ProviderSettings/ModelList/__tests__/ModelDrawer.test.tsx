@@ -1218,10 +1218,10 @@ describe('Model drawers', () => {
       'new-api',
       'claude-4-sonnet',
       expect.objectContaining({
-        preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        endpointTypes: undefined
+        preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
       })
     )
+    expect(updateModelMock.mock.calls.at(-1)?.[2]).not.toHaveProperty('endpointTypes')
   })
 
   it('keeps a single-endpoint model showing which protocol it speaks', () => {
@@ -1458,10 +1458,10 @@ describe('Model drawers', () => {
       'doubao',
       'doubao-seed-2-1-pro',
       expect.objectContaining({
-        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
-        endpointTypes: undefined
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
       })
     )
+    expect(updateModelMock.mock.calls.at(-1)?.[2]).not.toHaveProperty('endpointTypes')
   })
 
   it('leaves the endpoint declaration alone when only the preference changes', async () => {

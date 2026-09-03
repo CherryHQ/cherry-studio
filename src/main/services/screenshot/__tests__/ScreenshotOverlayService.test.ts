@@ -30,15 +30,11 @@ vi.mock('@main/utils/screenCapturePermission', () => capture)
 const enumerator = vi.hoisted(() => ({ listWindowsOffThread: vi.fn() }))
 vi.mock('../windowEnumerator', () => enumerator)
 
-const localModel = vi.hoisted(() => ({ isLocalModelReady: vi.fn(() => true) }))
-vi.mock('@main/services/localModel', () => localModel)
+const localModel = vi.hoisted(() => ({ isReady: vi.fn(() => true) }))
+vi.mock('@main/ai/localModel', () => ({ localModelService: localModel }))
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 // ─── OCR pipeline ─────────────────────────────────────────────────────────────
-
-vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  ocrModelPaths: () => ({ detection: 'det', recognition: 'rec', charactersDictionary: 'dict' })
-}))
 
 // Tags the crop with the region's x so a test can tell which request reached the
 // inference service; the real one would need decodable PNG bytes.
@@ -176,8 +172,7 @@ const container = vi.hoisted(() => {
   const ipcApiService = { send: vi.fn(), broadcast: vi.fn(), broadcastToType: vi.fn() }
 
   const ocrInferenceService = {
-    recognize:
-      vi.fn<(paths: unknown, source: { imageBytes: Uint8Array }) => Promise<{ text: string; lines: unknown[] }>>()
+    recognize: vi.fn<(source: { imageBytes: Uint8Array }) => Promise<{ text: string; lines: unknown[] }>>()
   }
 
   return {
@@ -310,15 +305,13 @@ function gateInferenceService() {
   const reached: number[] = []
   let announceStart: (() => void) | null = null
 
-  container.ocrInferenceService.recognize.mockImplementation(
-    async (_paths: unknown, source: { imageBytes: Uint8Array }) => {
-      reached.push(source.imageBytes[0])
-      announceStart?.()
-      announceStart = null
-      await new Promise<void>((resolve) => setTimeout(resolve, FAKE_RECOGNITION_MS))
-      return { text: '', lines: [] }
-    }
-  )
+  container.ocrInferenceService.recognize.mockImplementation(async (source: { imageBytes: Uint8Array }) => {
+    reached.push(source.imageBytes[0])
+    announceStart?.()
+    announceStart = null
+    await new Promise<void>((resolve) => setTimeout(resolve, FAKE_RECOGNITION_MS))
+    return { text: '', lines: [] }
+  })
 
   return {
     reached,
@@ -355,7 +348,7 @@ describe('ScreenshotOverlayService', () => {
     enumerator.listWindowsOffThread.mockResolvedValue([])
     capture.listMonitors.mockReturnValue([])
     capture.captureAllMonitors.mockReturnValue(new Map())
-    localModel.isLocalModelReady.mockReturnValue(true)
+    localModel.isReady.mockReturnValue(true)
     container.ocrInferenceService.recognize.mockResolvedValue({ text: '', lines: [] })
     startService()
   })
@@ -1209,7 +1202,7 @@ describe('ScreenshotOverlayService', () => {
       // later, and reporting "no text" there sends them looking for the wrong problem.
       singleDisplaySetup()
       await service.startCapture()
-      localModel.isLocalModelReady.mockReturnValue(false)
+      localModel.isReady.mockReturnValue(false)
 
       const result = await service.recognizeText('overlay-0-0', initDataOf('overlay-0-0').mediaId, ocrRegion(1))
 

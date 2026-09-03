@@ -110,7 +110,8 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
     webdavPath,
     webdavMaxBackups,
     webdavSkipBackupFile,
-    webdavDisableStream
+    webdavDisableStream,
+    webdavAllowSelfSignedTls
   } = await preferenceService.getMultiple({
     webdavHost: 'data.backup.webdav.host',
     webdavUser: 'data.backup.webdav.user',
@@ -118,7 +119,8 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
     webdavPath: 'data.backup.webdav.path',
     webdavMaxBackups: 'data.backup.webdav.max_backups',
     webdavSkipBackupFile: 'data.backup.webdav.skip_backup_file',
-    webdavDisableStream: 'data.backup.webdav.disable_stream'
+    webdavDisableStream: 'data.backup.webdav.disable_stream',
+    webdavAllowSelfSignedTls: 'data.backup.webdav.allow_self_signed_tls'
   })
 
   const finalFileName = customFileName
@@ -137,7 +139,8 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
       fileName: finalFileName,
       maxBackups: webdavMaxBackups,
       skipBackupFile: webdavSkipBackupFile,
-      disableStream: webdavDisableStream
+      disableStream: webdavDisableStream,
+      allowSelfSignedTls: webdavAllowSelfSignedTls
     })
     if (success) {
       await recordManualBackupCompletion('webdav')
@@ -164,7 +167,7 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
       toast.error(message)
     }
   } catch (error: any) {
-    const message = getLocalizedBackupErrorMessage(error)
+    const message = getLocalizedBackupErrorMessage(error, 'message.backup.failed', { tlsCertificateHint: true })
     void notificationService.send({
       id: uuid(),
       type: 'error',
@@ -184,13 +187,22 @@ export async function backupToWebdav({ customFileName = '' }: ManualBackupOption
 
 // 从 webdav 恢复
 export async function restoreFromWebdav(fileName?: string) {
-  const { webdavHost, webdavUser, webdavPass, webdavPath } = await preferenceService.getMultiple({
-    webdavHost: 'data.backup.webdav.host',
-    webdavUser: 'data.backup.webdav.user',
-    webdavPass: 'data.backup.webdav.pass',
-    webdavPath: 'data.backup.webdav.path'
+  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavAllowSelfSignedTls } =
+    await preferenceService.getMultiple({
+      webdavHost: 'data.backup.webdav.host',
+      webdavUser: 'data.backup.webdav.user',
+      webdavPass: 'data.backup.webdav.pass',
+      webdavPath: 'data.backup.webdav.path',
+      webdavAllowSelfSignedTls: 'data.backup.webdav.allow_self_signed_tls'
+    })
+  await window.api.backup.restoreFromWebdav({
+    webdavHost,
+    webdavUser,
+    webdavPass,
+    webdavPath,
+    allowSelfSignedTls: webdavAllowSelfSignedTls,
+    fileName
   })
-  await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
   logger.info('[WebDAVBackup] Backup restore staged, app will restart')
 }
 

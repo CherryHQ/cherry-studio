@@ -62,6 +62,14 @@ export function isMessageOnlyConversationUrl(url: string): boolean {
  */
 const SIDEBAR_APP_DEFINITIONS = [
   {
+    id: 'agents',
+    routePrefix: '/app/agents',
+    conversationRoute: {
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
+    }
+  },
+  {
     id: 'assistants',
     // `routePrefix` must stay a string literal — the knowledge-manifest generator reads it
     // with ts-morph. `conversationRoute` below carries the same path from the shared contract.
@@ -69,14 +77,6 @@ const SIDEBAR_APP_DEFINITIONS = [
     conversationRoute: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.assistant.keyParam),
       urlForKey: (key) => conversationRouteUrl({ conversationType: 'assistant', conversationId: key })
-    }
-  },
-  {
-    id: 'agents',
-    routePrefix: '/app/agents',
-    conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
-      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
     }
   },
   {

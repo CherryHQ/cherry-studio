@@ -307,7 +307,8 @@ vi.mock('@application', () => ({
 }))
 
 vi.mock('../WebDav', () => ({
-  default: vi.fn()
+  // Return a distinct object per construction so instance identity is observable.
+  default: vi.fn(() => ({}))
 }))
 
 vi.mock('../S3Storage', () => ({
@@ -328,6 +329,7 @@ import * as fs from 'fs-extra'
 import * as path from 'path'
 
 import BackupManager, { BackupOperationBusyError } from '../LegacyBackupManager'
+import WebDav from '../WebDav'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
@@ -397,6 +399,7 @@ describe('BackupManager direct v2 data compatibility', () => {
     vi.mocked(fs.remove).mockResolvedValue(undefined as never)
     vi.mocked(fs.rename).mockResolvedValue(undefined as never)
     vi.mocked(fs.ensureDir).mockResolvedValue(undefined as never)
+    vi.mocked(fs.chmod).mockResolvedValue(undefined as never)
     vi.mocked(fs.copy).mockResolvedValue(undefined as never)
     vi.mocked(fs.writeJson).mockResolvedValue(undefined as never)
     vi.mocked(fs.readdir).mockResolvedValue([] as never)
@@ -470,6 +473,175 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(fs.lstat).toHaveBeenCalledTimes(3)
   })
 
+  it('boot-hardens both shared-temp staging roots (backup + lan-transfer)', async () => {
+    await backupManager.cleanupStaleTempArtifacts()
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/temp/backup', 0o700)
+    expect(fs.chmod).toHaveBeenCalledWith('/tmp/cherry-studio/lan-transfer', 0o700)
+  })
+
+  it('boot-hardens the restore-staging root (seals crash-recovered trees)', async () => {
+    await backupManager.cleanupStaleTempArtifacts()
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/userData/restore-staging', 0o700)
+  })
+
+  it('keeps boot hardening best-effort: ENOENT silent, other chmod failures warn without blocking', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).includes('lan-transfer')) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      }
+      if (String(target).includes('/mock/temp/backup')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return undefined as never
+    })
+
+    await expect(backupManager.cleanupStaleTempArtifacts()).resolves.toBeUndefined()
+
+    // Only the non-ENOENT failure warns; the missing backup root stays silent.
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      '[cleanupStaleTempArtifacts] Failed to restrict backup staging dir permissions',
+      expect.objectContaining({ dir: '/tmp/cherry-studio/lan-transfer' })
+    )
+  })
+
+  it('pre-tightens an existing legacy archive to 0600 before overwriting it', async () => {
+    // createWriteStream's mode applies only at creation, so an existing 0644
+    // archive needs chmod before the stream opens (two calls per run, fresh Writable each).
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', 0o600)
+    // New-file guarantee: the stream itself must be opened owner-only.
+    expect(fs.createWriteStream).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', { mode: 0o600 })
+    const chmodCalls = vi.mocked(fs.chmod).mock.calls
+    const archiveChmodIndex = chmodCalls.findIndex((call) => String(call[0]).endsWith('legacy.zip'))
+    const archiveOpenIndex = vi
+      .mocked(fs.createWriteStream)
+      .mock.calls.findIndex((call) => String(call[0]).endsWith('legacy.zip'))
+    expect(archiveChmodIndex).toBeGreaterThan(-1)
+    expect(archiveOpenIndex).toBeGreaterThan(-1)
+    expect(vi.mocked(fs.chmod).mock.invocationCallOrder[archiveChmodIndex]).toBeLessThan(
+      vi.mocked(fs.createWriteStream).mock.invocationCallOrder[archiveOpenIndex]
+    )
+  })
+
+  it('lets the legacy overwrite proceed when pre-tightening hits ENOENT (fresh archive)', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).endsWith('legacy.zip')) {
+        throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      }
+      return undefined as never
+    })
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+
+    await backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+
+    expect(fs.createWriteStream).toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', { mode: 0o600 })
+  })
+
+  it('aborts the legacy overwrite when pre-tightening fails with a non-ENOENT error', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).endsWith('legacy.zip')) {
+        throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' })
+      }
+      return undefined as never
+    })
+
+    await expect(
+      backupManager.backupLegacy({} as Electron.IpcMainInvokeEvent, 'legacy.zip', '{}', '/mock/temp/backup', false)
+    ).rejects.toThrow('Failed to restrict backup archive permissions')
+    expect(fs.createWriteStream).not.toHaveBeenCalledWith('/mock/temp/backup/legacy.zip', expect.anything())
+  })
+
+  it('aborts the backup when staging-dir chmod fails (fail-closed)', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).includes('create-operation-id')) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      }
+      return undefined as never
+    })
+    mockArchiveClose()
+
+    await expect(backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')).rejects.toThrow(
+      'Failed to restrict backup staging dir permissions'
+    )
+    // Aborted before any payload stream was opened (finalize alone would be
+    // vacuous — ZipArchive is never constructed on this path).
+    expect(fs.createWriteStream).not.toHaveBeenCalled()
+    expect(mockCreateAtomicWriteStream).not.toHaveBeenCalled()
+  })
+
+  it('hardens the default LAN staging dir but leaves user-chosen destinations alone', async () => {
+    const outputs: Writable[] = []
+    vi.mocked(fs.createWriteStream).mockImplementation(() => {
+      const stream = new Writable({
+        write(_c, _e, cb) {
+          cb()
+        }
+      })
+      outputs.push(stream)
+      return stream as never
+    })
+    const archive = {
+      on: vi.fn().mockReturnThis(),
+      pipe: vi.fn(),
+      directory: vi.fn(),
+      finalize: vi.fn(() => outputs.forEach((stream) => stream.end()))
+    }
+    vi.mocked(ZipArchive).mockReturnValue(archive as never)
+    vi.spyOn(backupManager as any, 'getDirSize').mockResolvedValue(1)
+    vi.spyOn(backupManager as any, 'copyDirWithProgress').mockResolvedValue(undefined)
+    vi.mocked(fs.chmod).mockClear()
+
+    await backupManager.createLanTransferBackup({} as Electron.IpcMainInvokeEvent, '{}')
+    expect(fs.chmod).toHaveBeenCalledWith('/tmp/cherry-studio/lan-transfer', 0o700)
+
+    vi.mocked(fs.chmod).mockClear()
+    await backupManager.createLanTransferBackup({} as Electron.IpcMainInvokeEvent, '{}', '/user/chosen/dir')
+    const lanChmod = vi.mocked(fs.chmod).mock.calls.find((c) => String(c[0]).includes('lan-transfer'))
+    expect(lanChmod).toBeUndefined()
+  })
+
   it('writes a version 7 archive with complete Data, IndexedDB, Local Storage, and cache.json', async () => {
     vi.mocked(fs.pathExists).mockImplementation(async (entryPath) => {
       return ['/mock/userData/cache.json', '/mock/userData/Data'].includes(String(entryPath))
@@ -482,6 +654,9 @@ describe('BackupManager direct v2 data compatibility', () => {
     const result = await backupManager.backup({} as Electron.IpcMainInvokeEvent, 'backup.zip', '/backups')
 
     expect(result).toBe('/backups/backup.zip')
+    // S8 wiring lock: the archive must be created owner-only (mocked stream,
+    // so this asserts the call, not the on-disk mode — fs.test.ts covers that).
+    expect(mockCreateAtomicWriteStream).toHaveBeenCalledWith('/backups/backup.zip', { mode: 0o600 })
     expect(mockChannelManager.pause).toHaveBeenCalledOnce()
     expect(mockChannelManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockChannelManager.drainInFlight.mock.invocationCallOrder[0]).toBeLessThan(
@@ -787,6 +962,33 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockRelaunch).not.toHaveBeenCalled()
     expect(mockJobHold.dispose).not.toHaveBeenCalled()
     expect(fs.remove).not.toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id')
+  })
+
+  it('hardens the direct-restore staging root with owner-only permissions', async () => {
+    arrangeDirectRestore()
+
+    await (backupManager as any).restoreDirect('/extract')
+
+    // 0700 at creation (umask-immune) plus the tightening chmod for
+    // pre-existing loose dirs.
+    expect(fs.ensureDir).toHaveBeenCalledWith('/mock/userData/restore-staging', { mode: 0o700 })
+    expect(fs.ensureDir).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id', { mode: 0o700 })
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/userData/restore-staging', 0o700)
+    expect(fs.chmod).toHaveBeenCalledWith('/mock/userData/restore-staging/operation-id', 0o700)
+  })
+
+  it('aborts the direct restore when staging-dir chmod fails (fail-closed)', async () => {
+    vi.mocked(fs.chmod).mockImplementation(async (target: unknown) => {
+      if (String(target).includes('restore-staging')) {
+        throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+      }
+      return undefined as never
+    })
+
+    await expect((backupManager as any).restoreDirect('/extract')).rejects.toThrow(
+      'Failed to restrict backup staging dir permissions'
+    )
+    expect(fs.copy).not.toHaveBeenCalled()
   })
 
   it('removes the extracted archive before relaunching', async () => {
@@ -1931,5 +2133,50 @@ describe('BackupManager.deleteLanTransferBackup - Security Tests', () => {
       // path.normalize handles double slashes
       expect(result).toBe(true)
     })
+  })
+})
+
+describe('WebDAV client cache (S6 allowSelfSignedTls switch)', () => {
+  beforeEach(() => {
+    vi.mocked(WebDav).mockClear()
+  })
+
+  it('reuses the client while connection fields (incl. TLS flag) are unchanged', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com', webdavUser: 'u', webdavPass: 'p', webdavPath: '/' }
+
+    const first = (manager as any).getWebDavInstance(config)
+    const second = (manager as any).getWebDavInstance({ ...config })
+
+    expect(second).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
+  })
+
+  it('recreates the client when allowSelfSignedTls changes', () => {
+    const manager = new BackupManager()
+    const config = { webdavHost: 'https://example.com' }
+
+    const before = (manager as any).getWebDavInstance(config)
+    const optedIn = (manager as any).getWebDavInstance({ ...config, allowSelfSignedTls: true })
+    const reverted = (manager as any).getWebDavInstance(config)
+
+    expect(optedIn).not.toBe(before)
+    expect(reverted).not.toBe(optedIn)
+    expect(WebDav).toHaveBeenCalledTimes(3)
+    expect(WebDav).toHaveBeenNthCalledWith(2, { webdavHost: 'https://example.com', allowSelfSignedTls: true })
+    expect(WebDav).toHaveBeenNthCalledWith(3, { webdavHost: 'https://example.com' })
+  })
+
+  it('treats undefined and false as the same TLS setting (no needless recreation)', () => {
+    const manager = new BackupManager()
+
+    const first = (manager as any).getWebDavInstance({ webdavHost: 'https://example.com' })
+    const explicitFalse = (manager as any).getWebDavInstance({
+      webdavHost: 'https://example.com',
+      allowSelfSignedTls: false
+    })
+
+    expect(explicitFalse).toBe(first)
+    expect(WebDav).toHaveBeenCalledTimes(1)
   })
 })

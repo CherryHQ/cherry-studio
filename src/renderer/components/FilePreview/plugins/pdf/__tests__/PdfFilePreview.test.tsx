@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => ({
   }>,
   safeOpen: vi.fn(),
   toastError: vi.fn(),
-  viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
+  viewerInstances: [] as Array<{ pageColors: { background?: string } | null }>
 }))
 
 vi.mock('pdfjs-dist', () => ({
@@ -118,7 +118,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
   class MockPDFViewer {
     cleanup = mocks.pdfViewerCleanup
     firstPagePromise = Promise.resolve()
-    pageColors: { background?: string; foreground: string }
+    pageColors: { background?: string } | null
     setDocument = mocks.pdfViewerSetDocument
     private currentPage = 1
     private scale = 1
@@ -126,7 +126,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     constructor(
       private options: {
         eventBus: MockEventBus
-        pageColors: { background?: string; foreground: string }
+        pageColors: { background?: string } | null
       }
     ) {
       this.pageColors = options.pageColors
@@ -302,7 +302,7 @@ describe('PdfFilePreview', () => {
       expect.objectContaining({
         annotationMode: 1,
         abortSignal: expect.any(AbortSignal),
-        pageColors: { background: 'rgb(10, 11, 12)', foreground: 'CanvasText' },
+        pageColors: { background: 'rgb(10, 11, 12)' },
         supportsPinchToZoom: true
       })
     )
@@ -391,7 +391,7 @@ describe('PdfFilePreview', () => {
     expect(await screen.findByText('file_preview.pdf.outline.empty')).toBeInTheDocument()
   })
 
-  it('updates PDF page colors when the app theme changes without rebuilding the viewer', async () => {
+  it('preserves PDF colors while updating the page background when the app theme changes', async () => {
     renderPreview()
     await waitFor(() => expect(mocks.viewerInstances).toHaveLength(1))
 
@@ -403,8 +403,7 @@ describe('PdfFilePreview', () => {
 
     await waitFor(() =>
       expect(mocks.viewerInstances[0].pageColors).toEqual({
-        background: 'rgb(30, 31, 32)',
-        foreground: 'CanvasText'
+        background: 'rgb(30, 31, 32)'
       })
     )
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledTimes(1)

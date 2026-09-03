@@ -13,6 +13,7 @@ import {
 } from './heights'
 import {
   firstQuickPanelSelectableIndex,
+  initialQuickPanelFocusIndex,
   moveQuickPanelSelectableIndex,
   QuickPanelFooter,
   QuickPanelReadOnlyHeader,
@@ -96,6 +97,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   // Prevent the mouse from interfering during page up/down navigation.
   const [isMouseOver, setIsMouseOver] = useState(false)
+
+  // Hover-mirroring affordances (e.g. the row tooltip) follow the cursor only after keyboard
+  // navigation, never the programmatic focus a panel opens with.
+  const [isKeyboardNavigating, setIsKeyboardNavigating] = useState(false)
 
   const scrollTriggerRef = useRef<QuickPanelScrollTrigger>('initial')
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -191,10 +196,15 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       inputQueryConsumedRef.current = false
       prevPanelGenerationRef.current = undefined
       setActiveIndex(-1)
+      setIsKeyboardNavigating(false)
       return
     }
 
-    if (!ctx.isVisible) return
+    // Retire hover-mirroring state at hide time, not when the cleanup timer finally clears the symbol.
+    if (!ctx.isVisible) {
+      setIsKeyboardNavigating(false)
+      return
+    }
 
     const panelGeneration = getPanelGeneration()
     const isPanelGenerationChanged = prevPanelGenerationRef.current !== panelGeneration
@@ -206,6 +216,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
     if (ctx.readOnly) {
       setActiveIndex(-1)
+      setIsKeyboardNavigating(false)
       prevSearchTextRef.current = activeSearchQuery
       prevSymbolRef.current = ctx.symbol
       return
@@ -215,6 +226,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
       const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
       if (isSymbolChanged || (ctx.trackInputQuery && (isSearchChanged || isPanelGenerationChanged))) {
+        setIsKeyboardNavigating(false)
         setActiveIndex(firstQuickPanelSelectableIndex(list))
       } else {
         setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
@@ -225,12 +237,16 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    // Reset index only when the search text or panel symbol changes.
+    // Reset on a fresh panel (open, or a same-symbol reopen inside the cleanup window) or a
+    // search change: a fresh panel honors the opener's focus request; typing starts from the top.
+    const isFreshPanel = isPanelGenerationChanged
     const isSearchChanged = prevSearchTextRef.current !== activeSearchQuery
-    const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
-    if (isSearchChanged || isSymbolChanged) {
-      setActiveIndex(firstQuickPanelSelectableIndex(list))
+    if (isFreshPanel || isSearchChanged) {
+      setIsKeyboardNavigating(false)
+      setActiveIndex(
+        isFreshPanel ? initialQuickPanelFocusIndex(list, ctx.defaultIndex) : firstQuickPanelSelectableIndex(list)
+      )
     } else {
       // Clamp the current index into the valid range.
       setActiveIndex((prevIndex) => (prevIndex >= list.length ? (list.length > 0 ? list.length - 1 : -1) : prevIndex))
@@ -240,6 +256,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     prevSymbolRef.current = ctx.symbol
   }, [
     ctx.isVisible,
+    ctx.defaultIndex,
     ctx.manageListExternally,
     ctx.readOnly,
     ctx.symbol,
@@ -595,6 +612,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           e.preventDefault()
           e.stopPropagation()
           setIsMouseOver(false)
+          setIsKeyboardNavigating(true)
           const dir = e.key === 'ArrowUp' || e.key === 'PageUp' ? -1 : 1
           setActiveIndex((prev) => moveQuickPanelSelectableIndex(footerNavItems, prev, dir, { wrap: true }))
           return true
@@ -624,6 +642,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       switch (e.key) {
         case 'ArrowUp':
           scrollTriggerRef.current = 'keyboard'
+          setIsKeyboardNavigating(true)
           setActiveIndex((prev) =>
             moveQuickPanelSelectableIndex(list, prev, assistivePressed ? -ctx.pageSize : -1, { wrap: true })
           )
@@ -631,6 +650,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
         case 'ArrowDown':
           scrollTriggerRef.current = 'keyboard'
+          setIsKeyboardNavigating(true)
           setActiveIndex((prev) =>
             moveQuickPanelSelectableIndex(list, prev, assistivePressed ? ctx.pageSize : 1, { wrap: true })
           )
@@ -638,11 +658,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
         case 'PageUp':
           scrollTriggerRef.current = 'keyboard'
+          setIsKeyboardNavigating(true)
           setActiveIndex((prev) => moveQuickPanelSelectableIndex(list, prev, -ctx.pageSize, { wrap: false }))
           return true
 
         case 'PageDown':
           scrollTriggerRef.current = 'keyboard'
+          setIsKeyboardNavigating(true)
           setActiveIndex((prev) => moveQuickPanelSelectableIndex(list, prev, ctx.pageSize, { wrap: false }))
           return true
 
@@ -891,6 +913,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!ctx.readOnly) {
       setActiveIndex((active) => (active === -1 ? active : -1))
     }
+    setIsKeyboardNavigating(false)
     setIsMouseOver((prev) => (prev ? prev : true))
   }, [ctx.readOnly])
 
@@ -907,6 +930,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
             disabled: item.disabled
           })}
           active={(!ctx.readOnly || !!item.fixedToBottom) && itemIndex === activeIndex}
+          keyboardActive={isKeyboardNavigating}
           dataId={item.id}
           hoverEnabled={isMouseOver}
           item={item}
@@ -917,7 +941,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         />
       )
     },
-    [activeIndex, ctx.readOnly, handleItemAction, isMouseOver]
+    [activeIndex, ctx.readOnly, handleItemAction, isKeyboardNavigating, isMouseOver]
   )
 
   return (

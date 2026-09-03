@@ -271,7 +271,7 @@ export class CdpBrowserController {
       (function() {
         window.addEventListener('message', function(e) {
           if (e.data && e.data.channel === 'tabbar-action') {
-            // Tab bar action received
+            console.log(JSON.stringify(e.data));
           }
         });
       })();

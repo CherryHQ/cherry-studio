@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  currentModelDirMock: vi.fn(),
   countTokensMock: vi.fn()
 }))
 
@@ -11,15 +10,7 @@ vi.mock('@application', () => ({
   application: { get: mocks.appGetMock }
 }))
 
-vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => ({
-  currentModelDir: mocks.currentModelDirMock
-}))
-
 const { refineLocalEmbeddingChunks } = await import('../localEmbeddingTokenLimit')
-const { LOCAL_MODELS } = await import('@main/ai/inference/localModelCatalog')
-
-/** The ModelScope cache layout: transformers.js nests the non-`main` revision. */
-const MODEL_DIR = '/models/qwen3-embedding/onnx-community/Qwen3-Embedding-0.6B-ONNX/master'
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
@@ -43,7 +34,6 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
 
 describe('refineLocalEmbeddingChunks', () => {
   it('counts tokens via the inference worker (never imports @huggingface/transformers on the main process) and enforces the effective token cap', async () => {
-    mocks.currentModelDirMock.mockReturnValue(MODEL_DIR)
     mocks.countTokensMock.mockImplementation((texts: string[]) => Promise.resolve(texts.map((text) => text.length)))
     mocks.appGetMock.mockImplementation((name: string) => {
       if (name === 'EmbeddingInferenceService') {
@@ -57,12 +47,7 @@ describe('refineLocalEmbeddingChunks', () => {
       chunks: [{ unitIndex: 0, charStart: 0, charEnd: 10, text: 'abcdefghij' }]
     })
 
-    expect(mocks.countTokensMock).toHaveBeenCalledWith(
-      expect.any(Array),
-      MODEL_DIR,
-      LOCAL_MODELS.embedding.dtype,
-      undefined
-    )
+    expect(mocks.countTokensMock).toHaveBeenCalledWith(expect.any(Array), undefined)
     expect(refined.chunks.length).toBeGreaterThan(1)
     for (const chunk of refined.chunks) {
       expect(chunk.text.length).toBeLessThanOrEqual(4)
@@ -71,7 +56,6 @@ describe('refineLocalEmbeddingChunks', () => {
   })
 
   it('threads the caller-provided AbortSignal through to the worker call', async () => {
-    mocks.currentModelDirMock.mockReturnValue(MODEL_DIR)
     mocks.countTokensMock.mockImplementation((texts: string[]) => Promise.resolve(texts.map((text) => text.length)))
     mocks.appGetMock.mockImplementation((name: string) => {
       if (name === 'EmbeddingInferenceService') {
@@ -87,11 +71,6 @@ describe('refineLocalEmbeddingChunks', () => {
       controller.signal
     )
 
-    expect(mocks.countTokensMock).toHaveBeenCalledWith(
-      expect.any(Array),
-      MODEL_DIR,
-      expect.any(String),
-      controller.signal
-    )
+    expect(mocks.countTokensMock).toHaveBeenCalledWith(expect.any(Array), controller.signal)
   })
 })

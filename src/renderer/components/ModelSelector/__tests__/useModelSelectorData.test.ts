@@ -1,7 +1,8 @@
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { AppEdition } from '@shared/types/appEdition'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,6 +12,11 @@ import { useModelSelectorData } from '../useModelSelectorData'
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
 const mockUsePins = vi.fn()
+const mockGetAppEdition = vi.fn<() => AppEdition>(() => 'global')
+
+vi.mock('@renderer/utils/appEdition', () => ({
+  getAppEdition: () => mockGetAppEdition()
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -99,6 +105,7 @@ beforeEach(() => {
   mockUseModels.mockReset()
   mockUseProviders.mockReset()
   mockUsePins.mockReset()
+  mockGetAppEdition.mockReturnValue('global')
 })
 
 describe('useModelSelectorData', () => {
@@ -275,7 +282,7 @@ describe('useModelSelectorData', () => {
     expect([...result.current.visibleSelectedModelIdSet]).toEqual(['openai::gpt-4'])
   })
 
-  it('hides agent-only providers generally and includes them for a marked agent filter', () => {
+  it('hides Agent-only providers generally and includes them when explicitly requested', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
       models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
@@ -285,11 +292,37 @@ describe('useModelSelectorData', () => {
     expect(general.result.current.modelItems.map((item) => item.modelId)).toEqual(['openai::gpt-4'])
     general.unmount()
 
-    const agentFilter = renderHook(() => useAgentModelFilter('claude-code'))
-    const agent = renderHook(() => useModelSelectorData({ searchText: '', filter: agentFilter.result.current }))
+    const agent = renderHook(() => useModelSelectorData({ searchText: '', includeAgentOnlyModels: true }))
 
     expect(agent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
       'claude-code::claude-sonnet',
+      'openai::gpt-4'
+    ])
+    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
+  })
+
+  it('treats Cherry Cloud as Agent-only in the cn edition and as a regular provider in global', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider(CHERRY_CLOUD_PROVIDER_ID)],
+      models: [makeModel('gpt-4', 'openai'), makeModel('deepseek-free', CHERRY_CLOUD_PROVIDER_ID)]
+    })
+
+    mockGetAppEdition.mockReturnValue('cn')
+    const cnGeneral = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(cnGeneral.result.current.modelItems.map((item) => item.modelId)).toEqual(['openai::gpt-4'])
+    cnGeneral.unmount()
+
+    const cnAgent = renderHook(() => useModelSelectorData({ searchText: '', includeAgentOnlyModels: true }))
+    expect(cnAgent.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
+      `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
+      'openai::gpt-4'
+    ])
+    cnAgent.unmount()
+
+    mockGetAppEdition.mockReturnValue('global')
+    const globalGeneral = renderHook(() => useModelSelectorData({ searchText: '' }))
+    expect(globalGeneral.result.current.modelItems.map((item) => item.modelId).sort()).toEqual([
+      `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`,
       'openai::gpt-4'
     ])
   })

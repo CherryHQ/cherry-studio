@@ -82,7 +82,7 @@ export default function ApiKey({
 
   return (
     <>
-      <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
+      <ProviderSection id="setting-provider-api-key">
         <ProviderField
           className="space-y-2"
           title={

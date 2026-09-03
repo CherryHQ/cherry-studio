@@ -161,8 +161,8 @@ jobs:
 
             The workflow froze the selected dispatch SHA and owns Step 1 item 1. Do not fetch or compare origin/main. It also completed the tag and published-release checks. Do not repeat those checks, push, or mutate any remote Git state. Local Git operations are temporary because the next step restores the frozen SHA.
 
-            Stop after updating package.json and electron-builder.yml, plus release-history.json only for a stable release. Do not edit the generated product manifest. The next workflow steps validate the contents, generate the manifest, and own release branch creation and the signed commit.
-            You may create temporary helper files if needed; the workflow discards every change except those three release metadata files.
+            Stop after updating package.json and electron-builder.yml. Do not edit release-history.json or the generated product manifest. The next workflow steps derive the release history from your electron-builder.yml notes, validate the contents, generate the manifest, and own release branch creation and the signed commit.
+            You may create temporary helper files if needed; the workflow discards every change except those two release metadata files.
         env:
           ANTHROPIC_BASE_URL: ${{ vars.ANTHROPIC_BASE_URL }}
 
@@ -174,14 +174,20 @@ jobs:
           RELEASE_PATCH="$RUNNER_TEMP/prepared-release.patch"
           git diff --binary --full-index "$RELEASE_HEAD" -- \
             package.json \
-            electron-builder.yml \
-            resources/cherry-studio/release-history.json > "$RELEASE_PATCH"
+            electron-builder.yml > "$RELEASE_PATCH"
 
           git reset --hard "$RELEASE_HEAD"
           git clean -fd
           if [ -s "$RELEASE_PATCH" ]; then
             git apply "$RELEASE_PATCH"
           fi
+
+      - name: Sync release history from prepared release notes
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ steps.release-version.outputs.version }}
+        run: |
+          node scripts/release/sync-release-history.js --target-version "$REQUESTED_VERSION"
 
       - name: Validate prepared release metadata
         shell: bash
