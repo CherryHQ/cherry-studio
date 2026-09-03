@@ -89,14 +89,12 @@ describe('ProviderService API keys', () => {
     expect(keys.filter((entry) => entry.key === 'sk-new')).toHaveLength(1)
   })
 
-  it('preserves all API keys added by concurrent calls', async () => {
+  it('preserves all API keys added by successive calls', async () => {
     await seedProvider()
 
-    await Promise.all([
-      providerService.addApiKey('openai', 'sk-oauth-a', 'OAuth'),
-      providerService.addApiKey('openai', 'sk-oauth-b', 'OAuth'),
-      providerService.addApiKey('openai', 'sk-oauth-c', 'OAuth')
-    ])
+    providerService.addApiKey('openai', 'sk-oauth-a', 'OAuth')
+    providerService.addApiKey('openai', 'sk-oauth-b', 'OAuth')
+    providerService.addApiKey('openai', 'sk-oauth-c', 'OAuth')
 
     const keys = await readApiKeys()
     expect(keys.map((entry) => entry.key)).toEqual(['sk-a', 'sk-b', 'sk-c', 'sk-oauth-a', 'sk-oauth-b', 'sk-oauth-c'])
@@ -147,13 +145,11 @@ describe('ProviderService API keys', () => {
     })
   })
 
-  it('preserves independent fields changed by concurrent API key updates', async () => {
+  it('preserves independent fields changed by successive API key updates', async () => {
     await seedProvider()
 
-    await Promise.all([
-      providerService.updateApiKey('openai', 'key-a', { label: 'Updated A' }),
-      providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
-    ])
+    providerService.updateApiKey('openai', 'key-a', { label: 'Updated A' })
+    providerService.updateApiKey('openai', 'key-b', { isEnabled: false })
 
     const keys = await readApiKeys()
     expect(keys.find((entry) => entry.id === 'key-a')).toMatchObject({ label: 'Updated A', isEnabled: true })
@@ -170,13 +166,11 @@ describe('ProviderService API keys', () => {
     expect(storedKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
   })
 
-  it('applies concurrent API key deletes without restoring removed entries', async () => {
+  it('applies successive API key deletes without restoring removed entries', async () => {
     await seedProvider()
 
-    await Promise.all([
-      providerService.deleteApiKey('openai', 'key-a'),
-      providerService.deleteApiKey('openai', 'key-b')
-    ])
+    providerService.deleteApiKey('openai', 'key-a')
+    providerService.deleteApiKey('openai', 'key-b')
 
     const keys = await readApiKeys()
     expect(keys.map((entry) => entry.id)).toEqual(['key-c'])
