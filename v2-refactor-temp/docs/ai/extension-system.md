@@ -499,6 +499,32 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 - **generation 语义**：§3.2 的升级流程改为"新版本注册成功后才注销旧版本；失败则旧版本继续运行"。
 - 与 VS Code 的交叉印证：两家都在 2026 年把凭证存储从扩展收回宿主、都把模型元数据做成运行时数据、都保留一个 JSON 逃生口（VS Code `DataPart` mime / opencode `headers/body` overlay）。三家里唯一做进程隔离的是 VS Code；opencode 两代都进程内。
 
+### 7.3 pi / dsh / openclaw：三个"第一方全是插件"的系统为什么复杂
+
+三个仓库都在 2026-09-03 更新到最新 main/master 后逐文件统计（pi-mono `e44d75c20`、deepseek-harness `76fda72979`、openclaw `b5f9636c016`）。
+
+| | pi（pi-mono） | dsh（deepseek-harness） | openclaw |
+|---|---|---|---|
+| 插件运行时规模 | 契约 + 分发 4,125 行；含包管理 / 资源发现 ~10k | Cordis 内核 2,693 行（vendored）；周边 boot / loader / 门禁 / 生成器 ~40k | `src/plugins` 非测试 119k 行；SDK 54k 行、**324 个 subpath 导出** |
+| 第一方插件 | 78 个示例 + 内置 llama（14.5k 行） | **250 个包**全是插件，含 agent loop、tools、session | **151 个内置扩展**，103 万行（57 个 provider、27 个 channel） |
+| API 面 | 25 方法 + `ctx.ui` 28 方法 + **36 事件（15 个可改写/阻断）** | 16 个 Context 方法 + **97 个 typed service** + 69 事件（14 waterfall）+ 112 个 config schema | **82 成员（56 个 `register*`）+ 42 hook**；manifest 49 个顶层字段 |
+| provider 契约 | `registerProvider(name, { baseUrl, apiKey, models[], streamSimple, oauth })`，`streamSimple` 直接暴露内部 `Model / Context / AssistantMessageEventStream` | `LlmAdapter { listModels, resolveModel, prepareCall, stream → StreamChunk(7 变体) }`，**自有类型，无 AI SDK** | `ProviderPlugin` **64 个字段（3 必填）**，吸收 auth / OAuth / 目录 / wire / replay / failover / thinking / usage；小 provider 靠 `defineSingleProviderPluginEntry` 才能 38 行 |
+| 内部类型泄漏 | 是：`VIRTUAL_MODULES` 把 pi-ai / pi-tui / agent-core 直接给扩展 | 否（LLM 层）；但每个包 peerDep `@deepseek-ai/cordis` | 是：`StreamFn` / `AgentMessage` / `OpenClawConfig`；`sdk-alias.ts` 1,617 行只是给内部起稳定别名 |
+| 运行 / 隔离 | 进程内 jiti，无沙箱；folder trust 是唯一门 | 进程内单 Context，fiber 六态；无沙箱 | 进程内 jiti；安全靠 allowlist、安装扫描（1,286 行）、`contracts` 门控、16 个 policy 文件 |
+| 组合 / 配置 | `package.json#pi` + settings 数组 | bundles → profile → home → `--patch` 四层 YAML patch；564 行校验器；事务化 include | 必填 `configSchema` + `uiHints` + `setup` 向导 + `doctorContract`；44 个 manifest 归一化文件 |
+| 热重载 | `/reload` 全量重建 + 失效 token | fiber / HMR 存在但 base profile **关着**；19 个 vendor patch 里 5 个是生命周期修复 | `registerReload({ restart/hot/noop prefixes })` |
+| 已付出的代价 | 191 次提交、10 个编号回归测试；正在建第二套多进程 facet 架构（chord + experimental ~15k 行），因为进程内对象跨不了 server / TUI / worker | 2 次 postmortem 都是插件机制的坑（default export 吞 `inject`、`!!js`）；1,720 条 agent notes 里 815 条提到 cordis/plugin | 两天 6 个 perf 提交（扫 151 个 manifest 的启动成本）；`update.test.ts` 一个文件 6,235 行 |
+
+复杂度的来源，三家各不相同，但根因一致：
+
+1. **复杂度与"第一方有多少东西是插件"成正比，与第三方 API 大小无关。** pi 78 例、dsh 250 包、openclaw 151 扩展——大部分机器是为了让这些第一方代码围绕内核保持一致（dsh 的 5,400 行门禁/生成器、openclaw 的 `contracts` 层 18.8k 行都只服务内置代码）。本设计里内置 provider **不迁移成扩展**，只是"恰好随 app 打包"，这笔账不用付。
+2. **宿主越多，runtime API 越大。** pi 要给 TUI / RPC / json 三种模式各实现一份 `ctx.ui`；openclaw 有 gateway / CLI / paired nodes / macOS app，`api.runtime` 长到 18 个命名空间 68 个成员。本设计只有主进程一个宿主，渲染层 v1 零贡献点。
+3. **热重载 / fiber / DI 是为"运行时替换核心"服务的。** dsh 能换 agent loop，所以要 fiber 六态和服务可用性驱动的激活；但它自己的 base profile 把 HMR 关了。本设计不替换核心，§3.1 的 `register → dispose` 就够。
+4. **三家都进程内、无隔离，越大的系统越靠策略层补。** openclaw 走到了 allowlist + 安装扫描 + contracts 门控。§5 把 `utilityProcess` 设为索引前置，就是不走这条路。
+5. **内部类型当 SDK 的维护成本是显性的。** pi 的回归测试和第二套架构、openclaw 的 1,617 行别名文件；dsh 的 LLM 层是唯一自有类型的例子，也是 §4.5 的同构物。
+6. **provider 契约会吸收所有厂商差异。** openclaw 64 个字段是终态；防线只有"数据优先 + 家族 helper"（`build*FamilyHooks`）。§4.0 的 L0 / L1 / L2 分层就是把这条防线放在第一天。
+7. **Cherry 自己的 dsh bridge 插件（473 行）证明了最小面**：注入 7 个 service、挂 4 个事件、调 2 个注册——贡献点加一个 waterfall 门，不碰 fiber / isolate / HMR / Config。
+
 ## 8. 分阶段
 
 | 阶段 | 交付 | 验证 |
