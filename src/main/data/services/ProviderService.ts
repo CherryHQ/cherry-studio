@@ -15,6 +15,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import type { ProviderDisplayMetadata } from '@data/services/ProviderRegistryService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import {
   clearSingleFileRefTx,
@@ -23,6 +24,7 @@ import {
   reconcileLogoSlotTx
 } from '@data/services/utils/singleFileRef'
 import { loggerService } from '@logger'
+import { getAppEdition } from '@main/utils/appEdition'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
@@ -39,7 +41,7 @@ import type {
 import { DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
 import { resolveEndpointDialect } from '@shared/utils/provider'
-import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, eq, inArray, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { isRetiredProvider } from '../retiredProviders'
@@ -66,6 +68,25 @@ function applyJsonMergePatch(target: unknown, patch: unknown): unknown {
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 type ProviderIdentity = Pick<UserProviderRow, 'providerId' | 'presetProviderId'>
+
+function isProviderAvailableInCurrentEdition(provider: Pick<Provider, 'availableInEditions'>): boolean {
+  const availableInEditions = provider.availableInEditions
+  return !availableInEditions || availableInEditions.includes(getAppEdition())
+}
+
+function getAvailableProviderMetadata(row: ProviderIdentity): ProviderDisplayMetadata | null {
+  if (isRetiredProvider(row.providerId, row.presetProviderId)) return null
+
+  const metadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
+    row.providerId,
+    row.presetProviderId
+  )
+  return isProviderAvailableInCurrentEdition(metadata) ? metadata : null
+}
+
+function isProviderIdentityAvailable(row: ProviderIdentity): boolean {
+  return getAvailableProviderMetadata(row) !== null
+}
 
 /**
  * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
@@ -127,7 +148,7 @@ function assertProviderAvailable<T extends ProviderIdentity>(
   row: T | null | undefined,
   providerId: string
 ): asserts row is T {
-  if (!row || isRetiredProvider(row.providerId, row.presetProviderId)) {
+  if (!row || !isProviderIdentityAvailable(row)) {
     throw DataApiErrorFactory.notFound('Provider', providerId)
   }
 }
@@ -240,9 +261,10 @@ function projectEndpointConfigOverrides(
 /**
  * Convert database row to Provider entity
  */
-function rowToRuntimeProvider(row: UserProviderRow): Provider {
+function rowToRuntimeProvider(row: UserProviderRow, metadata?: ProviderDisplayMetadata): Provider {
   const providerRegistryService = getDataService('ProviderRegistryService')
-  const presetMetadata = providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
+  const presetMetadata =
+    metadata ?? providerRegistryService.getProviderDisplayMetadata(row.providerId, row.presetProviderId)
 
   // Process API keys (strip actual key values for security)
   // oxlint-disable-next-line no-unused-vars
@@ -276,6 +298,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     logoSrc: logoFileId ? application.get('FileManager').getUrl(logoFileId) : undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
+    availableInEditions: presetMetadata.availableInEditions,
     // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
     // endpoint-type key set) resolve from the CURRENT registry at read time
     // (#17096 — the seeder is insert-only, so the row alone goes stale);
@@ -339,7 +362,65 @@ class ProviderService {
             .all()
         : db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey)).all()
 
-    return rows.filter((row) => !isRetiredProvider(row.providerId, row.presetProviderId)).map(rowToRuntimeProvider)
+    const providers: Provider[] = []
+    for (const row of rows) {
+      const metadata = getAvailableProviderMetadata(row)
+      if (metadata) providers.push(rowToRuntimeProvider(row, metadata))
+    }
+    return providers
+  }
+
+  /** Return matching provider IDs available to runtime callers in this application edition. */
+  listAvailableProviderIds(providerIds?: Iterable<string>): Set<string> {
+    const ids = providerIds ? [...new Set(providerIds)] : undefined
+    if (ids?.length === 0) return new Set()
+
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .where(ids ? inArray(userProviderTable.providerId, ids) : undefined)
+      .all()
+
+    return new Set(rows.filter(isProviderIdentityAvailable).map((row) => row.providerId))
+  }
+
+  /** Check whether a persisted provider is available to runtime callers in this application edition. */
+  isAvailableByProviderId(providerId: string): boolean {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+      .all()
+
+    return row !== undefined && isProviderIdentityAvailable(row)
+  }
+
+  /** Assert that a persisted provider is available to runtime callers in this application edition. */
+  assertAvailable(providerId: string): void {
+    const [row] = application
+      .get('DbService')
+      .getDb()
+      .select({
+        providerId: userProviderTable.providerId,
+        presetProviderId: userProviderTable.presetProviderId
+      })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+      .all()
+
+    assertProviderAvailable(row, providerId)
   }
 
   /**
@@ -372,6 +453,12 @@ class ProviderService {
       dto.providerId,
       dto.presetProviderId ?? null
     )
+    if (!isProviderAvailableInCurrentEdition(presetMetadata)) {
+      throw DataApiErrorFactory.invalidOperation(
+        `create provider ${dto.providerId}`,
+        'provider is unavailable in the current application edition'
+      )
+    }
     const defaultChatEndpoint =
       dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
@@ -893,6 +980,7 @@ class ProviderService {
 
   move(providerId: string, anchor: OrderRequest): void {
     assertManagedCherryAiProviderMutationAllowed(providerId, `move provider ${providerId}`)
+    this.assertAvailable(providerId)
 
     const db = application.get('DbService').getDb()
 
@@ -911,6 +999,7 @@ class ProviderService {
   reorder(moves: OrderBatchRequest['moves']): void {
     for (const move of moves) {
       assertManagedCherryAiProviderMutationAllowed(move.id, `move provider ${move.id}`)
+      this.assertAvailable(move.id)
     }
 
     const db = application.get('DbService').getDb()
