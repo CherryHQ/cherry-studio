@@ -1,6 +1,7 @@
 # Extension 体系：通用宿主 + 贡献点，Provider 是第一个贡献点
 
 > 状态：设计稿（未实现）。日期：2026-09-03。
+> 归宿：本目录是 v2 重构的临时目录（`v2-refactor-temp/README.md`：重构落地后删除），设计稿按惯例先放这里；P0-b 随首个实现 PR 迁到 `docs/references/ai/extension-system.md`（补 frontmatter，跑 `pnpm docs:index`），§9 决策记录随之搬走。
 > 目标：定义 Cherry Studio 的 extension 体系——包格式、安装、运行、以及"贡献点"模型——并以 **model provider** 作为第一个贡献点落地。宿主层是通用的；provider 只是第一个消费者。
 > 试金石：[PR #19882（TokenDance）](https://github.com/CherryHQ/cherry-studio/pull/19882)——一个协议完全标准的 provider，进主仓库改了 49 个文件。这个设计的目标是让同样的 provider 变成一个扩展包，主仓库零改动。
 
@@ -140,10 +141,15 @@ export interface ExtensionRef { id: string; version: string; dir: string }
 | 落盘 | staging + 三棵树轮换 | 目标目录 `{userData}/Data/Extensions/<id>@<version>/`（版本目录：ESM `import()` 按 URL 缓存） |
 | 记录 | — | 新表 `extension` + `extension_installation`，字段抄 `mini_app_installation`（`manifestJson` / `contentHash` / `source` / `previous*` 回滚）；无 `grant` 表——v1 的权限只是同意卡上的披露，没有运行时门（§5） |
 | 崩溃恢复 | journal 机制 + 参数 | `committedHashOf` 查 `extension_installation` |
-| 启用 / 禁用 / 卸载 | 状态机形状 | 禁用 = 调用所有 kind 的注销函数；卸载保留业务行（provider 的 key 是用户的），行因 preset 不可解析而在列表里隐藏 |
-| 升级 | 更新评审账本 + 三棵树 | 新版本目录 → `import` 新 → 注册新（各 kind）→ **成功后**注销旧 → 删旧目录；任一 kind 注册失败 ⇒ 回滚新注册，旧版本继续运行（opencode v2 的 generation 语义） |
+| 启用 / 禁用 / 卸载 | 状态机形状 | 禁用 = 调用所有 kind 的注销函数；卸载保留业务行（provider 的 key 是用户的），但**必须在同一事务里把当前 preset 的连接事实固化进 `user_provider` 行并把 `presetProviderId` 置空**——行降级为普通自定义 provider（§4.7 第 7 项） |
+| 升级 | 更新评审账本 + 三棵树 | 新版本目录 → `import` 新 → 校验信封与各 kind 的 items → 每个 kind 在扩展锁内**注销旧、注册新**；任一步失败 ⇒ 重新注册旧模块，旧版本继续服务（generation 语义，见下） |
 
 安装只做"解压 + 校验 + 拷贝"，**不执行任何脚本**。
+
+两条被现有实现约束死的细节（读代码得出，不是偏好）：
+
+- **卸载不能只靠"preset 解析不到就隐藏"。** `ProviderService.list` 只按 `isRetiredProvider` 与 edition 过滤，preset 解析失败时 `getProviderDisplayMetadata` 返回 `{}`（`ProviderRegistryService.ts:779`）——行照样出现在设置页，只是没有描述、没有 endpoint；而且 `delete()` 会因 `presetProviderId === providerId` 判定为"预置行"直接拒删（`ProviderService.ts:936`），用户连清理都做不到。所以卸载必须主动降级：写回 `endpointConfigs`（含 `adapterFamily` / `baseUrl`）、`name`、`logo`，清空 `presetProviderId`。之后它就是一个普通自定义 provider——可用、可改、可删；重新安装同 id 扩展时再认回 preset。
+- **generation 语义在 provider 这个 kind 上是"换"不是"叠"。** `extensionRegistry.register` 对已存在的 name 幂等跳过（`ExtensionRegistry.ts:55`），两代同 `providerId` 不可能共存；先注册新代是静默 no-op，随后注销旧代会把 provider 直接删掉。因此顺序固定为"校验通过 → `unregister(old)` → `register(new)`"，失败回滚 = 重新 `register(old)`（`unregister` 已 `clearCache()`，旧实例不会残留）。opencode 的"新代没成型就保持旧代"仍然成立，代价是切换点上有一个极短的不可用窗口——这是 id 唯一键注册表的固有性质，凡是按 id 索引的 kind 都同样处理。
 
 ### 3.3 抽取顺序与验证
 
@@ -205,7 +211,8 @@ export default defineExtension({
   contributes: {
     providers: [
       defineProvider({
-        // ↓ 与 packages/provider-registry 的 defineProvider 同一套字段与校验
+        // ↓ 与 packages/provider-registry 的 defineProvider 同一套字段与校验，
+        //   但去掉 id / name：宿主按 §4.2 合成 id、用信封 name 取本地化显示名
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
         endpointConfigs: { /* … */ },
         headers: { 'X-App-URL': 'app://cherryai.com.cn' },
@@ -228,6 +235,7 @@ manifest 仍然是**安装时契约**：宿主校验它、同意卡展示它、`
 - **贡献项的 id 是扩展内局部的**，运行时 id 由宿主合成：一个扩展只贡献一个 provider 时 `providerId = 扩展 id`；多个时 `${扩展 id}.${局部 id}`。所有 kind 同规则（VS Code 也是宿主把 `vendor/id` 拼起来）。
 - 内置 registry 的 provider id 没有一个含 `.`（已核对 `providers.json`），所以扩展 provider 与内置永不冲突；扩展之间的唯一性由扩展 id 唯一性直接推出。
 - 约束：providerId 不能含 `::`（unique model id 分隔符）和 `/`（`/providers/:providerId` 路由无通配）——`.` 两者都安全。
+- **身份字段一律由宿主填，扩展写不了。** registry 的 `ProviderConfigSchema` 要求 `id`（`ProviderIdSchema`）与 `name`（裸 `string`），`ProviderModelOverrideSchema` 要求 `providerId` + `modelId`；这三个里扩展只知道 `modelId`。所以 SDK 的 `defineProvider` 接 `Omit<ProviderConfig, 'id' | 'name'>`，`models[]` 与 `listModels()` 接 `Omit<ProviderModelOverride, 'providerId'>`，宿主在注册时补齐：`id` = 合成 providerId，`name` = `resolveLocalizedText(manifest.name)`，`providerId` = 合成 providerId。扩展伪造 id 的可能性被类型和 schema 同时挡掉——冲突不可能来自扩展作者的手误。
 
 ### 4.3 数据（L0）
 
@@ -238,7 +246,7 @@ manifest item = registry `ProviderConfigSchema` + 以下新增字段（都要加
 | `headers?: Record<string, string>` | 固定请求头，宿主在 `getExtraHeaders` 合并 ⇒ aiSdk / pi / dsh 三条路径全部生效 | `utils/provider.ts` 里 tokendance / radeon-cloud 特判 |
 | `metadata.website.credits?` / `.activity?` | 充值、用量页链接 | 渲染层 `oauth.ts` 的 `providerCharge` / `providerBills` id 表 |
 | `configuration?: ConfigurationField[]` | 声明式配置字段 `{ key, type: 'string'\|'number'\|'boolean'\|'select'\|'secret', title, description?, required?, default?, options? }`；宿主渲染进 provider 设置页，`secret` 走现有凭证存储，值通过 `ctx.configuration` 给钩子 | bedrock / vertex / azure 的 IAM 表单（region / project / location / apiVersion）；VS Code 2026 年也把 key 存储和配置 UI 从扩展收回宿主（manifest `configuration` + `secret: true`） |
-| `models?: ProviderModelOverride[]` | 静态模型清单，语义同 `provider-models.json` | — |
+| `models?: Omit<ProviderModelOverride, 'providerId'>[]` | 静态模型清单，语义同 `provider-models.json`；`providerId` 由宿主补（§4.2）。模型 id 不在 `models.json` 里时必须带 standalone 字段（`name` 必填，`capabilities` / `limits` / `endpointTypes` 按需）——resolver 正是靠它们合成 `ModelConfig`，只给 `{ modelId }` 会得到一个没有能力的空模型 | — |
 
 `adapterFamily` 取值 = 内置族名 ∪ `{ 本扩展 providerId }`。填扩展 id ⇒ 该 endpoint 的模型由 L2 实现提供；填内置族名 ⇒ 宿主用内置 AI SDK 适配器直连（TokenDance 全部如此）。
 
@@ -250,8 +258,9 @@ import type { EndpointType, ProviderModelOverride } from './registry'   // 与 p
 
 export type Credential =
   | { type: 'api-key'; key: string; label?: string }
-  | { type: 'oauth'; accessToken: string; refreshToken?: string; expiresAt?: number; accountId?: string }
-//  ↑ 与 shared/data/types/provider.ts 的 ApiKeyEntry / AuthConfig(oauth) 一一对应，宿主直接落库
+  | { type: 'oauth'; clientId: string; accessToken: string; refreshToken?: string; expiresAt?: number; accountId?: string }
+//  ↑ 对齐 shared/data/types/provider.ts：api-key → ApiKeyEntry（宿主补 `id`/`isEnabled`），
+//    oauth → AuthConfig(oauth)，其 `clientId` 是必填，所以钩子必须把它一起返回（PKCE 的 client id 本就是公开值）
 
 export interface ProviderContext {
   providerId: string
@@ -260,7 +269,9 @@ export interface ProviderContext {
   endpointBaseUrls: Partial<Record<EndpointType, string>>
   credential?: Credential                       // 轮转后的当前凭证；authOptional 时缺省
   configuration: Record<string, unknown>        // manifest configuration 字段的当前值
-  fetch: typeof globalThis.fetch                // 宿主 fetch：代理 / UA / 重定向 / trace
+  /** 宿主 fetch：代理 / UA / 重定向 / trace。签名收窄到可跨进程搬运的子集（§5）：
+   *  url 只能是字符串，init 只能是普通对象，不接 `Request`、不接流式请求体 */
+  fetch: (url: string, init?: ExtensionRequestInit) => Promise<Response>
   signal?: AbortSignal
   /** 宿主在刷新列表、模型选择器等场景以 silent=true 调用；只有用户显式"同步模型"才是 false。
    *  silent 时不得触发任何交互（不弹窗、不起回环服务器）。VS Code 的 PrepareLanguageModelChatModelOptions.silent。 */
@@ -269,10 +280,11 @@ export interface ProviderContext {
 
 export interface AuthContext extends ProviderContext {
   openExternal(url: string): Promise<void>
-  /** 宿主起 127.0.0.1 临时端口监听一次回调（复用 OAuth runtime 的 LoopbackCallbackTransport） */
-  awaitLoopbackCallback(path: string, timeoutMs?: number): Promise<{ url: URL; respond(html: string): void }>
+  /** 宿主起 127.0.0.1 临时端口监听一次回调（复用 OAuth runtime 的 LoopbackCallbackTransport）。
+   *  回调页由宿主渲染（统一的"可以关闭此窗口"），扩展不返回 HTML——省掉一个跨进程搬不动的回调函数。 */
+  awaitLoopbackCallback(path: string, timeoutMs?: number): Promise<{ url: string }>
   /** 宿主开一个授权窗口，把页面 postMessage 与导航 URL 流给扩展判定（silicon / 302ai / aihubmix / ppio / aionly 的形态） */
-  openAuthWindow(url: string): AsyncIterable<{ kind: 'message'; data: unknown } | { kind: 'navigate'; url: URL }> & { close(): void }
+  openAuthWindow(url: string): AsyncIterable<{ kind: 'message'; data: unknown } | { kind: 'navigate'; url: string }> & { close(): void }
 }
 
 /** 出站请求的可改写视图；只覆盖 AI SDK 路径（pi / dsh 有自己的传输，它们只吃 manifest 数据） */
@@ -283,8 +295,8 @@ export interface OutgoingRequest {
 }
 
 export interface ProviderHooks {
-  /** 模型发现。返回 registry 的完整模型 schema，宿主用现有 toModel() 归一并做 endpoint 推导 */
-  listModels?(ctx: ProviderContext): Promise<ProviderModelOverride[]>
+  /** 模型发现。返回 registry 的完整模型 schema（`providerId` 由宿主补），宿主用现有 resolve 归一并做 endpoint 推导 */
+  listModels?(ctx: ProviderContext): Promise<Omit<ProviderModelOverride, 'providerId'>[]>
   /** 交互式获取凭证：弹窗回传 key、PKCE 回环、OAuth 授权码 */
   acquireCredential?(ctx: AuthContext): Promise<Credential>
   /** 有 refreshToken 的凭证过期时由宿主调用；缺省 ⇒ 过期即失效 */
@@ -383,7 +395,8 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 6. extensionAdapter.ts：Cherry 模型接口 → AI SDK V3；P1 只接 imageModel
    → verify: PPIO 扩展的图像生成走 submit/poll 通过
 
-7. user_provider delta 行：安装时同 presetProviderSeeder.toDbRow；卸载保留
+7. user_provider delta 行：安装时同 presetProviderSeeder.toDbRow；卸载时固化连接事实 + 清 presetProviderId（§3.2）
+   → verify: 卸载后该行仍可用、可编辑、可删除；重装同 id 扩展后重新认回 preset
 8. 图标 / 显示名：按 mini app applyPackagedIcon 同款进 provider_logo_file_ref；name 取 manifest
 ```
 
@@ -413,6 +426,17 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 - 选 A：目标是最简实现；provider 的工作就是发 HTTP，宿主网络策略全收敛在 `customFetch`，进程内注入零成本。
 - 按 C 设计：§4.4 / §4.5 的入参除四个宿主能力函数（`fetch` / `openExternal` / `awaitLoopbackCallback` / `openAuthWindow`）外全是纯数据，出参（`Credential` / `ProviderModelOverride[]` / `ChatStreamPart` 流）全是纯对象。换 C 时扩展代码零改动，宿主把 `extensionAdapter.ts` 的输入端从"进程内对象"换成"MessagePort 代理"。§4.0 排除服务端工具正是为了不在 API 里放函数值。
+
+**"零改动"不是自动成立的，它由下面这条线上契约保证**（现在就写进类型，否则 P3 会发现 API 里躺着搬不动的值）：
+
+| API 面 | 桥的形状 | 约束 |
+|---|---|---|
+| `openExternal` / `awaitLoopbackCallback` | 一次请求 / 一次响应 | 入参出参都是 structured-clone 类型：**没有 `URL`、没有回调函数、没有 `Response`**。§4.4 的 `url` 全部是 `string`，回环回调页由宿主渲染 |
+| `openAuthWindow` | 一条事件通道（宿主推 `message` / `navigate`，扩展发一次 `close`） | 事件负载走 structured clone；`data` 是页面 postMessage 的原值，本来就只能是可克隆值 |
+| `fetch` | 请求/响应 + 响应体分块推流；扩展侧是一个真的 `fetch` 实现（签名不变） | 支持的子集：`input` 为 URL 字符串、`init` 为普通对象（`method` / `headers` / `body: string \| Uint8Array \| URLSearchParams` / `signal`），响应以 `{ status, headers, body: 分块 Uint8Array }` 回传后在扩展侧重建 `Response`。**不支持** `Request` 对象入参、请求体流式上传（`duplex: 'half'`）、`fetch` 上的自定义 agent |
+| 钩子返回值 / `ChatStreamPart` | 一次响应或一条流通道 | 全是纯对象；`Uint8Array` 走 transfer；`AbortSignal` 换 id，宿主侧 abort 转成通道消息 |
+
+这四条在 v1（方案 A，进程内）下同样成立——A 只是把桥换成直接调用。谁写了一个 `Request` 入参的 fetch 调用，A 下能跑、C 下崩，所以子集从第一天就是 SDK 类型的一部分，而不是 P3 的迁移说明。
 - A 的边界：VS Code 和 LM Studio 这两个让插件当 provider **且有市场**的 GUI 应用都隔离了插件进程；不隔离的（opencode / n8n / Obsidian）都是"用户亲手装"的场景。所以 A 只覆盖用户自选文件 / URL 安装；我们自己分发索引之前，C 必须先落地。
 - A 的纪律：只加载 `feature.extensions` 下用户显式安装的目录；同意卡写明"含代码，以应用权限运行"；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
 - 加载：`import(pathToFileURL(main).href)`；`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联，宿主**不**给扩展解析自己的 `node_modules`——版本由宿主决定的依赖就是隐式 API。扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
@@ -425,8 +449,14 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 |---|---|---|
 | v1 | 本地 zip / 目录 | mini app 的文件安装流程 |
 | v1 | URL | mini app 的 web 安装流程（分发 manifest + `package.url` + sha256） |
-| 之后 | 索引 | `x-files/extensions/v1/index.json`，条目 `{ id, name, version, url, sha256 }`，与 provider-registry 远程分支同款；**需要 §5 方案 C 先落地** |
+| 之后 | 索引 | `x-files/extensions/v1/index.json`，与 provider-registry 远程分支同款；**需要 §5 方案 C 先落地** |
 | 之后 | npm 包名 | binary-manager 的 `bun` 装到 `Extensions/_npm/`，自动生成 manifest 包一层。AI SDK 社区 provider 就是现成生态（opencode 路线） |
+
+**索引与包地址必须双源**，这是仓库里已有的硬规矩，不是可选优化：
+
+- 索引本身走 GitHub raw + GitCode raw 两个地址，按 `RegionService` 选序——与 `ProviderRegistryUpdaterService` 的 `REGISTRY_URL_GITHUB` / `REGISTRY_URL_GITCODE` 同一套分支与选路。
+- 条目是 `{ id, name, version, url, urlCn?, sha256, size }`；`url` / `urlCn` 沿用 mini app 的成对声明规则（`miniAppManifest.ts:423`：`update.urlCn` 与 `package.urlCn` 必须同时出现或同时不出现），下载时用 `mirrorOrder` 选序、两个镜像必须是同一份字节（sha256 校验兜底）。
+- URL 一律 `assertHttps`；这些都是 §3.2 抽到 `packageInstall/httpSource` 的现成能力，索引这一层不用新代码。
 
 ## 7. 开源实现对照
 
@@ -540,7 +570,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 | 阶段 | 交付 | 验证 |
 |---|---|---|
 | P0-a | **行为保持的抽取 PR**：`services/packageInstall/` + `shared/types/packageManifest.ts`，mini app 改为薄包装（§3.3 第 1、2 步） | mini app 的 8 个安装测试文件一行不改全绿 |
-| P0-b | SDK 包（类型 + `defineExtension` + `cherry-ext build`）+ `ExtensionManifestSchema` + `ExtensionHostService` + extension 安装流程（§3.3 第 3 步）+ `providers` L0（§4.7 第 1、2、7、8 项） | 一个纯数据扩展装上后，设置页出现该 provider，聊天与 pi/dsh 都带上 manifest headers |
+| P0-b | SDK 包（类型 + `defineExtension` + `cherry-ext build`）+ `ExtensionManifestSchema` + `ExtensionHostService` + extension 安装流程（§3.3 第 3 步）+ `providers` L0（§4.7 第 1、2、7、8 项）；本文迁到 `docs/references/ai/` | 一个纯数据扩展装上后，设置页出现该 provider，聊天与 pi/dsh 都带上 manifest headers；`pnpm docs:check` 过 |
 | P1 | L1 钩子 `listModels` / `acquireCredential` + L2 `imageModel` adapter（§4.7 第 3–6 项） | **TokenDance 作为扩展包通过**；PPIO 搬出主仓库 |
 | P2 | `configuration` 声明式表单 + `refreshCredential` / `transformRequest`；第二个 kind（建议 `webSearchProviders`），此时抽出 `ContributionPoint` 接口 | Bedrock 的 IAM 表单由声明式字段渲染；两个 kind 共用一套安装/启停/卸载 |
 | P3 | `utilityProcess` runtime（§5 方案 C），provider kind 的远程 shim | 同一个 TokenDance / PPIO 包在 A/C 下都通过，扩展代码零改动 |
@@ -562,7 +592,12 @@ P3 排在 P4 前是硬约束，不是偏好。P2 之前不抽 `ContributionPoint
 | 2026-09-03 | 钩子从 23 个配置分支、15 个 fetcher、12 个自定义 provider、4 种鉴权、12 个面板推导，PR #19882 只是测试用例 | 评审意见（"刚刚那个 PR 的特化，没有思考"）（§4.0） | 已定 |
 | 2026-09-03 | Runtime v1 进程内 `import()`，仅用于用户自选文件/URL 安装；`utilityProcess` 隔离是分发索引的前置条件 | 让插件当 provider 且有市场的 GUI 应用（VS Code、LM Studio）都隔离；opencode / n8n / Obsidian 不隔离但都是"用户亲手装"（§5） | 已定 |
 | 2026-09-03 | **复用 mini app 安装代码的实现**，通用部分抽到 `services/packageInstall/`，信封抽到 `shared/types/packageManifest.ts`；DB 提交、grants、更新行操作各写各的 | 用户拍板；逐文件切分见 §3.2，抽取是行为保持的 P0-a PR，8 个 mini app 安装测试不改全绿（§3.3） | 已定 |
-| 2026-09-03 | 升级采用 generation 语义：新版本各 kind 注册成功后才注销旧版本，失败则旧版本继续运行 | opencode v2 `PluginSupervisor`（§7.2） | 已定 |
+| 2026-09-03 | 升级采用 generation 语义，但按 id 索引的 kind 是"校验后原地换"：`unregister(old)` → `register(new)`，失败重新 `register(old)` | opencode v2 `PluginSupervisor`（§7.2）；`ExtensionRegistry.register` 对同名幂等跳过，两代不可能共存（§3.2） | 已定 |
+| 2026-09-04 | 卸载时把 preset 连接事实固化进 `user_provider` 行并清空 `presetProviderId`，行降级为自定义 provider | 评审；preset 解析不到并不会隐藏行（`getProviderDisplayMetadata` 返回 `{}`），且 `delete()` 会拒删预置行，用户会得到一个删不掉的死行（§3.2） | 已定 |
+| 2026-09-04 | provider / model 的身份字段（`id` / `name` / `providerId`）由宿主填，SDK 类型里直接 `Omit` 掉 | 评审；registry schema 把这三个列为必填，扩展只知道 `modelId`（§4.2） | 已定 |
+| 2026-09-04 | `Credential` 的 oauth 变体带 `clientId` | 评审；`AuthConfigOAuth.clientId` 是必填，否则"宿主直接落库"不成立（§4.4） | 已定 |
+| 2026-09-04 | 宿主能力的线上子集写进 SDK 类型：无 `URL`、无回调函数、`fetch` 收窄到字符串 URL + 普通 init | 评审；否则 §5 的"换 C 时扩展零改动"只是承诺（§5） | 已定 |
+| 2026-09-04 | 索引与包地址双源（GitHub + GitCode，`url`/`urlCn` 成对），走 `mirrorOrder` + sha256 | 评审；与 `ProviderRegistryUpdaterService`、mini app 分发 manifest 同一规矩（§6） | 已定 |
 | — | 第二个 kind 选 `webSearchProviders` 还是 `channels` | 前者接口最小（两个方法、构造函数表）；后者已经是自注册工厂表，改动最少。文档暂按前者 | **待定** |
 | — | `transformResponse` 钩子 | 仓库里只有 ark 一处响应归一化；第二个实例出现时按 `transformRequest` 同形加 | 暂不做 |
 | — | 服务端工具（`toolFactories`）、网关按模型路由、营销位面板 | 函数值跨进程不可搬 / 多数可由 `models[].endpointTypes` 表达 / 无第三方需求 | 暂不做 |
