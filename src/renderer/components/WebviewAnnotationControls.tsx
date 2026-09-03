@@ -52,6 +52,14 @@ interface PendingCreateSave extends CreateSaveAttempt {
   timeout: ReturnType<typeof setTimeout> | null
 }
 
+interface NavigationBarrier {
+  canAcknowledgeResetState: boolean
+  generation: number
+  kind: 'document' | 'in-page'
+  targetId: string
+  webview: WebviewTag
+}
+
 function isSameCreateSaveAttempt(pending: PendingCreateSave, attempt: CreateSaveAttempt) {
   return (
     pending.id === attempt.id &&
@@ -89,6 +97,8 @@ export function WebviewAnnotationControls({
   const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
   const [isCreateSaving, setIsCreateSaving] = useState(false)
   const pendingCreateSaveRef = useRef<PendingCreateSave | null>(null)
+  const navigationBarrierRef = useRef<NavigationBarrier | null>(null)
+  const navigationGenerationRef = useRef(0)
   const isMountedRef = useRef(false)
   const currentWebview = webviewRef.current
   const committedOwnerRef = useRef({ isHostActive, targetId: target.id, webview: currentWebview })
@@ -100,6 +110,7 @@ export function WebviewAnnotationControls({
       const pending = pendingCreateSaveRef.current
       if (pending?.timeout) clearTimeout(pending.timeout)
       pendingCreateSaveRef.current = null
+      navigationBarrierRef.current = null
     }
   }, [])
 
@@ -181,6 +192,46 @@ export function WebviewAnnotationControls({
     [isCurrentCreateSaveAttempt, setPendingCreateSave]
   )
 
+  const isCurrentNavigationBarrier = useCallback((barrier: NavigationBarrier) => {
+    if (!isMountedRef.current) return false
+    const current = navigationBarrierRef.current
+    const owner = committedOwnerRef.current
+    return (
+      current?.generation === barrier.generation &&
+      current.targetId === barrier.targetId &&
+      current.webview === barrier.webview &&
+      owner.targetId === barrier.targetId &&
+      owner.webview === barrier.webview
+    )
+  }, [])
+
+  const sendNavigationReset = useCallback(
+    (barrier: NavigationBarrier, acknowledgeAfterReset: boolean) => {
+      try {
+        void barrier.webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'reset' }).then(
+          () => {
+            if (!isCurrentNavigationBarrier(barrier) || !acknowledgeAfterReset) return
+            navigationBarrierRef.current = { ...barrier, canAcknowledgeResetState: true }
+          },
+          (error) => {
+            if (!isCurrentNavigationBarrier(barrier)) return
+            logger.debug('Failed to reset webview annotations for navigation', {
+              targetId: barrier.targetId,
+              error
+            })
+          }
+        )
+      } catch (error) {
+        if (!isCurrentNavigationBarrier(barrier)) return
+        logger.debug('Webview annotation guest is not ready to reset for navigation', {
+          targetId: barrier.targetId,
+          error
+        })
+      }
+    },
+    [isCurrentNavigationBarrier]
+  )
+
   const handleGuestEvent = useEffectEvent(
     (guestEvent: WebviewAnnotationGuestEvent, eventWebview: WebviewTag | null, listenerTargetId: string) => {
       if (
@@ -189,6 +240,20 @@ export function WebviewAnnotationControls({
         eventWebview !== webviewRef.current ||
         listenerTargetId !== target.id
       ) {
+        return
+      }
+
+      const navigationBarrier = navigationBarrierRef.current
+      if (navigationBarrier) {
+        if (!isCurrentNavigationBarrier(navigationBarrier)) return
+        if (
+          navigationBarrier.canAcknowledgeResetState &&
+          guestEvent.type === 'state_changed' &&
+          !guestEvent.state.enabled &&
+          guestEvent.state.annotations.length === 0
+        ) {
+          navigationBarrierRef.current = null
+        }
         return
       }
 
@@ -250,16 +315,38 @@ export function WebviewAnnotationControls({
     sendCommand({ type: 'set_enabled', enabled: false }, webview)
   })
 
-  const resetForNavigation = useEffectEvent((webview: WebviewTag | null, listenerTargetId: string) => {
-    if (!isMountedRef.current || !webview || webview !== webviewRef.current || listenerTargetId !== target.id) return
-    clearPendingCreateSave()
-    setState(EMPTY_STATE)
-    setEditorSession(null)
-    sendCommand({ type: 'reset' }, webview)
-    void replaceMainSnapshot([], webview)
-  })
+  const resetForNavigation = useEffectEvent(
+    (
+      webview: WebviewTag | null,
+      listenerTargetId: string,
+      kind: NavigationBarrier['kind'],
+      acknowledgeAfterReset: boolean
+    ) => {
+      if (!isMountedRef.current || !webview || webview !== webviewRef.current || listenerTargetId !== target.id) {
+        return
+      }
+      const activeBarrier = navigationBarrierRef.current
+      if (kind === 'in-page' && activeBarrier?.kind === 'document' && isCurrentNavigationBarrier(activeBarrier)) {
+        return
+      }
+      clearPendingCreateSave()
+      setState(EMPTY_STATE)
+      setEditorSession(null)
+      const barrier: NavigationBarrier = {
+        canAcknowledgeResetState: false,
+        generation: ++navigationGenerationRef.current,
+        kind,
+        targetId: listenerTargetId,
+        webview
+      }
+      navigationBarrierRef.current = barrier
+      sendNavigationReset(barrier, acknowledgeAfterReset)
+      void replaceMainSnapshot([], webview)
+    }
+  )
 
   useEffect(() => {
+    navigationBarrierRef.current = null
     clearPendingCreateSave()
     setState(EMPTY_STATE)
     setEditorSession(null)
@@ -268,6 +355,8 @@ export function WebviewAnnotationControls({
   useEffect(() => {
     const pending = pendingCreateSaveRef.current
     if (pending && pending.webview !== currentWebview) clearPendingCreateSave(pending.id)
+    const navigationBarrier = navigationBarrierRef.current
+    if (navigationBarrier && navigationBarrier.webview !== currentWebview) navigationBarrierRef.current = null
   }, [clearPendingCreateSave, currentWebview])
 
   useEffect(() => {
@@ -283,15 +372,20 @@ export function WebviewAnnotationControls({
       handleGuestEvent(parsed.data, attachedWebview, target.id)
     }
 
-    const handleDomReady = () => configureGuest(attachedWebview)
-    const handleNavigation = () => resetForNavigation(attachedWebview, target.id)
+    const handleDomReady = () => {
+      if (navigationBarrierRef.current?.kind === 'document') {
+        resetForNavigation(attachedWebview, target.id, 'document', true)
+      }
+      configureGuest(attachedWebview)
+    }
+    const handleDocumentNavigation = () => resetForNavigation(attachedWebview, target.id, 'document', false)
+    const handleInPageNavigation = () => resetForNavigation(attachedWebview, target.id, 'in-page', true)
 
     const detach = () => {
       if (!attachedWebview) return
       attachedWebview.removeEventListener('ipc-message', handleGuestMessage)
-      attachedWebview.removeEventListener('did-start-loading', handleNavigation)
-      attachedWebview.removeEventListener('did-navigate', handleNavigation)
-      attachedWebview.removeEventListener('did-navigate-in-page', handleNavigation)
+      attachedWebview.removeEventListener('did-start-loading', handleDocumentNavigation)
+      attachedWebview.removeEventListener('did-navigate-in-page', handleInPageNavigation)
       attachedWebview.removeEventListener('dom-ready', handleDomReady)
       attachedWebview = null
     }
@@ -310,9 +404,8 @@ export function WebviewAnnotationControls({
       detach()
       attachedWebview = webview
       webview.addEventListener('ipc-message', handleGuestMessage)
-      webview.addEventListener('did-start-loading', handleNavigation)
-      webview.addEventListener('did-navigate', handleNavigation)
-      webview.addEventListener('did-navigate-in-page', handleNavigation)
+      webview.addEventListener('did-start-loading', handleDocumentNavigation)
+      webview.addEventListener('did-navigate-in-page', handleInPageNavigation)
       webview.addEventListener('dom-ready', handleDomReady)
       configureGuest(webview)
     }
