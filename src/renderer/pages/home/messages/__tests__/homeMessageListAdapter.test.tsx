@@ -18,7 +18,8 @@ const exportActionsMock = vi.hoisted(() => ({
 }))
 
 const leafCapabilitiesMock = vi.hoisted(() => ({
-  copyImage: vi.fn()
+  copyImage: vi.fn(),
+  previewFile: vi.fn()
 }))
 
 const chatWriteMock = vi.hoisted(() => ({
@@ -339,6 +340,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       writable: true,
       value: {
         file: {
+          getPhysicalPath: vi.fn(),
           openPath: vi.fn(),
           select: vi.fn(),
           showInFolder: vi.fn()
@@ -443,6 +445,38 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       previewPath: '/internal/message-files/report.docx' as AbsoluteFilePath,
       originalPath: '/Users/alice/report.docx' as AbsoluteFilePath,
       mediaType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+  })
+
+  it('opens sent attachment cards through the topic right pane action', async () => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    await value?.actions.previewFile?.({
+      handle: { kind: 'path', path: '/tmp/report.pdf' as AbsoluteFilePath },
+      name: 'report.pdf',
+      ext: '.pdf'
+    })
+
+    expect(topicPreviewInputFileMock).toHaveBeenCalledWith({
+      displayName: 'report.pdf',
+      previewPath: '/tmp/report.pdf'
+    })
+    expect(leafCapabilitiesMock.previewFile).not.toHaveBeenCalled()
+
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue(
+      '/data/Application Support/report.pdf' as AbsoluteFilePath
+    )
+    await value?.actions.previewFile?.({
+      handle: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' },
+      name: 'managed-report.pdf',
+      ext: '.pdf'
+    })
+
+    expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: '019606a0-0000-7000-8000-000000000001' })
+    expect(topicPreviewInputFileMock).toHaveBeenLastCalledWith({
+      displayName: 'managed-report.pdf',
+      previewPath: '/data/Application Support/report.pdf'
     })
   })
 

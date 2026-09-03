@@ -2,6 +2,7 @@ import type { MessageListProviderValue, MessageListRuntime } from '@renderer/com
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -181,6 +182,7 @@ describe('useAgentMessageListProviderValue', () => {
     vi.clearAllMocks()
     clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
+    window.api.file.getPhysicalPath = vi.fn()
     ipcApiRequest.mockReset()
     ipcApiRequest.mockResolvedValue({
       kind: 'file',
@@ -295,7 +297,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openErrorDetail).toBe(errorActionsMock.openErrorDetail)
     expect(value?.actions.navigateErrorTarget).toBe(errorActionsMock.navigateErrorTarget)
     expect(value?.actions.removeMessageErrorPart).toBeUndefined()
-    expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
+    expect(value?.actions.previewFile).toEqual(expect.any(Function))
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
@@ -343,6 +345,31 @@ describe('useAgentMessageListProviderValue', () => {
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(openRouteMock).toHaveBeenCalledWith('/settings/provider', { id: 'provider-1' })
 
+    await value?.actions.previewFile?.({
+      handle: { kind: 'path', path: '/tmp/workspace/report.pdf' as AbsoluteFilePath },
+      name: 'report.pdf',
+      ext: '.pdf'
+    })
+    expect(previewInputFile).toHaveBeenCalledWith({
+      displayName: 'report.pdf',
+      previewPath: '/tmp/workspace/report.pdf'
+    })
+    expect(leafCapabilitiesMock.previewFile).not.toHaveBeenCalled()
+
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue(
+      '/data/Application Support/report.pdf' as AbsoluteFilePath
+    )
+    await value?.actions.previewFile?.({
+      handle: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' },
+      name: 'managed-report.pdf',
+      ext: '.pdf'
+    })
+    expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: '019606a0-0000-7000-8000-000000000001' })
+    expect(previewInputFile).toHaveBeenLastCalledWith({
+      displayName: 'managed-report.pdf',
+      previewPath: '/data/Application Support/report.pdf'
+    })
+
     const locateMessage = vi.fn()
     const startEditing = vi.fn()
     const unbindMessageRuntime = value?.actions.bindMessageRuntime?.('assistant-1', { locateMessage, startEditing })
@@ -380,6 +407,42 @@ describe('useAgentMessageListProviderValue', () => {
     eventMocks.emit.mockClear()
     value?.actions.locateMessage?.('assistant-1', true)
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
+  })
+
+  it('falls back to the shared attachment preview when the right pane preview action is unavailable', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const target = {
+      handle: { kind: 'path', path: '/tmp/workspace/report.pdf' as AbsoluteFilePath },
+      name: 'report.pdf',
+      ext: '.pdf'
+    } as const
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        assistantId: 'agent-1',
+        isLoading: false,
+        messageNavigation: 'anchor',
+        workspacePath: '/tmp/workspace'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    await value?.actions.previewFile?.(target)
+
+    expect(leafCapabilitiesMock.previewFile).toHaveBeenCalledWith(target)
   })
 
   it('rejects unresolved relative paths when no workspace root is available', () => {

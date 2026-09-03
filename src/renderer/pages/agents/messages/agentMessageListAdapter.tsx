@@ -9,6 +9,7 @@ import {
 import { hasPartParentToolCallId } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import {
   DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageAttachmentTarget,
   type MessageGroupRuntime,
   type MessageListActions,
   type MessageListItem,
@@ -32,9 +33,10 @@ import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file'
+import { createFilePathHandle, isFilePathHandle } from '@shared/utils/file'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -142,6 +144,17 @@ const requireWorkspaceFilePath = (workspacePath: string | undefined, rawPath: st
   const resolved = resolveWorkspaceFilePath(workspacePath, rawPath)
   if (!resolved) throw new Error(`Cannot resolve "${rawPath}" to an absolute path without a workspace root`)
   return resolved
+}
+
+const resolveAttachmentPreviewPath = async (handle: FileHandle): Promise<AbsoluteFilePath | null> => {
+  if (isFilePathHandle(handle)) return handle.path
+
+  try {
+    const path = await window.api.file.getPhysicalPath({ id: handle.entryId })
+    return AbsoluteFilePathSchema.safeParse(path).data ?? null
+  } catch {
+    return null
+  }
 }
 
 export function useAgentMessageListProviderValue({
@@ -265,6 +278,21 @@ export function useAgentMessageListProviderValue({
     diagnosticReport,
     persistDiagnosis
   })
+  const fallbackPreviewFile = leafCapabilities.previewFile
+  const previewFile = useCallback<NonNullable<MessageListActions['previewFile']>>(
+    async (target: MessageAttachmentTarget) => {
+      if (!previewInputFile) return fallbackPreviewFile?.(target)
+
+      const previewPath = await resolveAttachmentPreviewPath(target.handle)
+      if (!previewPath) return fallbackPreviewFile?.(target)
+
+      return previewInputFile({
+        displayName: target.name,
+        previewPath
+      })
+    },
+    [fallbackPreviewFile, previewInputFile]
+  )
 
   const openPath = useCallback(
     (path: string) => {
@@ -416,6 +444,7 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
+      previewFile,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
@@ -456,6 +485,7 @@ export function useAgentMessageListProviderValue({
       openDiagnosticReport,
       openAgentToolFlow,
       previewInputFile,
+      previewFile,
       openPath,
       respondToolApproval,
       resolvePath,
