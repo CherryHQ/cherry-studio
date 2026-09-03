@@ -2,6 +2,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import type { SessionActionContext } from '@renderer/components/chat/actions/sessionItemActions'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -9,7 +10,12 @@ import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hook
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useOptimisticResourceName } from '@renderer/hooks/useOptimisticResourceName'
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { type SessionListItem, sortSessionsForDisplayGroups } from '@renderer/utils/chat/sessionListHelpers'
@@ -50,6 +56,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
     isLoadingAll: isSessionsLoading,
     deleteSession,
     deleteSessionWithOutcome,
+    reload,
     restoreSession,
     togglePin
   } = useAgentSessionsSource()
@@ -127,9 +134,13 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       const session = sessionItems.find((candidate) => candidate.id === id)
       showRecycleBinUndo({
         itemName: session?.name || t('common.unnamed'),
-        onUndo: async () => {
-          await restoreSession(id)
-        }
+        onUndo: () =>
+          restoreRecycleBinItem({
+            id,
+            restore: restoreSession,
+            getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+            refresh: reload
+          })
       })
     },
     [
@@ -137,6 +148,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       deleteSession,
       isSessionPinned,
       onRecordSelect,
+      reload,
       restoreSession,
       sessionItems,
       t,
@@ -176,24 +188,19 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
         const deletedIds = [...result.succeeded]
         showRecycleBinBatchUndo({
           itemCount: deletedIds.length,
-          onUndo: async () => {
-            const restoreOutcomes = await Promise.allSettled(deletedIds.map((id) => restoreSession(id)))
-            return restoreOutcomes.reduce(
-              (summary, outcome, index) => {
-                const id = deletedIds[index]
-                if (outcome.status === 'fulfilled') summary.restored.push(id)
-                else summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
-                return summary
-              },
-              { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
-            )
-          }
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreSession,
+              getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              refresh: reload
+            })
         })
       }
 
       return result
     },
-    [deleteSessionWithOutcome, restoreSession, t]
+    [deleteSessionWithOutcome, reload, restoreSession, t]
   )
 
   const handleRenameSession = useCallback(

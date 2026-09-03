@@ -6,6 +6,7 @@ import type * as UseGroupsHook from '@renderer/hooks/useGroups'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -201,12 +202,19 @@ const assistantMutationMocks = vi.hoisted(() => ({
   restoreAssistant: vi.fn()
 }))
 
+const assistantQueryMocks = vi.hoisted(() => ({
+  refetchAssistants: vi.fn()
+}))
+
 const recycleBinFeedbackMocks = vi.hoisted(() => ({
   showRecycleBinBatchUndo: vi.fn(),
   showRecycleBinUndo: vi.fn()
 }))
 
-vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
 
 const topicStreamStatusMocks = vi.hoisted(() => ({
   markSeen: vi.fn(),
@@ -399,8 +407,6 @@ vi.mock('react-i18next', () => ({
         if (key === 'settings.assistant.icon.type.model') return 'Model'
         if (key === 'settings.assistant.icon.type.none') return 'None'
         if (key === 'assistants.presets.manage.title') return 'Manage Assistants'
-        if (key === 'assistants.clear.title') return 'Clear conversations'
-        if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
         if (key === 'chat.topics.clear.title') return 'Clear messages'
         if (key === 'chat.input.clear.title') return 'Clear all messages?'
         if (key === 'notes.save') return 'Save to notes'
@@ -838,6 +844,7 @@ describe('Topics', () => {
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
     assistantMutationMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
     assistantMutationMocks.restoreAssistant.mockResolvedValue(undefined)
+    assistantQueryMocks.refetchAssistants.mockResolvedValue(undefined)
     topicDataMocks.clearTopicMessagesTrigger.mockResolvedValue({ deletedIds: ['message-c'] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
@@ -898,7 +905,7 @@ describe('Topics', () => {
           isLoading: false,
           isRefreshing: false,
           error: undefined,
-          refetch: vi.fn().mockResolvedValue(undefined),
+          refetch: assistantQueryMocks.refetchAssistants,
           mutate: vi.fn().mockResolvedValue(undefined)
         }
       }
@@ -1863,6 +1870,8 @@ describe('Topics', () => {
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {
+    topicDataMocks.restoreTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-a'))
+    const getActiveTopic = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a' } as never)
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -1890,9 +1899,12 @@ describe('Topics', () => {
       onUndo: expect.any(Function)
     })
 
-    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
 
     expect(topicDataMocks.restoreTopic).toHaveBeenCalledWith('topic-a')
+    expect(getActiveTopic).toHaveBeenCalledWith('/topics/topic-a')
+    expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+    getActiveTopic.mockRestore()
   })
 
   it('reports a stale topic without changing selection or offering Undo', async () => {
@@ -3338,10 +3350,19 @@ describe('Topics', () => {
       onUndo: expect.any(Function)
     })
 
-    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    topicDataMocks.restoreTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-a'))
+    const getActiveTopic = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-a' } as never)
+    const refreshCountBeforeUndo = topicDataMocks.refreshTopics.mock.calls.length
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['topic-a'],
+      failed: []
+    })
 
     expect(topicDataMocks.restoreTopic).toHaveBeenCalledExactlyOnceWith('topic-a')
     expect(topicDataMocks.restoreTopic).not.toHaveBeenCalledWith('topic-b')
+    expect(getActiveTopic).toHaveBeenCalledWith('/topics/topic-a')
+    expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(refreshCountBeforeUndo + 1)
+    getActiveTopic.mockRestore()
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
@@ -3357,6 +3378,47 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
     )
+  })
+
+  it('offers exact Topic Undo when the post-delete refresh rejects', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
+      deletedIds: ['topic-a'],
+      deletedCount: 1
+    })
+    topicDataMocks.refreshTopics.mockRejectedValueOnce(new Error('refresh failed'))
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
+
+    await vi.waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledTimes(1))
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('reports already moved when Assistant Topic deletion changes no rows', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: [], deletedCount: 0 })
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
+
+    await vi.waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin'))
+    expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('pins an assistant to the sidebar from the assistant group menu', async () => {
@@ -3439,6 +3501,40 @@ describe('Topics', () => {
     await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
 
     expect(assistantMutationMocks.restoreAssistant).toHaveBeenCalledWith({ params: { id: 'assistant-1' } })
+  })
+
+  it('offers Assistant Undo when active reconciliation and post-delete refreshes reject', async () => {
+    const onActiveAssistantDeleted = vi.fn().mockRejectedValue(new Error('reconcile failed'))
+    assistantQueryMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
+    topicDataMocks.refreshTopics.mockRejectedValueOnce(new Error('Topic refresh failed'))
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList({ onActiveAssistantDeleted })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+
+    await vi.waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledTimes(1))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('treats a stale Assistant group delete as already moved and refreshes once', async () => {
+    assistantMutationMocks.deleteAssistant.mockRejectedValueOnce(
+      DataApiErrorFactory.notFound('Assistant', 'assistant-1')
+    )
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+
+    await vi.waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('Already in Recycle Bin'))
+    expect(assistantQueryMocks.refetchAssistants).toHaveBeenCalledOnce()
+    expect(topicDataMocks.refreshTopics).toHaveBeenCalledOnce()
+    expect(recycleBinFeedbackMocks.showRecycleBinUndo).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('blocks concurrent assistant group delete confirmations', async () => {

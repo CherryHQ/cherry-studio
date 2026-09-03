@@ -63,7 +63,12 @@ import {
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { popup } from '@renderer/services/popup'
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
@@ -84,7 +89,7 @@ import {
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
   type TopicDisplayMode
 } from '@renderer/utils/chat/topicsHelpers'
-import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
@@ -662,10 +667,16 @@ export function Topics({
 
       showRecycleBinUndo({
         itemName: topic.name.trim() || t('chat.conversation.new'),
-        onUndo: () => restoreTopic(topic.id).then(() => undefined)
+        onUndo: () =>
+          restoreRecycleBinItem({
+            id: topic.id,
+            restore: restoreTopic,
+            getActive: (id) => dataApiService.get(`/topics/${id}`),
+            refresh: refreshTopics
+          })
       })
     },
-    [clearActiveTopic, deleteTopicById, restoreTopic, setActiveTopic, t]
+    [clearActiveTopic, deleteTopicById, refreshTopics, restoreTopic, setActiveTopic, t]
   )
 
   const handleClearMessages = useCallback((topic: Topic) => clearTopicMessages(topic.id), [clearTopicMessages])
@@ -916,28 +927,34 @@ export function Topics({
           : undefined
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        await refreshTopics()
+        if (result.deletedIds.length === 0) {
+          await refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh after stale Assistant Topic deletion', { assistantId, err })
+          })
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+
+        const deletedIds = [...result.deletedIds]
+        showRecycleBinBatchUndo({
+          itemCount: deletedIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreTopic,
+              getActive: (id) => dataApiService.get(`/topics/${id}`),
+              refresh: refreshTopics
+            })
+        })
+
+        try {
+          await refreshTopics()
+        } catch (err) {
+          logger.warn('Failed to refresh after Assistant Topic deletion', { assistantId, err })
+        }
         if (deletedActiveTopicId && activeTopicIdRef.current === deletedActiveTopicId) {
           if (replacement) setActiveTopic(replacement)
           else clearActiveTopic()
-        }
-        if (result.deletedIds.length > 0) {
-          const deletedIds = [...result.deletedIds]
-          showRecycleBinBatchUndo({
-            itemCount: deletedIds.length,
-            onUndo: async () => {
-              const settled = await Promise.allSettled(deletedIds.map((id) => restoreTopic(id)))
-              return settled.reduce<{ restored: string[]; failed: Array<{ id: string; error: string }> }>(
-                (summary, outcome, index) => {
-                  const id = deletedIds[index]
-                  if (outcome.status === 'fulfilled') summary.restored.push(id)
-                  else summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
-                  return summary
-                },
-                { restored: [], failed: [] }
-              )
-            }
-          })
         }
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
@@ -968,18 +985,43 @@ export function Topics({
         })
         if (!confirmed) return
 
-        const result = await deleteAssistant(assistantId, { deleteTopics: true })
-        closeConversationTabs('assistants', result.deletedTopicIds ?? [])
-        if (activeTopic?.assistantId === assistantId) {
-          await onActiveAssistantDeleted?.(assistantId)
+        let result
+        try {
+          result = await deleteAssistant(assistantId, { deleteTopics: true })
+        } catch (err) {
+          if (!isDataApiNotFoundError(err)) throw err
+          await Promise.allSettled([refreshAssistants(), refreshTopics()])
+          toast.info(t('recycle_bin.already_moved'))
+          return
+        }
+        if (!result.deleted) {
+          await Promise.allSettled([refreshAssistants(), refreshTopics()])
+          toast.info(t('recycle_bin.already_moved'))
+          return
         }
 
-        await refreshAssistants()
-        await refreshTopics()
         showRecycleBinUndo({
           itemName: assistantName,
           onUndo: () => restoreAssistant(assistantId).then(() => undefined)
         })
+        closeConversationTabs('assistants', result.deletedTopicIds ?? [])
+        if (activeTopic?.assistantId === assistantId) {
+          try {
+            await onActiveAssistantDeleted?.(assistantId)
+          } catch (err) {
+            logger.warn('Failed to reconcile active Assistant after deletion from topic group', { assistantId, err })
+          }
+        }
+
+        const refreshOutcomes = await Promise.allSettled([refreshAssistants(), refreshTopics()])
+        for (const outcome of refreshOutcomes) {
+          if (outcome.status === 'rejected') {
+            logger.warn('Failed to refresh after deleting Assistant from topic group', {
+              assistantId,
+              err: outcome.reason
+            })
+          }
+        }
       } catch (err) {
         logger.error('Failed to delete assistant from topic group', { assistantId, err })
         toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))

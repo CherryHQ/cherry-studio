@@ -6,6 +6,7 @@ import type {
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useClearTopicMessages } from '@renderer/hooks/chat/useClearTopicMessages'
@@ -24,7 +25,12 @@ import {
   startTopicRenaming,
   useTopicMutations
 } from '@renderer/hooks/useTopic'
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
@@ -229,12 +235,16 @@ const AssistantHistoryRecords = ({
 
       showRecycleBinUndo({
         itemName: topic.name || t('chat.default.topic.name'),
-        onUndo: async () => {
-          await restoreTopic(topic.id)
-        }
+        onUndo: () =>
+          restoreRecycleBinItem({
+            id: topic.id,
+            restore: restoreTopic,
+            getActive: (id) => dataApiService.get(`/topics/${id}`),
+            refresh: refetch
+          })
       })
     },
-    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, restoreTopic, t, timeSortedTopics]
+    [activeRecordId, deleteTopicById, getRendererTopic, onRecordSelect, refetch, restoreTopic, t, timeSortedTopics]
   )
 
   const handleBulkDeleteTopics = useCallback(
@@ -270,18 +280,13 @@ const AssistantHistoryRecords = ({
         const deletedIds = [...result.succeeded]
         showRecycleBinBatchUndo({
           itemCount: deletedIds.length,
-          onUndo: async () => {
-            const restoreOutcomes = await Promise.allSettled(deletedIds.map((id) => restoreTopic(id)))
-            return restoreOutcomes.reduce(
-              (summary, outcome, index) => {
-                const id = deletedIds[index]
-                if (outcome.status === 'fulfilled') summary.restored.push(id)
-                else summary.failed.push({ id, error: getErrorMessage(outcome.reason) })
-                return summary
-              },
-              { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
-            )
-          }
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreTopic,
+              getActive: (id) => dataApiService.get(`/topics/${id}`),
+              refresh: refetch
+            })
         })
       }
 

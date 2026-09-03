@@ -2,9 +2,15 @@ import type { ToastAction, ToastConfig } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import i18n, { initI18n } from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '../recycleBinFeedback'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '../recycleBinFeedback'
 
 function getInitialToastConfig(): ToastConfig {
   const config = vi.mocked(toast.success).mock.calls[0]?.[0]
@@ -128,5 +134,56 @@ describe('recycleBinFeedback', () => {
     expect(onUndo).toHaveBeenCalledOnce()
     expect(loggerError).toHaveBeenCalledWith('Recycle Bin batch undo failed', error)
     expect(toast.error).toHaveBeenCalledWith('Failed to restore from Recycle Bin')
+  })
+
+  it('counts a concurrent restore as complete only when the active endpoint finds the item', async () => {
+    const activeError = DataApiErrorFactory.notFound('Topic', 'topic-active')
+    const missingError = DataApiErrorFactory.notFound('Topic', 'topic-missing')
+    const restore = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(activeError)
+      .mockRejectedValueOnce(missingError)
+    const getActive = vi
+      .fn()
+      .mockResolvedValueOnce({ id: 'topic-active' })
+      .mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-missing'))
+    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
+    const loggerWarn = vi.spyOn(loggerService.withContext('recycleBinFeedback'), 'warn').mockImplementation(() => {})
+
+    await expect(
+      restoreRecycleBinItems({
+        ids: ['topic-restored', 'topic-active', 'topic-missing'],
+        restore,
+        getActive,
+        refresh
+      })
+    ).resolves.toEqual({
+      restored: ['topic-restored', 'topic-active'],
+      failed: [{ id: 'topic-missing', error: missingError.message }]
+    })
+
+    expect(getActive).toHaveBeenNthCalledWith(1, 'topic-active')
+    expect(getActive).toHaveBeenNthCalledWith(2, 'topic-missing')
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(loggerWarn).toHaveBeenCalledWith('Failed to refresh after Recycle Bin restore', expect.any(Error))
+  })
+
+  it('does not probe the active endpoint for ordinary restore failures', async () => {
+    const restoreError = new Error('restore failed')
+    const getActive = vi.fn()
+    const refresh = vi.fn().mockResolvedValue(undefined)
+
+    await expect(
+      restoreRecycleBinItem({
+        id: 'topic-a',
+        restore: vi.fn().mockRejectedValue(restoreError),
+        getActive,
+        refresh
+      })
+    ).rejects.toThrow('restore failed')
+
+    expect(getActive).not.toHaveBeenCalled()
+    expect(refresh).toHaveBeenCalledOnce()
   })
 })

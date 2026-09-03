@@ -18,7 +18,11 @@ import { usePins } from '@renderer/hooks/usePins'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
-import { showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -125,7 +129,7 @@ export function AssistantResourceList({
   } = usePins('assistant', { enabled: dataEnabled })
   const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant, restoreAssistant } = useAssistantMutations()
-  const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
+  const { deleteTopicsByAssistantId, refreshTopics, restoreTopic } = useTopicMutations()
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
@@ -338,9 +342,8 @@ export function AssistantResourceList({
       setClearingTopicsAssistantId(assistantId)
       try {
         const confirmed = await popup.confirm({
-          title: t('assistants.clear.title'),
-          content: t('assistants.clear.content'),
-          okText: t('common.delete'),
+          title: t('recycle_bin.move.confirm_title'),
+          okText: t('recycle_bin.move.confirm_action'),
           cancelText: t('common.cancel'),
           centered: true,
           okButtonProps: {
@@ -358,14 +361,40 @@ export function AssistantResourceList({
         if (latestTargetTopicIds.size === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        await refreshTopics()
-        if (activeAssistantId === assistantId) {
-          const nextTopic = await loadLatestTopic()
-          if (nextTopic) onSelectTopic(mapApiTopicToRendererTopic(nextTopic))
-          else onClearActiveTopic()
+        if (result.deletedIds.length === 0) {
+          await refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh Topics after stale clear from classic-layout rail', { assistantId, err })
+          })
+          toast.info(t('recycle_bin.already_moved'))
+          return
         }
 
-        toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
+        const deletedIds = [...result.deletedIds]
+        showRecycleBinBatchUndo({
+          itemCount: deletedIds.length,
+          onUndo: () =>
+            restoreRecycleBinItems({
+              ids: deletedIds,
+              restore: restoreTopic,
+              getActive: (id) => dataApiService.get(`/topics/${id}`),
+              refresh: refreshTopics
+            })
+        })
+
+        try {
+          await refreshTopics()
+        } catch (err) {
+          logger.warn('Failed to refresh Topics after clear from classic-layout rail', { assistantId, err })
+        }
+        if (activeAssistantId === assistantId) {
+          try {
+            const nextTopic = await loadLatestTopic()
+            if (nextTopic) onSelectTopic(mapApiTopicToRendererTopic(nextTopic))
+            else onClearActiveTopic()
+          } catch (err) {
+            logger.warn('Failed to reconcile active Topic after clear from classic-layout rail', { assistantId, err })
+          }
+        }
       } catch (err) {
         logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })
         toast.error(t('chat.topics.manage.delete.error'))
@@ -382,6 +411,7 @@ export function AssistantResourceList({
       onClearActiveTopic,
       onSelectTopic,
       refreshTopics,
+      restoreTopic,
       t
     ]
   )

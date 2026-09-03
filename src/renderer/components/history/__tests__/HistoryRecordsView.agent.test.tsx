@@ -1,6 +1,9 @@
 import { cacheService } from '@renderer/data/CacheService'
+import { dataApiService } from '@renderer/data/DataApiService'
 import type * as UseCacheModule from '@renderer/data/hooks/useCache'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -15,6 +18,7 @@ const hookMocks = vi.hoisted(() => ({
   deleteSessionWithOutcome: vi.fn(),
   deleteSessions: vi.fn(),
   promptShow: vi.fn(),
+  reload: vi.fn(),
   togglePin: vi.fn(),
   updateSession: vi.fn(),
   openConversationTab: vi.fn(),
@@ -35,7 +39,10 @@ const recycleBinFeedbackMocks = vi.hoisted(() => ({
   showRecycleBinUndo: vi.fn()
 }))
 
-vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
 
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
@@ -404,6 +411,7 @@ function setupAgentHistory({
     deleteSession: hookMocks.deleteSession,
     deleteSessionWithOutcome: hookMocks.deleteSessionWithOutcome,
     deleteSessions: hookMocks.deleteSessions,
+    reload: hookMocks.reload,
     restoreSession: hookMocks.restoreSession,
     togglePin: hookMocks.togglePin
   })
@@ -439,6 +447,8 @@ describe('HistoryRecordsView agent mode', () => {
     hookMocks.deleteSessions.mockReset()
     hookMocks.deleteSessions.mockResolvedValue({ deletedIds: ['session-alpha'], deletedCount: 1 })
     hookMocks.promptShow.mockReset()
+    hookMocks.reload.mockReset()
+    hookMocks.reload.mockResolvedValue(undefined)
     hookMocks.togglePin.mockReset()
     hookMocks.togglePin.mockResolvedValue(undefined)
     hookMocks.updateSession.mockReset()
@@ -485,6 +495,7 @@ describe('HistoryRecordsView agent mode', () => {
         deleteSession: hookMocks.deleteSession,
         deleteSessionWithOutcome: hookMocks.deleteSessionWithOutcome,
         deleteSessions: hookMocks.deleteSessions,
+        reload: hookMocks.reload,
         togglePin: hookMocks.togglePin
       })
       const { unmount } = render(<HistoryRecordsView mode="agent" open onClose={vi.fn()} />)
@@ -799,6 +810,7 @@ describe('HistoryRecordsView agent mode', () => {
       restored: ['session-alpha'],
       failed: [{ id: 'session-beta', error: 'Restore failed' }]
     })
+    expect(hookMocks.reload).toHaveBeenCalledOnce()
   })
 
   it('keeps failed bulk sessions selected and excludes them from Undo', async () => {
@@ -1184,6 +1196,8 @@ describe('HistoryRecordsView agent mode', () => {
   })
 
   it('deletes a session from the history row action column without selecting the row', async () => {
+    hookMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-alpha'))
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-alpha' } as never)
     const { onClose, onRecordSelect } = setupAgentHistory()
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]')
 
@@ -1205,8 +1219,11 @@ describe('HistoryRecordsView agent mode', () => {
       itemName: 'Alpha session',
       onUndo: expect.any(Function)
     })
-    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
     expect(hookMocks.restoreSession).toHaveBeenCalledWith('session-alpha')
+    expect(getActiveSession).toHaveBeenCalledWith('/agent-sessions/session-alpha')
+    expect(hookMocks.reload).toHaveBeenCalledOnce()
+    getActiveSession.mockRestore()
   })
 
   it('confirms session deletion and moves the active session when needed', async () => {

@@ -1,9 +1,12 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as DndKitUtilities from '@dnd-kit/utilities'
+import { dataApiService } from '@renderer/data/DataApiService'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { popup } from '@renderer/services/popup'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import type { TopicStreamStatus } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -318,7 +321,10 @@ const recycleBinFeedbackMocks = vi.hoisted(() => ({
   showRecycleBinUndo: vi.fn()
 }))
 
-vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
 
 const topicStreamStatusMocks = vi.hoisted(() => ({
   useTopicStreamStatus: vi.fn(() => ({
@@ -2291,6 +2297,8 @@ describe('Sessions', () => {
   })
 
   it('requires the shared Recycle Bin confirmation before deleting a session and offers Undo', async () => {
+    sessionDataMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-a'))
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' } as never)
     render(<SessionsForTest />)
 
     const sessionRow = screen.getByText('Alpha session').closest('[role="option"]')
@@ -2313,8 +2321,11 @@ describe('Sessions', () => {
       onUndo: expect.any(Function)
     })
 
-    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
     expect(sessionDataMocks.restoreSession).toHaveBeenCalledWith('session-a')
+    expect(getActiveSession).toHaveBeenCalledWith('/agent-sessions/session-a')
+    expect(sessionDataMocks.reload).toHaveBeenCalledOnce()
+    getActiveSession.mockRestore()
   })
 
   it('selects the same agent neighbouring session after deleting the active session in the right panel', async () => {
@@ -3716,11 +3727,20 @@ describe('Sessions', () => {
       onUndo: expect.any(Function)
     })
 
-    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    sessionDataMocks.restoreSession.mockRejectedValueOnce(DataApiErrorFactory.notFound('Session', 'session-a'))
+    const getActiveSession = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'session-a' } as never)
+    const reloadCountBeforeUndo = sessionDataMocks.reload.mock.calls.length
+    await expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({
+      restored: ['session-a', 'session-not-loaded'],
+      failed: []
+    })
     expect(sessionDataMocks.restoreSession).toHaveBeenCalledTimes(2)
     expect(sessionDataMocks.restoreSession).toHaveBeenNthCalledWith(1, 'session-a')
     expect(sessionDataMocks.restoreSession).toHaveBeenNthCalledWith(2, 'session-not-loaded')
+    expect(getActiveSession).toHaveBeenCalledWith('/agent-sessions/session-a')
+    expect(sessionDataMocks.reload).toHaveBeenCalledTimes(reloadCountBeforeUndo + 1)
     expect(dataApiMocks.restoreAgent).not.toHaveBeenCalled()
+    getActiveSession.mockRestore()
   })
 
   it('collapses agent groups from the display options menu', async () => {

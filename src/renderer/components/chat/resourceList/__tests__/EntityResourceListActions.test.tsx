@@ -2,6 +2,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -17,6 +18,7 @@ const assistantDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn(),
   deleteAssistant: vi.fn(),
   restoreAssistant: vi.fn(),
+  restoreTopic: vi.fn(),
   refreshTopics: vi.fn(),
   refetchAssistants: vi.fn(),
   topics: [
@@ -96,8 +98,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number }) =>
-      key === 'assistants.clear.success_title' ? `${key}:${options?.count}` : key
+    t: (key: string) => key
   })
 }))
 
@@ -385,7 +386,8 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
     deleteTopicsByAssistantId: assistantDataMocks.deleteTopicsByAssistantId,
-    refreshTopics: assistantDataMocks.refreshTopics
+    refreshTopics: assistantDataMocks.refreshTopics,
+    restoreTopic: assistantDataMocks.restoreTopic
   })
 }))
 
@@ -401,7 +403,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   })
 }))
 
-vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: agentDataMocks.ipcRequest, on: vi.fn(() => () => undefined) }
@@ -451,6 +456,8 @@ describe('classic layout entity resource list actions', () => {
     assistantDataMocks.deleteAssistant.mockClear()
     assistantDataMocks.restoreAssistant.mockResolvedValue(undefined)
     assistantDataMocks.restoreAssistant.mockClear()
+    assistantDataMocks.restoreTopic.mockResolvedValue(undefined)
+    assistantDataMocks.restoreTopic.mockClear()
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
     assistantDataMocks.refreshTopics.mockClear()
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
@@ -485,6 +492,8 @@ describe('classic layout entity resource list actions', () => {
     loggerMocks.info.mockClear()
     loggerMocks.warn.mockClear()
     vi.mocked(toast.error).mockClear()
+    vi.mocked(toast.info).mockClear()
+    vi.mocked(toast.success).mockClear()
     recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
     recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
   })
@@ -643,15 +652,67 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() =>
       expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: 'assistants.clear.content',
-          title: 'assistants.clear.title'
+          okText: 'recycle_bin.move.confirm_action',
+          title: 'recycle_bin.move.confirm_title'
         })
       )
     )
+    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onSelectTopic).toHaveBeenCalledWith(nextTopic)
-    expect(toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledWith({
+      itemCount: 1,
+      onUndo: expect.any(Function)
+    })
+    expect(toast.success).not.toHaveBeenCalled()
+
+    await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+    expect(assistantDataMocks.restoreTopic).toHaveBeenCalledExactlyOnceWith('topic-1')
+  })
+
+  it('offers Topic Undo when post-delete refresh and active reconciliation fail', async () => {
+    assistantDataMocks.refreshTopics.mockRejectedValueOnce(new Error('refresh failed'))
+    const assistantTopicsSource = createAssistantTopicsSource({
+      loadLatestTopic: vi.fn().mockRejectedValue(new Error('selection failed'))
+    })
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        assistantTopicsSource={assistantTopicsSource}
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledTimes(1))
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('reports already moved when clearing Assistant Topics changes no rows', async () => {
+    assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: [], deletedCount: 0 })
+
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() => expect(toast.info).toHaveBeenCalledExactlyOnceWith('recycle_bin.already_moved'))
+    expect(assistantDataMocks.refreshTopics).toHaveBeenCalledOnce()
+    expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('does not clear assistant topics when the list empties while the confirm dialog is open', async () => {

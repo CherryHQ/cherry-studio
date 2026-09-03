@@ -26,6 +26,7 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { dataApiService } from '@renderer/data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -44,7 +45,12 @@ import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { popup } from '@renderer/services/popup'
-import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
+import {
+  restoreRecycleBinItem,
+  restoreRecycleBinItems,
+  showRecycleBinBatchUndo,
+  showRecycleBinUndo
+} from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -77,7 +83,7 @@ import {
   type SessionListItem,
   sortSessionsForDisplayGroups
 } from '@renderer/utils/chat/sessionListHelpers'
-import { formatErrorMessage, formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { findLatestActive, pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
@@ -827,9 +833,13 @@ const Sessions = ({
 
         showRecycleBinUndo({
           itemName: deletedSession?.name || t('common.unnamed'),
-          onUndo: async () => {
-            await restoreSession(id)
-          }
+          onUndo: () =>
+            restoreRecycleBinItem({
+              id,
+              restore: restoreSession,
+              getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+              refresh: reload
+            })
         })
       }
 
@@ -862,6 +872,7 @@ const Sessions = ({
       deleteSession,
       filteredGroupedSessions,
       requestFileNavigation,
+      reload,
       restoreSession,
       sessionGroupBy,
       setActiveSessionId,
@@ -1306,18 +1317,13 @@ const Sessions = ({
             const restoredIds = [...deletedSessionIds]
             showRecycleBinBatchUndo({
               itemCount: restoredIds.length,
-              onUndo: async () => {
-                const outcomes = await Promise.allSettled(restoredIds.map((sessionId) => restoreSession(sessionId)))
-                return outcomes.reduce(
-                  (result, outcome, index) => {
-                    const sessionId = restoredIds[index]
-                    if (outcome.status === 'fulfilled') result.restored.push(sessionId)
-                    else result.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
-                    return result
-                  },
-                  { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
-                )
-              }
+              onUndo: () =>
+                restoreRecycleBinItems({
+                  ids: restoredIds,
+                  restore: restoreSession,
+                  getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+                  refresh: reload
+                })
             })
           }
         } else {

@@ -1,3 +1,5 @@
+import { dataApiService } from '@renderer/data/DataApiService'
+import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
@@ -51,7 +53,10 @@ const recycleBinFeedbackMocks = vi.hoisted(() => ({
   showRecycleBinUndo: vi.fn()
 }))
 
-vi.mock('@renderer/services/recycleBinFeedback', () => recycleBinFeedbackMocks)
+vi.mock('@renderer/services/recycleBinFeedback', async (importOriginal) => ({
+  ...(await importOriginal<typeof RecycleBinFeedback>()),
+  ...recycleBinFeedbackMocks
+}))
 
 vi.mock('@cherrystudio/ui', async () => {
   const { MockCherrystudioUI } = await import('@test-mocks/renderer/CherrystudioUI')
@@ -653,6 +658,7 @@ describe('HistoryRecordsView assistant mode', () => {
       restored: ['topic-alpha'],
       failed: [{ id: 'topic-beta', error: 'Restore failed' }]
     })
+    expect(hookMocks.refetchTopics).toHaveBeenCalledTimes(2)
   })
 
   it('keeps failed bulk topics selected and only offers Undo for successful IDs', async () => {
@@ -1274,6 +1280,8 @@ describe('HistoryRecordsView assistant mode', () => {
   })
 
   it('confirms deletion from the history row action column and offers Undo', async () => {
+    hookMocks.restoreTopic.mockRejectedValueOnce(DataApiErrorFactory.notFound('Topic', 'topic-alpha'))
+    const getActiveTopic = vi.spyOn(dataApiService, 'get').mockResolvedValue({ id: 'topic-alpha' } as never)
     hookMocks.useTopics.mockReturnValue({
       topics: [createTopic(), createTopic({ id: 'topic-beta', name: 'Beta topic' })],
       error: undefined,
@@ -1303,8 +1311,11 @@ describe('HistoryRecordsView assistant mode', () => {
       itemName: 'Alpha topic',
       onUndo: expect.any(Function)
     })
-    await recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()
+    await expect(recycleBinFeedbackMocks.showRecycleBinUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toBeUndefined()
     expect(hookMocks.restoreTopic).toHaveBeenCalledWith('topic-alpha')
+    expect(getActiveTopic).toHaveBeenCalledWith('/topics/topic-alpha')
+    expect(hookMocks.refetchTopics).toHaveBeenCalledOnce()
+    getActiveTopic.mockRestore()
   })
 
   it('renames a topic from the history row context menu dialog without selecting the row', async () => {
