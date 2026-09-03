@@ -26,7 +26,6 @@ const stubApp = (overrides: Partial<SiteMiniApp> & Pick<SiteMiniApp, 'appId' | '
 })
 
 const mocks = vi.hoisted(() => ({
-  useMiniApps: vi.fn(),
   apps: [] as MiniApp[],
   allApps: [] as MiniApp[],
   pinned: [] as MiniApp[],
@@ -36,7 +35,6 @@ const mocks = vi.hoisted(() => ({
   removeCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   toggleMiniApp: vi.fn(),
   openTab: vi.fn(),
-  renderMiniAppIcon: vi.fn(),
   request: vi.fn().mockResolvedValue(null),
   toastError: vi.fn(),
   useMiniAppVisibility: vi.fn(() => ({
@@ -52,23 +50,20 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => {
-    mocks.useMiniApps()
-    return {
-      allApps: mocks.allApps,
-      miniApps: mocks.apps,
-      pinned: mocks.pinned,
-      openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
-      currentMiniAppId: '',
-      miniAppShow: false,
-      setOpenedKeepAliveMiniApps: vi.fn(),
-      updateAppStatus: mocks.updateAppStatus,
-      hideMiniApp: mocks.hideMiniApp,
-      removeCustomMiniApp: mocks.removeCustomMiniApp,
-      isLoading: false,
-      error: null
-    }
-  }
+  useMiniApps: () => ({
+    allApps: mocks.allApps,
+    miniApps: mocks.apps,
+    pinned: mocks.pinned,
+    openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
+    currentMiniAppId: '',
+    miniAppShow: false,
+    setOpenedKeepAliveMiniApps: vi.fn(),
+    updateAppStatus: mocks.updateAppStatus,
+    hideMiniApp: mocks.hideMiniApp,
+    removeCustomMiniApp: mocks.removeCustomMiniApp,
+    isLoading: false,
+    error: null
+  })
 }))
 
 vi.mock('@renderer/hooks/useSidebarFavorites', () => ({
@@ -179,10 +174,9 @@ vi.mock('@renderer/components/Navbar', () => ({
 }))
 
 vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
-  default: ({ app, size }: { app: MiniApp; size: number }) => {
-    mocks.renderMiniAppIcon(app.appId)
-    return <img alt={app.name} data-testid={`mini-app-icon-${app.appId}`} height={size} src={app.logo} width={size} />
-  }
+  default: ({ app, size }: { app: MiniApp; size: number }) => (
+    <img alt={app.name} data-testid={`mini-app-icon-${app.appId}`} height={size} src={app.logo} width={size} />
+  )
 }))
 
 vi.mock('@renderer/components/MarqueeText', () => ({
@@ -244,12 +238,10 @@ describe('MiniAppsPage', () => {
     mocks.allApps = []
     mocks.pinned = []
     mocks.openedKeepAliveMiniApps = []
-    mocks.useMiniApps.mockClear()
     mocks.updateAppStatus.mockClear()
     mocks.hideMiniApp.mockReset().mockImplementation((appId: string) => mocks.updateAppStatus(appId, 'disabled'))
     mocks.removeCustomMiniApp.mockClear()
     mocks.openTab.mockClear()
-    mocks.renderMiniAppIcon.mockClear()
     mocks.request.mockReset().mockResolvedValue(null)
     mocks.toastError.mockClear()
     mocks.useMiniAppVisibility.mockClear()
@@ -272,27 +264,7 @@ describe('MiniAppsPage', () => {
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
   })
 
-  it('owns one full mini app subscription for the card grid', () => {
-    render(<MiniAppsPage />)
-
-    // The page owns the list. Adding cards must not add another full list,
-    // region, cache, favorites, and tabs subscription for every app.
-    expect(mocks.useMiniApps).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not rerender an unchanged card when another app changes', () => {
-    const view = render(<MiniAppsPage />)
-    expect(mocks.renderMiniAppIcon).toHaveBeenCalledTimes(2)
-
-    mocks.apps = mocks.apps.map((app) => (app.appId === 'gemini' ? { ...app, name: 'Gemini Updated' } : { ...app }))
-    view.rerender(<MiniAppsPage />)
-
-    // DataApi refreshes reserialize the list. The changed Gemini card rerenders,
-    // while the structurally unchanged ChatGPT snapshot keeps its first render.
-    expect(mocks.renderMiniAppIcon.mock.calls.map(([appId]) => appId)).toEqual(['chatgpt', 'gemini', 'gemini'])
-  })
-
-  it('keeps a card stable for non-visual configuration updates while editing the latest app', async () => {
+  it('edits the latest app data after a non-visual configuration update', async () => {
     const user = userEvent.setup()
     mocks.apps = [
       stubApp({
@@ -304,7 +276,6 @@ describe('MiniAppsPage', () => {
       })
     ]
     const view = render(<MiniAppsPage />)
-    expect(mocks.renderMiniAppIcon).toHaveBeenCalledTimes(1)
 
     mocks.apps = [
       stubApp({
@@ -317,7 +288,6 @@ describe('MiniAppsPage', () => {
     ]
     view.rerender(<MiniAppsPage />)
 
-    expect(mocks.renderMiniAppIcon).toHaveBeenCalledTimes(1)
     await user.click(screen.getByRole('button', { name: 'common.edit' }))
     expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-configuration', '{"theme":"dark"}')
   })

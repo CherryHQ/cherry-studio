@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
 import i18n from '@renderer/i18n/resolver'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -72,6 +73,10 @@ describe('useMiniApps', () => {
     mockTabs.updateTab.mockClear()
     mockClearWebviewState.mockClear()
     mockSetWebviewLoaded.mockClear()
+    vi.mocked(preferenceService.get).mockReset()
+    vi.mocked(preferenceService.get).mockResolvedValue([])
+    vi.mocked(preferenceService.set).mockReset()
+    vi.mocked(preferenceService.set).mockResolvedValue()
   })
 
   describe('display name', () => {
@@ -464,7 +469,7 @@ describe('useMiniApps', () => {
     it('should remove deleted custom miniapps from sidebar favorites', async () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
-      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+      vi.mocked(preferenceService.get).mockResolvedValue([
         { type: 'app', id: 'assistants' },
         { type: 'mini_app', id: 'custom-app' },
         { type: 'mini_app', id: 'other-app' }
@@ -477,7 +482,8 @@ describe('useMiniApps', () => {
       })
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
+      expect(preferenceService.get).toHaveBeenCalledWith('ui.sidebar.favorites')
+      expect(preferenceService.set).toHaveBeenCalledWith('ui.sidebar.favorites', [
         { type: 'app', id: 'assistants' },
         { type: 'mini_app', id: 'other-app' }
       ])

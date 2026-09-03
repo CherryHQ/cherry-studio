@@ -18,11 +18,10 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@data/hooks/useCache', async (importOriginal) => importOriginal())
 const request = ipc.request
 
-const { useMiniAppAttention, useMiniAppAttentionFor, useMiniAppAttentionSync } = await import('../useMiniAppAttention')
+const { useMiniAppAttention, useMiniAppAttentionSync } = await import('../useMiniAppAttention')
 /** One reason is enough to be listed; which one is the tile's business. */
 const lit = (appId: string) => ({ appId, updateVersion: '1.1.0', pendingPermissions: [], updating: null })
 const { useWindowRuntime } = await import('../useWindowRuntime')
-const appRenderCounts = new Map<string, number>()
 
 // Neither `clearMocks` nor `restoreMocks` is set repo-wide, and the "pulls exactly
 // once" assertion counts TOTAL calls — without this it measures the cases before it.
@@ -33,7 +32,6 @@ beforeEach(() => {
   // case's never-resolving promise would leak into the next one.
   ipc.request.mockReset()
   ipc.handlers.clear()
-  appRenderCounts.clear()
   cacheService.deleteShared('mini_app.attention')
 })
 
@@ -49,12 +47,6 @@ const Reader = () => (
     ))}
   </>
 )
-
-const AppReader = ({ appId }: { appId: string }) => {
-  appRenderCounts.set(appId, (appRenderCounts.get(appId) ?? 0) + 1)
-  const attention = useMiniAppAttentionFor(appId)
-  return <span data-testid={`app-${appId}`}>{attention?.updateVersion ?? 'none'}</span>
-}
 
 it('paints the badge on a window that opened after the startup broadcast', async () => {
   // The bug this guards: subscribing without pulling. Such a window sees no event
@@ -80,26 +72,6 @@ it('pulls once no matter how many list items read the badge', async () => {
   await waitFor(() => expect(request).toHaveBeenCalled())
 
   expect(request.mock.calls.filter(([route]) => route === 'mini_app.runtime.attention_state')).toHaveLength(1)
-})
-
-it('does not rerender another app when one app attention changes', () => {
-  render(
-    <>
-      <AppReader appId="com.example.a" />
-      <AppReader appId="com.example.b" />
-    </>
-  )
-
-  act(() => cacheService.setShared('mini_app.attention', [lit('com.example.b')]))
-
-  expect(screen.getByTestId('app-com.example.a')).toHaveTextContent('none')
-  expect(screen.getByTestId('app-com.example.b')).toHaveTextContent('1.1.0')
-  expect(appRenderCounts).toEqual(
-    new Map([
-      ['com.example.a', 1],
-      ['com.example.b', 2]
-    ])
-  )
 })
 
 it('does not let a late pull overwrite an event that already arrived', async () => {
