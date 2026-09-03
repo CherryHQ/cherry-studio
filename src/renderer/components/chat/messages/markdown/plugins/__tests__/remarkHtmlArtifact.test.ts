@@ -7,9 +7,9 @@ import { describe, expect, it } from 'vitest'
 import { classifyHtmlArtifactSource, remarkHtmlArtifact } from '../remarkHtmlArtifact'
 
 function parse(source: string, withLatexMath = false): Root {
-  const processor = unified().use(remarkParse)
-  if (withLatexMath) processor.use(remarkLatexMath)
-  processor.use(remarkHtmlArtifact)
+  const processor = withLatexMath
+    ? unified().use(remarkParse).use(remarkLatexMath).use(remarkHtmlArtifact)
+    : unified().use(remarkParse).use(remarkHtmlArtifact)
   return processor.runSync(processor.parse(source), { value: source })
 }
 
