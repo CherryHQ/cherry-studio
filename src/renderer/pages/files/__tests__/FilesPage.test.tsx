@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
@@ -1008,6 +1009,60 @@ describe('FilesPage file operations', () => {
     await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_restore', { ids: [entry.id] })
     expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_restore', { ids: [entry.id, secondEntry.id] })
+  })
+
+  it('counts failed Undo items as restored only when refresh finds them active and internal', async () => {
+    const alreadyActive = { ...entry, id: 'file-active', name: 'active' } as unknown as FileEntry
+    const missing = { ...entry, id: 'file-missing', name: 'missing' } as unknown as FileEntry
+    const stillTrashed = { ...entry, id: 'file-trashed', name: 'trashed' } as unknown as FileEntry
+    const entries = [entry, alreadyActive, missing, stillTrashed]
+    const restoreFailures = [
+      { id: alreadyActive.id, error: 'already active' },
+      { id: missing.id, error: 'missing' },
+      { id: stillTrashed.id, error: 'still trashed' }
+    ]
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      if (route === 'file.batch_trash') {
+        return Promise.resolve({ succeeded: entries.map((file) => file.id), failed: [] })
+      }
+      if (route === 'file.batch_restore') {
+        return Promise.resolve({ succeeded: [entry.id], failed: restoreFailures })
+      }
+      return Promise.resolve(input)
+    })
+    const { refresh, refetchStats } = renderFilesPage(entries)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await waitFor(() => expect(recycleBinFeedbackMocks.showRecycleBinBatchUndo).toHaveBeenCalledOnce())
+    refresh.mockClear()
+    refetchStats.mockClear()
+    vi.mocked(dataApiService.get)
+      .mockReset()
+      .mockImplementation((path) => {
+        if (path.endsWith(alreadyActive.id)) return Promise.resolve(alreadyActive as never)
+        if (path.endsWith(stillTrashed.id)) {
+          return Promise.resolve({ ...stillTrashed, deletedAt: 1_900_000_000_000 } as never)
+        }
+        return Promise.reject(DataApiErrorFactory.notFound('FileEntry', missing.id))
+      })
+
+    const result = await recycleBinFeedbackMocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()
+
+    expect(result).toEqual({
+      restored: [entry.id, alreadyActive.id],
+      failed: restoreFailures.slice(1)
+    })
+    expect(refresh).toHaveBeenCalledOnce()
+    expect(refetchStats).toHaveBeenCalledOnce()
+    expect(dataApiService.get).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(dataApiService.get).mock.calls.map(([path]) => path)).toEqual(
+      restoreFailures.map(({ id }) => `/files/entries/${id}`)
+    )
+    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(dataApiService.get).mock.invocationCallOrder[0])
   })
 
   it('shows one partial-failure toast for mixed-origin delete failures', async () => {

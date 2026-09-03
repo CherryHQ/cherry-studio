@@ -64,22 +64,27 @@ const FILE_IPC_BATCH_SIZE = 500
 const FILE_IPC_CREATE_BATCH_SIZE = 100
 const FILE_DETAIL_LOOKUP_CONCURRENCY = 8
 
-async function findTrashedFileIds(failures: readonly { id: FileEntryId }[]): Promise<Set<FileEntryId>> {
-  const trashedIds = new Set<FileEntryId>()
+async function inspectFailedFileIds(
+  failures: readonly { id: FileEntryId }[]
+): Promise<{ activeInternalIds: Set<FileEntryId>; trashedInternalIds: Set<FileEntryId> }> {
+  const activeInternalIds = new Set<FileEntryId>()
+  const trashedInternalIds = new Set<FileEntryId>()
   for (let index = 0; index < failures.length; index += FILE_DETAIL_LOOKUP_CONCURRENCY) {
     const chunk = failures.slice(index, index + FILE_DETAIL_LOOKUP_CONCURRENCY)
     await Promise.all(
       chunk.map(async ({ id }) => {
         try {
           const current = await dataApiService.get(`/files/entries/${id}`)
-          if (current.origin === 'internal' && current.deletedAt != null) trashedIds.add(id)
+          if (current.origin !== 'internal') return
+          if (current.deletedAt == null) activeInternalIds.add(id)
+          else trashedInternalIds.add(id)
         } catch {
           // Missing or inaccessible entries remain real failures.
         }
       })
     )
   }
-  return trashedIds
+  return { activeInternalIds, trashedInternalIds }
 }
 
 async function requestBatchedFileRecords<Route extends FileBatchRoute>(
@@ -637,7 +642,7 @@ function FilesPage() {
         logger.warn('Failed to refresh files after deletion', error as Error)
       }
 
-      const alreadyTrashedIds = await findTrashedFileIds(trashResult.failed)
+      const { trashedInternalIds: alreadyTrashedIds } = await inspectFailedFileIds(trashResult.failed)
       const effectiveTrashResult = {
         ...trashResult,
         failed: trashResult.failed.filter(({ id }) => !alreadyTrashedIds.has(id))
@@ -667,13 +672,21 @@ function FilesPage() {
           itemCount: trashedIds.length,
           onUndo: async () => {
             const restoreResult = await requestBatchedFileMutation('file.batch_restore', trashedIds)
-            warnMutationFailures('file restore', restoreResult)
             try {
               await refetchFiles()
             } catch (error) {
               logger.warn('Failed to refresh files after restore', error as Error)
             }
-            return { restored: restoreResult.succeeded, failed: restoreResult.failed }
+            const { activeInternalIds } = await inspectFailedFileIds(restoreResult.failed)
+            const reconciledResult = {
+              restored: [
+                ...restoreResult.succeeded,
+                ...restoreResult.failed.filter(({ id }) => activeInternalIds.has(id)).map(({ id }) => id)
+              ],
+              failed: restoreResult.failed.filter(({ id }) => !activeInternalIds.has(id))
+            }
+            warnMutationFailures('file restore', reconciledResult)
+            return reconciledResult
           }
         })
       }
