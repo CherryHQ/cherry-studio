@@ -14,7 +14,6 @@
 
 import path from 'node:path'
 
-import { application } from '@application'
 import { BUILTIN_AGENT_TOOL_GUARD_RULES } from '@main/ai/agents/builtin/builtinAgentGuardRules'
 import {
   findBuiltinToolPolicy,
@@ -24,11 +23,12 @@ import {
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import type { GuardHit, ToolGuardContext, ToolGuardRule } from '@main/ai/toolApproval/toolGuards'
+import { evaluateUserDataSqliteGuard, USER_DATA_SQLITE_GUARD_REASON } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
-import { commandReferencesUserDataSqlite, isPathWithinAllowedRoots, isUserDataSqlitePath } from './pathContainment'
+import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
 export const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -49,12 +49,6 @@ export const WORKSPACE_PATH_FIELDS = {
   Grep: 'path',
   NotebookEdit: 'notebook_path',
   Read: 'file_path',
-  Write: 'file_path'
-} as const
-const SQLITE_WRITE_PATH_FIELDS = {
-  Edit: 'file_path',
-  MultiEdit: 'file_path',
-  NotebookEdit: 'notebook_path',
   Write: 'file_path'
 } as const
 
@@ -79,35 +73,15 @@ const globalInstallCommand = (ctx: ToolGuardContext): GuardHit | null => {
 }
 
 const userDataSqliteWrite = async (ctx: ToolGuardContext): Promise<GuardHit | null> => {
-  if (ctx.toolName === 'Bash') {
-    const command = bashCommand(ctx)
-    if (!command) return null
-    return (await commandReferencesUserDataSqlite(
-      command,
-      ctx.cwd,
-      application.getPath('app.userdata'),
-      application.getPath('app.database.file'),
-      application.getPath('sys.home'),
-      ctx.signal
-    ))
-      ? {}
-      : null
-  }
-
-  const pathField = SQLITE_WRITE_PATH_FIELDS[ctx.toolName as keyof typeof SQLITE_WRITE_PATH_FIELDS]
-  if (!pathField) return null
-  const requestedPath = ctx.input?.[pathField]
-  if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
-  return (await isUserDataSqlitePath(
-    requestedPath,
-    ctx.cwd,
-    application.getPath('app.userdata'),
-    application.getPath('app.database.file'),
-    application.getPath('sys.home'),
-    ctx.signal
-  ))
-    ? {}
-    : null
+  const decision = await evaluateUserDataSqliteGuard({
+    runtime: 'claude-code',
+    toolName: ctx.toolName,
+    args: ctx.input,
+    cwd: ctx.cwd,
+    workspacePath: ctx.cwd,
+    signal: ctx.signal
+  })
+  return decision ? {} : null
 }
 
 const mutatingConfigAction = (ctx: ToolGuardContext): GuardHit | null => {
@@ -129,7 +103,7 @@ const pathOutsideAllowedRoots = async (ctx: ToolGuardContext): Promise<GuardHit 
   // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
   // malformed required fields for the other tools rather than duplicating their schemas here.
   if (typeof requestedPath !== 'string' || !requestedPath.trim()) return null
-  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath, ctx.signal)) return null
+  if (await isPathWithinAllowedRoots(ctx.cwd, ctx.agentDataPath, requestedPath)) return null
   return { evidence: requestedPath }
 }
 
@@ -158,7 +132,7 @@ const CROSS_CUTTING_TOOL_GUARD_RULES: readonly ToolGuardRule[] = [
     bypassBehavior: 'enforce',
     match: { when: userDataSqliteWrite },
     effect: 'deny',
-    reason: 'Direct writes to SQLite files inside Cherry Studio user data are blocked. Use Cherry Studio APIs instead.'
+    reason: USER_DATA_SQLITE_GUARD_REASON
   },
   {
     id: 'unsupported-image-read',

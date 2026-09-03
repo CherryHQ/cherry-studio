@@ -8,10 +8,11 @@
  *
  * Pipeline per `tool_call`:
  *   1. disabledTools  → block (all modes, including bypassPermissions)
- *   2. global-install → block bash that installs into shared/global locations (all modes)
- *   3. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
- *   4. bypass         → skip ordinary approvals; non-bypassable delegation still asks
- *   5. approval       → per permission mode: auto-allow, fail closed without a
+ *   2. SQLite guard   → block native writes to protected user data (all modes)
+ *   3. global-install → block bash that installs into shared/global locations (all modes)
+ *   4. rtk rewrite    → mutate `event.input.command` in place (bash only, all modes)
+ *   5. bypass         → skip ordinary approvals; non-bypassable delegation still asks
+ *   6. approval       → per permission mode: auto-allow, fail closed without a
  *      responder, or register + emit a runtime-neutral approval request, then
  *      block / allow / apply the edited input.
  *
@@ -30,6 +31,7 @@ import { loggerService } from '@logger'
 import { detectGlobalInstall } from '@main/ai/toolApproval/dependencyGuard'
 import { detectDestructiveCommand } from '@main/ai/toolApproval/destructiveCommand'
 import { type DispatchDecision, toolApprovalRegistry } from '@main/ai/toolApproval/ToolApprovalRegistry'
+import { evaluateUserDataSqliteGuard } from '@main/ai/toolApproval/userDataSqliteGuard'
 import { rtkRewrite } from '@main/utils/rtk'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
@@ -124,11 +126,24 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       return { block: true, reason: `Tool "${toolName}" is disabled for this agent.` }
     }
 
+    const sqliteDecision = await evaluateUserDataSqliteGuard({
+      runtime: 'pi',
+      toolName,
+      args: input,
+      cwd: ctx.workspacePath,
+      workspacePath: ctx.workspacePath,
+      signal
+    })
+    if (sqliteDecision) {
+      logger.info('Blocked a write to user data SQLite', { sessionId: ctx.sessionId, toolName })
+      return { block: true, reason: sqliteDecision.reason }
+    }
+
     const mode = ctx.getPermissionMode() ?? 'default'
     const approvalRequired = ctx.approvalRequiredTools.has(toolName)
     const bypass = mode === 'bypassPermissions' && !ctx.nonBypassableApprovalTools.has(toolName)
 
-    // (2)/(3) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
+    // (3)/(4) bash-specific guards: block global installs, then rtk-rewrite in place. Both apply
     // in every mode: shared/global installs mutate the cross-agent environment, so this is an
     // explicit safety block rather than an approval that Full Access can lift.
     if (toolName === 'bash') {
@@ -150,11 +165,11 @@ export function createPiToolAuthorizer(ctx: PiApprovalContext): PiToolAuthorizer
       }
     }
 
-    // (4) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
+    // (5) Full Access bypasses ordinary approval policy. Cross-Session delegation is the explicit
     // exception: its one-hop live-approval ceiling must hold in every permission mode.
     if (bypass) return
 
-    // (5) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
+    // (6) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
     // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
     // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
     if (ctx.autoApprovedTools.has(toolName) && !approvalRequired) return
