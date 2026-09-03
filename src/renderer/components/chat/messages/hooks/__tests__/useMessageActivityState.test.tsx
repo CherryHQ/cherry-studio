@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { KeyedMessageActivityStore, useMessageActivityState } from '../useMessageActivityState'
 
 const streamStatus = vi.hoisted(() => ({
+  status: undefined as 'pending' | 'streaming' | 'done' | 'aborted' | 'error' | 'awaiting-approval' | undefined,
   activeExecutions: [] as Array<{ anchorMessageId: string }>,
   awaitingApprovalAnchors: [] as Array<{ anchorMessageId: string }>
 }))
@@ -75,8 +76,8 @@ describe('KeyedMessageActivityStore', () => {
     const store = new KeyedMessageActivityStore()
     const onFirstMessageChange = vi.fn()
     const onSecondMessageChange = vi.fn()
-    store.subscribe('message-1', onFirstMessageChange)
-    store.subscribe('message-2', onSecondMessageChange)
+    store.subscribe(createMessage('message-1'), onFirstMessageChange)
+    store.subscribe(createMessage('message-2'), onSecondMessageChange)
 
     store.update(['message-1'], [])
 
@@ -85,7 +86,9 @@ describe('KeyedMessageActivityStore', () => {
     expect(store.getSnapshot(createMessage('message-1'))).toEqual({
       isProcessing: true,
       isStreamTarget: true,
-      isApprovalAnchor: false
+      isApprovalAnchor: false,
+      isActiveTurnProcessing: true,
+      isStreamLive: false
     })
 
     store.update([], ['message-1'])
@@ -95,7 +98,9 @@ describe('KeyedMessageActivityStore', () => {
     expect(store.getSnapshot(createMessage('message-1'))).toEqual({
       isProcessing: true,
       isStreamTarget: true,
-      isApprovalAnchor: true
+      isApprovalAnchor: true,
+      isActiveTurnProcessing: true,
+      isStreamLive: false
     })
 
     store.update(['message-1'], ['message-1'])
@@ -115,8 +120,51 @@ describe('KeyedMessageActivityStore', () => {
     expect(firstSnapshot).toEqual({
       isProcessing: true,
       isStreamTarget: true,
-      isApprovalAnchor: false
+      isApprovalAnchor: false,
+      isActiveTurnProcessing: true,
+      isStreamLive: true
     })
+  })
+
+  it('publishes live and terminal turn state only to the active message', () => {
+    const store = new KeyedMessageActivityStore()
+    const activeMessage = createMessage('message-1')
+    const unrelatedMessage = createMessage('message-2')
+    const onActiveMessageChange = vi.fn()
+    const onUnrelatedMessageChange = vi.fn()
+    store.subscribe(activeMessage, onActiveMessageChange)
+    store.subscribe(unrelatedMessage, onUnrelatedMessageChange)
+
+    store.update(['message-1'], [], 'streaming')
+
+    expect(store.getSnapshot(activeMessage)).toMatchObject({
+      isActiveTurnProcessing: true,
+      isStreamLive: true
+    })
+    expect(onActiveMessageChange).toHaveBeenCalledTimes(1)
+    expect(onUnrelatedMessageChange).not.toHaveBeenCalled()
+
+    store.update(['message-1'], [], 'done')
+
+    expect(store.getSnapshot(activeMessage)).toMatchObject({
+      isProcessing: true,
+      isActiveTurnProcessing: false,
+      isStreamLive: false
+    })
+    expect(onActiveMessageChange).toHaveBeenCalledTimes(2)
+    expect(onUnrelatedMessageChange).not.toHaveBeenCalled()
+  })
+
+  it('clears the previous stream status when a new topic has no status', () => {
+    const store = new KeyedMessageActivityStore()
+    const activeMessage = createMessage('message-1')
+
+    store.syncTopic('topic-1', ['message-1'], [], 'done')
+    expect(store.getSnapshot(activeMessage).isActiveTurnProcessing).toBe(false)
+
+    store.syncTopic('topic-2', ['message-1'], [], undefined)
+
+    expect(store.getSnapshot(activeMessage).isActiveTurnProcessing).toBe(true)
   })
 
   it('re-renders only message subscribers whose derived state changed', () => {
@@ -176,6 +224,7 @@ describe('KeyedMessageActivityStore', () => {
 
 describe('useMessageActivityState', () => {
   beforeEach(() => {
+    streamStatus.status = undefined
     streamStatus.activeExecutions = []
     streamStatus.awaitingApprovalAnchors = []
   })
@@ -185,9 +234,10 @@ describe('useMessageActivityState', () => {
     const initialCapability = result.current
     const onFirstMessageChange = vi.fn()
     const onSecondMessageChange = vi.fn()
-    initialCapability.store.subscribe('message-1', onFirstMessageChange)
-    initialCapability.store.subscribe('message-2', onSecondMessageChange)
+    initialCapability.store.subscribe(createMessage('message-1'), onFirstMessageChange)
+    initialCapability.store.subscribe(createMessage('message-2'), onSecondMessageChange)
 
+    streamStatus.status = 'streaming'
     streamStatus.activeExecutions = [{ anchorMessageId: 'message-1' }]
     act(() => rerender())
 
@@ -195,7 +245,11 @@ describe('useMessageActivityState', () => {
     expect(result.current.getMessageActivityState).toBe(initialCapability.getMessageActivityState)
     expect(onFirstMessageChange).toHaveBeenCalledTimes(1)
     expect(onSecondMessageChange).not.toHaveBeenCalled()
-    expect(result.current.store.getSnapshot(createMessage('message-1')).isProcessing).toBe(true)
+    expect(result.current.store.getSnapshot(createMessage('message-1'))).toMatchObject({
+      isProcessing: true,
+      isActiveTurnProcessing: true,
+      isStreamLive: true
+    })
   })
 
   it('resets the keyed store when the topic changes', () => {
