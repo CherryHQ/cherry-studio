@@ -47,6 +47,35 @@ describe('useTopicMessagesCache', () => {
     expect(nextBranch).toEqual([{ message: newestReply, siblingsGroup: [olderReply] }])
   })
 
+  it('falls back to the parent while deleting the latest same-model regeneration', async () => {
+    const selectedReply = message('answer-new', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-a::model-a')
+    const olderReply = message('answer-old', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a')
+    const pages: BranchMessagesResponse[] = [
+      branchPage([{ message: selectedReply, siblingsGroup: [olderReply] }], selectedReply.id)
+    ]
+    const mutate = vi.fn(async (updater?: unknown) => {
+      if (typeof updater === 'function') {
+        return (updater as (current: BranchMessagesResponse[] | undefined) => BranchMessagesResponse[] | undefined)(
+          pages
+        )
+      }
+      return pages
+    })
+    const { result } = renderHook(() => useTopicMessagesCache({ topicId: 'topic-1', mutate }))
+
+    await result.current.seedOptimisticBranch((items, activeNodeId) =>
+      result.current.branchWithoutIds(items, new Set([selectedReply.id]), activeNodeId)
+    )
+
+    const nextPages = await mutate.mock.results[0]?.value
+    expect(nextPages).toEqual([
+      expect.objectContaining({
+        activeNodeId: selectedReply.parentId,
+        items: []
+      })
+    ])
+  })
+
   it('does not promote a grouped reply when a historical representative is removed', () => {
     const historicalReply = message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-b::model-b')
     const offPathReply = message('answer-a', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a')

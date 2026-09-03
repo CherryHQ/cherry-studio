@@ -46,7 +46,7 @@ export const CreateMessageSchema = z.strictObject({
   data: MessageDataSchema,
   /** Message status */
   status: MessageStatusSchema.optional(),
-  /** Siblings group ID (0 = normal, >0 = multi-model group) */
+  /** Siblings group ID (0 = normal; non-zero groups contain multi-model or regeneration alternatives) */
   siblingsGroupId: z.number().optional(),
   /** Model identifier */
   modelId: z.string().optional(),
@@ -273,7 +273,8 @@ export type MessageSchemas = {
      * - cascade=true: deletes message and all descendants
      * - cascade=false: reparents children to grandparent
      * - activeNodeStrategy='parent' (default): for non-cascade deletion of the active grouped assistant,
-     *   promotes the newest surviving reply; otherwise, including cascade deletion, uses its parent
+     *   promotes the newest surviving reply from another model; otherwise, including same-model
+     *   regeneration and cascade deletion, uses its parent
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
      * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */

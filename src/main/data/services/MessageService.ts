@@ -1936,8 +1936,8 @@ export class MessageService {
    * When the deleted message(s) include the topic's activeNodeId, it will be
    * automatically updated based on activeNodeStrategy:
    * - 'parent' (default): For non-cascade deletion of an active grouped assistant,
-   *   promotes the newest surviving reply; otherwise, including cascade deletion,
-   *   sets activeNodeId to the deleted message's parent
+   *   promotes the newest surviving reply from another model; otherwise, including
+   *   same-model regeneration and cascade deletion, uses the deleted message's parent
    * - 'clear': Sets activeNodeId to null
    *
    * All operations are performed within a transaction for consistency.
@@ -2035,6 +2035,9 @@ export class MessageService {
                   eq(messageTable.role, 'assistant'),
                   eq(messageTable.siblingsGroupId, message.siblingsGroupId),
                   ne(messageTable.id, id),
+                  message.modelId === null
+                    ? isNotNull(messageTable.modelId)
+                    : ne(messageTable.modelId, message.modelId),
                   isNull(messageTable.deletedAt)
                 )
               )

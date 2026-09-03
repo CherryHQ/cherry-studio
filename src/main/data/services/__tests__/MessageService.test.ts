@@ -2405,6 +2405,40 @@ describe('MessageService', () => {
       expect(reloadedBranch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a1'])
     })
 
+    it('falls back to the parent when deleting the latest same-model regeneration', async () => {
+      const rootId = await seedTopicWithRoot('topic-regeneration-delete')
+      const prompt = messageService.create('topic-regeneration-delete', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const modelId = createUniqueModelId('provider-a', 'model-A')
+      const olderReply = messageService.create('topic-regeneration-delete', {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('older answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId
+      })
+      const latestReply = messageService.create('topic-regeneration-delete', {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('latest answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId
+      })
+
+      const result = messageService.delete(latestReply.id, false)
+
+      expect(result.newActiveNodeId).toBe(prompt.id)
+      expect(messageService.getById(olderReply.id).data).toEqual(mainText('older answer'))
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-regeneration-delete'))
+      expect(topic.activeNodeId).toBe(prompt.id)
+    })
+
     it('reparent rebases a moved group id so it cannot merge with an unrelated group at the destination', async () => {
       // u1 → { x(g=0), y(g=5) };  x → { c1(g=5), c2(g=5) }
       // Deleting x moves c1/c2 to u1, where group 5 already belongs to the unrelated y.

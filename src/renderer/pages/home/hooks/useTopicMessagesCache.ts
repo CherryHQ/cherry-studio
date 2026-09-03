@@ -43,12 +43,13 @@ function branchWithoutIds(
       item.message.id !== activeNodeId ||
       item.message.role !== 'assistant' ||
       item.message.siblingsGroupId === 0 ||
-      siblingsGroup.length === 0
+      siblingsGroup.every((sibling) => sibling.modelId === item.message.modelId)
     ) {
       return []
     }
 
-    const message = siblingsGroup.reduce((newest, sibling) =>
+    const differentModelReplies = siblingsGroup.filter((sibling) => sibling.modelId !== item.message.modelId)
+    const message = differentModelReplies.reduce((newest, sibling) =>
       sibling.createdAt > newest.createdAt || (sibling.createdAt === newest.createdAt && sibling.id > newest.id)
         ? sibling
         : newest
@@ -72,7 +73,7 @@ function activeNodeIdAfterOptimisticTransform(
 
   const previousSiblingIds = new Set(previousActive.siblingsGroup.map((sibling) => sibling.id))
   const promoted = nextItems.find((item) => previousSiblingIds.has(item.message.id))
-  return promoted?.message.id ?? activeNodeId
+  return promoted?.message.id ?? previousActive.message.parentId
 }
 
 function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
