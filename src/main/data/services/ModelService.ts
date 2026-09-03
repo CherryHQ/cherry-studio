@@ -33,6 +33,7 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
+  CHERRY_CLOUD_PROVIDER_ID,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID,
   isManagedCherryAiDefaultModel,
@@ -48,7 +49,7 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
-import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
+import { and, asc, eq, inArray, ne, type SQL } from 'drizzle-orm'
 import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -680,6 +681,10 @@ class ModelService {
       conditions.push(eq(userModelTable.isEnabled, query.enabled))
     }
 
+    if (!query.includeAgentOnly) {
+      conditions.push(ne(userModelTable.providerId, CHERRY_CLOUD_PROVIDER_ID))
+    }
+
     const rows = db
       .select()
       .from(userModelTable)
@@ -1145,7 +1150,7 @@ class ModelService {
     return Object.freeze({
       reconcile: (payload: ManagedModelReconcilePayload): Model[] => {
         if (payload.toAdd.length === 0 && payload.toUpdate.length === 0 && payload.toRemove.length === 0) {
-          return this.list({ providerId })
+          return this.list({ providerId, includeAgentOnly: true })
         }
 
         const result = this.applyProviderModelReconcile(providerId, {

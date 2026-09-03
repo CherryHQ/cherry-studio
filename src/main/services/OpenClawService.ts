@@ -1116,13 +1116,16 @@ export class OpenClawService extends BaseService {
       throw new Error('Invalid OpenClaw model selection')
     }
 
-    const { providerId, modelId } = parseUniqueModelId(parsed.data)
-    const [provider, primaryModel, models, apiKeys] = await Promise.all([
+    const { providerId } = parseUniqueModelId(parsed.data)
+    const [provider, models, apiKeys] = await Promise.all([
       providerService.getByProviderId(providerId),
-      modelService.getByKey(providerId, modelId),
       modelService.list({ providerId, enabled: true }),
       providerService.getApiKeys(providerId, { enabled: true })
     ])
+    const primaryModel = models.find((model) => model.id === parsed.data)
+    if (!primaryModel) {
+      throw new Error('Invalid OpenClaw model selection')
+    }
 
     this.ensureSyncProviderSupported(provider)
     if (isNonChatModel(primaryModel)) {

@@ -4,10 +4,8 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getProviderDisplayName, ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { getLeadingEmoji, getProviderDisplayNameById } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
-import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
@@ -73,11 +71,7 @@ export function ChatConversationControls({
   onMentionedModelSelectorRestore
 }: ChatConversationControlsProps) {
   const { t } = useTranslation()
-  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability()
-  const chatModelFilter = useCallback<ModelSelectorFilter>(
-    (candidate) => isModelAvailableForFeature(candidate, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && !isNonChatModel(candidate),
-    [isModelAvailableForFeature]
-  )
+  const chatModelFilter = useCallback<ModelSelectorFilter>((candidate) => !isNonChatModel(candidate), [])
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
@@ -175,7 +169,6 @@ export function ChatConversationControls({
           multiSelectMode={mentionedModelMultiSelectMode}
           onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
           filter={chatModelFilter}
-          isModelDisabled={isModelDisabled}
           shortcut="chat.model.select"
           side={side}
           align="start"
@@ -201,7 +194,6 @@ export function ChatConversationControls({
           value={model}
           onSelect={onModelSelect}
           filter={chatModelFilter}
-          isModelDisabled={isModelDisabled}
           shortcut="chat.model.select"
           side={side}
           align="start"

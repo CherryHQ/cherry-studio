@@ -688,6 +688,7 @@ export function CompactModelField({
   emptyLabel,
   filter,
   isModelDisabled,
+  includeAgentOnlyModels = false,
   portalContainer,
   modelLabels,
   setModelLabels,
@@ -706,6 +707,7 @@ export function CompactModelField({
   emptyLabel?: string
   filter?: ModelSelectorFilter
   isModelDisabled?: ModelSelectorFilter
+  includeAgentOnlyModels?: boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
@@ -745,6 +747,7 @@ export function CompactModelField({
             <div className="group/model-field relative flex w-full min-w-0 items-center">
               <ModelSelector
                 multiple={false}
+                includeAgentOnlyModels={includeAgentOnlyModels}
                 selectionType="id"
                 value={selectorValue}
                 filter={filter}

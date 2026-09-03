@@ -954,6 +954,20 @@ describe('ModelService.list', () => {
     expect(models).toHaveLength(3)
   })
 
+  it('excludes Agent-only models by default and includes them when requested', async () => {
+    await seedMultipleModels()
+    await dbh.db.insert(userProviderTable).values(providerRow(CHERRY_CLOUD_PROVIDER_ID, 'Cherry Cloud'))
+    await dbh.db.insert(userModelTable).values(modelRow(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-go'))
+
+    expect(modelService.list({}).map((model) => model.id)).not.toContain(
+      createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-go')
+    )
+    expect(modelService.list({ includeAgentOnly: true }).map((model) => model.id)).toContain(
+      createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-go')
+    )
+    expect(modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })).toEqual([])
+  })
+
   it('filters by providerId', async () => {
     await seedMultipleModels()
 

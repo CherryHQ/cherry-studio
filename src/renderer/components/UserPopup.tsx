@@ -17,16 +17,14 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { useCherryCloudSession } from '@renderer/hooks/useCherryCloudSession'
+import { ipcApi } from '@renderer/ipc'
 import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { checkEntityImageSize, prepareEntityImageBytes } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EmojiPicker } from './EmojiPicker'
@@ -34,52 +32,27 @@ import { EmojiPicker } from './EmojiPicker'
 type Props = PopupInjectedProps<Record<string, never>>
 
 type AvatarPopoverView = 'menu' | 'emoji'
-type CloudStatusLoadState = 'error' | 'loading' | 'ready'
 
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
 
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
-  const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
-  const [cloudStatusLoadState, setCloudStatusLoadState] = useState<CloudStatusLoadState>('loading')
-  const [isStartingLogin, setIsStartingLogin] = useState(false)
-  const [isCancellingLogin, setIsCancellingLogin] = useState(false)
-  const [isRevokingSession, setIsRevokingSession] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cloudStatusRequestRef = useRef(0)
   const { t } = useTranslation()
   const avatar = useAvatar()
   const isCnEdition = getAppEdition() === 'cn'
-
-  useIpcOn('cherry_cloud.status_changed', (status) => {
-    cloudStatusRequestRef.current += 1
-    setCloudStatus(status)
-    setCloudStatusLoadState('ready')
-  })
-
-  const loadCloudStatus = useCallback(async () => {
-    const requestId = ++cloudStatusRequestRef.current
-    setCloudStatusLoadState('loading')
-    try {
-      const status = await ipcApi.request('cherry_cloud.status.get')
-      if (requestId !== cloudStatusRequestRef.current) return
-      setCloudStatus(status)
-      setCloudStatusLoadState('ready')
-    } catch {
-      if (requestId === cloudStatusRequestRef.current) setCloudStatusLoadState('error')
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-
-    void loadCloudStatus()
-
-    return () => {
-      cloudStatusRequestRef.current += 1
-    }
-  }, [loadCloudStatus, open])
+  const {
+    status: cloudStatus,
+    loadState: cloudStatusLoadState,
+    reload: loadCloudStatus,
+    login: handleCloudLogin,
+    cancelLogin: handleCloudLoginCancel,
+    revokeSession: handleCloudLogout,
+    isCancellingLogin,
+    isRevokingSession,
+    isAuthorizing
+  } = useCherryCloudSession(open)
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -131,45 +104,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       toast.error(error.message)
     }
   }
-
-  const handleCloudLogin = async () => {
-    setIsStartingLogin(true)
-    try {
-      setCloudStatus(await ipcApi.request('cherry_cloud.login.start'))
-    } catch (error) {
-      toast.error(
-        error instanceof IpcError && error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE
-          ? t('error.http.503')
-          : t('settings.provider.cherry_cloud.sign_in_failed')
-      )
-    } finally {
-      setIsStartingLogin(false)
-    }
-  }
-
-  const handleCloudLogout = async () => {
-    setIsRevokingSession(true)
-    try {
-      setCloudStatus(await ipcApi.request('cherry_cloud.session.revoke'))
-    } catch {
-      toast.error(t('settings.provider.cherry_cloud.logout_failed'))
-    } finally {
-      setIsRevokingSession(false)
-    }
-  }
-
-  const handleCloudLoginCancel = async () => {
-    setIsCancellingLogin(true)
-    try {
-      setCloudStatus(await ipcApi.request('cherry_cloud.login.cancel'))
-    } catch {
-      toast.error(t('settings.provider.cherry_cloud.sign_in_failed'))
-    } finally {
-      setIsCancellingLogin(false)
-    }
-  }
-
-  const isAuthorizing = cloudStatus?.phase === 'authorizing' || isStartingLogin
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

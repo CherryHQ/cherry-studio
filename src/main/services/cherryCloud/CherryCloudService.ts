@@ -636,13 +636,10 @@ export class CherryCloudService extends BaseService {
       max_output_tokens: number
     }>
   ): void {
-    const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
+    const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID, includeAgentOnly: true })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
     const remoteByModelId = new Map(models.map((model) => [model.id, model]))
     const missing = models.filter((model) => !currentByModelId.has(model.id))
-    const removed = current
-      .map((model) => parseUniqueModelId(model.id).modelId)
-      .filter((modelId) => !remoteByModelId.has(modelId))
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
       const remote = remoteByModelId.get(modelId)
@@ -675,7 +672,7 @@ export class CherryCloudService extends BaseService {
       ]
     })
 
-    if (missing.length > 0 || updates.length > 0 || removed.length > 0) {
+    if (missing.length > 0 || updates.length > 0) {
       cherryCloudModelWriter.reconcile({
         toAdd: missing.map((model) => ({
           modelId: model.id,
@@ -687,7 +684,7 @@ export class CherryCloudService extends BaseService {
           supportsStreaming: true
         })),
         toUpdate: updates,
-        toRemove: removed
+        toRemove: []
       })
     }
   }

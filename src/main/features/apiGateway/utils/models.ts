@@ -85,8 +85,11 @@ function transformModelToOpenAi(model: Model, provider?: Provider): ApiModel {
   }
 }
 
-/** Resolve an external `providerId:apiModelId` address to the enabled internal model record. */
-export function resolveGatewayModelAddress(modelAddress: string): ResolvedGatewayModelAddress {
+/** Resolve a `providerId:apiModelId`; Agent-only models require an authenticated internal request. */
+export function resolveGatewayModelAddress(
+  modelAddress: string,
+  includeAgentOnly = false
+): ResolvedGatewayModelAddress {
   const sepIdx = modelAddress.indexOf(':')
   if (sepIdx <= 0 || sepIdx >= modelAddress.length - 1) {
     throw new Error(`Invalid model format: "${modelAddress}". Expected "providerId:apiModelId".`)
@@ -108,11 +111,13 @@ export function resolveGatewayModelAddress(modelAddress: string): ResolvedGatewa
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 
-  const model = modelService.list({ providerId, enabled: true }).find((candidate) => {
-    if (!isGatewayRoutableModel(candidate)) return false
-    const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
-    return candidateApiModelId === apiModelId
-  })
+  const model = modelService
+    .list({ providerId, enabled: true, ...(includeAgentOnly && { includeAgentOnly: true }) })
+    .find((candidate) => {
+      if (!isGatewayRoutableModel(candidate)) return false
+      const candidateApiModelId = candidate.apiModelId ?? parseUniqueModelId(candidate.id).modelId
+      return candidateApiModelId === apiModelId
+    })
   if (!model) {
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }

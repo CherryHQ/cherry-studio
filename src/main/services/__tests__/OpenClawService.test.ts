@@ -5,6 +5,7 @@ import path from 'node:path'
 import { PassThrough } from 'node:stream'
 
 import { application } from '@application'
+import { CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -1307,6 +1308,22 @@ describe('OpenClawService gateway status state machine', () => {
         expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })
       )
       expect(modelService.list).toHaveBeenCalledWith({ providerId: 'openai', enabled: true })
+    })
+
+    it('rejects models that are only available to Agent runtimes', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(
+        createProvider({ id: CHERRY_CLOUD_PROVIDER_ID, name: 'Cherry Cloud' })
+      )
+      vi.mocked(modelService.list).mockResolvedValue([])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig(`${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free`)
+
+      expect(result).toEqual({ success: false, message: 'Invalid OpenClaw model selection' })
+      expect(syncProviderConfigSpy).not.toHaveBeenCalled()
     })
 
     it('does not route a mixed provider OpenAI model through the Anthropic endpoint', async () => {

@@ -34,7 +34,8 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: (options?: { enabled?: boolean }) => {
     modelHook.useDefaultModel(options)
     return { defaultModel: modelHook.defaultModel }
-  }
+  },
+  useModels: () => ({ models: modelHook.defaultModel?.isEnabled ? [modelHook.defaultModel] : [] })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({

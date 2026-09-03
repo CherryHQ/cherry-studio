@@ -667,33 +667,6 @@ describe('OnboardingPage', () => {
     expect(await screen.findByRole('button', { name: 'onboarding.welcome.login_cherry_cloud' })).toBeEnabled()
   })
 
-  it('explains that the Cherry Cloud account has no available model before opening provider setup', async () => {
-    const user = userEvent.setup()
-    cloudMocks.appEdition = 'cn'
-    enabledProvidersMock.splice(0, enabledProvidersMock.length, {
-      id: CHERRY_CLOUD_PROVIDER_ID,
-      isEnabled: true
-    })
-    enabledModelsMock.splice(0, enabledModelsMock.length, {
-      id: `${CHERRY_CLOUD_PROVIDER_ID}::agent-model`,
-      providerId: CHERRY_CLOUD_PROVIDER_ID,
-      isEnabled: true,
-      capabilities: []
-    })
-    render(<OnboardingPage />)
-
-    await waitFor(() => expect(cloudMocks.statusListener).toBeDefined())
-    act(() => cloudMocks.statusListener?.({ phase: 'signed-in', displayName: 'Alice' }))
-
-    expect(await screen.findByText('onboarding.cloud.no_available_models')).toBeInTheDocument()
-    expect(screen.queryByTestId('provider-settings')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
-
-    expect(await screen.findByTestId('provider-settings')).toBeInTheDocument()
-    expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('pending')
-  })
-
   it('selects the first available Cherry Cloud Agent model and completes onboarding', async () => {
     const firstCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::first-agent-model`
     const secondCloudAgentModelId = `${CHERRY_CLOUD_PROVIDER_ID}::second-agent-model`

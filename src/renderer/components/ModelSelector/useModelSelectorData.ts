@@ -1,5 +1,4 @@
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -70,6 +69,7 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 
 export function useModelSelectorData({
   enabled = true,
+  includeAgentOnlyModels = false,
   selectedModelIds = [],
   maxSelectedCount,
   searchText,
@@ -87,7 +87,7 @@ export function useModelSelectorData({
     models,
     isLoading: isModelsLoading,
     refetch: refetchModels
-  } = useModels({ enabled: true }, { fetchEnabled: enabled })
+  } = useModels({ enabled: true, ...(includeAgentOnlyModels && { includeAgentOnly: true }) }, { fetchEnabled: enabled })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -103,10 +103,6 @@ export function useModelSelectorData({
     (model: Model, provider?: Provider) => filter?.(model, provider) ?? true,
     [filter]
   )
-
-  // Agent-only providers are hidden from general selectors; only Agent pickers
-  // whose filter is explicitly marked may surface them.
-  const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
 
   // External-CLI providers carry no credential that a normal request can use.
   const agentOnlyProviderIds = useMemo(
@@ -131,7 +127,7 @@ export function useModelSelectorData({
         continue
       }
 
-      if (!includeAgentOnlyProviders && agentOnlyProviderIds.has(model.providerId)) {
+      if (!includeAgentOnlyModels && agentOnlyProviderIds.has(model.providerId)) {
         continue
       }
 
@@ -144,7 +140,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, models, sortedProviders])
+  }, [agentOnlyProviderIds, baseModelFilter, includeAgentOnlyModels, models, sortedProviders])
 
   const availableTags = useMemo(() => {
     if (modelsByProvider.size === 0) {

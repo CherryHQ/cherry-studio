@@ -19,11 +19,12 @@ import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
+import { useCherryCloudSession } from '@renderer/hooks/useCherryCloudSession'
 import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
-import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
@@ -37,8 +38,6 @@ import {
   isManagedCherryProviderId
 } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -94,14 +93,19 @@ export default function OnboardingPage() {
   const [privacyAccepted, setPrivacyAccepted] = useState(true)
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const [showNoCloudModelsDialog, setShowNoCloudModelsDialog] = useState(false)
-  const [cloudStatus, setCloudStatus] = useState<CherryCloudStatus | null>(null)
-  const [isStartingCloudLogin, setIsStartingCloudLogin] = useState(false)
-  const [isCancellingCloudLogin, setIsCancellingCloudLogin] = useState(false)
   const loginAttemptRef = useRef(0)
   const loginLoadingTimeoutRef = useRef<number | null>(null)
-  const cloudStatusRequestRef = useRef(0)
+  const cloudStatusRef = useRef<CherryCloudStatus | null>(null)
   const hasRoutedCloudLoginRef = useRef(false)
   const isCnEdition = appEdition === 'cn'
+  const {
+    status: cloudStatus,
+    login: handleCherryCloudLogin,
+    cancelLogin: handleCherryCloudLoginCancel,
+    isCancellingLogin: isCancellingCloudLogin,
+    isAuthorizing: isCloudAuthorizing
+  } = useCherryCloudSession(isCnEdition)
+  cloudStatusRef.current = cloudStatus
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => !isManagedCherryProviderId(provider.id)).map((provider) => provider.id)
   )
@@ -128,28 +132,6 @@ export default function OnboardingPage() {
       ? resolvedLanguage
       : defaultLanguage
   const displayLanguageLabel = appLanguageOptions.find((option) => option.value === displayLanguage)?.label
-
-  useIpcOn('cherry_cloud.status_changed', (status) => {
-    if (!isCnEdition) return
-    cloudStatusRequestRef.current += 1
-    setCloudStatus(status)
-  })
-
-  useEffect(() => {
-    if (!isCnEdition) return
-
-    const requestId = ++cloudStatusRequestRef.current
-    void ipcApi
-      .request('cherry_cloud.status.get')
-      .then((status) => {
-        if (requestId === cloudStatusRequestRef.current) setCloudStatus(status)
-      })
-      .catch(() => undefined)
-
-    return () => {
-      cloudStatusRequestRef.current += 1
-    }
-  }, [isCnEdition])
 
   const updateSeededAgentModels = useCallback(async (modelId: UniqueModelId) => {
     const limit = 500
@@ -267,15 +249,15 @@ export default function OnboardingPage() {
   )
 
   const completeWithCloudAgentModel = useCallback(
-    async (modelId: UniqueModelId, requestId: number) => {
+    async (modelId: UniqueModelId, expectedStatus: CherryCloudStatus) => {
       setIsCompleting(true)
       try {
-        if (!(await persistPrivacyChoice()) || requestId !== cloudStatusRequestRef.current) return
+        if (!(await persistPrivacyChoice()) || expectedStatus !== cloudStatusRef.current) return
         await updateSeededAgentModels(modelId)
-        if (requestId !== cloudStatusRequestRef.current) return
+        if (expectedStatus !== cloudStatusRef.current) return
         await updateOnboardingPreferences({ providerSetupStatus: 'skipped' })
       } catch {
-        if (requestId === cloudStatusRequestRef.current) {
+        if (expectedStatus === cloudStatusRef.current) {
           toast.error(t('onboarding.toast.complete_failed'))
         }
       } finally {
@@ -299,11 +281,11 @@ export default function OnboardingPage() {
     if (isProviderSetupLoading || hasRoutedCloudLoginRef.current) return
 
     hasRoutedCloudLoginRef.current = true
-    const requestId = cloudStatusRequestRef.current
+    const expectedStatus = cloudStatus
     void ipcApi
       .request('cherry_cloud.models.sync')
       .then(({ entitledModelIds, quotaExhaustedModelIds, featuresByModelId }) => {
-        if (requestId !== cloudStatusRequestRef.current) return
+        if (expectedStatus !== cloudStatusRef.current) return
 
         const exhaustedModelIds = new Set(quotaExhaustedModelIds)
         const agentModelId = entitledModelIds.find(
@@ -311,17 +293,17 @@ export default function OnboardingPage() {
             !exhaustedModelIds.has(modelId) && featuresByModelId[modelId]?.includes(CHERRY_CLOUD_MODEL_FEATURE.AGENT)
         )
         if (agentModelId) {
-          void completeWithCloudAgentModel(agentModelId, requestId)
+          void completeWithCloudAgentModel(agentModelId, expectedStatus)
         } else {
           setShowNoCloudModelsDialog(true)
         }
       })
       .catch(() => {
-        if (requestId === cloudStatusRequestRef.current) {
+        if (expectedStatus === cloudStatusRef.current) {
           setStep(canContinueProviderSetup ? 'select-model' : 'provider')
         }
       })
-  }, [canContinueProviderSetup, cloudStatus?.phase, completeWithCloudAgentModel, isCnEdition, isProviderSetupLoading])
+  }, [canContinueProviderSetup, cloudStatus, completeWithCloudAgentModel, isCnEdition, isProviderSetupLoading])
 
   const runAfterPrivacyChoice = useCallback(
     async (action: PrivacyChoiceAction) => {
@@ -398,37 +380,6 @@ export default function OnboardingPage() {
     }
   }, [addApiKey, syncProviderModels, t, updateProvider])
 
-  const handleCherryCloudLogin = useCallback(async () => {
-    const requestId = ++cloudStatusRequestRef.current
-    setIsStartingCloudLogin(true)
-    try {
-      const status = await ipcApi.request('cherry_cloud.login.start')
-      if (requestId === cloudStatusRequestRef.current) setCloudStatus(status)
-    } catch (error) {
-      toast.error(
-        error instanceof IpcError && error.code === cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE
-          ? t('error.http.503')
-          : t('settings.provider.cherry_cloud.sign_in_failed')
-      )
-    } finally {
-      setIsStartingCloudLogin(false)
-    }
-  }, [t])
-
-  const handleCherryCloudLoginCancel = useCallback(async () => {
-    const requestId = ++cloudStatusRequestRef.current
-    setIsCancellingCloudLogin(true)
-    try {
-      const status = await ipcApi.request('cherry_cloud.login.cancel')
-      if (requestId === cloudStatusRequestRef.current) setCloudStatus(status)
-    } catch {
-      toast.error(t('settings.provider.cherry_cloud.sign_in_failed'))
-    } finally {
-      setIsCancellingCloudLogin(false)
-    }
-  }, [t])
-
-  const isCloudAuthorizing = isStartingCloudLogin || cloudStatus?.phase === 'authorizing'
   const isPrimaryLoginPending = isCnEdition ? isCloudAuthorizing : isLoggingIn
   const primaryLoginLabel = isCnEdition
     ? cloudStatus?.phase === 'signed-in'

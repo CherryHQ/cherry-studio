@@ -77,6 +77,19 @@ describe('Cherry Cloud response contracts', () => {
       }).success
     ).toBe(false)
     expect(cloudModelListSchema.safeParse({ has_more: false }).success).toBe(false)
+    expect(
+      cloudModelListSchema.safeParse({
+        data: [
+          {
+            id: 'claude-test',
+            display_name: 'Claude Test',
+            context_window: 200_000,
+            max_output_tokens: 8_192,
+            available_features: ['agent']
+          }
+        ]
+      }).success
+    ).toBe(false)
   })
 
   it('requires a non-empty unique list of supported model features', () => {

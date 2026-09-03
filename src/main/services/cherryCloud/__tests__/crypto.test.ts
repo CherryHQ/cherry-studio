@@ -2,7 +2,7 @@ import { createHash, createPrivateKey, createPublicKey } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature, createIdempotencyKey } from '../crypto'
+import { createAuthorizationSecrets, createDeviceKeyPair, createDeviceSignature } from '../crypto'
 
 describe('Cherry Cloud authorization cryptography', () => {
   it('derives the S256 PKCE challenge from the verifier', () => {
@@ -52,9 +52,5 @@ describe('Cherry Cloud device request signing', () => {
       'Cherry-Signature-Version': '1',
       'Cherry-Signature': '68XKbmorIHWYnCZAKXGbDVzRzM3qSKTRBx2Kj6xuGnZtOUyWtoLbN7JNAAJGc93-QDagy_OrmxfqKyrpdEwfCQ'
     })
-  })
-
-  it('creates a canonical 32-byte idempotency key', () => {
-    expect(createIdempotencyKey()).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
   })
 })

@@ -4,10 +4,8 @@ import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
-import { useCherryCloudModelAvailability } from '@renderer/hooks/useCherryCloudModelAvailability'
 import { toast } from '@renderer/services/toast'
 import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
-import { CHERRY_CLOUD_MODEL_FEATURE } from '@shared/data/presets/cherryai'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -80,11 +78,7 @@ function AssistantEditDialogHost({
 }) {
   const { t } = useTranslation()
   const { assistant, error } = useAssistantApiById(target.id)
-  const { isModelAvailableForFeature, isModelDisabled } = useCherryCloudModelAvailability(open)
-  const assistantModelFilter = useCallback<ModelSelectorFilter>(
-    (model) => isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.CHAT) && !isNonChatModel(model),
-    [isModelAvailableForFeature]
-  )
+  const assistantModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
 
   useEffect(() => {
     if (!error) return
@@ -99,7 +93,6 @@ function AssistantEditDialogHost({
       resource={assistant ?? null}
       onOpenChange={onOpenChange}
       modelFilter={assistantModelFilter}
-      isModelDisabled={isModelDisabled}
       initialTab={target.initialTab}
     />
   )

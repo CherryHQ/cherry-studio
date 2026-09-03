@@ -22,29 +22,20 @@ import { useMemo } from 'react'
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
-const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
-type AgentModelFilter = ModelPredicate & { [AGENT_ONLY_FILTER]?: true }
-
-/** True when `filter` came from an Agent picker that may include Agent-only providers. */
-export function modelFilterIncludesAgentOnlyProviders(filter?: ModelPredicate): boolean {
-  return Boolean((filter as AgentModelFilter | undefined)?.[AGENT_ONLY_FILTER])
-}
 
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined, enabled = true): AgentModelFilter {
+export function useAgentModelFilter(agentType: AgentType | undefined, enabled = true): ModelPredicate {
   const { isModelAvailableForFeature } = useCherryCloudModelAvailability(enabled)
-  return useMemo<AgentModelFilter>(() => {
+  return useMemo<ModelPredicate>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    const predicate: AgentModelFilter = (model, provider) => {
+    return (model, provider) => {
       if (!baseAgentFilter(model)) return false
       if (!isModelAvailableForFeature(model, CHERRY_CLOUD_MODEL_FEATURE.AGENT)) return false
       return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
-    predicate[AGENT_ONLY_FILTER] = true
-    return predicate
   }, [agentType, isModelAvailableForFeature])
 }
 

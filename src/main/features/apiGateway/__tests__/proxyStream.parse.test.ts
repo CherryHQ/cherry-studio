@@ -250,6 +250,7 @@ describe('processMessage model-id parsing', () => {
         outputFormat: 'anthropic'
       })
     ).rejects.toMatchObject({ status: 403 })
+    expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })
 
@@ -270,24 +271,13 @@ describe('processMessage model-id parsing', () => {
 
     await vi.waitFor(() => expect(captured.opts).toBeDefined())
     expect(captured.opts?.uniqueModelId).toBe(createUniqueModelId(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free'))
-    void captured.opts!.listener!.onDone({} as any)
-
-    await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
-  })
-
-  it('lets authorized provider requests use the gateway dialect adapters', async () => {
-    mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
-    mockIsInternalAgentRequest.mockReturnValue(true)
-
-    const responsePromise = processMessage({
-      params: { model: `${CHERRY_CLOUD_PROVIDER_ID}:deepseek-free`, messages: [] },
-      inputFormat: 'openai',
-      outputFormat: 'openai',
-      requestHeaders: new Headers({ 'x-cherry-internal-request-token': 'internal-token' })
+    expect(mockListModels).toHaveBeenCalledWith({
+      providerId: CHERRY_CLOUD_PROVIDER_ID,
+      enabled: true,
+      includeAgentOnly: true
     })
-
-    await vi.waitFor(() => expect(captured.opts).toBeDefined())
     void captured.opts!.listener!.onDone({} as any)
+
     await expect(responsePromise.then((response) => response.json())).resolves.toEqual({ ok: true })
   })
 
