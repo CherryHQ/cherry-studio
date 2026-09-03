@@ -1,4 +1,5 @@
 import i18n from '@renderer/i18n/resolver'
+import { miniAppMutationService } from '@renderer/services/MiniAppMutationService'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -64,6 +65,7 @@ describe('useMiniApps', () => {
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
+    miniAppMutationService.resetForTesting()
     mockTabs.tabs = []
     mockTabs.hasContext = true
     mockTabs.closeTab.mockClear()
@@ -733,6 +735,42 @@ describe('useMiniApps', () => {
 
       expect(patchOrderTrigger).toHaveBeenCalledTimes(2)
       expect(patchOrderTrigger).toHaveBeenNthCalledWith(2, { params: { id: 'b' }, body: { position: 'first' } })
+    })
+
+    it('serializes status and reorder writes across hook instances', async () => {
+      const statusRequest = Promise.withResolvers<void>()
+      const patchStatusTrigger = vi.fn(() => statusRequest.promise)
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:appId') {
+          return { trigger: patchStatusTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const a = createMiniApp('a', { status: 'enabled', orderKey: 'a0' })
+      const b = createMiniApp('b', { status: 'enabled', orderKey: 'a1' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([a, b]))
+      MockUseDataApiUtils.seedCache('/mini-apps', paginated([a, b]))
+      const first = renderHook(() => useMiniApps())
+      const second = renderHook(() => useMiniApps())
+
+      let statusWrite!: Promise<unknown>
+      let reorderWrite!: Promise<void>
+      act(() => {
+        statusWrite = first.result.current.updateAppStatus('a', 'disabled')
+        reorderWrite = second.result.current.reorderMiniAppsByStatus('visible', [b, a])
+      })
+
+      expect(patchStatusTrigger).toHaveBeenCalledTimes(1)
+      expect(patchOrderTrigger).not.toHaveBeenCalled()
+
+      statusRequest.resolve()
+      await act(async () => Promise.all([statusWrite, reorderWrite]))
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'b' }, body: { position: 'first' } })
     })
   })
 

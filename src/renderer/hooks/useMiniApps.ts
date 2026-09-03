@@ -9,6 +9,7 @@ import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { miniAppMutationService } from '@renderer/services/MiniAppMutationService'
 import { getAppEdition } from '@renderer/utils/appEdition'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { toDataApiError } from '@shared/data/api/errors'
@@ -222,7 +223,6 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
   const readCache = useReadCache()
-  const statusReorderQueueRef = useRef<Promise<void> | null>(null)
 
   // Fixed-path mutations (useMutation with auto-refresh)
   const { trigger: postMiniApp } = useMutation('POST', '/mini-apps', {
@@ -258,15 +258,16 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * accidentally affecting rows the caller never saw.
    */
   const updateAppStatus = useCallback(
-    async (appId: string, status: MiniApp['status'], order?: OrderRequest) => {
-      try {
-        return await patchAppTrigger({ params: { appId }, body: { status, order } })
-      } catch (error) {
-        await invalidate('/mini-apps')
-        logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
-        throw toDataApiError(error)
-      }
-    },
+    (appId: string, status: MiniApp['status'], order?: OrderRequest) =>
+      miniAppMutationService.enqueue(async () => {
+        try {
+          return await patchAppTrigger({ params: { appId }, body: { status, order } })
+        } catch (error) {
+          await invalidate('/mini-apps')
+          logger.error('Failed to update app status', { appId, error: toDataApiError(error) })
+          throw toDataApiError(error)
+        }
+      }),
     [invalidate, patchAppTrigger]
   )
 
@@ -285,13 +286,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const setAppStatusBulk = useCallback(
     async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status']; order?: OrderRequest }>) => {
       if (updates.length === 0) return
-      try {
-        await patchMiniAppStatusBatchTrigger({ body: { updates: [...updates] } })
-      } catch (error) {
-        await invalidate('/mini-apps')
-        logger.error('Failed to update mini app statuses', { error: toDataApiError(error) })
-        throw toDataApiError(error)
-      }
+      await miniAppMutationService.enqueue(async () => {
+        try {
+          await patchMiniAppStatusBatchTrigger({ body: { updates: [...updates] } })
+        } catch (error) {
+          await invalidate('/mini-apps')
+          logger.error('Failed to update mini app statuses', { error: toDataApiError(error) })
+          throw toDataApiError(error)
+        }
+      })
     },
     [invalidate, patchMiniAppStatusBatchTrigger]
   )
@@ -451,14 +454,15 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
    * minimal set of `PATCH /:id/order` or `PATCH /order:batch` calls.
    */
   const reorderMiniApps = useCallback(
-    async (orderedApps: MiniApp[]) => {
-      try {
-        await applyMiniAppOrder(orderedApps)
-      } catch (error) {
-        logger.error('Failed to reorder mini apps', { error: toDataApiError(error) })
-        throw toDataApiError(error)
-      }
-    },
+    (orderedApps: MiniApp[]) =>
+      miniAppMutationService.enqueue(async () => {
+        try {
+          await applyMiniAppOrder(orderedApps)
+        } catch (error) {
+          logger.error('Failed to reorder mini apps', { error: toDataApiError(error) })
+          throw toDataApiError(error)
+        }
+      }),
     [applyMiniAppOrder]
   )
 
@@ -494,18 +498,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         }
       }
 
-      const previous = statusReorderQueueRef.current
-      const persisted = previous ? previous.catch(() => undefined).then(persist) : persist()
-      statusReorderQueueRef.current = persisted
-      persisted.then(
-        () => {
-          if (statusReorderQueueRef.current === persisted) statusReorderQueueRef.current = null
-        },
-        () => {
-          if (statusReorderQueueRef.current === persisted) statusReorderQueueRef.current = null
-        }
-      )
-      return persisted
+      return miniAppMutationService.enqueue(persist)
     },
     [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger, readCache]
   )

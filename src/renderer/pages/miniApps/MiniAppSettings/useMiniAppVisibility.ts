@@ -243,15 +243,22 @@ export function useMiniAppVisibility() {
     (app: MiniApp) => {
       const enabledApp = withEnabledStatus(app)
       pendingShownIdsRef.current.add(app.appId)
-      const optimisticApps = allApps.map((item) =>
-        pendingShownIdsRef.current.has(item.appId) ? withEnabledStatus(item) : item
-      )
-      const order = restoredOrderAnchor(app.appId, originalVisibleIdsRef.current, optimisticApps, new Set([app.appId]))
       setHidden((h) => h.filter((a) => a.appId !== app.appId))
       setVisible((current) => insertMiniAppInOriginalOrder(current, enabledApp, originalVisibleIdsRef.current))
 
       enqueueMutation(
-        () => updateAppStatus(app.appId, 'enabled', order),
+        () => {
+          const optimisticApps = allApps.map((item) =>
+            pendingShownIdsRef.current.has(item.appId) ? withEnabledStatus(item) : item
+          )
+          const order = restoredOrderAnchor(
+            app.appId,
+            originalVisibleIdsRef.current,
+            optimisticApps,
+            new Set([app.appId])
+          )
+          return updateAppStatus(app.appId, 'enabled', order)
+        },
         'miniApp.show_failed',
         () => pendingShownIdsRef.current.delete(app.appId)
       )

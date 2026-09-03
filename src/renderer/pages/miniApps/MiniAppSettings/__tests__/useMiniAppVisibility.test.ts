@@ -135,6 +135,38 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.updateAppStatus).toHaveBeenNthCalledWith(2, 'a', 'enabled', { before: 'b' })
   })
 
+  it('recomputes a queued restore anchor after an earlier restore fails', async () => {
+    mocks.miniApps = [stubApp('a'), stubApp('b'), stubApp('c')]
+    mocks.disabled = []
+    mocks.allApps = [...mocks.miniApps]
+    const { result, rerender } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    act(() => result.current.hide(result.current.visible[0]))
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+
+    const hiddenA = { ...stubApp('a'), status: 'disabled' as const }
+    const hiddenB = { ...stubApp('b'), status: 'disabled' as const }
+    mocks.miniApps = [stubApp('c')]
+    mocks.disabled = [hiddenA, hiddenB]
+    mocks.allApps = [...mocks.miniApps, ...mocks.disabled]
+    rerender()
+
+    const firstRestore = Promise.withResolvers<void>()
+    mocks.updateAppStatus.mockClear()
+    mocks.updateAppStatus.mockImplementationOnce(() => firstRestore.promise)
+    act(() => {
+      result.current.show(hiddenB)
+      result.current.show(hiddenA)
+    })
+
+    expect(mocks.updateAppStatus).toHaveBeenNthCalledWith(1, 'b', 'enabled', { before: 'c' })
+
+    firstRestore.reject(new Error('restore failed'))
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledTimes(2))
+    expect(mocks.updateAppStatus).toHaveBeenNthCalledWith(2, 'a', 'enabled', { before: 'c' })
+  })
+
   it('persists a hide after an in-flight show so the last visibility action wins', async () => {
     const showRequest = Promise.withResolvers<void>()
     mocks.updateAppStatus.mockImplementationOnce(() => showRequest.promise)
