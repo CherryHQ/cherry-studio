@@ -133,7 +133,6 @@ export class TranslateService {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const uniqueModelId = createUniqueModelId(providerId, modelId)
-
     const content = isQwenMTModel(model)
       ? text
       : preferenceService
