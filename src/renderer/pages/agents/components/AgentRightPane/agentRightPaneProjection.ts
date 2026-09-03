@@ -200,9 +200,13 @@ function createFlowTextMessage(
   } as CherryUIMessage
 }
 
-function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
+function getStableMessageCreatedAt(message: CherryUIMessage | undefined): string | null {
   const createdAt = (message as unknown as { createdAt?: unknown } | undefined)?.createdAt
-  return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : new Date(0).toISOString())
+  return message?.metadata?.createdAt ?? (typeof createdAt === 'string' ? createdAt : null)
+}
+
+function getMessageCreatedAt(message: CherryUIMessage | undefined): string {
+  return getStableMessageCreatedAt(message) ?? new Date(0).toISOString()
 }
 
 function getOrderedMessageParts(
@@ -245,11 +249,13 @@ const LOCAL_PREVIEW_URL_PATTERN =
 const TRAILING_URL_PUNCTUATION_PATTERN = /[),.;:!?]+$/
 
 export interface AgentPreviewUrlSource {
+  createdAt: string | null
   messageId: string
   partIndex: number
 }
 
 export interface AgentPreviewUrlFrontier {
+  createdAt: string | null
   messageId: string
   partsLength: number
 }
@@ -290,6 +296,7 @@ export function findAgentPreviewUrlCandidates(
 
   for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex -= 1) {
     const { message, parts } = entries[entryIndex]
+    const createdAt = getStableMessageCreatedAt(message)
     for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
       const part = parts[partIndex]
       if (!isToolUIPart(part) || !PREVIEW_URL_TOOL_NAMES.has(getToolName(part))) continue
@@ -300,6 +307,7 @@ export function findAgentPreviewUrlCandidates(
         const excerptUrl = excerpt ? findAgentPreviewUrlInOutput(`${excerpt.head}\n${excerpt.tail}`) : null
         if (excerptUrl) {
           candidates.push({
+            createdAt,
             key: `url:${message.id}\0${partIndex}\0${excerptUrl}`,
             messageId: message.id,
             partIndex,
@@ -310,6 +318,7 @@ export function findAgentPreviewUrlCandidates(
         }
         const ref = output.$deferredToolResult
         candidates.push({
+          createdAt,
           key: `deferred:${message.id}\0${partIndex}\0${ref.topicId}\0${ref.messageId}\0${ref.toolCallId}`,
           messageId: message.id,
           partIndex,
@@ -322,6 +331,7 @@ export function findAgentPreviewUrlCandidates(
       const url = findAgentPreviewUrlInOutput(output)
       if (!url) continue
       candidates.push({
+        createdAt,
         key: `url:${message.id}\0${partIndex}\0${url}`,
         messageId: message.id,
         partIndex,
@@ -341,7 +351,13 @@ export function getAgentPreviewUrlFrontier(
   partsByMessageId: Record<string, CherryMessagePart[]>
 ): AgentPreviewUrlFrontier | null {
   const entry = getOrderedMessageParts(messages, partsByMessageId).at(-1)
-  return entry ? { messageId: entry.message.id, partsLength: entry.parts.length } : null
+  return entry
+    ? {
+        createdAt: getStableMessageCreatedAt(entry.message),
+        messageId: entry.message.id,
+        partsLength: entry.parts.length
+      }
+    : null
 }
 
 /** Returns whether a source was appended after a previously captured time frontier. */
@@ -355,7 +371,15 @@ export function isAgentPreviewUrlSourceAfterFrontier(
   const entries = getOrderedMessageParts(messages, partsByMessageId)
   const frontierIndex = entries.findIndex(({ message }) => message.id === frontier.messageId)
   const sourceIndex = entries.findIndex(({ message }) => message.id === source.messageId)
-  if (frontierIndex < 0 || sourceIndex < 0) return false
+  if (sourceIndex < 0) return false
+  if (frontierIndex < 0) {
+    if (!source.createdAt || !frontier.createdAt) return false
+    const sourceTimestamp = Date.parse(source.createdAt)
+    const frontierTimestamp = Date.parse(frontier.createdAt)
+    if (!Number.isFinite(sourceTimestamp) || !Number.isFinite(frontierTimestamp)) return false
+    if (sourceTimestamp !== frontierTimestamp) return sourceTimestamp > frontierTimestamp
+    return source.messageId.localeCompare(frontier.messageId) > 0
+  }
   if (sourceIndex !== frontierIndex) return sourceIndex > frontierIndex
   return source.partIndex >= frontier.partsLength
 }

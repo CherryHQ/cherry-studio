@@ -508,8 +508,8 @@ function createPreviewToolPart(
   } as unknown as CherryMessagePart
 }
 
-function createPreviewMessage(id: string, parts: CherryMessagePart[]): CherryUIMessage {
-  return { id, role: 'assistant', parts, metadata: { status: 'success' } } as unknown as CherryUIMessage
+function createPreviewMessage(id: string, parts: CherryMessagePart[], createdAt?: string): CherryUIMessage {
+  return { id, role: 'assistant', parts, metadata: { status: 'success', createdAt } } as unknown as CherryUIMessage
 }
 
 function createDeferredPromise<T>() {
@@ -837,6 +837,117 @@ describe('AgentRightPane', () => {
       if (kind === 'deferred') {
         await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredToolResult))
         await act(async () => result.resolve({ found: true, output: 'Ready at http://localhost:6925/' }))
+      }
+
+      expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
+    }
+  )
+
+  it.each([
+    { caseName: 'later timestamp', createdAt: '2026-01-03T00:00:00.000Z', suffix: 'timestamp' },
+    { caseName: 'same timestamp and later message id', createdAt: '2026-01-02T00:00:00.000Z', suffix: 'id' }
+  ])(
+    'applies a newer preview by $caseName after the artifact frontier message is deleted',
+    async ({ createdAt, suffix }) => {
+      const sessionId = `session-deleted-frontier-newer-${suffix}`
+      const currentPart = { type: 'text', text: 'Current conversation' } as unknown as CherryMessagePart
+      const currentMessage = createPreviewMessage(
+        '00000000-0000-7000-8000-000000000002',
+        [currentPart],
+        '2026-01-02T00:00:00.000Z'
+      )
+      resolveArtifactPaneFileSelectionMock.mockReturnValue({
+        workspacePath: '/workspace',
+        filePath: 'artifact.html'
+      })
+      const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+        <TestAgentRightPane
+          sessionId={sessionId}
+          workspacePath="/workspace"
+          messages={messages}
+          partsByMessageId={partsByMessageId}>
+          <OpenArtifactButton path="artifact.html" />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      const { rerender } = render(renderPane([currentMessage], { [currentMessage.id]: [currentPart] }))
+      fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+      rerender(renderPane([], {}))
+      const newerPart = createPreviewToolPart('bash-after-delete', 'Bash', 'Ready at http://localhost:7200/')
+      const newerMessage = createPreviewMessage('00000000-0000-7000-8000-000000000003', [newerPart], createdAt)
+      rerender(renderPane([newerMessage], { [newerMessage.id]: [newerPart] }))
+
+      await waitFor(() =>
+        expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'http://localhost:7200/')
+      )
+    }
+  )
+
+  it.each([
+    {
+      caseName: 'older inline history',
+      frontierCreatedAt: '2026-01-02T00:00:00.000Z',
+      kind: 'inline',
+      suffix: 'inline'
+    },
+    {
+      caseName: 'older deferred history',
+      frontierCreatedAt: '2026-01-02T00:00:00.000Z',
+      kind: 'deferred',
+      suffix: 'deferred'
+    },
+    {
+      caseName: 'history with no stable frontier timestamp',
+      frontierCreatedAt: undefined,
+      kind: 'inline',
+      suffix: 'missing-time'
+    }
+  ])(
+    'keeps an artifact when $caseName loads after the frontier message is deleted',
+    async ({ frontierCreatedAt, kind, suffix }) => {
+      const sessionId = `session-deleted-frontier-older-${suffix}`
+      const currentPart = { type: 'text', text: 'Current conversation' } as unknown as CherryMessagePart
+      const currentMessage = createPreviewMessage(
+        '00000000-0000-7000-8000-000000000002',
+        [currentPart],
+        frontierCreatedAt
+      )
+      const deferredRef = {
+        topicId: `agent-session:${sessionId}`,
+        messageId: '00000000-0000-7000-8000-000000000001',
+        toolCallId: `bash-after-delete-${kind}`
+      }
+      const deferredResult = createDeferredPromise<{ found: true; output: string }>()
+      if (kind === 'deferred') ipcRequestMock.mockReturnValue(deferredResult.promise)
+      resolveArtifactPaneFileSelectionMock.mockReturnValue({
+        workspacePath: '/workspace',
+        filePath: 'artifact.html'
+      })
+      const renderPane = (messages: CherryUIMessage[], partsByMessageId: Record<string, CherryMessagePart[]>) => (
+        <TestAgentRightPane
+          sessionId={sessionId}
+          workspacePath="/workspace"
+          messages={messages}
+          partsByMessageId={partsByMessageId}>
+          <OpenArtifactButton path="artifact.html" />
+          <AgentRightPane.Viewport />
+        </TestAgentRightPane>
+      )
+      const { rerender } = render(renderPane([currentMessage], { [currentMessage.id]: [currentPart] }))
+      fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+      rerender(renderPane([], {}))
+      const olderPart = createPreviewToolPart(
+        deferredRef.toolCallId,
+        kind === 'deferred' ? 'BashOutput' : 'Bash',
+        kind === 'deferred' ? { $deferredToolResult: deferredRef } : 'Ready at http://localhost:7210/'
+      )
+      const olderMessage = createPreviewMessage(deferredRef.messageId, [olderPart], '2026-01-01T00:00:00.000Z')
+      rerender(renderPane([olderMessage], { [olderMessage.id]: [olderPart] }))
+      if (kind === 'deferred') {
+        await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('ai.tool.get_result', deferredRef))
+        await act(async () => deferredResult.resolve({ found: true, output: 'Ready at http://localhost:7220/' }))
       }
 
       expect(screen.getByTestId('webview-browser')).toHaveAttribute('data-url', 'file:///workspace/artifact.html')
