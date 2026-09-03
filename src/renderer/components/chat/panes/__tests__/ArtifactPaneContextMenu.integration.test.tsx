@@ -51,7 +51,9 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 }))
 
 vi.mock('@renderer/components/FilePreview', () => ({
-  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>
+  FilePreview: ({ filePath }: { filePath: string }) => <div data-testid="file-preview">{filePath}</div>,
+  FilePreviewModeToolbarPortalHost: () => null,
+  FilePreviewModeToolbarPortalProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
