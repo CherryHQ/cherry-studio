@@ -448,8 +448,8 @@
     }
   ],
   "providers": {
-    "version": "edaf6c7d22e41cb9",
-    "count": 61,
+    "version": "12d6ba9018087146",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -494,6 +494,10 @@
       {
         "id": "aionly",
         "name": "AIOnly"
+      },
+      {
+        "id": "jalapeno-cloud",
+        "name": "Jalapeno Cloud"
       },
       {
         "id": "burncloud",
