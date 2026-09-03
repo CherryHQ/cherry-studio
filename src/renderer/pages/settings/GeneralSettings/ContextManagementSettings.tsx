@@ -1,6 +1,7 @@
 import { EditableNumber, InfoTooltip, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
+import type { ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import {
   SettingDescription,
   SettingDivider,
@@ -23,8 +24,6 @@ import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const chatModelFilter = (model: Model) => !isNonChatModel(model)
-
 const SettingRowTitleWithTooltip = ({ title, description }: { title: string; description: string }) => (
   <SettingRowTitle className="gap-1">
     {title}
@@ -43,6 +42,7 @@ const SettingRowTitleWithTooltip = ({ title, description }: { title: string; des
  */
 export const ContextManagementSettings = () => {
   const { t } = useTranslation()
+  const chatModelFilter = useCallback<ModelSelectorFilter>((model) => !isNonChatModel(model), [])
   const { theme } = useTheme()
   const [enabled, setEnabled] = usePreference('chat.context_settings.enabled')
   const [maxMessages, setMaxMessages] = usePreference('chat.context_settings.max_messages')

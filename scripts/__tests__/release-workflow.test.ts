@@ -13,6 +13,7 @@ import {
   readBuilderReleaseNotes,
   updateHotfixReleaseMetadata
 } from '../release/hotfix-release-notes'
+import { syncReleaseHistory } from '../release/sync-release-history'
 import { validatePreparedRelease } from '../release/validate-prepared-release'
 import {
   validateBuildCompletion,
@@ -440,6 +441,42 @@ function createPreparedReleaseFixture(targetVersion = '1.1.0', baseVersion = '1.
   }
   return fixture
 }
+
+describe('release history synchronization', () => {
+  function syncFixture(targetVersion: string): GitFixture {
+    const fixture = createPreparedReleaseFixture(targetVersion)
+    const historyPath = path.join(fixture.repo, 'resources/cherry-studio/release-history.json')
+    git(fixture.repo, 'checkout', '--', 'resources/cherry-studio/release-history.json')
+    syncReleaseHistory({
+      builderPath: path.join(fixture.repo, 'electron-builder.yml'),
+      historyPath,
+      version: targetVersion
+    })
+    return fixture
+  }
+
+  it('derives a stable history entry that satisfies the byte-exact validator', () => {
+    const fixture = syncFixture('1.1.0')
+    expect(() => validatePreparedRelease({ cwd: fixture.repo, targetVersion: '1.1.0' })).not.toThrow()
+    const history = JSON.parse(
+      fs.readFileSync(path.join(fixture.repo, 'resources/cherry-studio/release-history.json'), 'utf8')
+    )
+    expect(history.map((entry: { version: string }) => entry.version)).toEqual(['1.1.0', '1.0.0'])
+  })
+
+  it('replaces an existing entry for the same version instead of duplicating it', () => {
+    const fixture = syncFixture('1.1.0')
+    const historyPath = path.join(fixture.repo, 'resources/cherry-studio/release-history.json')
+    const before = fs.readFileSync(historyPath, 'utf8')
+    syncReleaseHistory({ builderPath: path.join(fixture.repo, 'electron-builder.yml'), historyPath, version: '1.1.0' })
+    expect(fs.readFileSync(historyPath, 'utf8')).toBe(before)
+  })
+
+  it('leaves release history untouched for a prerelease', () => {
+    const fixture = syncFixture('1.1.0-rc.1')
+    expect(() => validatePreparedRelease({ cwd: fixture.repo, targetVersion: '1.1.0-rc.1' })).not.toThrow()
+  })
+})
 
 describe('prepared release validation', () => {
   it('accepts only a version bump, bilingual notes, and the matching stable history entry', () => {
@@ -943,6 +980,29 @@ describe('release publication state', () => {
 describe('release workflow gates', () => {
   const workflowRoot = path.resolve(import.meta.dirname, '../..', '.github/workflows')
 
+  it('builds and stages both editions for every selected release platform', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
+    const releaseJob = workflow.jobs.release
+    const validationStep = releaseJob.steps.find(
+      (step: { name?: string }) => step.name === 'Validate edition release artifacts'
+    )
+    const channelStep = releaseJob.steps.find(
+      (step: { name?: string }) => step.name === 'Resolve update manifest channel'
+    )
+    const stagingSteps = releaseJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Stage '))
+    const historyStep = releaseJob.steps.find((step: { name?: string }) => step.name === 'Stage stable release history')
+
+    expect(releaseJob.strategy.matrix.edition).toEqual(['global', 'cn'])
+    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(channelStep.run).toContain('getReleaseChannel')
+    expect(stagingSteps).toHaveLength(4)
+    for (const step of stagingSteps.slice(0, 3)) {
+      expect(step.with.name).toContain('${{ matrix.edition }}')
+      expect(step.with.path).toContain('dist/${{ steps.release-channel.outputs.channel }}*.yml')
+    }
+    expect(historyStep.if).toContain("matrix.edition == 'global'")
+  })
+
   it('revalidates the selected release branch head before draft mutation and tag movement', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'release.yml'), 'utf8'))
     const finalizeSteps = workflow.jobs['finalize-build'].steps
@@ -1052,6 +1112,40 @@ describe('release workflow gates', () => {
     expect(addLabelIndex).toBeLessThan(noteCheckIndex)
   })
 
+  it('requires environment approval before exposing preview signing and service credentials', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const buildJob = workflow.jobs.build
+    const checkoutStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Check out preview commit')
+    const macBuildStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Build Mac')
+
+    expect(buildJob.environment).toBe('release')
+    expect(checkoutStep.with['persist-credentials']).toBe(false)
+    expect(macBuildStep.env).toMatchObject({
+      APPLE_ID: '${{ secrets.APPLE_ID }}',
+      CSC_LINK: '${{ secrets.CSC_LINK }}',
+      GH_TOKEN: '${{ secrets.GITHUB_TOKEN }}',
+      MAIN_VITE_CHERRYAI_CLIENT_SECRET: '${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}'
+    })
+  })
+
+  it('builds and stages both editions for every selected preview platform', () => {
+    const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'preview-release.yml'), 'utf8'))
+    const buildJob = workflow.jobs.build
+    const buildSteps = buildJob.steps.filter((step: { name?: string }) => step.name?.startsWith('Build '))
+    const validationStep = buildJob.steps.find(
+      (step: { name?: string }) => step.name === 'Validate edition preview artifacts'
+    )
+    const uploadStep = buildJob.steps.find((step: { name?: string }) => step.name === 'Upload preview artifacts')
+
+    expect(buildJob.strategy.matrix.edition).toEqual(['global', 'cn'])
+    for (const step of buildSteps) {
+      expect(step.run).toContain("matrix.edition == 'cn'")
+    }
+    expect(validationStep.run).toContain('validate-edition-artifacts.js "${{ matrix.edition }}"')
+    expect(uploadStep.with.name).toContain('${{ matrix.edition }}')
+    expect(uploadStep.with.path).toContain('dist/preview*.yml')
+  })
+
   it('syncs post-release metadata from the published tag without depending on the release branch head', () => {
     const workflow = parse(fs.readFileSync(path.join(workflowRoot, 'post-release.yml'), 'utf8'))
     const metadataStep = workflow.jobs['sync-release-metadata'].steps.find(
@@ -1088,6 +1182,9 @@ describe('release workflow gates', () => {
     const prepareSteps = workflow.jobs.prepare.steps
     const claudeStep = prepareSteps.find((step: { name?: string }) => step.name === 'Prepare Release via Claude')
     const retainStep = prepareSteps.find((step: { name?: string }) => step.name === 'Retain prepared release metadata')
+    const syncIndex = prepareSteps.findIndex(
+      (step: { name?: string }) => step.name === 'Sync release history from prepared release notes'
+    )
     const validationIndex = prepareSteps.findIndex(
       (step: { name?: string }) => step.name === 'Validate prepared release metadata'
     )
@@ -1098,7 +1195,8 @@ describe('release workflow gates', () => {
     expect(retainStep.run).toContain('git reset --hard "$RELEASE_HEAD"')
     expect(retainStep.run).toContain('git clean -fd')
     expect(retainStep.run).toContain('git apply "$RELEASE_PATCH"')
-    expect(prepareSteps.indexOf(retainStep)).toBeLessThan(validationIndex)
+    expect(prepareSteps.indexOf(retainStep)).toBeLessThan(syncIndex)
+    expect(syncIndex).toBeLessThan(validationIndex)
 
     const fixture = createGitFixture()
     write(fixture.repo, 'package.json', '{"version":"1.0.0"}\n')
@@ -1125,10 +1223,12 @@ describe('release workflow gates', () => {
     expect(fs.readFileSync(path.join(fixture.repo, 'electron-builder.yml'), 'utf8')).toContain('releaseNotes: new')
     expect(fs.readFileSync(path.join(fixture.repo, 'app.txt'), 'utf8')).toBe('base\n')
     expect(fs.existsSync(path.join(fixture.repo, '.release-prep'))).toBe(false)
+    expect(fs.readFileSync(path.join(fixture.repo, 'resources/cherry-studio/release-history.json'), 'utf8')).toBe(
+      '[]\n'
+    )
     expect(git(fixture.repo, 'diff', '--name-only').split('\n').sort()).toEqual([
       'electron-builder.yml',
-      'package.json',
-      'resources/cherry-studio/release-history.json'
+      'package.json'
     ])
   })
 
