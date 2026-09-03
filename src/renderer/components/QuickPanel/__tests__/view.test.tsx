@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React, { Activity, useEffect, useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -995,6 +996,48 @@ describe('QuickPanelView', () => {
     expect(screen.queryByText((content) => content.includes('Tab/↩︎'))).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.quickPanel.close' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
+  })
+
+  it('preserves native keyboard behavior on the read-only close button', async () => {
+    const user = userEvent.setup()
+    const footerAction = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={vi.fn()}
+          footerActions={[
+            {
+              id: 'configure',
+              label: 'Configure',
+              ariaLabel: 'Configure MCP servers',
+              icon: 'settings',
+              action: footerAction,
+              keepOpenOnAction: true
+            }
+          ]}
+          items={[{ id: 'server', label: 'filesystem', icon: 'mcp' }]}
+          readOnly
+          title="MCP"
+        />
+      </QuickPanelProvider>
+    )
+
+    const closeButton = await screen.findByRole('button', { name: 'settings.quickPanel.close' })
+    closeButton.focus()
+
+    await user.tab()
+
+    expect(closeButton).not.toHaveFocus()
+    expect(footerAction).not.toHaveBeenCalled()
+
+    closeButton.focus()
+    await user.keyboard('{Enter}')
+
+    expect(footerAction).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
     })

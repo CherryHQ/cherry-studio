@@ -585,6 +585,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const handlePanelKeyDown = useCallback(
     (e: QuickPanelKeyDownEvent) => {
+      const isReadOnlyHeaderButton =
+        ctx.readOnly && e.target instanceof HTMLButtonElement && readOnlyHeaderRef.current?.contains(e.target)
+      if (isReadOnlyHeaderButton && ['Enter', 'NumpadEnter', 'Tab'].includes(e.key)) return false
+
       const assistivePressed = isMac ? e.metaKey : e.ctrlKey
 
       if (assistivePressed) {
