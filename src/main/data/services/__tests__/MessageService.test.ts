@@ -2405,6 +2405,55 @@ describe('MessageService', () => {
       expect(reloadedBranch.items.map((item) => item.message.id)).toEqual(['m-root', 'm-a1'])
     })
 
+    it.each([
+      { scenario: 'both model IDs are removed', deletedModelId: undefined },
+      {
+        scenario: 'only the surviving model ID is removed',
+        deletedModelId: createUniqueModelId('provider-b', 'model-B')
+      }
+    ])('uses message snapshots to distinguish replies when $scenario', async ({ scenario, deletedModelId }) => {
+      const topicId = `topic-snapshot-model-delete-${scenario}`
+      const rootId = await seedTopicWithRoot(topicId)
+      const prompt = messageService.create(topicId, {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const olderReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('model A answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model-A', name: 'Model A', provider: 'provider-a' }
+        }
+      })
+      const latestReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('model B answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        modelId: deletedModelId,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model-B', name: 'Model B', provider: 'provider-b' }
+        }
+      })
+      dbh.db.update(topicTable).set({ activeNodeId: latestReply.id }).where(eq(topicTable.id, topicId)).run()
+
+      const result = messageService.delete(latestReply.id, false)
+
+      expect(result.newActiveNodeId).toBe(olderReply.id)
+      const [topic] = dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId)).all()
+      expect(topic.activeNodeId).toBe(olderReply.id)
+    })
+
     it('falls back to the parent when deleting the latest same-model regeneration', async () => {
       const rootId = await seedTopicWithRoot('topic-regeneration-delete')
       const prompt = messageService.create('topic-regeneration-delete', {

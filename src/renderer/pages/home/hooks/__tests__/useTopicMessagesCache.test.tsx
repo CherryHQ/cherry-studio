@@ -4,7 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { useTopicMessagesCache } from '../useTopicMessagesCache'
 
-function message(id: string, role: Message['role'], createdAt: string, modelId: string | null = null): Message {
+function message(
+  id: string,
+  role: Message['role'],
+  createdAt: string,
+  modelId: string | null = null,
+  modelSnapshot?: { id: string; provider: string }
+): Message {
   return {
     id,
     topicId: 'topic-1',
@@ -15,7 +21,9 @@ function message(id: string, role: Message['role'], createdAt: string, modelId: 
     status: 'success',
     siblingsGroupId: 1,
     modelId,
-    messageSnapshot: null,
+    messageSnapshot: modelSnapshot
+      ? { id: 'assistant-1', name: 'Assistant', model: { ...modelSnapshot, name: modelSnapshot.id } }
+      : null,
     stats: null,
     createdAt,
     updatedAt: createdAt
@@ -45,6 +53,25 @@ describe('useTopicMessagesCache', () => {
     const nextBranch = result.current.branchWithoutIds(branch, new Set(['answer-b']), 'answer-b')
 
     expect(nextBranch).toEqual([{ message: newestReply, siblingsGroup: [olderReply] }])
+  })
+
+  it('uses snapshots to distinguish replies after both modelIds are removed', () => {
+    const selectedReply = message('answer-b', 'assistant', '2026-08-28T00:00:02.000Z', null, {
+      id: 'model-b',
+      provider: 'provider-b'
+    })
+    const survivingReply = message('answer-a', 'assistant', '2026-08-28T00:00:01.000Z', null, {
+      id: 'model-a',
+      provider: 'provider-a'
+    })
+    const branch: BranchMessage[] = [{ message: selectedReply, siblingsGroup: [survivingReply] }]
+    const { result } = renderHook(() =>
+      useTopicMessagesCache({ topicId: 'topic-1', mutate: vi.fn().mockResolvedValue(undefined) })
+    )
+
+    const nextBranch = result.current.branchWithoutIds(branch, new Set([selectedReply.id]), selectedReply.id)
+
+    expect(nextBranch).toEqual([{ message: survivingReply }])
   })
 
   it('falls back to the parent while deleting the latest same-model regeneration', async () => {

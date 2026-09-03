@@ -43,7 +43,7 @@ import {
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { resolveUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
@@ -2025,9 +2025,13 @@ export class MessageService {
           if (activeNodeStrategy === 'clear') {
             newActiveNodeId = null
           } else if (message.role === 'assistant' && message.siblingsGroupId !== 0) {
-            const deletedModelId = message.modelId
-            const [survivingReply] = tx
-              .select({ id: messageTable.id })
+            const deletedModelId = resolveUniqueModelId(message.modelId, message.messageSnapshot?.model)
+            const survivingReplies = tx
+              .select({
+                id: messageTable.id,
+                modelId: messageTable.modelId,
+                messageSnapshot: messageTable.messageSnapshot
+              })
               .from(messageTable)
               .where(
                 and(
@@ -2036,15 +2040,18 @@ export class MessageService {
                   eq(messageTable.role, 'assistant'),
                   eq(messageTable.siblingsGroupId, message.siblingsGroupId),
                   ne(messageTable.id, id),
-                  deletedModelId === null
-                    ? isNotNull(messageTable.modelId)
-                    : ne(messageTable.modelId, String(deletedModelId)),
                   isNull(messageTable.deletedAt)
                 )
               )
               .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
-              .limit(1)
               .all()
+            const survivingReply =
+              deletedModelId === undefined
+                ? undefined
+                : survivingReplies.find((reply) => {
+                    const modelId = resolveUniqueModelId(reply.modelId, reply.messageSnapshot?.model)
+                    return modelId !== undefined && modelId !== deletedModelId
+                  })
             newActiveNodeId = survivingReply?.id ?? parentFallback
           } else {
             newActiveNodeId = parentFallback
