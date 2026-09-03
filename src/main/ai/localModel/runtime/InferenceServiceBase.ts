@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService } from '@main/core/lifecycle'
+import { BaseService, DependsOn } from '@main/core/lifecycle'
 import type {
   UtilityProcessClient,
   UtilityProcessContract,
@@ -24,6 +24,8 @@ import type { InferenceInitData } from './protocol'
  * `core/utilityProcess`. This layer serializes native inference calls, checks platform
  * support and restarts a process when its proxy or hardware profile becomes stale.
  */
+// Inherited by the concrete services; a subclass declaring its own @DependsOn would replace it.
+@DependsOn(['UtilityProcessManager'])
 export abstract class InferenceServiceBase<Contract extends UtilityProcessContract> extends BaseService {
   private readonly queue = new PQueue({ concurrency: 1 })
   private launchedWith: string | null = null
@@ -35,6 +37,10 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   ) {
     super()
     this.logger = loggerService.withContext(`InferenceService:${capability}`)
+  }
+
+  protected onInit(): void {
+    application.get('UtilityProcessManager').register(this.definition)
   }
 
   private get client(): UtilityProcessClient<Contract> {

@@ -29,6 +29,7 @@ vi.mock('@application', async () => {
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
 
 import { BaseService } from '@main/core/lifecycle'
+import { getDependencies } from '@main/core/lifecycle/decorators'
 import {
   createRecordingLogger,
   type EchoChildState,
@@ -38,10 +39,6 @@ import {
   rejectionOf
 } from '@main/core/utilityProcess/__tests__/hostTestUtils'
 import { createMemoryProcessAdapter, waitUntil } from '@main/core/utilityProcess/__tests__/memoryProcessAdapter'
-import {
-  __resetInstalledUtilityProcessManifestForTesting,
-  installUtilityProcessManifest
-} from '@main/core/utilityProcess/installedManifest'
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
@@ -124,16 +121,19 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
   getRoutingSnapshot.mockResolvedValue(DIRECT_ROUTING)
   initDataSeen.length = 0
-  __resetInstalledUtilityProcessManifestForTesting()
   definition = echoDefinition({
     createInitData: () => ({ appPath: '/app' }) as unknown as InferenceInitData
   }) as UtilityProcessDefinition<EchoContract, InferenceInitData>
-  installUtilityProcessManifest([definition])
 })
 
 afterEach(() => {
-  __resetInstalledUtilityProcessManifestForTesting()
   utilityProcessManager.current = null
+})
+
+describe('InferenceServiceBase lifecycle', () => {
+  it('declares UtilityProcessManager as a dependency so onInit registers against an initialized manager', () => {
+    expect(getDependencies(TestInferenceService)).toContain('UtilityProcessManager')
+  })
 })
 
 describe('InferenceServiceBase dispatch', () => {
