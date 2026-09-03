@@ -109,6 +109,7 @@ export function WebviewAnnotationControls({
   const awaitingDocumentReadyRef = useRef(false)
   const isMountedRef = useRef(false)
   const currentWebview = webviewRef.current
+  const previousWebviewRef = useRef(currentWebview)
   const committedOwnerRef = useRef({ isHostActive, targetId: target.id, webview: currentWebview })
 
   useLayoutEffect(() => {
@@ -436,6 +437,9 @@ export function WebviewAnnotationControls({
   }, [clearPendingCreateSave, target.id])
 
   useEffect(() => {
+    const previousWebview = previousWebviewRef.current
+    previousWebviewRef.current = currentWebview
+    if (previousWebview === currentWebview) return
     const pending = pendingCreateSaveRef.current
     if (pending && pending.webview !== currentWebview) clearPendingCreateSave(pending.id)
     const document = currentDocumentRef.current
@@ -443,7 +447,10 @@ export function WebviewAnnotationControls({
       currentDocumentRef.current = null
       awaitingDocumentReadyRef.current = false
     }
-  }, [clearPendingCreateSave, currentWebview])
+    setState(EMPTY_STATE)
+    setEditorSession(null)
+    void replaceMainSnapshot([], previousWebview)
+  }, [clearPendingCreateSave, currentWebview, replaceMainSnapshot])
 
   useEffect(() => {
     if (!isWebviewReady) return

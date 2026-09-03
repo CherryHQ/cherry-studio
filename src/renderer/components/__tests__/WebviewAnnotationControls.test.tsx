@@ -877,7 +877,9 @@ describe('WebviewAnnotationControls', () => {
 
     expect(onAnnotationSaved).not.toHaveBeenCalled()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(replaceAnnotationRequests()).toHaveLength(replaceRequestsBeforeDetach)
+    expect(replaceAnnotationRequests().slice(replaceRequestsBeforeDetach)).toEqual([
+      ['webview.replace_annotations', { annotations: [], target, webviewId: 42 }]
+    ])
   })
 
   it('rejects a matching snapshot during unmount commit before passive listener cleanup', () => {
@@ -1049,6 +1051,32 @@ describe('WebviewAnnotationControls', () => {
     act(() => dispatchGuestState(webview, { enabled: true, annotations: [] }))
 
     expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+  })
+
+  it('clears annotation UI when the active webview instance detaches', async () => {
+    const webview = createWebview()
+    const webviewRef: { current: WebviewTag | null } = { current: webview }
+    const view = render(
+      <WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />
+    )
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'annotation_activated',
+        id: annotation.id,
+        anchor: { x: 5, y: 5, width: 60, height: 30 }
+      })
+    )
+    expect(await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')).toBeInTheDocument()
+    expect(screen.getByText('1')).toBeInTheDocument()
+
+    webviewRef.current = null
+    view.rerender(
+      <WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady={false} isHostActive target={target} />
+    )
+
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
   })
 
   it('cancels a pending selection when the editor is dismissed', async () => {
