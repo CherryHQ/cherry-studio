@@ -22,6 +22,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
 import {
+  isCitationSourcePart,
   type MessageCitations,
   resolveCitationMarkerParts,
   type ResolvedCitationMarkers,
@@ -42,10 +43,16 @@ import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
-import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
+import {
+  useMessageListActions,
+  useMessageListActiveTurnStatus,
+  useMessagePriorCitationParts,
+  useMessageRenderConfig
+} from '../MessageListProvider'
 import {
   getSessionToolTarget,
   isReportArtifactsToolResponse,
@@ -224,6 +231,7 @@ interface RenderGroupedEntryOptions {
   settleActiveTools?: boolean
   settleStreamingReasoning?: boolean
   toolDisplay?: 'content' | 'disclosure'
+  onRemoveTranslation?: () => void
 }
 
 const EMPTY_CITATION_PROJECTIONS: ReadonlyMap<CherryMessagePart, ResolvedCitationMarkers> = new Map()
@@ -551,7 +559,15 @@ function renderPart(
 
     case 'data-translation': {
       const translationData = (part as { data: { content: string } }).data
-      return <TranslationBlock key={partId} id={partId} content={translationData.content} isStreaming={isStreaming} />
+      return (
+        <TranslationBlock
+          key={partId}
+          id={partId}
+          content={translationData.content}
+          isStreaming={isStreaming}
+          onDelete={options?.onRemoveTranslation}
+        />
+      )
     }
 
     case 'text': {
@@ -1332,6 +1348,7 @@ interface MessagePartsRendererContentProps extends Props {
   isActiveTurnProcessing: boolean
   isStreamLive: boolean
   messageParts: CherryMessagePart[]
+  priorCitationParts: readonly CherryMessagePart[]
 }
 
 const MessagePartsRendererContent = React.memo(function MessagePartsRendererContent({
@@ -1339,11 +1356,22 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   isActiveTurnProcessing,
   isStreamLive,
   message,
-  messageParts
+  messageParts,
+  priorCitationParts
 }: MessagePartsRendererContentProps) {
   // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
   // renders it; the node itself renders nothing when there is no such state.
   const activeTurnStatus = useMessageListActiveTurnStatus()
+  const { removeMessageTranslation, notifySuccess } = useMessageListActions()
+  const { t } = useTranslation()
+  const canRemoveTranslation = !!removeMessageTranslation
+  const removeTranslationRef = React.useRef({ removeMessageTranslation, notifySuccess, t })
+  removeTranslationRef.current = { removeMessageTranslation, notifySuccess, t }
+  const handleRemoveTranslation = React.useCallback(async () => {
+    const { removeMessageTranslation, notifySuccess, t } = removeTranslationRef.current
+    await removeMessageTranslation?.(message.id)
+    notifySuccess?.(t('translate.closed'))
+  }, [message.id])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
     () => new Set()
@@ -1414,7 +1442,14 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       ),
     [displayEntries, message.id]
   )
-  const messageCitations = useMemo(() => resolveMessageCitations(messageParts), [messageParts])
+  // Settled tool parts keep their identity across streaming chunks, so citations only re-resolve
+  // when a source part changes, not on every text delta.
+  const nextCitationSourceParts = useMemo(() => messageParts.filter(isCitationSourcePart), [messageParts])
+  const citationSourceParts = useStableItemArray(nextCitationSourceParts)
+  const messageCitations = useMemo(
+    () => resolveMessageCitations(citationSourceParts, message.role === 'assistant' ? priorCitationParts : undefined),
+    [citationSourceParts, message.role, priorCitationParts]
+  )
   const citationProjectionByPart = useMemo(() => {
     if (message.role !== 'assistant' || messageCitations.all.length === 0) return EMPTY_CITATION_PROJECTIONS
     const textParts = messageParts.filter((part) => {
@@ -1435,13 +1470,16 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       messageCitations,
       readOnlyFilePreviews,
       onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
-      onTextPartExpandedChange: handleTextPartExpandedChange
+      onTextPartExpandedChange: handleTextPartExpandedChange,
+      onRemoveTranslation: canRemoveTranslation ? handleRemoveTranslation : undefined
     }),
     [
+      canRemoveTranslation,
       expandedTextPartIds,
       citationProjectionByPart,
       handleTextPartExpandedChange,
       handleTextPlayoutSettledChange,
+      handleRemoveTranslation,
       messageCitations,
       readOnlyFilePreviews
     ]
@@ -1501,6 +1539,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const messageParts = useMessageParts(message.id)
+  const priorCitationParts = useMessagePriorCitationParts(message.id)
   const { status: topicStreamStatus } = useTopicStreamStatus(message.topicId)
   const topicTurnState = classifyTurn(topicStreamStatus)
   const isProcessing = useIsActiveTurnTarget(message)
@@ -1517,6 +1556,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       isStreamLive={isStreamLive}
       message={message}
       messageParts={messageParts}
+      priorCitationParts={priorCitationParts}
     />
   )
 }

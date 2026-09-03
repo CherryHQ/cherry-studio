@@ -62,6 +62,14 @@ export function isMessageOnlyConversationUrl(url: string): boolean {
  */
 const SIDEBAR_APP_DEFINITIONS = [
   {
+    id: 'agents',
+    routePrefix: '/app/agents',
+    conversationRoute: {
+      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
+      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
+    }
+  },
+  {
     id: 'assistants',
     // `routePrefix` must stay a string literal — the knowledge-manifest generator reads it
     // with ts-morph. `conversationRoute` below carries the same path from the shared contract.
@@ -69,14 +77,6 @@ const SIDEBAR_APP_DEFINITIONS = [
     conversationRoute: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.assistant.keyParam),
       urlForKey: (key) => conversationRouteUrl({ conversationType: 'assistant', conversationId: key })
-    }
-  },
-  {
-    id: 'agents',
-    routePrefix: '/app/agents',
-    conversationRoute: {
-      keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, CONVERSATION_ROUTES.agent.keyParam),
-      urlForKey: (key) => conversationRouteUrl({ conversationType: 'agent', conversationId: key })
     }
   },
   {
@@ -142,13 +142,6 @@ export function tabBelongsToApp(app: SidebarApp, url: string): boolean {
  * Preference 默认值可能不包含新菜单，管理态列表仍需要覆盖当前全部支持项。
  */
 export const SIDEBAR_FAVORITE_ORDER: SidebarAppId[] = SIDEBAR_APPS.map((app) => app.id)
-
-/**
- * 必须显示的侧边栏收藏项（不能被隐藏）
- * 这些收藏项必须始终在侧边栏中可见
- * 抽取为参数方便未来扩展
- */
-export const REQUIRED_SIDEBAR_FAVORITES: SidebarAppId[] = ['assistants']
 
 const sidebarFavoriteSet = new Set<SidebarAppId>(SIDEBAR_FAVORITE_ORDER)
 
@@ -273,21 +266,15 @@ export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavorite
 
 /**
  * The full ordered, deduped sidebar list — apps and mini apps interleaved in
- * their stored order. Required apps missing from storage are prepended so they
- * are always visible. This is the single source of truth the sidebar renders
+ * their stored order. This is the single source of truth the sidebar renders
  * from; every mutation below operates on this list in place, preserving the
  * mixed order instead of segregating apps before mini apps.
  */
 export function getOrderedVisibleSidebarFavoriteItems(
   favorites: readonly SidebarFavoriteItem[] | undefined
 ): SidebarFavoriteItem[] {
-  const items = getSidebarFavoriteItems(favorites)
   // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
-  const missingRequired = REQUIRED_SIDEBAR_FAVORITES.filter(
-    (id) => !items.some((item) => item.type === 'app' && item.id === id)
-  ).map(createSidebarAppFavorite)
-
-  return [...missingRequired, ...items]
+  return getSidebarFavoriteItems(favorites)
 }
 
 /** Built-in app ids projected out of the mixed list, in order. */
@@ -298,6 +285,20 @@ export function getOrderedVisibleSidebarFavorites(
   return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
     favorite.type === 'app' && isSidebarAppId(favorite.id) ? [favorite.id] : []
   )
+}
+
+/**
+ * The url to land on at launch: the first visible sidebar app, resolved through
+ * its menu path. Mini apps are excluded — they need async data to resolve and a
+ * stale id would land on an unusable tab. Returns `''` when no app is visible
+ * (or only mini apps are), so the caller can fall back to its default tab.
+ */
+export function getSidebarDefaultLandingUrl(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  defaultPaintingProvider: string
+): string {
+  const firstApp = getOrderedVisibleSidebarFavorites(favorites)[0]
+  return firstApp ? getSidebarMenuPath(firstApp, defaultPaintingProvider) : ''
 }
 
 // --- Favorites mutations -----------------------------------------------------
@@ -342,8 +343,9 @@ export function reorderSidebarFavorites(
 
 /**
  * Pin or unpin a built-in app, preserving everything else in place. Pinning
- * appends to the end of the list; unpinning a required app is a no-op — required
- * apps are always visible.
+ * appends to the end of the list; unpinning removes the app from the list.
+ * At least one built-in app is always retained so the sidebar never becomes
+ * empty with no recovery entry.
  */
 export function setSidebarAppPinned(
   favorites: readonly SidebarFavoriteItem[] | undefined,
@@ -355,7 +357,10 @@ export function setSidebarAppPinned(
   const isTarget = (item: SidebarFavoriteItem) => item.type === 'app' && item.id === id
 
   if (!pinned) {
-    if (REQUIRED_SIDEBAR_FAVORITES.includes(id)) return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+    const visibleAppIds = getOrderedVisibleSidebarFavorites(favorites)
+    if (visibleAppIds.length === 1 && visibleAppIds[0] === id) {
+      return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+    }
     return preserveForwardCompatibleSidebarFavoriteItems(
       favorites,
       items.filter((item) => !isTarget(item))

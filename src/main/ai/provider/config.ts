@@ -10,7 +10,7 @@ import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService, type ResolvedProviderApiKey } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders, mergeHeaders } from '@main/utils/http'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRYAI_PROVIDER_ID, isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
@@ -42,6 +42,7 @@ import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { normalizeArkResponsesResponse, stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
+import { buildCherryCloudProviderConfig } from './cherryCloud'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
@@ -124,7 +125,8 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.ppio,
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
-  SystemProviderIds.dmxapi
+  SystemProviderIds.dmxapi,
+  SystemProviderIds.tokenhub
 ] as const
 
 // ── SDK Config Building ──
@@ -219,6 +221,10 @@ export async function resolveProviderAiSdkConfig(
     },
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
+    {
+      match: (p) => isManagedCherryCloudModel(p.id),
+      build: withoutCredential((ctx) => buildCherryCloudProviderConfig(ctx.endpoint))
+    },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
     // Local embedding runs fully in-process (transformers.js in a worker): no
     // endpoint, baseURL, or apiKey. Without this entry it falls through to the
@@ -315,7 +321,7 @@ export async function resolveProviderAiSdkConfig(
     // Subset Responses servers (HuggingFace router today) speak the spec-neutral dialect: the
     // minimal body only, no OpenAI-only extras they would reject.
     { match: (_, id) => id === 'open-responses', build: withSelectedApiKey(buildOpenResponsesConfig) },
-    // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // modelscope / ppio / doubao / dmxapi / tokenhub: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
     // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id

@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
@@ -36,9 +37,11 @@ interface FakeSpan {
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
   getAgent: vi.fn(),
+  broadcast: vi.fn(),
   skillList: vi.fn(),
   getSkillDirectory: vi.fn(),
   resolveInjection: vi.fn(),
+  usesPiGateway: vi.fn(),
   getPath: vi.fn(),
   getInteractionState: vi.fn(),
   loadPiSdk: vi.fn(),
@@ -104,8 +107,11 @@ vi.mock('@logger', () => ({
 vi.mock('@application', () => ({
   application: {
     getPath: mocks.getPath,
-    get: (name: string) =>
-      name === 'AgentSessionRuntimeService' ? { getInteractionState: mocks.getInteractionState } : {}
+    get: (name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState: mocks.getInteractionState }
+      if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      return {}
+    }
   }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
@@ -142,7 +148,8 @@ vi.mock('./piMcpToolAdapter', () => ({
 }))
 vi.mock('./piCodeMode', () => ({ createPiCodeModeTools: mocks.createPiCodeModeTools }))
 vi.mock('./modelInjection', () => ({
-  resolvePiProviderInjectionFromSnapshot: mocks.resolveInjection,
+  resolvePiProviderInjectionForSession: mocks.resolveInjection,
+  usesPiGateway: mocks.usesPiGateway,
   materializePiProviderStream: async (injection: any) => ({
     providerConfig: injection.providerConfig,
     streamSimple: mocks.providerStreamSimple
@@ -167,6 +174,7 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.spyOn(trace, 'getTracer').mockReturnValue({ startSpan: mocks.startSpan } as never)
 
 const { buildPiLoginPathPrefix, PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { ApiGatewayNotRunningError } = await import('../agentApiGateway')
 const { customFetch } = await import('@main/ai/utils/customFetch')
 const { REPORT_ARTIFACTS_PROMPT } = await import('../agentPrompt')
 const { toolApprovalRegistry } = await import('@main/ai/toolApproval/ToolApprovalRegistry')
@@ -349,6 +357,7 @@ beforeEach(() => {
   mocks.createPiCodeModeTools.mockReturnValue(CODE_MODE_TOOL_NAMES.map((name) => ({ name })))
   mocks.skillList.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
+  mocks.usesPiGateway.mockReturnValue(false)
   mocks.resolveInjection.mockReturnValue({
     providerName: 'p',
     api: 'anthropic-messages',
@@ -425,6 +434,60 @@ afterEach(() => {
 })
 
 describe('PiRuntimeConnection', () => {
+  it('prompts the current Agent session when its gateway route is disabled', async () => {
+    mocks.resolveInjection.mockRejectedValueOnce(new ApiGatewayNotRunningError())
+
+    await expect(new PiRuntimeConnection(input).start()).rejects.toBeInstanceOf(ApiGatewayNotRunningError)
+    expect(mocks.broadcast).toHaveBeenCalledWith('api_gateway.required', { sessionId: SESSION_ID })
+  })
+
+  it('establishes the Cloud baseline after starting the gateway', async () => {
+    mocks.usesPiGateway.mockReturnValue(true)
+    let gatewayRunning = false
+    const cloudModelId = `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-free` as const
+    const facts = {
+      agent: { id: 'agent-1', model: cloudModelId, instructions: 'Be helpful.' },
+      session: mocks.getById(),
+      provider: { id: CHERRY_CLOUD_PROVIDER_ID },
+      model: {
+        id: cloudModelId,
+        providerId: CHERRY_CLOUD_PROVIDER_ID,
+        group: CHERRY_CLOUD_MODEL_GROUP
+      },
+      enabledApiKeys: [],
+      additionalSkillPaths: [],
+      mcpServerSnapshots: new Map(),
+      linkedChannel: null
+    }
+    mocks.captureConnectionSnapshot.mockImplementation(async () => ({
+      ...facts,
+      signature: gatewayRunning ? 'gateway-running' : 'gateway-stopped'
+    }))
+    mocks.resolveInjection.mockImplementation(() => {
+      gatewayRunning = true
+      return {
+        providerName: CHERRY_CLOUD_PROVIDER_ID,
+        api: 'anthropic-messages',
+        providerConfig: {
+          name: 'Cherry Cloud',
+          baseUrl: 'http://127.0.0.1:23333',
+          apiKey: 'placeholder',
+          api: 'anthropic-messages',
+          models: []
+        },
+        apiKey: 'gateway-key',
+        modelId: 'deepseek-free',
+        usageCapture: { owner: 'provider-calls' }
+      }
+    })
+
+    const connection = await new PiRuntimeConnection({ ...input, modelId: cloudModelId }).start()
+
+    expect(mocks.resolveInjection).toHaveBeenCalledTimes(2)
+    expect(mocks.createAgentSession).toHaveBeenCalledOnce()
+    await connection.close()
+  })
+
   it('appends the login-shell PATH without replacing pi runtime prefixes', async () => {
     await new PiRuntimeConnection(input).start()
 
@@ -456,7 +519,7 @@ describe('PiRuntimeConnection', () => {
   it('forces Cherry-owned pi dirs and creates a fresh session (no resume)', async () => {
     await new PiRuntimeConnection(input).start()
 
-    expect(mocks.resolveInjection).toHaveBeenCalledWith({ id: 'p' }, { id: 'p::m' }, [
+    expect(mocks.resolveInjection).toHaveBeenCalledWith(SESSION_ID, { id: 'p' }, { id: 'p::m' }, [
       { id: 'key-1', key: 'real-key', isEnabled: true }
     ])
     expect(mocks.createOpts?.agentDir).toBe(PI_ROOT)

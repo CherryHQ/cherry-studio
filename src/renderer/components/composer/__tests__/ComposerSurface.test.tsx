@@ -66,7 +66,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelUpdateList: vi.fn(),
   pinnedLauncherIds: [] as string[],
   selection: { from: 1 } as any,
-  translate: (key: string) => key,
+  translate: (key: string) => (key === 'chat.input.ai_disclaimer' ? '内容由 AI 生成，仅供参考' : key),
   transaction: undefined as any
 }))
 
@@ -589,6 +589,16 @@ describe('ComposerSurface', () => {
 
     expect(document.getElementById('inputbar')).toHaveClass('bg-card', 'shadow-sm')
     expect(document.getElementById('inputbar')).not.toHaveClass('opacity-95')
+  })
+
+  it('renders the AI-generated content disclaimer when the composer enables it', () => {
+    const view = render(<ComposerSurface {...baseProps} />)
+
+    expect(screen.queryByText('内容由 AI 生成，仅供参考')).not.toBeInTheDocument()
+
+    view.rerender(<ComposerSurface {...baseProps} showAiDisclaimer />)
+
+    expect(screen.getByText('内容由 AI 生成，仅供参考')).toBeInTheDocument()
   })
 
   it('renders controls immediately while mounting the quick panel after the editor is ready', () => {
@@ -1276,6 +1286,76 @@ describe('ComposerSurface', () => {
       },
       { emitUpdate: false }
     )
+  })
+
+  it('serves the last serialized draft after the editor is destroyed instead of a text-only pair', async () => {
+    // A destroyed-editor getDraft() must never fabricate { text, tokens: [] }: callers persist that
+    // pair verbatim, and text without its tokens strands managed chips' prompt sentences as prose.
+    mocks.stabilizeEditor = true
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
+            },
+            { type: 'text', text: ' tail' }
+          ]
+        }
+      ]
+    })
+
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.editorOptions?.onUpdate({ editor: mocks.editorInstance })
+    })
+
+    const liveDraft = mocks.actions?.getDraft()
+    expect(liveDraft?.tokens).toHaveLength(1)
+
+    // After teardown a fresh serialization is impossible; the last serialized pair is the draft.
+    mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
+    if (mocks.editorInstance) mocks.editorInstance.isDestroyed = true
+
+    expect(mocks.actions?.getDraft()).toEqual(liveDraft)
+  })
+
+  it('seeds the last serialized draft at editor creation, so a torn-down getDraft is still paired', async () => {
+    // Initial content never fires onUpdate, so creation itself must record the serialization —
+    // otherwise a getDraft() before the first keystroke still fabricates a text-only pair.
+    mocks.stabilizeEditor = true
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'knowledge:kb-1', kind: 'knowledge', label: 'KB One', promptText: 'kb sentence' }
+            }
+          ]
+        }
+      ]
+    })
+
+    render(<Harness />)
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    act(() => {
+      mocks.editorOptions?.onCreate({ editor: mocks.editorInstance })
+    })
+    const seededDraft = mocks.actions?.getDraft()
+    expect(seededDraft?.tokens).toHaveLength(1)
+
+    if (mocks.editorInstance) mocks.editorInstance.isDestroyed = true
+
+    expect(mocks.actions?.getDraft()).toEqual(seededDraft)
   })
 
   it('keeps token structure when an external text update matches the current content', async () => {

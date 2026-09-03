@@ -9,6 +9,7 @@ import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
 import {
   type MessageCitations,
   type ResolvedCitationMarkers,
+  stripCitationMarkers,
   withToolCitationTags
 } from '@renderer/utils/message/citations'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
@@ -34,7 +35,7 @@ interface Props {
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
-  /** Tool/source-derived citations resolved from the message's own parts (assistant messages without legacy reference metadata). */
+  /** Tool/source-derived citations resolved from the message's own parts and earlier turns (assistant messages without legacy reference metadata). */
   messageCitations?: MessageCitations
   toolCitationProjection?: ResolvedCitationMarkers
   mentions?: Model[]
@@ -381,7 +382,7 @@ const MainTextBlock: React.FC<Props> = ({
     inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   // Legacy reference metadata (migrated v1 messages) wins; otherwise resolve
-  // [cite:id] markers against the message's own tool/source parts.
+  // [cite:id] markers against the message's own tool/source parts and earlier turns'.
   const toolCitations = useMemo(
     () =>
       citations.length === 0 && messageCitations?.all.length && toolCitationProjection
@@ -398,9 +399,12 @@ const MainTextBlock: React.FC<Props> = ({
       if (toolCitations) {
         return withToolCitationTags(rawText, toolCitations.citations, toolCitations.projection.byMarker).content
       }
-      return rawText
+      // No citation in this message or any loaded earlier turn, so no marker can resolve — an
+      // unloaded page or an invented id (#19771). Drop them rather than printing internal ids.
+      // User text is left alone: a literal `[cite:…]` there is the author's own.
+      return role === 'assistant' ? stripCitationMarkers(rawText) : rawText
     },
-    [citationReferences, citations, toolCitations]
+    [citationReferences, citations, role, toolCitations]
   )
   const toolCitedCitations = toolCitations?.projection.cited ?? EMPTY_CITATIONS
   const footerCitations = citations.length > 0 ? citations : toolCitedCitations

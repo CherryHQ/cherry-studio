@@ -5,6 +5,7 @@ import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -84,6 +85,7 @@ const unnamedTranslations = [
   'locales/pt-pt',
   'locales/ro-ro',
   'locales/ru-ru',
+  'locales/tr-tr',
   'locales/vi-vn',
   'locales/zh-tw'
 ].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8'))['common.unnamed'])
@@ -139,6 +141,37 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic.auto_renamed', { topicId: 'topic-1' })
+  })
+
+  it('requests a title in the language selected in system settings', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Chinese (Simplified)')
+      })
+    )
+  })
+
+  it('follows the system locale when app.language is null', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.language', null)
+    vi.mocked(app.getLocale).mockReturnValueOnce('zh-CN')
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining('Chinese (Simplified)')
+      })
+    )
   })
 
   it('sends a naming-failed toast event to the main window when summary generation throws', async () => {
