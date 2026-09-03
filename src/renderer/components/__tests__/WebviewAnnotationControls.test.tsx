@@ -227,6 +227,57 @@ describe('WebviewAnnotationControls', () => {
     })
   })
 
+  it('does not assign a newer navigation revision to annotations from a stale render', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+
+    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
+    const copyButton = await screen.findByRole('button', { name: '复制标注 Markdown' })
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+        webviewId: 42,
+        navigationRevision: 4,
+        target,
+        annotations: [annotation]
+      })
+    )
+
+    request.mockClear()
+    const nextAnnotation = {
+      ...annotation,
+      id: '123e4567-e89b-12d3-a456-426614174001',
+      comment: 'New page annotation'
+    }
+    act(() => {
+      dispatchGuestState(webview, { enabled: false, annotations: [nextAnnotation] }, 5)
+      fireEvent.click(copyButton)
+    })
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('webview.get_annotations_markdown', {
+        webviewId: 42
+      })
+    )
+    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+      webviewId: 42,
+      navigationRevision: 5,
+      target,
+      annotations: [nextAnnotation]
+    })
+    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
+      webviewId: 42,
+      navigationRevision: 4,
+      target,
+      annotations: [annotation]
+    })
+    expect(request).not.toHaveBeenCalledWith('webview.replace_annotations', {
+      webviewId: 42,
+      navigationRevision: 5,
+      target,
+      annotations: [annotation]
+    })
+  })
+
   it('ignores stale revisions for one webview while accepting revision zero from its replacement', async () => {
     const webview = createWebview()
     const webviewRef = { current: webview }

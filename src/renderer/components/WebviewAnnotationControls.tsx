@@ -19,7 +19,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewAnnotationControls')
-const EMPTY_STATE: WebviewAnnotationState = { enabled: false, annotations: [] }
+interface AnnotationState extends WebviewAnnotationState {
+  navigationRevision: number
+}
+
+const EMPTY_STATE: AnnotationState = { enabled: false, annotations: [], navigationRevision: 0 }
 const WEBVIEW_ATTACH_MAX_ATTEMPTS = 300
 
 interface Props {
@@ -38,7 +42,7 @@ interface AnnotationSource {
 export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostActive, target }: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [state, setState] = useState<WebviewAnnotationState>(EMPTY_STATE)
+  const [state, setState] = useState<AnnotationState>(EMPTY_STATE)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const annotationSourceRef = useRef<AnnotationSource | null>(null)
@@ -137,9 +141,13 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       const source = synchronizeAnnotationSource(attachedWebview)
       if (parsed.data.navigationRevision < source.navigationRevision) return
       annotationSourceRef.current = { ...source, navigationRevision: parsed.data.navigationRevision }
-      const nextState = isHostActive ? parsed.data.state : { ...parsed.data.state, enabled: false }
+      const nextState = {
+        ...parsed.data.state,
+        enabled: isHostActive ? parsed.data.state.enabled : false,
+        navigationRevision: parsed.data.navigationRevision
+      }
       setState(nextState)
-      void replaceMainSnapshot(nextState.annotations, attachedWebview, parsed.data.navigationRevision)
+      void replaceMainSnapshot(nextState.annotations, attachedWebview, nextState.navigationRevision)
       if (!isHostActive && parsed.data.state.enabled) {
         sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
       }
@@ -236,7 +244,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
     try {
       const webviewId = webview.getWebContentsId()
       if (!webviewId) throw new Error('Current webview is detached')
-      const synchronized = await replaceMainSnapshot(state.annotations, webview)
+      const synchronized = await replaceMainSnapshot(state.annotations, webview, state.navigationRevision)
       if (!synchronized) throw new Error('Failed to synchronize current webview annotations')
       const markdown = await ipcApi.request('webview.get_annotations_markdown', { webviewId })
       if (!markdown) throw new Error('No current webview annotations were found')
@@ -254,7 +262,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
     if (!sendCommand({ type: 'clear' })) return
     setClearConfirmOpen(false)
     setState((current) => ({ ...current, annotations: [] }))
-    void replaceMainSnapshot([])
+    void replaceMainSnapshot([], webviewRef.current, state.navigationRevision)
   }
 
   const count = state.annotations.length
