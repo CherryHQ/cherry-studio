@@ -1,9 +1,26 @@
-import { Button, CodeEditor, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  ButtonGroup,
+  CodeEditor,
+  ConfirmDialog,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  NormalTooltip,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { FilePreview } from '@renderer/components/FilePreview'
+import {
+  FilePreview,
+  FilePreviewModeToolbarPortalHost,
+  FilePreviewModeToolbarPortalProvider
+} from '@renderer/components/FilePreview'
 import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
 import { loadOpenTargetMenuItems, OpenTargetButton } from '@renderer/components/OpenTarget'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -21,10 +38,12 @@ import { AbsoluteFilePathSchema } from '@shared/types/file'
 import {
   AlertCircle,
   ArrowLeft,
+  ChevronDown,
   ClipboardCopy,
   Copy,
   CopySlash,
   Eye,
+  MoreHorizontal,
   RotateCw,
   Sparkles,
   SquarePen,
@@ -101,6 +120,9 @@ const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 const DOCUMENT_CONTENT_COPY_MAX_SIZE_BYTES = 25 * 1024 * 1024
 const COPYABLE_DOCUMENT_EXTENSIONS = new Set(['.doc', '.docx'])
 const NON_TEXT_DOCUMENT_EXTENSIONS = new Set(['.pdf', '.ppt', '.pptx', '.xls', '.xlsx', '.odt', '.odp', '.ods'])
+const TOOLBAR_SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border border-border-subtle'
+const TOOLBAR_SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
+const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
 
 function getPreviewFileTitle(filePath: string): string {
   const segments = filePath
@@ -188,6 +210,10 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const [knownFileSizeBytes, setKnownFileSizeBytes] = useState<number | undefined>(undefined)
   const [staleConflictOpen, setStaleConflictOpen] = useState(false)
+  const [copyMenuOpen, setCopyMenuOpen] = useState(false)
+  const [previewActionMenuOpen, setPreviewActionMenuOpen] = useState(false)
+  const [previewOpenTargetItems, setPreviewOpenTargetItems] = useState<readonly CommandContextMenuExtraItem[]>([])
+  const [previewOpenTargetsLoading, setPreviewOpenTargetsLoading] = useState(false)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
   const { refresh, reloadExpandedDirectories } = model
@@ -242,6 +268,13 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     isText === 'text' &&
     (hasActiveEditSession || (fileSize.status === 'ok' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
   const isEditDirty = fileSession?.isDirty ?? false
+  const previewActionTarget = useMemo(() => {
+    if (!previewWorkspacePath) return null
+    return {
+      targetPath: overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : previewWorkspacePath,
+      pathKind: overlaySelection ? ('file' as const) : ('directory' as const)
+    }
+  }, [overlaySelection, previewWorkspacePath])
 
   useEffect(() => {
     if (previousPreviewKeyRef.current === previewKey) return
@@ -295,6 +328,34 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     if (!overlayWorkspacePath || !overlayFilePath) return
     overlayRef.current?.focus()
   }, [overlayFilePath, overlayWorkspacePath])
+
+  useEffect(() => {
+    if (!previewActionMenuOpen || !previewActionTarget) {
+      setPreviewOpenTargetItems((items) => (items.length > 0 ? [] : items))
+      setPreviewOpenTargetsLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setPreviewOpenTargetItems((items) => (items.length > 0 ? [] : items))
+    setPreviewOpenTargetsLoading(true)
+
+    void loadOpenTargetMenuItems({ ...previewActionTarget, t })
+      .then((items) => {
+        if (!cancelled) setPreviewOpenTargetItems(items)
+      })
+      .catch((error) => {
+        if (!cancelled) setPreviewOpenTargetItems([])
+        logger.warn('Failed to resolve open targets for the opened-file action menu', error as Error)
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewOpenTargetsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [previewActionMenuOpen, previewActionTarget, t])
 
   // Depend on the session's stable `reload` callback, not the session object —
   // the object changes on every keystroke and would drag the whole toolbar /
@@ -494,33 +555,189 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const nextEditorMode = editMode === 'preview' ? 'edit' : 'preview'
   const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
   const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
-  const previewCopyActions = overlaySelection ? (
+  const primaryCopyLabel = t(canCopyPreviewContent ? 'agent.preview_pane.copy_content' : 'agent.preview_pane.copy_path')
+  const handlePrimaryCopy = canCopyPreviewContent ? handleCopyPreviewContent : handleCopyPreviewPath
+  const previewCopyAction = overlaySelection ? (
     <>
-      {canCopyPreviewContent ? (
-        <Tooltip content={t('agent.preview_pane.copy_content')} delay={800}>
+      <ButtonGroup
+        attached={false}
+        aria-label={t('common.copy')}
+        className={cn(TOOLBAR_SPLIT_BUTTON_GROUP_CLASS, 'gap-0')}>
+        <NormalTooltip content={primaryCopyLabel} delayDuration={500}>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="text-muted-foreground hover:bg-accent hover:text-foreground"
-            aria-label={t('agent.preview_pane.copy_content')}
-            onClick={() => void handleCopyPreviewContent()}>
-            <ClipboardCopy size={14} />
+            className={cn('w-8 min-w-8', TOOLBAR_SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+            aria-label={primaryCopyLabel}
+            onClick={() => void handlePrimaryCopy()}>
+            {canCopyPreviewContent ? <ClipboardCopy size={14} /> : <Copy size={14} />}
           </Button>
-        </Tooltip>
+        </NormalTooltip>
+        <Popover open={copyMenuOpen} onOpenChange={setCopyMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={cn('w-6 min-w-6', TOOLBAR_SPLIT_BUTTON_CLASS, TOOLBAR_BUTTON_CLASS)}
+              aria-label={t('common.more')}>
+              <ChevronDown size={14} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-40 p-1" align="end">
+            <MenuList>
+              {canCopyPreviewContent ? (
+                <MenuItem
+                  label={t('agent.preview_pane.copy_content')}
+                  icon={<ClipboardCopy size={14} />}
+                  onClick={() => {
+                    setCopyMenuOpen(false)
+                    void handleCopyPreviewContent()
+                  }}
+                />
+              ) : null}
+              <MenuItem
+                label={t('agent.preview_pane.copy_path')}
+                icon={<Copy size={14} />}
+                onClick={() => {
+                  setCopyMenuOpen(false)
+                  void handleCopyPreviewPath()
+                }}
+              />
+            </MenuList>
+          </PopoverContent>
+        </Popover>
+      </ButtonGroup>
+      <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
+    </>
+  ) : null
+
+  const previewActionMenu = previewActionTarget ? (
+    <Popover open={previewActionMenuOpen} onOpenChange={setPreviewActionMenuOpen}>
+      <NormalTooltip content={t('common.more')} delayDuration={500}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={cn('shrink-0', TOOLBAR_BUTTON_CLASS)}
+            aria-label={t('common.more')}>
+            <MoreHorizontal size={16} />
+          </Button>
+        </PopoverTrigger>
+      </NormalTooltip>
+      <PopoverContent className="w-48 p-1" align="end">
+        <MenuList>
+          {canEditSelection ? (
+            <MenuItem
+              label={modeActionLabel}
+              icon={<ModeActionIcon size={14} />}
+              disabled={editorLoading}
+              onClick={() => {
+                setPreviewActionMenuOpen(false)
+                handleEditorModeChange(nextEditorMode)
+              }}
+            />
+          ) : null}
+          {canCopyPreviewContent ? (
+            <MenuItem
+              label={t('agent.preview_pane.copy_content')}
+              icon={<ClipboardCopy size={14} />}
+              onClick={() => {
+                setPreviewActionMenuOpen(false)
+                void handleCopyPreviewContent()
+              }}
+            />
+          ) : null}
+          {overlaySelection ? (
+            <>
+              <MenuItem
+                label={t('agent.preview_pane.copy_path')}
+                icon={<Copy size={14} />}
+                onClick={() => {
+                  setPreviewActionMenuOpen(false)
+                  void handleCopyPreviewPath()
+                }}
+              />
+              <MenuDivider />
+            </>
+          ) : null}
+          {previewOpenTargetsLoading ? <MenuItem label={t('common.loading')} disabled /> : null}
+          {previewOpenTargetItems.map((item, index) =>
+            item.type === 'item' ? (
+              <MenuItem
+                key={item.id}
+                label={item.label}
+                icon={item.icon}
+                suffix={item.badge}
+                disabled={item.enabled === false}
+                onClick={() => {
+                  setPreviewActionMenuOpen(false)
+                  item.onSelect()
+                }}
+              />
+            ) : (
+              <MenuDivider key={`open-target-separator-${index}`} />
+            )
+          )}
+          {previewOpenTargetItems.length > 0 ? <MenuDivider /> : null}
+          <MenuItem
+            label={t('agent.preview_pane.refresh')}
+            icon={<RotateCw size={14} />}
+            onClick={() => {
+              setPreviewActionMenuOpen(false)
+              handleRefresh()
+            }}
+          />
+          {overlaySelection ? (
+            <MenuItem
+              label={t('agent.preview_pane.close')}
+              icon={<X size={14} />}
+              onClick={() => {
+                setPreviewActionMenuOpen(false)
+                handleClosePreview()
+              }}
+            />
+          ) : null}
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  ) : null
+
+  const previewInlineActions = overlaySelection ? (
+    <>
+      {canEditSelection ? (
+        <>
+          <Tooltip content={modeActionLabel} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={TOOLBAR_BUTTON_CLASS}
+              aria-label={modeActionLabel}
+              disabled={editorLoading}
+              onClick={() => handleEditorModeChange(nextEditorMode)}>
+              <ModeActionIcon size={14} />
+            </Button>
+          </Tooltip>
+          <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
+        </>
       ) : null}
-      <Tooltip content={t('agent.preview_pane.copy_path')} delay={800}>
+      {previewCopyAction}
+      <OpenTargetButton targetPath={getArtifactPaneSelectionPath(overlaySelection)} pathKind="file" />
+      {refreshButton}
+      <Tooltip content={t('agent.preview_pane.close')} delay={800}>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={t('agent.preview_pane.copy_path')}
-          onClick={() => void handleCopyPreviewPath()}>
-          <Copy size={14} />
+          className={TOOLBAR_BUTTON_CLASS}
+          aria-label={t('agent.preview_pane.close')}
+          onClick={handleClosePreview}>
+          <X size={16} />
         </Button>
       </Tooltip>
-      <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
     </>
   ) : null
 
@@ -644,22 +861,25 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
-        <div className="flex min-w-0 flex-1 items-center gap-0.5">
+        className="@container/artifact-pane-header flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
+        <div className="flex min-w-0 flex-1 items-center">
           {overlaySelection ? (
-            <Tooltip content={t('common.back')} delay={800}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
-                aria-label={t('common.back')}
-                onClick={handleClosePreview}>
-                <ArrowLeft size={16} />
-              </Button>
-            </Tooltip>
+            <div className="flex shrink-0 items-center gap-0">
+              <Tooltip content={t('common.back')} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={t('common.back')}
+                  onClick={handleClosePreview}>
+                  <ArrowLeft size={16} />
+                </Button>
+              </Tooltip>
+              <FilePreviewModeToolbarPortalHost />
+            </div>
           ) : null}
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
+          <div className={cn('flex min-w-0 flex-1 items-center gap-1.5', overlaySelection ? 'ml-4' : 'px-1')}>
             <CommandContextMenu
               key={previewKey}
               location="webcontents.context"
@@ -686,33 +906,20 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {canEditSelection ? (
-            <>
-              <Tooltip content={modeActionLabel} delay={800}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label={modeActionLabel}
-                  disabled={editorLoading}
-                  onClick={() => handleEditorModeChange(nextEditorMode)}>
-                  <ModeActionIcon size={14} />
-                </Button>
-              </Tooltip>
-              <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
-            </>
+          {previewInlineActions ? (
+            <div
+              data-testid="artifact-pane-inline-actions"
+              className="hidden shrink-0 items-center gap-1 @lg/artifact-pane-header:flex">
+              {previewInlineActions}
+            </div>
           ) : null}
-          {previewCopyActions}
-          {previewWorkspacePath ? (
-            <>
-              <OpenTargetButton
-                targetPath={overlaySelection ? getArtifactPaneSelectionPath(overlaySelection) : previewWorkspacePath}
-                pathKind={overlaySelection ? 'file' : 'directory'}
-              />
-              {refreshButton}
-              <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
-            </>
+          {previewActionMenu ? (
+            <div data-testid="artifact-pane-overflow-actions" className="@lg/artifact-pane-header:hidden">
+              {previewActionMenu}
+            </div>
+          ) : null}
+          {previewActionTarget && props.paneActions ? (
+            <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
           ) : null}
           {props.paneActions}
         </div>
@@ -758,6 +965,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
         {props.headerVariant === 'pane' ? null : (
           <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
             <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
+              <FilePreviewModeToolbarPortalHost />
               <CommandContextMenu
                 key={previewKey}
                 location="webcontents.context"
@@ -796,7 +1004,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
                   <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
                 </>
               )}
-              {previewCopyActions}
+              {previewCopyAction}
               {overlayActions}
             </div>
           </div>
@@ -947,34 +1155,36 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   }
 
   return (
-    <div
-      ref={artifactPaneRef}
-      className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
-        maximized && 'rounded-lg border border-border-subtle shadow-sm'
-      )}>
-      {paneHeader}
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <aside className="flex h-full w-full flex-col overflow-hidden">
-          <div
-            data-artifact-file-tree-scroll-region
-            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--chat-composer-inset,0px)]">
-            {fileTreeContent}
-          </div>
-        </aside>
-        {renderOverlay()}
+    <FilePreviewModeToolbarPortalProvider>
+      <div
+        ref={artifactPaneRef}
+        className={cn(
+          'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
+          maximized && 'rounded-lg border border-border-subtle shadow-sm'
+        )}>
+        {paneHeader}
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <aside className="flex h-full w-full flex-col overflow-hidden">
+            <div
+              data-artifact-file-tree-scroll-region
+              className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-[var(--chat-composer-inset,0px)]">
+              {fileTreeContent}
+            </div>
+          </aside>
+          {renderOverlay()}
+        </div>
+        <ConfirmDialog
+          open={staleConflictOpen}
+          onOpenChange={setStaleConflictOpen}
+          title={t('agent.preview_pane.edit.conflict.title')}
+          description={t('agent.preview_pane.edit.conflict.description')}
+          confirmText={t('agent.preview_pane.edit.conflict.reload')}
+          cancelText={t('agent.preview_pane.edit.conflict.keep_draft')}
+          destructive
+          onConfirm={handleReloadAfterConflict}
+        />
       </div>
-      <ConfirmDialog
-        open={staleConflictOpen}
-        onOpenChange={setStaleConflictOpen}
-        title={t('agent.preview_pane.edit.conflict.title')}
-        description={t('agent.preview_pane.edit.conflict.description')}
-        confirmText={t('agent.preview_pane.edit.conflict.reload')}
-        cancelText={t('agent.preview_pane.edit.conflict.keep_draft')}
-        destructive
-        onConfirm={handleReloadAfterConflict}
-      />
-    </div>
+    </FilePreviewModeToolbarPortalProvider>
   )
 }
 

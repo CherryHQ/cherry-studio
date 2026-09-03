@@ -2,7 +2,9 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,7 +58,9 @@ const mocks = vi.hoisted(() => {
     mockFiles: { slides: new Map() },
     parseZipLazyMedia: vi.fn(),
     renderList: vi.fn(),
-    setZoom: vi.fn()
+    safeOpen: vi.fn(),
+    setZoom: vi.fn(),
+    toastError: vi.fn()
   }
 
   class MockPptxViewer {
@@ -111,6 +115,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@renderer/services/toast', () => ({
+  toast: { error: mocks.toastError }
+}))
+
+vi.mock('@renderer/utils/file/safeOpen', () => ({
+  safeOpen: mocks.safeOpen
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
     <button type="button" {...props}>
@@ -118,10 +130,25 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+  EmptyState: ({
+    title,
+    description,
+    actionLabel,
+    onAction
+  }: {
+    title?: string
+    description?: string
+    actionLabel?: string
+    onAction?: () => void
+  }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
+      {actionLabel ? (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   ),
   Scrollbar: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
@@ -196,7 +223,10 @@ describe('PowerPointFilePreview', () => {
     expect(presentation.slides[0].rels.has('rExternalImage')).toBe(false)
   })
 
-  it('rejects oversized PPTX via metadata before reading bytes', async () => {
+  it('explains oversized PPTX files via metadata before reading bytes', async () => {
+    const user = userEvent.setup()
+    mocks.safeOpen.mockRejectedValueOnce(new Error('open failed'))
+
     render(
       <PowerPointFilePreview
         filePath={filePath}
@@ -206,9 +236,29 @@ describe('PowerPointFilePreview', () => {
       />
     )
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.load_error.title')
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.powerpoint.too_large.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.powerpoint.too_large.description')
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'file_preview.powerpoint.too_large.action' }))
+
+    expect(mocks.safeOpen).toHaveBeenCalledWith(createFilePathHandle(filePath))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('file_preview.powerpoint.too_large.open_error'))
+  })
+
+  it('explains PPTX renderer zip limit failures as oversized files', async () => {
+    mocks.parseZipLazyMedia.mockRejectedValueOnce(
+      new Error('PPTX zip limit exceeded: media bytes 100 > maxMediaBytes 1')
+    )
+
+    render(
+      <PowerPointFilePreview filePath={filePath} fileName="roadmap.pptx" metadata={{ size: 1024 }} refreshKey={0} />
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.powerpoint.too_large.title')
+    expect(mocks.fsRead).toHaveBeenCalledWith(filePath)
+    expect(mocks.buildPresentation).not.toHaveBeenCalled()
   })
 
   it('contains read failures inside the preview and logs the cause', async () => {

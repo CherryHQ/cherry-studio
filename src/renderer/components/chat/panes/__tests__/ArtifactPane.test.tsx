@@ -10,7 +10,7 @@ import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/fil
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type React from 'react'
-import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { createContext, type PropsWithChildren, use, useEffect, useRef, useState } from 'react'
 import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,6 +21,12 @@ import ArtifactPane, {
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
 import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+
+function getPaneOverflowMoreButton() {
+  const paneHeader = screen.getByTestId('artifact-pane-header')
+  const overflowActions = within(paneHeader).getByTestId('artifact-pane-overflow-actions')
+  return within(overflowActions).getByRole('button', { name: 'common.more' })
+}
 
 /** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
 function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
@@ -270,20 +276,39 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
 vi.mock('@cherrystudio/ui', async (importActual) => {
   const actual = await importActual<typeof CherryStudioUi>()
   const RealCodeEditor = actual.CodeEditor
+  const PopoverContext = createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  } | null>(null)
+  const PopoverTriggerContext = createContext<(() => void) | null>(null)
 
   return {
-    Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    ),
+    Button: ({ children, onClick, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => {
+      const openPopover = use(PopoverTriggerContext)
+
+      return (
+        <button
+          type="button"
+          {...props}
+          onClick={(event) => {
+            onClick?.(event)
+            openPopover?.()
+          }}>
+          {children}
+        </button>
+      )
+    },
     ButtonGroup: ({
       children,
       ...props
     }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'> & { attached?: boolean }>) => {
       const domProps = { ...props }
       delete domProps.attached
-      return <div {...domProps}>{children}</div>
+      return (
+        <div role="group" {...domProps}>
+          {children}
+        </div>
+      )
     },
     CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
       const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
@@ -339,18 +364,21 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
           </button>
         </div>
       ) : null,
+    MenuDivider: () => <div role="separator" />,
     MenuItem: ({
       label,
       icon,
       active,
+      disabled,
       onClick
     }: {
       label: string
       icon?: React.ReactNode
       active?: boolean
+      disabled?: boolean
       onClick?: () => void
     }) => (
-      <button type="button" data-active={String(active)} onClick={onClick}>
+      <button type="button" role="menuitem" data-active={String(active)} disabled={disabled} onClick={onClick}>
         {icon}
         {label}
       </button>
@@ -361,9 +389,33 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
         {children}
       </div>
     ),
-    Popover: ({ children }: PropsWithChildren) => <div>{children}</div>,
-    PopoverContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
-    PopoverTrigger: ({ children }: PropsWithChildren) => <>{children}</>,
+    Popover: ({
+      children,
+      open: controlledOpen,
+      onOpenChange
+    }: PropsWithChildren<{
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }>) => {
+      const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+      const open = controlledOpen ?? uncontrolledOpen
+      const setOpen = (nextOpen: boolean) => {
+        setUncontrolledOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+
+      return <PopoverContext value={{ open, setOpen }}>{children}</PopoverContext>
+    },
+    PopoverContent: ({ children }: PropsWithChildren) => {
+      const context = use(PopoverContext)
+
+      return context?.open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({ children }: PropsWithChildren) => {
+      const context = use(PopoverContext)
+
+      return <PopoverTriggerContext value={() => context?.setOpen(!context.open)}>{children}</PopoverTriggerContext>
+    },
     Tooltip: ({ children, content }: PropsWithChildren<{ content: string }>) => (
       <div data-testid="tooltip" data-content={content}>
         {children}
@@ -462,7 +514,9 @@ vi.mock('@renderer/components/FilePreview', () => ({
         {props.filePath}
       </div>
     )
-  }
+  },
+  FilePreviewModeToolbarPortalHost: () => <div data-testid="file-preview-mode-toolbar-host" />,
+  FilePreviewModeToolbarPortalProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
 vi.mock('@renderer/components/FileTree', () => ({
@@ -883,12 +937,27 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 
     const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    const paneHeader = screen.getByTestId('artifact-pane-header')
+    const backButton = within(paneHeader).getByRole('button', { name: 'common.back' })
+    const modeToolbarHost = within(paneHeader).getByTestId('file-preview-mode-toolbar-host')
+    const title = within(paneHeader).getByTestId('artifact-pane-header-title')
+
     expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
-    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(paneHeader).toHaveClass('@container/artifact-pane-header')
+    expect(title).toHaveTextContent('README.md')
+    expect(backButton.compareDocumentPosition(modeToolbarHost) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(modeToolbarHost.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(overlay.firstElementChild).not.toHaveClass('h-10')
-    expect(
-      within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'Open in Finder' })
-    ).toBeInTheDocument()
+    expect(within(paneHeader).getByTestId('artifact-pane-inline-actions')).toHaveClass(
+      'hidden',
+      '@lg/artifact-pane-header:flex'
+    )
+    expect(within(paneHeader).getByTestId('artifact-pane-overflow-actions')).toHaveClass(
+      '@lg/artifact-pane-header:hidden'
+    )
+    expect(within(paneHeader).getByRole('button', { name: 'Open in Finder' })).toBeInTheDocument()
+    expect(within(paneHeader).getByRole('button', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
+    expect(within(paneHeader).getAllByRole('button', { name: 'common.more' }).length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
@@ -1104,7 +1173,68 @@ describe('ArtifactPane', () => {
     expect(screen.queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
   })
 
-  it('copies the opened preview display path from the header and menu', async () => {
+  it('shows selected-file pane header actions until the responsive overflow breakpoint', async () => {
+    const onPreviewClose = vi.fn()
+    const onEditModeChange = vi.fn()
+    const fileSession = {
+      status: 'ready',
+      draft: '# Cached',
+      isDirty: false,
+      isSaving: false,
+      setDraft: vi.fn()
+    } as unknown as React.ComponentProps<typeof ArtifactPaneView>['fileSession']
+    mocks.fsReadText.mockResolvedValue('copied text')
+    mocks.clipboardWriteText.mockResolvedValue(undefined)
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={<button type="button">Panel action</button>}
+        workspacePath="/tmp/workspace"
+        previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'README.md' }}
+        onPreviewClose={onPreviewClose}
+        model={createPreviewModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+        fileSession={fileSession}
+        editMode="preview"
+        onEditModeChange={onEditModeChange}
+      />
+    )
+
+    await screen.findByTestId('artifact-file-preview-overlay')
+    const paneHeader = screen.getByTestId('artifact-pane-header')
+    const inlineActions = within(paneHeader).getByTestId('artifact-pane-inline-actions')
+    const overflowActions = within(paneHeader).getByTestId('artifact-pane-overflow-actions')
+
+    expect(inlineActions).toHaveClass('hidden', '@lg/artifact-pane-header:flex')
+    expect(overflowActions).toHaveClass('@lg/artifact-pane-header:hidden')
+    expect(within(inlineActions).getByRole('button', { name: 'agent.preview_pane.copy_content' })).toBeInTheDocument()
+    expect(within(inlineActions).getByRole('button', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
+    expect(within(inlineActions).getByRole('button', { name: 'common.edit' })).toBeInTheDocument()
+
+    fireEvent.click(within(overflowActions).getByRole('button', { name: 'common.more' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'common.edit' }))
+    expect(onEditModeChange).toHaveBeenCalledWith('edit')
+
+    fireEvent.click(within(overflowActions).getByRole('button', { name: 'common.more' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_content' }))
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('copied text')
+
+    fireEvent.click(within(overflowActions).getByRole('button', { name: 'common.more' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.refresh' }))
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1')
+
+    fireEvent.click(within(overflowActions).getByRole('button', { name: 'common.more' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.close' }))
+    expect(onPreviewClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('copies the opened preview display path from the pane action menu', async () => {
     mocks.clipboardWriteText.mockResolvedValue(undefined)
 
     render(
@@ -1130,7 +1260,8 @@ describe('ArtifactPane', () => {
     )
 
     await screen.findByTestId('artifact-file-preview-overlay')
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.copy_path' }))
+    fireEvent.click(getPaneOverflowMoreButton())
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
 
     await waitFor(() => expect(mocks.clipboardWriteText).toHaveBeenCalledWith('/Users/alice/report.md'))
     await waitFor(() => {
@@ -1160,7 +1291,9 @@ describe('ArtifactPane', () => {
       />
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.copy_path' }))
+    await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(getPaneOverflowMoreButton())
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
 
     await waitFor(() => expect(mocks.clipboardWriteText).toHaveBeenCalledWith('/tmp/workspace/notes.txt'))
   })
@@ -1168,7 +1301,7 @@ describe('ArtifactPane', () => {
   it.each([
     ['markdown', 'notes.md'],
     ['text', 'notes.txt']
-  ])('copies %s preview content as text from the header', async (_label, fileName) => {
+  ])('copies %s preview content as text from the pane action menu', async (_label, fileName) => {
     mocks.fsReadText.mockResolvedValue('copied text')
     mocks.clipboardWriteText.mockResolvedValue(undefined)
 
@@ -1187,7 +1320,9 @@ describe('ArtifactPane', () => {
       />
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.copy_content' }))
+    await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(getPaneOverflowMoreButton())
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_content' }))
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith(`/tmp/workspace/${fileName}`))
     expect(mocks.fileReadExternal).not.toHaveBeenCalled()
@@ -1214,7 +1349,9 @@ describe('ArtifactPane', () => {
       />
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.copy_content' }))
+    await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(getPaneOverflowMoreButton())
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_content' }))
 
     await waitFor(() => expect(mocks.fileReadExternal).toHaveBeenCalledWith(`/tmp/workspace/${fileName}`, true))
     expect(mocks.fsReadText).not.toHaveBeenCalled()
@@ -1223,6 +1360,7 @@ describe('ArtifactPane', () => {
 
   it('does not offer copy content for unsupported binary previews', async () => {
     mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'document' })
+    mocks.clipboardWriteText.mockResolvedValue(undefined)
 
     render(
       <ArtifactPaneView
@@ -1239,9 +1377,14 @@ describe('ArtifactPane', () => {
       />
     )
 
-    await screen.findByRole('button', { name: 'agent.preview_pane.copy_path' })
     await waitFor(() => expect(mocks.getMetadata).toHaveBeenCalled())
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.copy_content' })).not.toBeInTheDocument()
+    fireEvent.click(getPaneOverflowMoreButton())
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'agent.preview_pane.copy_path' }))
+    await waitFor(() => expect(mocks.clipboardWriteText).toHaveBeenCalledWith('/tmp/workspace/slides.pptx'))
+
+    fireEvent.click(getPaneOverflowMoreButton())
+    expect(screen.getByRole('menuitem', { name: 'agent.preview_pane.copy_path' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'agent.preview_pane.copy_content' })).not.toBeInTheDocument()
   })
 
   it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
