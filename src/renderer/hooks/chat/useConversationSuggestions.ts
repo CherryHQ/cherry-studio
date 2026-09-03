@@ -36,14 +36,16 @@ export function useConversationSuggestions({
   // Inactive lookups use undefined so useModelById stays mounted (hook order)
   // without an id. null is reserved for an active unset dedicated/default id.
   const dedicatedId = active ? ((suggestionsModelId as UniqueModelId | null) ?? null) : undefined
-  const fallbackId = active ? ((defaultModelId as UniqueModelId | null) ?? null) : undefined
   const { model: dedicatedModel, isLoading: dedicatedLoading } = useModelById(dedicatedId)
-  const { model: defaultModel, isLoading: defaultLoading } = useModelById(fallbackId)
   const dedicatedUsable = Boolean(active && dedicatedModel && !isNonChatModel(dedicatedModel))
+  const fallbackId =
+    active && (!dedicatedId || (!dedicatedLoading && !dedicatedUsable))
+      ? ((defaultModelId as UniqueModelId | null) ?? null)
+      : undefined
+  const { model: defaultModel, isLoading: defaultLoading } = useModelById(fallbackId)
   const defaultUsable = Boolean(active && defaultModel && !isNonChatModel(defaultModel))
   const generationModel = dedicatedUsable ? dedicatedModel : defaultUsable ? defaultModel : undefined
-  const modelPending =
-    Boolean(dedicatedId && dedicatedLoading) || Boolean(!dedicatedUsable && fallbackId && defaultLoading)
+  const modelPending = Boolean(dedicatedId && dedicatedLoading) || Boolean(fallbackId && defaultLoading)
   const key =
     active && !modelPending && generationModel
       ? [

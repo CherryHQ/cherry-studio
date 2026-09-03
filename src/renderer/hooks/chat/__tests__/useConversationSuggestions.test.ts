@@ -141,6 +141,24 @@ describe('useConversationSuggestions', () => {
     )
   })
 
+  it('does not read the default model when the dedicated model is usable', async () => {
+    enableSuggestions(suggestionsModel.id, defaultModel.id)
+
+    const { result } = renderHook(
+      () =>
+        useConversationSuggestions({
+          focus: chatFocus,
+          conversationId: 'topic-dedicated-model',
+          outputLanguage: 'en-US',
+          fallback
+        }),
+      { wrapper: createWrapper() }
+    )
+
+    await waitFor(() => expect(result.current.suggestions).toEqual(generated))
+    expect(mockUseQuery.mock.calls.some(([path]) => path === modelPath(defaultModel.id))).toBe(false)
+  })
+
   it('reuses suggestions for the same conversation context during the app run', async () => {
     const wrapper = createWrapper()
     const options = {
