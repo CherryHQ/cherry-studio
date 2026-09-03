@@ -15,8 +15,8 @@ sources:
 - **Status:** Draft for detailed review. E1/E2 are complete; [§9](#9-experiment-results-2026-08-28)
   records the remote evidence. E1 rejected `?modulePath` on the pinned toolchain and selected the
   dedicated named-entry build in §7; E2 confirmed app-level proxy inheritance.
-- **Deliverable of V1:** the generic layer only. No consumer migrates in V1; the production
-  manifest ships empty and existing behavior is unchanged.
+- **Deliverable of V1:** the generic layer only. No consumer migrates in V1; no service
+  registers a process and existing behavior is unchanged.
 
 ---
 
@@ -112,13 +112,14 @@ interface UtilityProcessClient<Contract> {
 - `manager.client(definition)` returns a cached stable client keyed by definition **object
   identity** and does not spawn. The first `request()` lazily starts the process; concurrent
   requests during one cold start share a single startup barrier.
-- Composition: business domains export typed definitions + entries;
-  `core/application/utilityProcessManifest.ts` aggregates them into a frozen manifest, installed
-  **once** in `main.ts` before `application.registerAll()`. Installation validates ID format and
-  uniqueness, entry-key format, cancellation value, and positive `idleTimeoutMs`; `client()`
-  accepts only the identical definition object from the installed manifest — no runtime
-  registration of arbitrary entries. `UtilityProcessManager` registers as a `Phase.WhenReady`
-  lifecycle service (`utilityProcess.fork()` requires app ready).
+- Composition: business domains export typed definitions + entries and register them from the
+  owning service's `onInit` — `application.get('UtilityProcessManager').register(definition)`
+  under `@DependsOn(['UtilityProcessManager'])`. Registration validates ID format, entry-key
+  format, cancellation value, and positive `idleTimeoutMs`; the same object again is a no-op
+  (restart-safe) and a different object with a registered id is refused. `client()` accepts only
+  the identical registered definition object — no ad-hoc entries at request time.
+  `UtilityProcessManager` registers as a `Phase.WhenReady` lifecycle service
+  (`utilityProcess.fork()` requires app ready).
 - `serviceName` is derived, never declared: `CherryStudio.UtilityProcess.<id>` — the stable
   correlation key in `app.getAppMetrics()` and `child-process-gone`.
 
@@ -158,11 +159,11 @@ flowchart LR
     CLIENT["UtilityProcessClient<br/>request · stop · withStopped"]
     MGR["UtilityProcessManager<br/>generation · breaker · idle TTL"]
     ADAPTER["Electron adapter<br/>utilityProcess.fork"]
-    MANIFEST["Frozen manifest<br/>definitions · entry keys"]
+    DEF["Definition<br/>defineUtilityProcess · entry key"]
     DOM -->|typed call| CLIENT
     CLIENT -->|lazy start| MGR
     MGR -->|spawn| ADAPTER
-    MANIFEST -.->|install once at boot| MGR
+    DEF -.->|register from onInit| MGR
   end
   subgraph CHILD["Utility process — crash-isolated"]
     SERVE["serveUtilityProcess<br/>entry · named build"]
@@ -233,6 +234,9 @@ the generation.
   releases the gate but keeps the process stopped and propagates the original error.
 - The 4 s stop ceiling fits inside the lifecycle framework's 5 s per-service stop budget;
   manager shutdown stops all generations in parallel.
+- The manager keeps a host until its confirmed exit — across `onStop` and a service restart — so
+  `stop()` / `withStopped()` issued during teardown still wait for the real exit, and a
+  quarantined child blocks its successor until it is gone.
 
 ## 5. Failure accounting and the circuit breaker
 
@@ -247,7 +251,10 @@ exists to stop from respawn-looping.
 
 Any well-formed terminal response — **including a handler error** — proves spawn, handshake, and
 dispatch all work, and resets the consecutive-failure count to zero. Business bugs must not
-consume the infrastructure failure budget (`ready` alone is too early to prove dispatch).
+consume the infrastructure failure budget (`ready` alone is too early to prove dispatch). This
+holds for a healthy child only: once the child has hit an uncaught error it sends no more
+terminals, so handlers unwinding under the crash cannot mask it — main learns of the crash from
+the exit and counts it.
 
 The third consecutive failure still returns the *real* root cause, annotated
 `{ failureCount: 3, circuitOpen: true }`. From then on requests fail fast with
@@ -459,7 +466,7 @@ available on request.
   - stop barrier, serialized concurrent maintenance, operation failure, stop timeout, late exit,
     no-dual-instance quarantine, reset success conditions.
 - **Real-Electron smoke harness**: windowless main harness driving the production manager with a
-  test-only manifest and the E1-style fixture (never in normal builds, the production manifest,
+  test-only definitions and the E1-style fixture (never in normal builds, production entries,
   or releases): request/event, 4 MB TypedArray, both cancellations, dispose/kill,
   `process.abort()` recovery, `electron.net` through a local proxy via `app.setProxy`,
   stdout/stderr + structured logs, entry loading from a temporary ASAR.
@@ -469,7 +476,7 @@ available on request.
   for the first consumer PR. Wiring it into PR CI / nightly (xvfb, binary caching, hang
   timeouts, a Windows leg) is a separate decision **triggered when the first production consumer
   lands** — the moment regressions gain user impact and the Windows DLL-isolation goal becomes
-  testable where it matters. Until then an empty-manifest subsystem does not justify building
+  testable where it matters. Until then a subsystem with no registered consumer does not justify building
   and maintaining that infrastructure.
 - Benchmarks (spawn→ready, plain RTT, 4 MB payload) are local-only diagnostics; no CI
   performance thresholds.

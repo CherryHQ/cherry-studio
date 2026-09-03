@@ -80,8 +80,18 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
 
     if (search.id) {
       const provider = visibleProviders.find((item) => item.id === search.id)
-      setSelectedProviderId(provider?.id ?? visibleProviders[0]?.id)
-      shouldConsume = true
+      if (provider) {
+        setSelectedProviderId(provider.id)
+        shouldConsume = true
+      } else if (visibleProviders.length > 0) {
+        // Loaded and genuinely unknown — degrade to the first like before
+        setSelectedProviderId(visibleProviders[0]?.id)
+        shouldConsume = true
+      } else {
+        // Still loading: keep the param until the list resolves, else the
+        // selection is consumed with no provider mounted to own it
+        return
+      }
     }
 
     if (shouldConsume) {
@@ -91,6 +101,9 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
   }, [navigate, search, setSelectedProviderId, visibleProviders])
 
   useEffect(() => {
+    // A pending ?id= deep link owns the initial selection while providers
+    // load; the fallback must not race it to visibleProviders[0]
+    if (search.id) return
     if (!selectedProviderId && visibleProviders[0]) {
       setSelectedProviderId(visibleProviders[0].id)
       return
@@ -99,7 +112,7 @@ function ProviderSettingsContent({ rawProviders }: ProviderSettingsContentProps)
     if (selectedProviderId && !visibleProviders.some((provider) => provider.id === selectedProviderId)) {
       setSelectedProviderId(visibleProviders[0]?.id)
     }
-  }, [selectedProviderId, setSelectedProviderId, visibleProviders])
+  }, [search.id, selectedProviderId, setSelectedProviderId, visibleProviders])
 
   const selectedProvider = useMemo(
     () => visibleProviders.find((provider) => provider.id === selectedProviderId),

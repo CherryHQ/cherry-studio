@@ -27,6 +27,8 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
+  /** Spawn-frozen connection identity used to reject stale warm processes. */
+  connectionRebuildSignature?: string
   /**
    * Rotation-insensitive identity of the auth/header material the options were built with (e.g. a
    * hash of the provider's enabled key SET and custom headers). The raw rotated key is stripped from
@@ -134,7 +136,8 @@ export function createClaudeCodeWarmQuerySignature(
   options: Options,
   credentialsFingerprint?: string,
   knowledgeBaseIds: readonly string[] = [],
-  notificationContext?: AgentNotificationContext
+  notificationContext?: AgentNotificationContext,
+  connectionRebuildSignature?: string
 ): string {
   const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
@@ -144,7 +147,8 @@ export function createClaudeCodeWarmQuerySignature(
     options: normalizeForSignature(signatureSource),
     credentials: credentialsFingerprint ?? null,
     knowledgeBaseIds: [...knowledgeBaseIds].sort(),
-    notificationContext: notificationContext ?? null
+    notificationContext: notificationContext ?? null,
+    connectionRebuildSignature: connectionRebuildSignature ?? null
   })
 }
 
@@ -211,7 +215,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       warmOptions,
       request.credentialsFingerprint,
       request.knowledgeBaseIds,
-      request.notificationContext
+      request.notificationContext,
+      request.connectionRebuildSignature
     )
     const existing = this.entries.get(request.key)
 
@@ -245,7 +250,8 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
       warmOptions,
       request.credentialsFingerprint,
       request.knowledgeBaseIds,
-      request.notificationContext
+      request.notificationContext,
+      request.connectionRebuildSignature
     )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined

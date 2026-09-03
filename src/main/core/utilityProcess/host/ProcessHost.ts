@@ -236,6 +236,13 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     }
   }
 
+  /** Resolves once no generation is live: at once, or at the live generation's observed exit. */
+  whenQuiescent(): Promise<void> {
+    const generation = this.live
+    if (generation === null) return Promise.resolve()
+    return generation.exit.promise.then(() => this.whenQuiescent())
+  }
+
   /** Diagnostics only: `child-process-gone` never drives a transition (the wrapper's exit does). */
   noteChildProcessGone(details: ChildProcessGoneDetails): void {
     if (details.serviceName !== this.serviceName) return
@@ -249,12 +256,16 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     this.generationCounter += 1
     const id = this.generationCounter
     let handle: ProcessHandle
-    // Kicked off before the fork so an async factory resolves while the process launches.
-    let initData: unknown
+    // Kicked off before the fork so an async factory resolves while the process launches;
+    // wrapped at once so a rejection is never left unobserved when the spawn fails.
+    let initData: Promise<Outcome>
     let entryPath: string
     try {
       const env = createUtilityProcessEnvironment({ tempDir: this.deps.getTempDir() }, this.definition.createEnv?.())
-      initData = this.definition.createInitData?.()
+      initData = Promise.resolve(this.definition.createInitData?.()).then(
+        (value) => ({ value }),
+        (error) => ({ error })
+      )
       entryPath = this.deps.resolveEntry(this.definition.entry)
       handle = this.deps.adapter.spawn({ entryPath, env, serviceName: this.serviceName })
     } catch (cause) {
@@ -291,7 +302,14 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       })
     }, READY_TIMEOUT_MS)
     generation.readyTimer.unref?.()
-    handle.onSpawn(() => void this.connectGeneration(generation, initData))
+    handle.onSpawn(() => {
+      // A stop or settle that landed before spawn could not kill (no pid yet): kill now, never connect.
+      if (generation.phase !== 'starting') {
+        if (!generation.exited) generation.handle.kill()
+        return
+      }
+      void this.connectGeneration(generation, initData)
+    })
     handle.onMessage((data) => this.handleFrame(generation, data))
     handle.onExit((code) => this.handleExit(generation, code))
     handle.onStdoutLine((line, truncated) =>
@@ -309,23 +327,22 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     return generation
   }
 
-  /** Awaits the init data (it may be a promise) and hands the child its private port. */
-  private async connectGeneration(generation: Generation, pendingInitData: unknown): Promise<void> {
-    let initData: unknown
-    try {
-      initData = await pendingInitData
-    } catch (cause) {
+  /** Awaits the init data outcome and hands the child its private port. */
+  private async connectGeneration(generation: Generation, pendingInitData: Promise<Outcome>): Promise<void> {
+    const outcome = await pendingInitData
+    // A stop that landed meanwhile owns the generation; its exit settles the waiters.
+    if (generation.phase !== 'starting') return
+    if ('error' in outcome) {
       this.settleGeneration(generation, {
         code: 'PROCESS_START_FAILED',
-        message: `generation ${generation.id} init data failed: ${describe(cause)}`,
+        message: `generation ${generation.id} init data failed: ${describe(outcome.error)}`,
         countFailure: true,
-        details: { cause }
+        details: { cause: outcome.error }
       })
       return
     }
-    if (generation.settled) return
     try {
-      generation.handle.connect({ ...this.identity(generation), kind: 'connect', initData })
+      generation.handle.connect({ ...this.identity(generation), kind: 'connect', initData: outcome.value })
     } catch (cause) {
       this.settleGeneration(generation, {
         code: 'PROCESS_START_FAILED',
@@ -344,6 +361,8 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
     }
     switch (data.kind) {
       case 'ready': {
+        // A ready that lands during an intentional stop is a race, not a violation; the exit settles it.
+        if (generation.phase === 'stopping') return
         if (generation.phase !== 'starting') {
           this.violation(generation, 'duplicate ready')
           return
@@ -591,8 +610,10 @@ export class ProcessHost<Contract extends UtilityProcessContract, InitData> {
       generation.killTimer = setTimeout(() => {
         if (!generation.exited) generation.handle.kill()
       }, STOP_GRACE_MS)
-    } else if (!generation.exited) {
-      generation.handle.kill()
+    } else {
+      // A starting generation must not hit its ready deadline mid-stop and count a failure.
+      this.clearTimer(generation, 'readyTimer')
+      if (!generation.exited) generation.handle.kill()
     }
     const timeout = createDeferred<never>()
     const stopTimer = setTimeout(() => timeout.reject(new Error('stop timeout')), STOP_TOTAL_MS)

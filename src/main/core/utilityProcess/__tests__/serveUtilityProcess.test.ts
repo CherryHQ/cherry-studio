@@ -161,7 +161,7 @@ describe('serveUtilityProcess runtime', () => {
     t.send({ kind: 'request', requestId: 2, method: 'echo', input: 'a' })
     t.send({ kind: 'request', requestId: 1, method: 'echo', input: 'b' })
     await waitUntil(() => t.kinds().includes('protocol-error'), 'protocol-error')
-    expect(t.frames.filter((f) => f.kind === 'result')).toHaveLength(1)
+    expect(t.frames.find((f) => f.kind === 'protocol-error')).toMatchObject({ requestId: 1 })
   })
 
   it('rejects frames stamped with another generation', async () => {
@@ -313,7 +313,7 @@ describe('serveUtilityProcess runtime', () => {
     expect('requestId' in logs[0]).toBe(false)
   })
 
-  it('exits 73 on an uncaught error after aborting active handlers', async () => {
+  it('exits 73 on an uncaught error after aborting active handlers, without reporting them as terminals', async () => {
     const t = setup()
     await t.ready()
     t.send({ kind: 'request', requestId: 1, method: 'wait', input: undefined })
@@ -323,5 +323,44 @@ describe('serveUtilityProcess runtime', () => {
     expect(t.contexts[0].signal.aborted).toBe(true)
     expect(t.child().exitCode).toBe(CHILD_EXIT_CODES.uncaught)
     expect(t.frames.find((f) => f.kind === 'log')).toMatchObject({ level: 'error' })
+    // The unwinding `wait` handler rejected; main must learn of the crash from the exit alone.
+    expect(t.kinds()).not.toContain('error')
+    expect(t.kinds()).not.toContain('result')
+  })
+
+  it('shutdown waits for a handler that ignores its abort after an unclonable event before running dispose', async () => {
+    const order: string[] = []
+    let release!: () => void
+    const t = setup({
+      handlers: {
+        echo: (_input, context) => {
+          context.emit(() => 1)
+          return new Promise((resolve) => {
+            release = () => {
+              order.push('handler-settled')
+              resolve('late')
+            }
+          })
+        },
+        wait: async () => 'unused',
+        fail: () => Promise.reject(new Error('unused'))
+      },
+      dispose: () => {
+        order.push('dispose')
+      }
+    })
+    await t.ready()
+    t.send({ kind: 'request', requestId: 1, method: 'echo', input: undefined })
+    await waitUntil(() => t.kinds().includes('error'), 'serialization terminal')
+
+    t.send({ kind: 'shutdown' })
+    await flushMicrotasks()
+    expect(order).toEqual([])
+    expect(t.child().exited).toBe(false)
+
+    release()
+    await waitUntil(() => t.child().exited, 'exit')
+    expect(order).toEqual(['handler-settled', 'dispose'])
+    expect(t.child().exitCode).toBe(0)
   })
 })

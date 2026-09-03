@@ -1,6 +1,6 @@
 # Utility Process
 
-Runs crash-prone or untrusted work in an Electron utility process: manifest, typed clients, wire protocol, and the child-side runtime. One live process per definition, spawned on the first request.
+Runs trusted but crash-prone work in an Electron utility process — a crash and native-library isolation boundary, not a security sandbox: registration, typed clients, wire protocol, and the child-side runtime. One live process per definition, spawned on the first request.
 
 **For the full guide, see [docs/references/utility-process/](../../../../docs/references/utility-process/).**
 
@@ -18,6 +18,5 @@ This directory has **no barrel**: main-side and child-side code are bundled into
 | --- | --- |
 | A consumer service | `./types`, `./defineUtilityProcess`, `./UtilityProcessError` |
 | An entry (`utilityEntries/**`) | `./runtime/serveUtilityProcess` |
-| The manifest | `./types` (definitions live with their consumer) |
 
-`host/`, `UtilityProcessManager.ts`, and `installedManifest.ts` are internal — `UtilityProcessManager` is reached through `application.get('UtilityProcessManager')`, never imported by child code.
+`host/` and `UtilityProcessManager.ts` are internal — `UtilityProcessManager` is reached through `application.get('UtilityProcessManager')`, never imported by child code.

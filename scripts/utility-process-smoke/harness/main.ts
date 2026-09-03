@@ -55,12 +55,19 @@ async function waitFor(predicate: () => boolean, label: string, timeoutMs = 5_00
 }
 
 async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  let value: unknown
   try {
-    await promise
-    throw new Error('expected a rejection')
+    value = await promise
   } catch (error) {
     return error
   }
+  throw new Error(`expected a rejection, got ${JSON.stringify(value)}`)
+}
+
+const errorLogCount = (): number => logger.entries.filter((entry) => entry.level === 'error').length
+
+function assertIntentionalExit(error: unknown, label: string): void {
+  assert(isUtilityProcessError(error, 'PROCESS_EXITED') && error.intentional, `${label} gave ${String(error)}`)
 }
 
 async function check(name: string, run: () => Promise<void>): Promise<void> {
@@ -113,10 +120,25 @@ async function runChecks(): Promise<void> {
 
   await check('stop-stuck-kill', () =>
     withHost(smokeEchoProcess, async (host) => {
+      assert((await host.request('ping', undefined)) === 'pong', 'ping before stall')
       const stalled = rejectionOf(host.request('stall', undefined))
+      const errorsBefore = errorLogCount()
       await host.stop()
-      await stalled
+      assertIntentionalExit(await stalled, 'stall')
+      assert(errorLogCount() === errorsBefore, 'stop logged an error')
       assert((await host.request('ping', undefined)) === 'pong', 'no respawn after a killed stop')
+    })
+  )
+
+  // Electron's kill() is a no-op before `spawn`: the host must re-kill at spawn instead of connecting.
+  await check('stop-before-spawn', () =>
+    withHost(smokeEchoProcess, async (host) => {
+      const waiting = rejectionOf(host.request('ping', undefined))
+      const errorsBefore = errorLogCount()
+      await host.stop()
+      assertIntentionalExit(await waiting, 'cold-start stop')
+      assert(errorLogCount() === errorsBefore, 'cold-start stop logged an error')
+      assert((await host.request('ping', undefined)) === 'pong', 'no respawn after a cold-start stop')
     })
   )
 
@@ -131,11 +153,11 @@ async function runChecks(): Promise<void> {
 
   await check('stdio-log-relay', () =>
     withHost(smokeEchoProcess, async (host) => {
-      const before = logger.messages.length
+      const before = logger.entries.length
       assert((await host.request('logLines', 'relay')) === 'logged', 'logLines did not answer')
       const expected = ['smoke-stdout relay', 'smoke-stderr relay', 'smoke-log relay']
       await waitFor(
-        () => expected.every((line) => logger.messages.slice(before).some((message) => message.includes(line))),
+        () => expected.every((line) => logger.entries.slice(before).some((entry) => entry.message.includes(line))),
         `relayed lines ${expected.join(', ')}`
       )
     })

@@ -109,6 +109,42 @@ describe('ProcessHost stop', () => {
     expect(adapter.spawns[0].child.killed).toBe(true)
     await expect(host.request('ping', undefined)).resolves.toBe('pong')
   })
+
+  it('stop() before the spawn event ends the generation as an intentional exit without connecting the child', async () => {
+    const { host, adapter, logger } = createHost()
+    const waiting = rejectionOf(host.request('ping', undefined))
+
+    await host.stop()
+
+    const error = expectCode(await waiting, 'PROCESS_EXITED')
+    expect(error.intentional).toBe(true)
+    expect(error.failureCount).toBe(0)
+    expect(logger.entries.filter((entry) => entry.level === 'error')).toEqual([])
+    const child = adapter.spawns[0].child
+    expect(child.connectFrame).toBeNull()
+    expect(child.killed).toBe(true)
+    await expect(host.request('ping', undefined)).resolves.toBe('pong')
+  })
+
+  it('a ready frame that lands after stop() started is not a protocol violation', async () => {
+    const lateReadySlowKill: MemoryChildScript = (child) => {
+      child.onFrame(() => {})
+      child.onKill(() => setTimeout(() => child.exit(137), 20))
+      void child.awaitConnect().then(() => setTimeout(() => child.reply({ kind: 'ready' }), 10))
+    }
+    const { host, logger } = createHost({ script: firstThenEcho(lateReadySlowKill) })
+    const waiting = rejectionOf(host.request('ping', undefined))
+    await flushMicrotasks()
+
+    const stopping = host.stop()
+    await vi.advanceTimersByTimeAsync(20)
+    await stopping
+
+    const error = expectCode(await waiting, 'PROCESS_EXITED')
+    expect(error.intentional).toBe(true)
+    expect(error.failureCount).toBe(0)
+    expect(logger.entries.filter((entry) => entry.level === 'error')).toEqual([])
+  })
 })
 
 describe('ProcessHost withStopped', () => {

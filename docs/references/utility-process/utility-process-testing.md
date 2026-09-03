@@ -44,6 +44,7 @@ The harness covers **only what a real process can prove**. Request correlation, 
 | `entry-isolation` | Each definition resolves and forks its own bundle, and the connect handshake accepts it — including from inside the asar |
 | `typed-array-4mib` | A 4 MiB `Uint8Array` survives real cross-process cloning with its checksum |
 | `stop-stuck-kill` | A real `kill()` terminates a handler that ignores its abort signal |
+| `stop-before-spawn` | A `stop()` issued before Electron's `spawn` event still ends the process as an intentional exit |
 | `crash-recovery` | `process.abort()` kills only the child; a replacement process serves the next request |
 | `stdio-log-relay` | Child stdout and stderr really reach the host through the pipe, alongside `log` frames |
 | `net-proxy` | `electron.net.fetch()` in the child honours `app.setProxy()` |

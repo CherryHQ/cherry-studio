@@ -4,7 +4,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/
 const ENTRY_PATTERN = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 const CANCELLATIONS: ReadonlySet<string> = new Set(['terminate', 'cooperative'])
 
-/** Throws a TypeError naming the first invalid field; shared by `defineUtilityProcess` and manifest installation. */
+/** Throws a TypeError naming the first invalid field; shared by `defineUtilityProcess` and `UtilityProcessManager.register()`. */
 export function validateUtilityProcessDefinition(definition: UtilityProcessDefinition<any, any>): void {
   if (typeof definition.id !== 'string' || !ID_PATTERN.test(definition.id)) {
     throw new TypeError(
