@@ -111,6 +111,7 @@
   "agent.pin.title": "Τοποθέτηση Πράκτορα στην κορυφή",
   "agent.preview_pane.close": "Κλείσιμο προεπισκόπησης",
   "agent.preview_pane.code": "Κώδικας",
+  "agent.preview_pane.copy_content": "Αντιγραφή περιεχομένου",
   "agent.preview_pane.copy_path": "Αντιγραφή διαδρομής",
   "agent.preview_pane.copy_relative_path": "Αντιγραφή σχετικής διαδρομής",
   "agent.preview_pane.default_app": "Προεπιλεγμένη εφαρμογή",

@@ -111,6 +111,7 @@
   "agent.pin.title": "Fixar agente",
   "agent.preview_pane.close": "Fechar pré-visualização",
   "agent.preview_pane.code": "Código",
+  "agent.preview_pane.copy_content": "Copiar conteúdo",
   "agent.preview_pane.copy_path": "Copiar caminho",
   "agent.preview_pane.copy_relative_path": "Copiar caminho relativo",
   "agent.preview_pane.default_app": "Aplicação padrão",

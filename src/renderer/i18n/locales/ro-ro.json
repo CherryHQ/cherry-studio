@@ -111,6 +111,7 @@
   "agent.pin.title": "Fixează agentul",
   "agent.preview_pane.close": "Închide previzualizare",
   "agent.preview_pane.code": "Cod",
+  "agent.preview_pane.copy_content": "Copiază conținutul",
   "agent.preview_pane.copy_path": "Copiază calea",
   "agent.preview_pane.copy_relative_path": "Copiază calea relativă",
   "agent.preview_pane.default_app": "Aplicație implicită",

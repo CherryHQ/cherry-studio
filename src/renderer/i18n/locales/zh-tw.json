@@ -111,6 +111,7 @@
   "agent.pin.title": "釘選 Agent",
   "agent.preview_pane.close": "關閉預覽",
   "agent.preview_pane.code": "程式碼",
+  "agent.preview_pane.copy_content": "複製內容",
   "agent.preview_pane.copy_path": "複製路徑",
   "agent.preview_pane.copy_relative_path": "複製相對路徑",
   "agent.preview_pane.default_app": "預設應用程式",

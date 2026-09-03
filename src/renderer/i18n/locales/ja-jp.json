@@ -111,6 +111,7 @@
   "agent.pin.title": "エージェントを固定",
   "agent.preview_pane.close": "プレビューを閉じる",
   "agent.preview_pane.code": "コード",
+  "agent.preview_pane.copy_content": "内容をコピー",
   "agent.preview_pane.copy_path": "パスをコピー",
   "agent.preview_pane.copy_relative_path": "相対パスをコピー",
   "agent.preview_pane.default_app": "デフォルトアプリ",

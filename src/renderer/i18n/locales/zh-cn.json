@@ -111,6 +111,7 @@
   "agent.pin.title": "置顶智能体",
   "agent.preview_pane.close": "关闭预览",
   "agent.preview_pane.code": "代码",
+  "agent.preview_pane.copy_content": "复制内容",
   "agent.preview_pane.copy_path": "复制路径",
   "agent.preview_pane.copy_relative_path": "复制相对路径",
   "agent.preview_pane.default_app": "默认应用",

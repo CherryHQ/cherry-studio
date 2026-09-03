@@ -111,6 +111,7 @@
   "agent.pin.title": "Ajanı Sabitle",
   "agent.preview_pane.close": "Önizlemeyi kapat",
   "agent.preview_pane.code": "Kod",
+  "agent.preview_pane.copy_content": "İçeriği Kopyala",
   "agent.preview_pane.copy_path": "Yolu Kopyala",
   "agent.preview_pane.copy_relative_path": "Göreli Yolu Kopyala",
   "agent.preview_pane.default_app": "Varsayılan uygulama",

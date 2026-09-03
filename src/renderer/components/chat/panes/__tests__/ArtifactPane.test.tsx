@@ -119,6 +119,8 @@ const mocks = vi.hoisted(() => ({
   treeDispose: vi.fn(),
   treeOnMutation: vi.fn(),
   ipcRequest: vi.fn(),
+  clipboardWriteText: vi.fn(),
+  fileReadExternal: vi.fn(),
   fsReadText: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
@@ -239,6 +241,18 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   const treeId = `tree-${mocks.nextTreeId}`
   const snapshot = pathsToSnapshot(workspacePath, paths)
   mocks.treeCreate.mockResolvedValueOnce({ treeId, revision: 0, snapshot })
+}
+
+function createPreviewModel(): React.ComponentProps<typeof ArtifactPaneView>['model'] {
+  return {
+    isLoading: false,
+    filteredTree: [],
+    effectiveExpandedIds: new Set<string>(),
+    setExpandedIds: vi.fn(),
+    nodeById: new Map(),
+    refresh: vi.fn(),
+    reloadExpandedDirectories: vi.fn()
+  } as unknown as React.ComponentProps<typeof ArtifactPaneView>['model']
 }
 
 function binaryReadResult(content: Uint8Array) {
@@ -665,6 +679,8 @@ describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ipcRequest.mockReset()
+    mocks.clipboardWriteText.mockReset()
+    mocks.fileReadExternal.mockReset()
     mocks.filePreviewProps.length = 0
     mocks.nextTreeId = 0
     mocks.useRealCodeEditor = false
@@ -702,6 +718,7 @@ describe('ArtifactPane', () => {
       configurable: true,
       value: {
         file: {
+          readExternal: mocks.fileReadExternal,
           openPath: mocks.openPath,
           showInFolder: mocks.showInFolder,
           isDirectory: mocks.isDirectory,
@@ -712,6 +729,10 @@ describe('ArtifactPane', () => {
           readText: mocks.fsReadText
         }
       }
+    })
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: mocks.clipboardWriteText }
     })
     Object.defineProperty(window, 'open', {
       configurable: true,
@@ -1042,15 +1063,6 @@ describe('ArtifactPane', () => {
   })
 
   it('renders user-input preview selections as read-only file previews with the original path in the title', async () => {
-    const model = {
-      isLoading: false,
-      filteredTree: [],
-      effectiveExpandedIds: new Set<string>(),
-      setExpandedIds: vi.fn(),
-      nodeById: new Map(),
-      refresh: vi.fn(),
-      reloadExpandedDirectories: vi.fn()
-    } as unknown as React.ComponentProps<typeof ArtifactPaneView>['model']
     const fileSession = {
       status: 'ready',
       draft: '# Cached',
@@ -1073,7 +1085,7 @@ describe('ArtifactPane', () => {
           previewType: 'file',
           readOnly: true
         }}
-        model={model}
+        model={createPreviewModel()}
         selectedFile={null}
         onSelectedFileChange={vi.fn()}
         searchKeyword=""
@@ -1090,6 +1102,146 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/internal/message-files/report.md')
     expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'file')
     expect(screen.queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
+  })
+
+  it('copies the opened preview display path from the header and menu', async () => {
+    mocks.clipboardWriteText.mockResolvedValue(undefined)
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/workspace"
+        previewFileSelection={{
+          workspacePath: '/internal/message-files',
+          filePath: 'report.md',
+          displayName: 'report.md',
+          displayPath: '/Users/alice/report.md' as AbsoluteFilePath,
+          previewType: 'file',
+          readOnly: true
+        }}
+        model={createPreviewModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+
+    await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.copy_path' }))
+
+    await waitFor(() => expect(mocks.clipboardWriteText).toHaveBeenCalledWith('/Users/alice/report.md'))
+    await waitFor(() => {
+      const previewHeaderMenus = commandMenuMocks.calls.filter((call) => call.disabled === false)
+      const latestMenuItems = previewHeaderMenus.at(-1)?.pendingExtraItems ?? []
+      expect(
+        latestMenuItems.some((item) => item.type === 'item' && item.id === 'artifact-pane.overlay.copy-path')
+      ).toBe(true)
+    })
+  })
+
+  it('copies the opened preview absolute selection path when there is no display path', async () => {
+    mocks.clipboardWriteText.mockResolvedValue(undefined)
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/tmp/workspace"
+        previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'notes.txt' }}
+        model={createPreviewModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.copy_path' }))
+
+    await waitFor(() => expect(mocks.clipboardWriteText).toHaveBeenCalledWith('/tmp/workspace/notes.txt'))
+  })
+
+  it.each([
+    ['markdown', 'notes.md'],
+    ['text', 'notes.txt']
+  ])('copies %s preview content as text from the header', async (_label, fileName) => {
+    mocks.fsReadText.mockResolvedValue('copied text')
+    mocks.clipboardWriteText.mockResolvedValue(undefined)
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/tmp/workspace"
+        previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: fileName }}
+        model={createPreviewModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.copy_content' }))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith(`/tmp/workspace/${fileName}`))
+    expect(mocks.fileReadExternal).not.toHaveBeenCalled()
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('copied text')
+  })
+
+  it.each(['report.doc', 'report.docx'])('copies %s preview content through document extraction', async (fileName) => {
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'document' })
+    mocks.fileReadExternal.mockResolvedValue('document text')
+    mocks.clipboardWriteText.mockResolvedValue(undefined)
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/tmp/workspace"
+        previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: fileName }}
+        model={createPreviewModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.preview_pane.copy_content' }))
+
+    await waitFor(() => expect(mocks.fileReadExternal).toHaveBeenCalledWith(`/tmp/workspace/${fileName}`, true))
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(mocks.clipboardWriteText).toHaveBeenCalledWith('document text')
+  })
+
+  it('does not offer copy content for unsupported binary previews', async () => {
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'document' })
+
+    render(
+      <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle="Files"
+        paneActions={null}
+        workspacePath="/tmp/workspace"
+        previewFileSelection={{ workspacePath: '/tmp/workspace', filePath: 'slides.pptx' }}
+        model={createPreviewModel()}
+        selectedFile={null}
+        onSelectedFileChange={vi.fn()}
+        searchKeyword=""
+        onSearchKeywordChange={vi.fn()}
+      />
+    )
+
+    await screen.findByRole('button', { name: 'agent.preview_pane.copy_path' })
+    await waitFor(() => expect(mocks.getMetadata).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.copy_content' })).not.toBeInTheDocument()
   })
 
   it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
@@ -1257,6 +1409,9 @@ describe('ArtifactPane', () => {
       headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.label === 'agent.preview_pane.refresh')
     ).toBe(true)
     expect(
+      headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.copy-path')
+    ).toBe(true)
+    expect(
       headerMenuCall?.pendingExtraItems?.some((i) => i.type === 'item' && i.label === 'agent.preview_pane.close')
     ).toBe(true)
 
@@ -1264,6 +1419,7 @@ describe('ArtifactPane', () => {
     expect(extraItems?.some((i) => i.type === 'item' && i.id === 'system-default')).toBe(true)
     expect(extraItems?.some((i) => i.type === 'item' && i.id === 'file-manager')).toBe(true)
     expect(extraItems?.some((i) => i.type === 'item' && i.id === 'app-vscode')).toBe(true)
+    expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.copy-path')).toBe(true)
     expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.refresh')).toBe(true)
     expect(extraItems?.some((i) => i.type === 'item' && i.id === 'artifact-pane.overlay.close')).toBe(true)
 

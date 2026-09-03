@@ -111,6 +111,7 @@
   "agent.pin.title": "Ghim Agent",
   "agent.preview_pane.close": "Đóng xem trước",
   "agent.preview_pane.code": "Mã",
+  "agent.preview_pane.copy_content": "Sao chép nội dung",
   "agent.preview_pane.copy_path": "Sao chép đường dẫn",
   "agent.preview_pane.copy_relative_path": "Sao chép đường dẫn tương đối",
   "agent.preview_pane.default_app": "Ứng dụng mặc định",

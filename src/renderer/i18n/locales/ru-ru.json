@@ -111,6 +111,7 @@
   "agent.pin.title": "Закрепить агента",
   "agent.preview_pane.close": "Закрыть предпросмотр",
   "agent.preview_pane.code": "Код",
+  "agent.preview_pane.copy_content": "Копировать содержимое",
   "agent.preview_pane.copy_path": "Копировать путь",
   "agent.preview_pane.copy_relative_path": "Копировать относительный путь",
   "agent.preview_pane.default_app": "Приложение по умолчанию",
