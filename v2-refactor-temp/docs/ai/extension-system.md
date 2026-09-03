@@ -525,6 +525,16 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 6. **provider 契约会吸收所有厂商差异。** openclaw 64 个字段是终态；防线只有"数据优先 + 家族 helper"（`build*FamilyHooks`）。§4.0 的 L0 / L1 / L2 分层就是把这条防线放在第一天。
 7. **Cherry 自己的 dsh bridge 插件（473 行）证明了最小面**：注入 7 个 service、挂 4 个事件、调 2 个注册——贡献点加一个 waterfall 门，不碰 fiber / isolate / HMR / Config。
 
+三个仓库的提交历史里能直接读出"哪些决定后来被自己推翻"。把其中与本设计相关的五条固定为规则：
+
+| 规则 | 反例（在对方仓库里的悔改证据） | 本设计对应 |
+|---|---|---|
+| **宿主对象显式构造、显式传递，不用全局槽和作用域栈** | 用 `globalThis` 符号槽存注册表、再叠 AsyncLocalStorage 区分"哪一代注册表"的做法，产生了一串"改无关配置后注册表失效 / 请求线程重建整个注册表 / `register()` 跑三次"的修复 | `ExtensionHostService` 是唯一持有者；贡献点通过 `register(ext, items, module)` 拿到引用，不查全局 |
+| **重载单位是整个扩展目录，不做配置路径级热重载** | 几千行的"配置路径前缀 → hot / restart / none"计划器与进程内重启协调器、OS 级守护进程三套并存，四成提交是修复 | §3.2：新版本目录 → 注册 → 成功后注销旧；失败保留旧代。没有 per-path 规则 |
+| **`apiVersion` 从第一天独立于 app 版本** | 用 app 的 CalVer 当插件 API 兼容范围，只能表达"宿主不低于某发布"，结果是四个月 25 个 Breaking 段落和一个专门的 API baseline diff 工具 | §3 manifest `apiVersion` 整数 + `SUPPORTED_API_VERSIONS`；§4.6 的 `…V2` 纪律 |
+| **provider 差异做成数据 + 家族 helper，不做大契约** | 64 字段的 provider 契约，小 provider 靠事后补的 family-hook 构建器才能写短；SDK 缺的 helper 被 29 个扩展各抄一份 | §4.0 的 L0 / L1 / L2；§4.3 `configuration`、`headers` 这类字段先于钩子 |
+| **不做市场，直到 API 停止变动；运行时不做 TS 转译** | 十种安装来源和市场先于稳定 API；运行时 jiti 加载 TS 入口后来降级为 emergency fallback，中间付了别名层和多次启动性能回归 | §6 索引排在 §5 方案 C 之后；§4.1 扩展交付单文件 ESM，宿主只 `import()` |
+
 ## 8. 分阶段
 
 | 阶段 | 交付 | 验证 |
