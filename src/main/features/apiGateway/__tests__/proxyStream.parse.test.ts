@@ -95,15 +95,16 @@ beforeEach(() => {
 
 function mockAvailableModel(providerId: string, internalModelId: string, apiModelId = internalModelId, group?: string) {
   mockGetProvider.mockReturnValue({ id: providerId, name: providerId, isEnabled: true })
-  mockListModels.mockReturnValue([
-    {
-      id: createUniqueModelId(providerId, internalModelId),
-      providerId,
-      apiModelId,
-      group,
-      capabilities: []
-    }
-  ])
+  const model = {
+    id: createUniqueModelId(providerId, internalModelId),
+    providerId,
+    apiModelId,
+    group,
+    capabilities: []
+  }
+  mockListModels.mockImplementation(({ includeAgentOnly }: { includeAgentOnly?: boolean }) =>
+    providerId === CHERRY_CLOUD_PROVIDER_ID && !includeAgentOnly ? [] : [model]
+  )
 }
 
 /** Resolve a valid (non-streaming) request after capturing the streamPrompt args. */
@@ -240,7 +241,7 @@ describe('processMessage model-id parsing', () => {
     expect(await resolveValid('sophnet:DeepSeek-v3')).toBe(createUniqueModelId('sophnet', 'deepseek-v3'))
   })
 
-  it('rejects Cherry Cloud messages that did not originate from the internal Agent runtime', async () => {
+  it('does not resolve Cherry Cloud models for external requests', async () => {
     mockAvailableModel(CHERRY_CLOUD_PROVIDER_ID, 'deepseek-free', 'deepseek-free', CHERRY_CLOUD_MODEL_GROUP)
 
     await expect(
@@ -249,7 +250,7 @@ describe('processMessage model-id parsing', () => {
         inputFormat: 'anthropic',
         outputFormat: 'anthropic'
       })
-    ).rejects.toMatchObject({ status: 403 })
+    ).rejects.toMatchObject({ status: 400 })
     expect(mockListModels).toHaveBeenCalledWith({ providerId: CHERRY_CLOUD_PROVIDER_ID, enabled: true })
     expect(mockStreamPrompt).not.toHaveBeenCalled()
   })

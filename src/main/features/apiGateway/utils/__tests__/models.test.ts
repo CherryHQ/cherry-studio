@@ -1,8 +1,4 @@
-import {
-  CHERRY_CLOUD_PROVIDER_ID,
-  CHERRYAI_DEFAULT_MODEL_ID,
-  CHERRYAI_PROVIDER_ID
-} from '@shared/data/presets/cherryai'
+import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -195,25 +191,5 @@ describe('api gateway model listing', () => {
     const response = await getModels()
 
     expect(response.data.map((model) => model.id)).toEqual(['openai:gpt-4o'])
-  })
-
-  it('does not advertise models whose provider policy rejects public gateway requests', async () => {
-    mocks.listProviders.mockReturnValue([
-      { id: CHERRY_CLOUD_PROVIDER_ID, name: 'Cherry Cloud' },
-      { id: 'openai', name: 'OpenAI' }
-    ])
-    mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => [
-      {
-        id: `${providerId}::model`,
-        providerId,
-        apiModelId: 'model',
-        ownedBy: providerId,
-        capabilities: []
-      }
-    ])
-
-    const response = await getModels()
-
-    expect(response.data.map((model) => model.id)).toEqual(['openai:model'])
   })
 })

@@ -19,7 +19,6 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { getProviderAgentGatewayPolicy } from '@main/ai/provider/agentGatewayPolicy'
 import { resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
@@ -156,13 +155,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
     : undefined
-
-  const agentGatewayPolicy = getProviderAgentGatewayPolicy(providerId)
-  if (agentGatewayPolicy && !agentGatewayPolicy.authorizeRequest({ isInternalAgentRequest })) {
-    const error = asClientError(new Error('This provider is only available to internal Agent requests'))
-    error.status = 403
-    throw error
-  }
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
