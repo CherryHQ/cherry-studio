@@ -6,6 +6,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -642,6 +643,23 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
     </button>
   )
 }
+
+const createPastedTextEditingParts = () => [
+  { type: 'text', text: 'old' },
+  {
+    type: 'file',
+    url: 'file:///old-user-data/Data/Files/pasted.txt',
+    mediaType: 'text/plain',
+    filename: 'Pasted text.txt',
+    providerMetadata: {
+      cherry: {
+        fileEntryId: 'entry-pasted-text',
+        fileTokenSourceId: 'source-pasted-text',
+        composerFileKind: 'pasted-text'
+      }
+    }
+  }
+]
 
 describe('ChatComposer', () => {
   beforeEach(() => {
@@ -2788,6 +2806,8 @@ describe('ChatComposer', () => {
       </MessageEditingProvider>
     )
 
+    await waitFor(() => expect(mocks.surfaceProps?.editable).toBe(true))
+
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'edited text', tokens: [] })
     })
@@ -3741,6 +3761,87 @@ describe('ChatComposer', () => {
     expect(mocks.setFiles).toHaveBeenCalledTimes(1)
     expect(mocks.setSelectedKnowledgeBases).toHaveBeenCalledTimes(1)
     expect(mocks.getDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps message editing locked until asynchronous attachment restoration completes', async () => {
+    const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
+    vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend: vi.fn(), forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = createPastedTextEditingParts()
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+    expect(mocks.surfaceProps?.editable).toBe(false)
+    expect(mocks.surfaceProps?.enableDragDrop).toBe(false)
+    expect(mocks.surfaceProps?.quickPanelEnabled).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.editingState?.onSave).toBeUndefined()
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'premature edit', tokens: [] })
+    })
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(forkAndResend).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pathRestore.resolve(AbsoluteFilePathSchema.parse('/new-user-data/Data/Files/pasted.txt'))
+      await pathRestore.promise
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('old')
+      expect(mocks.surfaceProps?.editable).toBe(true)
+      expect(mocks.surfaceProps?.enableDragDrop).toBe(true)
+      expect(mocks.surfaceProps?.quickPanelEnabled).toBe(true)
+      expect(mocks.surfaceProps?.editingState?.onSave).toBeDefined()
+    })
+  })
+
+  it('does not apply a pending attachment restoration after editing is cancelled', async () => {
+    const pathRestore = createDeferred<ReturnType<typeof AbsoluteFilePathSchema.parse>>()
+    vi.mocked(window.api.file.getPhysicalPath).mockReturnValue(pathRestore.promise)
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = createPastedTextEditingParts()
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe(message.id))
+
+    await act(async () => {
+      mocks.surfaceProps?.editingState?.onCancel()
+      pathRestore.resolve(AbsoluteFilePathSchema.parse('/new-user-data/Data/Files/pasted.txt'))
+      await pathRestore.promise
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(mocks.surfaceProps?.text).toBe('original draft')
+    expect(mocks.replaceDraft).toHaveBeenLastCalledWith({ text: 'original draft', tokens: [] })
   })
 
   it('locates the edited message from the Composer editing state', async () => {

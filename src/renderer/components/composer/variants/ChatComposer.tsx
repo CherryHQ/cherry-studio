@@ -569,6 +569,7 @@ const ChatComposerInner = ({
   const directSendInFlightRef = useRef(false)
   const [isStartingNewContext, setIsStartingNewContext] = useState(false)
   const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
+  const [restoredEditingSessionId, setRestoredEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
@@ -612,6 +613,10 @@ const ChatComposerInner = ({
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
   const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
+  const restoringEditingSessionIdRef = useRef<number | null>(null)
+  const isEditingDraftRestoring = Boolean(
+    editingMessageForCurrentTopic && restoredEditingSessionId !== editingMessageForCurrentTopic.editingSessionId
+  )
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
@@ -659,17 +664,17 @@ const ChatComposerInner = ({
   )
   const handleTextChange = useCallback(
     (nextText: string) => {
+      if (isEditingDraftRestoring) return
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       skipDraftCacheWriteForHistoryPreviewRef.current = false
       setText(nextText)
     },
-    [resetHistoryIndex]
+    [isEditingDraftRestoring, resetHistoryIndex]
   )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
-  const restoredEditingSessionIdRef = useRef<number | null>(null)
   const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
@@ -1152,6 +1157,7 @@ const ChatComposerInner = ({
   ])
 
   const handleCancelEditing = useCallback(() => {
+    restoringEditingSessionIdRef.current = null
     restoreSavedDraft()
     cancelEditing()
   }, [cancelEditing, restoreSavedDraft])
@@ -1163,7 +1169,12 @@ const ChatComposerInner = ({
 
   const restoreEditableMessageDraft = useEffectEvent(async (nextEditingMessage: NonNullable<typeof editingMessage>) => {
     const editableDraft = await createEditableMessageDraft(nextEditingMessage.parts)
-    if (editingMessageForCurrentTopic?.editingSessionId !== nextEditingMessage.editingSessionId) return
+    if (
+      editingMessageForCurrentTopic?.editingSessionId !== nextEditingMessage.editingSessionId ||
+      restoringEditingSessionIdRef.current !== nextEditingMessage.editingSessionId
+    ) {
+      return
+    }
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
       (part): part is ComposerFilePart => part.type === 'file' && !!part.url
@@ -1178,16 +1189,23 @@ const ChatComposerInner = ({
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
     setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))
+    restoringEditingSessionIdRef.current = null
+    setRestoredEditingSessionId(nextEditingMessage.editingSessionId)
   })
 
   useEffect(() => {
     if (!editingMessageForCurrentTopic) {
-      restoredEditingSessionIdRef.current = null
+      restoringEditingSessionIdRef.current = null
       editingOriginalFilePartsByTokenIdRef.current = new Map()
       return
     }
-    if (restoredEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId) return
-    restoredEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
+    if (
+      restoredEditingSessionId === editingMessageForCurrentTopic.editingSessionId ||
+      restoringEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId
+    ) {
+      return
+    }
+    restoringEditingSessionIdRef.current = editingMessageForCurrentTopic.editingSessionId
 
     if (savedDraftBeforeEditingRef.current?.text === undefined) {
       const historyPreview = exitInputHistoryPreview()
@@ -1216,11 +1234,13 @@ const ChatComposerInner = ({
     exitInputHistoryPreview,
     filesRef,
     mentionedModelsRef,
+    restoredEditingSessionId,
     selectedKnowledgeBasesRef
   ])
 
   useEffect(() => {
     if (!staleEditingMessage) return
+    restoringEditingSessionIdRef.current = null
     restoreSavedDraft()
     stopEditing()
   }, [restoreSavedDraft, staleEditingMessage, stopEditing])
@@ -1237,10 +1257,11 @@ const ChatComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
   const handleTokensChange = useCallback(
     (nextDraftTokens: readonly ComposerSerializedToken[]) => {
+      if (isEditingDraftRestoring) return
       reconcileTokens(nextDraftTokens)
       setDraftTokenRevision((revision) => revision + 1)
     },
-    [reconcileTokens]
+    [isEditingDraftRestoring, reconcileTokens]
   )
 
   const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
@@ -1605,6 +1626,7 @@ const ChatComposerInner = ({
     async (draft: ComposerSerializedDraft, resend: boolean) => {
       if (!editingMessageForCurrentTopic) return
       const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+      if (restoredEditingSessionId !== editingSessionId) return
       if (editSaveInFlightSessionIdRef.current === editingSessionId) return
 
       const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
@@ -1674,6 +1696,7 @@ const ChatComposerInner = ({
       fastMode,
       isMentionedModelSelectorLocked,
       reasoningEffort,
+      restoredEditingSessionId,
       serviceTier,
       restoreSavedDraft,
       speedControlModel,
@@ -1876,6 +1899,7 @@ const ChatComposerInner = ({
           sendDisabled={
             (text.trim().length === 0 && files.length === 0) ||
             (loading && !canSteer) ||
+            isEditingDraftRestoring ||
             isSavingEdit ||
             isDirectSending ||
             sendDisabled ||
@@ -1887,7 +1911,7 @@ const ChatComposerInner = ({
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
+            isEditingDraftRestoring || isSavingEdit || isDirectSending || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
@@ -1902,7 +1926,9 @@ const ChatComposerInner = ({
                   onCancel: handleCancelEditing,
                   // Assistant edits already save in place on send; only user edits need a save-only path.
                   onSave:
-                    editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
+                    editingMessageForCurrentTopic.message.role === 'assistant' || isEditingDraftRestoring
+                      ? undefined
+                      : handleSaveEditedMessage
                 }
               : undefined
           }
@@ -1938,10 +1964,10 @@ const ChatComposerInner = ({
           filesCount={files.length}
           isExpanded={isExpanded}
           onExpandedChange={setIsExpanded}
-          quickPanelEnabled={config.enableQuickPanel ?? true}
-          enableDragDrop={config.enableDragDrop ?? true}
+          quickPanelEnabled={!isEditingDraftRestoring && (config.enableQuickPanel ?? true)}
+          enableDragDrop={!isEditingDraftRestoring && (config.enableDragDrop ?? true)}
           enableSpellCheck={enableSpellCheck}
-          editable={!searching && !isDirectSending}
+          editable={!searching && !isDirectSending && !isEditingDraftRestoring}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
           railGutterPx={railGutterPx}
