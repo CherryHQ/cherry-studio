@@ -14,6 +14,7 @@ import type {
   TranslateLangCode
 } from '@shared/data/preference/preferenceTypes'
 import type { AiUsageRecordMessageKind } from '@shared/data/types/aiUsageRecord'
+import type { FileHandle } from '@shared/data/types/file'
 import type {
   CherryMessagePart,
   CherryUIMessage,
@@ -70,6 +71,18 @@ export interface MessageActivityStore {
 export interface MessageFileView {
   displayName: string
   previewUrl?: FileUrlString
+}
+
+/**
+ * A message attachment the user can open or preview.
+ *
+ * Carries a `FileHandle` rather than a path: Main owns path resolution, so no
+ * renderer surface reconstructs one from the part's `file://` URL.
+ */
+export interface MessageAttachmentTarget {
+  handle: FileHandle
+  name: string
+  ext: string
 }
 
 export interface MessageMenuExportOptions {
@@ -317,7 +330,7 @@ export interface MessageListState {
   messageActivityStore?: MessageActivityStore
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   isMessageTranslating?: (messageId: string) => boolean
-  getFileView?: (file: FileMetadata) => MessageFileView
+  getFileView?: (file: Pick<FileMetadata, 'origin_name' | 'ext' | 'created_at'>) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
   getTranslationLanguageLabel?: (
     language: TranslateLangCode | TranslateLanguage | null,
@@ -357,7 +370,7 @@ export interface MessageListActions {
   resolvePath?: (path: string) => string
   previewInputFile?: (input: MessageInputFilePreview) => void | Promise<void>
   previewInputFileInRightPane?: (input: MessageInputFilePreview) => void | Promise<void>
-  openFile?: (file: FileMetadata) => void | Promise<void>
+  openFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
@@ -375,7 +388,7 @@ export interface MessageListActions {
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void
   notifyError?: (message: string) => void
-  previewFile?: (file: FileMetadata) => void | Promise<void>
+  previewFile?: (target: MessageAttachmentTarget) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)
   respondToolApproval?: (input: MessageToolApprovalInput) => void | Promise<void>

@@ -70,7 +70,7 @@ const ObsidianSettings: FC = () => {
     <SettingGroup>
       <SettingTitle>{t('settings.data.obsidian.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-obsidian-default-vault" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
         <RowFlex className="gap-1.25">
           {loading ? (

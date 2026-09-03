@@ -43,6 +43,7 @@ interface Props {
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
   userContentExpanded?: boolean
   onPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onUserContentExpandedChange?: (expanded: boolean) => void
@@ -91,12 +92,16 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
 function ComposerMessageTokenChip({
   token,
   onReadOnlyFilePreviewActivate,
-  readOnlyFilePreviews
+  readOnlyFilePreviews,
+  hidden
 }: {
   token: ComposerMessageToken
   onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  hidden?: boolean
 }) {
+  if (hidden) return null
+
   if (isComposerTokenBackedMessageToken(token)) {
     const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
     const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
@@ -118,7 +123,8 @@ function renderComposerMessageContent(
   content: string,
   composer: ComposerMessageSnapshot,
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>,
-  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate
+  onReadOnlyFilePreviewActivate?: ReadOnlyFilePreviewActivate,
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
 ) {
   const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
@@ -141,6 +147,7 @@ function renderComposerMessageContent(
         token={token}
         onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
         readOnlyFilePreviews={readOnlyFilePreviews}
+        hidden={hiddenComposerTokens?.has(token)}
       />
     )
 
@@ -225,7 +232,11 @@ function buildUserMessageTextPreview(content: string) {
   }
 }
 
-function buildComposerTokenPreviewProjection(content: string, composer: ComposerMessageSnapshot) {
+function buildComposerTokenPreviewProjection(
+  content: string,
+  composer: ComposerMessageSnapshot,
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
+) {
   let projectedContent = ''
   const rawOffsets = [0]
   let cursor = 0
@@ -248,14 +259,16 @@ function buildComposerTokenPreviewProjection(content: string, composer: Composer
       cursor = offset
     }
 
-    // Count a rendered token chip as one visible character. Mapping its end
-    // back to the raw prompt boundary keeps collapsed previews from slicing
-    // through hidden composer context and exposing it as plain text.
-    projectedContent += '\uFFFC'
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
     }
-    rawOffsets.push(cursor)
+    if (!hiddenComposerTokens?.has(token)) {
+      // Count a rendered token chip as one visible character. Mapping its end
+      // back to the raw prompt boundary keeps collapsed previews from slicing
+      // through hidden composer context and exposing it as plain text.
+      projectedContent += '\uFFFC'
+      rawOffsets.push(cursor)
+    }
   })
 
   if (cursor < content.length) {
@@ -265,10 +278,14 @@ function buildComposerTokenPreviewProjection(content: string, composer: Composer
   return { content: projectedContent, rawOffsets }
 }
 
-export function buildUserMessagePreview(content: string, composer?: ComposerMessageSnapshot) {
+export function buildUserMessagePreview(
+  content: string,
+  composer?: ComposerMessageSnapshot,
+  hiddenComposerTokens?: ReadonlySet<ComposerMessageToken>
+) {
   if (!composer) return buildUserMessageTextPreview(content)
 
-  const projection = buildComposerTokenPreviewProjection(content, composer)
+  const projection = buildComposerTokenPreviewProjection(content, composer, hiddenComposerTokens)
   const preview = buildUserMessageTextPreview(projection.content)
   if (!preview.isTruncated) return { content, isTruncated: false }
 
@@ -338,13 +355,17 @@ const MainTextBlock: React.FC<Props> = ({
   composer,
   readOnlyFilePreviews,
   onReadOnlyFilePreviewActivate,
+  hiddenComposerTokens,
   userContentExpanded,
   onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
-  const userMessagePreview = useMemo(() => buildUserMessagePreview(content, composer), [composer, content])
+  const userMessagePreview = useMemo(
+    () => buildUserMessagePreview(content, composer, hiddenComposerTokens),
+    [composer, content, hiddenComposerTokens]
+  )
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
   const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
   const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
@@ -445,6 +466,7 @@ const MainTextBlock: React.FC<Props> = ({
               token={token}
               onReadOnlyFilePreviewActivate={onReadOnlyFilePreviewActivate}
               readOnlyFilePreviews={readOnlyFilePreviews}
+              hidden={hiddenComposerTokens?.has(token)}
             />
           )
         }
@@ -452,7 +474,7 @@ const MainTextBlock: React.FC<Props> = ({
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, id, onReadOnlyFilePreviewActivate, readOnlyFilePreviews]
+    [composerMarkdownContent?.tokens, hiddenComposerTokens, id, onReadOnlyFilePreviewActivate, readOnlyFilePreviews]
   )
 
   return (
@@ -486,7 +508,8 @@ const MainTextBlock: React.FC<Props> = ({
                     userDisplayContent,
                     composer,
                     readOnlyFilePreviews,
-                    onReadOnlyFilePreviewActivate
+                    onReadOnlyFilePreviewActivate,
+                    hiddenComposerTokens
                   )
                 : userDisplayContent}
             </p>
