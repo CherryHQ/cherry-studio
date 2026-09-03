@@ -1,3 +1,4 @@
+import type { Model } from '@shared/data/types/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -94,7 +95,11 @@ vi.mock('../CherryCloudLoopbackCallback', () => ({
   CherryCloudLoopbackCallback: { open: mocks.loopbackOpen }
 }))
 
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
+
 import { CherryCloudLoginUnavailableError, CherryCloudService } from '../CherryCloudService'
+
+const resolveRegistryModels = vi.spyOn(providerRegistryService, 'resolveModels')
 
 const authorizationId = '00000000-0000-4000-8000-000000000001'
 const sessionId = '00000000-0000-4000-8000-000000000010'
@@ -305,6 +310,7 @@ describe('CherryCloudService', () => {
     mocks.modelList.mockReturnValue([])
     mocks.modelCreate.mockReturnValue([])
     mocks.modelBulkUpdate.mockReturnValue([])
+    resolveRegistryModels.mockReturnValue([])
     mocks.gatewayStart.mockResolvedValue(undefined)
     mocks.openExternal.mockResolvedValue(undefined)
     mocks.loopbackOpen.mockResolvedValue(mocks.loopbackReceiver)
@@ -818,6 +824,7 @@ describe('CherryCloudService', () => {
       }
     ])
     expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
+    expect(resolveRegistryModels).not.toHaveBeenCalled()
     expect(mocks.modelList).toHaveBeenCalledWith({ providerId: 'cherryai-subscription' })
     expect(mocks.notifyDataChange).toHaveBeenCalledWith([{ endpoint: '/models', kind: 'membership' }])
     for (const [, init] of mocks.netFetch.mock.calls) {
@@ -872,6 +879,110 @@ describe('CherryCloudService', () => {
         }
       }
     ])
+  })
+
+  it('falls back to registry capabilities when the Cloud catalog omits them', async () => {
+    const service = await createSignedInService()
+    resolveRegistryModels.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        presetModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        capabilities: ['function-call', 'reasoning'],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      } satisfies Model
+    ])
+    const modelWithoutCapabilities = { ...cloudModelCatalog.data[0], capabilities: undefined }
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [accountSnapshot.entitlements[0]]
+      },
+      { data: [modelWithoutCapabilities] }
+    )
+
+    await service['syncEntitledModels']()
+
+    expect(resolveRegistryModels).toHaveBeenCalledWith('cherryai-subscription', ['deepseek-free'])
+    expect(mocks.modelCreate).toHaveBeenCalledWith([
+      {
+        dto: {
+          providerId: 'cherryai-subscription',
+          modelId: 'deepseek-free',
+          name: 'DeepSeek Free',
+          group: 'Cherry Cloud',
+          endpointTypes: ['anthropic-messages'],
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192,
+          capabilities: ['function-call', 'reasoning'],
+          supportsStreaming: true
+        }
+      }
+    ])
+  })
+
+  it.each([
+    {
+      failure: 'does not recognize the Cloud SKU',
+      arrange: () =>
+        resolveRegistryModels.mockReturnValue([
+          {
+            id: 'cherryai-subscription::deepseek-free',
+            providerId: 'cherryai-subscription',
+            apiModelId: 'deepseek-free',
+            presetModelId: null,
+            name: 'DeepSeek Free',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          } satisfies Model
+        ])
+    },
+    {
+      failure: 'is unavailable',
+      arrange: () =>
+        resolveRegistryModels.mockImplementation(() => {
+          throw new Error('registry unavailable')
+        })
+    }
+  ])('preserves existing capabilities when the Registry $failure', async ({ arrange }) => {
+    const service = await createSignedInService()
+    mocks.modelList.mockReturnValue([
+      {
+        id: 'cherryai-subscription::deepseek-free',
+        providerId: 'cherryai-subscription',
+        apiModelId: 'deepseek-free',
+        name: 'DeepSeek Free',
+        group: 'Cherry Cloud',
+        endpointTypes: ['anthropic-messages'],
+        contextWindow: 128_000,
+        maxOutputTokens: 8_192,
+        capabilities: ['function-call'],
+        supportsStreaming: true,
+        isEnabled: true
+      }
+    ])
+    arrange()
+    const modelWithoutCapabilities = { ...cloudModelCatalog.data[0], capabilities: undefined }
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        entitlements: [accountSnapshot.entitlements[0]]
+      },
+      { data: [modelWithoutCapabilities] }
+    )
+
+    await expect(service['syncEntitledModels']()).resolves.toEqual({
+      entitledModelIds: ['cherryai-subscription::deepseek-free'],
+      quotaExhaustedModelIds: []
+    })
+    expect(mocks.modelCreate).not.toHaveBeenCalled()
+    expect(mocks.modelBulkUpdate).not.toHaveBeenCalled()
   })
 
   it('rejects model protocols outside the Cherry Cloud contract', async () => {

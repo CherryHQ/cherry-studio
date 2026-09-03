@@ -91,7 +91,7 @@ describe('Cherry Cloud response contracts', () => {
     ).toBe(false)
   })
 
-  it('defaults missing capabilities and ignores unknown capability values', () => {
+  it('preserves missing capabilities for client fallback and ignores unknown capability values', () => {
     const model = {
       id: 'claude-test',
       display_name: 'Claude Test',
@@ -100,7 +100,7 @@ describe('Cherry Cloud response contracts', () => {
       max_output_tokens: 8_192
     }
 
-    expect(cloudModelListSchema.parse({ data: [model] }).data[0].capabilities).toEqual([])
+    expect(cloudModelListSchema.parse({ data: [model] }).data[0].capabilities).toBeUndefined()
     expect(
       cloudModelListSchema.parse({
         data: [{ ...model, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, 'future-capability'] }]

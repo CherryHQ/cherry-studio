@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
@@ -612,13 +613,44 @@ export class CherryCloudService extends BaseService {
       endpoint_type: EndpointType
       context_window: number
       max_output_tokens: number
-      capabilities: ModelCapability[]
+      capabilities?: ModelCapability[]
     }>
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
-    const remoteByModelId = new Map(models.map((model) => [model.id, model]))
-    const missing = models.filter((model) => !currentByModelId.has(model.id))
+    const missingCapabilityModelIds = models
+      .filter((model) => model.capabilities === undefined)
+      .map((model) => model.id)
+    const registryCapabilitiesByModelId = new Map<string, ModelCapability[]>()
+
+    if (missingCapabilityModelIds.length > 0) {
+      try {
+        for (const model of providerRegistryService.resolveModels(
+          CHERRY_CLOUD_PROVIDER_ID,
+          missingCapabilityModelIds
+        )) {
+          if (!model.presetModelId) continue
+          const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+          registryCapabilitiesByModelId.set(modelId, model.capabilities)
+        }
+      } catch (error) {
+        logger.warn('Cherry Cloud registry capability fallback failed', {
+          modelCount: missingCapabilityModelIds.length,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    const reconciledModels = models.map((model) => ({
+      ...model,
+      capabilities:
+        model.capabilities ??
+        registryCapabilitiesByModelId.get(model.id) ??
+        currentByModelId.get(model.id)?.capabilities ??
+        []
+    }))
+    const remoteByModelId = new Map(reconciledModels.map((model) => [model.id, model]))
+    const missing = reconciledModels.filter((model) => !currentByModelId.has(model.id))
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
       const remote = remoteByModelId.get(modelId)

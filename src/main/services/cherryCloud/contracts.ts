@@ -88,10 +88,10 @@ const cloudEndpointTypeSchema = z.enum([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOI
 const KNOWN_MODEL_CAPABILITIES = new Set<string>(objectValues(MODEL_CAPABILITY))
 const cloudModelCapabilitiesSchema = z
   .array(z.string())
-  .default([])
   .transform((capabilities) =>
     capabilities.filter((capability): capability is ModelCapability => KNOWN_MODEL_CAPABILITIES.has(capability))
   )
+  .optional()
 
 export const cloudModelListSchema = z.looseObject({
   data: z.array(
