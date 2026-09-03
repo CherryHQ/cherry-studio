@@ -82,7 +82,7 @@ Two words, deliberately distinct, both declared in `src/shared/data/presets/loca
 so the renderer can speak them too:
 
 - A **capability** is what a feature needs (`ocr`). Features gate on
-  `LocalModelService.isCapabilityReady(capability)` and never name a bundle.
+  `application.get('LocalModelService').isCapabilityReady(capability)` and never name a bundle.
 - A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
   the whole management plane — status, download, cancel, remove and shared status snapshots.
 
