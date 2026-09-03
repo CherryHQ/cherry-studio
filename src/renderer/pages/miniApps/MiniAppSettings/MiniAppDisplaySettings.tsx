@@ -2,6 +2,7 @@ import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Toolti
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { toast } from '@renderer/services/toast'
+import { getAppEdition } from '@renderer/utils/appEdition'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -11,12 +12,13 @@ import { useTranslation } from 'react-i18next'
 const DEFAULT_MAX_KEEPALIVE = 3
 
 /**
- * "Preferences" group of the display-settings drawer: region filter, open-link
- * external switch, and the max keep-alive slider. Every item follows the same
+ * "Preferences" group of the display-settings drawer: global-edition region filter,
+ * open-link external switch, and the max keep-alive slider. Every item follows the same
  * title + description + control structure.
  */
 const MiniAppDisplaySettings: FC = () => {
   const { t } = useTranslation()
+  const appEdition = getAppEdition()
   const [maxKeepAlive, setMaxKeepAlive] = usePreference('feature.mini_app.max_keep_alive')
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [checkUpdatesOnOpen, setCheckUpdatesOnOpen] = usePreference('feature.mini_app.check_updates_on_open')
@@ -57,18 +59,20 @@ const MiniAppDisplaySettings: FC = () => {
     <PageSidePanelSection title={t('settings.miniApps.group.preferences')}>
       {/* Roomier gap between items so each title + description block reads as its own unit. */}
       <div className="flex flex-col gap-5">
-        <PageSidePanelItem
-          title={t('settings.miniApps.region.title')}
-          description={t('settings.miniApps.region.description')}
-          action={
-            <Selector
-              size={14}
-              value={region}
-              onChange={(v: MiniAppRegionFilter) => setRegion(v)}
-              options={regionOptions}
-            />
-          }
-        />
+        {appEdition === 'global' ? (
+          <PageSidePanelItem
+            title={t('settings.miniApps.region.title')}
+            description={t('settings.miniApps.region.description')}
+            action={
+              <Selector
+                size={14}
+                value={region}
+                onChange={(v: MiniAppRegionFilter) => setRegion(v)}
+                options={regionOptions}
+              />
+            }
+          />
+        ) : null}
 
         <PageSidePanelItem
           title={t('settings.miniApps.open_link_external.title')}
