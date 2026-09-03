@@ -53,7 +53,14 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   useEffect(() => {
     const currentHref = router.state.location.href
     if (tab.url !== currentHref) {
-      void router.navigate({ to: tab.url })
+      // Split path and query: a query-bearing href string in `to` loses the
+      // search through validateSearch round-trips (route-dependent), so pass
+      // the parsed query as the structured `search` param instead
+      const [pathname, search] = tab.url.split('?')
+      void router.navigate({
+        to: pathname,
+        search: search ? Object.fromEntries(new URLSearchParams(search)) : undefined
+      })
     }
   }, [router, tab.url])
 

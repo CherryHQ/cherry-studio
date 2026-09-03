@@ -20,6 +20,7 @@ export {
   type FindKeybindingConflictsOptions,
   getCommandAccelerator,
   getCommandDefaultShortcutPreference,
+  isPlatformSupported,
   type KeybindingConflict,
   type KeybindingTriggerSource,
   resolveCommandByKeybinding,
