@@ -3,14 +3,13 @@ import { useCache } from '@data/hooks/useCache'
 import { useDataChange, useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
-import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { getAppEdition } from '@renderer/utils/appEdition'
-import { getSidebarMiniAppFavoriteIds, removeSidebarMiniApp } from '@renderer/utils/sidebar'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -115,12 +114,6 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-
-async function removeMiniAppSidebarFavorite(appId: string) {
-  await preferenceService.update('ui.sidebar.favorites', (favorites) =>
-    getSidebarMiniAppFavoriteIds(favorites).includes(appId) ? removeSidebarMiniApp(favorites, appId) : favorites
-  )
-}
 
 /** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
 function miniAppIdFromTabUrl(url: string): string | null {
@@ -260,6 +253,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const openedOneOffMiniAppRef = useRef(openedOneOffMiniApp)
   openedOneOffMiniAppRef.current = openedOneOffMiniApp
+  const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
   const tabsContextRef = useRef(tabsContext)
   tabsContextRef.current = tabsContext
@@ -409,7 +403,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
-    async (appId: string) => {
+    (appId: string) => {
       // Functional update resolves against the latest list, so the prior
       // `.some(...)` presence guard is redundant: filtering an absent id is a
       // no-op the cache short-circuits via isEqual.
@@ -439,7 +433,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
         }
       }
 
-      await removeMiniAppSidebarFavorite(appId)
+      removeSidebarFavoriteMiniApp(appId)
     },
     [
       setCurrentMiniAppId,
@@ -447,7 +441,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
-      setOpenedOneOffMiniApp
+      setOpenedOneOffMiniApp,
+      removeSidebarFavoriteMiniApp
     ]
   )
 
@@ -491,7 +486,13 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string) => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
-        await cleanupOpenedCustomMiniApp(appId)
+        // The row is already gone; a cleanup failure must not report the
+        // delete itself as failed.
+        try {
+          cleanupOpenedCustomMiniApp(appId)
+        } catch (syncError) {
+          logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
+        }
         return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })

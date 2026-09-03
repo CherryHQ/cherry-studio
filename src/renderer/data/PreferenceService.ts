@@ -49,8 +49,7 @@ export class PreferenceService {
     UnifiedPreferenceKeyType,
     Array<{
       requestId: string
-      resolveValue: (currentValue: any) => any
-      skipIfUnchanged: boolean
+      value: any
       resolve: (value: void | PromiseLike<void>) => void
       reject: (reason?: any) => void
     }>
@@ -156,22 +155,6 @@ export class PreferenceService {
   }
 
   /**
-   * Atomically update a preference from the latest queued value.
-   * @param key The preference key to update
-   * @param updater Function that derives the next value from the current value
-   */
-  public async update<K extends UnifiedPreferenceKeyType>(
-    key: K,
-    updater: (currentValue: UnifiedPreferenceType[K]) => UnifiedPreferenceType[K]
-  ): Promise<void> {
-    await this.get(key)
-    if (!this.isCached(key)) {
-      throw new Error(`Cannot update uncached preference ${key}`)
-    }
-    return this.enqueueRequest(key, this.generateRequestId(), updater, true)
-  }
-
-  /**
    * Optimistic update: Queue request to prevent race conditions
    * Updates UI immediately, then syncs to database with rollback on failure
    * @param key The preference key to update
@@ -183,7 +166,7 @@ export class PreferenceService {
     value: UnifiedPreferenceType[K]
   ): Promise<void> {
     const requestId = this.generateRequestId()
-    return this.enqueueRequest(key, requestId, () => value, false)
+    return this.enqueueRequest(key, requestId, value)
   }
 
   /**
@@ -632,23 +615,17 @@ export class PreferenceService {
    * Add request to queue for a specific key to prevent race conditions
    * @param key The preference key to update
    * @param requestId Unique identifier for this request
-   * @param resolveValue Resolves the value when this request reaches the front of the queue
-   * @param skipIfUnchanged Whether to skip persistence when the resolved value is unchanged
+   * @param value The value to set
    * @returns Promise that resolves when the request is processed
    */
-  private enqueueRequest(
-    key: UnifiedPreferenceKeyType,
-    requestId: string,
-    resolveValue: (currentValue: any) => any,
-    skipIfUnchanged: boolean
-  ): Promise<void> {
+  private enqueueRequest(key: UnifiedPreferenceKeyType, requestId: string, value: any): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (!this.requestQueues.has(key)) {
         this.requestQueues.set(key, [])
       }
 
       const queue = this.requestQueues.get(key)!
-      queue.push({ requestId, resolveValue, skipIfUnchanged, resolve, reject })
+      queue.push({ requestId, value, resolve, reject })
 
       // If this is the first request in queue, process it immediately
       if (queue.length === 1) {
@@ -669,23 +646,8 @@ export class PreferenceService {
     }
 
     const currentRequest = queue[0]
-    let value: any
     try {
-      value = currentRequest.resolveValue(this.cache[key])
-    } catch (error) {
-      currentRequest.reject(error)
-      this.completeQueuedRequest(key)
-      return
-    }
-
-    if (currentRequest.skipIfUnchanged && isEqual(value, this.cache[key])) {
-      currentRequest.resolve()
-      this.completeQueuedRequest(key)
-      return
-    }
-
-    try {
-      await this.executeOptimisticUpdate(key, value, currentRequest.requestId)
+      await this.executeOptimisticUpdate(key, currentRequest.value, currentRequest.requestId)
       currentRequest.resolve()
     } catch (error) {
       currentRequest.reject(error)
