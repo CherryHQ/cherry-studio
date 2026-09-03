@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
@@ -4102,6 +4103,36 @@ describe('AgentComposer', () => {
     )
     expect(mocks.toggleExpanded).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.text).toBe('Existing draft')
+  })
+
+  it('keeps the composer selection after inserting an annotation token', async () => {
+    const token = {
+      id: 'webview-annotation:annotation-1',
+      kind: 'webviewAnnotation' as const,
+      label: 'Fix the button',
+      promptText: 'Review the selected element.'
+    }
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    mocks.insertToken.mockClear()
+    mocks.surfaceFocus.mockClear()
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.INSERT_AGENT_COMPOSER_TOKEN, {
+        topicId: 'agent-session:session-1',
+        token
+      })
+    })
+
+    expect(mocks.insertToken).toHaveBeenCalledWith(token)
+    expect(mocks.surfaceFocus).not.toHaveBeenCalled()
   })
 
   it('opens the agent edit dialog for a session with history', async () => {

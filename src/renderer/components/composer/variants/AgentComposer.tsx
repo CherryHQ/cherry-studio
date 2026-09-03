@@ -944,7 +944,6 @@ const AgentComposerInner = ({
         typeof payload === 'object' && payload ? (payload as { topicId?: string; token?: ComposerDraftToken }) : null
       if (!data?.token || data.topicId !== sessionTopicId) return
       actionsRef.current.insertToken(data.token)
-      actionsRef.current.focus('end')
     })
   }, [actionsRef, sessionTopicId])
 
