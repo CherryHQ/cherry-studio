@@ -5202,6 +5202,7 @@
   "translate.settings.autoCopy": "Çeviriden sonra kopyala ",
   "translate.settings.bidirectional": "Çift Yönlü Çeviri Ayarları",
   "translate.settings.bidirectional_tip": "Etkinleştirildiğinde yalnızca kaynak ve hedef diller arasında çift yönlü çeviri desteklenir",
+  "translate.settings.model_params": "Model parametreleri",
   "translate.settings.model_placeholder": "Çeviri modelini seçin",
   "translate.settings.preview": "Markdown Önizlemesi",
   "translate.settings.scroll_sync": "Kaydırma Eşitleme Ayarları",
