@@ -92,7 +92,7 @@ const YuqueSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.yuque.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-yuque-repo-url" className="scroll-mt-6">
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
         <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
           <Input
@@ -104,7 +104,7 @@ const YuqueSettings: FC = () => {
         </RowFlex>
       </SettingRow>
       <SettingDivider />
-      <SettingRow>
+      <SettingRow id="setting-data-yuque-token" className="scroll-mt-6">
         <SettingRowTitle>
           {t('settings.data.yuque.token')}
           <InfoTooltip
