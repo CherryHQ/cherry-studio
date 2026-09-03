@@ -19,8 +19,25 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PageHeader: ({ className, title }: { className?: string; title: string }) => (
-    <header className={className}>{title}</header>
+  PageHeader: ({ title, action }: { title: string; action?: ReactNode }) => (
+    <header>
+      {title}
+      {action}
+    </header>
+  ),
+  SearchInput: (props: {
+    value: string
+    placeholder?: string
+    onChange: (e: { target: { value: string } }) => void
+    onKeyDown?: (e: { key: string; preventDefault: () => void }) => void
+  }) => (
+    <input
+      data-testid="settings-search-input"
+      value={props.value}
+      placeholder={props.placeholder}
+      onChange={props.onChange}
+      onKeyDown={props.onKeyDown}
+    />
   )
 }))
 
@@ -35,7 +52,9 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
 vi.mock('@tanstack/react-router', () => ({
   Outlet: () => null,
   useLocation: () => ({ pathname: '/settings/provider' }),
-  useNavigate: () => navigateMock
+  useNavigate: () => navigateMock,
+  useRouter: () => ({ history: { canGoBack: () => false, back: vi.fn() } }),
+  useSearch: () => ({})
 }))
 
 vi.mock('react-i18next', () => ({
@@ -74,6 +93,21 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     isMacTransparentWindowMock.mockReturnValue(false)
     navigateMock.mockReset()
+  })
+
+  it('mounts the full-width search field from the header icon only on demand', () => {
+    // Off the search page: no field in the DOM, just the quiet header icon
+    render(<SettingsPage />)
+    expect(screen.queryByTestId('settings-search-input')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.search.placeholder' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.search.placeholder' }))
+    expect(screen.getByTestId('settings-search-input')).toBeInTheDocument()
+
+    // Empty-field Escape reports collapse; the page unmounts the field again
+    fireEvent.keyDown(screen.getByTestId('settings-search-input'), { key: 'Escape' })
+    expect(screen.queryByTestId('settings-search-input')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.search.placeholder' })).toBeInTheDocument()
   })
 
   it('places General directly above Appearance and local models directly below the default model', () => {
