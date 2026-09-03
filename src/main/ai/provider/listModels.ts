@@ -147,7 +147,7 @@ function toModel(apiModelId: string, provider: Provider, extra?: Partial<Model>)
     group: extra?.group || defaultGroup(apiModelId, provider.id),
     ownedBy: extra?.ownedBy,
     description: extra?.description,
-    capabilities: [MODEL_CAPABILITY.TEXT_GENERATION],
+    capabilities: [],
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false,

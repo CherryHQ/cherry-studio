@@ -137,6 +137,19 @@ describe('applyMigrations over a populated database', () => {
       insert.run(`operation-migration::${modelId}`, modelId, null, name, capabilities, 1, `a${index}`, now, now)
     }
     insert.run('operation-migration::preset', 'preset', 'preset', null, null, null, 'a9', now, now)
+    // A preset-backed row's capability list is a delta over the registry, which already states the
+    // model's operation — guessing text generation here turns an image model into a chat model.
+    insert.run(
+      'operation-migration::preset-image',
+      'preset-image',
+      'imagen-4-0-generate-001',
+      null,
+      '["image-recognition"]',
+      null,
+      'b0',
+      now,
+      now
+    )
 
     applyMigrations(db, resolveMigrationsPath())
 
@@ -155,7 +168,8 @@ describe('applyMigrations over a populated database', () => {
       ['speech', ['audio-generation']],
       ['video', ['video-generation']],
       ['multi', ['text-generation', 'embedding']],
-      ['preset', null]
+      ['preset', null],
+      ['preset-image', ['image-recognition']]
     ])
   })
 
