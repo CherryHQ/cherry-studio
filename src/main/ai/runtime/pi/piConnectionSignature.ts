@@ -43,6 +43,7 @@ export interface PiConnectionSnapshot {
   additionalSkillPaths: readonly string[]
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
+  effectiveLanguage: string | null
   signature: string
 }
 
@@ -96,6 +97,7 @@ export async function capturePiConnectionSnapshot(
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
   const gatewayCredentials = usesPiGateway(provider) ? gatewayCredentialsFingerprint() : null
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
   const signature = createHash('sha256')
     .update(
       JSON.stringify(
@@ -113,7 +115,7 @@ export async function capturePiConnectionSnapshot(
           linkedChannel,
           notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          effectiveLanguage: getEffectiveAgentLanguage(agent),
+          effectiveLanguage,
           gatewayCredentials
         })
       )
@@ -126,6 +128,7 @@ export async function capturePiConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
+    effectiveLanguage,
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths

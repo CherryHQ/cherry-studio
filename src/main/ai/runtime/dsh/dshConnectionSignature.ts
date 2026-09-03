@@ -44,6 +44,7 @@ export interface DshConnectionSnapshot {
   /** Entity snapshot per agent MCP id used to construct the host-side in-memory bridge. */
   mcpServerSnapshots: McpServerSnapshotMap
   linkedChannel: NotifyChannel | null
+  effectiveLanguage: string | null
   signature: string
 }
 
@@ -96,6 +97,7 @@ export async function captureDshConnectionSnapshot(
   const apiKeys = providerService.getApiKeys(parsed.providerId, { enabled: true })
   const configuration = { ...agent.configuration, permission_mode: undefined }
   const gatewayCredentials = usesDshGateway(provider, model) ? gatewayCredentialsFingerprint() : null
+  const effectiveLanguage = getEffectiveAgentLanguage(agent)
 
   const signature = createHash('sha256')
     .update(
@@ -114,7 +116,7 @@ export async function captureDshConnectionSnapshot(
           linkedChannel,
           notificationContext,
           knowledgeBaseIds: resolveKnowledgeBaseScope(agent.knowledgeBaseIds, selectedKnowledgeBaseIds),
-          effectiveLanguage: getEffectiveAgentLanguage(agent),
+          effectiveLanguage,
           gatewayCredentials
         })
       )
@@ -127,6 +129,7 @@ export async function captureDshConnectionSnapshot(
     provider,
     model,
     enabledApiKeys: apiKeys,
+    effectiveLanguage,
     additionalSkillPaths: [
       ...enabledSkills.map((skill) => skillService.getSkillDirectory(skill.folderName)),
       ...workspaceSkillPaths
