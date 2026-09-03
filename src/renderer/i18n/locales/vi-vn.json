@@ -579,6 +579,7 @@
   "chat.default.name": "Trợ lý Cherry",
   "chat.default.topic.name": "Chủ đề Mặc định",
   "chat.home.welcome_title": "Hôm nay chúng ta nên nói về điều gì?",
+  "chat.input.ai_disclaimer": "Nội dung do AI tạo, chỉ mang tính tham khảo",
   "chat.input.cancel_editing": "Hủy chỉnh sửa",
   "chat.input.clear.content": "Bạn có muốn xóa tất cả tin nhắn của chủ đề hiện tại không?",
   "chat.input.clear.title": "Xóa tất cả tin nhắn?",

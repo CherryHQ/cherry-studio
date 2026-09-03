@@ -170,8 +170,8 @@
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
-        { "id": "assistants", "type": "app" },
         { "id": "agents", "type": "app" },
+        { "id": "assistants", "type": "app" },
         { "id": "translate", "type": "app" },
         { "id": "paintings", "type": "app" },
         { "id": "knowledge", "type": "app" }

@@ -579,6 +579,7 @@
   "chat.default.name": "Cherry Asistanı",
   "chat.default.topic.name": "Varsayılan Konuşma",
   "chat.home.welcome_title": "Bugün ne hakkında konuşalım?",
+  "chat.input.ai_disclaimer": "Yapay zekâ tarafından oluşturulan içerik yalnızca referans amaçlıdır",
   "chat.input.cancel_editing": "Düzenlemeyi iptal et",
   "chat.input.clear.content": "Geçerli konuşmadaki tüm mesajlar temizlensin mi?",
   "chat.input.clear.title": "Tüm mesajlar temizlensin mi?",

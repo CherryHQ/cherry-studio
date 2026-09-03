@@ -579,6 +579,7 @@
   "chat.default.name": "Cherry 助手",
   "chat.default.topic.name": "默认对话",
   "chat.home.welcome_title": "今天想聊点什么？",
+  "chat.input.ai_disclaimer": "内容由 AI 生成，仅供参考",
   "chat.input.cancel_editing": "取消编辑",
   "chat.input.clear.content": "确定要清除当前对话所有消息吗？",
   "chat.input.clear.title": "清空消息",

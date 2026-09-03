@@ -91,7 +91,7 @@ describe('MiniAppService', () => {
       expect(result.appId).toBe('openai')
       expect(result.presetMiniAppId).toBe('openai')
       expect(result.bordered).toBe(true)
-      expect(result.supportedRegions).toEqual(['CN', 'Global'])
+      expect(result.supportedRegions).toEqual(['Global'])
     })
 
     it('should throw NOT_FOUND for nonexistent appId', async () => {

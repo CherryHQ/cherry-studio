@@ -579,6 +579,7 @@
   "chat.default.name": "Asistent Cherry",
   "chat.default.topic.name": "Subiect implicit",
   "chat.home.welcome_title": "Despre ce să vorbim astăzi?",
+  "chat.input.ai_disclaimer": "Conținut generat de IA, doar pentru referință",
   "chat.input.cancel_editing": "Anulează editarea",
   "chat.input.clear.content": "Vrei să ștergi toate mesajele subiectului curent?",
   "chat.input.clear.title": "Ștergi toate mesajele?",
