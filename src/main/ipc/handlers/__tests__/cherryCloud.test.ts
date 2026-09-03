@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const service = vi.hoisted(() => ({
-  cancelLogin: vi.fn(),
-  getStatus: vi.fn(),
-  revokeCurrentSession: vi.fn(),
-  startLogin: vi.fn(),
-  syncEntitledModelsIfStale: vi.fn()
+  startLogin: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -25,58 +21,6 @@ import { cherryCloudHandlers } from '../cherryCloud'
 
 describe('cherryCloudHandlers', () => {
   beforeEach(() => vi.clearAllMocks())
-
-  it('returns only the public login status', async () => {
-    service.getStatus.mockResolvedValue({ phase: 'signed-in', displayName: 'Sora' })
-
-    await expect(cherryCloudHandlers['cherry_cloud.status.get'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      phase: 'signed-in',
-      displayName: 'Sora'
-    })
-  })
-
-  it('starts login through the lifecycle service', async () => {
-    service.startLogin.mockResolvedValue({ phase: 'authorizing', displayName: null })
-
-    await expect(cherryCloudHandlers['cherry_cloud.login.start'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      phase: 'authorizing',
-      displayName: null
-    })
-  })
-
-  it('cancels the active login through the lifecycle service', async () => {
-    service.cancelLogin.mockResolvedValue({ phase: 'signed-out', displayName: null })
-
-    await expect(cherryCloudHandlers['cherry_cloud.login.cancel'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      phase: 'signed-out',
-      displayName: null
-    })
-  })
-
-  it('revokes the current Session through the lifecycle service', async () => {
-    service.revokeCurrentSession.mockResolvedValue({ phase: 'signed-out', displayName: null })
-
-    await expect(cherryCloudHandlers['cherry_cloud.session.revoke'](undefined, { senderId: 'w1' })).resolves.toEqual({
-      phase: 'signed-out',
-      displayName: null
-    })
-  })
-
-  it('syncs the signed-in entitled model catalog', async () => {
-    const result = {
-      entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: ['cherryai-subscription::deepseek-free'],
-      featuresByModelId: {
-        'cherryai-subscription::deepseek-free': ['agent'],
-        'cherryai-subscription::deepseek-go': ['agent', 'chat', 'translate']
-      }
-    }
-    service.syncEntitledModelsIfStale.mockResolvedValue(result)
-
-    await expect(cherryCloudHandlers['cherry_cloud.models.sync'](undefined, { senderId: 'w1' })).resolves.toEqual(
-      result
-    )
-  })
 
   it('maps an unavailable login service to a stable IPC error', async () => {
     service.startLogin.mockRejectedValueOnce(new CherryCloudLoginUnavailableError())

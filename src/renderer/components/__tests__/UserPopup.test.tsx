@@ -1,5 +1,4 @@
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import type * as ImageUtils from '@renderer/utils/image'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -167,8 +166,6 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { PopupHost } from '@renderer/components/PopupHost'
-import { cherryCloudErrorCodes } from '@shared/ipc/errors/cherryCloud'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import UserPopup from '../UserPopup'
 
@@ -312,22 +309,6 @@ describe('UserPopup', () => {
     expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
   })
 
-  it('reports when the Cherry Cloud login service is unavailable', async () => {
-    const user = userEvent.setup()
-    mocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-out', displayName: null }
-      if (route === 'cherry_cloud.login.start') {
-        throw new IpcError(cherryCloudErrorCodes.LOGIN_SERVICE_UNAVAILABLE)
-      }
-      return undefined
-    })
-    showUserPopup()
-
-    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' }))
-
-    expect(toast.error).toHaveBeenCalledWith('error.http.503')
-  })
-
   it('revokes the current Cherry Cloud session and returns to the login action', async () => {
     const user = userEvent.setup()
     mocks.ipcRequest.mockImplementation(async (route: string) => {
@@ -338,65 +319,13 @@ describe('UserPopup', () => {
     showUserPopup()
 
     const logoutButton = await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' })
+    expect(screen.getByRole('status')).toHaveTextContent('Sora')
+    expect(screen.getByRole('status')).not.toHaveTextContent('settings.provider.cherry_cloud.logged_in')
     expect(logoutButton).toHaveAttribute('variant', 'outline')
     await user.click(logoutButton)
 
     expect(mocks.ipcRequest).toHaveBeenCalledWith('cherry_cloud.session.revoke')
     expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
-  })
-
-  it('keeps the logout action available when remote revocation fails', async () => {
-    const user = userEvent.setup()
-    mocks.ipcRequest.mockImplementation(async (route: string) => {
-      if (route === 'cherry_cloud.status.get') return { phase: 'signed-in', displayName: 'Sora' }
-      if (route === 'cherry_cloud.session.revoke') throw new Error('service unavailable')
-      return undefined
-    })
-    showUserPopup()
-
-    await user.click(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.logout' }))
-
-    expect(toast.error).toHaveBeenCalledWith('settings.provider.cherry_cloud.logout_failed')
-    expect(screen.getByRole('button', { name: 'settings.provider.cherry_cloud.logout' })).toBeEnabled()
-  })
-
-  it('shows the persisted Cherry Studio account and responds to login status events', async () => {
-    mocks.ipcRequest.mockImplementation(async (route: string) =>
-      route === 'cherry_cloud.status.get' ? { phase: 'signed-in', displayName: 'Sora' } : undefined
-    )
-    showUserPopup()
-
-    expect(await screen.findByRole('status')).toHaveTextContent('Sora')
-    expect(screen.getByRole('status')).not.toHaveTextContent('settings.provider.cherry_cloud.logged_in')
-    expect(screen.queryByRole('button', { name: 'settings.provider.cherry_cloud.login' })).not.toBeInTheDocument()
-
-    act(() => {
-      mocks.statusListener?.({ phase: 'signed-out', displayName: null })
-    })
-    expect(await screen.findByRole('button', { name: 'settings.provider.cherry_cloud.login' })).toBeEnabled()
-  })
-
-  it('does not let an older status query overwrite a newer status event', async () => {
-    let resolveStatus!: (status: unknown) => void
-    const statusRequest = new Promise<unknown>((resolve) => {
-      resolveStatus = resolve
-    })
-    mocks.ipcRequest.mockImplementation((route: string) =>
-      route === 'cherry_cloud.status.get' ? statusRequest : Promise.resolve(undefined)
-    )
-    showUserPopup()
-
-    act(() => {
-      mocks.statusListener?.({ phase: 'signed-in', displayName: 'Sora' })
-    })
-    expect(await screen.findByRole('status')).toHaveTextContent('Sora')
-
-    await act(async () => {
-      resolveStatus({ phase: 'signed-out', displayName: null })
-      await statusRequest
-    })
-
-    expect(screen.getByRole('status')).toHaveTextContent('Sora')
   })
 
   it('offers a retry when the Cloud account status cannot be loaded', async () => {

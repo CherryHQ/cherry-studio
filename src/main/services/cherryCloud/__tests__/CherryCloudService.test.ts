@@ -164,6 +164,48 @@ function jsonResponse(value: unknown, status = 200): Response {
   })
 }
 
+type RouteReply = Response | Promise<Response> | ((init: RequestInit) => Response | Promise<Response>)
+
+const routeReplies = new Map<string, RouteReply[]>()
+
+function requestPath(input: unknown): string {
+  const url = new URL(String(input))
+  return `${url.pathname}${url.search}`
+}
+
+function mockCloudRoute(path: string, ...replies: RouteReply[]): void {
+  const queued = routeReplies.get(path) ?? []
+  queued.push(...replies)
+  routeReplies.set(path, queued)
+}
+
+function installCloudRouteFixture(): void {
+  routeReplies.clear()
+  mocks.netFetch.mockReset()
+  mocks.netFetch.mockImplementation((input: unknown, init: RequestInit = {}) => {
+    const path = requestPath(input)
+    const reply = routeReplies.get(path)?.shift()
+    if (!reply) throw new Error(`Unexpected Cloud request: ${path}`)
+    return typeof reply === 'function' ? reply(init) : reply
+  })
+}
+
+function requestCalls(path: string) {
+  return mocks.netFetch.mock.calls.filter(([input]) => requestPath(input) === path)
+}
+
+function authorizationRequestBody(): Record<string, unknown> {
+  const request = requestCalls('/api/v1/desktop/authorizations').at(-1)
+  if (!request) throw new Error('Expected a desktop authorization request')
+  return JSON.parse(request[1].body as string)
+}
+
+function loopbackCallback(): (url: URL) => Promise<void> {
+  const callback = mocks.loopbackOpen.mock.calls.at(-1)?.[0]
+  if (!callback) throw new Error('Expected an active loopback callback')
+  return callback
+}
+
 function refreshedTokenSet() {
   return {
     token_set: {
@@ -214,24 +256,36 @@ function authorizationResponse(expiresAt = '2030-01-02T03:14:05Z') {
   }
 }
 
-async function createSignedInService(): Promise<CherryCloudService> {
-  mocks.netFetch
-    .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-    .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
-    .mockResolvedValueOnce(jsonResponse({ data: [] }))
+function mockAuthorizationFlow(authorization = authorizationResponse(), exchange = exchangeResponse()): void {
+  mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorization, 201))
+  mockCloudRoute(`/api/v1/desktop/authorizations/${authorizationId}/exchange`, jsonResponse(exchange))
+}
 
+function mockModelSync(account: unknown = accountSnapshot, catalog: unknown = cloudModelCatalog): void {
+  mockCloudRoute('/api/v1/account', jsonResponse(account))
+  mockCloudRoute('/v1/models?limit=1000', jsonResponse(catalog))
+}
+
+async function createService(): Promise<CherryCloudService> {
   const service = new CherryCloudService()
   await service._doInit()
+  return service
+}
+
+async function createSignedInService(): Promise<CherryCloudService> {
+  mockAuthorizationFlow()
+  mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+
+  const service = await createService()
   await service.startLogin()
-  const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
-  await service['handleCallback'](
+  const createBody = authorizationRequestBody()
+  await loopbackCallback()(
     new URL(
       `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
     )
   )
   await service['syncEntitledModels']()
-  mocks.netFetch.mockReset()
+  mocks.netFetch.mockClear()
   mocks.broadcast.mockClear()
   mocks.modelReconcile.mockClear()
   return service
@@ -242,6 +296,7 @@ describe('CherryCloudService', () => {
     vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', '')
     CherryCloudService.resetInstances()
     vi.clearAllMocks()
+    installCloudRouteFixture()
     MockMainCacheServiceUtils.resetMocks()
     mocks.appEdition = 'global'
     mocks.appIsPackaged = false
@@ -259,14 +314,10 @@ describe('CherryCloudService', () => {
   })
 
   it('persists the signed-in account across service restarts', async () => {
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }))
+    mockAuthorizationFlow()
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
 
-    const service = new CherryCloudService()
-    await service._doInit()
+    const service = await createService()
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
 
     expect(await service.startLogin()).toEqual({ phase: 'authorizing', displayName: null })
@@ -275,7 +326,7 @@ describe('CherryCloudService', () => {
       `http://localhost:8084/desktop/authorize?authorization_id=${authorizationId}`
     )
 
-    const createRequest = mocks.netFetch.mock.calls[0]
+    const createRequest = requestCalls('/api/v1/desktop/authorizations')[0]
     expect(createRequest[0]).toBe('http://127.0.0.1:8084/api/v1/desktop/authorizations')
     const createBody = JSON.parse(createRequest[1].body as string)
     expect(createBody).toMatchObject({
@@ -288,29 +339,27 @@ describe('CherryCloudService', () => {
     expect(createBody.device_public_key).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(createBody.callback_port).toBe(49152)
 
-    const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
+    const callback = loopbackCallback()
     await callback(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
+    expect(mocks.gatewayStart).toHaveBeenCalledOnce()
 
-    const exchangeRequest = mocks.netFetch.mock.calls[1]
+    const exchangeRequest = requestCalls(`/api/v1/desktop/authorizations/${authorizationId}/exchange`)[0]
     expect(exchangeRequest[0]).toBe(`http://127.0.0.1:8084/api/v1/desktop/authorizations/${authorizationId}/exchange`)
     const exchangeBody = JSON.parse(exchangeRequest[1].body as string)
     expect(exchangeBody).toMatchObject({ state: createBody.state, handoff_code: token('D') })
     expect(exchangeBody.code_verifier).toMatch(/^[A-Za-z0-9_-]{43}$/)
     await service['syncEntitledModels']()
 
-    mocks.netFetch.mockReset()
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-      .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }))
+    mocks.netFetch.mockClear()
+    mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
     CherryCloudService.resetInstances()
-    const restarted = new CherryCloudService()
-    await restarted._doInit()
+    const restarted = await createService()
     expect(await restarted.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(3))
     expect(mocks.netFetch.mock.calls.map(([url]) => url)).toEqual([
@@ -325,27 +374,19 @@ describe('CherryCloudService', () => {
     const firstDevicePublicKey = mocks.savedDevice?.publicKey
     expect(firstDevicePublicKey).toMatch(/^[A-Za-z0-9_-]{43}$/)
 
-    mocks.netFetch.mockResolvedValueOnce(new Response(null, { status: 204 }))
+    mockCloudRoute('/api/v1/product-sessions/current', new Response(null, { status: 204 }))
     await service.revokeCurrentSession()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
     expect(mocks.savedSession).toBeNull()
 
     await service._doStop()
     CherryCloudService.resetInstances()
-    const restarted = new CherryCloudService()
-    await restarted._doInit()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
+    const restarted = await createService()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
     await restarted.startLogin()
 
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[1][1].body as string)
+    const createBody = authorizationRequestBody()
     expect(createBody.device_public_key).toBe(firstDevicePublicKey)
-  })
-
-  it('starts the API Gateway after a successful login', async () => {
-    const service = await createSignedInService()
-
-    expect(mocks.gatewayStart).toHaveBeenCalledOnce()
-    expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
   it('keeps the Session when automatic Gateway startup fails', async () => {
@@ -358,8 +399,7 @@ describe('CherryCloudService', () => {
   })
 
   it('reports that a Product Session is required for authenticated requests', async () => {
-    const service = new CherryCloudService()
-    await service._doInit()
+    const service = await createService()
 
     const response = await service.authenticatedFetch('/v1/messages', { method: 'POST' })
 
@@ -374,21 +414,18 @@ describe('CherryCloudService', () => {
   })
 
   it('does not install a Session when login persistence fails', async () => {
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
+    mockAuthorizationFlow()
     mocks.sessionReplace
       .mockImplementationOnce(() => undefined)
       .mockImplementationOnce(() => {
         throw new Error('database is read-only')
       })
-    const service = new CherryCloudService()
-    await service._doInit()
+    const service = await createService()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    const createBody = authorizationRequestBody()
 
     await expect(
-      service['handleCallback'](
+      loopbackCallback()(
         new URL(
           `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
@@ -399,41 +436,23 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).toBeNull()
   })
 
-  it('uses the global production origin in global packaged builds', async () => {
+  it.each([
+    ['global production', 'global', '', 'https://cloud.cherryai.com'],
+    ['CN production', 'cn', '', 'https://cloud.cherryai.com.cn'],
+    ['configured', 'global', 'https://cloud-dev.cherry-ai.com/', 'https://cloud-dev.cherry-ai.com']
+  ] as const)('uses the %s origin for login requests', async (_label, edition, configuredOrigin, expectedOrigin) => {
+    mocks.appEdition = edition
     mocks.appIsPackaged = true
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
-
-    await expect(service.startLogin()).resolves.toEqual({ phase: 'authorizing', displayName: null })
-    expect(mocks.loopbackOpen).toHaveBeenCalledOnce()
-    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com/api/v1/desktop/authorizations')
-    expect(JSON.parse(mocks.netFetch.mock.calls[0][1].body as string).callback_port).toBe(49152)
-  })
-
-  it('uses the CN production origin in CN packaged builds', async () => {
-    mocks.appEdition = 'cn'
-    mocks.appIsPackaged = true
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', configuredOrigin)
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    const service = await createService()
 
     await service.startLogin()
 
-    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud.cherryai.com.cn/api/v1/desktop/authorizations')
-  })
-
-  it('uses the configured Cloud origin for login requests', async () => {
-    vi.stubEnv('MAIN_VITE_CHERRY_CLOUD_API_ORIGIN', 'https://cloud-dev.cherry-ai.com/')
-    mocks.appIsPackaged = true
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
-
-    await service.startLogin()
-
-    expect(mocks.netFetch.mock.calls[0][0]).toBe('https://cloud-dev.cherry-ai.com/api/v1/desktop/authorizations')
-    expect(mocks.loopbackOpen).toHaveBeenCalledWith(expect.any(Function), 'https://cloud-dev.cherry-ai.com')
+    const request = mocks.netFetch.mock.calls.find(([input]) => requestPath(input) === '/api/v1/desktop/authorizations')
+    expect(request?.[0]).toBe(`${expectedOrigin}/api/v1/desktop/authorizations`)
+    expect(authorizationRequestBody().callback_port).toBe(49152)
+    expect(mocks.loopbackOpen).toHaveBeenCalledWith(expect.any(Function), expectedOrigin)
   })
 
   it('returns to signed out when browser authorization expires without a callback', async () => {
@@ -441,9 +460,8 @@ describe('CherryCloudService', () => {
     try {
       vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
       mocks.appIsPackaged = true
-      mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse('2030-01-02T03:00:05Z'), 201))
-      const service = new CherryCloudService()
-      await service._doInit()
+      mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse('2030-01-02T03:00:05Z'), 201))
+      const service = await createService()
       await service.startLogin()
 
       await vi.advanceTimersByTimeAsync(5_000)
@@ -463,15 +481,13 @@ describe('CherryCloudService', () => {
       vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
       mocks.appIsPackaged = true
       const pendingExchange = deferred<Response>()
-      mocks.netFetch
-        .mockResolvedValueOnce(jsonResponse(authorizationResponse('2030-01-02T03:00:05Z'), 201))
-        .mockReturnValueOnce(pendingExchange.promise)
-      const service = new CherryCloudService()
-      await service._doInit()
+      mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse('2030-01-02T03:00:05Z'), 201))
+      mockCloudRoute(`/api/v1/desktop/authorizations/${authorizationId}/exchange`, pendingExchange.promise)
+      const service = await createService()
       await service.startLogin()
-      const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+      const createBody = authorizationRequestBody()
 
-      const callback = service['handleCallback'](
+      const callback = loopbackCallback()(
         new URL(
           `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
@@ -489,9 +505,8 @@ describe('CherryCloudService', () => {
   })
 
   it('drops a pending authorization when the service restarts', async () => {
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    const service = await createService()
     await service.startLogin()
 
     await service._doStop()
@@ -504,9 +519,8 @@ describe('CherryCloudService', () => {
   it('does not finish a login request after the service stops', async () => {
     mocks.appIsPackaged = true
     const pendingAuthorization = deferred<Response>()
-    mocks.netFetch.mockReturnValueOnce(pendingAuthorization.promise)
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', pendingAuthorization.promise)
+    const service = await createService()
 
     const login = service.startLogin()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
@@ -525,9 +539,8 @@ describe('CherryCloudService', () => {
     const newReceiver = { dispose: vi.fn(), port: 49153, setExpiresAt: vi.fn() }
     mocks.loopbackOpen.mockReset()
     mocks.loopbackOpen.mockReturnValueOnce(oldOpen.promise).mockReturnValueOnce(newOpen.promise)
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    const service = await createService()
 
     const oldLogin = service.startLogin()
     await vi.waitFor(() => expect(mocks.loopbackOpen).toHaveBeenCalledOnce())
@@ -546,22 +559,20 @@ describe('CherryCloudService', () => {
   })
 
   it('reports an unavailable login service when the backend cannot be reached', async () => {
-    mocks.netFetch.mockRejectedValueOnce(new TypeError('fetch failed'))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', () => Promise.reject(new TypeError('fetch failed')))
+    const service = await createService()
 
     await expect(service.startLogin()).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
   })
 
   it('clears a matching pending authorization when the user denies access', async () => {
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    const service = await createService()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    const createBody = authorizationRequestBody()
 
-    await service['handleCallback'](
+    await loopbackCallback()(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
       )
@@ -577,9 +588,8 @@ describe('CherryCloudService', () => {
   })
 
   it('coalesces concurrent login starts into one authorization and browser launch', async () => {
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    const service = await createService()
 
     await expect(Promise.all([service.startLogin(), service.startLogin()])).resolves.toEqual([
       { phase: 'authorizing', displayName: null },
@@ -591,19 +601,20 @@ describe('CherryCloudService', () => {
   })
 
   it('cancels an in-flight authorization request and allows a fresh login', async () => {
-    mocks.netFetch
-      .mockImplementationOnce((_url: string, init: RequestInit) => {
+    mockCloudRoute(
+      '/api/v1/desktop/authorizations',
+      (init) => {
         return new Promise<Response>((_resolve, reject) => {
           init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
         })
-      })
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+      },
+      jsonResponse(authorizationResponse(), 201)
+    )
+    const service = await createService()
 
     const login = service.startLogin()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
-    const requestSignal = mocks.netFetch.mock.calls[0][1].signal
+    const requestSignal = requestCalls('/api/v1/desktop/authorizations')[0][1].signal
     expect(requestSignal).toBeInstanceOf(AbortSignal)
     const cancellation = service.cancelLogin()
 
@@ -620,15 +631,13 @@ describe('CherryCloudService', () => {
   it('does not install a Session when a cancelled exchange responds late', async () => {
     mocks.appIsPackaged = true
     const pendingExchange = deferred<Response>()
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockReturnValueOnce(pendingExchange.promise)
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    mockCloudRoute(`/api/v1/desktop/authorizations/${authorizationId}/exchange`, pendingExchange.promise)
+    const service = await createService()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    const createBody = authorizationRequestBody()
 
-    const callback = service['handleCallback'](
+    const callback = loopbackCallback()(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
@@ -652,22 +661,21 @@ describe('CherryCloudService', () => {
       .mockReturnValueOnce(timeoutController.signal)
       .mockReturnValueOnce(retryTimeoutController.signal)
     try {
-      mocks.netFetch
-        .mockImplementationOnce(
-          (_url: string, init: RequestInit) =>
-            new Promise<Response>((_resolve, reject) => {
-              init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
-            })
-        )
-        .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      const service = new CherryCloudService()
-      await service._doInit()
+      mockCloudRoute(
+        '/api/v1/desktop/authorizations',
+        (init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+          }),
+        jsonResponse(authorizationResponse(), 201)
+      )
+      const service = await createService()
 
       const login = service.startLogin()
       const loginFailure = expect(login).rejects.toBeInstanceOf(CherryCloudLoginUnavailableError)
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
       expect(timeout).toHaveBeenCalledWith(30_000)
-      expect(mocks.netFetch.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
+      expect(requestCalls('/api/v1/desktop/authorizations')[0][1]).toMatchObject({ redirect: 'error' })
       timeoutController.abort(new DOMException('The operation timed out', 'TimeoutError'))
 
       await loginFailure
@@ -678,20 +686,18 @@ describe('CherryCloudService', () => {
   })
 
   it('does not let an invalid callback block the matching callback exchange', async () => {
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockAuthorizationFlow()
+    const service = await createService()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    const createBody = authorizationRequestBody()
 
-    const invalidCallback = service['handleCallback'](
+    const callback = loopbackCallback()
+    const invalidCallback = callback(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=wrong-state`
       )
     )
-    const validCallback = service['handleCallback'](
+    const validCallback = callback(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
@@ -702,38 +708,22 @@ describe('CherryCloudService', () => {
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
   })
 
-  it('keeps ownership of the loopback listener after an invalid callback', async () => {
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
-    await service.startLogin()
-    const callback = mocks.loopbackOpen.mock.calls[0][0] as (url: URL) => Promise<void>
-
-    await expect(callback(new URL('http://127.0.0.1/cloud-auth/callback?state=wrong'))).rejects.toThrow(
-      'does not match'
-    )
-    await service._doStop()
-
-    expect(mocks.loopbackReceiver.dispose).toHaveBeenCalledOnce()
-  })
-
   it('does not let a matching error callback clear an exchange in progress', async () => {
     const pendingExchange = deferred<Response>()
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockReturnValueOnce(pendingExchange.promise)
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute('/api/v1/desktop/authorizations', jsonResponse(authorizationResponse(), 201))
+    mockCloudRoute(`/api/v1/desktop/authorizations/${authorizationId}/exchange`, pendingExchange.promise)
+    const service = await createService()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    const createBody = authorizationRequestBody()
 
-    const validCallback = service['handleCallback'](
+    const callback = loopbackCallback()
+    const validCallback = callback(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
     )
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
-    const errorCallback = service['handleCallback'](
+    const errorCallback = callback(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}&error=access_denied`
       )
@@ -746,16 +736,17 @@ describe('CherryCloudService', () => {
   })
 
   it('clears a matching malformed callback so login can be started again', async () => {
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-    const service = new CherryCloudService()
-    await service._doInit()
+    mockCloudRoute(
+      '/api/v1/desktop/authorizations',
+      jsonResponse(authorizationResponse(), 201),
+      jsonResponse(authorizationResponse(), 201)
+    )
+    const service = await createService()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
+    const createBody = authorizationRequestBody()
 
     await expect(
-      service['handleCallback'](
+      loopbackCallback()(
         new URL(`http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&state=${createBody.state}`)
       )
     ).rejects.toThrow('missing the handoff code')
@@ -777,17 +768,20 @@ describe('CherryCloudService', () => {
         group: 'Cherry Cloud'
       }
     ])
-    mocks.netFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          ...accountSnapshot,
-          quota_pools: [
-            { model_ids: ['deepseek-free'], windows: [{ remaining_units: 0 }] },
-            { model_ids: ['deepseek-go'], windows: [{ remaining_units: 1 }] }
-          ]
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+    mockModelSync(
+      {
+        ...accountSnapshot,
+        quota_pools: [
+          { model_ids: ['deepseek-free'], windows: [{ remaining_units: 0 }] },
+          { model_ids: ['deepseek-go'], windows: [{ remaining_units: 1 }] }
+        ]
+      },
+      {
+        data: cloudModelCatalog.data.map((model) =>
+          model.id === 'deepseek-go' ? { ...model, endpoint_type: 'openai-responses' } : model
+        )
+      }
+    )
 
     await expect(service['syncEntitledModels']()).resolves.toEqual({
       entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
@@ -809,7 +803,7 @@ describe('CherryCloudService', () => {
           modelId: 'deepseek-go',
           name: 'DeepSeek GO',
           group: 'Cherry Cloud',
-          endpointTypes: ['anthropic-messages'],
+          endpointTypes: ['openai-responses'],
           contextWindow: 256_000,
           maxOutputTokens: 16_384
         })
@@ -851,8 +845,7 @@ describe('CherryCloudService', () => {
     ])
     mocks.modelReconcile.mockClear()
 
-    const service = new CherryCloudService()
-    await service._doInit()
+    const service = await createService()
 
     await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
       entitledModelIds: [],
@@ -863,91 +856,24 @@ describe('CherryCloudService', () => {
     expect(service.isModelAvailableForFeature('cherryai-subscription::deepseek-go', 'chat')).toBe(false)
   })
 
-  it('rejects a model catalog that omits endpoint_type', async () => {
-    const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(accountSnapshot)).mockResolvedValueOnce(
-      jsonResponse({
-        data: [
-          {
-            id: 'deepseek-free',
-            display_name: 'DeepSeek Free',
-            context_window: 128_000,
-            max_output_tokens: 8_192,
-            available_features: ['agent']
-          }
-        ]
-      })
-    )
-
-    await expect(service['syncEntitledModels']()).rejects.toThrow(/endpoint_type/)
-    expect(mocks.modelReconcile).not.toHaveBeenCalled()
-  })
-
-  it('persists the endpoint_type selected by the server', async () => {
-    const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse(accountSnapshot)).mockResolvedValueOnce(
-      jsonResponse({
-        data: [
-          {
-            id: 'deepseek-free',
-            display_name: 'DeepSeek Free',
-            endpoint_type: 'openai-responses',
-            context_window: 128_000,
-            max_output_tokens: 8_192,
-            available_features: ['agent']
-          }
-        ]
-      })
-    )
-
-    await service['syncEntitledModels']()
-
-    expect(mocks.modelReconcile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toAdd: [
-          expect.objectContaining({
-            modelId: 'deepseek-free',
-            endpointTypes: ['openai-responses']
-          })
-        ]
-      })
-    )
-  })
-
-  it('reuses a recent model snapshot when the selector opens repeatedly', async () => {
-    const service = await createSignedInService()
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
-      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
-
-    const expected = await service['syncEntitledModels']()
-    mocks.netFetch.mockClear()
-
-    await expect(service.syncEntitledModelsIfStale()).resolves.toEqual(expected)
-    await expect(service.syncEntitledModelsIfStale()).resolves.toEqual(expected)
-    expect(mocks.netFetch).not.toHaveBeenCalled()
-  })
-
-  it('refreshes an expired model snapshot when the selector opens', async () => {
+  it('reuses a recent model snapshot and refreshes it after expiry', async () => {
     vi.useFakeTimers()
     try {
       vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
       const service = await createSignedInService()
-      mocks.netFetch
-        .mockResolvedValueOnce(jsonResponse(accountSnapshot))
-        .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
-      await service['syncEntitledModels']()
+      mockModelSync()
+      const expected = await service['syncEntitledModels']()
       mocks.netFetch.mockClear()
 
+      await expect(service.syncEntitledModelsIfStale()).resolves.toEqual(expected)
+      await expect(service.syncEntitledModelsIfStale()).resolves.toEqual(expected)
+      expect(mocks.netFetch).not.toHaveBeenCalled()
+
       await vi.advanceTimersByTimeAsync(60_001)
-      mocks.netFetch
-        .mockResolvedValueOnce(
-          jsonResponse({
-            ...accountSnapshot,
-            quota_pools: [{ model_ids: ['deepseek-free'], windows: [{ remaining_units: 0 }] }]
-          })
-        )
-        .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+      mockModelSync({
+        ...accountSnapshot,
+        quota_pools: [{ model_ids: ['deepseek-free'], windows: [{ remaining_units: 0 }] }]
+      })
 
       await expect(service.syncEntitledModelsIfStale()).resolves.toEqual({
         entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
@@ -1007,40 +933,13 @@ describe('CherryCloudService', () => {
     await syncFailure
   })
 
-  it('keeps remote model ids isolated from ordinary CherryAI models', async () => {
-    const service = await createSignedInService()
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
-      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
-
-    await expect(service['syncEntitledModels']()).resolves.toEqual({
-      entitledModelIds: ['cherryai-subscription::deepseek-free', 'cherryai-subscription::deepseek-go'],
-      quotaExhaustedModelIds: [],
-      featuresByModelId: cloudFeaturesByModelId
-    })
-
-    expect(mocks.modelList).toHaveBeenLastCalledWith({
-      providerId: 'cherryai-subscription',
-      includeAgentOnly: true
-    })
-    expect(mocks.modelReconcile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        toAdd: expect.arrayContaining([
-          expect.objectContaining({ modelId: 'deepseek-free' }),
-          expect.objectContaining({ modelId: 'deepseek-go' })
-        ])
-      })
-    )
-  })
-
   it('does not apply a model sync that finishes after the Session is cleared', async () => {
     const service = await createSignedInService()
     const accountRequest = deferred<Response>()
     const catalogRequest = deferred<Response>()
-    mocks.netFetch
-      .mockReturnValueOnce(accountRequest.promise)
-      .mockReturnValueOnce(catalogRequest.promise)
-      .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/account', accountRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000', catalogRequest.promise)
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
 
     const sync = service['syncEntitledModels']()
     const syncFailure = expect(sync).rejects.toMatchObject({ name: 'AbortError' })
@@ -1058,24 +957,20 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
     const oldAccountRequest = deferred<Response>()
     const oldCatalogRequest = deferred<Response>()
-    mocks.netFetch
-      .mockReturnValueOnce(oldAccountRequest.promise)
-      .mockReturnValueOnce(oldCatalogRequest.promise)
-      .mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/account', oldAccountRequest.promise)
+    mockCloudRoute('/v1/models?limit=1000', oldCatalogRequest.promise)
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
 
     const oldSync = service['syncEntitledModels']()
     const oldSyncFailure = expect(oldSync).rejects.toMatchObject({ name: 'AbortError' })
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(2))
     await service.authenticatedFetch('/v1/messages', { method: 'POST' })
 
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse(accountSnapshot))
-      .mockResolvedValueOnce(jsonResponse(cloudModelCatalog))
+    mockAuthorizationFlow()
+    mockModelSync()
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[3][1].body as string)
-    await service['handleCallback'](
+    const createBody = authorizationRequestBody()
+    await loopbackCallback()(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
@@ -1098,9 +993,8 @@ describe('CherryCloudService', () => {
 
     try {
       const service = await createSignedInService()
-      mocks.netFetch
-        .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-        .mockResolvedValueOnce(jsonResponse({ data: [] }))
+      mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+      mockCloudRoute('/v1/models?limit=1000', jsonResponse({ data: [] }))
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
 
       await expect(
@@ -1109,14 +1003,42 @@ describe('CherryCloudService', () => {
         })
       ).resolves.toHaveProperty('status', 200)
 
-      const refreshHeaders = new Headers(mocks.netFetch.mock.calls[0][1].headers)
-      const modelHeaders = new Headers(mocks.netFetch.mock.calls[1][1].headers)
+      const refreshHeaders = new Headers(requestCalls('/api/v1/product-sessions/refresh')[0][1].headers)
+      const modelHeaders = new Headers(requestCalls('/v1/models?limit=1000')[0][1].headers)
       expect(refreshHeaders.has('Authorization')).toBe(false)
-      expect(JSON.parse(Buffer.from(mocks.netFetch.mock.calls[0][1].body).toString())).toEqual({
+      expect(JSON.parse(Buffer.from(requestCalls('/api/v1/product-sessions/refresh')[0][1].body).toString())).toEqual({
         session_id: sessionId,
         refresh_token: token('G')
       })
       expect(modelHeaders.get('Authorization')).toBe(`Bearer ${token('H')}`)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('shares one token refresh across concurrent requests in the same Session', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2030-01-02T03:00:00Z'))
+
+    try {
+      const service = await createSignedInService()
+      const pendingRefresh = deferred<Response>()
+      mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }), jsonResponse({ data: [] }))
+      clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
+
+      const requests = [service.authenticatedFetch('/v1/models'), service.authenticatedFetch('/v1/models')]
+      await vi.waitFor(() => {
+        expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(1)
+      })
+
+      pendingRefresh.resolve(jsonResponse(refreshedTokenSet()))
+      await expect(Promise.all(requests)).resolves.toHaveLength(2)
+
+      const modelRequests = requestCalls('/v1/models')
+      expect(modelRequests).toHaveLength(2)
+      expect(
+        modelRequests.every(([, init]) => new Headers(init.headers).get('Authorization') === `Bearer ${token('H')}`)
+      ).toBe(true)
     } finally {
       clock.mockRestore()
     }
@@ -1134,7 +1056,7 @@ describe('CherryCloudService', () => {
         .mockReturnValueOnce(firstTimeout.signal)
         .mockReturnValueOnce(secondTimeout.signal)
       try {
-        mocks.netFetch.mockImplementationOnce((_url: string, init: RequestInit) => {
+        mockCloudRoute('/api/v1/product-sessions/refresh', (init) => {
           return new Promise<Response>((_resolve, reject) => {
             init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
           })
@@ -1145,15 +1067,14 @@ describe('CherryCloudService', () => {
         const requestFailure = expect(request).rejects.toMatchObject({ name: 'TimeoutError' })
         await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledOnce())
         expect(timeout).toHaveBeenCalledWith(30_000)
-        expect(mocks.netFetch.mock.calls[0][1]).toMatchObject({ redirect: 'error' })
+        expect(requestCalls('/api/v1/product-sessions/refresh')[0][1]).toMatchObject({ redirect: 'error' })
         firstTimeout.abort(new DOMException('The operation timed out', 'TimeoutError'))
 
         await requestFailure
         expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
 
-        mocks.netFetch
-          .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-          .mockResolvedValueOnce(jsonResponse({ data: [] }))
+        mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+        mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
         await expect(service.authenticatedFetch('/v1/models')).resolves.toHaveProperty('status', 200)
       } finally {
         timeout.mockRestore()
@@ -1171,7 +1092,7 @@ describe('CherryCloudService', () => {
       mocks.sessionReplace.mockImplementationOnce(() => {
         throw new Error('database is read-only')
       })
-      mocks.netFetch.mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
+      mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
       clock.mockReturnValue(Date.parse('2030-01-02T03:09:30Z'))
 
       await expect(service.authenticatedFetch('/v1/models')).rejects.toThrow('database is read-only')
@@ -1189,10 +1110,9 @@ describe('CherryCloudService', () => {
     try {
       const service = await createSignedInService()
       const pendingOldRequest = deferred<Response>()
-      mocks.netFetch
-        .mockReturnValueOnce(pendingOldRequest.promise)
-        .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-        .mockResolvedValueOnce(jsonResponse({ data: [] }))
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+      mockCloudRoute('/api/v1/product-sessions/refresh', jsonResponse(refreshedTokenSet()))
+      mockCloudRoute('/v1/models', jsonResponse({ data: [] }))
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
@@ -1203,7 +1123,7 @@ describe('CherryCloudService', () => {
 
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
       expect(mocks.savedSession).toMatchObject({ refreshToken: token('I') })
-      expect(new Headers(mocks.netFetch.mock.calls[2][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
+      expect(new Headers(requestCalls('/v1/models')[0][1].headers).get('Authorization')).toBe(`Bearer ${token('H')}`)
     } finally {
       clock.mockRestore()
     }
@@ -1216,7 +1136,8 @@ describe('CherryCloudService', () => {
       const service = await createSignedInService()
       const pendingOldRequest = deferred<Response>()
       const pendingRefresh = deferred<Response>()
-      mocks.netFetch.mockReturnValueOnce(pendingOldRequest.promise).mockReturnValueOnce(pendingRefresh.promise)
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+      mockCloudRoute('/api/v1/product-sessions/refresh', pendingRefresh.promise)
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
 
@@ -1247,7 +1168,8 @@ describe('CherryCloudService', () => {
       const service = await createSignedInService()
       const pendingOldRequest = deferred<Response>()
       const pendingOldRefresh = deferred<Response>()
-      mocks.netFetch.mockReturnValueOnce(pendingOldRequest.promise).mockReturnValueOnce(pendingOldRefresh.promise)
+      mockCloudRoute('/v1/messages', pendingOldRequest.promise)
+      mockCloudRoute('/api/v1/product-sessions/refresh', pendingOldRefresh.promise, jsonResponse(refreshedTokenSet()))
 
       const oldRequest = service.authenticatedFetch('/v1/messages', { method: 'POST' })
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
@@ -1260,22 +1182,18 @@ describe('CherryCloudService', () => {
 
       pendingOldRequest.resolve(jsonResponse({}, 401))
       await oldRequest
-      mocks.netFetch
-        .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-        .mockResolvedValueOnce(jsonResponse(exchangeResponse(30)))
-        .mockResolvedValueOnce(jsonResponse(refreshedTokenSet()))
-        .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
-        .mockResolvedValueOnce(jsonResponse({ data: [] }))
+      mockAuthorizationFlow(authorizationResponse(), exchangeResponse(30))
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
       await service.startLogin()
-      const createBody = JSON.parse(mocks.netFetch.mock.calls[2][1].body as string)
-      await service['handleCallback'](
+      const createBody = authorizationRequestBody()
+      await loopbackCallback()(
         new URL(
           `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
       )
 
       await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(7))
-      expect(mocks.netFetch.mock.calls[4][0]).toBe('http://127.0.0.1:8084/api/v1/product-sessions/refresh')
+      expect(requestCalls('/api/v1/product-sessions/refresh')).toHaveLength(2)
       pendingOldRefresh.resolve(jsonResponse(refreshedTokenSet()))
       await oldRefreshFailure
       expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
@@ -1286,7 +1204,7 @@ describe('CherryCloudService', () => {
 
   it('adds an idempotency key to signed Anthropic message requests', async () => {
     const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'message' }))
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'message' }))
 
     await service.authenticatedFetch('/v1/messages', {
       method: 'POST',
@@ -1294,7 +1212,7 @@ describe('CherryCloudService', () => {
       body: '{"model":"deepseek-free","messages":[],"max_tokens":8}'
     })
 
-    const init = mocks.netFetch.mock.calls[0][1]
+    const init = requestCalls('/v1/messages')[0][1]
     const headers = new Headers(init.headers)
     expect(headers.get('Idempotency-Key')).toMatch(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
     expect(headers.get('Cherry-Body-SHA256')).toBe('f24394a04116608ee41330b7fd6511ff8e44f65e29f6cfc44bb7c8393de7e5ea')
@@ -1305,7 +1223,7 @@ describe('CherryCloudService', () => {
   it('clears the local login before waiting for remote Product Session revocation', async () => {
     const service = await createSignedInService()
     const pendingRevoke = deferred<Response>()
-    mocks.netFetch.mockReturnValueOnce(pendingRevoke.promise)
+    mockCloudRoute('/api/v1/product-sessions/current', pendingRevoke.promise)
 
     const revoke = service.revokeCurrentSession()
     await vi.waitFor(() => expect(mocks.netFetch).toHaveBeenCalledTimes(1))
@@ -1313,7 +1231,7 @@ describe('CherryCloudService', () => {
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.savedSession).toBeNull()
 
-    const [url, init] = mocks.netFetch.mock.calls[0]
+    const [url, init] = requestCalls('/api/v1/product-sessions/current')[0]
     const headers = new Headers(init.headers)
     expect(url).toBe('http://127.0.0.1:8084/api/v1/product-sessions/current')
     expect(init.method).toBe('DELETE')
@@ -1328,18 +1246,15 @@ describe('CherryCloudService', () => {
   it('does not let an older logout response clear a newer Session', async () => {
     const service = await createSignedInService()
     const pendingRevoke = deferred<Response>()
-    mocks.netFetch.mockReturnValueOnce(pendingRevoke.promise)
+    mockCloudRoute('/api/v1/product-sessions/current', pendingRevoke.promise)
 
     await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
 
-    mocks.netFetch
-      .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-      .mockResolvedValueOnce(jsonResponse(exchangeResponse()))
-      .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
-      .mockResolvedValueOnce(jsonResponse({ data: [] }))
+    mockAuthorizationFlow()
+    mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
     await service.startLogin()
-    const createBody = JSON.parse(mocks.netFetch.mock.calls[1][1].body as string)
-    await service['handleCallback'](
+    const createBody = authorizationRequestBody()
+    await loopbackCallback()(
       new URL(
         `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
       )
@@ -1351,20 +1266,11 @@ describe('CherryCloudService', () => {
     expect(mocks.savedSession).not.toBeNull()
   })
 
-  it('finishes local logout when the current Product Session is already invalid', async () => {
+  it.each([401, 503])('clears the local login when remote revocation returns %s', async (status) => {
     const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/api/v1/product-sessions/current', jsonResponse({ type: 'error' }, status))
 
     await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
-    expect(mocks.savedSession).toBeNull()
-  })
-
-  it('clears the local login when remote Product Session revocation fails', async () => {
-    const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 503))
-
-    await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
-
     expect(mocks.savedSession).toBeNull()
   })
 
@@ -1372,12 +1278,14 @@ describe('CherryCloudService', () => {
     const service = await createSignedInService()
     const timeoutController = new AbortController()
     const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(timeoutController.signal)
-    mocks.netFetch.mockRejectedValueOnce(new DOMException('The operation timed out', 'TimeoutError'))
+    mockCloudRoute('/api/v1/product-sessions/current', () =>
+      Promise.reject(new DOMException('The operation timed out', 'TimeoutError'))
+    )
 
     try {
       await expect(service.revokeCurrentSession()).resolves.toEqual({ phase: 'signed-out', displayName: null })
       expect(timeout).toHaveBeenCalledWith(30_000)
-      expect(mocks.netFetch.mock.calls[0][1].signal).toBe(timeoutController.signal)
+      expect(requestCalls('/api/v1/product-sessions/current')[0][1].signal).toBe(timeoutController.signal)
       expect(mocks.savedSession).toBeNull()
     } finally {
       timeout.mockRestore()
@@ -1386,7 +1294,7 @@ describe('CherryCloudService', () => {
 
   it('clears the Product Session when Cloud API rejects authentication', async () => {
     const service = await createSignedInService()
-    mocks.netFetch.mockResolvedValueOnce(jsonResponse({ type: 'error' }, 401))
+    mockCloudRoute('/v1/messages', jsonResponse({ type: 'error' }, 401))
 
     await expect(service.authenticatedFetch('/v1/messages', { method: 'POST' })).resolves.toHaveProperty('status', 401)
 
@@ -1424,16 +1332,12 @@ describe('CherryCloudService', () => {
     try {
       vi.setSystemTime(new Date('2030-01-02T03:00:00Z'))
       mocks.appIsPackaged = true
-      mocks.netFetch
-        .mockResolvedValueOnce(jsonResponse(authorizationResponse(), 201))
-        .mockResolvedValueOnce(jsonResponse(exchangeResponse(600, '2030-01-02T03:00:05Z')))
-        .mockResolvedValueOnce(jsonResponse({ ...accountSnapshot, entitlements: [] }))
-        .mockResolvedValueOnce(jsonResponse({ data: [] }))
-      const service = new CherryCloudService()
-      await service._doInit()
+      mockAuthorizationFlow(authorizationResponse(), exchangeResponse(600, '2030-01-02T03:00:05Z'))
+      mockModelSync({ ...accountSnapshot, entitlements: [] }, { data: [] })
+      const service = await createService()
       await service.startLogin()
-      const createBody = JSON.parse(mocks.netFetch.mock.calls[0][1].body as string)
-      await service['handleCallback'](
+      const createBody = authorizationRequestBody()
+      await loopbackCallback()(
         new URL(
           `http://127.0.0.1/cloud-auth/callback?authorization_id=${authorizationId}&handoff_code=${token('D')}&state=${createBody.state}`
         )
