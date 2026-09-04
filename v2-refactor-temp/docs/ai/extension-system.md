@@ -317,7 +317,7 @@ export interface ProviderHooks {
 
 三条规则：
 
-- 入参只有纯数据和四个宿主能力函数（`fetch` / `openExternal` / `awaitLoopbackCallback` / `openAuthWindow`）。这四个都是"宿主做事、扩展等结果"的形状，在 §5 的 C / G / F 里都能桥接。
+- 入参只有纯数据和四个宿主能力函数（`fetch` / `openExternal` / `awaitLoopbackCallback` / `openAuthWindow`）。这四个都是"宿主做事、扩展等结果"的形状，在 §5 的 C / F 里都能桥接。
 - `listModels` 是三级递进的最后一级：`models[]` 静态清单 → `modelsApiUrls` 走宿主默认 fetcher → `listModels` 钩子。今天 15 个 fetcher 里 14 个的差异都能在钩子里 20 行内表达，因为返回类型是 registry schema 而不是各自的 `Partial<Model>`。
 - `acquireCredential` 返回结构化 `Credential`，宿主按 `type` 落到 `apiKeys[]` 或 `authConfig`，并统一处理 `isEnabled` 翻转与 OAuth runtime 的 token store——PR #19882 的 IpcApi 路由和渲染层 launcher 表退化为一条通用的 `provider.acquire_credential { providerId }`。
 - 与 opencode v2 的 integration 域（§7.2）同构但更收口：他们的 `authorize()` 返回 `{ url, callback }` 让插件自己收回调；我们把回环服务器和授权窗口做成宿主能力，扩展只描述流程。授权前需要用户输入的东西（region / resourceName 之类）走 §4.3 的 `configuration` 声明字段，不另设 `prompts`。
@@ -432,13 +432,13 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 | **C. `utilityProcess`** | 反向 RPC：扩展 `fetch` 等四个宿主能力 → MessagePort → 宿主执行 | §4.5 的 `ChatStreamPart` 全是纯对象，可搬（`signal` 换 id、`Uint8Array` 走 transfer） | 强 | **无** | ~1200 行 | `workerProxy.ts` 注释已预留入口。它是一个**带完整 Node 的子进程**，没有 `sandbox` 开关；`fs` / `child_process` / 原生模块一个不少 |
 | D. 子进程 + JSON-RPC（MCP 式） | 同 C | 同 C，自定义协议 | 强 | 无（除非再叠 OS 级沙箱） | ~1500 行 | 唯一优势是非 JS 扩展；本体系不需要 |
 | E. WASM | 宿主提供 | 要 | 强 | **强** | 大 | AI SDK 包编译不进 WASM；Zed 走这条是因为扩展面窄且是 Rust |
-| F. JS 引擎沙箱（QuickJS / `isolated-vm`） | 宿主注入 | 要 | 中（可中断、可限内存，但与宿主同进程） | **强**（引擎里根本没有 Node 内建，能力全靠宿主注入） | 中 | Figma 插件走的就是 QuickJS |
-| **G. 隐藏渲染进程（`sandbox: true`）** | 同 C：`fetch` 是宿主能力，由宿主执行（顺带绕开 CORS） | 同 C（MessagePort） | 强 | **强**：Chromium 的 OS 级沙箱（seatbelt / AppContainer）+ 无 Node + `contextIsolation`；`network` 白名单可落成 CSP `connect-src` 强制 | ~1200 行 | **仓库里已有这个形态**：mini app 就是沙箱 webview + `window.cherry` 桥（§1.1）。V8 原生速度、web API 齐全（`fetch` / WebCrypto / streams），代价是多一个隐藏窗口 |
+| **F. C + 嵌入式 JS 引擎（QuickJS）** | 宿主注入 | 同 C | 强（外层还是 `utilityProcess`） | **强**（引擎里根本没有 Node 内建，能力全靠宿主注入） | C + ~600 行 | Figma 插件走的就是 QuickJS。性能远低于 V8，npm 生态受限 |
+| ~~G. 隐藏渲染进程（`sandbox: true`）~~ | 同 C | 同 C | 强 | 强（Chromium OS 级沙箱） | ~1200 行 | **否决**：provider 扩展是后端能力，拿 UI 构件当计算宿主要背窗口生命周期、后台节流、以及 Blink 的 2GB 内存分区（#18435 的崩溃类）。理由见 §5.1 |
 
-**决定：v1 用 A，API 按"跨进程可搬"设计（C / G / F 通用）；真沙箱选 G；索引的前置条件是来源可信，不是任何一种隔离。**
+**决定：v1 用 A，API 按"跨进程可搬"设计（C / F 通用）；真沙箱选 F；索引的前置条件是来源可信，不是任何一种隔离。**
 
 - 选 A：目标是最简实现；provider 的工作就是发 HTTP，宿主网络策略全收敛在 `customFetch`，进程内注入零成本。
-- 按跨进程设计：§4.4 / §4.5 的入参除四个宿主能力函数（`fetch` / `openExternal` / `awaitLoopbackCallback` / `openAuthWindow`）外全是纯数据，出参（`Credential` / `ProviderModelOverride[]` / `ChatStreamPart` 流）全是纯对象。换成 C / G / F 时扩展代码零改动，宿主把 `extensionAdapter.ts` 的输入端从"进程内对象"换成"MessagePort 代理"。§4.0 排除服务端工具正是为了不在 API 里放函数值。
+- 按跨进程设计：§4.4 / §4.5 的入参除四个宿主能力函数（`fetch` / `openExternal` / `awaitLoopbackCallback` / `openAuthWindow`）外全是纯数据，出参（`Credential` / `ProviderModelOverride[]` / `ChatStreamPart` 流）全是纯对象。换成 C / F 时扩展代码零改动，宿主把 `extensionAdapter.ts` 的输入端从"进程内对象"换成"MessagePort 代理"。§4.0 排除服务端工具正是为了不在 API 里放函数值。
 
 **"零改动"不是自动成立的，它由下面这条线上契约保证**（现在就写进类型，否则 P3 会发现 API 里躺着搬不动的值）：
 
@@ -449,7 +449,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 | `fetch` | 请求/响应 + 响应体分块推流；扩展侧是一个真的 `fetch` 实现（签名不变） | 支持的子集：`input` 为 URL 字符串、`init` 为普通对象（`method` / `headers` / `body: string \| Uint8Array \| URLSearchParams` / `signal`），响应以 `{ status, headers, body: 分块 Uint8Array }` 回传后在扩展侧重建 `Response`。**不支持** `Request` 对象入参、请求体流式上传（`duplex: 'half'`）、`fetch` 上的自定义 agent |
 | 钩子返回值 / `ChatStreamPart` | 一次响应或一条流通道 | 全是纯对象；`Uint8Array` 走 transfer；`AbortSignal` 换 id，宿主侧 abort 转成通道消息 |
 
-这四条在 v1（方案 A，进程内）下同样成立——A 只是把桥换成直接调用。谁写了一个 `Request` 入参的 fetch 调用，A 下能跑、C / G 下崩，所以子集从第一天就是 SDK 类型的一部分，而不是 P3 的迁移说明。
+这四条在 v1（方案 A，进程内）下同样成立——A 只是把桥换成直接调用。谁写了一个 `Request` 入参的 fetch 调用，A 下能跑、C 下崩，所以子集从第一天就是 SDK 类型的一部分，而不是 P3 的迁移说明。
 - A 的边界：只覆盖用户自选文件 / URL 安装。
 - A 的纪律：只加载 `feature.extension.packages` 下用户显式安装的目录；同意卡写明"含代码，以应用权限运行"；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
 - 加载：`import(pathToFileURL(main).href)`；`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联，宿主**不**给扩展解析自己的 `node_modules`——版本由宿主决定的依赖就是隐式 API。扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
@@ -466,19 +466,19 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 **开索引/市场时，门槛不是隔离方案，是来源可信。** 理由在仓库里已经有先例：`ProviderRegistryUpdaterService` 明写"provider 路由保持内置，因为未签名的数据绝不能决定凭证去向"——而扩展的 manifest 恰恰就在决定 endpoint，即 API key 发去哪。这意味着**即使是纯数据扩展（无 `main`）也不能随便从网上装**。所以索引阶段要补的是签名、审核与吊销名单，不是"上了 utilityProcess 就能开市场"。C 值得做，但它的理由是稳定性，不是安全。
 
-**后续要换的"更安全的隔离方案"是 G，不是 C。** Electron 里唯一现成的真沙箱是**渲染进程**：`sandbox: true` + `nodeIntegration: false` + `contextIsolation: true` 的窗口跑在 Chromium 的 OS 级沙箱里（macOS seatbelt / Windows AppContainer），页面拿不到任何 Node 内建，能力只能从 preload 经 MessagePort 要。所以做法是开一个隐藏窗口装扩展代码，宿主能力仍是 §5 那四个。
+**选沙箱方案前先认清 provider 扩展是什么：一个后端能力。** 无 UI、随 app 常驻、按请求跑、要长时间搬运流式响应。所以候选运行时只能在"后端"这一侧挑——main、`utilityProcess`、或嵌进去的 JS 引擎。
 
-这条路对我们成本很低，有三个现成条件：
+**因此 G（隐藏渲染进程 + `sandbox: true`）被否掉**，尽管它是 Electron 里唯一现成的 OS 级沙箱，也尽管 mini app 已经在用这个形态。理由是 mini app 的先例迁不过来——**mini app 本来就是 UI**（一个网页），而 provider 扩展不是；拿窗口当计算宿主要背三笔与沙箱无关的账：
 
-- **仓库里已经有一份**。mini app 就是"沙箱 webview + `window.cherry` 桥"（§1.1），连同意/安装管线都是同一套（§3.2）。
-- **API 形状早就适配**。§4.4 / §4.5 是"纯数据进出 + 四个宿主能力"，扩展本来就不需要 `fs` / `child_process`。
-- **`fetch` 由宿主执行，所以没有 CORS 问题**。渲染进程里直接发跨域请求会被 CORS 卡住（provider 的 API 不会给我们发 CORS 头），但我们的 `fetch` 从第一天就是宿主能力，请求实际在主进程发出——沙箱化时这一条不用改。
+- **窗口生命周期**。仓库规定所有 `BrowserWindow` 走 `WindowManager` 并在 `windowRegistry` 声明模式，于是一个后端服务的运行时变成了窗口注册表里的一项，启停顺序、pooled/singleton 语义、`onWindowCreated` 全要跟着走一遍。
+- **后台节流**。隐藏/被遮挡的渲染进程会被 Chromium 降优先级并节流定时器，得靠 `backgroundThrottling: false` 关掉——一个必须记住否则会偶发慢的坑。
+- **Blink 的内存天花板**。这条最硬：#18435 已经实锤，流式响应在渲染进程里累积会打爆 Blink 的 PartitionAlloc 分区（约 2GB，144 秒可复现崩溃）。provider 的流式路径正是那条路径，把它塞回渲染进程等于把一个已经查清的崩溃类请回来。Node 侧没有这个分区限制。
 
-顺带解锁的东西：manifest 的 `network` 白名单可以落成页面 CSP 的 `connect-src`，从"同意卡上的一句披露"变成真正的强制；扩展代码是 V8 原生速度，不像 F 那样掉性能。代价：多一个隐藏窗口的内存、扩展交付物要能在页面里 `<script type="module">` 加载（`cherry-ext build` 已经是单文件 ESM，正好）。
+**所以真沙箱只有 F：把扩展代码放进嵌入式 JS 引擎（QuickJS，`quickjs-emscripten`），引擎跑在 `utilityProcess` 里。** 引擎里没有 `fs` / `child_process` / 裸 `fetch`，能力全部由宿主注入——这正是 §4.4 / §4.5 已经写好的四个。外层的 `utilityProcess` 负责崩溃与内存边界，内层的引擎负责权限，两件事各归各。已知代价：性能远低于 V8（provider 的活是 I/O 密集，解析 SSE 分块够用，但 L2 里做重计算的扩展不适合）；PKCE 要的 SHA-256 / 随机数得宿主注入；npm 生态里依赖 Node 内建的包全部不可用。`isolated-vm` 不选——原生插件，每次 Electron 升级都要跟着重编（`better-sqlite3` 的 ABI 问题已经够烦了）。
 
-F（QuickJS，Figma 插件的做法）留作没有窗口可用时的退路：它不依赖 Electron 的窗口模型，但性能远低于 V8，PKCE 要的 SHA-256 / 随机数得宿主注入，npm 生态里依赖 Node 内建的包全部不可用。`isolated-vm` 不选——原生插件，每次 Electron 升级都要跟着重编（`better-sqlite3` 的 ABI 问题已经够烦了）。
+Figma 的插件走的就是 QuickJS，而且它的分工和我们一样：计算在引擎里、UI 在别处。VS Code 的 web extension（Web Worker，无 Node）是同一个思路的另一种壳。
 
-便宜的中间加固（可选，未验证）：如果 C 先于 G 落地，给 `utilityProcess` 的 `execArgv` 加 Node 权限模型开关（`--permission --allow-fs-read=<扩展目录>`，不给 `--allow-child-process` / `--allow-addons`）。**需要先验证 Electron 是否透传这些标志**；即便可行，Node 的权限模型也不管网络，挡的是文件与起进程，属于 defense-in-depth，仍然不是沙箱。
+便宜的中间加固（可选，未验证）：如果 C 先于 F 落地，给 `utilityProcess` 的 `execArgv` 加 Node 权限模型开关（`--permission --allow-fs-read=<扩展目录>`，不给 `--allow-child-process` / `--allow-addons`）。**需要先验证 Electron 是否透传这些标志**；即便可行，Node 的权限模型也不管网络，挡的是文件与起进程，属于 defense-in-depth，仍然不是沙箱。
 
 宿主服务：`ExtensionHostService`（`BaseService`，WhenReady，放 `src/main/services/extension/`——业务无关但可移除，按 main-process 架构文档的规则归 `services/` 而不是 `core/`；贡献点实现各自留在子系统目录）。职责：扫目录（跳过 `isEnabled = false` 的）→ 校验信封 → `import(main)` → 按 kind 分发 → 持有注销函数。**分发在 P0/P1 是一个写死的 `if (kind === 'providers')` 直调**，§3.1 的 `ContributionPoint` 接口到 P2 第二个 kind 落地时才存在；本文其余地方说"调各 kind 的 register / 注销函数"指的是这个能力，不是说接口那天就在。IpcApi：`extension.list` / `extension.preview` / `extension.confirm` / `extension.set_enabled` / `extension.remove`（与 mini app 的路由形状一致）。
 
@@ -612,8 +612,8 @@ F（QuickJS，Figma 插件的做法）留作没有窗口可用时的退路：它
 | P0-b | SDK 包（类型 + `defineExtension` + `cherry-ext build`）+ `ExtensionManifestSchema` + `ExtensionHostService` + extension 安装流程（§3.3 第 3 步）+ `providers` L0（§4.7 第 1、2、7、8 项）；本文迁到 `docs/references/ai/` | 一个纯数据扩展装上后，设置页出现该 provider，聊天与 pi/dsh 都带上 manifest headers；`pnpm docs:check` 过 |
 | P1 | L1 钩子 `listModels` / `acquireCredential` + L2 `imageModel` adapter（§4.7 第 3–6 项） | **TokenDance 作为扩展包通过**；PPIO 搬出主仓库 |
 | P2 | `configuration` 声明式表单 + `refreshCredential` / `transformRequest`；第二个 kind（建议 `webSearchProviders`），此时抽出 `ContributionPoint` 接口 | Bedrock 的 IAM 表单由声明式字段渲染；两个 kind 共用一套安装/启停/卸载 |
-| P3 | 沙箱 runtime（§5.1 方案 G：隐藏渲染进程 + `sandbox: true`），provider kind 的远程 shim；`network` 落成 CSP | 同一个 TokenDance / PPIO 包在 A/G 下都通过，扩展代码零改动 |
-| P4 | 索引 + 签名 + 审核 + 吊销名单 + 一键安装 | 未签名的包装不上；吊销名单命中的包禁用；索引安装的扩展只在 G 下运行 |
+| P3 | `utilityProcess` runtime（§5 方案 C）+ provider kind 的远程 shim；开市场的话再叠 QuickJS（方案 F） | 同一个 TokenDance / PPIO 包在 A/C 下都通过，扩展代码零改动 |
+| P4 | 索引 + 签名 + 审核 + 吊销名单 + 一键安装 | 未签名的包装不上；吊销名单命中的包禁用；索引安装的扩展只在沙箱（F）下运行 |
 | 之后 | `channels`（已是自注册工厂表，最顺手）→ `fileProcessors` → `agentRuntimes`（描述符 + driver 两半都要贡献，最重） | 各自子系统的合同测试 |
 
 P3 排在 P4 前是硬约束，不是偏好。P2 之前不抽 `ContributionPoint` 接口是纪律，不是遗漏。P0–P2 只有"用户自选安装 + 同意卡 + 安装扫描"这一层门（§5.1），这是明知的取舍，不是待补的 TODO。
@@ -632,7 +632,8 @@ P3 排在 P4 前是硬约束，不是偏好。P2 之前不抽 `ContributionPoint
 | 2026-09-03 | Runtime v1 进程内 `import()`，仅用于用户自选文件/URL 安装 | 最简实现；用户亲手装的模型与 opencode / n8n / Obsidian 一致（§5） | 已定 |
 | 2026-09-04 | ~~`utilityProcess` 隔离是分发索引的前置条件~~ → **推翻**：C 只提供崩溃隔离，索引的前置条件是签名 + 审核 + 吊销 | 评审（@苏垚）：`utilityProcess` 是全权限 Node 子进程，没有 sandbox 开关，L1/L2 代码照样能读文件、起进程；原规则把崩溃隔离当成了安全门（§5.1） | 已定 |
 | 2026-09-04 | v1 不做市场，只装用户自选、我们自己维护的扩展；同意卡明写"与 app 同权"，安装时静态 + agent 扫描一次，结论摆给用户看 | 用户拍板；在"用户亲手装"的前提下这个风险与双击运行一个 exe 同级。扫描定位为抬门槛，不写成安全保证（§5.1） | 已定 |
-| 2026-09-04 | 真沙箱路线选 G（隐藏渲染进程 + `sandbox: true`）而不是 C/F，做不做取决于要不要开市场 | Electron 里唯一现成的 OS 级沙箱；mini app 已是同一形态，`fetch` 本来就由宿主执行所以没有 CORS 问题，`network` 还能落成 CSP。F（QuickJS）留作退路，`isolated-vm` 因原生 ABI 排除（§5.1） | 待定 |
+| 2026-09-04 | 真沙箱路线选 F（`utilityProcess` + QuickJS），做不做取决于要不要开市场 | provider 扩展是后端能力：无 UI、常驻、流式。外层进程管崩溃、内层引擎管权限。`isolated-vm` 因原生 ABI 排除（§5.1） | 待定 |
+| 2026-09-04 | 否决 G（隐藏渲染进程 + `sandbox: true`），尽管它是 Electron 里唯一现成的 OS 级沙箱 | 用户指出这是后端能力，mini app 的先例迁不过来（mini app 本身就是 UI）：要背窗口生命周期与 `WindowManager` 规则、后台节流，且 #18435 已证明流式累积会打爆 Blink 的 PartitionAlloc 分区（§5.1） | 已定 |
 | 2026-09-03 | **复用 mini app 安装代码的实现**，通用部分抽到 `services/packageInstall/`，信封抽到 `shared/types/packageManifest.ts`；DB 提交、grants、更新行操作各写各的 | 用户拍板；逐文件切分见 §3.2，抽取是行为保持的 P0-a PR，8 个 mini app 安装测试不改全绿（§3.3） | 已定 |
 | 2026-09-03 | 升级采用 generation 语义，但按 id 索引的 kind 是"校验后原地换"：`unregister(old)` → `register(new)`，失败重新 `register(old)` | opencode v2 `PluginSupervisor`（§7.2）；`ExtensionRegistry.register` 对同名幂等跳过，两代不可能共存（§3.2） | 已定 |
 | 2026-09-04 | 卸载时把 preset 连接事实固化进 `user_provider` 行并清空 `presetProviderId`，行降级为自定义 provider | 评审；preset 解析不到并不会隐藏行（`getProviderDisplayMetadata` 返回 `{}`），且 `delete()` 会拒删预置行，用户会得到一个删不掉的死行（§3.2） | 已定 |
