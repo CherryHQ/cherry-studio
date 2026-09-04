@@ -44,6 +44,8 @@ Runs health checks in main and publishes progress + the final report on the shar
      fixes: {}                                                  // one handler per declared fix
    })
    ```
+   `ctx.share(key, factory)` memoizes a probe for the current run, so checks in different layers (all the
+   network checks, for instance) reuse one pass instead of probing again.
 3. **Registry** — add the line in `registry.ts`. Until you do, the build fails.
 
 Reference implementations: `checks/config.ts` (a check with a fix) and `checks/storage.ts` (a silent-fallback
