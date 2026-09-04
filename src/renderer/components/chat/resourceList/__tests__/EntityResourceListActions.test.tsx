@@ -851,6 +851,36 @@ describe('classic layout entity resource list actions', () => {
     expect(within(unlinkedAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
   })
 
+  it('does not create an ownerless Topic when the unlinked Assistant has no retained Topic', async () => {
+    const user = userEvent.setup()
+    assistantDataMocks.topics = [
+      { id: 'topic-unlinked', name: 'Unlinked topic' },
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
+    ]
+    const loadLatestTopic = vi.fn().mockResolvedValue(null)
+    const onCreateTopic = vi.fn().mockResolvedValue(null)
+    const onSelectTopic = vi.fn()
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        assistantTopicsSource={createAssistantTopicsSource({ loadLatestTopic })}
+        onSelectTopic={onSelectTopic}
+        onCreateTopic={onCreateTopic}
+      />
+    )
+
+    await user.click(
+      within(screen.getByRole('region', { name: 'chat.topics.group.unknown_assistant' })).getByRole('button', {
+        name: 'Select chat.topics.group.unknown_assistant'
+      })
+    )
+
+    await waitFor(() => expect(loadLatestTopic).toHaveBeenCalledExactlyOnceWith(null))
+    expect(onCreateTopic).not.toHaveBeenCalled()
+    expect(onSelectTopic).not.toHaveBeenCalled()
+  })
+
   it('groups dangling assistant topics under the unlinked assistant entry in the classic rail', () => {
     assistantDataMocks.topics = [
       { id: 'topic-unlinked', assistantId: 'missing-assistant', name: 'Unlinked topic' },

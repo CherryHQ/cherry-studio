@@ -160,7 +160,10 @@ export function AssistantResourceList({
   }, [topics])
 
   const createTopicForAssistant = useCallback(
-    (assistantId: string) => onCreateTopic(assistantId === UNLINKED_ASSISTANT_ENTITY_ID ? null : assistantId),
+    (assistantId: string) => {
+      if (assistantId === UNLINKED_ASSISTANT_ENTITY_ID) return Promise.resolve(null)
+      return onCreateTopic(assistantId)
+    },
     [onCreateTopic]
   )
   const handleActivationError = useCallback(
