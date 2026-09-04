@@ -440,6 +440,7 @@ const AgentChat = ({
       <AgentChatNavbar
         className="min-w-0"
         activeAgent={activeAgent ?? null}
+        conversationTitle={sessionSnapshot.name?.trim() || t('agent.session.new')}
         conversationControls={
           activeAgent ? (
             <AgentTopBarControls

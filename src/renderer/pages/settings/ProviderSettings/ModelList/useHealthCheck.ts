@@ -272,7 +272,10 @@ export function useHealthCheck(providerId: string, credentialsState: ModelCheckC
   // its results; the cleanup also covers unmount.
   useEffect(() => {
     publishStatuses([])
-    return abortInFlightCheck
+    return () => {
+      abortInFlightCheck()
+      publishStatuses([])
+    }
   }, [abortInFlightCheck, anthropicApiHost, apiHost, credentialChangeVersion, providerId, publishStatuses])
 
   useEffect(() => {

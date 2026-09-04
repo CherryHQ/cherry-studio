@@ -15,6 +15,7 @@ export interface MessagePerformanceViewModel {
   startedAt?: number
   completedAt?: number
   totalDurationMs?: number
+  timeFirstTokenMs?: number
   modelTokensPerSecond?: number
   endToEndTokensPerSecond?: number
   intervals: MessagePerformanceInterval[]
@@ -108,6 +109,10 @@ function buildRuntimeViewModel(
 
   const measuredOutputTokens = stats.providerPerformance?.measuredOutputTokens
   const generationDuration = stats.providerPerformance?.generationDurationMs
+  const firstTokenRecord = records.find(
+    (record) => record.recordKind === 'invocation' && record.timeFirstTokenMs !== null
+  )
+  const timeFirstTokenMs = firstTokenRecord?.timeFirstTokenMs ?? undefined
   const modelTokensPerSecond =
     measuredOutputTokens !== undefined && generationDuration !== undefined && generationDuration > 0
       ? measuredOutputTokens / (generationDuration / 1000)
@@ -124,6 +129,7 @@ function buildRuntimeViewModel(
     startedAt: runtime.startedAt,
     completedAt: rangeEnd,
     totalDurationMs,
+    ...(timeFirstTokenMs !== undefined ? { timeFirstTokenMs } : {}),
     modelTokensPerSecond,
     endToEndTokensPerSecond,
     intervals: [...measuredIntervals, ...complementIntervals(runtime.startedAt, rangeEnd, measuredIntervals)]
@@ -134,7 +140,7 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
   const completion = stats.timeCompletionMs
   if (completion === undefined || completion <= 0) return { intervals: [] }
 
-  const firstToken = Math.min(stats.timeFirstTokenMs ?? 0, completion)
+  const firstToken = Math.min(Math.max(stats.timeFirstTokenMs ?? 0, 0), completion)
   const reasoning = Math.min(Math.max(stats.timeThinkingMs ?? 0, 0), completion)
   const waiting = Math.max(0, firstToken - Math.min(reasoning, firstToken))
   const outputTokens = stats.outputTokens
@@ -179,6 +185,7 @@ function buildLegacyViewModel(stats: MessageStats): MessagePerformanceViewModel 
     startedAt: 0,
     completedAt: completion,
     totalDurationMs: completion,
+    ...(stats.timeFirstTokenMs !== undefined ? { timeFirstTokenMs: firstToken } : {}),
     modelTokensPerSecond,
     endToEndTokensPerSecond,
     intervals

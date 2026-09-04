@@ -82,23 +82,25 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
-  it('routes managed Cherry Cloud models through Anthropic without selecting a provider API key', async () => {
-    const provider = makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID, presetProviderId: CHERRYAI_PROVIDER_ID })
-    const model = makeModel({
-      id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-go`,
-      apiModelId: 'deepseek-go',
-      providerId: CHERRY_CLOUD_PROVIDER_ID,
-      group: CHERRY_CLOUD_MODEL_GROUP,
-      endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
-    })
+  it.each([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])(
+    'passes managed Cherry Cloud %s models to its credential-free transport',
+    async (endpointType) => {
+      const provider = makeProvider({ id: CHERRY_CLOUD_PROVIDER_ID, presetProviderId: CHERRYAI_PROVIDER_ID })
+      const model = makeModel({
+        id: `${CHERRY_CLOUD_PROVIDER_ID}::deepseek-go`,
+        apiModelId: 'deepseek-go',
+        providerId: CHERRY_CLOUD_PROVIDER_ID,
+        group: CHERRY_CLOUD_MODEL_GROUP,
+        endpointTypes: [endpointType]
+      })
 
-    const resolved = await resolveProviderAiSdkConfig(provider, model)
+      const resolved = await resolveProviderAiSdkConfig(provider, model)
 
-    expect(resolved.config.providerId).toBe('anthropic')
-    expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
-    expect(buildCherryCloudProviderConfigMock).toHaveBeenCalledOnce()
-    expect(resolveApiKeyMock).not.toHaveBeenCalled()
-  })
+      expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
+      expect(buildCherryCloudProviderConfigMock.mock.calls[0][0]).toBe(endpointType)
+      expect(resolveApiKeyMock).not.toHaveBeenCalled()
+    }
+  )
 
   it('does not route an ordinary CherryAI model from its display group', async () => {
     const provider = makeProvider({ id: CHERRYAI_PROVIDER_ID })
