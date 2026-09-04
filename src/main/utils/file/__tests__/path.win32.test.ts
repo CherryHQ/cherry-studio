@@ -8,7 +8,7 @@ vi.mock('node:path', async () => {
 })
 
 describe('isFilesystemRoot on a Windows host', () => {
-  it.each(['C:\\', 'C:/', 'C:\\tmp\\..', '\\\\server\\share', '\\\\server\\share\\'])(
+  it.each(['C:\\', 'C:/', 'C:\\tmp\\..', '\\\\server\\share', '\\\\server\\share\\', '//server/share'])(
     'identifies a path that resolves to a filesystem root: %s',
     async (value) => {
       const { isFilesystemRoot } = await import('../path')
@@ -16,7 +16,7 @@ describe('isFilesystemRoot on a Windows host', () => {
     }
   )
 
-  it.each(['C:\\work', 'C:/work/project', '\\\\server\\share\\project'])(
+  it.each(['C:\\work', 'C:/work/project', '\\\\server\\share\\project', '//server/share/project'])(
     'does not reject a nested directory: %s',
     async (value) => {
       const { isFilesystemRoot } = await import('../path')

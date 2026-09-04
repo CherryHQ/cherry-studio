@@ -21,7 +21,7 @@ import { canonicalizeFilePath, parseWindowsPath, type PosixRelativeFilePath } fr
  * is a separator. On POSIX a backslash is an ordinary filename character.
  */
 const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
-const isWindowsUncPath = (path: string) => path.startsWith('\\\\')
+const isWindowsUncPath = (path: string) => path.startsWith('\\\\') || path.startsWith('//')
 
 function resolvesToParsedRoot(segments: string[]): boolean {
   let depth = 0
@@ -39,7 +39,7 @@ function resolvesToParsedRoot(segments: string[]): boolean {
 /** True iff `candidate` resolves to a POSIX, Windows drive, or UNC share root. */
 export const isFilesystemRoot = (candidate: AbsoluteFilePath): boolean => {
   if (isWindowsDrivePath(candidate) || isWindowsUncPath(candidate)) {
-    const parsed = parseWindowsPath(candidate)
+    const parsed = parseWindowsPath(candidate.startsWith('//') ? `\\\\${candidate.slice(2)}` : candidate)
     return parsed.isAbsolute && resolvesToParsedRoot(parsed.segments)
   }
   return toPathKey(candidate) === '/'

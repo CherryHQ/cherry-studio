@@ -62,6 +62,7 @@ import {
 } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
+import { isFilesystemRoot } from '@renderer/utils/path'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -197,16 +198,16 @@ const buildAccessiblePathFilePart = (
 
 /**
  * `AgentWorkspacePathSchema` only guarantees a non-empty string, so the stored
- * workspace path is asserted to be an absolute filesystem path here, before it
- * reaches the path helpers. A malformed one yields no accessible paths, which
+ * workspace path is asserted to be a safe non-root absolute filesystem path here,
+ * before it reaches the path helpers. An unsafe one yields no accessible paths, which
  * degrades to inlining attachments instead of referencing them — still correct,
  * just less efficient.
  */
 const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[] => {
   if (!workspacePath) return []
   const parsed = AbsoluteFilePathSchema.safeParse(workspacePath)
-  if (!parsed.success) {
-    logger.warn('Ignoring agent workspace path that is not an absolute filesystem path', { path: workspacePath })
+  if (!parsed.success || isFilesystemRoot(parsed.data)) {
+    logger.warn('Ignoring unsafe agent workspace path', { path: workspacePath })
     return []
   }
   return [parsed.data]
