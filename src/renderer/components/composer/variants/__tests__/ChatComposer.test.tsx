@@ -4553,7 +4553,11 @@ describe('ChatComposer', () => {
     // The prefill anchors the tool between the two texts; the editor hands that anchor back on save.
     const restoredDraft = mocks.replaceDraft.mock.lastCall?.[0]
     expect(restoredDraft.tokens).toEqual([
-      expect.objectContaining({ kind: 'messagePart', payload: { partIndex: 1 }, textOffset: 'before tool\n'.length })
+      expect.objectContaining({
+        kind: 'messagePart',
+        id: `message-part:${message.id}:1`,
+        textOffset: 'before tool\n'.length
+      })
     ])
 
     await mocks.surfaceProps?.onSendDraft({

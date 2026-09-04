@@ -1149,7 +1149,7 @@ const ChatComposerInner = ({
   }, [editingMessageId])
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
-    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts)
+    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts, nextEditingMessage.message.id)
     const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
     const originalFileParts = nextEditingMessage.parts.filter(
       (part): part is ComposerFilePart => part.type === 'file' && !!part.url
@@ -1611,7 +1611,12 @@ const ChatComposerInner = ({
         if (!edited) return
 
         const savedParts = isAssistantReply
-          ? replaceEditedMessageParts(editingMessageForCurrentTopic.parts, edited.draft, edited.parts)
+          ? replaceEditedMessageParts(
+              editingMessageForCurrentTopic.parts,
+              editingMessageForCurrentTopic.message.id,
+              edited.draft,
+              edited.parts
+            )
           : edited.parts
         if (isAssistantReply || !resend) {
           await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)

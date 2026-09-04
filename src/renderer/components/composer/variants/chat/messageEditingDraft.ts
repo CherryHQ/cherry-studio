@@ -23,9 +23,9 @@ export interface EditableMessageDraft {
   files: ComposerAttachment[]
 }
 
-interface MessagePartAnchorPayload {
-  partIndex: number
-}
+const ANCHOR_ID_PREFIX = 'message-part'
+
+const anchorIdPrefixFor = (messageId: string) => `${ANCHOR_ID_PREFIX}:${messageId}:`
 
 /** Index span from the first to the last text part — the only stretch an edit can rewrite. */
 function getEditableTextSpan(parts: CherryMessagePart[]): { start: number; end: number } | null {
@@ -47,14 +47,17 @@ function getAnchorLabel(part: CherryMessagePart): string {
     : i18n.t('chat.input.editing_part.content')
 }
 
-function readAnchorPartIndex(token: ComposerSerializedToken): number | undefined {
-  if (token.kind !== 'messagePart') return undefined
+/**
+ * The anchored part rides in the token id, not its payload: `ComposerTokenNode.renderHTML` drops
+ * `payload`, so a chip that survives a cut, a paste or a drag keeps only its id. The message id is
+ * part of the key as well, so a chip pasted into a different message's edit resolves to nothing
+ * instead of splicing in whatever part happens to sit at that index.
+ */
+function readAnchorPartIndex(token: ComposerSerializedToken, messageId: string): number | undefined {
+  if (token.kind !== 'messagePart' || !token.id.startsWith(anchorIdPrefixFor(messageId))) return undefined
 
-  const payload = token.payload
-  if (typeof payload !== 'object' || payload === null) return undefined
-
-  const { partIndex } = payload as MessagePartAnchorPayload
-  return Number.isInteger(partIndex) ? partIndex : undefined
+  const partIndex = token.id.slice(anchorIdPrefixFor(messageId).length)
+  return /^\d+$/.test(partIndex) ? Number(partIndex) : undefined
 }
 
 /**
@@ -63,40 +66,42 @@ function readAnchorPartIndex(token: ComposerSerializedToken): number | undefined
  * draft there instead of collapsing `text → tool → text` into `text text → tool`. Parts outside
  * the text span keep their side of the message and need no anchor.
  *
- * An anchor is fenced by one newline on each side rather than a blank line: that puts the chip on
- * its own line, and because the chip itself occupies no characters, deleting it leaves exactly the
- * `\n\n` that already separates two text parts — no blank-line residue in the saved message.
+ * Anchors spend exactly the separator their neighbours already need, so deleting every chip leaves
+ * the plain `\n\n` join and no blank-line residue: one newline splits a chip from adjacent text,
+ * and a run of adjacent chips shares a single line with no separator between them.
  */
-function buildEditableText(parts: CherryMessagePart[]): { text: string; anchors: ComposerSerializedToken[] } {
+function buildEditableText(
+  parts: CherryMessagePart[],
+  messageId: string
+): { text: string; anchors: ComposerSerializedToken[] } {
   const span = getEditableTextSpan(parts)
   if (!span) return { text: '', anchors: [] }
 
   let text = ''
+  let previous: 'none' | 'text' | 'anchor' = 'none'
   const anchors: ComposerSerializedToken[] = []
-  const openLine = () => {
-    if (text && !text.endsWith('\n')) text += '\n'
-  }
 
   for (let index = span.start; index <= span.end; index++) {
     const part = parts[index]
     if (part.type === 'file' || part.type === 'data-translation') continue
 
     if (part.type === 'text') {
-      if (text && !text.endsWith('\n')) text += '\n\n'
+      if (previous === 'text') text += '\n\n'
+      else if (previous === 'anchor') text += '\n'
       text += part.text
+      previous = 'text'
       continue
     }
 
-    openLine()
+    if (previous === 'text') text += '\n'
     anchors.push({
-      id: `message-part:${index}`,
+      id: `${anchorIdPrefixFor(messageId)}${index}`,
       kind: 'messagePart',
       label: getAnchorLabel(part),
       index: anchors.length,
-      textOffset: text.length,
-      payload: { partIndex: index } satisfies MessagePartAnchorPayload
+      textOffset: text.length
     })
-    text += '\n'
+    previous = 'anchor'
   }
 
   return { text, anchors }
@@ -110,6 +115,7 @@ function buildEditableText(parts: CherryMessagePart[]): { text: string; anchors:
  */
 export function replaceEditedMessageParts(
   originalParts: CherryMessagePart[],
+  messageId: string,
   draft: ComposerSerializedDraft,
   editedParts: CherryMessagePart[]
 ): CherryMessagePart[] {
@@ -122,7 +128,7 @@ export function replaceEditedMessageParts(
 
   const anchors = draft.tokens
     .flatMap((token) => {
-      const partIndex = readAnchorPartIndex(token)
+      const partIndex = readAnchorPartIndex(token, messageId)
       if (partIndex === undefined || partIndex <= span.start || partIndex >= span.end) return []
       return [{ token, partIndex, part: originalParts[partIndex] }]
     })
@@ -225,9 +231,9 @@ function createEditableAttachment(
   }
 }
 
-export function createEditableMessageDraft(parts: CherryMessagePart[]): EditableMessageDraft {
+export function createEditableMessageDraft(parts: CherryMessagePart[], messageId: string): EditableMessageDraft {
   const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
-  const { text, anchors } = buildEditableText(parts)
+  const { text, anchors } = buildEditableText(parts, messageId)
   // Recover the composer snapshot even when the reply was split across multiple text parts
   // (e.g. text → tool → text), so file/knowledge tokens remain restorable.
   const composer =
