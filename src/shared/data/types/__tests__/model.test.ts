@@ -1,4 +1,4 @@
-import { resolveUniqueModelId } from '@shared/data/types/model'
+import { areDifferentModelIdentities, resolveUniqueModelId } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 describe('resolveUniqueModelId', () => {
@@ -16,5 +16,23 @@ describe('resolveUniqueModelId', () => {
 
   it('returns undefined for a legacy snapshot that cannot form a routable model ID', () => {
     expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'model?legacy-route' })).toBeUndefined()
+  })
+
+  it('distinguishes raw snapshot IDs that collide after unique-ID parsing', () => {
+    expect(
+      areDifferentModelIdentities(
+        { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'model-a' } },
+        { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'provider-a::model-a' } }
+      )
+    ).toBe(true)
+  })
+
+  it('does not classify unresolvable snapshots as different models', () => {
+    expect(
+      areDifferentModelIdentities(
+        { modelId: null, modelSnapshot: { provider: 'provider-a', id: 'model?legacy-route' } },
+        { modelId: null, modelSnapshot: { provider: 'provider-b', id: 'model#legacy-route' } }
+      )
+    ).toBe(false)
   })
 })

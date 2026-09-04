@@ -205,6 +205,30 @@ export function resolveUniqueModelId(
   }
 }
 
+/** Return true only when two persisted references identify distinct models. */
+export function areDifferentModelIdentities(
+  left: {
+    modelId: string | null | undefined
+    modelSnapshot: { id: string; provider: string } | null | undefined
+  },
+  right: {
+    modelId: string | null | undefined
+    modelSnapshot: { id: string; provider: string } | null | undefined
+  }
+): boolean {
+  const leftModelId = resolveUniqueModelId(left.modelId, left.modelSnapshot)
+  const rightModelId = resolveUniqueModelId(right.modelId, right.modelSnapshot)
+  if (leftModelId === undefined || rightModelId === undefined) return false
+
+  if (left.modelSnapshot && right.modelSnapshot) {
+    return (
+      left.modelSnapshot.provider !== right.modelSnapshot.provider || left.modelSnapshot.id !== right.modelSnapshot.id
+    )
+  }
+
+  return leftModelId !== rightModelId
+}
+
 /**
  * Parse a UniqueModelId into its components — splits on the FIRST separator.
  * Same permissive semantics as `isUniqueModelId`: empty `providerId` or

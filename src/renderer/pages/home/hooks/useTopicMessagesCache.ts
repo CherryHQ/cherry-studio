@@ -24,7 +24,7 @@ import type {
   CherryUIMessage,
   Message as SharedMessage
 } from '@shared/data/types/message'
-import { resolveUniqueModelId } from '@shared/data/types/model'
+import { areDifferentModelIdentities } from '@shared/data/types/model'
 import { useCallback } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
@@ -40,14 +40,12 @@ function branchWithoutIds(
       return [{ ...item, ...(item.siblingsGroup ? { siblingsGroup } : {}) }]
     }
 
-    const deletedModelId = resolveUniqueModelId(item.message.modelId, item.message.messageSnapshot?.model)
-    const differentModelReplies =
-      deletedModelId === undefined
-        ? []
-        : siblingsGroup.filter((sibling) => {
-            const modelId = resolveUniqueModelId(sibling.modelId, sibling.messageSnapshot?.model)
-            return modelId !== undefined && modelId !== deletedModelId
-          })
+    const differentModelReplies = siblingsGroup.filter((sibling) =>
+      areDifferentModelIdentities(
+        { modelId: item.message.modelId, modelSnapshot: item.message.messageSnapshot?.model },
+        { modelId: sibling.modelId, modelSnapshot: sibling.messageSnapshot?.model }
+      )
+    )
 
     if (
       item.message.id !== activeNodeId ||

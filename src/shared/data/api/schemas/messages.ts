@@ -46,7 +46,7 @@ export const CreateMessageSchema = z.strictObject({
   data: MessageDataSchema,
   /** Message status */
   status: MessageStatusSchema.optional(),
-  /** Siblings group ID (0 = normal; non-zero groups contain multi-model or regeneration alternatives) */
+  /** Siblings group ID (0 = normal; non-zero groups contain edit/resend, multi-model, or regeneration alternatives) */
   siblingsGroupId: z.number().optional(),
   /** Model identifier */
   modelId: z.string().optional(),

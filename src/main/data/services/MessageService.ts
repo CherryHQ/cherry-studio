@@ -43,7 +43,7 @@ import {
   type TreeNode,
   type TreeResponse
 } from '@shared/data/types/message'
-import { resolveUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { areDifferentModelIdentities, type UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or, type SQL, sql } from 'drizzle-orm'
@@ -2025,7 +2025,6 @@ export class MessageService {
           if (activeNodeStrategy === 'clear') {
             newActiveNodeId = null
           } else if (message.role === 'assistant' && message.siblingsGroupId !== 0) {
-            const deletedModelId = resolveUniqueModelId(message.modelId, message.messageSnapshot?.model)
             const survivingReplies = tx
               .select({
                 id: messageTable.id,
@@ -2045,13 +2044,12 @@ export class MessageService {
               )
               .orderBy(desc(messageTable.createdAt), desc(messageTable.id))
               .all()
-            const survivingReply =
-              deletedModelId === undefined
-                ? undefined
-                : survivingReplies.find((reply) => {
-                    const modelId = resolveUniqueModelId(reply.modelId, reply.messageSnapshot?.model)
-                    return modelId !== undefined && modelId !== deletedModelId
-                  })
+            const survivingReply = survivingReplies.find((reply) =>
+              areDifferentModelIdentities(
+                { modelId: message.modelId, modelSnapshot: message.messageSnapshot?.model },
+                { modelId: reply.modelId, modelSnapshot: reply.messageSnapshot?.model }
+              )
+            )
             newActiveNodeId = survivingReply?.id ?? parentFallback
           } else {
             newActiveNodeId = parentFallback

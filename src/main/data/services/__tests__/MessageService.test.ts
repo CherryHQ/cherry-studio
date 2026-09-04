@@ -2454,6 +2454,47 @@ describe('MessageService', () => {
       expect(topic.activeNodeId).toBe(olderReply.id)
     })
 
+    it('distinguishes raw snapshot model IDs that contain the provider separator', async () => {
+      const topicId = 'topic-snapshot-model-separator-delete'
+      const rootId = await seedTopicWithRoot(topicId)
+      const prompt = messageService.create(topicId, {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+      const survivingReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('separator model answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'provider-a::model-a', name: 'Separator Model', provider: 'provider-a' }
+        }
+      })
+      const selectedReply = messageService.create(topicId, {
+        parentId: prompt.id,
+        role: 'assistant',
+        data: mainText('plain model answer'),
+        status: 'success',
+        siblingsGroupId: 7,
+        messageSnapshot: {
+          id: 'assistant-1',
+          name: 'Assistant',
+          model: { id: 'model-a', name: 'Plain Model', provider: 'provider-a' }
+        }
+      })
+
+      const result = messageService.delete(selectedReply.id, false)
+
+      expect(result.newActiveNodeId).toBe(survivingReply.id)
+      const [topic] = dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId)).all()
+      expect(topic.activeNodeId).toBe(survivingReply.id)
+    })
+
     it('falls back to the parent when deleting the latest same-model regeneration', async () => {
       const rootId = await seedTopicWithRoot('topic-regeneration-delete')
       const prompt = messageService.create('topic-regeneration-delete', {

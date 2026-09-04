@@ -74,6 +74,25 @@ describe('useTopicMessagesCache', () => {
     expect(nextBranch).toEqual([{ message: survivingReply }])
   })
 
+  it('distinguishes raw snapshot model IDs that contain the provider separator', () => {
+    const selectedReply = message('answer-plain', 'assistant', '2026-08-28T00:00:02.000Z', null, {
+      id: 'model-a',
+      provider: 'provider-a'
+    })
+    const survivingReply = message('answer-separator', 'assistant', '2026-08-28T00:00:01.000Z', null, {
+      id: 'provider-a::model-a',
+      provider: 'provider-a'
+    })
+    const branch: BranchMessage[] = [{ message: selectedReply, siblingsGroup: [survivingReply] }]
+    const { result } = renderHook(() =>
+      useTopicMessagesCache({ topicId: 'topic-1', mutate: vi.fn().mockResolvedValue(undefined) })
+    )
+
+    const nextBranch = result.current.branchWithoutIds(branch, new Set([selectedReply.id]), selectedReply.id)
+
+    expect(nextBranch).toEqual([{ message: survivingReply }])
+  })
+
   it('falls back to the parent while deleting the latest same-model regeneration', async () => {
     const selectedReply = message('answer-new', 'assistant', '2026-08-28T00:00:02.000Z', 'provider-a::model-a')
     const olderReply = message('answer-old', 'assistant', '2026-08-28T00:00:01.000Z', 'provider-a::model-a')
