@@ -14,6 +14,7 @@ import translateIcon from '@renderer/assets/images/apps/launchpad-translate.svg'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useCurrentTab, useTabs } from '@renderer/hooks/tab'
 import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
@@ -66,6 +67,8 @@ export default function LaunchpadPage() {
   } = useMiniApps()
   const { appFavorites, miniAppFavoriteIds, setAppPinned, toggleMiniApp } = useSidebarFavorites()
   const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
+  const currentTab = useCurrentTab()
+  const { openTab, updateTab } = useTabs()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
@@ -120,12 +123,21 @@ export default function LaunchpadPage() {
   }
 
   const openMiniApp = useCallback(
-    (appId: string) => {
+    (appId: string, displayName: string, icon?: string) => {
       if (shouldSuppressLaunchClick(appId)) return
 
-      void navigateToUrl(`/app/mini-app/${appId}`)
+      const url = `/app/mini-app/${appId}`
+      if (!currentTab) {
+        void navigateToUrl(url)
+        return
+      }
+      if (currentTab.isPinned) {
+        openTab(url, { title: displayName, icon })
+        return
+      }
+      updateTab(currentTab.id, { url, title: displayName, icon, metadata: undefined })
     },
-    [navigateToUrl, shouldSuppressLaunchClick]
+    [currentTab, navigateToUrl, openTab, shouldSuppressLaunchClick, updateTab]
   )
 
   const openDeepSeekHarness = () => {
