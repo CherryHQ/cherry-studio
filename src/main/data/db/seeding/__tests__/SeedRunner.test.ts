@@ -3,11 +3,15 @@ import { resolve } from 'node:path'
 import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { preferenceTable } from '@data/db/schemas/preference'
 import { seeders } from '@data/db/seeding/seederRegistry'
+import { DEFAULT_MODEL_PREFERENCE_KEYS } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BOOTSTRAP_MARKER_KEY = 'seedRunner:bootstrapCompleted'
@@ -185,5 +189,78 @@ describe('SeedRunner', () => {
 
     const assistants = await dbh.db.select().from(assistantTable)
     expect(assistants).toHaveLength(1)
+  })
+
+  it('fresh production seed leaves CherryAI non-null UniqueModelId defaults for the three model keys', async () => {
+    new SeedRunner(dbh.db).runAll(seeders)
+
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      const [row] = await dbh.db
+        .select()
+        .from(preferenceTable)
+        .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
+        .limit(1)
+      expect(row?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    }
+  })
+
+  it('preserves persisted null default model preferences during production seeding', async () => {
+    dbh.db
+      .insert(preferenceTable)
+      .values(
+        DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
+          scope: 'default',
+          key,
+          value: null
+        }))
+      )
+      .run()
+
+    new SeedRunner(dbh.db).runAll(seeders)
+
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      const [row] = dbh.db
+        .select()
+        .from(preferenceTable)
+        .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
+        .limit(1)
+        .all()
+      expect(row?.value).toBeNull()
+    }
+  })
+
+  it('repairs invalid JSON model-id preferences before later production seeders read preferences', async () => {
+    mockMainLoggerService.warn.mockClear()
+    const repairKey = 'feature.openclaw.selected_model_id'
+    dbh.db
+      .insert(preferenceTable)
+      .values({ scope: 'default', key: repairKey, value: 'deepseek::deepseek-v4-flash' })
+      .run()
+    dbh.sqlite
+      .prepare('UPDATE preference SET value = ? WHERE scope = ? AND key = ?')
+      .run('deepseek::deepseek-v4-flash', 'default', repairKey)
+
+    new SeedRunner(dbh.db).runAll(seeders)
+
+    const [repaired] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, repairKey)))
+      .limit(1)
+    expect(repaired?.value).toBe('deepseek::deepseek-v4-flash')
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Repaired invalid JSON preference value', {
+      action: 'encoded legacy model id',
+      key: repairKey,
+      scope: 'default'
+    })
+
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      const [row] = await dbh.db
+        .select()
+        .from(preferenceTable)
+        .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
+        .limit(1)
+      expect(row?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    }
   })
 })
