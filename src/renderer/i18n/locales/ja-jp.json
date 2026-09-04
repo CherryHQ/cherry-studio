@@ -199,7 +199,7 @@
   "agent.session.group.tasks": "タスク",
   "agent.session.group.this_week": "今週",
   "agent.session.group.today": "今日",
-  "agent.session.group.unknown_agent": "不明なエージェント",
+  "agent.session.group.unknown_agent": "リンクされていないエージェント",
   "agent.session.group.unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。アクティブなエージェントを選択すると、このセッションを続行できます。",
   "agent.session.group.yesterday": "昨日",
   "agent.session.list.title": "タスク",

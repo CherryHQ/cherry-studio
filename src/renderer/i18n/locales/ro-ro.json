@@ -199,7 +199,7 @@
   "agent.session.group.tasks": "Sarcini",
   "agent.session.group.this_week": "Săptămâna aceasta",
   "agent.session.group.today": "Astăzi",
-  "agent.session.group.unknown_agent": "Agent necunoscut",
+  "agent.session.group.unknown_agent": "Agent deconectat",
   "agent.session.group.unknown_agent_tip": "Acesta este un grup istoric de sesiuni fără agent, nu un agent real. Selectați un agent activ pentru a continua această sesiune.",
   "agent.session.group.yesterday": "Ieri",
   "agent.session.list.title": "Sarcini",

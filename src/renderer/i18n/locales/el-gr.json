@@ -199,7 +199,7 @@
   "agent.session.group.tasks": "Εργασίες",
   "agent.session.group.this_week": "Αυτή την εβδομάδα",
   "agent.session.group.today": "Σήμερα",
-  "agent.session.group.unknown_agent": "Άγνωστος πράκτορας",
+  "agent.session.group.unknown_agent": "Αποσυνδεδεμένος πράκτορας",
   "agent.session.group.unknown_agent_tip": "Αυτή είναι μια ιστορική ομάδα συνεδριών χωρίς πράκτορα, όχι ένας πραγματικός πράκτορας. Επιλέξτε έναν ενεργό πράκτορα για να συνεχίσετε αυτήν τη συνεδρία.",
   "agent.session.group.yesterday": "Χθες",
   "agent.session.list.title": "Εργασίες",
