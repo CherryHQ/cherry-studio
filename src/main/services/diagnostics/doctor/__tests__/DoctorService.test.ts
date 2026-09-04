@@ -16,7 +16,7 @@ vi.mock('../registry', () => ({
       run: registryMocks.bootConfigRun,
       fixes: { repair: registryMocks.bootConfigRepair }
     },
-    'storage-userdata-writable': { id: 'storage-userdata-writable', run: registryMocks.userDataRun, fixes: {} }
+    'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} }
   }
 }))
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
