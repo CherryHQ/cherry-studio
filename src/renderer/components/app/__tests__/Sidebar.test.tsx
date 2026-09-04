@@ -53,6 +53,7 @@ const mocks = vi.hoisted(() => ({
   setSidebarWidth: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
+  showDoctor: vi.fn(() => Promise.resolve({})),
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
@@ -177,15 +178,8 @@ vi.mock('../../icons/SvgIcon', () => ({
   OpenClawSidebarIcon: () => null
 }))
 
-vi.mock('../../feedback/FeedbackDialog', () => ({
-  default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => (
-    <div data-testid="feedback-shell" data-open={open}>
-      {open ? <div role="dialog">feedback-dialog</div> : null}
-      <button type="button" onClick={() => onOpenChange(false)}>
-        close-feedback
-      </button>
-    </div>
-  )
+vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
+  default: { show: mocks.showDoctor }
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({
@@ -496,7 +490,7 @@ describe('app Sidebar', () => {
     expect(mocks.openSettingsTab).toHaveBeenCalledWith()
   })
 
-  it('keeps feedback mounted when the floating sidebar closes', async () => {
+  it('hands problem reporting to the shared Doctor before the floating sidebar closes', async () => {
     const user = userEvent.setup()
     mocks.sidebarWidth = 0
     render(<Sidebar />)
@@ -505,15 +499,12 @@ describe('app Sidebar', () => {
     const floatingSidebar = screen.getByTestId('floating-sidebar')
     await user.click(within(floatingSidebar).getByTestId('sidebar-feedback-full'))
 
-    expect(await screen.findByRole('dialog')).toHaveTextContent('feedback-dialog')
+    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' })
 
     await user.click(within(floatingSidebar).getByRole('button', { name: 'dismiss' }))
 
     expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog')).toHaveTextContent('feedback-dialog')
-
-    await user.click(screen.getByRole('button', { name: 'close-feedback' }))
-    expect(screen.getByTestId('feedback-shell')).toHaveAttribute('data-open', 'false')
+    expect(mocks.showDoctor).toHaveBeenCalledTimes(1)
   })
 
   it('renders sidebar menu items in visible preference order', () => {

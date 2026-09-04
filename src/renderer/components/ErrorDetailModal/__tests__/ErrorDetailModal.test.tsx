@@ -15,7 +15,8 @@ vi.mock('@renderer/components/popups/ContentPopup', async () => {
 })
 
 const mocks = vi.hoisted(() => ({
-  diagnoseError: vi.fn()
+  diagnoseError: vi.fn(),
+  showDoctor: vi.fn()
 }))
 
 const translations: Record<string, string> = {
@@ -24,7 +25,7 @@ const translations: Record<string, string> = {
   'error.diagnosis.ai_done': 'AI diagnosis complete',
   'error.diagnosis.ai_loading': 'Diagnosing',
   'error.diagnosis.ai_result': 'AI diagnosis',
-  'error.diagnostic_report.action': 'Submit diagnostic report',
+  'error.diagnostic_report.action': 'Report a problem',
   'error.diagnostic_report.location': 'Location',
   'error.message': 'Error message',
   'error.modelId': 'Model',
@@ -50,29 +51,9 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => {
-  return {
-    default: ({
-      fixedRange,
-      initialDescription,
-      onOpenChange,
-      open
-    }: {
-      fixedRange?: string
-      initialDescription?: string
-      onOpenChange: (open: boolean) => void
-      open: boolean
-    }) =>
-      open ? (
-        <div role="dialog" aria-label="Diagnostic report review" data-fixed-range={fixedRange}>
-          <pre>{initialDescription}</pre>
-          <button type="button" onClick={() => onOpenChange(false)}>
-            Cancel report
-          </button>
-        </div>
-      ) : null
-  }
-})
+vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
+  default: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
+}))
 
 import { PopupHost } from '@renderer/components/PopupHost'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
@@ -104,7 +85,7 @@ describe('ErrorDetailContent diagnostic report', () => {
       <ErrorDetailContent error={{ name: 'ProviderError', message: 'failed', stack: null }} />
     )
 
-    expect(screen.queryByRole('button', { name: 'Submit diagnostic report' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Report a problem' })).not.toBeInTheDocument()
 
     rerender(
       <ErrorDetailContent
@@ -116,10 +97,10 @@ describe('ErrorDetailContent diagnostic report', () => {
 
     expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Copy',
-      'Submit diagnostic report',
+      'Report a problem',
       'AI diagnosis'
     ])
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
     const description = onOpenDiagnosticReport.mock.calls[0][0]
     expect(description).toContain('Location: Home conversation')
     expect(description).toContain('Error name: ProviderError')
@@ -136,23 +117,25 @@ describe('ErrorDetailContent diagnostic report', () => {
         error: { name: 'ProviderError', message: 'failed', stack: null }
       })
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Report a problem' }))
     await act(async () => {})
 
-    expect(screen.queryByRole('dialog', { name: 'Diagnostic report review' })).not.toBeInTheDocument()
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
 
     act(() => {
       vi.advanceTimersByTime(POPUP_EXIT_MS - 1)
     })
-    expect(screen.queryByRole('dialog', { name: 'Diagnostic report review' })).not.toBeInTheDocument()
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
 
     act(() => {
       vi.advanceTimersByTime(1)
     })
     await act(async () => {})
-    const report = screen.getByRole('dialog', { name: 'Diagnostic report review' })
-    expect(report).toHaveTextContent('Location: Home conversation')
-    expect(screen.getAllByRole('dialog')).toEqual([report])
+    expect(mocks.showDoctor).toHaveBeenCalledWith({
+      initialPanel: 'report',
+      initialDescription: expect.stringContaining('Location: Home conversation')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('keeps AI diagnosis visible in error details but out of the diagnostic-report prefill', async () => {
@@ -177,7 +160,7 @@ describe('ErrorDetailContent diagnostic report', () => {
 
     await user.click(screen.getByRole('button', { name: 'AI diagnosis' }))
     expect(await screen.findByText('Leaked prompt: private diagnosis payload.')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Submit diagnostic report' }))
+    await user.click(screen.getByRole('button', { name: 'Report a problem' }))
     const description = onOpenDiagnosticReport.mock.calls[0][0]
     expect(description).toContain('Error message: failed')
     expect(description).not.toContain('private diagnosis payload')
