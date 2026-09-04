@@ -8,7 +8,9 @@
 
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -78,32 +80,34 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      // Pre-check existence: if the agent is not found, throw 404 before
-      // touching delivery service so that pre-write errors (e.g. assertWritesAvailable)
-      // are surfaced as errors, not swallowed by the post-commit cleanup catch below.
+      // Pre-check existence so not-found returns 404 instead of an opaque 204,
+      // and so a synchronous failure from the DB delete is not silently masked
+      // by the post-commit cleanup catch below.
       if (!agentService.agentExists(params.agentId)) {
         throw DataApiErrorFactory.notFound('Agent', params.agentId)
       }
-      // Route through AgentSessionDeliveryService so active turns are paused and
-      // their runtimes are closed before the row goes away. agentService.deleteAgent
-      // only removes the DB row, which lets an active session keep streaming
-      // against a deleted agent.
-      let result: { deleted: boolean; deletedSessionIds?: string[] }
+      // Synchronously remove the agent row and any dependent rows first.
+      const syncResult = agentService.deleteAgent(params.agentId, { deleteSessions: false })
+      if (!syncResult.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      // Then pause any active turns and close the affected session runtimes.
+      // These run after the row is gone, so a failure here must not be reported
+      // back as a deletion error — the row is already removed.
       try {
-        result = await application.get('AgentSessionDeliveryService').deleteAgent(params.agentId, false)
+        const manager = application.get('AiStreamManager')
+        const sessionsResult = agentSessionService.listByCursor({ agentId: params.agentId, limit: 1000 })
+        const sessions = sessionsResult.items.map((item) => item.session)
+        for (const session of sessions) {
+          manager.pauseRuntimeTurn(buildAgentSessionTopicId(session.id), 'target-agent-deleted')
+        }
+        await Promise.allSettled(
+          sessions.map((session) => application.get('AgentSessionRuntimeService').closeSession(session.id))
+        )
       } catch (error) {
-        // The agent row is removed synchronously by agentService.deleteAgentForDelivery
-        // before the async pause/close runs; if cleanup throws, the deletion has
-        // already committed. Surface the cleanup failure as a warning rather than
-        // reporting the deletion as failed — the row is gone, which is the only
-        // contract the resource-list UI checks.
         loggerService.withContext('DataApi:agents').warn('Agent runtime cleanup failed after row deletion', {
           agentId: params.agentId,
           error: error instanceof Error ? error.message : String(error)
         })
-        return undefined
       }
-      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
   },
