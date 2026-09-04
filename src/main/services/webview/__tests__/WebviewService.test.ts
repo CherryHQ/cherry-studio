@@ -63,7 +63,7 @@ vi.mock('@main/core/lifecycle', () => ({
 }))
 
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US', t: (key: string) => key }))
-vi.mock('../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: () => true }))
+vi.mock('../../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: () => true }))
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof FsModule>()
   return { ...actual, default: actual, existsSync: () => true }

@@ -24,8 +24,8 @@ import {
 import { app, dialog, session, shell, webContents } from 'electron'
 import { existsSync, promises as fs } from 'fs'
 
-import { isSafeExternalUrl } from '../utils/externalUrlSafety'
-import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../utils/webviewAnnotations'
+import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
+import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from './annotationMarkdown'
 
 const logger = loggerService.withContext('WebviewService')
 /** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */

@@ -65,7 +65,7 @@ import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
-import { WebviewService } from '@main/services/WebviewService'
+import { WebviewService } from '@main/services/webview'
 
 /**
  * Centralized service registry.

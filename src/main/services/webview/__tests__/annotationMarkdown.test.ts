@@ -5,7 +5,7 @@ import {
 } from '@shared/types/webviewAnnotation'
 import { describe, expect, it } from 'vitest'
 
-import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../webviewAnnotations'
+import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from '../annotationMarkdown'
 
 const document: WebviewAnnotationDocument = {
   webviewId: 7,
