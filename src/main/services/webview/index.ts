@@ -1,1 +1,1 @@
-export { setOpenLinkExternal, WebviewService } from './WebviewService'
+export { WebviewService } from './WebviewService'

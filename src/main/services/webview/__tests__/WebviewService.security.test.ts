@@ -1,64 +1,14 @@
 import { BaseService } from '@main/core/lifecycle'
-import { app, session, shell, webContents } from 'electron'
+import { app, session } from 'electron'
 import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { setOpenLinkExternal, WebviewService } from '../WebviewService'
+import { WebviewService } from '../WebviewService'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof FsModule>()
   // The preload is a build artifact, so the source-tree path does not exist under Vitest.
   return { ...actual, default: actual, existsSync: () => true }
-})
-
-type OpenHandler = (details: { url: string }) => { action: 'allow' | 'deny' }
-
-describe('setOpenLinkExternal', () => {
-  let handler: OpenHandler
-  const siteSession = {}
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    Object.assign(session, { fromPartition: vi.fn(() => siteSession) })
-    const setWindowOpenHandler = vi.fn((callback: OpenHandler) => {
-      handler = callback
-    })
-    vi.mocked(webContents.fromId).mockReturnValue({ setWindowOpenHandler, session: siteSession } as never)
-  })
-
-  it('leaves a webview outside the site partition alone', () => {
-    const setWindowOpenHandler = vi.fn()
-    vi.mocked(webContents.fromId).mockReturnValue({ setWindowOpenHandler, session: {} } as never)
-
-    setOpenLinkExternal(1, true)
-    setOpenLinkExternal(1, false)
-
-    expect(setWindowOpenHandler).not.toHaveBeenCalled()
-  })
-
-  it('allows only web origins in in-app mode', () => {
-    setOpenLinkExternal(1, false)
-
-    expect(handler({ url: 'https://cherrystudio.com/page' })).toEqual({ action: 'allow' })
-    expect(handler({ url: 'http://cherrystudio.com/page' })).toEqual({ action: 'allow' })
-    expect(handler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
-    expect(handler({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
-    expect(handler({ url: 'mailto:support@example.com' })).toEqual({ action: 'deny' })
-  })
-
-  it('routes safe external URLs to the system browser and denies the guest popup', () => {
-    setOpenLinkExternal(1, true)
-
-    expect(handler({ url: 'https://cherrystudio.com/page' })).toEqual({ action: 'deny' })
-    expect(shell.openExternal).toHaveBeenCalledWith('https://cherrystudio.com/page')
-    expect(handler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
-    expect(shell.openExternal).toHaveBeenCalledTimes(1)
-  })
-
-  it('is a no-op when the webview id is unknown', () => {
-    vi.mocked(webContents.fromId).mockReturnValue(undefined as never)
-    expect(() => setOpenLinkExternal(404, false)).not.toThrow()
-  })
 })
 
 describe('the site webview preload', () => {

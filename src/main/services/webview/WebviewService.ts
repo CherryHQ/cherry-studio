@@ -47,17 +47,11 @@ export function initSessionUserAgent() {
  * WebviewService handles the behavior of links opened from webview elements
  * It controls whether links should be opened within the application or in an external browser.
  *
- * Site webviews only. A local mini app guest (`persist:miniapp:*`) carries its own deny-all
- * popup policy, and `setWindowOpenHandler` replaces whatever was installed before it.
+ * The caller checks that this is an owned site webview. A local mini app guest
+ * (`persist:miniapp:*`) carries its own deny-all popup policy, and
+ * `setWindowOpenHandler` replaces whatever was installed before it.
  */
-export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
-  const webview = webContents.fromId(webviewId)
-  if (!webview) return
-  if (webview.session !== session.fromPartition(WEBVIEW_PARTITION)) {
-    logger.warn('Refused to change the popup policy of a webview outside the site partition', { webviewId })
-    return
-  }
-
+function configureOpenLinkExternal(webview: Electron.WebContents, isExternal: boolean) {
   webview.setWindowOpenHandler(({ url }) => {
     if (isExternal) {
       if (isSafeExternalUrl(url)) {
@@ -184,7 +178,7 @@ export class WebviewService extends BaseService {
     this.annotationSessions.set(contents.id, annotationSession)
   }
 
-  private requireOwnedWebview(webviewId: number, senderId: WindowId | null) {
+  private requireOwnedGuest(webviewId: number, senderId: WindowId | null) {
     const hostWindow = senderId ? application.get('WindowManager').getWindow(senderId) : undefined
     const guest = webContents.fromId(webviewId)
 
@@ -193,7 +187,6 @@ export class WebviewService extends BaseService {
       !guest ||
       guest.isDestroyed() ||
       guest.getType?.() !== 'webview' ||
-      guest.session !== session.fromPartition(WEBVIEW_PARTITION) ||
       guest.hostWebContents !== hostWindow.webContents
     ) {
       throw new Error('The caller does not own this webview')
@@ -202,8 +195,16 @@ export class WebviewService extends BaseService {
     return guest
   }
 
+  private requireOwnedSiteWebview(webviewId: number, senderId: WindowId | null) {
+    const guest = this.requireOwnedGuest(webviewId, senderId)
+    if (guest.session !== session.fromPartition(WEBVIEW_PARTITION)) {
+      throw new Error('The caller does not own this webview')
+    }
+    return guest
+  }
+
   async exportAnnotations(input: ExportAnnotationsInput, senderId: WindowId | null): Promise<string> {
-    const guest = this.requireOwnedWebview(input.webviewId, senderId)
+    const guest = this.requireOwnedSiteWebview(input.webviewId, senderId)
     const annotationSession = this.annotationSessions.get(input.webviewId)
     if (!annotationSession?.isFor(guest)) throw new Error('Annotation document session is stale')
 
@@ -213,7 +214,7 @@ export class WebviewService extends BaseService {
         target: input.target,
         annotations: input.annotations
       })
-      if (this.requireOwnedWebview(input.webviewId, senderId) !== guest) {
+      if (this.requireOwnedSiteWebview(input.webviewId, senderId) !== guest) {
         throw new Error('The caller does not own this webview')
       }
       return markdown
@@ -221,14 +222,18 @@ export class WebviewService extends BaseService {
   }
 
   setSpellCheckerEnabled(webviewId: number, isEnable: boolean, senderId: WindowId | null): void {
-    this.requireOwnedWebview(webviewId, senderId).session.setSpellCheckerEnabled(isEnable)
+    this.requireOwnedGuest(webviewId, senderId).session.setSpellCheckerEnabled(isEnable)
+  }
+
+  setOpenLinkExternal(webviewId: number, isExternal: boolean, senderId: WindowId | null): void {
+    configureOpenLinkExternal(this.requireOwnedSiteWebview(webviewId, senderId), isExternal)
   }
 
   /**
    * Print webview content to PDF.
    */
   async printWebviewToPDF(webviewId: number, senderId: WindowId | null): Promise<string | null> {
-    const webview = this.requireOwnedWebview(webviewId, senderId)
+    const webview = this.requireOwnedGuest(webviewId, senderId)
 
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
@@ -263,7 +268,7 @@ export class WebviewService extends BaseService {
    * Save webview content as HTML.
    */
   async saveWebviewAsHTML(webviewId: number, senderId: WindowId | null): Promise<string | null> {
-    const webview = this.requireOwnedWebview(webviewId, senderId)
+    const webview = this.requireOwnedGuest(webviewId, senderId)
 
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)

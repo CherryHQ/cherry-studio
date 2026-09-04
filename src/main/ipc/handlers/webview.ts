@@ -1,17 +1,15 @@
 import { application } from '@application'
-import { setOpenLinkExternal } from '@main/services/webview'
 import type { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 /**
  * Webview-domain handlers acting on a MiniApp `<webview>` guest by its webContents id.
- * The stateless link toggle runs inline; ownership-sensitive guest operations delegate
- * to WebviewService, which validates the caller before touching the WebContents.
+ * Guest operations delegate to WebviewService, which validates the caller before
+ * touching the WebContents.
  */
 export const webviewHandlers: IpcHandlersFor<typeof webviewRequestSchemas> = {
-  'webview.set_open_link_external': async ({ webviewId, isExternal }) => {
-    setOpenLinkExternal(webviewId, isExternal)
-  },
+  'webview.set_open_link_external': async ({ webviewId, isExternal }, { senderId }) =>
+    application.get('WebviewService').setOpenLinkExternal(webviewId, isExternal, senderId),
   'webview.set_spell_check_enabled': async ({ webviewId, isEnable }, { senderId }) =>
     application.get('WebviewService').setSpellCheckerEnabled(webviewId, isEnable, senderId),
   'webview.export_annotations': async (input, { senderId }) =>
