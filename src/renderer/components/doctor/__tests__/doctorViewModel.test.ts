@@ -140,7 +140,8 @@ describe('buildDoctorViewModel', () => {
     const viewModel = buildDoctorViewModel(state, NOW)
 
     expect(viewModel.rows.map((row) => row.id)).toEqual(['network-online', 'logs-recent-findings'])
-    expect(viewModel.problemCount).toBe(1)
+    expect(viewModel.problemCount).toBe(0)
+    expect(viewModel.summary).toMatchObject({ error: 1, skip: 1 })
   })
 
   it('normalizes completed results to catalog order and classifies every summary item once', () => {

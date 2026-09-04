@@ -156,7 +156,7 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
     report,
     rows,
     groups,
-    problemCount: rows.filter((row) => row.status === 'warn' || row.status === 'fail' || row.status === 'error').length,
+    problemCount: rows.filter((row) => row.status === 'warn' || row.status === 'fail').length,
     summary,
     canCancel: state.status === 'running' && state.tier === 'live',
     isStale

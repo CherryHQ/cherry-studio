@@ -16,6 +16,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
+import { formatDiagnosticBytes } from '@renderer/utils/diagnosticSourceSummary'
 import type { DoctorAction, DoctorCheckId, DoctorCheckResult, DoctorFixRequest } from '@shared/types/doctor'
 import {
   ChevronDown,
@@ -41,6 +42,18 @@ import { formatDoctorReportForCopy } from './formatDoctorCopy'
 import type { DoctorController } from './useDoctorController'
 
 const logger = loggerService.withContext('DoctorChecksPanel')
+const CONFIRM_FIX_CONTENT = {
+  'storage-diagnostic-data-size': {
+    evidenceKey: 'bytes',
+    scopeKey: 'settings.doctor.confirm_fix.diagnostic_data_scope'
+  },
+  'storage-disk-space': {
+    evidenceKey: 'reclaimableBytes',
+    scopeKey: 'settings.doctor.confirm_fix.storage_disk_space_scope'
+  }
+} as const
+
+type ConfirmFixCheckId = keyof typeof CONFIRM_FIX_CONTENT
 
 export function DoctorChecksPanel({ controller }: { readonly controller: DoctorController }) {
   const { t } = useTranslation()
@@ -88,13 +101,9 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
     return (
       <ConfirmationPanel
         title={t('settings.doctor.confirm_fix.title')}
-        description={
-          <div className="space-y-2">
-            <p>{t('settings.doctor.confirm_fix.description')}</p>
-            <CheckDescription result={affectedResult} />
-          </div>
-        }
+        description={<FixConfirmationDescription checkId={interaction.request.checkId} result={affectedResult} />}
         confirmLabel={fixLabel(t, interaction.request, controller.mcpServerName(interaction.request.target))}
+        destructive
         onCancel={controller.cancelFixConfirmation}
         onConfirm={() => void controller.confirmFix()}
       />
@@ -212,12 +221,28 @@ export function DoctorChecksPanel({ controller }: { readonly controller: DoctorC
             {t('settings.doctor.actions.cancel_run')}
           </Button>
         ) : null}
-        {viewModel.report ? (
-          <Button variant="outline" onClick={() => void copyResults()}>
-            <Copy className="size-4" />
-            {t('settings.doctor.actions.copy')}
-          </Button>
-        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" disabled={!controller.canChangePanel}>
+              {t('settings.doctor.actions.more')}
+              <ChevronDown className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {viewModel.report ? (
+              <DropdownMenuItem onSelect={() => void copyResults()}>
+                <Copy className="size-4" />
+                {t('settings.doctor.actions.copy')}
+              </DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem onSelect={() => controller.setPanel('export')}>
+              {t('settings.doctor.panels.export')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => controller.setPanel('report')}>
+              {t('settings.doctor.actions.report_problem')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="outline"
           loading={session.interaction.kind === 'run' && session.interaction.tier === 'quick'}
@@ -278,8 +303,8 @@ function DoctorSummary({ controller }: { readonly controller: DoctorController }
             <p className="font-medium text-sm">
               {viewModel.problemCount > 0
                 ? t('settings.doctor.summary.problems', { count: viewModel.problemCount })
-                : viewModel.summary.skip > 0
-                  ? t('settings.doctor.summary.skip', { count: viewModel.summary.skip })
+                : viewModel.summary.error > 0 || viewModel.summary.skip > 0
+                  ? t('settings.doctor.summary.incomplete')
                   : t(
                       viewModel.report.tier === 'quick'
                         ? 'settings.doctor.summary.basic_healthy'
@@ -499,6 +524,51 @@ function CheckDescription({ result }: { readonly result?: DoctorCheckResult }) {
   return <p className="text-muted-foreground text-xs">{t(details[result.detail.variant], result.detail.params)}</p>
 }
 
+function FixConfirmationDescription({
+  checkId,
+  result
+}: {
+  readonly checkId: DoctorFixRequest['checkId']
+  readonly result?: DoctorCheckResult
+}) {
+  const { t } = useTranslation()
+  if (!isConfirmFixCheckId(checkId)) {
+    throw new Error(`Missing confirmation content for Doctor fix: ${checkId}`)
+  }
+  const content = CONFIRM_FIX_CONTENT[checkId]
+  const evidence = result?.evidence?.find(
+    (item) => item.key === content.evidenceKey && item.dataClass === 'public' && typeof item.value === 'number'
+  )
+  const estimatedBytes =
+    typeof evidence?.value === 'number' && Number.isFinite(evidence.value) && evidence.value >= 0
+      ? evidence.value
+      : undefined
+
+  return (
+    <div className="space-y-3">
+      <dl className="grid gap-2 text-xs sm:grid-cols-[auto_minmax(0,1fr)]">
+        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.scope')}</dt>
+        <dd>{t(content.scopeKey)}</dd>
+        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.reclaimable_label')}</dt>
+        <dd>
+          {estimatedBytes === undefined
+            ? t('settings.doctor.confirm_fix.reclaimable_unavailable')
+            : t('settings.doctor.confirm_fix.reclaimable', { size: formatDiagnosticBytes(estimatedBytes) })}
+        </dd>
+        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.irreversible_label')}</dt>
+        <dd>{t('settings.doctor.confirm_fix.irreversible')}</dd>
+        <dt className="text-muted-foreground">{t('settings.doctor.confirm_fix.duration_label')}</dt>
+        <dd>{t('settings.doctor.confirm_fix.duration')}</dd>
+      </dl>
+      <CheckDescription result={result} />
+    </div>
+  )
+}
+
+function isConfirmFixCheckId(checkId: DoctorFixRequest['checkId']): checkId is ConfirmFixCheckId {
+  return Object.hasOwn(CONFIRM_FIX_CONTENT, checkId)
+}
+
 function Evidence({ name, value }: { readonly name: string; readonly value: string }) {
   return (
     <>
@@ -511,12 +581,14 @@ function Evidence({ name, value }: { readonly name: string; readonly value: stri
 function ConfirmationPanel({
   confirmLabel,
   description,
+  destructive = false,
   onCancel,
   onConfirm,
   title
 }: {
   readonly confirmLabel: string
   readonly description: ReactNode
+  readonly destructive?: boolean
   readonly onCancel: () => void
   readonly onConfirm: () => void
   readonly title: string
@@ -531,7 +603,7 @@ function ConfirmationPanel({
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Button variant="emphasis" onClick={onConfirm}>
+        <Button variant={destructive ? 'destructive' : 'emphasis'} onClick={onConfirm}>
           {confirmLabel}
         </Button>
       </DialogFooter>
@@ -603,7 +675,9 @@ function StatusIcon({ status }: { readonly status: string }): ReactNode {
       return <CircleX className="mt-0.5 size-4 shrink-0 text-error" aria-hidden />
     case 'pending':
     case 'running':
-      return <CircleDashed className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+      return (
+        <CircleDashed className="mt-0.5 size-4 shrink-0 text-muted-foreground motion-safe:animate-spin" aria-hidden />
+      )
     case 'skip':
     case 'neutral':
       return <CircleMinus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
