@@ -9,11 +9,48 @@ import {
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
 import type { WebviewTag } from 'electron'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('useWebviewAnnotationSession')
 const SNAPSHOT_TIMEOUT_MS = 2_000
-const EMPTY_STATE = { enabled: false, count: 0 }
+
+interface SessionState {
+  enabled: boolean
+  count: number
+  copying: boolean
+  documentSessionId: string | null
+}
+
+type SessionStateUpdate = SessionState | ((current: SessionState) => SessionState)
+
+const EMPTY_STATE: SessionState = { enabled: false, count: 0, copying: false, documentSessionId: null }
+
+function createSessionStore() {
+  let snapshot = EMPTY_STATE
+  const listeners = new Set<() => void>()
+
+  const getSnapshot = () => snapshot
+  const subscribe = (listener: () => void) => {
+    listeners.add(listener)
+    return () => listeners.delete(listener)
+  }
+  const setState = (update: SessionStateUpdate) => {
+    const next = typeof update === 'function' ? update(snapshot) : update
+    if (
+      Object.is(snapshot, next) ||
+      (snapshot.enabled === next.enabled &&
+        snapshot.count === next.count &&
+        snapshot.copying === next.copying &&
+        snapshot.documentSessionId === next.documentSessionId)
+    ) {
+      return
+    }
+    snapshot = next
+    listeners.forEach((listener) => listener())
+  }
+
+  return { getSnapshot, subscribe, setState }
+}
 
 interface Options {
   webview: WebviewTag | null
@@ -43,8 +80,10 @@ interface CopyOperation extends Binding {
 }
 
 export function useWebviewAnnotationSession({ webview, isHostActive, target, locale, theme }: Options) {
-  const [state, setState] = useState(EMPTY_STATE)
-  const [copying, setCopying] = useState(false)
+  const storeRef = useRef<ReturnType<typeof createSessionStore> | null>(null)
+  if (!storeRef.current) storeRef.current = createSessionStore()
+  const store = storeRef.current
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const bindingRef = useRef<Binding | null>(null)
   const sessionRef = useRef<string | null>(null)
   const retiredSessionsRef = useRef(new Set<string>())
@@ -100,7 +139,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     bindingRef.current = { webview: attachedWebview, webviewId }
     sessionRef.current = null
     retiredSessionsRef.current = new Set()
-    setState(EMPTY_STATE)
+    store.setState(EMPTY_STATE)
 
     const retireSession = (clear: boolean, message: string) => {
       const sessionId = sessionRef.current
@@ -111,7 +150,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
         retiredSessionsRef.current.add(sessionId)
       }
       sessionRef.current = null
-      setState(EMPTY_STATE)
+      store.setState(EMPTY_STATE)
     }
 
     const configureSession = (sessionId: string) =>
@@ -155,7 +194,12 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
       }
 
       const enabled = hostActiveRef.current && guestEvent.enabled
-      setState({ enabled, count: guestEvent.count })
+      store.setState((current) => ({
+        ...current,
+        enabled,
+        count: guestEvent.count,
+        documentSessionId: guestEvent.sessionId
+      }))
       if (!hostActiveRef.current && guestEvent.enabled) {
         sendCommand(attachedWebview, { type: 'deactivate', sessionId: guestEvent.sessionId })
       }
@@ -186,7 +230,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
       attachedWebview.removeEventListener('render-process-gone', handleRenderProcessGone)
       attachedWebview.removeEventListener('dom-ready', requestState)
     }
-  }, [invalidateOperation, sendCommand, webview])
+  }, [invalidateOperation, sendCommand, store, webview])
 
   const previousTargetIdRef = useRef(target.id)
   useEffect(() => {
@@ -197,8 +241,8 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (binding && sessionId) sendCommand(binding.webview, { type: 'clear', sessionId })
-    setState(EMPTY_STATE)
-  }, [invalidateOperation, sendCommand, target.id])
+    store.setState((current) => ({ ...current, enabled: false, count: 0 }))
+  }, [invalidateOperation, sendCommand, store, target.id])
 
   useEffect(() => {
     const binding = bindingRef.current
@@ -213,11 +257,11 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     if (!binding || !sessionId) return
     if (!isHostActive) {
       sendCommand(binding.webview, { type: 'deactivate', sessionId })
-      setState((current) => ({ ...current, enabled: false }))
+      store.setState((current) => ({ ...current, enabled: false }))
     } else {
       sendCommand(binding.webview, { type: 'request_state' })
     }
-  }, [isHostActive, sendCommand])
+  }, [isHostActive, sendCommand, store])
 
   const toggle = useCallback(() => {
     const binding = bindingRef.current
@@ -225,8 +269,8 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     if (!binding || !sessionId) return
     const enabled = !state.enabled
     if (!sendCommand(binding.webview, { type: 'set_enabled', sessionId, enabled })) return
-    setState((current) => ({ ...current, enabled }))
-  }, [sendCommand, state.enabled])
+    store.setState((current) => ({ ...current, enabled }))
+  }, [sendCommand, state.enabled, store])
 
   const requestSnapshot = useCallback(
     (operation: CopyOperation) =>
@@ -281,7 +325,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     }
     operationRef.current = operation
     copyInFlightRef.current = true
-    setCopying(true)
+    store.setState((current) => ({ ...current, copying: true }))
     try {
       const annotations = await requestSnapshot(operation)
       if (annotations.length === 0 || !isOperationCurrent(operation)) throw new Error('Annotation snapshot is stale')
@@ -296,23 +340,24 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     } finally {
       if (operationRef.current === operation) operationRef.current = null
       copyInFlightRef.current = false
-      setCopying(false)
+      store.setState((current) => ({ ...current, copying: false }))
     }
-  }, [isOperationCurrent, requestSnapshot, state.count])
+  }, [isOperationCurrent, requestSnapshot, state.count, store])
 
   const clear = useCallback(() => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (!binding || !sessionId || !sendCommand(binding.webview, { type: 'clear', sessionId })) return false
     invalidateOperation('Annotations cleared')
-    setState((current) => ({ ...current, count: 0 }))
+    store.setState((current) => ({ ...current, count: 0 }))
     return true
-  }, [invalidateOperation, sendCommand])
+  }, [invalidateOperation, sendCommand, store])
 
   return {
-    ...state,
-    ready: Boolean(webview && sessionRef.current),
-    copying,
+    enabled: state.enabled,
+    count: state.count,
+    ready: Boolean(webview && state.documentSessionId),
+    copying: state.copying,
     toggle,
     clear,
     copy
