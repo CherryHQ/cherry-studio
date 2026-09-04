@@ -34,11 +34,13 @@ describe('buildApiKeyFallbackModels', () => {
     const fallbackReceipt = { attribution: 'matched' as const, id: 'key-3', masked: 'sk-3****3333' }
     const featurePlugin = { name: 'feature' }
     const usagePlugin = { name: 'usage-key-3' }
+    const repairToolCall = vi.fn()
     const createUsagePlugin = vi.fn().mockReturnValue(usagePlugin)
     buildAgentParams.mockResolvedValue({
       sdkConfig: { providerId: 'openai', providerSettings: { apiKey: 'sk-3' }, modelId: 'model' },
       credentialReceipt: fallbackReceipt,
-      plugins: [featurePlugin]
+      plugins: [featurePlugin],
+      options: { repairToolCall }
     })
     const resolvedModel = { modelId: 'model' }
     resolveLanguageModel.mockResolvedValue(resolvedModel)
@@ -57,7 +59,7 @@ describe('buildApiKeyFallbackModels', () => {
     expect(fallbacks).toHaveLength(2)
     expect(buildAgentParams).not.toHaveBeenCalled()
 
-    await expect(fallbacks[0]()).resolves.toEqual({ model: resolvedModel })
+    await expect(fallbacks[0]()).resolves.toEqual({ model: resolvedModel, repairToolCall })
     expect(buildAgentParams).toHaveBeenCalledWith(
       expect.objectContaining({ request: expect.objectContaining({ apiKeyOverride: 'sk-3' }) })
     )

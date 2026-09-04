@@ -44,13 +44,14 @@ function policy(fallbackModelIds: readonly string[], enabled = true): RetryPolic
 /** buildAgentParams stub: returns the fallback model's own plugins + params. */
 function stubBuildAgentParams(modelId: string) {
   const plugins = [{ name: `mw-${modelId}` }]
+  const repairToolCall = vi.fn()
   buildAgentParams.mockResolvedValue({
     sdkConfig: { providerId: 'anthropic', providerSettings: {}, modelId },
     plugins,
-    options: { temperature: 0.2, maxOutputTokens: 128 },
+    options: { temperature: 0.2, maxOutputTokens: 128, repairToolCall },
     nativeFileSupport: ALL_NATIVE_SUPPORT
   })
-  return plugins
+  return { plugins, repairToolCall }
 }
 
 const baseArgs = {
@@ -98,7 +99,7 @@ describe('buildFallbackModels', () => {
 
   it('resolves a fallback with its OWN plugins and lifts its OWN param overrides', async () => {
     getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
-    const plugins = stubBuildAgentParams('claude-x')
+    const { plugins, repairToolCall } = stubBuildAgentParams('claude-x')
 
     const [resolve] = buildFallbackModels({
       ...baseArgs,
@@ -112,6 +113,7 @@ describe('buildFallbackModels', () => {
     // The fallback's own params are lifted as the per-fallback option override.
     expect(fallback?.options).toEqual({ temperature: 0.2, maxOutputTokens: 128 })
     expect(fallback?.model).toMatchObject({ modelId: 'claude-x' })
+    expect(fallback?.repairToolCall).toBe(repairToolCall)
   })
 
   it('skips the active model (by stored UniqueModelId) — no resolver created, even when apiModelId differs', () => {

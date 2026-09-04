@@ -1370,6 +1370,42 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('switches tool-call repair to the activated fallback credential', async () => {
+    const service = createService()
+    const primaryRepair = vi.fn().mockResolvedValue(null)
+    const fallbackRepair = vi.fn().mockResolvedValue(null)
+    mockCreateRetryableWrap.mockReturnValueOnce(((model: unknown) => model) as never)
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: { repairToolCall: primaryRepair },
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({ uniqueModelId: 'test-provider::test-model', prompt: 'hello' } as never)
+
+    const retryOptions = mockCreateRetryableWrap.mock.calls[0][0] as {
+      onFallbackActivated: (fallback: { repairToolCall: typeof fallbackRepair }) => void
+    }
+    const agentOptions = mockCreateAgent.mock.calls[0][0] as {
+      agentSettings: { experimental_repairToolCall: (options: never) => Promise<null> }
+    }
+    const repair = agentOptions.agentSettings.experimental_repairToolCall
+    await repair({} as never)
+    expect(primaryRepair).toHaveBeenCalledOnce()
+
+    retryOptions.onFallbackActivated({ repairToolCall: fallbackRepair })
+    await repair({} as never)
+    expect(fallbackRepair).toHaveBeenCalledOnce()
+  })
+
   it('passes an explicit API key override to key-pool resolution', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({

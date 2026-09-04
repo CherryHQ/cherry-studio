@@ -161,5 +161,5 @@ async function resolveFallback(
     sdkConfig.modelId,
     plugins
   )
-  return { model: resolved, options: pickFallbackCallOptions(options) }
+  return { model: resolved, options: pickFallbackCallOptions(options), repairToolCall: options.repairToolCall }
 }

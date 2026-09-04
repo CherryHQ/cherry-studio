@@ -597,6 +597,11 @@ export class AiService extends BaseService {
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
     const agentRef: { current?: Agent } = {}
+    let activeRepairToolCall = options.repairToolCall
+    const repairToolCall = options.repairToolCall
+      ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
+          activeRepairToolCall!(repairOptions)
+      : undefined
     let wrapModel: ReturnType<typeof createRetryableWrap>
     if (!retryDisabledForRequest) {
       const apiKeyFallbacks = buildApiKeyFallbackModels({
@@ -625,6 +630,9 @@ export class AiService extends BaseService {
           extraFeatures,
           retryPolicy
         }),
+        onFallbackActivated: (fallback) => {
+          activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        },
         // Stable `id` so repeated retries reconcile into one live status part (latest wins).
         // Not transient: it rides message.parts so the renderer can show it; the
         // PersistenceListener strips it before the message is saved.
@@ -642,7 +650,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system,
-      options: wrapModel ? { ...options, maxRetries: 0 } : options,
+      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [
         this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'),
         ...(request.runtimeTimingSink
@@ -703,6 +711,11 @@ export class AiService extends BaseService {
     })
     const usagePlugin = createAiUsagePlugin(usageContext)
     repairUsagePlugins.current = [usagePlugin]
+    let activeRepairToolCall = options.repairToolCall
+    const repairToolCall = options.repairToolCall
+      ? (repairOptions: Parameters<NonNullable<typeof options.repairToolCall>>[0]) =>
+          activeRepairToolCall!(repairOptions)
+      : undefined
 
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel: ReturnType<typeof createRetryableWrap>
@@ -732,7 +745,10 @@ export class AiService extends BaseService {
           requiredNativeFileSupport: resolveRequiredNativeFileSupport(request.messages, nativeFileSupport),
           extraFeatures,
           retryPolicy
-        })
+        }),
+        onFallbackActivated: (fallback) => {
+          activeRepairToolCall = fallback.repairToolCall ?? options.repairToolCall
+        }
       })
     }
 
@@ -748,7 +764,7 @@ export class AiService extends BaseService {
       wrapModel,
       tools,
       system: request.system ?? system,
-      options: wrapModel ? { ...options, maxRetries: 0 } : options,
+      options: wrapModel ? { ...options, maxRetries: 0, repairToolCall } : options,
       hookParts: [this.analyticsHookPart(model, request.tokenUsageSource ?? 'chat'), ...hookParts],
       mediaCapabilities,
       toolResultMediaCapabilities: resolveToolResultMediaCapabilities(

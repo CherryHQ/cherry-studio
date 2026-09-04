@@ -31,7 +31,7 @@ AiService.streamText/generateText
 
 | Key | Default | Meaning |
 |---|---|---|
-| `chat.retry.enabled` | `false` | Master switch for chat retry/fallback and the embedding/rerank retry policy |
+| `chat.retry.enabled` | `false` | Enables transient chat retry, cross-model fallback, and the embedding/rerank retry policy; API-key failover remains independent |
 | `chat.retry.max_attempts` | `3` | Retry count, normalized to the integer range 1–10 at the request boundary |
 | `chat.retry.backoff_enabled` | `true` | Exponential backoff (2s, 4s, 8s… with the library's attempt-count exponent) |
 | `chat.retry.fallback_model_ids` | `[]` | `UniqueModelId[]` tried in order after same-model retry is exhausted |
@@ -70,7 +70,11 @@ in `buildAgentParams`, closed over that model). So for each configured fallback
 
 **`createRetryableWrap`** (`createRetryableWrap.ts`) then just assembles the
 ai-retry policy from the pre-built fallbacks (no provider/model loading in this
-leaf): returns `undefined` when disabled, else a `wrapModel` closure:
+leaf). It returns `undefined` only when model retry is disabled and no eligible
+API-key fallback exists; otherwise it returns a `wrapModel` closure. Key rotation
+is attempted first for 401/429 responses. When model retry is enabled, a selected
+replacement key still receives the configured same-model retry for other
+retryable errors (such as 503/529) before cross-model fallback begins.
 
 ```ts
 // ai-retry's condition-based API (ai-retry/language-model). The retry STRATEGY
@@ -151,9 +155,10 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
   feature disabled, an explicit non-zero per-request value still uses the SDK's
   native retry behavior.
 - **Per-request opt-out:** an explicit `requestOptions.maxRetries === 0` on a
-  chat request disables the ai-retry wrapper for that request (no same-model
-  retry, no fallback), so the per-request contract stays authoritative — the
-  same way embedding/rerank honor an explicit override.
+  chat request disables the entire ai-retry wrapper for that request (no API-key
+  failover, same-model retry, or cross-model fallback), so the per-request
+  contract stays authoritative — the same way embedding/rerank honor an explicit
+  override.
 - **`AgentLoopHooks.onError`** handlers are all invoked and their decisions are
   composed (`retry` wins over `abort`). The current agent loop still terminates
   after notification; call-level retry/fallback belongs to this model wrapper,

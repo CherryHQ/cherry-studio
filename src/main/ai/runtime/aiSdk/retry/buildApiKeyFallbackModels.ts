@@ -50,6 +50,6 @@ export function buildApiKeyFallbackModels(args: BuildApiKeyFallbackModelsArgs): 
       built.sdkConfig.modelId,
       [...built.plugins, usagePlugin]
     )
-    return { model: resolved }
+    return { model: resolved, repairToolCall: built.options.repairToolCall }
   })
 }
