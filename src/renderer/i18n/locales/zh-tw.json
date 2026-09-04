@@ -5202,6 +5202,7 @@
   "translate.settings.autoCopy": "翻譯完成後自動複製",
   "translate.settings.bidirectional": "雙向翻譯設定",
   "translate.settings.bidirectional_tip": "開啟後，僅支援在來源語言和目標語言之間進行雙向翻譯",
+  "translate.settings.model_params": "模型參數",
   "translate.settings.model_placeholder": "選擇翻譯模型",
   "translate.settings.preview": "Markdown 預覽",
   "translate.settings.scroll_sync": "滾動同步設定",

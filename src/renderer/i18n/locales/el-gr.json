@@ -5202,6 +5202,7 @@
   "translate.settings.autoCopy": "Μετά τη μετάφραση, αντιγράφεται αυτόματα",
   "translate.settings.bidirectional": "Ρύθμιση διπλής κατεύθυνσης μετάφρασης",
   "translate.settings.bidirectional_tip": "Όταν ενεργοποιηθεί, υποστηρίζεται μόνο διπλής κατεύθυνσης μετάφραση μεταξύ της πηγαίας και της στόχου γλώσσας",
+  "translate.settings.model_params": "Παράμετροι μοντέλου",
   "translate.settings.model_placeholder": "Επιλέξτε μοντέλο μετάφρασης",
   "translate.settings.preview": "Προεπισκόπηση Markdown",
   "translate.settings.scroll_sync": "Ρύθμιση συγχρονισμού κύλισης",
