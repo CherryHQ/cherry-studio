@@ -77,11 +77,6 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
-import {
-  collectV1TopicOrderIds,
-  compareTopicLeftoversByUpdatedAtThenId,
-  orderItemsByV1TopicSequence
-} from '../utils/v1TopicOrder'
 import { BaseMigrator } from './BaseMigrator'
 import { markEntriesAutoCleanup } from './FileMigrator'
 import {
@@ -180,6 +175,23 @@ interface AssistantState {
   defaultAssistant?: OldAssistant
 }
 
+function collectV1TopicOrderIds(source: AssistantState | undefined): string[] {
+  const topicIds: string[] = []
+  const seen = new Set<string>()
+
+  const visit = (assistant: OldAssistant | undefined): void => {
+    for (const topic of assistant?.topics ?? []) {
+      if (!topic.id || seen.has(topic.id)) continue
+      seen.add(topic.id)
+      topicIds.push(topic.id)
+    }
+  }
+
+  for (const assistant of source?.assistants ?? []) visit(assistant)
+  visit(source?.defaultAssistant)
+  return topicIds
+}
+
 /**
  * Prepared data for execution phase. `pinned` carries the legacy `pinned`
  * flag from the source so the migrator can emit a corresponding `pin` row
@@ -189,6 +201,26 @@ interface PreparedTopicData {
   topic: NewTopic
   messages: NewMessage[]
   pinned: boolean
+}
+
+function orderPreparedTopicsByV1Sequence(
+  topics: readonly PreparedTopicData[],
+  reduxOrderIds: readonly string[]
+): PreparedTopicData[] {
+  const remaining = new Map(topics.map((data) => [data.topic.id, data]))
+  const ordered: PreparedTopicData[] = []
+
+  for (const id of reduxOrderIds) {
+    const data = remaining.get(id)
+    if (!data) continue
+    ordered.push(data)
+    remaining.delete(id)
+  }
+
+  const leftovers = [...remaining.values()].sort(
+    (a, b) => b.topic.updatedAt - a.topic.updatedAt || a.topic.id.localeCompare(b.topic.id)
+  )
+  return [...ordered, ...leftovers]
 }
 
 export class ChatMigrator extends BaseMigrator {
@@ -368,7 +400,7 @@ export class ChatMigrator extends BaseMigrator {
       // can also carry topics — must be visited too, otherwise its topics show
       // up post-migration unnamed and with no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
-      this.reduxTopicOrderIds = collectV1TopicOrderIds(assistantState ?? {})
+      this.reduxTopicOrderIds = collectV1TopicOrderIds(assistantState)
       const allAssistants: OldAssistant[] = []
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
       if (assistantState?.defaultAssistant) allAssistants.push(assistantState.defaultAssistant)
@@ -1177,12 +1209,7 @@ export class ChatMigrator extends BaseMigrator {
 
     // Stamp from V1 Redux `assistants[].topics[]` (then defaultAssistant),
     // first-write-wins. Dexie-only leftovers append after that flatten.
-    const orderedPrepared = orderItemsByV1TopicSequence(
-      this.stagedTopics,
-      (data) => data.topic.id,
-      this.reduxTopicOrderIds,
-      (a, b) => compareTopicLeftoversByUpdatedAtThenId(a.topic, b.topic)
-    )
+    const orderedPrepared = orderPreparedTopicsByV1Sequence(this.stagedTopics, this.reduxTopicOrderIds)
     const stampedTopics = assignOrderKeysInSequence(orderedPrepared.map((data) => data.topic))
     const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
     for (const data of this.stagedTopics) {

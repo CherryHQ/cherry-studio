@@ -1064,12 +1064,13 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     expect(new Set(pins.map((p) => p.orderKey)).size).toBe(pins.length)
   })
 
-  it('appends Dexie-only leftovers after an empty Redux flatten using updatedAt DESC', async () => {
+  it('appends Dexie-only leftovers after an empty Redux flatten using updatedAt DESC then id', async () => {
     const migrator = new ChatMigrator()
     stage(migrator, [
       { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
       { topic: newTopic('t-new-pin', 300), messages: [], pinned: true },
-      { topic: newTopic('t-mid', 200), messages: [], pinned: false }
+      { topic: newTopic('t-mid-z', 200), messages: [], pinned: false },
+      { topic: newTopic('t-mid-a', 200), messages: [], pinned: false }
     ])
 
     const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (ctx: MigrationContext) => {
@@ -1079,7 +1080,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
 
     expect(result.pinsInserted).toBe(2)
     const topics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
-    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid', 't-old-pin'])
+    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid-a', 't-mid-z', 't-old-pin'])
     const pins = await dbh.db
       .select({ entityId: pinTable.entityId })
       .from(pinTable)

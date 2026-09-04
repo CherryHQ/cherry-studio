@@ -139,7 +139,6 @@ Topic and pin order are read from the migration-owned Redux export while ChatMig
 ## Implementation Files
 
 - `ChatMigrator.ts` - Main migrator class with prepare/execute/validate phases
-- `utils/v1TopicOrder.ts` - Redux flatten + leftover append
 - `mappings/ChatMappings.ts` - Pure transformation functions and type definitions
 
 ## Code Quality
