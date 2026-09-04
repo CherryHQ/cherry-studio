@@ -105,7 +105,10 @@ const MinimalToolbar: FC<Props> = ({
   const annotationTarget = useMemo(
     () => ({
       id: getAnnotationTargetId(app.appId),
-      label: (app.nameKey ? t(app.nameKey) : app.name).trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
+      label: ((app.nameKey ? t(app.nameKey) : app.name).trim() || t('common.unnamed')).slice(
+        0,
+        WEBVIEW_ANNOTATION_LIMITS.targetLabel
+      )
     }),
     [app.appId, app.name, app.nameKey, t]
   )

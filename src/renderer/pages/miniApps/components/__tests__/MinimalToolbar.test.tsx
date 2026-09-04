@@ -162,6 +162,12 @@ describe('MinimalToolbar', () => {
     expect(mocks.annotationTarget?.id).not.toBe(firstTarget?.id)
   })
 
+  it('provides a valid annotation target for a whitespace-only custom app name', () => {
+    renderToolbar({ ...site, name: '   ' })
+
+    expect(WebviewAnnotationTargetSchema.safeParse(mocks.annotationTarget).success).toBe(true)
+  })
+
   it('shows DevTools for local apps and sites alike', () => {
     renderToolbar(localApp)
     expect(screen.getByRole('button', { name: /developer tools|开发者工具/i })).toBeInTheDocument()
