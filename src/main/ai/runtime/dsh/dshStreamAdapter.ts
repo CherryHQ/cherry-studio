@@ -140,6 +140,8 @@ export class DshStreamAdapter {
   private suppressedTurn?: number
   /** Timestamp of the last host-prompted turn's `turn/end`; drives the post-turn grace period. */
   private hostTurnEndedAt?: number
+  /** Saved grace timestamp across a `beginTurn()`/`abortTurn()` pair; preserves the window when a host prompt fails. */
+  private savedHostTurnEndedAt?: number
   /** Call ids from a suppressed autonomous turn; isolates late bridge approvals even after a host turn begins. */
   private readonly suppressedToolCallIds = new Set<string>()
 
@@ -150,9 +152,10 @@ export class DshStreamAdapter {
     this.startedTools.clear()
     this.turnActive = true
     this.autonomousTurn = false
-    if (this.suppressedTurn === undefined) {
-      this.autonomousTurnSuppressed = false
-    }
+    this.savedHostTurnEndedAt = this.hostTurnEndedAt
+    // Clear the latch so a future autonomous turn is evaluated fresh; keep
+    // `suppressedTurn` for late-event isolation until its `turn/end` arrives.
+    this.autonomousTurnSuppressed = false
     this.hostTurnEndedAt = undefined
   }
 
@@ -160,8 +163,10 @@ export class DshStreamAdapter {
   abortTurn(): void {
     this.turnActive = false
     this.autonomousTurn = false
-    if (this.suppressedTurn === undefined) {
-      this.autonomousTurnSuppressed = false
+    this.autonomousTurnSuppressed = false
+    if (this.savedHostTurnEndedAt !== undefined) {
+      this.hostTurnEndedAt = this.savedHostTurnEndedAt
+      this.savedHostTurnEndedAt = undefined
     }
   }
 
@@ -255,7 +260,8 @@ export class DshStreamAdapter {
         if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) {
           this.suppressedTurn = undefined
           this.autonomousTurnSuppressed = false
-          this.flushPendingProviderUsage()
+          this.suppressedToolCallIds.clear()
+          this.pendingProviderUsage = undefined
           return
         }
         this.flushPendingProviderUsage()
@@ -263,6 +269,7 @@ export class DshStreamAdapter {
         // has nothing to settle — surfacing it would fabricate an empty host turn.
         if (!this.turnActive) return
         this.turnActive = false
+        this.savedHostTurnEndedAt = undefined
         if (this.autonomousTurn) {
           this.autonomousTurn = false
           // Ownership release must precede the terminal turn-complete (host contract).
@@ -284,10 +291,16 @@ export class DshStreamAdapter {
         if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) return
         this.startProviderAttempt(event.data, false)
         return
-      case 'step/end':
+      case 'step/end': {
+        if (this.suppressedTurn !== undefined && (event.data as { turn: number }).turn === this.suppressedTurn) {
+          this.pendingProviderUsage = undefined
+          this.resetStepTiming()
+          return
+        }
         this.flushPendingProviderUsage()
         this.resetStepTiming()
         return
+      }
       case 'compaction/start':
         this.handleCompactionStart(event.data)
         return
