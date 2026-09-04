@@ -1,6 +1,10 @@
+import { IncomingMessage } from 'node:http'
+import { Socket } from 'node:net'
+
 import type { AppEventSchemas } from '@shared/ipc/schemas/app'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
+import { createHttpError } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -75,6 +79,13 @@ const progress: ProgressInfo = {
   percent: 100,
   total: 2048,
   transferred: 2048
+}
+
+const releaseError = (body: string, url = 'https://releases.cherry-ai.com/beta-cn-mac.yml') => {
+  const response = new IncomingMessage(new Socket())
+  response.statusCode = 503
+  response.statusMessage = 'Service Unavailable'
+  return createHttpError(response, `method: GET url: ${url}\n\n          Data:\n          ${body}\n          `)
 }
 
 function emit<E extends keyof AppEventSchemas>(event: E, payload: AppEventSchemas[E]) {
@@ -180,9 +191,53 @@ describe('useAppUpdateHandler', () => {
       icon: null
     })
   })
+
+  it('explains a missing manifest only for a manual check without reporting success', () => {
+    const { rerender } = renderHook(() => useAppUpdateHandler())
+    // Electron transports Error.message, not the HttpError subclass or its custom fields.
+    const error = new Error(releaseError('{"error":{"code":"manifest_missing","message":"missing"}}').message)
+    emit('app.updater.error', error)
+    expect(mocks.popupInfo).not.toHaveBeenCalled()
+
+    mocks.appUpdateState.manualCheck = true
+    rerender()
+    emit('app.updater.error', error)
+    expect(mocks.popupInfo).toHaveBeenCalledExactlyOnceWith({
+      title: 'settings.about.updateError',
+      content: 'settings.about.updateNotPublished',
+      icon: null
+    })
+    expect(mocks.updateAppUpdateState).toHaveBeenLastCalledWith({
+      checking: false,
+      downloading: false,
+      downloadProgress: 0,
+      manualCheck: false
+    })
+    expect(mocks.toastSuccess).not.toHaveBeenCalled()
+  })
 })
 
 describe('getManualUpdateErrorMessageKey', () => {
+  it.each([
+    '<html>manifest_missing</html>',
+    '{"error":{"code":"upstream_timeout","message":"previous manifest_missing"}}',
+    '{"error":{"code":"edition_mismatch"}}',
+    '{"error":"manifest_missing"}',
+    'null',
+    '{broken json'
+  ])('does not treat an unrelated response body as a missing manifest: %s', (body) => {
+    expect(getManualUpdateErrorMessageKey(releaseError(body))).toBe('settings.about.updateError')
+  })
+
+  it('does not classify an unrelated host or free-form message by a matching substring', () => {
+    expect(
+      getManualUpdateErrorMessageKey(
+        releaseError('{"error":{"code":"manifest_missing"}}', 'https://example.test/beta-cn-mac.yml')
+      )
+    ).toBe('settings.about.updateError')
+    expect(getManualUpdateErrorMessageKey(new Error('503 manifest_missing'))).toBe('settings.about.updateError')
+  })
+
   it('classifies unpublished release artifacts without exposing the updater body', () => {
     expect(getManualUpdateErrorMessageKey(new Error('503 not_published'))).toBe('settings.about.updateNotPublished')
     expect(getManualUpdateErrorMessageKey(new Error('HttpError: 503 Cannot find latest.yml'))).toBe(
