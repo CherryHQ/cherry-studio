@@ -9,7 +9,7 @@ import {
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
 import type { WebviewTag } from 'electron'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useWebviewAnnotationSession')
 const SNAPSHOT_TIMEOUT_MS = 2_000
@@ -87,7 +87,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
     [rejectPendingSnapshot]
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!webview) return
     const attachedWebview = webview
     let webviewId = 0
