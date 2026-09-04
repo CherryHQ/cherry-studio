@@ -115,6 +115,25 @@ describe('formatWebviewAnnotations', () => {
     expect(result.text.length).toBeLessThanOrEqual(600)
   })
 
+  it('removes a complete block when necessary to make the truncation notice visible', () => {
+    const first = { ...document.annotations[0], comment: 'First complete annotation' }
+    const second = {
+      ...document.annotations[0],
+      id: '123e4567-e89b-12d3-a456-426614174001',
+      comment: 'Second omitted annotation'
+    }
+    const oneAnnotationLength = formatWebviewAnnotations({ ...document, annotations: [first] }).text.length
+
+    const result = formatWebviewAnnotations(
+      { ...document, annotations: [first, second] },
+      { maxChars: oneAnnotationLength }
+    )
+
+    expect(result.text).toContain('Output truncated: 2 annotations omitted.')
+    expect(result.includedAnnotations).toBe(0)
+    expect(result.truncatedAnnotations).toBe(2)
+  })
+
   it('keeps page-provided backticks inside a code span', () => {
     const hostile = {
       ...document,

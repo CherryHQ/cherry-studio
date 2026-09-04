@@ -80,12 +80,7 @@ export const WebviewAnnotationSnapshotSchema = z
 
 export const WebviewAnnotationLocaleSchema = z
   .object({
-    placeholder: z.string().max(200),
-    save: z.string().max(80),
-    cancel: z.string().max(80),
-    delete: z.string().max(80),
-    edit: z.string().max(80),
-    elementUnavailable: z.string().max(200)
+    edit: z.string().max(80)
   })
   .strict()
 
@@ -105,6 +100,16 @@ export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('set_enabled'), sessionId: z.uuid(), enabled: z.boolean() }).strict(),
   z.object({ type: z.literal('deactivate'), sessionId: z.uuid() }).strict(),
   z.object({ type: z.literal('clear'), sessionId: z.uuid() }).strict(),
+  z
+    .object({
+      type: z.literal('save_editor'),
+      sessionId: z.uuid(),
+      requestId: z.uuid(),
+      comment: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.comment)
+    })
+    .strict(),
+  z.object({ type: z.literal('cancel_editor'), sessionId: z.uuid(), requestId: z.uuid() }).strict(),
+  z.object({ type: z.literal('delete_editor'), sessionId: z.uuid(), requestId: z.uuid() }).strict(),
   z.object({ type: z.literal('request_snapshot'), sessionId: z.uuid(), requestId: z.uuid() }).strict()
 ])
 
@@ -123,6 +128,24 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
       sessionId: z.uuid(),
       requestId: z.uuid(),
       annotations: WebviewAnnotationSnapshotSchema
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('editor_requested'),
+      sessionId: z.uuid(),
+      requestId: z.uuid(),
+      comment: z.string().max(WEBVIEW_ANNOTATION_LIMITS.comment),
+      canDelete: z.boolean()
+    })
+    .strict(),
+  z.object({ type: z.literal('editor_closed'), sessionId: z.uuid(), requestId: z.uuid() }).strict(),
+  z
+    .object({
+      type: z.literal('editor_error'),
+      sessionId: z.uuid(),
+      requestId: z.uuid(),
+      reason: z.literal('element_unavailable')
     })
     .strict()
 ])

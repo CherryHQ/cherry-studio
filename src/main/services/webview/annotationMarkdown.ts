@@ -159,7 +159,7 @@ export function formatWebviewAnnotations(
 ): FormattedWebviewAnnotations {
   const maxChars = Math.max(0, options.maxChars ?? Number.POSITIVE_INFINITY)
   const totalAnnotations = document.annotations.length
-  const sections: string[] = options.includeSafetyNotice ? [UNTRUSTED_DATA_NOTICE] : []
+  const prefixSections: string[] = options.includeSafetyNotice ? [UNTRUSTED_DATA_NOTICE] : []
   let includedAnnotations = 0
   const header = formatDocumentHeader(document)
   const annotationBlocks: string[] = []
@@ -167,7 +167,7 @@ export function formatWebviewAnnotations(
   for (const annotation of document.annotations) {
     const block = formatAnnotation(annotation, annotationBlocks.length + 1)
     const candidateSection = [header, ...annotationBlocks, block].join('\n\n')
-    const candidateText = [...sections, candidateSection].join('\n\n')
+    const candidateText = [...prefixSections, candidateSection].join('\n\n')
 
     if (candidateText.length > maxChars) {
       break
@@ -177,17 +177,27 @@ export function formatWebviewAnnotations(
     includedAnnotations++
   }
 
-  if (annotationBlocks.length > 0) {
-    sections.push([header, ...annotationBlocks].join('\n\n'))
+  let truncatedAnnotations = totalAnnotations - includedAnnotations
+  const formatTruncationNotice = (count: number) =>
+    `> Output truncated: ${count} annotation${count === 1 ? '' : 's'} omitted.`
+  const assemble = (includeHeader: boolean, includeNotice: boolean) => [
+    ...prefixSections,
+    ...(includeHeader ? [[header, ...annotationBlocks].join('\n\n')] : []),
+    ...(includeNotice ? [formatTruncationNotice(truncatedAnnotations)] : [])
+  ]
+
+  let sections = assemble(totalAnnotations > 0, truncatedAnnotations > 0)
+  while (sections.join('\n\n').length > maxChars && annotationBlocks.length > 0) {
+    annotationBlocks.pop()
+    includedAnnotations--
+    truncatedAnnotations++
+    sections = assemble(true, true)
   }
 
-  const truncatedAnnotations = totalAnnotations - includedAnnotations
-  if (truncatedAnnotations > 0) {
-    const notice = `> Output truncated: ${truncatedAnnotations} annotation${truncatedAnnotations === 1 ? '' : 's'} omitted.`
-    const withNotice = [...sections, notice].join('\n\n')
-    if (withNotice.length <= maxChars) {
-      sections.push(notice)
-    }
+  if (sections.join('\n\n').length > maxChars && truncatedAnnotations > 0) {
+    const notice = formatTruncationNotice(truncatedAnnotations)
+    const noticeWithSafety = [...prefixSections, notice]
+    sections = noticeWithSafety.join('\n\n').length <= maxChars ? noticeWithSafety : [notice]
   }
 
   return {

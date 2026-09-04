@@ -9,12 +9,7 @@ import {
 } from '../WebviewAnnotationController'
 
 const locale = {
-  placeholder: 'Comment',
-  save: 'Save',
-  cancel: 'Cancel',
-  delete: 'Delete',
-  edit: 'Edit',
-  elementUnavailable: "This element can't be annotated. Select a nearby element."
+  edit: 'Edit'
 }
 
 const sessionId = '00000000-0000-4000-8000-000000000001'
@@ -39,7 +34,9 @@ const privateController = (controller: WebviewAnnotationController) =>
     annotationElements: Map<string, Element>
     editorAnnotationId: string | null
     editorElement: Element | null
-    editorError: HTMLDivElement | null
+    editorRequestId: string | null
+    handleClick: (event: MouseEvent) => void
+    handleDocumentKeyDown: (event: KeyboardEvent) => void
     handlePointerCancel: (event: PointerEvent) => void
     handlePointerDown: (event: PointerEvent) => void
     handlePointerMove: (event: PointerEvent) => void
@@ -55,11 +52,28 @@ const privateController = (controller: WebviewAnnotationController) =>
     openEditor: (
       request: { mode: 'create-element'; element: Element } | { mode: 'edit'; element: Element; annotationId: string }
     ) => void
-    saveEditor: () => void
-    deleteEditorAnnotation: () => void
-    textarea: HTMLTextAreaElement
     updatePositions: () => void
   }
+
+const currentEditorRequest = (events: WebviewAnnotationGuestEvent[]) => {
+  const event = events.findLast((candidate) => candidate.type === 'editor_requested')
+  if (!event || event.type !== 'editor_requested') throw new Error('Editor request was not emitted')
+  return event
+}
+
+const saveEditor = (
+  controller: WebviewAnnotationController,
+  events: WebviewAnnotationGuestEvent[],
+  comment: string
+) => {
+  const request = currentEditorRequest(events)
+  controller.handleCommand({ type: 'save_editor', sessionId, requestId: request.requestId, comment })
+}
+
+const deleteEditor = (controller: WebviewAnnotationController, events: WebviewAnnotationGuestEvent[]) => {
+  const request = currentEditorRequest(events)
+  controller.handleCommand({ type: 'delete_editor', sessionId, requestId: request.requestId })
+}
 
 const mockRect = (element: Element, left: number, top: number, width: number, height: number) => {
   vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
@@ -96,6 +110,25 @@ const trustedPointerEvent = (
     target,
     type
   }) as unknown as PointerEvent
+
+const trustedMouseEvent = (target: EventTarget) =>
+  ({
+    composedPath: () => [target, document.body, document.documentElement, document, window],
+    isTrusted: true,
+    preventDefault: vi.fn(),
+    stopImmediatePropagation: vi.fn(),
+    target
+  }) as unknown as MouseEvent
+
+const trustedKeyboardEvent = (key: string) =>
+  ({
+    composedPath: () => [document, window],
+    isTrusted: true,
+    key,
+    preventDefault: vi.fn(),
+    stopImmediatePropagation: vi.fn(),
+    target: document
+  }) as unknown as KeyboardEvent
 
 describe('WebviewAnnotationController selectors', () => {
   it('prefers a unique id and resolves it', () => {
@@ -137,15 +170,51 @@ describe('WebviewAnnotationController selectors', () => {
     expect(locator?.ariaLabel).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.ariaLabel)
     expect(JSON.stringify(locator)).not.toContain('do-not-read')
   })
+
+  it('omits text from editable elements and containers with editable descendants', () => {
+    const contenteditable = document.createElement('div')
+    contenteditable.id = 'draft'
+    contenteditable.setAttribute('contenteditable', '')
+    contenteditable.textContent = 'private contenteditable draft'
+    contenteditable.innerText = 'private contenteditable draft'
+    const roleTextbox = document.createElement('div')
+    roleTextbox.id = 'role-textbox'
+    roleTextbox.setAttribute('role', 'textbox')
+    roleTextbox.textContent = 'private ARIA draft'
+    roleTextbox.innerText = 'private ARIA draft'
+    const container = document.createElement('section')
+    container.id = 'editor-container'
+    container.append('Public heading', contenteditable)
+    container.innerText = 'Public heading private contenteditable draft'
+    document.body.append(container, roleTextbox)
+
+    expect(createWebviewElementLocator(contenteditable)?.text).toBeNull()
+    expect(createWebviewElementLocator(roleTextbox)?.text).toBeNull()
+    expect(createWebviewElementLocator(container)?.text).toBeNull()
+  })
 })
 
 describe('WebviewAnnotationController interactions', () => {
   let controller: WebviewAnnotationController
   let emissions: WebviewAnnotationGuestEvent[]
+  let notifyResize: (() => void) | undefined
+  let observeResize: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 0))
     vi.stubGlobal('cancelAnimationFrame', (handle: number) => window.clearTimeout(handle))
+    observeResize = vi.fn()
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          notifyResize = () => callback([], this as unknown as ResizeObserver)
+        }
+        observe = observeResize
+        unobserve = vi.fn()
+        disconnect = vi.fn()
+      }
+    )
     requestSequence = 0
     emissions = []
     controller = new WebviewAnnotationController((event) => emissions.push(event))
@@ -163,6 +232,9 @@ describe('WebviewAnnotationController interactions', () => {
   it('leaves editable composed paths to the guest page', () => {
     const internals = privateController(controller)
     const editableTargets = ['input', 'textarea', 'select'].map((tagName) => document.createElement(tagName))
+    const ariaTextbox = document.createElement('div')
+    ariaTextbox.setAttribute('role', 'textbox')
+    editableTargets.push(ariaTextbox)
     const shadowHost = document.createElement('div')
     const shadowRoot = shadowHost.attachShadow({ mode: 'open' })
     const contenteditable = document.createElement('div')
@@ -295,6 +367,25 @@ describe('WebviewAnnotationController interactions', () => {
     expect(internals.highlightElement).toBe(button)
   })
 
+  it('ignores synthetic click and Escape entry points', () => {
+    const button = document.createElement('button')
+    button.id = 'synthetic-target'
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    const syntheticEscape = trustedKeyboardEvent('Escape')
+    const syntheticClick = trustedMouseEvent(button)
+    Object.defineProperty(syntheticEscape, 'isTrusted', { value: false })
+    Object.defineProperty(syntheticClick, 'isTrusted', { value: false })
+
+    internals.handleDocumentKeyDown(syntheticEscape)
+    internals.handleClick(syntheticClick)
+
+    expect(controller.getState().enabled).toBe(true)
+    expect(internals.editorElement).toBeNull()
+    expect(syntheticEscape.preventDefault).not.toHaveBeenCalled()
+    expect(syntheticClick.preventDefault).not.toHaveBeenCalled()
+  })
+
   it('intercepts page clicks and supports add, edit, and delete', () => {
     const pageClick = vi.fn()
     const button = document.createElement('button')
@@ -302,41 +393,60 @@ describe('WebviewAnnotationController interactions', () => {
     button.addEventListener('click', pageClick)
     document.body.appendChild(button)
 
-    const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
-    expect(button.dispatchEvent(click)).toBe(false)
+    const internals = privateController(controller)
+    const click = trustedMouseEvent(button)
+    internals.handleClick(click)
+    expect(click.preventDefault).toHaveBeenCalledOnce()
     expect(pageClick).not.toHaveBeenCalled()
 
-    const internals = privateController(controller)
-    internals.textarea.value = 'Use a clearer label'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Use a clearer label')
     expect(readSnapshot(controller, emissions)).toHaveLength(1)
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Use a clearer label')
 
     const annotationId = readSnapshot(controller, emissions)[0].id
     internals.openEditor({ mode: 'edit', element: button, annotationId })
-    internals.textarea.value = 'Updated note'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Updated note')
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Updated note')
 
     internals.openEditor({ mode: 'edit', element: button, annotationId })
-    internals.deleteEditorAnnotation()
+    deleteEditor(controller, emissions)
     expect(readSnapshot(controller, emissions)).toEqual([])
   })
 
-  it('saves with Ctrl+Enter and exits selection mode with Escape', () => {
+  it('delegates draft text entry to the host and accepts only the correlated save', () => {
+    const button = document.createElement('button')
+    button.id = 'host-editor-target'
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+
+    internals.openEditor({ mode: 'create-element', element: button })
+
+    const editorRequest = emissions.find(
+      (event) => (event as { type: string }).type === 'editor_requested'
+    ) as unknown as { requestId: string; comment: string; canDelete: boolean }
+    expect(editorRequest).toMatchObject({ comment: '', canDelete: false })
+    expect('textarea' in internals).toBe(false)
+
+    controller.handleCommand({
+      type: 'save_editor',
+      sessionId,
+      requestId: editorRequest.requestId,
+      comment: 'Host-owned draft'
+    } as never)
+
+    expect(readSnapshot(controller, emissions)[0].comment).toBe('Host-owned draft')
+  })
+
+  it('accepts a host save and exits selection mode with Escape', () => {
     const button = document.createElement('button')
     button.id = 'keyboard-target'
     document.body.appendChild(button)
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
-    internals.textarea.value = 'Keyboard note'
-
-    internals.textarea.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })
-    )
+    saveEditor(controller, emissions, 'Keyboard note')
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Keyboard note')
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    internals.handleDocumentKeyDown(trustedKeyboardEvent('Escape'))
     expect(controller.getState().enabled).toBe(false)
   })
 
@@ -346,8 +456,7 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.appendChild(first)
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: first })
-    internals.textarea.value = 'Keep tracking this'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Keep tracking this')
     const annotationId = readSnapshot(controller, emissions)[0].id
 
     const replacement = document.createElement('button')
@@ -364,8 +473,7 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.appendChild(button)
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
-    internals.textarea.value = 'Do not retain this element'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Do not retain this element')
     const annotationId = readSnapshot(controller, emissions)[0].id
 
     button.remove()
@@ -390,8 +498,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
     internals.handlePointerUp(trustedPointerEvent('pointerup', container, 200, 200))
 
-    internals.textarea.value = 'Region note'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Region note')
     const annotationId = readSnapshot(controller, emissions)[0].id
 
     container.remove()
@@ -423,8 +530,7 @@ describe('WebviewAnnotationController interactions', () => {
     )
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
-    internals.textarea.value = 'Follow this label'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Follow this label')
     const pin = internals.pinLayer?.querySelector<HTMLElement>('button')
 
     await vi.waitFor(() => expect(pin?.style.left).toBe('10px'))
@@ -435,22 +541,64 @@ describe('WebviewAnnotationController interactions', () => {
     await vi.waitFor(() => expect(pin?.style.left).toBe('80px'))
   })
 
+  it('tracks reflow through the annotated element and its composed ancestors', async () => {
+    const outerHost = document.createElement('section')
+    outerHost.id = 'outer-host'
+    const outerRoot = outerHost.attachShadow({ mode: 'open' })
+    const innerHost = document.createElement('article')
+    innerHost.id = 'inner-host'
+    const innerRoot = innerHost.attachShadow({ mode: 'open' })
+    const button = document.createElement('button')
+    button.id = 'resized-target'
+    innerRoot.appendChild(button)
+    outerRoot.appendChild(innerHost)
+    document.body.appendChild(outerHost)
+    let left = 10
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left,
+          top: 20,
+          right: left + 100,
+          bottom: 60,
+          width: 100,
+          height: 40,
+          x: left,
+          y: 20,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: button })
+    saveEditor(controller, emissions, 'Follow composed reflow')
+
+    expect(observeResize).toHaveBeenCalledWith(button)
+    expect(observeResize).toHaveBeenCalledWith(innerHost)
+    expect(observeResize).toHaveBeenCalledWith(outerHost)
+
+    const pin = internals.pinLayer?.querySelector<HTMLElement>('button')
+    await vi.waitFor(() => expect(pin?.style.left).toBe('10px'))
+    left = 90
+    notifyResize?.()
+    await vi.waitFor(() => expect(pin?.style.left).toBe('90px'))
+  })
+
   it('keeps the comment and explains when the selected element cannot be located', () => {
     const button = document.createElement('button')
     button.id = 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.selector)
     document.body.appendChild(button)
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
-    internals.textarea.value = 'Keep this draft'
+    saveEditor(controller, emissions, 'Keep this draft')
 
-    internals.saveEditor()
-
-    expect(readSnapshot(controller, emissions)).toEqual([])
+    const editorError = emissions.at(-1)
     expect(internals.editorElement).toBe(button)
-    expect(internals.textarea.value).toBe('Keep this draft')
-    expect(internals.editorError?.getAttribute('role')).toBe('alert')
-    expect(internals.editorError?.textContent).toBe(locale.elementUnavailable)
-    expect(internals.editorError?.style.display).toBe('block')
+    expect(editorError).toMatchObject({
+      type: 'editor_error',
+      requestId: internals.editorRequestId,
+      reason: 'element_unavailable'
+    })
+    expect(readSnapshot(controller, emissions)).toEqual([])
   })
 
   it('marquee-selects overlapping elements into a region annotation', () => {
@@ -482,11 +630,11 @@ describe('WebviewAnnotationController interactions', () => {
     internals.handlePointerUp(trustedPointerEvent('pointerup', container, 200, 200))
 
     // The click fired after a completed drag must not open the element editor.
-    const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
-    expect(container.dispatchEvent(click)).toBe(false)
+    const click = trustedMouseEvent(container)
+    internals.handleClick(click)
+    expect(click.preventDefault).toHaveBeenCalledOnce()
 
-    internals.textarea.value = 'Untangle this overlap'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Untangle this overlap')
 
     const annotation = readSnapshot(controller, emissions)[0]
     expect(annotation.comment).toBe('Untangle this overlap')
@@ -511,8 +659,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 20))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 110, 120))
     internals.handlePointerUp(trustedPointerEvent('pointerup', container, 110, 120))
-    internals.textarea.value = 'Keep this page region'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Keep this page region')
     mockRect(container, 300, 400, 50, 60)
     internals.updatePositions()
 
@@ -535,11 +682,10 @@ describe('WebviewAnnotationController interactions', () => {
     internals.handlePointerDown(trustedPointerEvent('pointerdown', regionTarget, 10, 10))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
     internals.handlePointerUp(trustedPointerEvent('pointerup', regionTarget, 200, 200))
-    regionTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    internals.handleClick(trustedMouseEvent(regionTarget))
 
-    elementTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
-    internals.textarea.value = 'Annotate only this element'
-    internals.saveEditor()
+    internals.handleClick(trustedMouseEvent(elementTarget))
+    saveEditor(controller, emissions, 'Annotate only this element')
 
     expect(readSnapshot(controller, emissions)[0].element.selector).toBe('#element-target')
     expect(readSnapshot(controller, emissions)[0].region).toBeUndefined()
@@ -560,13 +706,12 @@ describe('WebviewAnnotationController interactions', () => {
     internals.handlePointerDown(trustedPointerEvent('pointerdown', button, 10, 10))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 12, 13))
     internals.handlePointerUp(trustedPointerEvent('pointerup', button, 12, 13))
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
+    internals.handleClick(trustedMouseEvent(button))
 
     expect(internals.pendingRegion).toBeNull()
     expect(internals.editorElement).toBe(button)
 
-    internals.textarea.value = 'Element note'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Element note')
     expect(readSnapshot(controller, emissions)[0].region).toBeUndefined()
     expect(releasePointerCapture).toHaveBeenCalledWith(1)
   })
@@ -579,7 +724,7 @@ describe('WebviewAnnotationController interactions', () => {
     const internals = privateController(controller)
     internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 120, 120))
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    internals.handleDocumentKeyDown(trustedKeyboardEvent('Escape'))
 
     expect(internals.marqueeRect).toBeNull()
     expect(controller.getState().enabled).toBe(true)
@@ -662,8 +807,7 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.appendChild(button)
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
-    internals.textarea.value = 'Stale page note'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Stale page note')
     expect(readSnapshot(controller, emissions)).toHaveLength(1)
 
     emissions = []
@@ -679,6 +823,23 @@ describe('WebviewAnnotationController interactions', () => {
     expect(controller.getState()).toEqual({ enabled: false, count: 0 })
     expect(emissions).toEqual([
       { type: 'state_changed', sessionId: nextSessionId, enabled: false, count: 0 },
+      { type: 'state_changed', sessionId: nextSessionId, enabled: false, count: 0 }
+    ])
+  })
+
+  it('attributes an interrupted editor request to the retired document session', () => {
+    const button = document.createElement('button')
+    button.id = 'retired-editor-target'
+    document.body.appendChild(button)
+    privateController(controller).openEditor({ mode: 'create-element', element: button })
+    const requestId = currentEditorRequest(emissions).requestId
+    emissions = []
+
+    const nextSessionId = '00000000-0000-4000-8000-000000000002'
+    controller.handleCommand({ type: 'start_session', sessionId: nextSessionId })
+
+    expect(emissions).toEqual([
+      { type: 'editor_closed', sessionId, requestId },
       { type: 'state_changed', sessionId: nextSessionId, enabled: false, count: 0 }
     ])
   })
@@ -705,10 +866,8 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.appendChild(button)
     const internals = privateController(controller)
     internals.openEditor({ mode: 'create-element', element: button })
-    internals.textarea.value = 'Committed'
-    internals.saveEditor()
+    saveEditor(controller, emissions, 'Committed')
     internals.openEditor({ mode: 'edit', element: button, annotationId: readSnapshot(controller, emissions)[0].id })
-    internals.textarea.value = 'Unsaved draft'
 
     controller.handleCommand({ type: 'deactivate', sessionId })
 
@@ -725,8 +884,7 @@ describe('WebviewAnnotationController interactions', () => {
       document.body.appendChild(element)
       internals.openEditor({ mode: 'create-element', element })
       if (!internals.editorElement) continue
-      internals.textarea.value = 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.comment + 50)
-      internals.saveEditor()
+      saveEditor(controller, emissions, 'x'.repeat(WEBVIEW_ANNOTATION_LIMITS.comment + 50))
     }
 
     const annotations = readSnapshot(controller, emissions)

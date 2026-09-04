@@ -27,12 +27,7 @@ const sessionOne = '00000000-0000-4000-8000-000000000001'
 const sessionTwo = '00000000-0000-4000-8000-000000000002'
 const target: WebviewAnnotationTarget = { id: 'mini-app:demo', label: 'Demo' }
 const locale: WebviewAnnotationLocale = {
-  placeholder: 'Add a comment',
-  save: 'Save',
-  cancel: 'Cancel',
-  delete: 'Delete',
-  edit: 'Edit',
-  elementUnavailable: 'Element unavailable'
+  edit: 'Edit'
 }
 const annotation = {
   id: '123e4567-e89b-42d3-a456-426614174000',
@@ -170,6 +165,34 @@ describe('useWebviewAnnotationSession', () => {
     act(() => stateChanged(webview, sessionOne, true, 3))
 
     expect(result.current).toMatchObject({ ready: true, enabled: true, count: 3 })
+  })
+
+  it('owns the editor draft and sends a correlated save back to the guest', () => {
+    const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
+    act(() => stateChanged(webview, sessionOne, true, 0))
+
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_requested',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        comment: '',
+        canDelete: false
+      } as never)
+    )
+
+    expect(result.current.editor).toMatchObject({ draft: '', canDelete: false, error: null })
+    act(() => result.current.setEditorDraft('Host-owned draft'))
+    expect(result.current.editor?.draft).toBe('Host-owned draft')
+    act(() => void result.current.saveEditor())
+    expect(sentCommands(webview)).toContainEqual({
+      type: 'save_editor',
+      sessionId: sessionOne,
+      requestId: '00000000-0000-4000-8000-000000000020',
+      comment: 'Host-owned draft'
+    })
   })
 
   it('commits guest state ahead of unrelated suspended Activity work', () => {
