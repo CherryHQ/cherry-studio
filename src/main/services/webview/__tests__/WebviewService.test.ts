@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 
 import { WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, type WebviewAnnotation } from '@shared/types/webviewAnnotation'
+import { shell } from 'electron'
 import type * as FsModule from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,7 +10,7 @@ const { guestById, getWindow, getPath, siteSession, localSession } = vi.hoisted(
   getWindow: vi.fn(),
   getPath: vi.fn(() => '/app/out/preload/webview.js'),
   siteSession: { setSpellCheckerEnabled: vi.fn() },
-  localSession: {}
+  localSession: { setSpellCheckerEnabled: vi.fn() }
 }))
 
 vi.mock('@application', () => ({
@@ -37,7 +38,6 @@ vi.mock('@main/core/lifecycle', () => ({
   Phase: { WhenReady: 'when-ready' }
 }))
 vi.mock('@main/i18n', () => ({ getAppLanguage: () => 'en-US', t: (key: string) => key }))
-vi.mock('../../../utils/externalUrlSafety', () => ({ isSafeExternalUrl: () => true }))
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof FsModule>()
   return { ...actual, default: actual, existsSync: () => true }
@@ -70,6 +70,7 @@ interface MockContents extends EventEmitter {
   isDestroyed: ReturnType<typeof vi.fn>
   isDevToolsOpened: ReturnType<typeof vi.fn>
   send: ReturnType<typeof vi.fn>
+  setWindowOpenHandler: ReturnType<typeof vi.fn>
 }
 
 function createContents(
@@ -95,6 +96,7 @@ function createContents(
   contents.isDestroyed = vi.fn(() => false)
   contents.isDevToolsOpened = vi.fn(() => options.devToolsOpened ?? false)
   contents.send = vi.fn()
+  contents.setWindowOpenHandler = vi.fn()
   const command = options.sendCommand ?? (async () => ({}))
   contents.debugger = {
     attach: vi.fn(() => {
@@ -216,13 +218,43 @@ describe('WebviewService webview ownership', () => {
     expect(siteSession.setSpellCheckerEnabled).not.toHaveBeenCalled()
   })
 
-  it('applies spell-check settings for an owned site webview', () => {
-    const guest = createContents(7, host)
+  it.each([
+    ['site webview', siteSession],
+    ['local mini app', localSession]
+  ])('applies spell-check settings for an owned %s', (_label, guestSession) => {
+    const guest = createContents(7, host, { session: guestSession })
     guestById.set(7, guest)
 
     service.setSpellCheckerEnabled(7, false, 'owner')
 
-    expect(siteSession.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
+    expect(guestSession.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
+  })
+
+  it('changes popup policy only for an owned site webview', () => {
+    const guest = createContents(7, host)
+    guestById.set(7, guest)
+
+    service.setOpenLinkExternal(7, true, 'owner')
+    expect(guest.setWindowOpenHandler).toHaveBeenCalledOnce()
+    const externalHandler = guest.setWindowOpenHandler.mock.calls[0][0]
+    expect(externalHandler({ url: 'https://cherrystudio.com/page' })).toEqual({ action: 'deny' })
+    expect(shell.openExternal).toHaveBeenCalledWith('https://cherrystudio.com/page')
+    expect(externalHandler({ url: 'file:///etc/passwd' })).toEqual({ action: 'deny' })
+    expect(shell.openExternal).toHaveBeenCalledOnce()
+
+    service.setOpenLinkExternal(7, false, 'owner')
+    const inAppHandler = guest.setWindowOpenHandler.mock.calls[1][0]
+    expect(inAppHandler({ url: 'https://cherrystudio.com/page' })).toEqual({ action: 'allow' })
+    expect(inAppHandler({ url: 'javascript:alert(1)' })).toEqual({ action: 'deny' })
+
+    getWindow.mockReturnValue(undefined)
+    expect(() => service.setOpenLinkExternal(7, false, 'other')).toThrow('The caller does not own this webview')
+    expect(guest.setWindowOpenHandler).toHaveBeenCalledTimes(2)
+
+    getWindow.mockReturnValue({ webContents: host })
+    guest.session = localSession
+    expect(() => service.setOpenLinkExternal(7, false, 'owner')).toThrow('The caller does not own this webview')
+    expect(guest.setWindowOpenHandler).toHaveBeenCalledTimes(2)
   })
 
   it('invalidates an old session on new-document navigation but keeps it for same-document navigation', async () => {

@@ -1,13 +1,9 @@
 import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, setOpenLinkExternalMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  setOpenLinkExternalMock: vi.fn()
-}))
+const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/webview', () => ({ setOpenLinkExternal: setOpenLinkExternalMock }))
 import { webviewHandlers } from '../webview'
 
 const exportAnnotations = vi.fn()
@@ -15,6 +11,7 @@ const webviewService = {
   exportAnnotations,
   printWebviewToPDF: vi.fn(),
   saveWebviewAsHTML: vi.fn(),
+  setOpenLinkExternal: vi.fn(),
   setSpellCheckerEnabled: vi.fn()
 }
 const ctx = { senderId: 'w1' }
@@ -28,9 +25,9 @@ beforeEach(() => {
 })
 
 describe('webviewHandlers', () => {
-  it('set_open_link_external delegates to the WebviewService module fn', async () => {
+  it('set_open_link_external forwards the caller identity for ownership validation', async () => {
     await webviewHandlers['webview.set_open_link_external']({ webviewId: 7, isExternal: true }, ctx)
-    expect(setOpenLinkExternalMock).toHaveBeenCalledWith(7, true)
+    expect(webviewService.setOpenLinkExternal).toHaveBeenCalledWith(7, true, 'w1')
   })
 
   it('set_spell_check_enabled forwards the caller identity for ownership validation', async () => {
