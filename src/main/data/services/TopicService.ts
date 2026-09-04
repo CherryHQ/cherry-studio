@@ -832,6 +832,16 @@ export class TopicService {
     })
   }
 
+  listIdsByAssistantTx(tx: DbOrTx, assistantId: string): string[] {
+    return tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(eq(topicTable.assistantId, assistantId))
+      .orderBy(asc(topicTable.id))
+      .all()
+      .map((row) => row.id)
+  }
+
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))

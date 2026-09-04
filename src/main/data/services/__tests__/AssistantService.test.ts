@@ -1540,6 +1540,68 @@ describe('AssistantDataService', () => {
         expect(topicRow.assistantId).toBeNull()
       })
 
+      it('should notify retained topic projections after the permanent delete commits', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await dbh.db.insert(topicTable).values([
+          {
+            id: 'topic-active',
+            name: 'active',
+            assistantId: 'ast-1',
+            orderKey: 'a0'
+          },
+          {
+            id: 'topic-trashed',
+            name: 'trashed',
+            assistantId: 'ast-1',
+            orderKey: 'a1',
+            deletedAt: 99
+          }
+        ])
+        assistantDataService.delete('ast-1')
+
+        const events: string[] = []
+        const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+        withWriteTx.mockImplementationOnce((fn) => {
+          const result = dbh.db.transaction(fn as never)
+          events.push('committed')
+          return result
+        })
+        notifyDataApiDataChangeMock.mockClear()
+        notifyDataApiDataChangeMock.mockImplementation((effects) => {
+          if (effects[0]?.endpoint === '/topics' && effects[0]?.kind === 'projection') {
+            events.push('topic-projection')
+          }
+        })
+
+        try {
+          const result = assistantDataService.delete('ast-1', { permanent: true })
+
+          expect(result.deletedTopicIds).toBeUndefined()
+          const topicRows = await dbh.db
+            .select({ id: topicTable.id, assistantId: topicTable.assistantId })
+            .from(topicTable)
+            .orderBy(asc(topicTable.id))
+          expect(topicRows).toEqual([
+            { id: 'topic-active', assistantId: null },
+            { id: 'topic-trashed', assistantId: null }
+          ])
+          expect(events).toEqual(['committed', 'topic-projection'])
+          expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+            { endpoint: '/topics', kind: 'projection', entityIds: ['topic-active', 'topic-trashed'] },
+            {
+              endpoint: '/topics',
+              kind: 'order',
+              dimension: 'lastActivityAt',
+              entityIds: ['topic-active', 'topic-trashed']
+            },
+            { endpoint: '/topics/:id', entityIds: ['topic-active', 'topic-trashed'] },
+            { endpoint: '/topics/latest' }
+          ])
+        } finally {
+          notifyDataApiDataChangeMock.mockReset()
+        }
+      })
+
       it('should permanently delete an already-trashed assistant', async () => {
         await seedAssistantRow({ id: 'ast-1', name: 'trashed', deletedAt: Date.now() })
 

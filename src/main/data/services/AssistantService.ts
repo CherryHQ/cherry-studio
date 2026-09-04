@@ -613,7 +613,7 @@ export class AssistantDataService {
     options: { deleteTopics?: boolean; permanent?: boolean } = {}
   ): { deleted: boolean; deletedTopicIds?: string[] } {
     const shouldDeleteTopics = options.permanent !== true && options.deleteTopics === true
-    const { deleted, deletedTopicIds } = application.get('DbService').withWriteTx((tx) => {
+    const { deleted, deletedTopicIds, projectedTopicIds } = application.get('DbService').withWriteTx((tx) => {
       const predicate =
         options.permanent === true
           ? and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt))
@@ -622,7 +622,12 @@ export class AssistantDataService {
       if (!existing) throw DataApiErrorFactory.notFound('Assistant', id)
 
       if (options.permanent === true) {
-        return { deleted: this.permanentlyDeleteTx(tx, id), deletedTopicIds: undefined }
+        const projectedTopicIds = topicService.listIdsByAssistantTx(tx, id)
+        return {
+          deleted: this.permanentlyDeleteTx(tx, id),
+          deletedTopicIds: undefined,
+          projectedTopicIds
+        }
       }
 
       const deletedAt = Date.now()
@@ -630,13 +635,17 @@ export class AssistantDataService {
         ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, deletedAt })
         : undefined
 
-      return { deleted: this.deleteTx(tx, id, { deletedAt }), deletedTopicIds }
+      return { deleted: this.deleteTx(tx, id, { deletedAt }), deletedTopicIds, projectedTopicIds: undefined }
     })
 
     if (!deleted) {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
-    topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
+    if (options.permanent === true) {
+      topicService.notifyReadModelChange(projectedTopicIds ?? [], 'projection')
+    } else {
+      topicService.notifyReadModelChange(deletedTopicIds ?? [], 'membership', { deleted: true })
+    }
     this.notifyReadModelChange([id], 'membership')
     pinService.notifyPurged()
 
