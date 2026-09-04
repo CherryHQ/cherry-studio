@@ -56,3 +56,5 @@ The selected electron-updater channel determines which edition-specific manifest
 ## Check Lifecycle
 
 Manual checks are available in development and packaged, non-portable builds. Portable builds do not perform update checks. Packaged, non-portable builds also schedule automatic checks in the main process. Successful checks return to the normal cadence, while failed scheduled checks use exponential backoff before retrying. Update events and download progress continue to reach the main window through IpcApi.
+
+A managed-feed HTTP 503 with the structured code `manifest_missing` keeps the normal four-hour schedule (with ±15% jitter), reducing repeated requests while a release manifest is unavailable. The check remains an error, and manual retry remains available; manual checks show the existing unpublished-update explanation instead of a generic error. Other failures, including `edition_mismatch` and 404 responses, retain their existing handling. Automatic discovery after the feed is repaired may take up to 4.6 hours; this does not repair release-service routing or rollout configuration.

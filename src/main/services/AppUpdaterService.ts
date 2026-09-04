@@ -1,5 +1,5 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
-import { CancellationToken } from 'builder-util-runtime'
+import { CancellationToken, HttpError } from 'builder-util-runtime'
 import { app, net } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { AppUpdater, autoUpdater } from 'electron-updater'
@@ -24,6 +24,7 @@ import {
   parseReleaseHistory,
   type ReleaseNotesEntry
 } from '@shared/utils/releaseNotes'
+import { isMissingUpdateManifest } from '@shared/utils/updateError'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
@@ -374,7 +375,13 @@ export class AppUpdaterService extends BaseService {
       }
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
-    } catch {
+    } catch (error) {
+      if (error instanceof HttpError && isMissingUpdateManifest(error)) {
+        this.updateCheckFailures = 0
+        logger.warn('scheduled update check hit manifest_missing, keeping normal cadence')
+        this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
+        return
+      }
       this.updateCheckFailures++
       const backoffMs = computeBackoff(CHECK_RETRY_POLICY, this.updateCheckFailures)
       logger.warn(`scheduled update check failed, backing off for ${backoffMs}ms`)
