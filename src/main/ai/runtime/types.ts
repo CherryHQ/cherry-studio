@@ -183,6 +183,11 @@ export interface AgentRuntimeConnection {
   refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
   /** Connection-route-owned usage capture policy and non-secret credential receipt. */
   readonly usageCapture?: AgentSessionUsageCapture
+  /**
+   * Reserve the next input synchronously before host admission performs async pre-send work.
+   * The returned cleanup cancels an unconsumed reservation when that work fails.
+   */
+  reserveInput?(): () => void
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true

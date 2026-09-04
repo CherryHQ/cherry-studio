@@ -3092,7 +3092,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     }
 
-    await connection.send({ message: delivery })
+    connection.reserveInput?.()
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-before-quota-failure' })
     queryQueue.push({
       type: 'result',
@@ -3106,6 +3106,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
+    await connection.send({ message: delivery })
     const acceptedInput = await sdkInput[Symbol.asyncIterator]().next()
     expect(acceptedInput.value.message.content).toContain('investigate the newly accepted issue')
 

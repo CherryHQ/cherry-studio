@@ -365,6 +365,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly streamInvocationIdsByLane = new Map<string, string>()
   private readonly committedInvocationIds = new Set<string>()
   private pendingInputClaims = 0
+  private reservedInputClaim?: { active: boolean }
   private initialResumedInputClaimed: boolean
   /** Serializes reconciles per connection so push/pull can't interleave SDK and snapshot writes. */
   private reconcileChain: Promise<unknown> = Promise.resolve()
@@ -487,13 +488,33 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     application.get('ClaudeCodeTraceBridgeService').refreshTraceContext(context)
   }
 
+  reserveInput(): () => void {
+    if (this.initialResumedInputClaimed || this.reservedInputClaim?.active) return () => {}
+    const claim = { active: true }
+    this.reservedInputClaim = claim
+    this.pendingInputClaims += 1
+    return () => {
+      if (!claim.active) return
+      claim.active = false
+      if (this.reservedInputClaim === claim) this.reservedInputClaim = undefined
+      this.pendingInputClaims -= 1
+    }
+  }
+
   async send(input: AgentRuntimeUserInput): Promise<void> {
     if (isFastSlashCommand(input)) {
       throw new Error('The /fast command is unavailable; use the host Fast control instead')
     }
 
     const requiresInputClaim = !this.initialResumedInputClaimed
-    if (requiresInputClaim) this.pendingInputClaims += 1
+    if (requiresInputClaim) {
+      if (this.reservedInputClaim?.active) {
+        this.reservedInputClaim.active = false
+        this.reservedInputClaim = undefined
+      } else {
+        this.pendingInputClaims += 1
+      }
+    }
     let sdkMessage: SDKUserMessage
     try {
       sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {

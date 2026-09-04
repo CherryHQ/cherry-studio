@@ -3491,11 +3491,13 @@ describe('AgentSessionRuntimeService', () => {
       const events = createAsyncQueue<any>()
       const getContextUsage = vi.fn()
       const refreshTraceContext = vi.fn()
+      const reserveInput = vi.fn(() => vi.fn())
       const connection = {
         events: events.iterable,
         send: vi.fn(),
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput,
         refreshTraceContext,
         getContextUsage,
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
@@ -3549,6 +3551,8 @@ describe('AgentSessionRuntimeService', () => {
           })
         )
       )
+      expect(reserveInput).toHaveBeenCalledOnce()
+      expect(reserveInput.mock.invocationCallOrder[0]).toBeLessThan(refreshTraceContext.mock.invocationCallOrder[0])
       expect(refreshTraceContext.mock.invocationCallOrder[0]).toBeLessThan(connection.send.mock.invocationCallOrder[0])
 
       await reader.cancel().catch(() => undefined)
