@@ -501,6 +501,19 @@ describe('buildAgentParams standard model parameters', () => {
     return { provider, model }
   }
 
+  it('uses caller-owned standing instructions as the Agent system prompt', async () => {
+    const { provider, model } = makeSetup(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+
+    const result = await buildAgentParams({
+      request: { contextOwner: 'caller', system: 'You are Cherry Studio official product support.' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.system).toBe('You are Cherry Studio official product support.')
+  })
+
   it('passes enabled assistant sampling settings directly to ToolLoopAgent options', async () => {
     const { provider, model } = makeSetup(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     const assistant = makeAssistant({
@@ -960,6 +973,44 @@ describe('buildAgentParams web-tool routing', () => {
 
     expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(true)
     expect(result.tools?.web_search).toBeUndefined()
+  })
+
+  it('keeps caller-owned standing instructions when web search would assemble a date anchor', async () => {
+    const preferences = new Map<string, unknown>([
+      ['chat.web_search.client_tools_preferred', false],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+
+    const result = await buildAgentParams({
+      request: { contextOwner: 'caller', system: 'You are Cherry Studio official product support.' },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.system).toBe('You are Cherry Studio official product support.')
+    expect(result.system).not.toContain('<current-date>')
+  })
+
+  it('anchors relative dates when the caller did not supply standing instructions', async () => {
+    const preferences = new Map<string, unknown>([
+      ['chat.web_search.client_tools_preferred', false],
+      ['chat.web_search.exclude_domains', []]
+    ])
+    preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+
+    const result = await buildAgentParams({
+      request: { contextOwner: 'caller' },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.system).toMatch(/<current-date>\d{4}-\d{2}-\d{2}<\/current-date>/)
+    expect(result.system).toContain('Do not substitute dates remembered from training')
   })
 })
 

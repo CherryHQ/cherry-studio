@@ -54,6 +54,8 @@ export interface CallOverrides {
 
 export interface AiBaseRequest {
   assistantId?: string
+  /** Standing instructions for in-process callers and `ai.text.generate`. Stream IPC omits this field. */
+  system?: string
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]

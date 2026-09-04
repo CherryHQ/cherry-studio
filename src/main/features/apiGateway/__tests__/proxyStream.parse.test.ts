@@ -1,3 +1,4 @@
+import { application } from '@application'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -78,6 +79,15 @@ vi.mock('../adapters', () => ({
 
 import { ApiGatewayService } from '../ApiGatewayService'
 import { processMessage } from '../proxyStream'
+
+const applicationGet = vi.mocked(application.get)
+const resolveApplicationService = applicationGet.getMockImplementation()
+applicationGet.mockImplementation(((name: string) => {
+  const service = resolveApplicationService?.(name as never)
+  return name === 'ApiGatewayService' && service
+    ? { ...service, isInternalSupportRequest: vi.fn(() => false) }
+    : service
+}) as typeof application.get)
 
 beforeEach(() => {
   vi.clearAllMocks()
