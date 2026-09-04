@@ -1431,6 +1431,60 @@ describe('main web search API providers', () => {
     )
   })
 
+  it('survives a Querit search response where some result items lack title/url (REGRESSION #19933)', async () => {
+    // Querit declares every per-result field as Optional in its contract; one
+    // incomplete item must not invalidate the whole response.
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        error_code: 200,
+        error_msg: '',
+        query_context: { query: 'hello' },
+        results: {
+          result: [
+            {
+              title: 'Complete',
+              snippet: 'Top hit snippet',
+              url: 'https://example.com/full'
+            },
+            // Item missing url — should be filtered out.
+            { title: 'No URL', snippet: 'snippet' },
+            // Item missing title — title should fall back to site_name / snippet / url.
+            { snippet: 'Snippet only', url: 'https://example.com/no-title', site_name: 'example.com' },
+            // Item missing both — also filtered out.
+            { snippet: 'orphan' }
+          ]
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      QueritProvider,
+      createProvider({
+        id: 'querit',
+        name: 'Querit',
+        apiKeys: ['querit-key'],
+        apiHost: 'https://api.querit.ai'
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Complete',
+        content: 'Top hit snippet',
+        url: 'https://example.com/full',
+        sourceInput: 'hello'
+      },
+      {
+        title: 'example.com',
+        content: 'Snippet only',
+        url: 'https://example.com/no-title',
+        sourceInput: 'hello'
+      }
+    ])
+  })
+
   it('matches Zhipu request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('zhipu-response.json')))
 

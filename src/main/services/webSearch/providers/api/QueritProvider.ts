@@ -27,12 +27,18 @@ const QueritSearchResponseSchema = z.object({
     query: z.string()
   }),
   results: z.object({
+    // Querit declares every per-result field as Optional in its contract
+    // (https://www.querit.ai/en/docs/reference/post); one incomplete item
+    // must not invalidate the whole response.
     result: z
       .array(
-        z.object({
-          title: z.string(),
+        z.looseObject({
+          title: z.string().optional(),
           snippet: z.string().optional(),
-          url: z.string()
+          url: z.string().optional(),
+          site_name: z.string().optional(),
+          page_age: z.string().optional(),
+          site_icon: z.string().optional()
         })
       )
       .default([])
@@ -156,12 +162,16 @@ export class QueritProvider extends BaseWebSearchProvider {
       providerId: this.provider.id,
       capability: 'searchKeywords',
       inputs: [context.query],
-      results: (searchPayload.results?.result || []).map((result) => ({
-        title: result.title,
-        content: result.snippet || '',
-        url: result.url,
-        sourceInput: context.query
-      }))
+      results: (searchPayload.results?.result || [])
+        // Drop items that have no usable URL — without one the caller can't
+        // open the result, so it's better to omit than to surface a broken row.
+        .filter((result) => typeof result.url === 'string' && result.url.length > 0)
+        .map((result) => ({
+          title: result.title ?? result.site_name ?? result.snippet ?? result.url ?? '',
+          content: result.snippet || '',
+          url: result.url ?? '',
+          sourceInput: context.query
+        }))
     }
   }
 
