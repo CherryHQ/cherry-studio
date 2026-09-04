@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
+  pasteHandlerOptions: undefined as any,
   fileDragDropOptions: undefined as any,
   setTimeoutTimer: vi.fn(),
   timeoutCleanups: [] as Array<() => void>,
@@ -319,9 +320,10 @@ vi.mock('@renderer/components/composer/paste/useFileDragDrop', () => ({
 }))
 
 vi.mock('@renderer/components/composer/paste/usePasteHandler', () => ({
-  usePasteHandler: () => ({
-    handlePaste: mocks.pasteHandler
-  })
+  usePasteHandler: (_text: string, _setText: unknown, options: unknown) => {
+    mocks.pasteHandlerOptions = options
+    return { handlePaste: mocks.pasteHandler }
+  }
 }))
 
 vi.mock('@renderer/components/composer/paste/pasteHandling', () => ({
@@ -478,6 +480,7 @@ describe('ComposerSurface', () => {
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
+    mocks.pasteHandlerOptions = undefined
     mocks.fileDragDropOptions = undefined
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
@@ -542,6 +545,21 @@ describe('ComposerSurface', () => {
     view.rerender(<ComposerSurface {...baseProps} editable />)
 
     expect(registerHandler).toHaveBeenCalledWith('inputbar', mocks.pasteHandler)
+  })
+
+  it('discards paste and drop file writes that complete after the composer becomes read-only', () => {
+    const setFiles = vi.fn()
+    const view = render(<ComposerSurface {...baseProps} editable setFiles={setFiles} />)
+    const pasteSetFiles = mocks.pasteHandlerOptions.setFiles
+    const dropSetFiles = mocks.fileDragDropOptions.setFiles
+
+    view.rerender(<ComposerSurface {...baseProps} editable={false} setFiles={setFiles} />)
+    act(() => {
+      pasteSetFiles((files: unknown[]) => [...files, { id: 'late-paste' }])
+      dropSetFiles((files: unknown[]) => [...files, { id: 'late-drop' }])
+    })
+
+    expect(setFiles).not.toHaveBeenCalled()
   })
 
   it('replays a deferred paste on the editor view only, not through the document paste handler', async () => {
@@ -3141,6 +3159,96 @@ describe('ComposerSurface', () => {
 
     const fileUpdater = setFiles.mock.calls[0]?.[0] as (files: (typeof pastedFile)[]) => (typeof pastedFile)[]
     expect(fileUpdater([pastedFile])).toEqual([])
+  })
+
+  it('does not apply a pending pasted-text token action after the composer becomes read-only', async () => {
+    let resolveFileText: ((text: string) => void) | undefined
+    const fileText = new Promise<string>((resolve) => {
+      resolveFileText = resolve
+    })
+    const pastedFile = {
+      id: 'file-1',
+      name: 'pasted_text.txt',
+      origin_name: 'Pasted text.txt',
+      path: '/tmp/pasted_text.txt',
+      composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+    }
+    const pastedToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'Pasted text.txt',
+      payload: pastedFile
+    }
+    const setFiles = vi.fn()
+    mocks.fsReadText.mockReturnValue(fileText)
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'composerToken', attrs: pastedToken }] }]
+    })
+
+    const view = render(
+      <ComposerSurface
+        {...baseProps}
+        editable
+        tokens={[pastedToken]}
+        managedTokenKinds={['file']}
+        setFiles={setFiles}
+      />
+    )
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(pastedToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.paste_text_file' }))
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/pasted_text.txt'))
+    view.rerender(
+      <ComposerSurface
+        {...baseProps}
+        editable={false}
+        tokens={[pastedToken]}
+        managedTokenKinds={['file']}
+        setFiles={setFiles}
+      />
+    )
+    await act(async () => resolveFileText?.('late pasted text'))
+
+    expect(mocks.deleteRange).not.toHaveBeenCalled()
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(setFiles).not.toHaveBeenCalled()
+  })
+
+  it('does not remove file tokens while the composer is read-only', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: { id: 'file-1', name: 'notes.md', origin_name: 'notes.md', path: '/tmp/notes.md' }
+    }
+    mocks.docDescendants.mockImplementation((visit: (node: any, position: number) => void) => {
+      visit({ type: { name: 'composerToken' }, attrs: fileToken, nodeSize: 1 }, 3)
+    })
+
+    render(<ComposerSurface {...baseProps} editable={false} tokens={[fileToken]} managedTokenKinds={['file']} />)
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(fileToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+
+    expect(mocks.transaction.delete).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
   })
 
   it('does not notify token changes when only text changes', async () => {

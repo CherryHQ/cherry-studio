@@ -118,9 +118,11 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
   return getNormalizedFileExtension(file, fallbackLabel).toUpperCase()
 }
 
-function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, previewUrl?: string) {
+function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: string, readOnlyPreviewUrl?: string) {
   if (file?.type !== FILE_TYPE.IMAGE) return undefined
   const extension = getNormalizedFileExtension(file, fallbackLabel)
+  // A path-less attachment (the message-editing round-trip) previews from its stored `file://` URL.
+  const previewUrl = readOnlyPreviewUrl ?? file.previewUrl
 
   if (previewUrl) {
     // `fileUrlToPath` (decodeURIComponent) throws URIError on malformed percent-

@@ -100,6 +100,7 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'highlight',
   'highlight-foreground',
   'highlight-accent',
+  'markdown-important',
   'chat-user',
   'resource-list-row-hover',
   'resource-list-row-active',
