@@ -1,8 +1,7 @@
 /**
  * Builds the `wrapModel` closure that wraps a resolved chat model with
- * ai-retry: same-model transient retry on retryable API errors (429/503/529
- * and other `isRetryable` `APICallError`s, with backoff) first, then
- * cross-model fallback to the user-configured retry models.
+ * ai-retry: same-provider API-key failover on 401/429 first, same-model
+ * transient retry for other retryable API errors, then cross-model fallback.
  *
  * Fallbacks are built by the caller (`buildFallbackModels`) through
  * the same `buildAgentParams` pipeline as the primary, so each fallback model
@@ -10,13 +9,8 @@
  * (sampling / providerOptions / headers). This leaf only assembles the
  * ai-retry policy — it does not load providers/models itself.
  *
- * Strategy is a fixed internal policy (not user-configurable): same-model retry
- * on retryable errors, then cross-model fallback. The retry conditions use
- * ai-retry's condition-based API (`error.isRetryable(true).retry(...)`). The
- * `error.isRetryable(true)` condition matches retryable API errors only; it does
- * not handle `AbortSignal.timeout()` style `TimeoutError`s — Cherry's abort
- * signal is the user's cancel/request scope, so timeouts are deliberately not
- * retried here.
+ * API-key failover is independent of the model retry preference. The model
+ * retry condition does not handle request-scope timeout or abort errors.
  *
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
@@ -33,7 +27,7 @@ import {
   type Retryable,
   type RetryContext
 } from 'ai-retry'
-import { createRetryableModel, error } from 'ai-retry/language-model'
+import { and, createRetryableModel, error, not } from 'ai-retry/language-model'
 
 import type { RetryPolicy } from './retryPolicy'
 
@@ -62,6 +56,8 @@ export interface RetryFallback {
 export type FallbackResolver = () => Promise<RetryFallback | null>
 
 export interface CreateRetryableWrapOptions {
+  /** Same-provider, same-model alternatives using the remaining enabled API keys. */
+  apiKeyFallbacks?: FallbackResolver[]
   /**
    * Fallback resolvers in user-configured order. Each is invoked once (memoized)
    * after it successfully resolves. A `null` result is retried on the next
@@ -76,6 +72,39 @@ export interface CreateRetryableWrapOptions {
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
+
+function lazyFallbackRetryable(resolveFallback: FallbackResolver): Retryable<LanguageModel> {
+  let cached: Promise<RetryFallback | null> | undefined
+  return async (context) => {
+    if (!isErrorAttempt(context.current)) return undefined
+    cached ??= resolveFallback()
+    const fallback = await cached
+    if (!fallback) {
+      cached = undefined
+      return undefined
+    }
+    return fallback.options ? { model: fallback.model, options: fallback.options } : { model: fallback.model }
+  }
+}
+
+function apiKeyFallbackRetryable(resolveFallbacks: FallbackResolver[]): Retryable<LanguageModel> {
+  const resolvedFallbacks = resolveFallbacks.map((resolveFallback) => lazyFallbackRetryable(resolveFallback))
+  return (context) => {
+    if (!isErrorAttempt(context.current)) return undefined
+    const attemptError = context.current.error
+    if (
+      !APICallError.isInstance(attemptError) ||
+      (attemptError.statusCode !== 401 && attemptError.statusCode !== 429)
+    ) {
+      return undefined
+    }
+    const resolve = resolvedFallbacks[context.attempts.length - 1]
+    if (!resolve) return undefined
+    return Promise.resolve(resolve(context)).then((fallback) =>
+      fallback ? { ...fallback, maxAttempts: resolveFallbacks.length + 1 } : undefined
+    )
+  }
+}
 
 function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryPartData, { state: 'retrying' }> {
   const { current, attempts } = context
@@ -97,10 +126,11 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryP
 }
 
 /**
- * Returns a `wrapModel` closure when retry is enabled, otherwise `undefined`.
+ * Returns a wrapper when model retry or API-key failover is available.
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
-  if (!options.retryPolicy.enabled) return undefined
+  const apiKeyFallbacks = options.apiKeyFallbacks ?? []
+  if (!options.retryPolicy.enabled && apiKeyFallbacks.length === 0) return undefined
 
   // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
   // setting and the embedding/rerank AI SDK `maxRetries`). ai-retry counts the
@@ -112,32 +142,21 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     // Same-model transient retry on retryable errors: honors Retry-After headers,
     // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
     // holds since retryCount >= 1.)
-    error
-      .isRetryable(true)
-      .retry({
-        maxAttempts: retryCount + 1,
-        delay: RETRY_BASE_DELAY_MS,
-        ...(backoffEnabled && { backoffFactor: 2 })
-      }),
+    (apiKeyFallbacks.length > 0
+      ? and(error.isRetryable(true), not(error.statusCode(401, 429)))
+      : error.isRetryable(true)
+    ).retry({
+      maxAttempts: retryCount + 1,
+      delay: RETRY_BASE_DELAY_MS,
+      ...(backoffEnabled && { backoffFactor: 2 })
+    }),
     // Cross-model fallback, tried in user-configured order (one attempt each).
     // Resolved lazily on first failure (memoized) so the happy path pays nothing;
     // each fallback carries its own middleware + params (a per-retry override).
     // Error-only (like a plain-model fallback): ai-retry also evaluates function
     // retryables on *result* attempts (content-filter etc.), so guard on
     // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-    ...options.fallbacks.map((resolveFallback): Retryable<LanguageModel> => {
-      let cached: Promise<RetryFallback | null> | undefined
-      return async (context) => {
-        if (!isErrorAttempt(context.current)) return undefined
-        cached ??= resolveFallback()
-        const fallback = await cached
-        if (!fallback) {
-          cached = undefined
-          return undefined
-        }
-        return fallback.options ? { model: fallback.model, options: fallback.options } : { model: fallback.model }
-      }
-    })
+    ...options.fallbacks.map(lazyFallbackRetryable)
   ]
 
   return (base) => {
@@ -148,8 +167,28 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       options.onRetryEvent?.({ state: 'settled' })
     }
 
+    const keyPoolModel =
+      apiKeyFallbacks.length > 0
+        ? createRetryableModel({
+            model: base,
+            retries: [apiKeyFallbackRetryable(apiKeyFallbacks)],
+            onRetry: (context) => {
+              const event = { ...describeAttempt(context), modelId: base.modelId }
+              logger.info('retrying model call with next API key', { ...options.diagnosticContext, ...event })
+              retryActive = true
+              options.onRetryEvent?.(event)
+            },
+            ...(!options.retryPolicy.enabled && {
+              onSuccess: settleRetryStatus,
+              onFailure: settleRetryStatus
+            })
+          })
+        : base
+
+    if (!options.retryPolicy.enabled) return keyPoolModel
+
     return createRetryableModel({
-      model: base,
+      model: keyPoolModel,
       retries,
       onRetry: (context) => {
         const event = describeAttempt(context)

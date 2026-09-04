@@ -58,7 +58,14 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
+import {
+  Agent,
+  buildAgentParams,
+  buildApiKeyFallbackModels,
+  buildFallbackModels,
+  createRetryableWrap,
+  readRetryPolicy
+} from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
 import { resolveModelTokenDialect } from './tokens/dialect'
@@ -592,8 +599,20 @@ export class AiService extends BaseService {
     const agentRef: { current?: Agent } = {}
     let wrapModel: ReturnType<typeof createRetryableWrap>
     if (!retryDisabledForRequest) {
+      const apiKeyFallbacks = buildApiKeyFallbackModels({
+        request,
+        provider,
+        model,
+        assistant,
+        signal,
+        extraFeatures,
+        primaryCredentialReceipt: credentialReceipt,
+        createUsagePlugin: (fallbackReceipt) =>
+          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+      })
       const retryPolicy = readRetryPolicy()
       wrapModel = createRetryableWrap({
+        apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
         fallbacks: buildFallbackModels({
@@ -688,8 +707,20 @@ export class AiService extends BaseService {
     // An explicit per-request `maxRetries: 0` disables retry for this request.
     let wrapModel: ReturnType<typeof createRetryableWrap>
     if (request.requestOptions?.maxRetries !== 0) {
+      const apiKeyFallbacks = buildApiKeyFallbackModels({
+        request,
+        provider,
+        model,
+        assistant,
+        signal,
+        extraFeatures,
+        primaryCredentialReceipt: credentialReceipt,
+        createUsagePlugin: (fallbackReceipt) =>
+          createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
+      })
       const retryPolicy = readRetryPolicy()
       wrapModel = createRetryableWrap({
+        apiKeyFallbacks,
         retryPolicy,
         diagnosticContext: { assistantId: request.assistantId },
         fallbacks: buildFallbackModels({

@@ -29,6 +29,10 @@ const mockBuildFallbackModels = vi.fn((options?: unknown) => {
   void options
   return [] as unknown[]
 })
+const mockBuildApiKeyFallbackModels = vi.fn((options?: unknown) => {
+  void options
+  return [] as unknown[]
+})
 const mockReadRetryPolicy = vi.fn(() => ({
   enabled: true,
   maxAttempts: 3,
@@ -184,6 +188,10 @@ vi.mock('../runtime/aiSdk/retry/createRetryableWrap', () => ({
 
 vi.mock('../runtime/aiSdk/retry/buildFallbackModels', () => ({
   buildFallbackModels: (options: unknown) => mockBuildFallbackModels(options)
+}))
+
+vi.mock('../runtime/aiSdk/retry/buildApiKeyFallbackModels', () => ({
+  buildApiKeyFallbackModels: (options: unknown) => mockBuildApiKeyFallbackModels(options)
 }))
 
 vi.mock('../runtime/aiSdk/retry/retryPolicy', () => ({
@@ -1318,7 +1326,75 @@ describe('AiService tool approval', () => {
 
     // Explicit per-request maxRetries:0 → no ai-retry wrapper / no fallback build.
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
+  })
+
+  it('wires API key failover when model retry is disabled', async () => {
+    const service = createService()
+    const keyFallback = vi.fn()
+    mockBuildApiKeyFallbackModels.mockReturnValueOnce([keyFallback])
+    mockReadRetryPolicy.mockReturnValue({
+      enabled: false,
+      maxAttempts: 3,
+      backoffEnabled: true,
+      fallbackModelIds: []
+    })
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    } as never)
+
+    await service.streamText({
+      chatId: 'topic-1',
+      trigger: 'submit-message',
+      messages: [],
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyFallbacks: [keyFallback],
+        retryPolicy: expect.objectContaining({ enabled: false })
+      })
+    )
+  })
+
+  it('passes an explicit API key override to key-pool resolution', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'matched', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', reportsActualCost: false },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: false, pdf: false, audio: false, video: false }
+    } as never)
+
+    await service.generateText({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'hello',
+      apiKeyOverride: 'sk-selected'
+    } as never)
+
+    expect(mockBuildApiKeyFallbackModels).toHaveBeenCalledWith(
+      expect.objectContaining({ request: expect.objectContaining({ apiKeyOverride: 'sk-selected' }) })
+    )
   })
 
   it('builds the chat retry wrapper when no explicit maxRetries override is given', async () => {
@@ -1392,6 +1468,7 @@ describe('AiService tool approval', () => {
     } as never)
 
     expect(mockCreateRetryableWrap).not.toHaveBeenCalled()
+    expect(mockBuildApiKeyFallbackModels).not.toHaveBeenCalled()
     expect(mockBuildFallbackModels).not.toHaveBeenCalled()
   })
 
