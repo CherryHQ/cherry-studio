@@ -99,7 +99,9 @@ const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 describe('agentHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    agentExistsMock.mockReturnValueOnce(true)
+    // Default: agent exists. Tests that exercise the not-found path override
+    // this with mockReturnValueOnce(false).
+    agentExistsMock.mockReturnValue(true)
   })
 
   // ── /agents ──────────────────────────────────────────────────────────────
