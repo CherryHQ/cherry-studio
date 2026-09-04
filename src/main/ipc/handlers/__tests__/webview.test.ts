@@ -1,25 +1,22 @@
 import { webviewRequestSchemas } from '@shared/ipc/schemas/webview'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, setOpenLinkExternalMock, fromIdMock } = vi.hoisted(() => ({
+const { appGetMock, setOpenLinkExternalMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  setOpenLinkExternalMock: vi.fn(),
-  fromIdMock: vi.fn()
+  setOpenLinkExternalMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/services/webview', () => ({ setOpenLinkExternal: setOpenLinkExternalMock }))
-vi.mock('electron', () => ({ webContents: { fromId: fromIdMock } }))
-
 import { webviewHandlers } from '../webview'
 
 const exportAnnotations = vi.fn()
 const webviewService = {
   exportAnnotations,
   printWebviewToPDF: vi.fn(),
-  saveWebviewAsHTML: vi.fn()
+  saveWebviewAsHTML: vi.fn(),
+  setSpellCheckerEnabled: vi.fn()
 }
-const setSpellCheckerEnabled = vi.fn()
 const ctx = { senderId: 'w1' }
 
 beforeEach(() => {
@@ -36,24 +33,15 @@ describe('webviewHandlers', () => {
     expect(setOpenLinkExternalMock).toHaveBeenCalledWith(7, true)
   })
 
-  it('set_spell_check_enabled toggles the guest session spellchecker', async () => {
-    fromIdMock.mockReturnValue({ session: { setSpellCheckerEnabled } })
+  it('set_spell_check_enabled forwards the caller identity for ownership validation', async () => {
     await webviewHandlers['webview.set_spell_check_enabled']({ webviewId: 7, isEnable: false }, ctx)
-    expect(fromIdMock).toHaveBeenCalledWith(7)
-    expect(setSpellCheckerEnabled).toHaveBeenCalledWith(false)
-  })
-
-  it('set_spell_check_enabled is a no-op when the guest is gone', async () => {
-    fromIdMock.mockReturnValue(undefined)
-    await expect(
-      webviewHandlers['webview.set_spell_check_enabled']({ webviewId: 7, isEnable: true }, ctx)
-    ).resolves.toBeUndefined()
+    expect(webviewService.setSpellCheckerEnabled).toHaveBeenCalledWith(7, false, 'w1')
   })
 
   it('print_to_pdf delegates and returns the written path (or null)', async () => {
     webviewService.printWebviewToPDF.mockResolvedValue('/tmp/out.pdf')
     expect(await webviewHandlers['webview.print_to_pdf']({ webviewId: 7 }, ctx)).toBe('/tmp/out.pdf')
-    expect(webviewService.printWebviewToPDF).toHaveBeenCalledWith(7)
+    expect(webviewService.printWebviewToPDF).toHaveBeenCalledWith(7, 'w1')
   })
 
   it('export_annotations forwards the complete request and caller identity', async () => {
@@ -80,6 +68,6 @@ describe('webviewHandlers', () => {
   it('save_as_html delegates and returns null on cancel', async () => {
     webviewService.saveWebviewAsHTML.mockResolvedValue(null)
     expect(await webviewHandlers['webview.save_as_html']({ webviewId: 7 }, ctx)).toBeNull()
-    expect(webviewService.saveWebviewAsHTML).toHaveBeenCalledWith(7)
+    expect(webviewService.saveWebviewAsHTML).toHaveBeenCalledWith(7, 'w1')
   })
 })

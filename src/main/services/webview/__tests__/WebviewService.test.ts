@@ -8,7 +8,7 @@ const { guestById, getWindow, getPath, siteSession, localSession } = vi.hoisted(
   guestById: new Map<number, unknown>(),
   getWindow: vi.fn(),
   getPath: vi.fn(() => '/app/out/preload/webview.js'),
-  siteSession: {},
+  siteSession: { setSpellCheckerEnabled: vi.fn() },
   localSession: {}
 }))
 
@@ -139,7 +139,7 @@ const input = (documentSessionId: string, annotations: WebviewAnnotation[] = [an
   annotations
 })
 
-describe('WebviewService annotation document ownership', () => {
+describe('WebviewService webview ownership', () => {
   let service: WebviewService
   let host: object
 
@@ -203,6 +203,26 @@ describe('WebviewService annotation document ownership', () => {
       'Annotation ids must be unique'
     )
     expect(guest.debugger.attach).not.toHaveBeenCalled()
+  })
+
+  it('rejects unowned print, save, and spell-check operations before touching the guest', async () => {
+    const guest = createContents(7, host)
+    guestById.set(7, guest)
+    getWindow.mockReturnValue(undefined)
+
+    await expect(service.printWebviewToPDF(7, 'other')).rejects.toThrow('The caller does not own this webview')
+    await expect(service.saveWebviewAsHTML(7, 'other')).rejects.toThrow('The caller does not own this webview')
+    expect(() => service.setSpellCheckerEnabled(7, false, 'other')).toThrow('The caller does not own this webview')
+    expect(siteSession.setSpellCheckerEnabled).not.toHaveBeenCalled()
+  })
+
+  it('applies spell-check settings for an owned site webview', () => {
+    const guest = createContents(7, host)
+    guestById.set(7, guest)
+
+    service.setSpellCheckerEnabled(7, false, 'owner')
+
+    expect(siteSession.setSpellCheckerEnabled).toHaveBeenCalledWith(false)
   })
 
   it('invalidates an old session on new-document navigation but keeps it for same-document navigation', async () => {

@@ -220,14 +220,15 @@ export class WebviewService extends BaseService {
     })
   }
 
+  setSpellCheckerEnabled(webviewId: number, isEnable: boolean, senderId: WindowId | null): void {
+    this.requireOwnedWebview(webviewId, senderId).session.setSpellCheckerEnabled(isEnable)
+  }
+
   /**
    * Print webview content to PDF.
    */
-  async printWebviewToPDF(webviewId: number): Promise<string | null> {
-    const webview = webContents.fromId(webviewId)
-    if (!webview) {
-      throw new Error('Webview not found')
-    }
+  async printWebviewToPDF(webviewId: number, senderId: WindowId | null): Promise<string | null> {
+    const webview = this.requireOwnedWebview(webviewId, senderId)
 
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
@@ -261,11 +262,8 @@ export class WebviewService extends BaseService {
   /**
    * Save webview content as HTML.
    */
-  async saveWebviewAsHTML(webviewId: number): Promise<string | null> {
-    const webview = webContents.fromId(webviewId)
-    if (!webview) {
-      throw new Error('Webview not found')
-    }
+  async saveWebviewAsHTML(webviewId: number, senderId: WindowId | null): Promise<string | null> {
+    const webview = this.requireOwnedWebview(webviewId, senderId)
 
     const pageTitle = await webview.executeJavaScript('document.title || "webpage"').catch(() => 'webpage')
     const sanitizedTitle = pageTitle.replace(/[<>:"/\\|?*]/g, '-').substring(0, 100)
