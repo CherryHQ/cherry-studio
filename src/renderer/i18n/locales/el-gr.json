@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "Ανάλυση χρόνου εκτέλεσης",
   "chat.message.token_details.text_generation": "Δημιουργία κειμένου",
   "chat.message.token_details.text_output": "Έξοδος κειμένου",
+  "chat.message.token_details.time_to_first_token": "Χρόνος έως το πρώτο token",
   "chat.message.token_details.tokens": "Μάρκες {{value}}",
   "chat.message.token_details.tokens_per_second_value": "{{value}} token/δ",
   "chat.message.token_details.total_duration": "Διάρκεια από άκρο σε άκρο",

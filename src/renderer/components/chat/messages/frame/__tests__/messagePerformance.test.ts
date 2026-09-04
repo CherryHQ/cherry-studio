@@ -94,6 +94,7 @@ describe('message performance view model', () => {
     expect(view.modelTokensPerSecond).toBe(30)
     expect(view.endToEndTokensPerSecond).toBe(20)
     expect(view.totalDurationMs).toBe(5_000)
+    expect(view.timeFirstTokenMs).toBe(500)
     expect(view.intervals.some((interval) => interval.id.endsWith('2'))).toBe(false)
   })
 
@@ -137,6 +138,7 @@ describe('message performance view model', () => {
     expect(getMessageModelTokensPerSecond(stats)).toBe(25)
     expect(buildMessagePerformanceViewModel(stats)).toMatchObject({
       totalDurationMs: 5_000,
+      timeFirstTokenMs: 1_000,
       modelTokensPerSecond: 25,
       endToEndTokensPerSecond: 20
     })

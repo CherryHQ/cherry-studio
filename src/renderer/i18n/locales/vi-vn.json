@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "Phân bổ thời gian chạy",
   "chat.message.token_details.text_generation": "Tạo văn bản",
   "chat.message.token_details.text_output": "Đầu ra văn bản",
+  "chat.message.token_details.time_to_first_token": "Thời gian đến token đầu tiên",
   "chat.message.token_details.tokens": "{{value}} Mã thông báo",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Token/giây",
   "chat.message.token_details.total_duration": "Thời lượng từ đầu đến cuối",

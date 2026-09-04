@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "Defalcarea timpului de execuție",
   "chat.message.token_details.text_generation": "Generarea de text",
   "chat.message.token_details.text_output": "Ieșire text",
+  "chat.message.token_details.time_to_first_token": "Timp până la primul token",
   "chat.message.token_details.tokens": "{{value}} Jetoane",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Tokeni/s",
   "chat.message.token_details.total_duration": "Durată de la capăt la capăt",

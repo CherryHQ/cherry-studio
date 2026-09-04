@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "実行時間の内訳",
   "chat.message.token_details.text_generation": "テキスト生成",
   "chat.message.token_details.text_output": "テキスト出力",
+  "chat.message.token_details.time_to_first_token": "最初のトークンまでの時間",
   "chat.message.token_details.tokens": "{{value}} トークン",
   "chat.message.token_details.tokens_per_second_value": "{{value}} トークン/秒",
   "chat.message.token_details.total_duration": "エンドツーエンドの期間",

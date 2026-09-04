@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "Runtime breakdown",
   "chat.message.token_details.text_generation": "Text generation",
   "chat.message.token_details.text_output": "Text output",
+  "chat.message.token_details.time_to_first_token": "Time to first token",
   "chat.message.token_details.tokens": "{{value}} Tokens",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Tokens/s",
   "chat.message.token_details.total_duration": "End-to-end duration",

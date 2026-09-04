@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "运行时间分布",
   "chat.message.token_details.text_generation": "文本生成",
   "chat.message.token_details.text_output": "文本输出",
+  "chat.message.token_details.time_to_first_token": "首 Token 耗时",
   "chat.message.token_details.tokens": "{{value}} Tokens",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Token/秒",
   "chat.message.token_details.total_duration": "端到端耗时",

@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "Çalışma süresi dökümü",
   "chat.message.token_details.text_generation": "Metin oluşturma",
   "chat.message.token_details.text_output": "Metin çıktısı",
+  "chat.message.token_details.time_to_first_token": "İlk tokene kadar geçen süre",
   "chat.message.token_details.tokens": "{{value}} Token",
   "chat.message.token_details.tokens_per_second_value": "{{value}} Token/s",
   "chat.message.token_details.total_duration": "Uçtan uca süre",

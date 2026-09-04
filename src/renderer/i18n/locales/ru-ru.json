@@ -708,6 +708,7 @@
   "chat.message.token_details.runtime_breakdown": "Распределение времени выполнения",
   "chat.message.token_details.text_generation": "Генерация текста",
   "chat.message.token_details.text_output": "Вывод текста",
+  "chat.message.token_details.time_to_first_token": "Время до первого токена",
   "chat.message.token_details.tokens": "{{value}} Токенов",
   "chat.message.token_details.tokens_per_second_value": "{{value}} токенов/с",
   "chat.message.token_details.total_duration": "Продолжительность от начала до конца",
