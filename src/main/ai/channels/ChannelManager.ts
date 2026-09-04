@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
@@ -53,6 +54,11 @@ async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
   await adapterImportMap[type]()
 }
 
+function canConnectChannel(channel: ChannelRow): boolean {
+  if (!channel.isActive || !channel.agentId) return false
+  return agentService.getLifecycleState(channel.agentId) === 'active'
+}
+
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
@@ -66,6 +72,21 @@ export class ChannelManager extends BaseService {
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
 
   protected async onReady(): Promise<void> {
+    this.registerDisposable(
+      agentService.onAgentTrashed(({ agentId }) => {
+        this.runAgentLifecycleAction('trashed', agentId, this.disconnectAgent(agentId))
+      })
+    )
+    this.registerDisposable(
+      agentService.onAgentRestored(({ agentId }) => {
+        this.runAgentLifecycleAction('restored', agentId, this.restoreAgentChannels(agentId))
+      })
+    )
+    this.registerDisposable(
+      agentService.onAgentPurged(({ agentId }) => {
+        this.runAgentLifecycleAction('purged', agentId, this.disconnectAgent(agentId))
+      })
+    )
     await this.start()
   }
 
@@ -104,7 +125,7 @@ export class ChannelManager extends BaseService {
       return
     }
 
-    const activeChannels = channels.filter((ch) => ch.isActive && ch.agentId)
+    const activeChannels = channels.filter(canConnectChannel)
 
     // Lazy-load only the adapter modules needed for active channels
     const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
@@ -234,7 +255,7 @@ export class ChannelManager extends BaseService {
 
     // Re-read from DB and reconnect if active
     const channel = channelService.getChannel(channelId)
-    if (channel && channel.isActive && channel.agentId) {
+    if (channel && canConnectChannel(channel)) {
       await ensureAdapterLoaded(channel.type)
       await this.connectChannelFromRow(channel, { awaitConnect })
     }
@@ -263,6 +284,21 @@ export class ChannelManager extends BaseService {
     )
 
     channelMessageHandler.clearSessionTracker(agentId)
+  }
+
+  private async restoreAgentChannels(agentId: string): Promise<void> {
+    const channels = channelService.listChannels({ agentId })
+    await Promise.all(channels.map((channel) => this.syncChannel(channel.id)))
+  }
+
+  private runAgentLifecycleAction(
+    action: 'trashed' | 'restored' | 'purged',
+    agentId: string,
+    work: Promise<void>
+  ): void {
+    void work.catch((error) => {
+      logger.error('Failed to handle Agent lifecycle action for channels', { action, agentId, error })
+    })
   }
 
   /**

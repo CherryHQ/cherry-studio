@@ -272,18 +272,16 @@ export class AgentSessionDeliveryService extends BaseService {
   ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
     this.assertWritesAvailable()
     const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions, permanent })
-    if (!deleteSessions) {
-      const manager = application.get('AiStreamManager')
-      result.affectedSessionIds.forEach((sessionId) =>
-        manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
-      )
-    }
+    const manager = application.get('AiStreamManager')
+    result.affectedSessionIds.forEach((sessionId) =>
+      manager.pauseRuntimeTurn(buildAgentSessionTopicId(sessionId), 'target-agent-deleted')
+    )
     // Sessions that outlive the agent (trashed or permanently deleted) keep
     // their queue — kick it so pending deliveries re-evaluate against the gone agent.
     await this.finishDeletion(
       result.affectedSessionIds,
       result.deliveryResults,
-      deleteSessions ? [] : result.affectedSessionIds
+      deleteSessions && !permanent ? [] : result.affectedSessionIds
     )
     return {
       deleted: result.deleted,
@@ -317,10 +315,13 @@ export class AgentSessionDeliveryService extends BaseService {
     for (const deliveryResult of deliveryResults) this.kick(deliveryResult.sessionId)
     retrySessionIds.forEach((sessionId) => this.kick(sessionId))
 
-    const failures = closed.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
-    if (failures.length > 0) {
-      throw new AggregateError(failures, 'One or more deleted Agent Session runtimes failed to close')
-    }
+    closed.forEach((result, index) => {
+      if (result.status !== 'rejected') return
+      logger.error('Failed to close deleted Agent Session runtime', {
+        sessionId: sessionIds[index],
+        error: result.reason
+      })
+    })
   }
 
   private assertWritesAvailable(): void {
