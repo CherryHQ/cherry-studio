@@ -5,7 +5,8 @@ const scan = vi.hoisted(() => ({ collectErrorLogRecords: vi.fn(), diagnose: vi.f
 vi.mock('@main/services/diagnostics/scan', () => scan)
 
 const { recentLogFindings } = await import('../logs')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
 
 function finding(overrides: Record<string, unknown> = {}) {
   return {

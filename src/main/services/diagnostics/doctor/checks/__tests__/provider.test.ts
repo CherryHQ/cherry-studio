@@ -21,7 +21,8 @@ vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: s
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => services.edition }))
 
 const { cherryAccount, defaultModel, defaultProviderApiKey } = await import('../provider')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
 
 function provider(overrides: Record<string, unknown> = {}) {
   return {
