@@ -1,6 +1,5 @@
 import {
   WEBVIEW_ANNOTATION_LIMITS,
-  WebviewAnnotationNavigationRevisionSchema,
   WebviewAnnotationSchema,
   WebviewAnnotationTargetSchema
 } from '@shared/types/webviewAnnotation'
@@ -25,19 +24,15 @@ export const webviewRequestSchemas = {
     input: z.object({ webviewId: z.number(), isEnable: z.boolean() }),
     output: z.void()
   }),
-  'webview.replace_annotations': defineRoute({
+  'webview.export_annotations': defineRoute({
     input: z
       .object({
         webviewId: z.number().int().positive(),
-        navigationRevision: WebviewAnnotationNavigationRevisionSchema,
+        documentSessionId: z.uuid(),
         target: WebviewAnnotationTargetSchema,
-        annotations: z.array(WebviewAnnotationSchema).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
+        annotations: z.array(WebviewAnnotationSchema).min(1).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
       })
       .strict(),
-    output: z.void()
-  }),
-  'webview.get_annotations_markdown': defineRoute({
-    input: z.object({ webviewId: z.number().int().positive() }).strict(),
     output: z.string().max(WEBVIEW_ANNOTATION_LIMITS.exportMarkdown)
   }),
   'webview.print_to_pdf': defineRoute({ input: z.object({ webviewId: z.number() }), output: z.string().nullable() }),

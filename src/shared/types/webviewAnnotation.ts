@@ -69,20 +69,14 @@ export const WebviewAnnotationSchema = z
   .object({
     id: z.uuid(),
     comment: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.comment),
-    createdAt: z.number().int().nonnegative(),
     element: WebviewElementLocatorSchema,
     region: WebviewAnnotationRegionSchema.optional()
   })
   .strict()
 
-export const WebviewAnnotationStateSchema = z
-  .object({
-    enabled: z.boolean(),
-    annotations: z.array(WebviewAnnotationSchema).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
-  })
-  .strict()
-
-export const WebviewAnnotationNavigationRevisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
+export const WebviewAnnotationSnapshotSchema = z
+  .array(WebviewAnnotationSchema)
+  .max(WEBVIEW_ANNOTATION_LIMITS.annotations)
 
 export const WebviewAnnotationPageSchema = z
   .object({
@@ -179,31 +173,37 @@ export const WebviewAnnotationLocaleSchema = z
 export const WebviewAnnotationThemeSchema = z.enum(['light', 'dark'])
 
 export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('start_session'), sessionId: z.uuid() }).strict(),
+  z.object({ type: z.literal('request_state') }).strict(),
   z
     .object({
       type: z.literal('configure'),
+      sessionId: z.uuid(),
       locale: WebviewAnnotationLocaleSchema,
       theme: WebviewAnnotationThemeSchema
     })
     .strict(),
-  z.object({ type: z.literal('set_enabled'), enabled: z.boolean() }).strict(),
-  z.object({ type: z.literal('clear') }).strict(),
-  z.object({ type: z.literal('reset') }).strict(),
-  z
-    .object({
-      type: z.literal('reset_for_navigation'),
-      navigationRevision: WebviewAnnotationNavigationRevisionSchema
-    })
-    .strict(),
-  z.object({ type: z.literal('request_state') }).strict()
+  z.object({ type: z.literal('set_enabled'), sessionId: z.uuid(), enabled: z.boolean() }).strict(),
+  z.object({ type: z.literal('deactivate'), sessionId: z.uuid() }).strict(),
+  z.object({ type: z.literal('clear'), sessionId: z.uuid() }).strict(),
+  z.object({ type: z.literal('request_snapshot'), sessionId: z.uuid(), requestId: z.uuid() }).strict()
 ])
 
 export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
   z
     .object({
       type: z.literal('state_changed'),
-      navigationRevision: WebviewAnnotationNavigationRevisionSchema,
-      state: WebviewAnnotationStateSchema
+      sessionId: z.uuid(),
+      enabled: z.boolean(),
+      count: z.number().int().nonnegative().max(WEBVIEW_ANNOTATION_LIMITS.annotations)
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('snapshot_ready'),
+      sessionId: z.uuid(),
+      requestId: z.uuid(),
+      annotations: WebviewAnnotationSnapshotSchema
     })
     .strict()
 ])
@@ -213,7 +213,7 @@ export type WebviewElementLocator = z.infer<typeof WebviewElementLocatorSchema>
 export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
 export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
-export type WebviewAnnotationState = z.infer<typeof WebviewAnnotationStateSchema>
+export type WebviewAnnotationSnapshot = z.infer<typeof WebviewAnnotationSnapshotSchema>
 export type WebviewAnnotationDocument = z.infer<typeof WebviewAnnotationDocumentSchema>
 export type WebviewAccessibilityStatus = z.infer<typeof WebviewAccessibilityStatusSchema>
 export type WebviewAccessibilityState = z.infer<typeof WebviewAccessibilityStateSchema>

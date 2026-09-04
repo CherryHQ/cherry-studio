@@ -1,4 +1,4 @@
-import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotationState } from '@shared/types/webviewAnnotation'
+import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotationGuestEvent } from '@shared/types/webviewAnnotation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -17,9 +17,21 @@ const locale = {
   elementUnavailable: "This element can't be annotated. Select a nearby element."
 }
 
+const sessionId = '00000000-0000-4000-8000-000000000001'
+let requestSequence = 0
+
 const configure = (controller: WebviewAnnotationController) => {
-  controller.handleCommand({ type: 'configure', locale, theme: 'light' })
-  controller.handleCommand({ type: 'set_enabled', enabled: true })
+  controller.handleCommand({ type: 'start_session', sessionId })
+  controller.handleCommand({ type: 'configure', sessionId, locale, theme: 'light' })
+  controller.handleCommand({ type: 'set_enabled', sessionId, enabled: true })
+}
+
+const readSnapshot = (controller: WebviewAnnotationController, events: WebviewAnnotationGuestEvent[]) => {
+  const requestId = `00000000-0000-4000-8000-${String(++requestSequence).padStart(12, '0')}`
+  controller.handleCommand({ type: 'request_snapshot', sessionId, requestId })
+  const event = events.at(-1)
+  if (event?.type !== 'snapshot_ready' || event.requestId !== requestId) throw new Error('Snapshot was not emitted')
+  return event.annotations
 }
 
 const privateController = (controller: WebviewAnnotationController) =>
@@ -129,15 +141,14 @@ describe('WebviewAnnotationController selectors', () => {
 
 describe('WebviewAnnotationController interactions', () => {
   let controller: WebviewAnnotationController
-  let emissions: Array<{ state: WebviewAnnotationState; navigationRevision: number }>
+  let emissions: WebviewAnnotationGuestEvent[]
 
   beforeEach(() => {
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(() => callback(0), 0))
     vi.stubGlobal('cancelAnimationFrame', (handle: number) => window.clearTimeout(handle))
+    requestSequence = 0
     emissions = []
-    controller = new WebviewAnnotationController((state, navigationRevision) =>
-      emissions.push({ state, navigationRevision })
-    )
+    controller = new WebviewAnnotationController((event) => emissions.push(event))
     configure(controller)
   })
 
@@ -298,18 +309,18 @@ describe('WebviewAnnotationController interactions', () => {
     const internals = privateController(controller)
     internals.textarea.value = 'Use a clearer label'
     internals.saveEditor()
-    expect(controller.getState().annotations).toHaveLength(1)
-    expect(controller.getState().annotations[0].comment).toBe('Use a clearer label')
+    expect(readSnapshot(controller, emissions)).toHaveLength(1)
+    expect(readSnapshot(controller, emissions)[0].comment).toBe('Use a clearer label')
 
-    const annotationId = controller.getState().annotations[0].id
+    const annotationId = readSnapshot(controller, emissions)[0].id
     internals.openEditor({ mode: 'edit', element: button, annotationId })
     internals.textarea.value = 'Updated note'
     internals.saveEditor()
-    expect(controller.getState().annotations[0].comment).toBe('Updated note')
+    expect(readSnapshot(controller, emissions)[0].comment).toBe('Updated note')
 
     internals.openEditor({ mode: 'edit', element: button, annotationId })
     internals.deleteEditorAnnotation()
-    expect(controller.getState().annotations).toEqual([])
+    expect(readSnapshot(controller, emissions)).toEqual([])
   })
 
   it('saves with Ctrl+Enter and exits selection mode with Escape', () => {
@@ -323,7 +334,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.textarea.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true })
     )
-    expect(controller.getState().annotations[0].comment).toBe('Keyboard note')
+    expect(readSnapshot(controller, emissions)[0].comment).toBe('Keyboard note')
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
     expect(controller.getState().enabled).toBe(false)
@@ -337,7 +348,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.openEditor({ mode: 'create-element', element: first })
     internals.textarea.value = 'Keep tracking this'
     internals.saveEditor()
-    const annotationId = controller.getState().annotations[0].id
+    const annotationId = readSnapshot(controller, emissions)[0].id
 
     const replacement = document.createElement('button')
     replacement.id = 'replaceable'
@@ -355,7 +366,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Do not retain this element'
     internals.saveEditor()
-    const annotationId = controller.getState().annotations[0].id
+    const annotationId = readSnapshot(controller, emissions)[0].id
 
     button.remove()
     internals.updatePositions()
@@ -381,7 +392,7 @@ describe('WebviewAnnotationController interactions', () => {
 
     internals.textarea.value = 'Region note'
     internals.saveEditor()
-    const annotationId = controller.getState().annotations[0].id
+    const annotationId = readSnapshot(controller, emissions)[0].id
 
     container.remove()
     internals.updatePositions()
@@ -434,7 +445,7 @@ describe('WebviewAnnotationController interactions', () => {
 
     internals.saveEditor()
 
-    expect(controller.getState().annotations).toEqual([])
+    expect(readSnapshot(controller, emissions)).toEqual([])
     expect(internals.editorElement).toBe(button)
     expect(internals.textarea.value).toBe('Keep this draft')
     expect(internals.editorError?.getAttribute('role')).toBe('alert')
@@ -477,7 +488,7 @@ describe('WebviewAnnotationController interactions', () => {
     internals.textarea.value = 'Untangle this overlap'
     internals.saveEditor()
 
-    const annotation = controller.getState().annotations[0]
+    const annotation = readSnapshot(controller, emissions)[0]
     expect(annotation.comment).toBe('Untangle this overlap')
     expect(annotation.element.selector).toBe('#canvas')
     expect(annotation.region?.rect).toEqual({ x: 10, y: 10, width: 190, height: 190 })
@@ -505,7 +516,7 @@ describe('WebviewAnnotationController interactions', () => {
     mockRect(container, 300, 400, 50, 60)
     internals.updatePositions()
 
-    const annotation = controller.getState().annotations[0]
+    const annotation = readSnapshot(controller, emissions)[0]
     const pin = internals.pinLayer?.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
     expect(annotation.region?.rect).toEqual({ x: 40, y: 70, width: 100, height: 100 })
     expect(pin?.style.left).toBe('10px')
@@ -530,8 +541,8 @@ describe('WebviewAnnotationController interactions', () => {
     internals.textarea.value = 'Annotate only this element'
     internals.saveEditor()
 
-    expect(controller.getState().annotations[0].element.selector).toBe('#element-target')
-    expect(controller.getState().annotations[0].region).toBeUndefined()
+    expect(readSnapshot(controller, emissions)[0].element.selector).toBe('#element-target')
+    expect(readSnapshot(controller, emissions)[0].region).toBeUndefined()
   })
 
   it('keeps sub-threshold drags on the single-element click flow', () => {
@@ -556,7 +567,7 @@ describe('WebviewAnnotationController interactions', () => {
 
     internals.textarea.value = 'Element note'
     internals.saveEditor()
-    expect(controller.getState().annotations[0].region).toBeUndefined()
+    expect(readSnapshot(controller, emissions)[0].region).toBeUndefined()
     expect(releasePointerCapture).toHaveBeenCalledWith(1)
   })
 
@@ -592,7 +603,7 @@ describe('WebviewAnnotationController interactions', () => {
     expect(internals.pendingRegion).toBeNull()
   })
 
-  it('does not resume a marquee that reset interrupted', () => {
+  it('does not resume a marquee that a new document session interrupted', () => {
     const container = document.createElement('div')
     container.id = 'reset-zone'
     document.body.appendChild(container)
@@ -600,15 +611,17 @@ describe('WebviewAnnotationController interactions', () => {
     const internals = privateController(controller)
     internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 120, 120))
-    controller.handleCommand({ type: 'reset' })
-    controller.handleCommand({ type: 'set_enabled', enabled: true })
+    const nextSessionId = '00000000-0000-4000-8000-000000000002'
+    controller.handleCommand({ type: 'start_session', sessionId: nextSessionId })
+    controller.handleCommand({ type: 'configure', sessionId: nextSessionId, locale, theme: 'light' })
+    controller.handleCommand({ type: 'set_enabled', sessionId: nextSessionId, enabled: true })
     internals.handlePointerUp(trustedPointerEvent('pointerup', container, 120, 120))
 
     expect(internals.marqueeRect).toBeNull()
     expect(internals.pendingRegion).toBeNull()
   })
 
-  it('releases pointer capture when reset interrupts a marquee', () => {
+  it('releases pointer capture when a new document session interrupts a marquee', () => {
     const container = document.createElement('div')
     container.id = 'captured-zone'
     const internals = privateController(controller)
@@ -627,13 +640,23 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.appendChild(container)
 
     internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10, 7))
-    controller.handleCommand({ type: 'reset' })
+    controller.handleCommand({ type: 'start_session', sessionId: '00000000-0000-4000-8000-000000000002' })
 
     expect(setPointerCapture).toHaveBeenCalledWith(7)
     expect(releasePointerCapture).toHaveBeenCalledWith(7)
   })
 
-  it('clears page state and tags subsequent emissions with the navigation revision', () => {
+  it('does not respond before a session starts', () => {
+    const events: WebviewAnnotationGuestEvent[] = []
+    const pending = new WebviewAnnotationController((event) => events.push(event))
+
+    pending.handleCommand({ type: 'request_state' })
+
+    expect(events).toEqual([])
+    pending.dispose()
+  })
+
+  it('keeps committed annotations for the same session and clears them for a new one', () => {
     const button = document.createElement('button')
     button.id = 'stale-page-target'
     document.body.appendChild(button)
@@ -641,21 +664,57 @@ describe('WebviewAnnotationController interactions', () => {
     internals.openEditor({ mode: 'create-element', element: button })
     internals.textarea.value = 'Stale page note'
     internals.saveEditor()
-    expect(controller.getState().annotations).toHaveLength(1)
+    expect(readSnapshot(controller, emissions)).toHaveLength(1)
 
     emissions = []
-    controller.handleCommand({ type: 'request_state' })
-    expect(emissions).toEqual([{ navigationRevision: 0, state: controller.getState() }])
+    controller.handleCommand({ type: 'start_session', sessionId })
+    expect(emissions).toEqual([{ type: 'state_changed', sessionId, enabled: true, count: 1 }])
+    expect(readSnapshot(controller, emissions)).toHaveLength(1)
 
     emissions = []
-    controller.handleCommand({ type: 'reset_for_navigation', navigationRevision: 3 })
+    const nextSessionId = '00000000-0000-4000-8000-000000000002'
+    controller.handleCommand({ type: 'start_session', sessionId: nextSessionId })
     controller.handleCommand({ type: 'request_state' })
 
-    expect(controller.getState()).toEqual({ enabled: false, annotations: [] })
+    expect(controller.getState()).toEqual({ enabled: false, count: 0 })
     expect(emissions).toEqual([
-      { navigationRevision: 3, state: { enabled: false, annotations: [] } },
-      { navigationRevision: 3, state: { enabled: false, annotations: [] } }
+      { type: 'state_changed', sessionId: nextSessionId, enabled: false, count: 0 },
+      { type: 'state_changed', sessionId: nextSessionId, enabled: false, count: 0 }
     ])
+  })
+
+  it('ignores protected commands from a stale session and correlates snapshots', () => {
+    emissions = []
+    const staleSessionId = '00000000-0000-4000-8000-000000000099'
+    const requestId = '00000000-0000-4000-8000-000000000010'
+
+    controller.handleCommand({ type: 'set_enabled', sessionId: staleSessionId, enabled: false })
+    controller.handleCommand({ type: 'clear', sessionId: staleSessionId })
+    controller.handleCommand({ type: 'request_snapshot', sessionId: staleSessionId, requestId })
+
+    expect(controller.getState().enabled).toBe(true)
+    expect(emissions).toEqual([])
+
+    controller.handleCommand({ type: 'request_snapshot', sessionId, requestId })
+    expect(emissions).toEqual([{ type: 'snapshot_ready', sessionId, requestId, annotations: [] }])
+  })
+
+  it('deactivates selection and discards the draft without deleting committed annotations', () => {
+    const button = document.createElement('button')
+    button.id = 'committed'
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: button })
+    internals.textarea.value = 'Committed'
+    internals.saveEditor()
+    internals.openEditor({ mode: 'edit', element: button, annotationId: readSnapshot(controller, emissions)[0].id })
+    internals.textarea.value = 'Unsaved draft'
+
+    controller.handleCommand({ type: 'deactivate', sessionId })
+
+    expect(controller.getState()).toEqual({ enabled: false, count: 1 })
+    expect(internals.editorElement).toBeNull()
+    expect(readSnapshot(controller, emissions)[0].comment).toBe('Committed')
   })
 
   it('enforces annotation and comment limits', () => {
@@ -670,9 +729,9 @@ describe('WebviewAnnotationController interactions', () => {
       internals.saveEditor()
     }
 
-    const state = controller.getState()
-    expect(state.annotations).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.annotations)
-    expect(state.annotations[0].comment).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.comment)
-    expect(emissions.at(-1)?.state.annotations).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.annotations)
+    const annotations = readSnapshot(controller, emissions)
+    expect(annotations).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.annotations)
+    expect(annotations[0].comment).toHaveLength(WEBVIEW_ANNOTATION_LIMITS.comment)
+    expect(controller.getState().count).toBe(WEBVIEW_ANNOTATION_LIMITS.annotations)
   })
 })

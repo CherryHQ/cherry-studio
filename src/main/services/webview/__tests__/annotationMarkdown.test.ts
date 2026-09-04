@@ -15,7 +15,6 @@ const document: WebviewAnnotationDocument = {
     {
       id: '123e4567-e89b-12d3-a456-426614174000',
       comment: 'Change this',
-      createdAt: 1,
       element: {
         selector: '#submit',
         tagName: 'button',
