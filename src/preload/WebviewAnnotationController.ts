@@ -320,7 +320,7 @@ export class WebviewAnnotationController {
   private resizeObserver: ResizeObserver | null = null
   private resizeObservedElements = new Set<Element>()
   private sessionId: string | null = null
-  private observedRoots = new WeakSet<Document | ShadowRoot>()
+  private observedRoots = new Set<Document | ShadowRoot>()
   private overlayHost: HTMLDivElement | null = null
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
@@ -868,7 +868,7 @@ export class WebviewAnnotationController {
     if (!this.resizeObserver && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(this.schedulePositionUpdate)
     }
-    this.observeRoot(document)
+    this.syncObservedRoots()
     this.syncResizeObservedElements()
     window.addEventListener('scroll', this.schedulePositionUpdate, true)
     window.addEventListener('resize', this.schedulePositionUpdate)
@@ -880,7 +880,7 @@ export class WebviewAnnotationController {
   private stopPositionTracking() {
     this.mutationObserver?.disconnect()
     this.mutationObserver = null
-    this.observedRoots = new WeakSet<Document | ShadowRoot>()
+    this.observedRoots = new Set<Document | ShadowRoot>()
     this.resizeObserver?.disconnect()
     this.resizeObserver = null
     this.resizeObservedElements.clear()
@@ -901,6 +901,24 @@ export class WebviewAnnotationController {
       const root = current.getRootNode()
       if (root instanceof Document || root instanceof ShadowRoot) this.observeRoot(root)
     }
+  }
+
+  private syncObservedRoots() {
+    if (!this.mutationObserver) return
+    const next = new Set<Document | ShadowRoot>([document])
+    const collect = (element: Element | null) => {
+      for (let current = element; current?.isConnected; current = composedParent(current)) {
+        const root = current.getRootNode()
+        if (root instanceof Document || root instanceof ShadowRoot) next.add(root)
+      }
+    }
+    for (const element of this.annotationElements.values()) collect(element)
+    collect(this.editorElement)
+
+    if (next.size === this.observedRoots.size && Array.from(next).every((root) => this.observedRoots.has(root))) return
+    this.mutationObserver.disconnect()
+    this.observedRoots.clear()
+    for (const root of next) this.observeRoot(root)
   }
 
   private syncResizeObservedElements() {
@@ -972,6 +990,7 @@ export class WebviewAnnotationController {
       pin.style.top = `${Math.max(4, rect.top)}px`
     })
     this.syncResizeObservedElements()
+    this.syncObservedRoots()
 
     const highlightedElement = this.highlightElement
     if (this.highlight && highlightedElement?.isConnected) {
