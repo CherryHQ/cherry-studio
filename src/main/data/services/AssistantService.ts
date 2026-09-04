@@ -612,8 +612,8 @@ export class AssistantDataService {
     id: string,
     options: { deleteTopics?: boolean; permanent?: boolean } = {}
   ): { deleted: boolean; deletedTopicIds?: string[] } {
-    let deletedTopicIds: string[] | undefined
-    const deleted = application.get('DbService').withWriteTx((tx) => {
+    const shouldDeleteTopics = options.permanent !== true && options.deleteTopics === true
+    const { deleted, deletedTopicIds } = application.get('DbService').withWriteTx((tx) => {
       const predicate =
         options.permanent === true
           ? and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt))
@@ -621,14 +621,16 @@ export class AssistantDataService {
       const [existing] = tx.select({ id: assistantTable.id }).from(assistantTable).where(predicate).limit(1).all()
       if (!existing) throw DataApiErrorFactory.notFound('Assistant', id)
 
-      if (options.deleteTopics === true) {
-        deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+      if (options.permanent === true) {
+        return { deleted: this.permanentlyDeleteTx(tx, id), deletedTopicIds: undefined }
       }
 
-      const didDelete = options.permanent === true ? this.permanentlyDeleteTx(tx, id) : this.deleteTx(tx, id)
-      if (!didDelete) return false
+      const deletedAt = Date.now()
+      const deletedTopicIds = shouldDeleteTopics
+        ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, deletedAt })
+        : undefined
 
-      return true
+      return { deleted: this.deleteTx(tx, id, { deletedAt }), deletedTopicIds }
     })
 
     if (!deleted) {
@@ -640,16 +642,16 @@ export class AssistantDataService {
 
     logger.info(options.permanent === true ? 'Permanently deleted assistant' : 'Moved assistant to Recycle Bin', {
       id,
-      deleteTopics: options.deleteTopics === true
+      deleteTopics: shouldDeleteTopics
     })
     promptService.notifyTargetBindingsChanged()
     return { deleted, deletedTopicIds }
   }
 
-  deleteTx(tx: DbOrTx, id: string): boolean {
+  deleteTx(tx: DbOrTx, id: string, options: { deletedAt?: number } = {}): boolean {
     const [row] = tx
       .update(assistantTable)
-      .set({ deletedAt: Date.now(), groupId: null })
+      .set({ deletedAt: options.deletedAt ?? Date.now(), groupId: null })
       .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
       .returning({ id: assistantTable.id })
       .all()
@@ -672,15 +674,29 @@ export class AssistantDataService {
 
   /** Restore one trashed assistant. Tags and pins removed on Delete stay removed. */
   restore(id: string): Assistant {
-    const [row] = this.db
-      .update(assistantTable)
-      .set({ deletedAt: null })
-      .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
-      .returning()
-      .all()
-    if (!row) throw DataApiErrorFactory.notFound('Assistant', id)
+    const { row, restoredTopicIds } = application.get('DbService').withWriteTx((tx) => {
+      const [existing] = tx
+        .select({ deletedAt: assistantTable.deletedAt })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (existing?.deletedAt == null) throw DataApiErrorFactory.notFound('Assistant', id)
+
+      const [row] = tx
+        .update(assistantTable)
+        .set({ deletedAt: null })
+        .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
+        .returning()
+        .all()
+      if (!row) throw DataApiErrorFactory.notFound('Assistant', id)
+
+      const restoredTopicIds = topicService.restoreTrashedWithAssistantTx(tx, id, existing.deletedAt)
+      return { row, restoredTopicIds }
+    })
 
     this.notifyReadModelChange([id], 'membership')
+    topicService.notifyReadModelChange(restoredTopicIds, 'membership')
     logger.info('Restored assistant', { id })
     const relations = this.getRelationIdsByAssistantIds([id])
     return rowToAssistant(row, relations.get(id), this.getModelNameById(this.db, row.modelId))

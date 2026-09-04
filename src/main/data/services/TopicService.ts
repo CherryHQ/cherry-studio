@@ -493,7 +493,11 @@ export class TopicService {
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private trashManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+  private trashManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean; deletedAt?: number } = {}
+  ): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
@@ -511,10 +515,10 @@ export class TopicService {
     }
     if (trashedIds.length === 0) return []
 
-    const now = Date.now()
+    const deletedAt = options.deletedAt ?? Date.now()
     for (let i = 0; i < trashedIds.length; i += SQLITE_INARRAY_CHUNK) {
       tx.update(topicTable)
-        .set({ deletedAt: now })
+        .set({ deletedAt })
         .where(inArray(topicTable.id, trashedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
         .run()
     }
@@ -565,6 +569,16 @@ export class TopicService {
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored topic', { id })
     return rowToTopic(row)
+  }
+
+  restoreTrashedWithAssistantTx(tx: DbOrTx, assistantId: string, deletedAt: number): string[] {
+    return tx
+      .update(topicTable)
+      .set({ deletedAt: null })
+      .where(and(eq(topicTable.assistantId, assistantId), eq(topicTable.deletedAt, deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+      .map((row) => row.id)
   }
 
   purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
@@ -829,7 +843,11 @@ export class TopicService {
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
+  deleteByAssistantIdTx(
+    tx: DbOrTx,
+    assistantId: string,
+    options: { validateAssistant?: boolean; deletedAt?: number } = {}
+  ): string[] {
     if (options.validateAssistant ?? true) {
       assertActiveAssistantTx(tx, assistantId)
     }
@@ -842,7 +860,8 @@ export class TopicService {
 
     return this.trashManyByIdsTx(
       tx,
-      rows.map((row) => row.id)
+      rows.map((row) => row.id),
+      { deletedAt: options.deletedAt }
     )
   }
 }

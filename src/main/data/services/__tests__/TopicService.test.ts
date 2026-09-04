@@ -882,6 +882,95 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
 
+    it('restores a topic independently while its assistant remains trashed', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-trashed',
+        name: 'Trashed assistant',
+        emoji: '✨',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        deletedAt: 500
+      })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-independent-restore',
+        name: 'Restore independently',
+        assistantId: 'asst-trashed',
+        orderKey: 'a0',
+        deletedAt: 500
+      })
+
+      const restored = topicService.restore('topic-independent-restore')
+
+      expect(restored).toMatchObject({ id: 'topic-independent-restore', assistantId: 'asst-trashed' })
+      expect(restored.deletedAt).toBeUndefined()
+      const [assistant] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'asst-trashed'))
+      expect(assistant.deletedAt).toBe(500)
+    })
+
+    it('restores only topics from the matching assistant trash batch', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'asst-restore-owner',
+          name: 'Restore owner',
+          emoji: '✨',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0'
+        },
+        {
+          id: 'asst-other-owner',
+          name: 'Other owner',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1'
+        }
+      ])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'topic-matching-batch',
+          name: 'Matching batch',
+          assistantId: 'asst-restore-owner',
+          orderKey: 'a0',
+          deletedAt: 500
+        },
+        {
+          id: 'topic-older-trash',
+          name: 'Older trash',
+          assistantId: 'asst-restore-owner',
+          orderKey: 'a1',
+          deletedAt: 400
+        },
+        {
+          id: 'topic-other-owner',
+          name: 'Other owner',
+          assistantId: 'asst-other-owner',
+          orderKey: 'a2',
+          deletedAt: 500
+        },
+        {
+          id: 'topic-already-active',
+          name: 'Already active',
+          assistantId: 'asst-restore-owner',
+          orderKey: 'a3'
+        }
+      ])
+
+      const restoredIds = dbh.db.transaction((tx) =>
+        topicService.restoreTrashedWithAssistantTx(tx, 'asst-restore-owner', 500)
+      )
+
+      expect(restoredIds).toEqual(['topic-matching-batch'])
+      const rows = await dbh.db
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(rows).toEqual([
+        { id: 'topic-already-active', deletedAt: null },
+        { id: 'topic-matching-batch', deletedAt: null },
+        { id: 'topic-older-trash', deletedAt: 400 },
+        { id: 'topic-other-owner', deletedAt: 500 }
+      ])
+    })
+
     it('throws NOT_FOUND when restoring a missing or active topic', async () => {
       await dbh.db
         .insert(topicTable)
@@ -1037,6 +1126,36 @@ describe('TopicService', () => {
         .orderBy(asc(topicTable.id))
       expect(rows.find((row) => row.id === 'topic-gone')?.deletedAt).toBe(999)
       expect(rows.find((row) => row.id === 'topic-live')?.deletedAt).not.toBeNull()
+    })
+
+    it('uses the caller timestamp for active topics and leaves earlier trash untouched', async () => {
+      await seedAssistant('asst-batch', 'a0')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-active-1', name: 'Active 1', assistantId: 'asst-batch', orderKey: 'a0' },
+        { id: 'topic-active-2', name: 'Active 2', assistantId: 'asst-batch', orderKey: 'a1' },
+        {
+          id: 'topic-previously-trashed',
+          name: 'Earlier trash',
+          assistantId: 'asst-batch',
+          orderKey: 'a2',
+          deletedAt: 99
+        }
+      ])
+
+      const deletedIds = dbh.db.transaction((tx) =>
+        topicService.deleteByAssistantIdTx(tx, 'asst-batch', { deletedAt: 0 })
+      )
+
+      expect(deletedIds.sort()).toEqual(['topic-active-1', 'topic-active-2'])
+      const rows = await dbh.db
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(rows).toEqual([
+        { id: 'topic-active-1', deletedAt: 0 },
+        { id: 'topic-active-2', deletedAt: 0 },
+        { id: 'topic-previously-trashed', deletedAt: 99 }
+      ])
     })
 
     it('returns deletedCount 0 without throwing when the assistant has no topics', async () => {

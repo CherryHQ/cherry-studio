@@ -1418,57 +1418,80 @@ describe('AssistantDataService', () => {
       expect(await dbh.db.select().from(promptTable)).toHaveLength(1)
     })
 
-    it('should delete assistant topics atomically when requested', async () => {
+    it('should trash active topics with the assistant timestamp and leave earlier trash untouched', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'delete with topics' },
         { id: 'ast-2', name: 'keep topics' }
       ])
       await dbh.db.insert(topicTable).values([
         { id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' },
-        { id: 'topic-2', name: 'kept', assistantId: 'ast-2', orderKey: 'a1' }
+        { id: 'topic-2', name: 'also deleted', assistantId: 'ast-1', orderKey: 'a1' },
+        { id: 'topic-old-trash', name: 'old trash', assistantId: 'ast-1', orderKey: 'a2', deletedAt: 99 },
+        { id: 'topic-other', name: 'kept', assistantId: 'ast-2', orderKey: 'a3' }
       ])
 
       const result = assistantDataService.delete('ast-1', { deleteTopics: true })
 
       expect(result.deleted).toBe(true)
-      expect(result.deletedTopicIds).toEqual(['topic-1'])
-      const assistantRows = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
-      expect(assistantRows[0].deletedAt).toBeTruthy()
-      // Semantics-agnostic on purpose: today deleteByAssistantIdTx hard-deletes,
-      // with topic soft delete it moves to the Recycle Bin — either way topic-1 must leave the
-      // active set while topic-2 stays untouched.
-      const topicRows = await dbh.db.select().from(topicTable)
-      expect(topicRows.filter((row) => row.deletedAt === null).map((row) => row.id)).toEqual(['topic-2'])
+      expect(result.deletedTopicIds?.sort()).toEqual(['topic-1', 'topic-2'])
+      const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      expect(assistantRow.deletedAt).toEqual(expect.any(Number))
+      const topicRows = await dbh.db
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-1', assistantId: 'ast-1', deletedAt: assistantRow.deletedAt },
+        { id: 'topic-2', assistantId: 'ast-1', deletedAt: assistantRow.deletedAt },
+        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99 },
+        { id: 'topic-other', assistantId: 'ast-2', deletedAt: null }
+      ])
     })
 
-    it('should delegate topic deletion to topicService.deleteByAssistantIdTx without re-validating the assistant', async () => {
+    it('should preserve topic ownership and active/trash state for standalone soft delete', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
-      const deleteTopicsSpy = vi.spyOn(topicService, 'deleteByAssistantIdTx')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-active', name: 'active', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-trashed', name: 'trashed', assistantId: 'ast-1', orderKey: 'a1', deletedAt: 99 }
+      ])
 
-      try {
-        assistantDataService.delete('ast-1', { deleteTopics: true })
+      const result = assistantDataService.delete('ast-1')
 
-        expect(deleteTopicsSpy).toHaveBeenCalledTimes(1)
-        expect(deleteTopicsSpy).toHaveBeenCalledWith(expect.anything(), 'ast-1', { validateAssistant: false })
-      } finally {
-        deleteTopicsSpy.mockRestore()
-      }
+      expect(result.deletedTopicIds).toBeUndefined()
+      const topicRows = await dbh.db
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-active', assistantId: 'ast-1', deletedAt: null },
+        { id: 'topic-trashed', assistantId: 'ast-1', deletedAt: 99 }
+      ])
     })
 
-    it('should roll back assistant delete when topic deletion fails', async () => {
+    it('should roll back both parent and child trash when the cascade fails midway', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'rollback' })
-      const deleteTopicsSpy = vi.spyOn(topicService, 'deleteByAssistantIdTx').mockImplementationOnce(() => {
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-rollback',
+        name: 'rollback child',
+        assistantId: 'ast-1',
+        orderKey: 'a0'
+      })
+      const originalDeleteTx = assistantDataService.deleteTx.bind(assistantDataService)
+      const deleteAssistantSpy = vi.spyOn(assistantDataService, 'deleteTx').mockImplementationOnce((tx, id) => {
+        originalDeleteTx(tx, id)
         throw new Error('topic delete failed')
       })
 
       try {
         expect(() => assistantDataService.delete('ast-1', { deleteTopics: true })).toThrow('topic delete failed')
       } finally {
-        deleteTopicsSpy.mockRestore()
+        deleteAssistantSpy.mockRestore()
       }
 
-      const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
-      expect(row.deletedAt).toBeNull()
+      const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-rollback'))
+      expect(assistantRow.deletedAt).toBeNull()
+      expect(topicRow).toMatchObject({ assistantId: 'ast-1', deletedAt: null })
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {
@@ -1543,27 +1566,26 @@ describe('AssistantDataService', () => {
         expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
       })
 
-      it('should still route topics through deleteByAssistantIdTx when combined with deleteTopics', async () => {
+      it('should ignore deleteTopics and preserve both active and trashed topics', async () => {
         await seedAssistantRow({ id: 'ast-1', name: 'test' })
-        await dbh.db.insert(topicTable).values({ id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' })
-        const deleteTopicsSpy = vi.spyOn(topicService, 'deleteByAssistantIdTx')
+        await dbh.db.insert(topicTable).values([
+          { id: 'topic-active', name: 'active', assistantId: 'ast-1', orderKey: 'a0' },
+          { id: 'topic-trashed', name: 'trashed', assistantId: 'ast-1', orderKey: 'a1', deletedAt: 99 }
+        ])
 
-        try {
-          assistantDataService.delete('ast-1')
-          assistantDataService.delete('ast-1', { deleteTopics: true, permanent: true })
+        assistantDataService.delete('ast-1')
+        const result = assistantDataService.delete('ast-1', { deleteTopics: true, permanent: true })
 
-          expect(deleteTopicsSpy).toHaveBeenCalledTimes(1)
-          expect(deleteTopicsSpy).toHaveBeenCalledWith(expect.anything(), 'ast-1', { validateAssistant: false })
-        } finally {
-          deleteTopicsSpy.mockRestore()
-        }
-
-        // Assistant row is gone; topic-1 left the active set (hard-deleted today,
-        // trashed once topic soft delete lands — permanent affects only the
-        // assistant row itself).
+        expect(result.deletedTopicIds).toBeUndefined()
         expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
-        const topicRows = await dbh.db.select().from(topicTable)
-        expect(topicRows.filter((row) => row.deletedAt === null)).toHaveLength(0)
+        const topicRows = await dbh.db
+          .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+          .from(topicTable)
+          .orderBy(asc(topicTable.id))
+        expect(topicRows).toEqual([
+          { id: 'topic-active', assistantId: null, deletedAt: null },
+          { id: 'topic-trashed', assistantId: null, deletedAt: 99 }
+        ])
       })
 
       it('should reject permanent deletion of an active assistant and keep it active', async () => {
@@ -1645,6 +1667,112 @@ describe('AssistantDataService', () => {
       const active = assistantDataService.list(listQuery())
       expect(active.items.map((a) => a.id)).toEqual(['ast-1'])
       expect(assistantDataService.list(listQuery({ inTrash: true })).items).toHaveLength(0)
+    })
+
+    it('should restore only topics from the assistant cascade batch and notify their read models', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'restore owner' },
+        { id: 'ast-2', name: 'other owner' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-batch-1', name: 'batch 1', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-batch-2', name: 'batch 2', assistantId: 'ast-1', orderKey: 'a1' },
+        { id: 'topic-old-trash', name: 'old trash', assistantId: 'ast-1', orderKey: 'a2', deletedAt: 99 },
+        { id: 'topic-other-owner', name: 'other owner', assistantId: 'ast-2', orderKey: 'a3', deletedAt: 99 }
+      ])
+      assistantDataService.delete('ast-1', { deleteTopics: true })
+      const [trashedAssistant] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      await dbh.db
+        .update(topicTable)
+        .set({ deletedAt: trashedAssistant.deletedAt })
+        .where(eq(topicTable.id, 'topic-other-owner'))
+
+      notifyDataApiDataChangeMock.mockClear()
+      assistantDataService.restore('ast-1')
+
+      const topicRows = await dbh.db
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-batch-1', assistantId: 'ast-1', deletedAt: null },
+        { id: 'topic-batch-2', assistantId: 'ast-1', deletedAt: null },
+        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99 },
+        { id: 'topic-other-owner', assistantId: 'ast-2', deletedAt: trashedAssistant.deletedAt }
+      ])
+      const topicNotifications = notifyDataApiDataChangeMock.mock.calls.filter(
+        ([effects]) => effects[0]?.endpoint === '/topics'
+      )
+      expect(topicNotifications).toEqual([
+        [
+          [
+            { endpoint: '/topics', kind: 'membership', entityIds: ['topic-batch-1', 'topic-batch-2'] },
+            {
+              endpoint: '/topics',
+              kind: 'order',
+              dimension: 'lastActivityAt',
+              entityIds: ['topic-batch-1', 'topic-batch-2']
+            },
+            { endpoint: '/topics/:id', entityIds: ['topic-batch-1', 'topic-batch-2'] },
+            { endpoint: '/topics/latest' }
+          ]
+        ]
+      ])
+    })
+
+    it('should not reclaim children independently restored or reassigned before their former owner', async () => {
+      await seedAssistantRow([
+        { id: 'ast-former', name: 'former owner' },
+        { id: 'ast-current', name: 'current owner' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-independent', name: 'independent', assistantId: 'ast-former', orderKey: 'a0' },
+        { id: 'topic-reassigned', name: 'reassigned', assistantId: 'ast-former', orderKey: 'a1' }
+      ])
+      assistantDataService.delete('ast-former', { deleteTopics: true })
+      topicService.restore('topic-independent')
+      topicService.restore('topic-reassigned')
+      topicService.update('topic-reassigned', { assistantId: 'ast-current' })
+
+      assistantDataService.restore('ast-former')
+
+      const topicRows = await dbh.db
+        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-independent', assistantId: 'ast-former', deletedAt: null },
+        { id: 'topic-reassigned', assistantId: 'ast-current', deletedAt: null }
+      ])
+    })
+
+    it('should roll back both parent and child restore when the cascade fails midway', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'rollback restore' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-rollback-restore',
+        name: 'rollback child',
+        assistantId: 'ast-1',
+        orderKey: 'a0'
+      })
+      assistantDataService.delete('ast-1', { deleteTopics: true })
+      const originalRestoreTopics = topicService.restoreTrashedWithAssistantTx.bind(topicService)
+      const restoreTopicsSpy = vi
+        .spyOn(topicService, 'restoreTrashedWithAssistantTx')
+        .mockImplementationOnce((tx, assistantId, deletedAt) => {
+          originalRestoreTopics(tx, assistantId, deletedAt)
+          throw new Error('topic restore failed')
+        })
+
+      try {
+        expect(() => assistantDataService.restore('ast-1')).toThrow('topic restore failed')
+      } finally {
+        restoreTopicsSpy.mockRestore()
+      }
+
+      const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-rollback-restore'))
+      expect(assistantRow.deletedAt).toEqual(expect.any(Number))
+      expect(topicRow).toMatchObject({ assistantId: 'ast-1', deletedAt: assistantRow.deletedAt })
     })
 
     it('should not resurrect pins purged at Delete time', async () => {

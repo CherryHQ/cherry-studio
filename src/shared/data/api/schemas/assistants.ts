@@ -150,17 +150,15 @@ export type ListAssistantsQuery = z.output<typeof ListAssistantsQuerySchema>
 
 export const DeleteAssistantQuerySchema = z.strictObject({
   /**
-   * Delete the assistant's topics in the same main-process transaction.
-   * Omitted/false preserves the historical "delete assistant only" behavior.
+   * On soft delete, move the assistant's active topics to the Recycle Bin in the
+   * same main-process transaction. Omitted/false preserves the topics unchanged.
+   * Ignored when `permanent` is true.
    */
   deleteTopics: z.boolean().optional(),
   /**
-   * `true` hard-deletes an assistant already in the Recycle Bin (DB only —
-   * junction rows cascade, `topic.assistantId` FK SET NULLs). Omitted/false
-   * moves an active assistant to the Recycle Bin so it can be restored.
-   * `permanent` affects only the assistant row itself: with
-   * `deleteTopics: true` the topics are still moved to the Recycle Bin (not hard-deleted) and
-   * restored independently from the Recycle Bin.
+   * `true` hard-deletes only an assistant already in the Recycle Bin. Junction
+   * rows cascade and `topic.assistantId` is set to null; `deleteTopics` is ignored,
+   * so topic active/trash state is preserved. Omitted/false performs soft delete.
    */
   permanent: z.boolean().optional()
 })
