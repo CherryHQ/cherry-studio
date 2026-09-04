@@ -506,6 +506,7 @@ describe('TopicService', () => {
       // Recycle Bin: row still present, marked deleted.
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
       expect(topicRow.deletedAt).not.toBeNull()
+      expect(topicRow.deletionBatchId).toBeNull()
       // Messages untouched — hidden via the trashed container, restore stays lossless.
       const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
       expect(messages).toHaveLength(2)
@@ -889,22 +890,30 @@ describe('TopicService', () => {
         emoji: '✨',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         orderKey: 'a0',
-        deletedAt: 500
+        deletedAt: 500,
+        deletionBatchId: 'assistant-batch'
       })
       await dbh.db.insert(topicTable).values({
         id: 'topic-independent-restore',
         name: 'Restore independently',
         assistantId: 'asst-trashed',
         orderKey: 'a0',
-        deletedAt: 500
+        deletedAt: 500,
+        deletionBatchId: 'assistant-batch'
       })
 
       const restored = topicService.restore('topic-independent-restore')
 
       expect(restored).toMatchObject({ id: 'topic-independent-restore', assistantId: 'asst-trashed' })
       expect(restored.deletedAt).toBeUndefined()
+      expect(restored).not.toHaveProperty('deletionBatchId')
       const [assistant] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'asst-trashed'))
-      expect(assistant.deletedAt).toBe(500)
+      expect(assistant).toMatchObject({ deletedAt: 500, deletionBatchId: 'assistant-batch' })
+      const [topic] = await dbh.db
+        .select({ deletionBatchId: topicTable.deletionBatchId })
+        .from(topicTable)
+        .where(eq(topicTable.id, 'topic-independent-restore'))
+      expect(topic.deletionBatchId).toBeNull()
     })
 
     it('restores only topics from the matching assistant trash batch', async () => {
@@ -930,21 +939,24 @@ describe('TopicService', () => {
           name: 'Matching batch',
           assistantId: 'asst-restore-owner',
           orderKey: 'a0',
-          deletedAt: 500
+          deletedAt: 500,
+          deletionBatchId: 'matching-batch'
         },
         {
           id: 'topic-older-trash',
           name: 'Older trash',
           assistantId: 'asst-restore-owner',
           orderKey: 'a1',
-          deletedAt: 400
+          deletedAt: 400,
+          deletionBatchId: 'older-batch'
         },
         {
           id: 'topic-other-owner',
           name: 'Other owner',
           assistantId: 'asst-other-owner',
           orderKey: 'a2',
-          deletedAt: 500
+          deletedAt: 500,
+          deletionBatchId: 'matching-batch'
         },
         {
           id: 'topic-already-active',
@@ -955,19 +967,19 @@ describe('TopicService', () => {
       ])
 
       const restoredIds = dbh.db.transaction((tx) =>
-        topicService.restoreTrashedWithAssistantTx(tx, 'asst-restore-owner', 500)
+        topicService.restoreTrashedWithAssistantTx(tx, 'asst-restore-owner', 'matching-batch')
       )
 
       expect(restoredIds).toEqual(['topic-matching-batch'])
       const rows = await dbh.db
-        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt, deletionBatchId: topicTable.deletionBatchId })
         .from(topicTable)
         .orderBy(asc(topicTable.id))
       expect(rows).toEqual([
-        { id: 'topic-already-active', deletedAt: null },
-        { id: 'topic-matching-batch', deletedAt: null },
-        { id: 'topic-older-trash', deletedAt: 400 },
-        { id: 'topic-other-owner', deletedAt: 500 }
+        { id: 'topic-already-active', deletedAt: null, deletionBatchId: null },
+        { id: 'topic-matching-batch', deletedAt: null, deletionBatchId: null },
+        { id: 'topic-older-trash', deletedAt: 400, deletionBatchId: 'older-batch' },
+        { id: 'topic-other-owner', deletedAt: 500, deletionBatchId: 'matching-batch' }
       ])
     })
 
@@ -1076,6 +1088,7 @@ describe('TopicService', () => {
       const topics = await dbh.db.select().from(topicTable).orderBy(asc(topicTable.id))
       expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
       expect(topics.every((topic) => topic.deletedAt !== null)).toBe(true)
+      expect(topics.every((topic) => topic.deletionBatchId === null)).toBe(true)
       // Messages stay in place; tags/pins are purged immediately.
       expect(await dbh.db.select().from(messageTable)).toHaveLength(2)
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
@@ -1128,7 +1141,7 @@ describe('TopicService', () => {
       expect(rows.find((row) => row.id === 'topic-live')?.deletedAt).not.toBeNull()
     })
 
-    it('uses the caller timestamp for active topics and leaves earlier trash untouched', async () => {
+    it('uses the caller trash identity for active topics and leaves earlier trash untouched', async () => {
       await seedAssistant('asst-batch', 'a0')
       await dbh.db.insert(topicTable).values([
         { id: 'topic-active-1', name: 'Active 1', assistantId: 'asst-batch', orderKey: 'a0' },
@@ -1143,18 +1156,21 @@ describe('TopicService', () => {
       ])
 
       const deletedIds = dbh.db.transaction((tx) =>
-        topicService.deleteByAssistantIdTx(tx, 'asst-batch', { deletedAt: 0 })
+        topicService.deleteByAssistantIdTx(tx, 'asst-batch', {
+          deletedAt: 0,
+          deletionBatchId: 'assistant-batch'
+        })
       )
 
       expect(deletedIds.sort()).toEqual(['topic-active-1', 'topic-active-2'])
       const rows = await dbh.db
-        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt, deletionBatchId: topicTable.deletionBatchId })
         .from(topicTable)
         .orderBy(asc(topicTable.id))
       expect(rows).toEqual([
-        { id: 'topic-active-1', deletedAt: 0 },
-        { id: 'topic-active-2', deletedAt: 0 },
-        { id: 'topic-previously-trashed', deletedAt: 99 }
+        { id: 'topic-active-1', deletedAt: 0, deletionBatchId: 'assistant-batch' },
+        { id: 'topic-active-2', deletedAt: 0, deletionBatchId: 'assistant-batch' },
+        { id: 'topic-previously-trashed', deletedAt: 99, deletionBatchId: null }
       ])
     })
 

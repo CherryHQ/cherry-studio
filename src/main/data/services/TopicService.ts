@@ -58,6 +58,7 @@ function rowToTopic(row: TopicRow): Topic {
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
   // from data-api-in-main.md applies cleanly.
   const clean = nullsToUndefined(row)
+  delete clean.deletionBatchId
   return {
     ...clean,
     lastActivityAt: timestampToISO(row.lastActivityAt),
@@ -496,7 +497,7 @@ export class TopicService {
   private trashManyByIdsTx(
     tx: DbOrTx,
     ids: string[],
-    options: { requireAll?: boolean; deletedAt?: number } = {}
+    options: { requireAll?: boolean; deletedAt?: number; deletionBatchId?: string | null } = {}
   ): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
@@ -518,7 +519,7 @@ export class TopicService {
     const deletedAt = options.deletedAt ?? Date.now()
     for (let i = 0; i < trashedIds.length; i += SQLITE_INARRAY_CHUNK) {
       tx.update(topicTable)
-        .set({ deletedAt })
+        .set({ deletedAt, deletionBatchId: options.deletionBatchId ?? null })
         .where(inArray(topicTable.id, trashedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
         .run()
     }
@@ -560,7 +561,7 @@ export class TopicService {
       .get('DbService')
       .getDb()
       .update(topicTable)
-      .set({ deletedAt: null })
+      .set({ deletedAt: null, deletionBatchId: null })
       .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
       .returning()
       .all()
@@ -571,11 +572,17 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  restoreTrashedWithAssistantTx(tx: DbOrTx, assistantId: string, deletedAt: number): string[] {
+  restoreTrashedWithAssistantTx(tx: DbOrTx, assistantId: string, deletionBatchId: string): string[] {
     return tx
       .update(topicTable)
-      .set({ deletedAt: null })
-      .where(and(eq(topicTable.assistantId, assistantId), eq(topicTable.deletedAt, deletedAt)))
+      .set({ deletedAt: null, deletionBatchId: null })
+      .where(
+        and(
+          eq(topicTable.assistantId, assistantId),
+          eq(topicTable.deletionBatchId, deletionBatchId),
+          isNotNull(topicTable.deletedAt)
+        )
+      )
       .returning({ id: topicTable.id })
       .all()
       .map((row) => row.id)
@@ -856,7 +863,7 @@ export class TopicService {
   deleteByAssistantIdTx(
     tx: DbOrTx,
     assistantId: string,
-    options: { validateAssistant?: boolean; deletedAt?: number } = {}
+    options: { validateAssistant?: boolean; deletedAt?: number; deletionBatchId?: string | null } = {}
   ): string[] {
     if (options.validateAssistant ?? true) {
       assertActiveAssistantTx(tx, assistantId)
@@ -871,7 +878,7 @@ export class TopicService {
     return this.trashManyByIdsTx(
       tx,
       rows.map((row) => row.id),
-      { deletedAt: options.deletedAt }
+      { deletedAt: options.deletedAt, deletionBatchId: options.deletionBatchId }
     )
   }
 }

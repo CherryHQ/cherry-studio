@@ -6,6 +6,8 @@
  * - Listing with optional filters
  */
 
+import { randomUUID } from 'node:crypto'
+
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
@@ -59,6 +61,7 @@ function rowToAssistant(
   modelName: string | null = null
 ): Assistant {
   const clean = nullsToUndefined(row)
+  delete clean.deletionBatchId
   return {
     ...clean,
     // Preserve the T | null contract: `modelId` is legitimately nullable (R3 exception).
@@ -631,11 +634,16 @@ export class AssistantDataService {
       }
 
       const deletedAt = Date.now()
+      const deletionBatchId = shouldDeleteTopics ? randomUUID() : null
       const deletedTopicIds = shouldDeleteTopics
-        ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, deletedAt })
+        ? topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false, deletedAt, deletionBatchId })
         : undefined
 
-      return { deleted: this.deleteTx(tx, id, { deletedAt }), deletedTopicIds, projectedTopicIds: undefined }
+      return {
+        deleted: this.deleteTx(tx, id, { deletedAt, deletionBatchId }),
+        deletedTopicIds,
+        projectedTopicIds: undefined
+      }
     })
 
     if (!deleted) {
@@ -657,10 +665,14 @@ export class AssistantDataService {
     return { deleted, deletedTopicIds }
   }
 
-  deleteTx(tx: DbOrTx, id: string, options: { deletedAt?: number } = {}): boolean {
+  deleteTx(tx: DbOrTx, id: string, options: { deletedAt?: number; deletionBatchId?: string | null } = {}): boolean {
     const [row] = tx
       .update(assistantTable)
-      .set({ deletedAt: options.deletedAt ?? Date.now(), groupId: null })
+      .set({
+        deletedAt: options.deletedAt ?? Date.now(),
+        deletionBatchId: options.deletionBatchId ?? null,
+        groupId: null
+      })
       .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
       .returning({ id: assistantTable.id })
       .all()
@@ -685,7 +697,7 @@ export class AssistantDataService {
   restore(id: string): Assistant {
     const { row, restoredTopicIds } = application.get('DbService').withWriteTx((tx) => {
       const [existing] = tx
-        .select({ deletedAt: assistantTable.deletedAt })
+        .select({ deletedAt: assistantTable.deletedAt, deletionBatchId: assistantTable.deletionBatchId })
         .from(assistantTable)
         .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
         .limit(1)
@@ -694,13 +706,15 @@ export class AssistantDataService {
 
       const [row] = tx
         .update(assistantTable)
-        .set({ deletedAt: null })
+        .set({ deletedAt: null, deletionBatchId: null })
         .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
         .returning()
         .all()
       if (!row) throw DataApiErrorFactory.notFound('Assistant', id)
 
-      const restoredTopicIds = topicService.restoreTrashedWithAssistantTx(tx, id, existing.deletedAt)
+      const restoredTopicIds = existing.deletionBatchId
+        ? topicService.restoreTrashedWithAssistantTx(tx, id, existing.deletionBatchId)
+        : []
       return { row, restoredTopicIds }
     })
 

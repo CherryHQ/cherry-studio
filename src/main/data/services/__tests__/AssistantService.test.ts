@@ -160,6 +160,7 @@ describe('AssistantDataService', () => {
       expect(result.mcpServerIds).toEqual(['srv-1'])
       expect(result.knowledgeBaseIds).toEqual(['kb-1'])
       expect(typeof result.createdAt).toBe('string')
+      expect(result).not.toHaveProperty('deletionBatchId')
     })
 
     it('should return null modelId when not set', async () => {
@@ -1357,6 +1358,7 @@ describe('AssistantDataService', () => {
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.deletedAt).toBeTruthy()
       expect(typeof row.deletedAt).toBe('number')
+      expect(row.deletionBatchId).toBeNull()
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
         { endpoint: '/assistants', kind: 'membership', entityIds: ['ast-1'] },
         { endpoint: '/assistants/:id', entityIds: ['ast-1'] }
@@ -1436,15 +1438,33 @@ describe('AssistantDataService', () => {
       expect(result.deletedTopicIds?.sort()).toEqual(['topic-1', 'topic-2'])
       const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       expect(assistantRow.deletedAt).toEqual(expect.any(Number))
+      expect(assistantRow.deletionBatchId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      )
       const topicRows = await dbh.db
-        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .select({
+          id: topicTable.id,
+          assistantId: topicTable.assistantId,
+          deletedAt: topicTable.deletedAt,
+          deletionBatchId: topicTable.deletionBatchId
+        })
         .from(topicTable)
         .orderBy(asc(topicTable.id))
       expect(topicRows).toEqual([
-        { id: 'topic-1', assistantId: 'ast-1', deletedAt: assistantRow.deletedAt },
-        { id: 'topic-2', assistantId: 'ast-1', deletedAt: assistantRow.deletedAt },
-        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99 },
-        { id: 'topic-other', assistantId: 'ast-2', deletedAt: null }
+        {
+          id: 'topic-1',
+          assistantId: 'ast-1',
+          deletedAt: assistantRow.deletedAt,
+          deletionBatchId: assistantRow.deletionBatchId
+        },
+        {
+          id: 'topic-2',
+          assistantId: 'ast-1',
+          deletedAt: assistantRow.deletedAt,
+          deletionBatchId: assistantRow.deletionBatchId
+        },
+        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99, deletionBatchId: null },
+        { id: 'topic-other', assistantId: 'ast-2', deletedAt: null, deletionBatchId: null }
       ])
     })
 
@@ -1458,6 +1478,11 @@ describe('AssistantDataService', () => {
       const result = assistantDataService.delete('ast-1')
 
       expect(result.deletedTopicIds).toBeUndefined()
+      const [assistantRow] = await dbh.db
+        .select({ deletionBatchId: assistantTable.deletionBatchId })
+        .from(assistantTable)
+        .where(eq(assistantTable.id, 'ast-1'))
+      expect(assistantRow.deletionBatchId).toBeNull()
       const topicRows = await dbh.db
         .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
         .from(topicTable)
@@ -1490,8 +1515,8 @@ describe('AssistantDataService', () => {
 
       const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-rollback'))
-      expect(assistantRow.deletedAt).toBeNull()
-      expect(topicRow).toMatchObject({ assistantId: 'ast-1', deletedAt: null })
+      expect(assistantRow).toMatchObject({ deletedAt: null, deletionBatchId: null })
+      expect(topicRow).toMatchObject({ assistantId: 'ast-1', deletedAt: null, deletionBatchId: null })
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {
@@ -1717,6 +1742,7 @@ describe('AssistantDataService', () => {
 
       expect(restored.id).toBe('ast-1')
       expect(restored.deletedAt).toBeUndefined()
+      expect(restored).not.toHaveProperty('deletionBatchId')
       expect(restored.settings).toEqual(settings)
       expect(restored.mcpServerIds).toEqual(['srv-1'])
       expect(restored.knowledgeBaseIds).toEqual(['kb-1'])
@@ -1744,6 +1770,7 @@ describe('AssistantDataService', () => {
       ])
       assistantDataService.delete('ast-1', { deleteTopics: true })
       const [trashedAssistant] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      expect(trashedAssistant.deletionBatchId).toEqual(expect.any(String))
       await dbh.db
         .update(topicTable)
         .set({ deletedAt: trashedAssistant.deletedAt })
@@ -1752,15 +1779,30 @@ describe('AssistantDataService', () => {
       notifyDataApiDataChangeMock.mockClear()
       assistantDataService.restore('ast-1')
 
+      const [restoredAssistant] = await dbh.db
+        .select({ deletionBatchId: assistantTable.deletionBatchId })
+        .from(assistantTable)
+        .where(eq(assistantTable.id, 'ast-1'))
+      expect(restoredAssistant.deletionBatchId).toBeNull()
       const topicRows = await dbh.db
-        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .select({
+          id: topicTable.id,
+          assistantId: topicTable.assistantId,
+          deletedAt: topicTable.deletedAt,
+          deletionBatchId: topicTable.deletionBatchId
+        })
         .from(topicTable)
         .orderBy(asc(topicTable.id))
       expect(topicRows).toEqual([
-        { id: 'topic-batch-1', assistantId: 'ast-1', deletedAt: null },
-        { id: 'topic-batch-2', assistantId: 'ast-1', deletedAt: null },
-        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99 },
-        { id: 'topic-other-owner', assistantId: 'ast-2', deletedAt: trashedAssistant.deletedAt }
+        { id: 'topic-batch-1', assistantId: 'ast-1', deletedAt: null, deletionBatchId: null },
+        { id: 'topic-batch-2', assistantId: 'ast-1', deletedAt: null, deletionBatchId: null },
+        { id: 'topic-old-trash', assistantId: 'ast-1', deletedAt: 99, deletionBatchId: null },
+        {
+          id: 'topic-other-owner',
+          assistantId: 'ast-2',
+          deletedAt: trashedAssistant.deletedAt,
+          deletionBatchId: null
+        }
       ])
       const topicNotifications = notifyDataApiDataChangeMock.mock.calls.filter(
         ([effects]) => effects[0]?.endpoint === '/topics'
@@ -1782,6 +1824,42 @@ describe('AssistantDataService', () => {
       ])
     })
 
+    it('should not restore independently trashed topics with the same timestamp as the assistant cascade', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'restore owner' })
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-cascade', name: 'cascade', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-independent', name: 'independent', assistantId: 'ast-1', orderKey: 'a1' }
+      ])
+      const deletedAt = 1_000
+      const dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(deletedAt)
+
+      try {
+        topicService.delete('topic-independent')
+        assistantDataService.delete('ast-1', { deleteTopics: true })
+        const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+        const topicRows = await dbh.db
+          .select({ id: topicTable.id, deletionBatchId: topicTable.deletionBatchId })
+          .from(topicTable)
+          .orderBy(asc(topicTable.id))
+        expect(topicRows).toEqual([
+          { id: 'topic-cascade', deletionBatchId: assistantRow.deletionBatchId },
+          { id: 'topic-independent', deletionBatchId: null }
+        ])
+        assistantDataService.restore('ast-1')
+      } finally {
+        dateNowSpy.mockRestore()
+      }
+
+      const topicRows = await dbh.db
+        .select({ id: topicTable.id, deletedAt: topicTable.deletedAt })
+        .from(topicTable)
+        .orderBy(asc(topicTable.id))
+      expect(topicRows).toEqual([
+        { id: 'topic-cascade', deletedAt: null },
+        { id: 'topic-independent', deletedAt }
+      ])
+    })
+
     it('should not reclaim children independently restored or reassigned before their former owner', async () => {
       await seedAssistantRow([
         { id: 'ast-former', name: 'former owner' },
@@ -1799,12 +1877,17 @@ describe('AssistantDataService', () => {
       assistantDataService.restore('ast-former')
 
       const topicRows = await dbh.db
-        .select({ id: topicTable.id, assistantId: topicTable.assistantId, deletedAt: topicTable.deletedAt })
+        .select({
+          id: topicTable.id,
+          assistantId: topicTable.assistantId,
+          deletedAt: topicTable.deletedAt,
+          deletionBatchId: topicTable.deletionBatchId
+        })
         .from(topicTable)
         .orderBy(asc(topicTable.id))
       expect(topicRows).toEqual([
-        { id: 'topic-independent', assistantId: 'ast-former', deletedAt: null },
-        { id: 'topic-reassigned', assistantId: 'ast-current', deletedAt: null }
+        { id: 'topic-independent', assistantId: 'ast-former', deletedAt: null, deletionBatchId: null },
+        { id: 'topic-reassigned', assistantId: 'ast-current', deletedAt: null, deletionBatchId: null }
       ])
     })
 
@@ -1820,8 +1903,8 @@ describe('AssistantDataService', () => {
       const originalRestoreTopics = topicService.restoreTrashedWithAssistantTx.bind(topicService)
       const restoreTopicsSpy = vi
         .spyOn(topicService, 'restoreTrashedWithAssistantTx')
-        .mockImplementationOnce((tx, assistantId, deletedAt) => {
-          originalRestoreTopics(tx, assistantId, deletedAt)
+        .mockImplementationOnce((tx, assistantId, deletionBatchId) => {
+          originalRestoreTopics(tx, assistantId, deletionBatchId)
           throw new Error('topic restore failed')
         })
 
@@ -1834,7 +1917,12 @@ describe('AssistantDataService', () => {
       const [assistantRow] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-rollback-restore'))
       expect(assistantRow.deletedAt).toEqual(expect.any(Number))
-      expect(topicRow).toMatchObject({ assistantId: 'ast-1', deletedAt: assistantRow.deletedAt })
+      expect(assistantRow.deletionBatchId).toEqual(expect.any(String))
+      expect(topicRow).toMatchObject({
+        assistantId: 'ast-1',
+        deletedAt: assistantRow.deletedAt,
+        deletionBatchId: assistantRow.deletionBatchId
+      })
     })
 
     it('should not resurrect pins purged at Delete time', async () => {
