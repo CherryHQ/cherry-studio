@@ -1,11 +1,17 @@
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { modelService } from '@data/services/ModelService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppEdition } from '@main/utils/appEdition'
 import { CHERRY_CLOUD_MODEL_GROUP, CHERRY_CLOUD_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  type EndpointType,
+  type ModelCapability,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { CherryCloudModelSyncResult, CherryCloudStatus } from '@shared/ipc/schemas/cherryCloud'
 import { app, net, shell } from 'electron'
 import type { ZodType } from 'zod'
@@ -607,12 +613,44 @@ export class CherryCloudService extends BaseService {
       endpoint_type: EndpointType
       context_window: number
       max_output_tokens: number
+      capabilities?: ModelCapability[]
     }>
   ): void {
     const current = modelService.list({ providerId: CHERRY_CLOUD_PROVIDER_ID })
     const currentByModelId = new Map(current.map((model) => [parseUniqueModelId(model.id).modelId, model]))
-    const remoteByModelId = new Map(models.map((model) => [model.id, model]))
-    const missing = models.filter((model) => !currentByModelId.has(model.id))
+    const missingCapabilityModelIds = models
+      .filter((model) => model.capabilities === undefined)
+      .map((model) => model.id)
+    const registryCapabilitiesByModelId = new Map<string, ModelCapability[]>()
+
+    if (missingCapabilityModelIds.length > 0) {
+      try {
+        for (const model of providerRegistryService.resolveModels(
+          CHERRY_CLOUD_PROVIDER_ID,
+          missingCapabilityModelIds
+        )) {
+          if (!model.presetModelId) continue
+          const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+          registryCapabilitiesByModelId.set(modelId, model.capabilities)
+        }
+      } catch (error) {
+        logger.warn('Cherry Cloud registry capability fallback failed', {
+          modelCount: missingCapabilityModelIds.length,
+          reason: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    const reconciledModels = models.map((model) => ({
+      ...model,
+      capabilities:
+        model.capabilities ??
+        registryCapabilitiesByModelId.get(model.id) ??
+        currentByModelId.get(model.id)?.capabilities ??
+        []
+    }))
+    const remoteByModelId = new Map(reconciledModels.map((model) => [model.id, model]))
+    const missing = reconciledModels.filter((model) => !currentByModelId.has(model.id))
     const updates = current.flatMap((model) => {
       const modelId = parseUniqueModelId(model.id).modelId
       const remote = remoteByModelId.get(modelId)
@@ -624,6 +662,8 @@ export class CherryCloudService extends BaseService {
         model.endpointTypes[0] === remote.endpoint_type &&
         model.contextWindow === remote.context_window &&
         model.maxOutputTokens === remote.max_output_tokens &&
+        model.capabilities.length === remote.capabilities.length &&
+        model.capabilities.every((capability) => remote.capabilities.includes(capability)) &&
         model.supportsStreaming &&
         model.isEnabled
       ) {
@@ -638,6 +678,7 @@ export class CherryCloudService extends BaseService {
             endpointTypes: [remote.endpoint_type],
             contextWindow: remote.context_window,
             maxOutputTokens: remote.max_output_tokens,
+            capabilities: remote.capabilities,
             supportsStreaming: true,
             isEnabled: true
           }
@@ -656,6 +697,7 @@ export class CherryCloudService extends BaseService {
             endpointTypes: [model.endpoint_type],
             contextWindow: model.context_window,
             maxOutputTokens: model.max_output_tokens,
+            capabilities: model.capabilities,
             supportsStreaming: true
           }
         }))
@@ -688,7 +730,9 @@ export class CherryCloudService extends BaseService {
     const url = this.resolveRequestUrl(path)
     const headers = new Headers(init?.headers)
     const idempotencyKey =
-      url.pathname === '/v1/messages' ? (headers.get('Idempotency-Key') ?? createIdempotencyKey()) : undefined
+      url.pathname === '/v1/messages' || url.pathname === '/v1/chat/completions'
+        ? (headers.get('Idempotency-Key') ?? createIdempotencyKey())
+        : undefined
     const response = await this.signedFetch(url, init, session, { bearer: true, idempotencyKey })
     if (response.status === 401) await this.clearSession(session)
     return response

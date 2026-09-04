@@ -534,10 +534,10 @@
 /*
  * Image export (utils/image.ts `captureScrollable`) rasterizes a DOM clone via
  * html-to-image: computed box sizes are frozen and `overflow` keeps clipping in
- * the static image, where the user can no longer scroll. Unclip table scroll
- * viewports (and the table's own corner-clipping) while the capture root marker
- * is set so wide tables render in full instead of being cut off. `!important`
- * is required to override the table's inline `overflow: hidden`.
+ * the static image, where the user can no longer scroll. While the capture
+ * marker is set, unclip table viewports, table corner-clipping, and formula
+ * boxes so rendered content is not cut off. `!important` overrides inline
+ * table overflow and the later math rules.
  */
 [data-image-capturing] .table-scroll-viewport,
 [data-image-capturing] [data-streamdown='table-wrapper'] > div:last-child {
@@ -545,6 +545,12 @@
 }
 
 [data-image-capturing] .table-scroll-viewport > table {
+  overflow: visible !important;
+}
+
+[data-image-capturing] .katex,
+[data-image-capturing] .katex-display,
+[data-image-capturing] mjx-container {
   overflow: visible !important;
 }
 

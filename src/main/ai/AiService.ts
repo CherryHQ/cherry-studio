@@ -617,6 +617,7 @@ export class AiService extends BaseService {
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      errorContext: { providerId: provider.id, modelId: model.apiModelId ?? model.id },
       messageId: request.messageId,
       plugins: [...plugins, usagePlugin],
       wrapModel,
