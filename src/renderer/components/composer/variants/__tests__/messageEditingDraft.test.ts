@@ -31,9 +31,10 @@ describe('createEditableMessageDraft', () => {
   it('anchors every non-text part between the text parts', () => {
     const draft = createEditableMessageDraft(parts(text('before tool'), tool('tool-1'), text('after tool')))
 
-    // Every element is joined by `\n\n`, so the chip sits on its own line between the two texts.
-    expect(draft.text).toBe('before tool\n\n\n\nafter tool')
-    expect(anchorsOf(draft.draftTokens)).toEqual([{ partIndex: 1, textOffset: 'before tool\n\n'.length }])
+    // One newline each side puts the chip on its own line while spending exactly the `\n\n` that
+    // already separates two text parts, so deleting it cannot leave a blank line behind.
+    expect(draft.text).toBe('before tool\n\nafter tool')
+    expect(anchorsOf(draft.draftTokens)).toEqual([{ partIndex: 1, textOffset: 'before tool\n'.length }])
   })
 
   it('round-trips its anchors through the editor document', () => {
@@ -85,6 +86,28 @@ describe('replaceEditedMessageParts', () => {
 
     expect(replaceEditedMessageParts(originalParts, draft, parts(text('just the text')))).toEqual([
       text('just the text')
+    ])
+  })
+
+  it('leaves no blank-line residue behind a deleted anchor', () => {
+    const originalParts = parts(text('before tool'), tool('tool-1'), text('after tool'))
+    // Deleting the chip removes no characters, so the draft text is what the editor still holds.
+    const { text: draftText } = createEditableMessageDraft(originalParts)
+
+    expect(replaceEditedMessageParts(originalParts, editedDraft(draftText, []), parts(text(draftText)))).toEqual([
+      text('before tool\n\nafter tool')
+    ])
+  })
+
+  it('keeps whitespace the user authored next to an anchor', () => {
+    const originalParts = parts(text('intro'), tool('tool-1'), text('    indented'))
+    const draft = editedDraft('intro  \n\n    indented', [{ partIndex: 1, textOffset: 'intro  \n'.length }])
+
+    // A Markdown hard break's trailing spaces and an indented code block both die under `trim()`.
+    expect(replaceEditedMessageParts(originalParts, draft, parts(text(draft.text)))).toEqual([
+      text('intro  '),
+      originalParts[1],
+      text('    indented')
     ])
   })
 

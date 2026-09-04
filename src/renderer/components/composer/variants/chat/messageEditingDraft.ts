@@ -13,6 +13,7 @@ import type { ComposerMessageTokenPayload } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getFileTypeByExt } from '@shared/utils/file'
 
+import { trimTextBoundaryBlankLines } from '../../composerDraft'
 import { type ComposerSerializedDraft, type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
 
@@ -61,6 +62,10 @@ function readAnchorPartIndex(token: ComposerSerializedToken): number | undefined
  * them. The editor tracks each anchor's position through the edit, so write-back can split the
  * draft there instead of collapsing `text → tool → text` into `text text → tool`. Parts outside
  * the text span keep their side of the message and need no anchor.
+ *
+ * An anchor is fenced by one newline on each side rather than a blank line: that puts the chip on
+ * its own line, and because the chip itself occupies no characters, deleting it leaves exactly the
+ * `\n\n` that already separates two text parts — no blank-line residue in the saved message.
  */
 function buildEditableText(parts: CherryMessagePart[]): { text: string; anchors: ComposerSerializedToken[] } {
   const span = getEditableTextSpan(parts)
@@ -68,17 +73,21 @@ function buildEditableText(parts: CherryMessagePart[]): { text: string; anchors:
 
   let text = ''
   const anchors: ComposerSerializedToken[] = []
+  const openLine = () => {
+    if (text && !text.endsWith('\n')) text += '\n'
+  }
 
   for (let index = span.start; index <= span.end; index++) {
     const part = parts[index]
     if (part.type === 'file' || part.type === 'data-translation') continue
 
-    if (text) text += '\n\n'
     if (part.type === 'text') {
+      if (text && !text.endsWith('\n')) text += '\n\n'
       text += part.text
       continue
     }
 
+    openLine()
     anchors.push({
       id: `message-part:${index}`,
       kind: 'messagePart',
@@ -87,6 +96,7 @@ function buildEditableText(parts: CherryMessagePart[]): { text: string; anchors:
       textOffset: text.length,
       payload: { partIndex: index } satisfies MessagePartAnchorPayload
     })
+    text += '\n'
   }
 
   return { text, anchors }
@@ -126,7 +136,7 @@ export function replaceEditedMessageParts(
   let cursor = 0
 
   const pushText = (value: string) => {
-    const text = value.trim()
+    const text = trimTextBoundaryBlankLines(value)
     if (!text) return
     const template = body.some((part) => part.type === 'text') ? undefined : textTemplate
     body.push(template?.type === 'text' ? { ...template, text } : ({ type: 'text', text } as CherryMessagePart))

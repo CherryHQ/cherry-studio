@@ -166,7 +166,15 @@ describe('canEditAssistantMessageParts', () => {
     { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
     { messageParts: parts({ type: 'text', text: '   ' }) },
     { messageParts: parts() },
-    // Files have no anchor and are always re-emitted after the text, so these still reorder
+    // Files have no anchor: Composer re-emits them as one run directly after the edited text, so a
+    // file parked anywhere else is moved by a save
+    {
+      messageParts: parts(
+        { type: 'text', text: 'answer' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'file', mediaType: 'image/png', url: 'file:///result.png' }
+      )
+    },
     {
       messageParts: parts(
         { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
@@ -180,7 +188,7 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'text', text: 'after file' }
       )
     }
-  ])('is not editable when the message has no text or a file ahead of it', ({ messageParts }) => {
+  ])('is not editable when the message has no text or a file outside the run after it', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })

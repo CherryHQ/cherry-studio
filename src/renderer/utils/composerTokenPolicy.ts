@@ -26,7 +26,9 @@ export const COMPOSER_TOKEN_CAPABILITIES = {
   quote: { input: true, message: true, messageText: false, clipboard: true, clipboardPromptText: true },
   promptVariable: { input: true, message: false, messageText: false, clipboard: true, clipboardPromptText: true },
   // Editor-only anchor holding a non-editable message part's place while its message is edited.
-  messagePart: { input: true, message: false, messageText: false, clipboard: false, clipboardPromptText: false }
+  // Clipboard-eligible like every other input kind, so cutting and re-pasting a chip inside one
+  // edit session moves its part instead of dropping it.
+  messagePart: { input: true, message: false, messageText: false, clipboard: true, clipboardPromptText: false }
 } as const satisfies Record<ComposerMessageTokenKind | 'promptVariable' | 'messagePart', ComposerTokenCapabilities>
 
 export type ComposerTokenKind = keyof typeof COMPOSER_TOKEN_CAPABILITIES

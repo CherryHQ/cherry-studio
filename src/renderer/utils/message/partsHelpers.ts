@@ -59,19 +59,20 @@ export function hasTranslationParts(parts: CherryMessagePart[]): boolean {
  * of every `reasoning`/tool part between them, so saving moves text only. The edited text becomes
  * the message's new content and its next-turn context; provider-derived metadata (item ids,
  * citations, composer snapshots, thought signatures) is dropped with the old text, and translation
- * parts are derived and removed. Files have no anchor — Composer always re-emits attachments after
- * the text — so a `file` ahead of any text still cannot round-trip without reordering.
+ * parts are derived and removed.
+ *
+ * Files are the one part kind with no anchor: Composer rebuilds attachments from its own state and
+ * re-emits them as a single run directly after the edited text. So every `file` part must already
+ * sit exactly there — a file anywhere else (`file → text`, `text → tool → file`) would be moved by
+ * a save, and stays non-editable.
  */
 export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolean {
   if (!hasTextParts(parts)) return false
 
-  let hasFile = false
-  for (const part of parts) {
-    if (part.type === 'file') hasFile = true
-    else if (part.type === 'text' && hasFile) return false
-  }
-
-  return true
+  const lastTextIndex = parts.findLastIndex((part) => part.type === 'text')
+  return parts
+    .flatMap((part, index) => (part.type === 'file' ? [index] : []))
+    .every((fileIndex, offset) => fileIndex === lastTextIndex + 1 + offset)
 }
 
 /**
