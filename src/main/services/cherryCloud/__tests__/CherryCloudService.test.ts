@@ -21,7 +21,8 @@ const mocks = vi.hoisted(() => ({
   savedDevice: null as { publicKey: string; privateKey: string } | null,
   savedSession: null as Record<string, unknown> | null,
   sessionClear: vi.fn(),
-  sessionReplace: vi.fn()
+  sessionReplace: vi.fn(),
+  showMainWindow: vi.fn()
 }))
 
 vi.mock('@data/dataApiDataChange', () => ({
@@ -71,6 +72,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'ApiGatewayService') return { start: mocks.gatewayStart }
       if (name === 'IpcApiService') return { broadcast: mocks.broadcast }
+      if (name === 'MainWindowService') return { showMainWindow: mocks.showMainWindow }
       throw new Error(`Unexpected service: ${name}`)
     }
   }
@@ -354,6 +356,7 @@ describe('CherryCloudService', () => {
     )
     expect(await service.getStatus()).toEqual({ phase: 'signed-in', displayName: 'Sora' })
     expect(mocks.gatewayStart).toHaveBeenCalledOnce()
+    expect(mocks.showMainWindow).toHaveBeenCalledOnce()
 
     const exchangeRequest = requestCalls(`/api/v1/desktop/authorizations/${authorizationId}/exchange`)[0]
     expect(exchangeRequest[0]).toBe(`http://127.0.0.1:8084/api/v1/desktop/authorizations/${authorizationId}/exchange`)
@@ -441,6 +444,7 @@ describe('CherryCloudService', () => {
 
     expect(await service.getStatus()).toEqual({ phase: 'signed-out', displayName: null })
     expect(mocks.savedSession).toBeNull()
+    expect(mocks.showMainWindow).not.toHaveBeenCalled()
   })
 
   it.each([
