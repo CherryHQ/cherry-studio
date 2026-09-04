@@ -84,6 +84,13 @@ class MockAdapter extends ChannelAdapter {
 let createdAdapters: MockAdapter[] = []
 let channelManager: ChannelManager
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+const createDeferred = () => {
+  let resolve!: () => void
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
 
 describe('ChannelManager', () => {
   beforeEach(() => {
@@ -130,6 +137,13 @@ describe('ChannelManager', () => {
       ...overrides
     }) as any
 
+  const mockStoredChannels = (channels: ReturnType<typeof makeChannelRow>[]) => {
+    vi.mocked(channelService.listChannels).mockReturnValue(channels)
+    vi.mocked(channelService.getChannel).mockImplementation(
+      (channelId) => channels.find((channel) => channel.id === channelId) ?? null
+    )
+  }
+
   it('start() with no channels does not error', async () => {
     vi.mocked(channelService.listChannels).mockReturnValueOnce([])
     await expect(channelManager.start()).resolves.not.toThrow()
@@ -137,7 +151,7 @@ describe('ChannelManager', () => {
   })
 
   it('start() connects adapters for active channels', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    mockStoredChannels([makeChannelRow()])
 
     await channelManager.start()
 
@@ -146,7 +160,7 @@ describe('ChannelManager', () => {
   })
 
   it('start() skips an active channel whose Agent is not active', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    mockStoredChannels([makeChannelRow()])
     mocks.getLifecycleState.mockReturnValue('trashed')
 
     await channelManager.start()
@@ -155,7 +169,7 @@ describe('ChannelManager', () => {
   })
 
   it('stop() disconnects all adapters', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
+    mockStoredChannels([
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok' } }),
       makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
     ])
@@ -169,7 +183,7 @@ describe('ChannelManager', () => {
   })
 
   it('disconnectAgent disconnects all adapters for agent and clears session tracker', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
+    mockStoredChannels([
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
       makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
     ])
@@ -186,7 +200,7 @@ describe('ChannelManager', () => {
   })
 
   it('disconnectAgent for unknown agent is a no-op', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    mockStoredChannels([makeChannelRow()])
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(1)
@@ -197,7 +211,7 @@ describe('ChannelManager', () => {
   })
 
   it('disconnectChannel only disconnects the target channel without reconnecting', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
+    mockStoredChannels([
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
       makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
     ])
@@ -214,16 +228,17 @@ describe('ChannelManager', () => {
   })
 
   it('syncChannel only disconnects the target channel, leaving others untouched', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
+    const channels = [
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
       makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
+    ]
+    mockStoredChannels(channels)
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(2)
 
     // Toggle ch-1 inactive — syncChannel should only disconnect ch-1
-    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow({ id: 'ch-1', isActive: false }))
+    channels[0] = makeChannelRow({ id: 'ch-1', isActive: false })
 
     await channelManager.syncChannel('ch-1')
 
@@ -235,18 +250,17 @@ describe('ChannelManager', () => {
   })
 
   it('syncChannel reconnects the channel when toggled active', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([
+    const channels = [
       makeChannelRow({ id: 'ch-1', config: { bot_token: 'tok1' } }),
       makeChannelRow({ id: 'ch-2', config: { bot_token: 'tok2' } })
-    ])
+    ]
+    mockStoredChannels(channels)
 
     await channelManager.start()
     expect(createdAdapters).toHaveLength(2)
 
     // Toggle ch-1 with updated config — syncChannel reconnects only ch-1
-    vi.mocked(channelService.getChannel).mockReturnValueOnce(
-      makeChannelRow({ id: 'ch-1', isActive: true, config: { bot_token: 'new-tok' } })
-    )
+    channels[0] = makeChannelRow({ id: 'ch-1', isActive: true, config: { bot_token: 'new-tok' } })
 
     await channelManager.syncChannel('ch-1')
 
@@ -258,10 +272,9 @@ describe('ChannelManager', () => {
   })
 
   it('syncChannel disconnects without reconnecting when the owning Agent is not active', async () => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    mockStoredChannels([makeChannelRow()])
     await channelManager.start()
     expect(createdAdapters).toHaveLength(1)
-    vi.mocked(channelService.getChannel).mockReturnValueOnce(makeChannelRow())
     mocks.getLifecycleState.mockReturnValue('missing')
 
     await channelManager.syncChannel('ch-1')
@@ -274,7 +287,7 @@ describe('ChannelManager', () => {
     ['trashed', mocks.trashedListeners],
     ['purged', mocks.purgedListeners]
   ])('disconnects Agent adapters and clears tracking when the Agent is %s', async (_action, listeners) => {
-    vi.mocked(channelService.listChannels).mockReturnValueOnce([makeChannelRow()])
+    mockStoredChannels([makeChannelRow()])
     await channelManager._doInit()
     expect(createdAdapters).toHaveLength(1)
 
@@ -303,6 +316,103 @@ describe('ChannelManager', () => {
     expect(createdAdapters[0].channelId).toBe('ch-active')
     expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1)
     expect(channelService.updateChannel).not.toHaveBeenCalled()
+  })
+
+  it('disconnects a restored channel whose Agent is trashed while connect is in flight', async () => {
+    const channel = makeChannelRow()
+    const connectDeferred = createDeferred()
+    let transportConnected = false
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([]).mockReturnValueOnce([channel])
+    vi.mocked(channelService.getChannel).mockReturnValue(channel)
+    registerAdapterFactory('telegram', (channel, agentId) => {
+      const adapter = new MockAdapter({
+        channelId: channel.id,
+        channelType: channel.type,
+        agentId,
+        channelConfig: channel.config
+      })
+      adapter.connect.mockImplementation(async () => {
+        await connectDeferred.promise
+        transportConnected = true
+      })
+      adapter.disconnect.mockImplementation(async () => {
+        transportConnected = false
+      })
+      createdAdapters.push(adapter)
+      return adapter
+    })
+    await channelManager._doInit()
+
+    for (const listener of mocks.restoredListeners) listener({ agentId: 'agent-1' })
+    await vi.waitFor(() => expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1))
+
+    mocks.getLifecycleState.mockReturnValue('trashed')
+    for (const listener of mocks.trashedListeners) listener({ agentId: 'agent-1' })
+
+    connectDeferred.resolve()
+    await flush()
+
+    expect(transportConnected).toBe(false)
+    expect(channelManager.getAdapter('ch-1')).toBeUndefined()
+  })
+
+  it('does not let a stale trash disconnect remove the adapter created by a later restore', async () => {
+    const channel = makeChannelRow()
+    const disconnectDeferred = createDeferred()
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([channel]).mockReturnValue([channel])
+    vi.mocked(channelService.getChannel).mockReturnValue(channel)
+    await channelManager._doInit()
+    createdAdapters[0].disconnect.mockImplementationOnce(() => disconnectDeferred.promise)
+
+    mocks.getLifecycleState.mockReturnValue('trashed')
+    for (const listener of mocks.trashedListeners) listener({ agentId: 'agent-1' })
+    await vi.waitFor(() => expect(createdAdapters[0].disconnect).toHaveBeenCalledTimes(1))
+
+    mocks.getLifecycleState.mockReturnValue('active')
+    for (const listener of mocks.restoredListeners) listener({ agentId: 'agent-1' })
+
+    disconnectDeferred.resolve()
+    await flush()
+
+    expect(createdAdapters).toHaveLength(2)
+    expect(channelManager.getAdapter('ch-1')).toBe(createdAdapters[1])
+  })
+
+  it('does not leave an in-flight Agent restore connected after the manager stops', async () => {
+    const channel = makeChannelRow()
+    const connectDeferred = createDeferred()
+    let transportConnected = false
+    vi.mocked(channelService.listChannels).mockReturnValueOnce([]).mockReturnValueOnce([channel])
+    vi.mocked(channelService.getChannel).mockReturnValue(channel)
+    registerAdapterFactory('telegram', (channel, agentId) => {
+      const adapter = new MockAdapter({
+        channelId: channel.id,
+        channelType: channel.type,
+        agentId,
+        channelConfig: channel.config
+      })
+      adapter.connect.mockImplementation(async () => {
+        await connectDeferred.promise
+        transportConnected = true
+      })
+      adapter.disconnect.mockImplementation(async () => {
+        transportConnected = false
+      })
+      createdAdapters.push(adapter)
+      return adapter
+    })
+    await channelManager._doInit()
+
+    for (const listener of mocks.restoredListeners) listener({ agentId: 'agent-1' })
+    await vi.waitFor(() => expect(createdAdapters[0].connect).toHaveBeenCalledTimes(1))
+
+    const stop = channelManager._doStop()
+    connectDeferred.resolve()
+    await stop
+    await flush()
+
+    expect(transportConnected).toBe(false)
+    expect(channelManager.getAdapter('ch-1')).toBeUndefined()
   })
 
   it('logs Agent lifecycle failures without throwing from the event listener', async () => {

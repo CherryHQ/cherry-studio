@@ -59,6 +59,12 @@ function canConnectChannel(channel: ChannelRow): boolean {
   return agentService.getLifecycleState(channel.agentId) === 'active'
 }
 
+interface ConnectionGuard {
+  managerGeneration: number
+  agentGeneration: number
+  agentId: string
+}
+
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
@@ -70,28 +76,41 @@ export class ChannelManager extends BaseService {
   >()
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
+  private readonly agentLifecycleGenerations = new Map<string, number>()
+  private readonly agentLifecycleTasks = new Map<string, Promise<void>>()
+  private readonly pendingConnections = new Set<Promise<void>>()
+  private managerGeneration = 0
+  private acceptingConnections = true
 
   protected async onReady(): Promise<void> {
+    this.acceptingConnections = true
     this.registerDisposable(
       agentService.onAgentTrashed(({ agentId }) => {
-        this.runAgentLifecycleAction('trashed', agentId, this.disconnectAgent(agentId))
+        this.invalidateAgentLifecycle(agentId)
+        this.runAgentLifecycleAction('trashed', agentId, () => this.disconnectAgent(agentId))
       })
     )
     this.registerDisposable(
       agentService.onAgentRestored(({ agentId }) => {
-        this.runAgentLifecycleAction('restored', agentId, this.restoreAgentChannels(agentId))
+        const generation = this.invalidateAgentLifecycle(agentId)
+        this.runAgentLifecycleAction('restored', agentId, () => this.restoreAgentChannels(agentId, generation))
       })
     )
     this.registerDisposable(
       agentService.onAgentPurged(({ agentId }) => {
-        this.runAgentLifecycleAction('purged', agentId, this.disconnectAgent(agentId))
+        this.invalidateAgentLifecycle(agentId)
+        this.runAgentLifecycleAction('purged', agentId, () => this.disconnectAgent(agentId))
       })
     )
     await this.start()
   }
 
   protected async onStop(): Promise<void> {
+    this.acceptingConnections = false
+    this.managerGeneration++
     await this.stop()
+    await Promise.allSettled(this.pendingConnections)
+    await this.waitForAgentLifecycleActions()
   }
 
   // ── Write quiesce (backup restore) ───────────────────────────────
@@ -115,6 +134,7 @@ export class ChannelManager extends BaseService {
   }
 
   async start(): Promise<void> {
+    const managerGeneration = ++this.managerGeneration
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
       channels = channelService.listChannels()
@@ -125,30 +145,43 @@ export class ChannelManager extends BaseService {
       return
     }
 
-    const activeChannels = channels.filter(canConnectChannel)
+    const activeChannels = channels.filter(canConnectChannel).map((channel) => ({
+      channel,
+      guard: this.captureConnectionGuard(channel.agentId!, managerGeneration)
+    }))
 
     // Lazy-load only the adapter modules needed for active channels
-    const neededTypes = [...new Set(activeChannels.map((ch) => ch.type))]
+    const neededTypes = [...new Set(activeChannels.map(({ channel }) => channel.type))]
     await Promise.all(neededTypes.map((type) => ensureAdapterLoaded(type)))
 
-    await Promise.all(activeChannels.map((channel) => this.connectChannelFromRow(channel)))
+    await Promise.all(
+      activeChannels.map(async ({ channel, guard }) => {
+        if (!this.isConnectionGuardCurrent(guard)) return
+        const current = channelService.getChannel(channel.id)
+        if (!current || current.agentId !== guard.agentId || !canConnectChannel(current)) return
+        await this.connectChannelFromRow(current, { awaitConnect: false, guard })
+      })
+    )
 
     logger.info('Channel manager started', { adapterCount: this.adapters.size })
   }
 
   async stop(): Promise<void> {
     logger.info('Stopping channel manager')
-    const disconnects = Array.from(this.adapters.values()).map((adapter) =>
-      adapter.disconnect().catch((err) => {
+    const disconnects = Array.from(this.adapters.entries()).map(async ([key, adapter]) => {
+      try {
+        await adapter.disconnect()
+      } catch (err) {
         logger.warn('Error disconnecting adapter', {
           agentId: adapter.agentId,
           channelId: adapter.channelId,
           error: err instanceof Error ? err.message : String(err)
         })
-      })
-    )
+      } finally {
+        if (this.adapters.get(key) === adapter) this.adapters.delete(key)
+      }
+    })
     await Promise.all(disconnects)
-    this.adapters.clear()
     logger.info('Channel manager stopped')
   }
 
@@ -227,14 +260,14 @@ export class ChannelManager extends BaseService {
 
       try {
         await adapter.disconnect()
-        this.adapters.delete(key)
+        if (this.adapters.get(key) === adapter) this.adapters.delete(key)
       } catch (err) {
         if (suppressErrors) {
           logger.warn('Error disconnecting adapter', {
             key,
             error: err instanceof Error ? err.message : String(err)
           })
-          this.adapters.delete(key)
+          if (this.adapters.get(key) === adapter) this.adapters.delete(key)
           continue
         }
         throw err
@@ -250,15 +283,31 @@ export class ChannelManager extends BaseService {
     channelId: string,
     options: { awaitConnect?: boolean; strictDisconnect?: boolean } = {}
   ): Promise<void> {
+    await this.syncChannelWithGuard(channelId, options)
+  }
+
+  private async syncChannelWithGuard(
+    channelId: string,
+    options: { awaitConnect?: boolean; strictDisconnect?: boolean },
+    lifecycleGuard?: ConnectionGuard
+  ): Promise<void> {
     const { awaitConnect = false, strictDisconnect = false } = options
     await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
 
-    // Re-read from DB and reconnect if active
+    if (!this.acceptingConnections) return
+
     const channel = channelService.getChannel(channelId)
-    if (channel && canConnectChannel(channel)) {
-      await ensureAdapterLoaded(channel.type)
-      await this.connectChannelFromRow(channel, { awaitConnect })
-    }
+    if (!channel || !canConnectChannel(channel)) return
+
+    const guard = lifecycleGuard ?? this.captureConnectionGuard(channel.agentId!)
+    if (channel.agentId !== guard.agentId || !this.isConnectionGuardCurrent(guard)) return
+
+    await ensureAdapterLoaded(channel.type)
+
+    if (!this.isConnectionGuardCurrent(guard)) return
+    const current = channelService.getChannel(channelId)
+    if (!current || current.agentId !== guard.agentId || !canConnectChannel(current)) return
+    await this.connectChannelFromRow(current, { awaitConnect, guard })
   }
 
   /**
@@ -278,7 +327,7 @@ export class ChannelManager extends BaseService {
             })
           })
           .finally(() => {
-            this.adapters.delete(key)
+            if (this.adapters.get(key) === adapter) this.adapters.delete(key)
           })
       )
     )
@@ -286,19 +335,56 @@ export class ChannelManager extends BaseService {
     channelMessageHandler.clearSessionTracker(agentId)
   }
 
-  private async restoreAgentChannels(agentId: string): Promise<void> {
+  private async restoreAgentChannels(agentId: string, agentGeneration: number): Promise<void> {
+    const guard = this.captureConnectionGuard(agentId, this.managerGeneration, agentGeneration)
+    if (!this.isConnectionGuardCurrent(guard)) return
     const channels = channelService.listChannels({ agentId })
-    await Promise.all(channels.map((channel) => this.syncChannel(channel.id)))
+    await Promise.all(channels.map((channel) => this.syncChannelWithGuard(channel.id, { awaitConnect: true }, guard)))
   }
 
   private runAgentLifecycleAction(
     action: 'trashed' | 'restored' | 'purged',
     agentId: string,
-    work: Promise<void>
+    work: () => Promise<void>
   ): void {
-    void work.catch((error) => {
-      logger.error('Failed to handle Agent lifecycle action for channels', { action, agentId, error })
-    })
+    const previous = this.agentLifecycleTasks.get(agentId) ?? Promise.resolve()
+    const task = previous.catch(() => {}).then(work)
+    this.agentLifecycleTasks.set(agentId, task)
+    void task
+      .catch((error) => {
+        logger.error('Failed to handle Agent lifecycle action for channels', { action, agentId, error })
+      })
+      .finally(() => {
+        if (this.agentLifecycleTasks.get(agentId) === task) this.agentLifecycleTasks.delete(agentId)
+      })
+  }
+
+  private invalidateAgentLifecycle(agentId: string): number {
+    const generation = (this.agentLifecycleGenerations.get(agentId) ?? 0) + 1
+    this.agentLifecycleGenerations.set(agentId, generation)
+    return generation
+  }
+
+  private captureConnectionGuard(
+    agentId: string,
+    managerGeneration = this.managerGeneration,
+    agentGeneration = this.agentLifecycleGenerations.get(agentId) ?? 0
+  ): ConnectionGuard {
+    return { managerGeneration, agentGeneration, agentId }
+  }
+
+  private isConnectionGuardCurrent(guard: ConnectionGuard): boolean {
+    return (
+      this.acceptingConnections &&
+      this.managerGeneration === guard.managerGeneration &&
+      (this.agentLifecycleGenerations.get(guard.agentId) ?? 0) === guard.agentGeneration
+    )
+  }
+
+  private async waitForAgentLifecycleActions(): Promise<void> {
+    while (this.agentLifecycleTasks.size > 0) {
+      await Promise.allSettled(this.agentLifecycleTasks.values())
+    }
   }
 
   /**
@@ -322,9 +408,12 @@ export class ChannelManager extends BaseService {
     await this.syncChannel(channelId)
   }
 
-  private async connectChannelFromRow(row: ChannelRow, options: { awaitConnect?: boolean } = {}): Promise<void> {
+  private async connectChannelFromRow(
+    row: ChannelRow,
+    options: { awaitConnect: boolean; guard: ConnectionGuard }
+  ): Promise<void> {
     const agentId = row.agentId
-    if (!agentId) return
+    if (!agentId || !this.isConnectionGuardCurrent(options.guard)) return
 
     const factory = adapterFactories.get(row.type)
     if (!factory) {
@@ -443,9 +532,29 @@ export class ChannelManager extends BaseService {
       const connect = async () => {
         try {
           await adapter.connect()
+          const current = channelService.getChannel(row.id)
+          if (
+            !this.isConnectionGuardCurrent(options.guard) ||
+            !current ||
+            current.agentId !== agentId ||
+            !canConnectChannel(current)
+          ) {
+            try {
+              await adapter.disconnect()
+            } catch (error) {
+              logger.warn('Error disconnecting stale channel adapter', {
+                agentId,
+                channelId: row.id,
+                error: error instanceof Error ? error.message : String(error)
+              })
+            } finally {
+              if (this.adapters.get(key) === adapter) this.adapters.delete(key)
+            }
+            return
+          }
           logger.info('Channel adapter connected', { agentId, channelId: row.id, type: row.type })
         } catch (error) {
-          this.adapters.delete(key)
+          if (this.adapters.get(key) === adapter) this.adapters.delete(key)
           logger.error('Failed to connect channel adapter', {
             agentId,
             channelId: row.id,
@@ -459,7 +568,13 @@ export class ChannelManager extends BaseService {
       if (options.awaitConnect) {
         await connect()
       } else {
-        void connect().catch(() => {})
+        const connection = connect()
+        this.pendingConnections.add(connection)
+        void connection
+          .catch(() => {})
+          .finally(() => {
+            this.pendingConnections.delete(connection)
+          })
       }
     } catch (error) {
       logger.error('Failed to create channel adapter', {
