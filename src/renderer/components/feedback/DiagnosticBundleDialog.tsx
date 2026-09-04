@@ -27,7 +27,8 @@ import type { DiagnosticRange } from '@shared/ipc/schemas/diagnostics'
 import type { OutputFor } from '@shared/ipc/types'
 import { createFilePathHandle } from '@shared/utils/file'
 import { CircleCheck } from 'lucide-react'
-import { type FC, useEffect, useRef, useState } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SUPPORT_EMAIL = 'support@cherry-ai.com'
@@ -50,6 +51,8 @@ type ExportState =
 
 interface DiagnosticBundleDialogProps {
   readonly appVersion: string
+  readonly embedded?: boolean
+  readonly onBusyChange?: (busy: boolean) => void
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }
@@ -62,7 +65,13 @@ function isDestinationConflictError(error: unknown): boolean {
   )
 }
 
-const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, onOpenChange, open }) => {
+const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({
+  appVersion,
+  embedded = false,
+  onBusyChange,
+  onOpenChange,
+  open
+}) => {
   const { t } = useTranslation()
   const [range, setRange] = useState<DiagnosticRange>('24h')
   const [includeLogs, setIncludeLogs] = useState(true)
@@ -82,7 +91,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const savedResult = exportState.status === 'saved' ? exportState.result : null
 
   useEffect(() => {
-    if (open) {
+    if (open || embedded) {
       if (closeResetTimerRef.current !== null) {
         window.clearTimeout(closeResetTimerRef.current)
         closeResetTimerRef.current = null
@@ -113,7 +122,7 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
         closeResetTimerRef.current = null
       }
     }
-  }, [open])
+  }, [embedded, open])
 
   useEffect(
     () => () => {
@@ -163,6 +172,8 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const canExport = inspectResult !== null && !isInspectionPending && !inspectError && status !== 'saving'
   const hasInspectWarnings = inspectResult?.hasWarnings ?? false
   const hasSavedWarnings = savedResult?.hasWarnings ?? false
+
+  useEffect(() => onBusyChange?.(status === 'saving'), [onBusyChange, status])
 
   const changeRange = (nextRange: DiagnosticRange) => {
     setRange(nextRange)
@@ -246,6 +257,10 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
   const handleConfirmedExport = () => {
     if (!consent || confirmedExportTimerRef.current !== null) return
     setIsConfirmationOpen(false)
+    if (embedded) {
+      void performExport()
+      return
+    }
     confirmedExportTimerRef.current = window.setTimeout(() => {
       confirmedExportTimerRef.current = null
       void performExport()
@@ -298,187 +313,250 @@ const DiagnosticBundleDialog: FC<DiagnosticBundleDialogProps> = ({ appVersion, o
     value
   }))
 
-  return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent
-          size="xl"
-          className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
-          closeOnOverlayClick={status !== 'saving'}
-          showCloseButton={status !== 'saving'}
-          onEscapeKeyDown={(event) => {
-            if (status === 'saving') event.preventDefault()
-          }}>
-          <DialogHeader className="px-6 pt-6 pr-12 pb-4">
-            <DialogTitle>{t('settings.about.diagnostics.dialog.title')}</DialogTitle>
-            <DialogDescription>{t('settings.about.diagnostics.dialog.description')}</DialogDescription>
-          </DialogHeader>
+  const panel = (
+    <DiagnosticBundleFrame
+      embedded={embedded}
+      open={open}
+      dialogContentProps={{
+        size: 'xl',
+        className: 'grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0',
+        closeOnOverlayClick: status !== 'saving',
+        showCloseButton: status !== 'saving',
+        onEscapeKeyDown: (event) => {
+          if (status === 'saving') event.preventDefault()
+        }
+      }}>
+      {!embedded ? (
+        <DialogHeader className="px-6 pt-6 pr-12 pb-4">
+          <DialogTitle>{t('settings.about.diagnostics.dialog.title')}</DialogTitle>
+          <DialogDescription>{t('settings.about.diagnostics.dialog.description')}</DialogDescription>
+        </DialogHeader>
+      ) : null}
 
-          <Scrollbar className="min-h-0 px-6 py-2">
-            <span className="sr-only" role="status">
-              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
-            </span>
-            {status === 'saved' && savedResult ? (
-              <div className="space-y-4">
-                <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
-                  <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" />
-                  <div className="min-w-0 space-y-1">
-                    <p className="font-medium text-success-subtle-foreground">
-                      {t('settings.about.diagnostics.success.title')}
-                    </p>
-                    <p className="break-all text-sm">{savedResult.fileName}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {t('settings.about.diagnostics.success.summary', {
-                        included: savedResult.includedFileCount,
-                        omitted: savedResult.omittedFileCount,
-                        size: formatDiagnosticBytes(savedResult.archiveBytes)
-                      })}
-                    </p>
-                  </div>
-                </div>
-                {hasSavedWarnings && (
-                  <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-                )}
-                <p className="text-muted-foreground text-sm">{t('settings.about.diagnostics.success.local_only')}</p>
+      <Scrollbar className="min-h-0 px-6 py-2">
+        <span className="sr-only" role="status">
+          {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+        </span>
+        {embedded && isConfirmationOpen ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h3 className="font-semibold text-base">{t('settings.about.diagnostics.privacy.title')}</h3>
+              <p className="text-muted-foreground text-sm leading-6">
+                {t('settings.about.diagnostics.privacy.description')}
+              </p>
+            </div>
+            <p className="text-muted-foreground text-sm leading-6">
+              {t('settings.about.diagnostics.limit', {
+                size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
+              })}
+            </p>
+            <label className="flex cursor-pointer items-center gap-3 text-sm">
+              <Checkbox checked={consent} onCheckedChange={(checked) => setConsent(checked === true)} />
+              <span>{t('settings.about.diagnostics.privacy.consent')}</span>
+            </label>
+          </div>
+        ) : status === 'saved' && savedResult ? (
+          <div className="space-y-4">
+            <div className="flex gap-3 rounded-xl border border-success-border bg-success-subtle p-4">
+              <CircleCheck className="mt-0.5 size-5 shrink-0 text-success" />
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium text-success-subtle-foreground">
+                  {t('settings.about.diagnostics.success.title')}
+                </p>
+                <p className="break-all text-sm">{savedResult.fileName}</p>
+                <p className="text-muted-foreground text-xs">
+                  {t('settings.about.diagnostics.success.summary', {
+                    included: savedResult.includedFileCount,
+                    omitted: savedResult.omittedFileCount,
+                    size: formatDiagnosticBytes(savedResult.archiveBytes)
+                  })}
+                </p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <section className="space-y-2">
-                  <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                  <SegmentedControl<DiagnosticRange>
-                    value={range}
-                    onValueChange={changeRange}
-                    options={rangeOptions}
-                    className="w-full"
-                    disabled={status === 'saving'}
-                  />
-                </section>
+            </div>
+            {hasSavedWarnings && (
+              <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
+            )}
+            <p className="text-muted-foreground text-sm">{t('settings.about.diagnostics.success.local_only')}</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <section className="space-y-2">
+              <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+              <SegmentedControl<DiagnosticRange>
+                value={range}
+                onValueChange={changeRange}
+                options={rangeOptions}
+                className="w-full"
+                disabled={status === 'saving'}
+              />
+            </section>
 
-                <section className="divide-y divide-border rounded-xl border border-border">
-                  <div className="p-1">
-                    <DescriptionSwitch
-                      label={t('settings.about.diagnostics.sources.system.title')}
-                      description={t('settings.about.diagnostics.sources.system.description', {
-                        crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                      })}
-                      checked
-                      disabled
-                    />
-                  </div>
-                  <div className="p-1">
-                    <DescriptionSwitch
-                      label={t('settings.about.diagnostics.sources.logs.title')}
-                      description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                      checked={effectiveIncludeLogs}
-                      disabled={status === 'saving' || isInspectionPending || !logsAvailable}
-                      onCheckedChange={changeLogs}
-                    />
-                  </div>
-                  <div className="p-1">
-                    <DescriptionSwitch
-                      label={t('settings.about.diagnostics.sources.traces.title')}
-                      description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                      checked={effectiveIncludeTraces}
-                      disabled={status === 'saving' || isInspectionPending || !tracesAvailable}
-                      onCheckedChange={changeTraces}
-                    />
-                  </div>
-                  <div className="p-1">
-                    <DescriptionSwitch
-                      label={t('settings.about.diagnostics.sources.chat_records.title')}
-                      description={describeDiagnosticChatSource(
-                        t,
-                        inspectResult?.sources.chatRecords,
-                        isInspectionPending
-                      )}
-                      checked={effectiveIncludeChatRecords}
-                      disabled={status === 'saving' || isInspectionPending || !chatRecordsAvailable}
-                      onCheckedChange={changeChatRecords}
-                    />
-                  </div>
-                </section>
-
-                {inspectError && (
-                  <p className="text-error text-sm" role="alert">
-                    {t('settings.about.diagnostics.errors.inspect_failed')}
-                  </p>
-                )}
-                {!isInspecting && hasInspectWarnings && (
-                  <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-                )}
+            <section className="divide-y divide-border rounded-xl border border-border">
+              <div className="p-1">
+                <DescriptionSwitch
+                  label={t('settings.about.diagnostics.sources.system.title')}
+                  description={t('settings.about.diagnostics.sources.system.description', {
+                    crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
+                  })}
+                  checked
+                  disabled
+                />
               </div>
+              <div className="p-1">
+                <DescriptionSwitch
+                  label={t('settings.about.diagnostics.sources.logs.title')}
+                  description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
+                  checked={effectiveIncludeLogs}
+                  disabled={status === 'saving' || isInspectionPending || !logsAvailable}
+                  onCheckedChange={changeLogs}
+                />
+              </div>
+              <div className="p-1">
+                <DescriptionSwitch
+                  label={t('settings.about.diagnostics.sources.traces.title')}
+                  description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
+                  checked={effectiveIncludeTraces}
+                  disabled={status === 'saving' || isInspectionPending || !tracesAvailable}
+                  onCheckedChange={changeTraces}
+                />
+              </div>
+              <div className="p-1">
+                <DescriptionSwitch
+                  label={t('settings.about.diagnostics.sources.chat_records.title')}
+                  description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
+                  checked={effectiveIncludeChatRecords}
+                  disabled={status === 'saving' || isInspectionPending || !chatRecordsAvailable}
+                  onCheckedChange={changeChatRecords}
+                />
+              </div>
+            </section>
+
+            {inspectError && (
+              <p className="text-error text-sm" role="alert">
+                {t('settings.about.diagnostics.errors.inspect_failed')}
+              </p>
             )}
-          </Scrollbar>
-
-          <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-            {status === 'saved' ? (
-              <>
-                <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                  {t('settings.about.diagnostics.actions.close')}
-                </Button>
-                <Button ref={revealButtonRef} variant="outline" onClick={() => void handleReveal()}>
-                  {t('settings.about.diagnostics.actions.reveal')}
-                </Button>
-                <Button
-                  variant="emphasis"
-                  onClick={() => void (copyEmailFallback ? copySupportEmail() : handleContactSupport())}>
-                  {t(
-                    copyEmailFallback
-                      ? 'settings.about.diagnostics.actions.copy_email'
-                      : 'settings.about.diagnostics.actions.contact'
-                  )}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="outline" disabled={status === 'saving'} onClick={() => handleOpenChange(false)}>
-                  {t('settings.about.diagnostics.actions.cancel')}
-                </Button>
-                <Button variant="emphasis" loading={status === 'saving'} disabled={!canExport} onClick={handleExport}>
-                  {t(
-                    status === 'saving'
-                      ? 'settings.about.diagnostics.actions.exporting'
-                      : 'settings.about.diagnostics.actions.export'
-                  )}
-                </Button>
-              </>
+            {!isInspecting && hasInspectWarnings && (
+              <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        )}
+      </Scrollbar>
 
-      <Dialog open={isConfirmationOpen} onOpenChange={handleConfirmationOpenChange}>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>{t('settings.about.diagnostics.privacy.title')}</DialogTitle>
-            <DialogDescription className="leading-6">
-              {t('settings.about.diagnostics.privacy.description')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <p className="text-muted-foreground text-sm leading-6">
-            {t('settings.about.diagnostics.limit', {
-              size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
-            })}
-          </p>
-
-          <label className="flex cursor-pointer items-center gap-3 text-sm">
-            <Checkbox checked={consent} onCheckedChange={(checked) => setConsent(checked === true)} />
-            <span>{t('settings.about.diagnostics.privacy.consent')}</span>
-          </label>
-
-          <DialogFooter>
+      <DialogFooter className="mt-4 border-border border-t px-6 py-4">
+        {embedded && isConfirmationOpen ? (
+          <>
             <Button variant="outline" onClick={() => handleConfirmationOpenChange(false)}>
               {t('settings.about.diagnostics.actions.cancel')}
             </Button>
             <Button variant="emphasis" disabled={!consent} onClick={handleConfirmedExport}>
               {t('settings.about.diagnostics.actions.export')}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        ) : status === 'saved' ? (
+          <>
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              {t('settings.about.diagnostics.actions.close')}
+            </Button>
+            <Button ref={revealButtonRef} variant="outline" onClick={() => void handleReveal()}>
+              {t('settings.about.diagnostics.actions.reveal')}
+            </Button>
+            <Button
+              variant="emphasis"
+              onClick={() => void (copyEmailFallback ? copySupportEmail() : handleContactSupport())}>
+              {t(
+                copyEmailFallback
+                  ? 'settings.about.diagnostics.actions.copy_email'
+                  : 'settings.about.diagnostics.actions.contact'
+              )}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="outline" disabled={status === 'saving'} onClick={() => handleOpenChange(false)}>
+              {t('settings.about.diagnostics.actions.cancel')}
+            </Button>
+            <Button variant="emphasis" loading={status === 'saving'} disabled={!canExport} onClick={handleExport}>
+              {t(
+                status === 'saving'
+                  ? 'settings.about.diagnostics.actions.exporting'
+                  : 'settings.about.diagnostics.actions.export'
+              )}
+            </Button>
+          </>
+        )}
+      </DialogFooter>
+    </DiagnosticBundleFrame>
+  )
+
+  return (
+    <>
+      {embedded ? (
+        panel
+      ) : (
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          {panel}
+        </Dialog>
+      )}
+
+      {!embedded ? (
+        <Dialog open={isConfirmationOpen} onOpenChange={handleConfirmationOpenChange}>
+          <DialogContent showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>{t('settings.about.diagnostics.privacy.title')}</DialogTitle>
+              <DialogDescription className="leading-6">
+                {t('settings.about.diagnostics.privacy.description')}
+              </DialogDescription>
+            </DialogHeader>
+
+            <p className="text-muted-foreground text-sm leading-6">
+              {t('settings.about.diagnostics.limit', {
+                size: formatDiagnosticBytes(inspectResult?.sourceLimitBytes ?? 50 * 1024 * 1024)
+              })}
+            </p>
+
+            <label className="flex cursor-pointer items-center gap-3 text-sm">
+              <Checkbox checked={consent} onCheckedChange={(checked) => setConsent(checked === true)} />
+              <span>{t('settings.about.diagnostics.privacy.consent')}</span>
+            </label>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => handleConfirmationOpenChange(false)}>
+                {t('settings.about.diagnostics.actions.cancel')}
+              </Button>
+              <Button variant="emphasis" disabled={!consent} onClick={handleConfirmedExport}>
+                {t('settings.about.diagnostics.actions.export')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </>
   )
+}
+
+function DiagnosticBundleFrame({
+  children,
+  dialogContentProps,
+  embedded,
+  open
+}: {
+  readonly children: ReactNode
+  readonly dialogContentProps: React.ComponentProps<typeof DialogContent>
+  readonly embedded: boolean
+  readonly open: boolean
+}) {
+  if (embedded) {
+    return (
+      <div
+        hidden={!open}
+        className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden"
+        aria-hidden={!open}>
+        {children}
+      </div>
+    )
+  }
+  return <DialogContent {...dialogContentProps}>{children}</DialogContent>
 }
 
 export default DiagnosticBundleDialog

@@ -25,8 +25,8 @@ import {
   diagnosticDescriptionByteLength
 } from '@shared/utils/diagnostics'
 import { createFilePathHandle } from '@shared/utils/file'
-import type { FormEvent } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
+import { useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('DiagnosticUploadDialog')
@@ -46,18 +46,31 @@ function discardRetainedUpload(bundleId: string) {
 }
 
 interface DiagnosticUploadDialogProps {
+  readonly description?: string
+  readonly embedded?: boolean
   readonly fixedRange?: DiagnosticRange
   readonly initialDescription?: string
+  readonly onBusyChange?: (busy: boolean) => void
+  readonly onDescriptionChange?: (description: string) => void
   readonly onOpenChange: (open: boolean) => void
   readonly open: boolean
 }
 
-export function DiagnosticUploadDialog({
+export interface DiagnosticUploadDialogHandle {
+  readonly requestClose: () => Promise<boolean>
+}
+
+export const DiagnosticUploadDialog = function DiagnosticUploadDialog({
+  ref,
+  description: controlledDescription,
+  embedded = false,
   fixedRange,
   initialDescription,
+  onBusyChange,
+  onDescriptionChange,
   onOpenChange,
   open
-}: DiagnosticUploadDialogProps) {
+}: DiagnosticUploadDialogProps & { ref?: React.RefObject<DiagnosticUploadDialogHandle | null> }) {
   const { t } = useTranslation()
   const uploadFormId = useId()
   const [selectedRange, setSelectedRange] = useState<DiagnosticRange>('24h')
@@ -65,7 +78,8 @@ export function DiagnosticUploadDialog({
   const [includeLogs, setIncludeLogs] = useState(true)
   const [includeTraces, setIncludeTraces] = useState(true)
   const [includeChatRecords, setIncludeChatRecords] = useState(false)
-  const [description, setDescription] = useState(initialDescription ?? '')
+  const [internalDescription, setInternalDescription] = useState(initialDescription ?? '')
+  const description = controlledDescription ?? internalDescription
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [acknowledged, setAcknowledged] = useState(false)
   const [inspectResult, setInspectResult] = useState<InspectResult | null>(null)
@@ -139,22 +153,36 @@ export function DiagnosticUploadDialog({
   const canAttemptUpload =
     inspectResult !== null && !isInspectionPending && !inspectError && operationStatus === 'idle' && acknowledged
 
-  const handleOpenChange = async (nextOpen: boolean) => {
-    if (!nextOpen && isBusy) return
-    if (!nextOpen && result && result.status !== 'uploaded') {
+  useEffect(() => onBusyChange?.(isBusy), [isBusy, onBusyChange])
+
+  const changeDescription = (nextDescription: string) => {
+    setInternalDescription(nextDescription)
+    onDescriptionChange?.(nextDescription)
+  }
+
+  const requestClose = useCallback(async () => {
+    if (isBusy) return false
+    if (result && result.status !== 'uploaded') {
       try {
         const discardResult = await discardRetainedUpload(result.bundleId)
         if (discardResult.status === 'busy') {
           toast.error(t('settings.about.diagnostics.errors.busy'))
-          return
+          return false
         }
         retainedBundleIdRef.current = null
       } catch (error) {
         logger.error('Failed to discard retained diagnostic upload', error as Error)
-        return
+        return false
       }
     }
-    onOpenChange(nextOpen)
+    onOpenChange(false)
+    return true
+  }, [isBusy, onOpenChange, result, t])
+
+  useImperativeHandle(ref, () => ({ requestClose }), [requestClose])
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) void requestClose()
   }
 
   const openManualForm = async () => {
@@ -257,184 +285,214 @@ export function DiagnosticUploadDialog({
     value
   }))
 
-  return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent
-          size="xl"
-          className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0"
-          closeOnOverlayClick={!isBusy}
-          showCloseButton={!isBusy}
-          onEscapeKeyDown={(event) => {
-            if (isBusy) event.preventDefault()
-          }}>
-          <DialogHeader className="px-6 pt-6 pr-12 pb-4">
-            <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
-          </DialogHeader>
+  const panel = (
+    <DiagnosticUploadFrame
+      embedded={embedded}
+      open={open}
+      dialogContentProps={{
+        size: 'xl',
+        className: 'grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0',
+        closeOnOverlayClick: !isBusy,
+        showCloseButton: !isBusy,
+        onEscapeKeyDown: (event) => {
+          if (isBusy) event.preventDefault()
+        }
+      }}>
+      {!embedded ? (
+        <DialogHeader className="px-6 pt-6 pr-12 pb-4">
+          <DialogTitle>{t('settings.about.diagnostics.upload.dialog.title')}</DialogTitle>
+        </DialogHeader>
+      ) : null}
 
-          <Scrollbar className="min-h-0 px-6 py-2">
-            <span className="sr-only" role="status" aria-live="polite">
-              {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
-            </span>
-            {result ? (
-              <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
-            ) : (
-              <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
-                <section className="space-y-2">
-                  <label htmlFor="diagnostic-description" className="block font-medium text-sm">
-                    {t('settings.about.diagnostics.report.description_label')}
-                  </label>
-                  <Textarea.Input
-                    id="diagnostic-description"
-                    value={description}
-                    onValueChange={setDescription}
-                    placeholder={t('settings.about.diagnostics.report.description_placeholder')}
-                    rows={4}
-                    disabled={isBusy}
-                    hasError={showDescriptionError}
-                    aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
-                  />
-                  {showDescriptionError ? (
-                    <p id="diagnostic-description-error" className="text-error text-xs">
-                      {t(
-                        normalizedDescription.length === 0
-                          ? 'settings.about.diagnostics.report.description_required'
-                          : 'settings.about.diagnostics.report.description_too_long'
-                      )}
-                    </p>
-                  ) : null}
-                </section>
+      <Scrollbar className="min-h-0 px-6 py-2">
+        <span className="sr-only" role="status" aria-live="polite">
+          {isInspectionPending ? t('settings.about.diagnostics.inspecting') : ''}
+        </span>
+        {result ? (
+          <UploadResultContent result={result} savedUpload={savedUpload} onReveal={revealBundle} />
+        ) : (
+          <form id={uploadFormId} className="space-y-4" onSubmit={handleSubmit}>
+            <section className="space-y-2">
+              <label htmlFor="diagnostic-description" className="block font-medium text-sm">
+                {t('settings.about.diagnostics.report.description_label')}
+              </label>
+              <Textarea.Input
+                id="diagnostic-description"
+                value={description}
+                onValueChange={changeDescription}
+                placeholder={t('settings.about.diagnostics.report.description_placeholder')}
+                rows={4}
+                disabled={isBusy}
+                hasError={showDescriptionError}
+                aria-describedby={showDescriptionError ? 'diagnostic-description-error' : undefined}
+              />
+              {showDescriptionError ? (
+                <p id="diagnostic-description-error" className="text-error text-xs">
+                  {t(
+                    normalizedDescription.length === 0
+                      ? 'settings.about.diagnostics.report.description_required'
+                      : 'settings.about.diagnostics.report.description_too_long'
+                  )}
+                </p>
+              ) : null}
+            </section>
 
-                {fixedRange === undefined ? (
-                  <section className="space-y-2">
-                    <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
-                    <SegmentedControl<DiagnosticRange>
-                      value={selectedRange}
-                      onValueChange={(nextRange) => {
-                        setSelectedRange(nextRange)
-                        setInspectResult(null)
-                        setAcknowledged(false)
-                      }}
-                      options={rangeOptions}
-                      disabled={isBusy}
-                    />
-                  </section>
-                ) : null}
+            {fixedRange === undefined ? (
+              <section className="space-y-2">
+                <p className="font-medium text-sm">{t('settings.about.diagnostics.range_title')}</p>
+                <SegmentedControl<DiagnosticRange>
+                  value={selectedRange}
+                  onValueChange={(nextRange) => {
+                    setSelectedRange(nextRange)
+                    setInspectResult(null)
+                    setAcknowledged(false)
+                  }}
+                  options={rangeOptions}
+                  disabled={isBusy}
+                />
+              </section>
+            ) : null}
 
-                <section className="divide-y divide-border rounded-xl border border-border">
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.system.title')}
-                    description={t('settings.about.diagnostics.sources.system.description', {
-                      crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
-                    })}
-                    checked
-                    disabled
-                  />
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.logs.title')}
-                    description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
-                    checked={effectiveIncludeLogs}
-                    disabled={isBusy || isInspectionPending || !logsAvailable}
-                    onCheckedChange={(checked) => {
-                      setIncludeLogs(checked)
-                      setAcknowledged(false)
-                    }}
-                  />
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.traces.title')}
-                    description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
-                    checked={effectiveIncludeTraces}
-                    disabled={isBusy || isInspectionPending || !tracesAvailable}
-                    onCheckedChange={(checked) => {
-                      setIncludeTraces(checked)
-                      setAcknowledged(false)
-                    }}
-                  />
-                  <SourceRow
-                    title={t('settings.about.diagnostics.sources.chat_records.title')}
-                    description={describeDiagnosticChatSource(
-                      t,
-                      inspectResult?.sources.chatRecords,
-                      isInspectionPending
-                    )}
-                    checked={effectiveIncludeChatRecords}
-                    disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
-                    onCheckedChange={(checked) => {
-                      setIncludeChatRecords(checked)
-                      setAcknowledged(false)
-                    }}
-                  />
-                </section>
+            <section className="divide-y divide-border rounded-xl border border-border">
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.system.title')}
+                description={t('settings.about.diagnostics.sources.system.description', {
+                  crashCount: inspectResult?.sources.crashDumps.fileCount ?? 0
+                })}
+                checked
+                disabled
+              />
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.logs.title')}
+                description={describeDiagnosticFileSource(t, inspectResult?.sources.logs, isInspectionPending)}
+                checked={effectiveIncludeLogs}
+                disabled={isBusy || isInspectionPending || !logsAvailable}
+                onCheckedChange={(checked) => {
+                  setIncludeLogs(checked)
+                  setAcknowledged(false)
+                }}
+              />
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.traces.title')}
+                description={describeDiagnosticFileSource(t, inspectResult?.sources.traces, isInspectionPending)}
+                checked={effectiveIncludeTraces}
+                disabled={isBusy || isInspectionPending || !tracesAvailable}
+                onCheckedChange={(checked) => {
+                  setIncludeTraces(checked)
+                  setAcknowledged(false)
+                }}
+              />
+              <SourceRow
+                title={t('settings.about.diagnostics.sources.chat_records.title')}
+                description={describeDiagnosticChatSource(t, inspectResult?.sources.chatRecords, isInspectionPending)}
+                checked={effectiveIncludeChatRecords}
+                disabled={isBusy || isInspectionPending || !chatRecordsAvailable}
+                onCheckedChange={(checked) => {
+                  setIncludeChatRecords(checked)
+                  setAcknowledged(false)
+                }}
+              />
+            </section>
 
-                {inspectError ? (
-                  <p className="text-error text-sm" role="alert">
-                    {t('settings.about.diagnostics.errors.inspect_failed')}
-                  </p>
-                ) : null}
-                {inspectResult?.hasWarnings ? (
-                  <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
-                ) : null}
-                <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
-                  <Checkbox
-                    id="diagnostic-acknowledgement"
-                    checked={acknowledged}
-                    disabled={isBusy}
-                    onCheckedChange={(checked) => setAcknowledged(checked === true)}
-                  />
-                  <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
-                </label>
-              </form>
+            {inspectError ? (
+              <p className="text-error text-sm" role="alert">
+                {t('settings.about.diagnostics.errors.inspect_failed')}
+              </p>
+            ) : null}
+            {inspectResult?.hasWarnings ? (
+              <Alert type="warning" showIcon description={t('settings.about.diagnostics.warning')} />
+            ) : null}
+            <label className="flex cursor-pointer items-start gap-3 text-sm" htmlFor="diagnostic-acknowledgement">
+              <Checkbox
+                id="diagnostic-acknowledgement"
+                checked={acknowledged}
+                disabled={isBusy}
+                onCheckedChange={(checked) => setAcknowledged(checked === true)}
+              />
+              <span>{t('settings.about.diagnostics.report.acknowledgement')}</span>
+            </label>
+          </form>
+        )}
+      </Scrollbar>
+
+      <DialogFooter className="mt-4 border-border border-t px-6 py-4">
+        {isBusy ? (
+          <Button variant="emphasis" loading disabled>
+            {t(
+              operationStatus === 'saving'
+                ? 'settings.about.diagnostics.report.saving'
+                : 'settings.about.diagnostics.report.submitting'
             )}
-          </Scrollbar>
-
-          <DialogFooter className="mt-4 border-border border-t px-6 py-4">
-            {isBusy ? (
-              <Button variant="emphasis" loading disabled>
-                {t(
-                  operationStatus === 'saving'
-                    ? 'settings.about.diagnostics.report.saving'
-                    : 'settings.about.diagnostics.report.submitting'
-                )}
+          </Button>
+        ) : result ? (
+          <>
+            <Button
+              ref={result.status === 'uploaded' ? primaryActionRef : undefined}
+              variant="outline"
+              onClick={() => handleOpenChange(false)}>
+              {t('settings.about.diagnostics.actions.close')}
+            </Button>
+            {result.status !== 'uploaded' ? (
+              <Button variant="outline" onClick={() => void openManualForm()}>
+                {t('settings.about.diagnostics.report.open_manual_form')}
               </Button>
-            ) : result ? (
-              <>
-                <Button
-                  ref={result.status === 'uploaded' ? primaryActionRef : undefined}
-                  variant="outline"
-                  onClick={() => handleOpenChange(false)}>
-                  {t('settings.about.diagnostics.actions.close')}
-                </Button>
-                {result.status !== 'uploaded' ? (
-                  <Button variant="outline" onClick={() => void openManualForm()}>
-                    {t('settings.about.diagnostics.report.open_manual_form')}
-                  </Button>
-                ) : null}
-                {result.status !== 'uploaded' && !savedUpload ? (
-                  <Button variant="outline" onClick={() => void saveUpload()}>
-                    {t('settings.about.diagnostics.report.save_locally')}
-                  </Button>
-                ) : null}
-                {result.status !== 'uploaded' ? (
-                  <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
-                    {t('settings.about.diagnostics.report.retry')}
-                  </Button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                  {t('settings.about.diagnostics.actions.cancel')}
-                </Button>
-                <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
-                  {t('settings.about.diagnostics.upload.actions.consent_upload')}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            ) : null}
+            {result.status !== 'uploaded' && !savedUpload ? (
+              <Button variant="outline" onClick={() => void saveUpload()}>
+                {t('settings.about.diagnostics.report.save_locally')}
+              </Button>
+            ) : null}
+            {result.status !== 'uploaded' ? (
+              <Button ref={primaryActionRef} variant="emphasis" onClick={() => void retryUpload()}>
+                {t('settings.about.diagnostics.report.retry')}
+              </Button>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              {t('settings.about.diagnostics.actions.cancel')}
+            </Button>
+            <Button type="submit" form={uploadFormId} variant="emphasis" disabled={!canAttemptUpload}>
+              {t('settings.about.diagnostics.upload.actions.consent_upload')}
+            </Button>
+          </>
+        )}
+      </DialogFooter>
+    </DiagnosticUploadFrame>
   )
+
+  return embedded ? (
+    panel
+  ) : (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {panel}
+    </Dialog>
+  )
+}
+
+function DiagnosticUploadFrame({
+  children,
+  dialogContentProps,
+  embedded,
+  open
+}: {
+  readonly children: ReactNode
+  readonly dialogContentProps: React.ComponentProps<typeof DialogContent>
+  readonly embedded: boolean
+  readonly open: boolean
+}) {
+  if (embedded) {
+    return (
+      <div
+        hidden={!open}
+        className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-0 overflow-hidden"
+        aria-hidden={!open}>
+        {children}
+      </div>
+    )
+  }
+  return <DialogContent {...dialogContentProps}>{children}</DialogContent>
 }
 
 function UploadResultContent({

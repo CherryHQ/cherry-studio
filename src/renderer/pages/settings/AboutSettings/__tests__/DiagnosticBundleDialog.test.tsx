@@ -46,7 +46,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import DiagnosticBundleDialog from '../DiagnosticBundleDialog'
+import DiagnosticBundleDialog from '@renderer/components/feedback/DiagnosticBundleDialog'
 
 const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,
@@ -98,6 +98,19 @@ describe('DiagnosticBundleDialog', () => {
       if (route === 'diagnostics.bundle.export') return savedResult
       return undefined
     })
+  })
+
+  it('keeps sensitive-source confirmation inline when embedded in Doctor', async () => {
+    const user = userEvent.setup()
+    render(<DiagnosticBundleDialog appVersion="2.0.0" embedded open onOpenChange={vi.fn()} />)
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('diagnostics.bundle.inspect', { range: '24h' }))
+    await user.click(screen.getByRole('button', { name: 'settings.about.diagnostics.actions.export' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.about.diagnostics.privacy.title')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(mocks.request.mock.calls.filter(([route]) => route === 'diagnostics.bundle.export')).toHaveLength(0)
   })
 
   it('shows sensitive data confirmation only after export is requested', async () => {
