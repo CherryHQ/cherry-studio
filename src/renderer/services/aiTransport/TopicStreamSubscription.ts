@@ -459,11 +459,11 @@ export class TopicStreamSubscription {
         switch (res.status) {
           case 'attached': {
             const chunks = res.bufferedChunks
-            const replay =
-              chunks.length > MAX_ATTACH_REPLAY_CHUNKS
-                ? (logger.warn('attach replay capped', { total: chunks.length, topicId: this.#topicId }),
-                  capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS))
-                : chunks
+            let replay = chunks
+            if (chunks.length > MAX_ATTACH_REPLAY_CHUNKS) {
+              logger.warn('attach replay capped', { total: chunks.length, topicId: this.#topicId })
+              replay = capAttachReplayChunks(chunks, MAX_ATTACH_REPLAY_CHUNKS)
+            }
             for (const payload of replay) this.#routeChunk(payload)
             break
           }

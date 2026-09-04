@@ -16,12 +16,6 @@ function toolCallIdOf(chunk: { id?: string; toolCallId?: string }): string | und
 
 function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamChunkPayload[] {
   if (chunks.length <= max) return [...chunks]
-  const scopes = new Map<string, number>()
-  for (const p of chunks) {
-    const k = JSON.stringify([p.executionId ?? null, p.anchorMessageId ?? null])
-    scopes.set(k, (scopes.get(k) ?? 0) + 1)
-  }
-  if (scopes.size <= 1) return chunks.slice(-max)
 
   const indicesByScope = new Map<string, number[]>()
   chunks.forEach((p, i) => {
@@ -31,7 +25,9 @@ function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamCh
     else indicesByScope.set(k, [i])
   })
 
-  let perScope = Math.ceil(max / scopes.size)
+  if (indicesByScope.size <= 1) return chunks.slice(-max)
+
+  let perScope = Math.ceil(max / indicesByScope.size)
   let surplus = 0
   for (const idxs of indicesByScope.values()) {
     if (idxs.length < perScope) surplus += perScope - idxs.length
@@ -44,13 +40,28 @@ function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamCh
     }
   }
 
-  const keep = new Set<number>()
-  for (const idxs of indicesByScope.values()) {
+  const keepByScope = new Map<string, number[]>()
+  for (const [scope, idxs] of indicesByScope) {
     const take = Math.min(idxs.length, perScope)
-    for (const i of idxs.slice(-take)) keep.add(i)
+    keepByScope.set(scope, idxs.slice(-take))
   }
-  const merged = [...keep].sort((a, b) => a - b).map((i) => chunks[i])
-  return merged.length > max ? merged.slice(-max) : merged
+
+  const totalKept = [...keepByScope.values()].reduce((sum, arr) => sum + arr.length, 0)
+  if (totalKept > max) {
+    let excess = totalKept - max
+    // Trim oldest entries from the largest scopes first so small scopes keep their allocation.
+    const sortedScopes = [...keepByScope.entries()].sort((a, b) => b[1].length - a[1].length)
+    for (const [, arr] of sortedScopes) {
+      if (excess <= 0) break
+      const drop = Math.min(excess, arr.length)
+      arr.splice(0, drop)
+      excess -= drop
+    }
+  }
+
+  const keep = new Set<number>()
+  for (const arr of keepByScope.values()) for (const i of arr) keep.add(i)
+  return [...keep].sort((a, b) => a - b).map((i) => chunks[i])
 }
 
 export function capAttachReplayChunks(
@@ -60,7 +71,20 @@ export function capAttachReplayChunks(
   if (chunks.length <= max) return [...chunks]
 
   const tail = buildTail(chunks, max)
+
+  // Collect authoritative toolName per toolCallId from the retained tail
+  // so orphan deltas don't synthesize `unknown` and pollute the part type.
+  const toolNameByKey = new Map<string, string>()
+  for (const payload of tail) {
+    const c = payload.chunk as { type: string; toolCallId?: string; id?: string; toolName?: string }
+    if ((c.type === 'tool-input-start' || c.type === 'tool-input-available') && c.toolName) {
+      const tid = toolCallIdOf(c)
+      if (tid) toolNameByKey.set(scopedPartKey(payload, 'tool-input', tid), c.toolName)
+    }
+  }
+
   const openParts = new Set<string>()
+  const seenToolInput = new Set<string>()
   const out: StreamChunkPayload[] = []
 
   for (const payload of tail) {
@@ -75,7 +99,11 @@ export function capAttachReplayChunks(
       }
       case 'tool-input-start': {
         const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
-        if (tid) openParts.add(scopedPartKey(payload, 'tool-input', tid))
+        if (tid) {
+          const key = scopedPartKey(payload, 'tool-input', tid)
+          openParts.add(key)
+          seenToolInput.add(key)
+        }
         out.push(payload)
         break
       }
@@ -101,15 +129,28 @@ export function capAttachReplayChunks(
         }
         const key = scopedPartKey(payload, 'tool-input', tid)
         if (!openParts.has(key)) {
+          const knownName = toolNameByKey.get(key)
+          // No authoritative name — dropping avoids `tool-unknown` pollution
+          // and the orphan delta would still be orphaned without its start.
+          if (!knownName) break
           openParts.add(key)
+          seenToolInput.add(key)
           const startChunk: Record<string, unknown> = {
             type: 'tool-input-start',
             toolCallId: tid,
             id: tid,
-            toolName: (chunk as { toolName?: string }).toolName ?? 'unknown'
+            toolName: knownName
           }
           out.push({ ...payload, chunk: startChunk } as unknown as StreamChunkPayload)
+        } else {
+          seenToolInput.add(key)
         }
+        out.push(payload)
+        break
+      }
+      case 'tool-input-available': {
+        const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
+        if (tid) seenToolInput.add(scopedPartKey(payload, 'tool-input', tid))
         out.push(payload)
         break
       }
@@ -134,9 +175,26 @@ export function capAttachReplayChunks(
         openParts.delete(key)
         break
       }
-      default:
+      default: {
+        // Orphan tool-output / approval chunks without a retained input start
+        // make `readUIMessageStream` throw UIMessageStreamError and silently
+        // terminate the stream, dropping all later chunks.
+        const t = chunk.type
+        if (
+          t === 'tool-output-available' ||
+          t === 'tool-output-error' ||
+          t === 'tool-output-denied' ||
+          t === 'tool-approval-request'
+        ) {
+          const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
+          if (tid) {
+            const key = scopedPartKey(payload, 'tool-input', tid)
+            if (!seenToolInput.has(key) && !openParts.has(key) && !toolNameByKey.has(key)) break
+          }
+        }
         out.push(payload)
         break
+      }
     }
   }
 
