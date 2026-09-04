@@ -2483,6 +2483,7 @@
   "miniApp.popup.open_link_external_off": "Geçerli: Bağlantıları varsayılan pencerede aç",
   "miniApp.popup.open_link_external_on": "Geçerli: Bağlantıları tarayıcıda aç",
   "miniApp.popup.refresh": "Yenile",
+  "miniApp.popup.restart": "Mini uygulamayı yeniden başlat",
   "miniApp.remove_from_launchpad": "Başlatma Panelinden Kaldır",
   "miniApp.remove_from_sidebar": "Kenar Çubuğundan Kaldır",
   "miniApp.reorder_failed": "Mini uygulamalar yeniden sıralanamadı",
