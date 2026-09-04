@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Zaten Geri Dönüşüm Kutusu'nda",
   "recycle_bin.move.confirm_action": "Geri Dönüşüm Kutusu'na Taşı",
   "recycle_bin.move.confirm_title": "Geri Dönüşüm Kutusu'na taşınsın mı?",
+  "recycle_bin.move.related_sessions": "İlgili oturumları da Geri Dönüşüm Kutusu'na taşı",
+  "recycle_bin.move.related_topics": "İlgili konuları da Geri Dönüşüm Kutusu'na taşı",
   "recycle_bin.move_failed": "Geri Dönüşüm Kutusu'na taşınamadı",
   "recycle_bin.moved": "{{name}} Geri Dönüşüm Kutusu'na taşındı",
   "recycle_bin.moved_count": "Geri Dönüşüm Kutusu'na taşındı: {{count}}",

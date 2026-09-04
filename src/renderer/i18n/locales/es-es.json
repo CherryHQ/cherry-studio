@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Ya está en la papelera",
   "recycle_bin.move.confirm_action": "Mover a la papelera",
   "recycle_bin.move.confirm_title": "¿Mover a la papelera?",
+  "recycle_bin.move.related_sessions": "Mover también las sesiones relacionadas a la papelera",
+  "recycle_bin.move.related_topics": "Mover también los temas relacionados a la papelera",
   "recycle_bin.move_failed": "No se pudo mover a la papelera",
   "recycle_bin.moved": "{{name}} se ha movido a la papelera",
   "recycle_bin.moved_count": "Traslado a la papelera — total: {{count}}",

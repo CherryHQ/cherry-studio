@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Bereits im Papierkorb",
   "recycle_bin.move.confirm_action": "In den Papierkorb verschieben",
   "recycle_bin.move.confirm_title": "In den Papierkorb verschieben?",
+  "recycle_bin.move.related_sessions": "Auch zugehörige Sitzungen in den Papierkorb verschieben",
+  "recycle_bin.move.related_topics": "Auch zugehörige Themen in den Papierkorb verschieben",
   "recycle_bin.move_failed": "Konnte nicht in den Papierkorb verschoben werden",
   "recycle_bin.moved": "{{name}} wurde in den Papierkorb verschoben",
   "recycle_bin.moved_count": "In den Papierkorb verschoben: {{count}}",

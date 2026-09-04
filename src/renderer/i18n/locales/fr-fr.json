@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Déjà dans la corbeille",
   "recycle_bin.move.confirm_action": "Déplacer vers la corbeille",
   "recycle_bin.move.confirm_title": "Déplacer vers la corbeille ?",
+  "recycle_bin.move.related_sessions": "Déplacer également les sessions associées vers la corbeille",
+  "recycle_bin.move.related_topics": "Déplacer également les sujets associés vers la corbeille",
   "recycle_bin.move_failed": "Impossible de déplacer vers la corbeille",
   "recycle_bin.moved": "{{name}} a été déplacé dans la corbeille",
   "recycle_bin.moved_count": "Déplacement vers la corbeille — total : {{count}}",

@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Βρίσκεται ήδη στον Κάδο Ανακύκλωσης",
   "recycle_bin.move.confirm_action": "Μετακίνηση στον Κάδο Ανακύκλωσης",
   "recycle_bin.move.confirm_title": "Μετακίνηση στον Κάδο Ανακύκλωσης;",
+  "recycle_bin.move.related_sessions": "Μετακίνηση και των σχετικών συνεδριών στον Κάδο Ανακύκλωσης",
+  "recycle_bin.move.related_topics": "Μετακίνηση και των σχετικών θεμάτων στον Κάδο Ανακύκλωσης",
   "recycle_bin.move_failed": "Δεν ήταν δυνατή η μετακίνηση στον Κάδο Ανακύκλωσης",
   "recycle_bin.moved": "Το «{{name}}» μετακινήθηκε στον Κάδο Ανακύκλωσης",
   "recycle_bin.moved_count": "Μετακίνηση στον Κάδο Ανακύκλωσης — σύνολο: {{count}}",

@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Já está na Reciclagem",
   "recycle_bin.move.confirm_action": "Mover para a Reciclagem",
   "recycle_bin.move.confirm_title": "Mover para a Reciclagem?",
+  "recycle_bin.move.related_sessions": "Mover também as sessões relacionadas para a Reciclagem",
+  "recycle_bin.move.related_topics": "Mover também os tópicos relacionados para a Reciclagem",
   "recycle_bin.move_failed": "Não foi possível mover para a Reciclagem",
   "recycle_bin.moved": "{{name}} foi movido para a Reciclagem",
   "recycle_bin.moved_count": "Mover para a Reciclagem — total: {{count}}",

@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "已在回收站中",
   "recycle_bin.move.confirm_action": "移至回收站",
   "recycle_bin.move.confirm_title": "移至回收站？",
+  "recycle_bin.move.related_sessions": "同时将关联会话移入回收站",
+  "recycle_bin.move.related_topics": "同时将关联话题移入回收站",
   "recycle_bin.move_failed": "无法移至回收站",
   "recycle_bin.moved": "已将 {{name}} 移至回收站",
   "recycle_bin.moved_count": "移至回收站：{{count}} 项",

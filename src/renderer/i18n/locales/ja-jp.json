@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "すでにゴミ箱にあります",
   "recycle_bin.move.confirm_action": "ゴミ箱に移動",
   "recycle_bin.move.confirm_title": "ゴミ箱に移動しますか？",
+  "recycle_bin.move.related_sessions": "関連するセッションもゴミ箱に移動",
+  "recycle_bin.move.related_topics": "関連するトピックもゴミ箱に移動",
   "recycle_bin.move_failed": "ゴミ箱に移動できませんでした",
   "recycle_bin.moved": "{{name}}をゴミ箱に移動しました",
   "recycle_bin.moved_count": "ゴミ箱への移動件数：{{count}}",

@@ -3029,6 +3029,8 @@
   "recycle_bin.already_moved": "Đã có trong thùng rác",
   "recycle_bin.move.confirm_action": "Chuyển vào thùng rác",
   "recycle_bin.move.confirm_title": "Chuyển vào thùng rác?",
+  "recycle_bin.move.related_sessions": "Đồng thời chuyển các phiên liên quan vào thùng rác",
+  "recycle_bin.move.related_topics": "Đồng thời chuyển các chủ đề liên quan vào thùng rác",
   "recycle_bin.move_failed": "Không thể chuyển vào thùng rác",
   "recycle_bin.moved": "Đã chuyển {{name}} vào thùng rác",
   "recycle_bin.moved_count": "Chuyển vào thùng rác — tổng số: {{count}}",
