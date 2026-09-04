@@ -29,7 +29,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import DiagnosticBundleDialog from '../DiagnosticBundleDialog'
+import DiagnosticBundleDialog from '@renderer/components/feedback/DiagnosticBundleDialog'
 
 const inspectResult: OutputFor<'diagnostics.bundle.inspect'> = {
   hasWarnings: false,

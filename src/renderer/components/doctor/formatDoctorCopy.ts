@@ -8,6 +8,7 @@ export interface DoctorCopyLabels {
   readonly basicsHeading: string
   readonly checksHeading: string
   readonly basics: Readonly<Record<CopyBasic, string>>
+  readonly runtime: Readonly<Record<keyof DoctorBasics['runtime'], string>>
   readonly title: (id: DoctorCheckId) => string
   readonly status: (status: DoctorCheckStatus) => string
   readonly boolean: (value: boolean) => string
@@ -25,7 +26,7 @@ function formatBasics(basics: DoctorBasics, labels: DoctorCopyLabels): readonly 
   ]
 
   for (const [name, value] of Object.entries(basics.runtime)) {
-    if (value) lines.push(`${name[0].toUpperCase()}${name.slice(1)} ${value}`)
+    if (value) lines.push(`${labels.runtime[name as keyof DoctorBasics['runtime']]}: ${value}`)
   }
   return lines
 }

@@ -2,7 +2,7 @@ import type { DoctorAction, DoctorCheckResult, DoctorReport, DoctorState } from 
 import { DOCTOR_CHECK_IDS } from '@shared/types/doctor'
 import { describe, expect, it } from 'vitest'
 
-import { buildDoctorViewModel } from '../doctorViewModel'
+import { buildDoctorViewModel, defaultExpandedDoctorDomains } from '../doctorViewModel'
 
 const NOW = Date.parse('2026-09-04T09:00:00.000Z')
 
@@ -81,6 +81,19 @@ describe('buildDoctorViewModel', () => {
     expect(viewModel.rows).toHaveLength(18)
     expect(viewModel.rows.every((row) => row.status === 'pending')).toBe(true)
     expect(viewModel.rows.some((row) => row.id === 'install-update-available')).toBe(false)
+    expect(viewModel.canCancel).toBe(false)
+  })
+
+  it('allows cancellation only for a network and service run', () => {
+    const state: DoctorState = {
+      status: 'running',
+      runId: 'run-1',
+      tier: 'live',
+      startedAt: '2026-09-04T08:59:00.000Z',
+      results: []
+    }
+
+    expect(buildDoctorViewModel(state, NOW).canCancel).toBe(true)
   })
 
   it('preserves actions returned on pass and never synthesizes actions for findings', () => {
@@ -128,5 +141,39 @@ describe('buildDoctorViewModel', () => {
 
     expect(viewModel.rows.map((row) => row.id)).toEqual(['network-online', 'logs-recent-findings'])
     expect(viewModel.problemCount).toBe(1)
+  })
+
+  it('normalizes completed results to catalog order and classifies every summary item once', () => {
+    const optionalAction: DoctorAction<'config-hardware-acceleration'> = {
+      kind: 'fix',
+      fixId: 'enable'
+    }
+    const state: DoctorState = {
+      status: 'completed',
+      report: report([
+        result('logs-recent-findings', 'error'),
+        result('config-hardware-acceleration', 'pass', [optionalAction]),
+        result('permission-accessibility', 'warn'),
+        result('network-online', 'skip')
+      ])
+    }
+
+    const viewModel = buildDoctorViewModel(state, NOW)
+
+    expect(viewModel.rows.map((row) => row.id)).toEqual([
+      'permission-accessibility',
+      'config-hardware-acceleration',
+      'network-online',
+      'logs-recent-findings'
+    ])
+    expect(viewModel.summary).toEqual({
+      userFixable: 1,
+      appBug: 0,
+      transient: 0,
+      error: 1,
+      skip: 1,
+      optional: 1
+    })
+    expect(defaultExpandedDoctorDomains(viewModel.groups)).toEqual(['permission', 'config', 'network', 'logs'])
   })
 })

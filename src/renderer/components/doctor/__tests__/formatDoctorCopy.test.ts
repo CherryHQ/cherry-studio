@@ -56,6 +56,7 @@ describe('formatDoctorReportForCopy', () => {
         isPackaged: 'Packaged',
         isPortable: 'Portable'
       },
+      runtime: { electron: 'Electron', node: 'Node.js', chrome: 'Chrome', v8: 'V8' },
       title: (id) => (id === 'network-endpoint-cloud' ? 'Cherry Cloud endpoint' : id),
       status: (status) => status.toUpperCase(),
       boolean: (value) => (value ? 'Yes' : 'No')
@@ -64,7 +65,7 @@ describe('formatDoctorReportForCopy', () => {
     expect(text).toContain('2.0.0')
     expect(text).toContain('global')
     expect(text).toContain('darwin arm64')
-    expect(text).toContain('Electron 40.0.0')
+    expect(text).toContain('Electron: 40.0.0')
     expect(text).toContain('Cherry Cloud endpoint [network-endpoint-cloud]: FAIL')
     expect(text).toContain('status: 503')
     expect(text).not.toContain('secret-run-id')
