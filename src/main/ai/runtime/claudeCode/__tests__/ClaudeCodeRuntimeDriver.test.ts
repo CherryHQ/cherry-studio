@@ -2866,6 +2866,43 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('rejects a resumed input when the connection closes during message materialization', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const prepared = createDeferred<any[]>()
+    mocks.prepareChatMessages.mockReturnValueOnce(prepared.promise)
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'resume-before-close'
+    })
+    const message = {
+      ...userMessage(),
+      data: {
+        parts: [
+          { type: 'text', text: 'inspect this image' },
+          {
+            type: 'file',
+            url: 'file:///tmp/pixel.png',
+            mediaType: 'image/png',
+            filename: 'pixel.png',
+            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+          }
+        ]
+      }
+    }
+
+    connection.reserveInput?.()
+    const sending = connection.send({ message })
+    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
+    await connection.close()
+
+    prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
+    await expect(sending).rejects.toThrow('closed before input could be queued')
+  })
+
   it('recovers corrupt resumed tool history before any non-metadata activity', async () => {
     const corruptQueue = createAsyncQueue<any>()
     const freshQueue = createAsyncQueue<any>()
@@ -3177,6 +3214,38 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).not.toContainEqual(expect.objectContaining({ type: 'error' }))
     expect(seen.filter((event) => event?.chunk?.type === 'text-delta')).toHaveLength(1)
     expect(seen).toContainEqual({ type: 'turn-complete' })
+    void connection.close()
+  })
+
+  it('drops stale turn-scoped system messages while resumed input awaits SDK consumption', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'resume-before-compaction'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    connection.reserveInput?.()
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: 'compacting',
+      session_id: 'resume-before-compaction'
+    })
+    queryQueue.push({
+      type: 'system',
+      subtype: 'commands_changed',
+      session_id: 'resume-before-compaction',
+      commands: ['/help']
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands: ['/help'] }
+    })
     void connection.close()
   })
 

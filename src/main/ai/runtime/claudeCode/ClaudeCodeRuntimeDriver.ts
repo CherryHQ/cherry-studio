@@ -5,6 +5,7 @@ import type {
   Query,
   query,
   SDKAssistantMessage,
+  SDKMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
   SDKUserMessage
@@ -111,6 +112,17 @@ function classifyResumeRecoveryResult(
 function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
   if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
   return classifyResumeRecoveryResult(error.subtype, error.errors)
+}
+
+function isTurnScopedSystemMessage(message: SDKMessage): boolean {
+  if (message.type !== 'system') return false
+  return (
+    message.subtype === 'status' ||
+    message.subtype === 'compact_boundary' ||
+    message.subtype === 'thinking_tokens' ||
+    message.subtype === 'permission_denied' ||
+    message.subtype === 'api_retry'
+  )
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -538,7 +550,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         : undefined
     )
-    if (!queued && requiresInputClaim) this.pendingInputClaims -= 1
+    if (!queued) {
+      if (requiresInputClaim) this.pendingInputClaims -= 1
+      throw new Error('Claude Code connection closed before input could be queued')
+    }
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -721,7 +736,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         if (
           this.pendingInputClaims > 0 &&
           this.adapter?.isTurnActive !== true &&
-          message.type !== 'system' &&
+          (message.type !== 'system' || isTurnScopedSystemMessage(message)) &&
           !recoverableResumeResult
         ) {
           if (message.type === 'result') {
