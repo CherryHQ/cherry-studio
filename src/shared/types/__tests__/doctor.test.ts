@@ -31,6 +31,16 @@ describe('DOCTOR_CHECK_CATALOG', () => {
       reversible: true,
       relaunch: true
     })
+    expect(doctorFixMeta('permission-screen-capture', 'request')).toEqual({
+      id: 'request',
+      risk: 'low',
+      reversible: true,
+      relaunch: false
+    })
+  })
+
+  it('runs the API-key check only after the default model is valid', () => {
+    expect(DOCTOR_CHECK_CATALOG['provider-api-key-present'].requires).toEqual(['provider-default-model'])
   })
 })
 
