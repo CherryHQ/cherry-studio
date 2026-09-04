@@ -161,6 +161,22 @@ describe('WebviewAnnotationController selectors', () => {
     expect(resolveWebviewElementSelector(selector!)).toBe(element)
   })
 
+  it('round-trips test attributes that contain the shadow selector separator', () => {
+    const host = document.createElement('section')
+    host.setAttribute('data-testid', 'settings >>> host')
+    const shadowRoot = host.attachShadow({ mode: 'open' })
+    const element = document.createElement('button')
+    element.setAttribute('data-testid', 'save >>> button')
+    shadowRoot.appendChild(element)
+    document.body.appendChild(host)
+
+    const selector = buildWebviewElementSelector(element)
+    document.body.prepend(document.createElement('section'))
+    shadowRoot.prepend(document.createElement('button'))
+
+    expect(resolveWebviewElementSelector(selector!)).toBe(element)
+  })
+
   it('does not read form values and caps page-derived summaries', () => {
     const input = document.createElement('input')
     input.id = 'secret'
