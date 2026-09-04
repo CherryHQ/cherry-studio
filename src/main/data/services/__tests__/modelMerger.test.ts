@@ -458,7 +458,13 @@ describe('mergePresetModel — reasoning', () => {
     } as any
     const wire = {
       off: {
-        operations: [{ target: 'reasoning.enabled' as const, value: { source: 'literal' as const, value: false }, delivery: 'provider-option' as const }]
+        operations: [
+          {
+            target: 'reasoning.enabled' as const,
+            value: { source: 'literal' as const, value: false },
+            delivery: 'provider-option' as const
+          }
+        ]
       },
       effort: {
         operations: [

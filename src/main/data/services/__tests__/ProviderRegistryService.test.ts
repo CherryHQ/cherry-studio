@@ -1005,10 +1005,18 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('self-hosted')
       expect(result.reasoningProfile.wire.auto?.operations).toEqual([
-        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true }, delivery: 'provider-option' }
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: true },
+          delivery: 'request-body'
+        }
       ])
       expect(result.reasoningProfile.wire.off?.operations).toEqual([
-        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false }, delivery: 'provider-option' }
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: false },
+          delivery: 'request-body'
+        }
       ])
     })
 

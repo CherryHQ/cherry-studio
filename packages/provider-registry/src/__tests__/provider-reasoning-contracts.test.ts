@@ -18,7 +18,9 @@ describe('provider reasoning contracts', () => {
   it('encodes OpenRouter Off as an explicit none effort', () => {
     const wire = provider('openrouter').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
 
-    expect(wire?.off?.operations).toEqual([{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }])
+    expect(wire?.off?.operations).toEqual([
+      { target: 'reasoning.effort', value: { source: 'literal', value: 'none' }, delivery: 'request-body' as const }
+    ])
   })
 
   it('uses the documented DeepSeek V4 peak prices as the static catalog ceiling', () => {
@@ -99,13 +101,25 @@ describe('provider reasoning contracts', () => {
       ?.reasoningContracts?.['openai-chat-completions']?.wire
 
     expect(wire?.off?.operations).toEqual([
-      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'disabled' } }
+      {
+        target: 'extra_body.thinking.type',
+        value: { source: 'literal', value: 'disabled' },
+        delivery: 'provider-option' as const
+      }
     ])
     expect(wire?.auto?.operations).toEqual([
-      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'enabled' } }
+      {
+        target: 'extra_body.thinking.type',
+        value: { source: 'literal', value: 'enabled' },
+        delivery: 'provider-option' as const
+      }
     ])
     expect(wire?.effort?.operations).toEqual([
-      { target: 'extra_body.thinking.type', value: { source: 'literal', value: 'enabled' } }
+      {
+        target: 'extra_body.thinking.type',
+        value: { source: 'literal', value: 'enabled' },
+        delivery: 'provider-option' as const
+      }
     ])
   })
 
@@ -130,14 +144,26 @@ describe('provider reasoning contracts', () => {
     expect(
       override('nvidia', 'qwen3-5-122b-a10b').reasoningContracts?.['openai-chat-completions']?.wire?.auto
     ).toMatchObject({
-      operations: [{ target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } }]
+      operations: [
+        {
+          target: 'chat_template_kwargs.enable_thinking',
+          value: { source: 'literal', value: true },
+          delivery: 'provider-option' as const
+        }
+      ]
     })
     expect(override('nvidia', 'kimi-k2-6').reasoningContracts?.['openai-chat-completions']?.wire?.auto).toMatchObject({
-      operations: [{ target: 'chat_template_kwargs.thinking', value: { source: 'literal', value: true } }]
+      operations: [
+        {
+          target: 'chat_template_kwargs.thinking',
+          value: { source: 'literal', value: true },
+          delivery: 'provider-option' as const
+        }
+      ]
     })
     expect(
       override('nvidia', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
-    ).toEqual([{ target: 'reasoning_effort', value: { source: 'effort' } }])
+    ).toEqual([{ target: 'reasoning_effort', value: { source: 'effort' }, delivery: 'provider-option' as const }])
     expect(
       override('nvidia', 'deepseek-v4-pro').reasoningContracts?.['openai-chat-completions']?.support?.controls
     ).toEqual([{ kind: 'effort', values: ['none', 'high', 'max'], default: 'high' }])
@@ -146,7 +172,13 @@ describe('provider reasoning contracts', () => {
   it('uses each audited NVIDIA model endpoint vocabulary instead of one Nemotron family wire', () => {
     expect(
       override('nvidia', 'minimax-m3').reasoningContracts?.['openai-chat-completions']?.wire?.auto?.operations
-    ).toEqual([{ target: 'chat_template_kwargs.thinking_mode', value: { source: 'literal', value: 'adaptive' } }])
+    ).toEqual([
+      {
+        target: 'chat_template_kwargs.thinking_mode',
+        value: { source: 'literal', value: 'adaptive' },
+        delivery: 'provider-option' as const
+      }
+    ])
     expect(
       override('nvidia', 'mistral-small-4-119b').reasoningContracts?.['openai-chat-completions']?.support?.controls
     ).toEqual([{ kind: 'effort', values: ['none', 'high'], default: 'high' }])
@@ -164,7 +196,9 @@ describe('provider reasoning contracts', () => {
     ).toEqual([{ target: 'reasoning_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }])
     expect(
       override('nvidia', 'seed-oss-36b-instruct').reasoningContracts?.['openai-chat-completions']?.wire?.off?.operations
-    ).toEqual([{ target: 'thinking_budget', value: { source: 'literal', value: 0 } }])
+    ).toEqual([
+      { target: 'thinking_budget', value: { source: 'literal', value: 0 }, delivery: 'provider-option' as const }
+    ])
   })
 
   it.each([
@@ -231,11 +265,13 @@ describe('provider reasoning contracts', () => {
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(
       override('poe', 'gpt-5-4').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
-    ).toEqual([{ target: 'extra_body.reasoning_effort', value: { source: 'effort' } }])
+    ).toEqual([
+      { target: 'extra_body.reasoning_effort', value: { source: 'effort' }, delivery: 'provider-option' as const }
+    ])
     expect(
       override('poe', 'claude-sonnet-4-6').reasoningContracts?.['openai-chat-completions']?.wire?.effort?.operations
     ).toEqual([
-      { target: 'extra_body.thinking_budget', value: { source: 'budget' }, delivery: 'provider-option' as const }
+      { target: 'extra_body.thinking_budget', value: { source: 'budget' }, delivery: 'request-body' as const }
     ])
   })
 
