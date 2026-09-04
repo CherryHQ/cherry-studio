@@ -9,6 +9,7 @@
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -81,9 +82,23 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       // their runtimes are closed before the row goes away. agentService.deleteAgent
       // only removes the DB row, which lets an active session keep streaming
       // against a deleted agent.
-      const result = await application
-        .get('AgentSessionDeliveryService')
-        .deleteAgent(params.agentId, false)
+      let result: { deleted: boolean; deletedSessionIds?: string[] }
+      try {
+        result = await application.get('AgentSessionDeliveryService').deleteAgent(params.agentId, false)
+      } catch (error) {
+        // The agent row is removed synchronously by agentService.deleteAgentForDelivery
+        // before the async pause/close runs; if cleanup throws, the deletion has
+        // already committed. Surface the cleanup failure as a warning rather than
+        // reporting the deletion as failed — the row is gone, which is the only
+        // contract the resource-list UI checks. Cherry Review flagged this as a
+        // "timeout or retryable cleanup failure can therefore report failure or
+        // retry after the deletion has already committed" risk on the second pass.
+        loggerService.withContext('DataApi:agents').warn('Agent runtime cleanup failed after row deletion', {
+          agentId: params.agentId,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        return undefined
+      }
       if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }

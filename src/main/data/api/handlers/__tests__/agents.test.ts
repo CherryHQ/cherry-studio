@@ -71,6 +71,17 @@ vi.mock('@application', () => ({
   }
 }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      warn: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn()
+    })
+  }
+}))
+
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
 
@@ -208,6 +219,17 @@ describe('agentHandlers', () => {
 
       expect(deliveryServiceMock).toHaveBeenCalledOnce()
       expect(deliveryServiceMock).toHaveBeenCalledWith(AGENT_ID, false)
+      expect(result).toBeUndefined()
+    })
+
+    it('returns undefined and logs a warning when runtime cleanup throws after row deletion', async () => {
+      // agentService.deleteAgentForDelivery removes the row synchronously before
+      // the async pause/close path runs. If cleanup throws, the deletion itself
+      // has committed — surface the error as a warning, not a 5xx.
+      deliveryServiceMock.mockRejectedValueOnce(new Error('runtime unavailable'))
+
+      const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
+
       expect(result).toBeUndefined()
     })
 
