@@ -1,3 +1,4 @@
+import { application } from '@application'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -64,6 +65,15 @@ vi.mock('../adapters', () => ({
 }))
 
 import { processMessage } from '../proxyStream'
+
+const applicationGet = vi.mocked(application.get)
+const resolveApplicationService = applicationGet.getMockImplementation()
+applicationGet.mockImplementation(((name: string) => {
+  const service = resolveApplicationService?.(name as never)
+  return name === 'ApiGatewayService' && service
+    ? { ...service, isInternalSupportRequest: vi.fn(() => false) }
+    : service
+}) as typeof application.get)
 
 beforeEach(() => {
   vi.clearAllMocks()
