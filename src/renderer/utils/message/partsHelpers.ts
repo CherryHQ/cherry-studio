@@ -55,39 +55,20 @@ export function hasTranslationParts(parts: CherryMessagePart[]): boolean {
 }
 
 /**
- * Assistant edits rebuild text/file parts as one Composer draft. The edited text is saved
- * as the message's new content and reused as conversation context in the next turn.
- * Provider-derived metadata (item ids, citations, composer snapshots, thought signatures)
- * is dropped with the old text — allowing uniform editing of messages that previously
- * failed the metadata gate — but interleaved shapes that Composer cannot round-trip
- * without reordering (e.g. `text → tool → text`, `file → text`, `text → file → text`)
- * remain non-editable to avoid collapsing `"before → tool → after"` into
- * `"before\\n\\nafter → tool"` on save. Translation parts are derived and removed on save.
+ * Assistant edits rebuild text parts as one Composer draft, with an anchor chip holding the place
+ * of every `reasoning`/tool part between them, so saving moves text only. The edited text becomes
+ * the message's new content and its next-turn context; provider-derived metadata (item ids,
+ * citations, composer snapshots, thought signatures) is dropped with the old text, and translation
+ * parts are derived and removed. Files have no anchor — Composer always re-emits attachments after
+ * the text — so a `file` ahead of any text still cannot round-trip without reordering.
  */
 export function canEditAssistantMessageParts(parts: CherryMessagePart[]): boolean {
   if (!hasTextParts(parts)) return false
 
-  let hasEditablePart = false
   let hasFile = false
-  let editableRunEnded = false
-
   for (const part of parts) {
-    if (part.type === 'data-translation') continue
-
-    if (part.type === 'text') {
-      if (editableRunEnded || hasFile) return false
-      hasEditablePart = true
-      continue
-    }
-
-    if (part.type === 'file') {
-      if (editableRunEnded) return false
-      hasEditablePart = true
-      hasFile = true
-      continue
-    }
-
-    if (hasEditablePart) editableRunEnded = true
+    if (part.type === 'file') hasFile = true
+    else if (part.type === 'text' && hasFile) return false
   }
 
   return true

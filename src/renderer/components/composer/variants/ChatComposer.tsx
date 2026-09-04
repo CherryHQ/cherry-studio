@@ -78,7 +78,11 @@ import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
 import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
-import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
+import {
+  createEditableMessageDraft,
+  getEditableKnowledgeBases,
+  replaceEditedMessageParts
+} from './chat/messageEditingDraft'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
 import {
   chatComposerTokenId,
@@ -194,28 +198,6 @@ interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 's
 }
 
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
-
-const isComposerEditableMessagePart = (part: CherryMessagePart) => part.type === 'text' || part.type === 'file'
-
-// Composer edits as a single text field: the draft joins all text parts (`\n\n`) and
-// rebuilds files from tokens. Saving replaces the first editable part with the rebuilt
-// draft and drops trailing editable parts — non-editable `reasoning`/`dynamic-tool` blocks
-// stay in place and `data-translation` is removed. Interleaved shapes such as
-// [text "before", tool, text "after"] are blocked by `canEditAssistantMessageParts` and
-// never reach this path, so no reordering occurs on save.
-const replaceComposerEditableMessageParts = (
-  originalParts: CherryMessagePart[],
-  editedParts: CherryMessagePart[]
-): CherryMessagePart[] => {
-  const firstEditablePartIndex = originalParts.findIndex(isComposerEditableMessagePart)
-  if (firstEditablePartIndex === -1) return editedParts
-
-  return originalParts.flatMap((part, index) => {
-    if (part.type === 'data-translation') return []
-    if (!isComposerEditableMessagePart(part)) return [part]
-    return index === firstEditablePartIndex ? editedParts : []
-  })
-}
 
 type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
   topBarPortalAvailable: boolean
@@ -1599,7 +1581,7 @@ const ChatComposerInner = ({
       const knowledgeBaseIds = selectedKnowledgeBasesInScope
         .filter((base) => tokenIds.has(chatComposerTokenId.knowledge(base)))
         .map((base) => base.id)
-      return withKnowledgeScopePart(messageParts, knowledgeBaseIds)
+      return { draft: normalizedDraft, parts: withKnowledgeScopePart(messageParts, knowledgeBaseIds) }
     },
     [files, selectedKnowledgeBasesInScope]
   )
@@ -1625,12 +1607,12 @@ const ChatComposerInner = ({
       editSaveInFlightSessionIdRef.current = editingSessionId
       setSavingEditingSessionId(editingSessionId)
       try {
-        const editedParts = await buildEditedMessageParts(draft)
-        if (!editedParts) return
+        const edited = await buildEditedMessageParts(draft)
+        if (!edited) return
 
         const savedParts = isAssistantReply
-          ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
-          : editedParts
+          ? replaceEditedMessageParts(editingMessageForCurrentTopic.parts, edited.draft, edited.parts)
+          : edited.parts
         if (isAssistantReply || !resend) {
           await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
         } else {

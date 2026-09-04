@@ -31,6 +31,13 @@ describe('canEditAssistantMessageParts', () => {
       messageParts: parts({ type: 'text', text: 'first paragraph' }, { type: 'text', text: 'second paragraph' })
     },
     {
+      messageParts: parts(
+        { type: 'text', text: 'before tool' },
+        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
+        { type: 'text', text: 'after tool' }
+      )
+    },
+    {
       messageParts: parts({
         type: 'text',
         text: 'answer with safe composer metadata',
@@ -159,14 +166,7 @@ describe('canEditAssistantMessageParts', () => {
     { messageParts: parts({ type: 'file', mediaType: 'image/png', url: 'file:///result.png' }) },
     { messageParts: parts({ type: 'text', text: '   ' }) },
     { messageParts: parts() },
-    // Interleaved editable parts require reordering to save, so they stay blocked
-    {
-      messageParts: parts(
-        { type: 'text', text: 'before tool' },
-        { type: 'dynamic-tool', toolCallId: 'tool-1', toolName: 'read', state: 'output-available' },
-        { type: 'text', text: 'after tool' }
-      )
-    },
+    // Files have no anchor and are always re-emitted after the text, so these still reorder
     {
       messageParts: parts(
         { type: 'file', mediaType: 'image/png', url: 'file:///result.png' },
@@ -180,7 +180,7 @@ describe('canEditAssistantMessageParts', () => {
         { type: 'text', text: 'after file' }
       )
     }
-  ])('is not editable when the message has no text or interleaved parts', ({ messageParts }) => {
+  ])('is not editable when the message has no text or a file ahead of it', ({ messageParts }) => {
     expect(canEditAssistantMessageParts(messageParts)).toBe(false)
   })
 })
