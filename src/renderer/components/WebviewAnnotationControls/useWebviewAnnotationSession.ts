@@ -1,10 +1,5 @@
-import { Badge, Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { toast } from '@renderer/services/toast'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotation,
@@ -14,19 +9,18 @@ import {
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
 import type { WebviewTag } from 'electron'
-import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
-const logger = loggerService.withContext('WebviewAnnotationControls')
+const logger = loggerService.withContext('useWebviewAnnotationSession')
 const SNAPSHOT_TIMEOUT_MS = 2_000
 const EMPTY_STATE = { enabled: false, count: 0 }
 
-interface Props {
+interface Options {
   webview: WebviewTag | null
-  isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
+  locale: WebviewAnnotationLocale
+  theme: 'light' | 'dark'
 }
 
 interface Binding {
@@ -48,12 +42,9 @@ interface CopyOperation extends Binding {
   generation: number
 }
 
-export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActive, target }: Props) {
-  const { t } = useTranslation()
-  const { theme } = useTheme()
+export function useWebviewAnnotationSession({ webview, isHostActive, target, locale, theme }: Options) {
   const [state, setState] = useState(EMPTY_STATE)
-  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
-  const [isCopying, setIsCopying] = useState(false)
+  const [copying, setCopying] = useState(false)
   const bindingRef = useRef<Binding | null>(null)
   const sessionRef = useRef<string | null>(null)
   const retiredSessionsRef = useRef(new Set<string>())
@@ -63,22 +54,10 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
   const generationRef = useRef(0)
   const targetRef = useRef(target)
   const hostActiveRef = useRef(isHostActive)
+  const configurationRef = useRef({ locale, theme })
   targetRef.current = target
   hostActiveRef.current = isHostActive
-
-  const locale = useMemo<WebviewAnnotationLocale>(
-    () => ({
-      placeholder: t('webview.annotation.placeholder'),
-      save: t('webview.annotation.save'),
-      cancel: t('webview.annotation.cancel'),
-      delete: t('webview.annotation.delete'),
-      edit: t('webview.annotation.edit'),
-      elementUnavailable: t('webview.annotation.element_unavailable')
-    }),
-    [t]
-  )
-  const configurationRef = useRef({ locale, theme: 'light' as 'light' | 'dark' })
-  configurationRef.current = { locale, theme: theme === ThemeMode.dark ? 'dark' : 'light' }
+  configurationRef.current = { locale, theme }
 
   const sendCommand = useCallback((attachedWebview: WebviewTag, command: WebviewAnnotationHostCommand): boolean => {
     try {
@@ -222,12 +201,11 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
   }, [invalidateOperation, sendCommand, target.id])
 
   useEffect(() => {
-    if (!isWebviewReady) return
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (!binding || !sessionId) return
     sendCommand(binding.webview, { type: 'configure', sessionId, ...configurationRef.current })
-  }, [isWebviewReady, locale, sendCommand, target.label, theme])
+  }, [locale, sendCommand, target.label, theme])
 
   useEffect(() => {
     const binding = bindingRef.current
@@ -241,33 +219,36 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
     }
   }, [isHostActive, sendCommand])
 
-  const handleToggle = () => {
+  const toggle = useCallback(() => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (!binding || !sessionId) return
     const enabled = !state.enabled
     if (!sendCommand(binding.webview, { type: 'set_enabled', sessionId, enabled })) return
     setState((current) => ({ ...current, enabled }))
-  }
+  }, [sendCommand, state.enabled])
 
-  const requestSnapshot = (operation: CopyOperation) =>
-    new Promise<WebviewAnnotation[]>((resolve, reject) => {
-      const requestId = crypto.randomUUID()
-      const timeout = setTimeout(() => {
-        const pending = pendingSnapshotRef.current
-        if (!pending || pending.sessionId !== operation.sessionId || pending.requestId !== requestId) return
-        pendingSnapshotRef.current = null
-        reject(new Error('Timed out waiting for webview annotation snapshot'))
-      }, SNAPSHOT_TIMEOUT_MS)
-      pendingSnapshotRef.current = { sessionId: operation.sessionId, requestId, resolve, reject, timeout }
-      if (!sendCommand(operation.webview, { type: 'request_snapshot', sessionId: operation.sessionId, requestId })) {
-        pendingSnapshotRef.current = null
-        clearTimeout(timeout)
-        reject(new Error('Failed to request webview annotation snapshot'))
-      }
-    })
+  const requestSnapshot = useCallback(
+    (operation: CopyOperation) =>
+      new Promise<WebviewAnnotation[]>((resolve, reject) => {
+        const requestId = crypto.randomUUID()
+        const timeout = setTimeout(() => {
+          const pending = pendingSnapshotRef.current
+          if (!pending || pending.sessionId !== operation.sessionId || pending.requestId !== requestId) return
+          pendingSnapshotRef.current = null
+          reject(new Error('Timed out waiting for webview annotation snapshot'))
+        }, SNAPSHOT_TIMEOUT_MS)
+        pendingSnapshotRef.current = { sessionId: operation.sessionId, requestId, resolve, reject, timeout }
+        if (!sendCommand(operation.webview, { type: 'request_snapshot', sessionId: operation.sessionId, requestId })) {
+          pendingSnapshotRef.current = null
+          clearTimeout(timeout)
+          reject(new Error('Failed to request webview annotation snapshot'))
+        }
+      }),
+    [sendCommand]
+  )
 
-  const isOperationCurrent = (operation: CopyOperation) => {
+  const isOperationCurrent = useCallback((operation: CopyOperation) => {
     const binding = bindingRef.current
     if (
       operationRef.current !== operation ||
@@ -285,9 +266,9 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
     } catch {
       return false
     }
-  }
+  }, [])
 
-  const handleCopy = async () => {
+  const copy = useCallback(async () => {
     if (copyInFlightRef.current || state.count === 0) return
     const binding = bindingRef.current
     const sessionId = sessionRef.current
@@ -300,7 +281,7 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
     }
     operationRef.current = operation
     copyInFlightRef.current = true
-    setIsCopying(true)
+    setCopying(true)
     try {
       const annotations = await requestSnapshot(operation)
       if (annotations.length === 0 || !isOperationCurrent(operation)) throw new Error('Annotation snapshot is stale')
@@ -312,100 +293,28 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
       })
       if (!markdown || !isOperationCurrent(operation)) throw new Error('Annotation export is stale')
       await navigator.clipboard.writeText(markdown)
-      toast.success(t('webview.annotation.copied'))
-    } catch (error) {
-      logger.error('Failed to copy webview annotations', error as Error, { targetId: operation.target.id })
-      toast.error(t('webview.annotation.copy_failed'))
     } finally {
       if (operationRef.current === operation) operationRef.current = null
       copyInFlightRef.current = false
-      setIsCopying(false)
+      setCopying(false)
     }
-  }
+  }, [isOperationCurrent, requestSnapshot, state.count])
 
-  const handleClear = () => {
+  const clear = useCallback(() => {
     const binding = bindingRef.current
     const sessionId = sessionRef.current
-    if (!binding || !sessionId || !sendCommand(binding.webview, { type: 'clear', sessionId })) return
+    if (!binding || !sessionId || !sendCommand(binding.webview, { type: 'clear', sessionId })) return false
     invalidateOperation('Annotations cleared')
-    setClearConfirmOpen(false)
     setState((current) => ({ ...current, count: 0 }))
+    return true
+  }, [invalidateOperation, sendCommand])
+
+  return {
+    ...state,
+    ready: Boolean(webview && sessionRef.current),
+    copying,
+    toggle,
+    clear,
+    copy
   }
-
-  const disabled = !isWebviewReady || !isHostActive || !sessionRef.current
-  const annotationLabel = state.enabled ? t('webview.annotation.disable_mode') : t('webview.annotation.enable_mode')
-
-  return (
-    <>
-      <div className="flex items-center gap-0.5">
-        <Tooltip content={annotationLabel} placement="bottom">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={disabled}
-            onClick={handleToggle}
-            className={controlButtonClassName(state.enabled)}
-            aria-label={annotationLabel}
-            aria-pressed={state.enabled}>
-            <MousePointer2 size={14} />
-          </Button>
-        </Tooltip>
-
-        {state.count > 0 && (
-          <>
-            <Badge
-              variant="secondary"
-              className="h-4 min-w-4 border-0 px-1 text-[10px] text-muted-foreground tabular-nums"
-              aria-label={t('webview.annotation.count', { count: state.count })}>
-              {state.count}
-            </Badge>
-            <Tooltip content={t('webview.annotation.copy')} placement="bottom">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                disabled={disabled || isCopying}
-                onClick={() => void handleCopy()}
-                className={controlButtonClassName()}
-                aria-label={t('webview.annotation.copy')}>
-                {isCopying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-              </Button>
-            </Tooltip>
-            <Tooltip content={t('webview.annotation.clear')} placement="bottom">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                disabled={disabled}
-                onClick={() => setClearConfirmOpen(true)}
-                className={controlButtonClassName()}
-                aria-label={t('webview.annotation.clear')}>
-                <Trash2 size={14} />
-              </Button>
-            </Tooltip>
-          </>
-        )}
-      </div>
-
-      <ConfirmDialog
-        open={clearConfirmOpen}
-        onOpenChange={setClearConfirmOpen}
-        title={t('webview.annotation.clear_title')}
-        description={t('webview.annotation.clear_description')}
-        confirmText={t('webview.annotation.clear')}
-        cancelText={t('webview.annotation.cancel')}
-        destructive
-        onConfirm={handleClear}
-      />
-    </>
-  )
 }
-
-const controlButtonClassName = (active = false) =>
-  cn(
-    'rounded shadow-none active:scale-95',
-    active
-      ? 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-      : 'text-muted-foreground hover:text-foreground'
-  )
