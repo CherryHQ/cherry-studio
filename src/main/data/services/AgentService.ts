@@ -841,7 +841,7 @@ export class AgentService {
 
           if (permanent) {
             const sessionImpact = agentSessionService.prepareForAgentDeletionTx(tx, id, {
-              deleteSessions: options.deleteSessions === true
+              deleteSessions: false
             })
             return { ...this.deleteAgentTx(tx, id), sessionImpact }
           }
@@ -877,6 +877,7 @@ export class AgentService {
             rowsAffected: result.changes,
             sessionImpact: {
               sessionIds,
+              deletedSessionIds: trashed.trashedIds,
               taskScheduleIds: trashed.taskScheduleIds,
               changeKind: trashed.trashedIds.length > 0 ? ('membership' as const) : ('projection' as const),
               deliveryResults: trashed.deliveryResults
@@ -902,7 +903,13 @@ export class AgentService {
       else this._onAgentTrashed.fire({ agentId: id })
     }
     if (deleted) pinService.notifyPurged()
-    const deletedSessionIds = options.deleteSessions === true ? result.sessionImpact?.sessionIds : undefined
+    const deletedSessionIds =
+      !permanent &&
+      options.deleteSessions === true &&
+      result.sessionImpact &&
+      'deletedSessionIds' in result.sessionImpact
+        ? result.sessionImpact.deletedSessionIds
+        : undefined
     return {
       deleted,
       deletedSessionIds,
