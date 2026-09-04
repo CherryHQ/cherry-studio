@@ -468,7 +468,7 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toMatch(/no items/i)
   })
 
-  it('runs kb_manage add within the bound scope, building the add input from an absolute file path', async () => {
+  it('runs kb_manage add within the bound scope, storing the full path as source (REGRESSION #19954)', async () => {
     kbAddItems.mockResolvedValue({ status: 'added' })
 
     const result = await callCherryBuiltinTool(
@@ -478,10 +478,10 @@ describe('cherryBuiltinTools', () => {
     )
 
     expect(kbAddItems).toHaveBeenCalledWith('b1', [
-      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+      { type: 'file', data: { source: '/Users/me/docs/report.pdf', path: '/Users/me/docs/report.pdf' } }
     ])
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['report.pdf'] })
+    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['/Users/me/docs/report.pdf'] })
   })
 
   it('runs kb_manage delete within the bound scope, forwarding conceptIds and the applied/notFound split', async () => {
