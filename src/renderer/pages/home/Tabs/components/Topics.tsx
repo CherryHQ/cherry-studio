@@ -10,6 +10,7 @@ import type {
   TopicExportMenuOptions,
   TopicMoveAssistantTarget
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   buildResourceListGroupDropAnchor,
@@ -989,64 +990,64 @@ export function Topics({
     async (assistantId: string) => {
       if (deletingAssistantId) return
 
-      setDeletingAssistantId(assistantId)
-      try {
-        const assistantName = assistantById.get(assistantId)?.name ?? t('common.unnamed')
-        const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
-
-        let result
+      const assistantName = assistantById.get(assistantId)?.name ?? t('common.unnamed')
+      const performDelete = async (deleteTopics: boolean) => {
+        const currentActiveTopicId = activeTopicIdRef.current
+        setDeletingAssistantId(assistantId)
         try {
-          result = await deleteAssistant(assistantId, { deleteTopics: true })
-        } catch (err) {
-          if (!isDataApiNotFoundError(err)) throw err
-          await refreshAssistantResources()
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-        if (!result.deleted) {
-          await refreshAssistantResources()
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-
-        showRecycleBinUndo({
-          itemName: assistantName,
-          onUndo: () =>
-            restoreRecycleBinItem({
-              id: assistantId,
-              restore: restoreAssistant,
-              getActive: (id) => dataApiService.get(`/assistants/${id}`),
-              refresh: refreshAssistantResources
-            })
-        })
-        closeConversationTabs('assistants', result.deletedTopicIds ?? [])
-        if (activeTopic?.assistantId === assistantId) {
+          let result
           try {
-            await onActiveAssistantDeleted?.(assistantId)
+            result = await deleteAssistant(assistantId, { deleteTopics })
           } catch (err) {
-            logger.warn('Failed to reconcile active Assistant after deletion from topic group', { assistantId, err })
+            if (!isDataApiNotFoundError(err)) throw err
+            await refreshAssistantResources()
+            toast.info(t('recycle_bin.already_moved'))
+            return
           }
-        }
+          if (!result.deleted) {
+            await refreshAssistantResources()
+            toast.info(t('recycle_bin.already_moved'))
+            return
+          }
 
-        await refreshAssistantResources()
-      } catch (err) {
-        logger.error('Failed to delete assistant from topic group', { assistantId, err })
-        toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
-      } finally {
-        setDeletingAssistantId(null)
+          showRecycleBinUndo({
+            itemName: assistantName,
+            onUndo: () =>
+              restoreRecycleBinItem({
+                id: assistantId,
+                restore: restoreAssistant,
+                getActive: (id) => dataApiService.get(`/assistants/${id}`),
+                refresh: refreshAssistantResources
+              })
+          })
+          const deletedTopicIds = result.deletedTopicIds ?? []
+          if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
+          if (currentActiveTopicId && deletedTopicIds.includes(currentActiveTopicId)) {
+            try {
+              await onActiveAssistantDeleted?.(assistantId)
+            } catch (err) {
+              logger.warn('Failed to reconcile active Assistant after deletion from topic group', {
+                assistantId,
+                err
+              })
+            }
+          }
+
+          await refreshAssistantResources()
+        } catch (err) {
+          logger.error('Failed to delete assistant from topic group', { assistantId, err })
+          throw err
+        } finally {
+          setDeletingAssistantId(null)
+        }
       }
+
+      await deleteConversationOwnerPopup.show({
+        type: 'assistant',
+        action: performDelete
+      })
     },
     [
-      activeTopic?.assistantId,
       assistantById,
       closeConversationTabs,
       deleteAssistant,

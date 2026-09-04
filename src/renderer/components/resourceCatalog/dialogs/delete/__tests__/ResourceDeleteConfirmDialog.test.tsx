@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   restoreSession: vi.fn(),
   showRecycleBinBatchUndo: vi.fn(),
   showRecycleBinUndo: vi.fn(),
+  toastError: vi.fn(),
   toastInfo: vi.fn(),
   uninstallSkill: vi.fn()
 }))
@@ -35,9 +36,14 @@ vi.mock('react-i18next', () => ({
           'library.action.uninstall': 'Uninstall',
           'library.delete.skill.content': 'Uninstall skill content',
           'library.delete.skill.title': 'Uninstall skill',
+          'agent.session.agent.delete.content': 'Delete all sessions without deleting the Agent.',
+          'agent.session.agent.delete.title': 'Delete all sessions',
+          'agent.session.agent.delete.trigger': 'Delete all sessions',
           'recycle_bin.already_moved': 'Already in Recycle Bin',
           'recycle_bin.move.confirm_action': 'Move to Recycle Bin',
           'recycle_bin.move.confirm_title': 'Move to Recycle Bin?',
+          'recycle_bin.move.related_sessions': 'Also move related sessions to the Recycle Bin',
+          'recycle_bin.move.related_topics': 'Also move related topics to the Recycle Bin',
           'settings.prompts.delete': 'Delete prompt',
           'settings.prompts.deleteConfirm': 'Delete prompt content'
         }) satisfies Record<string, string>
@@ -78,7 +84,7 @@ vi.mock('@renderer/services/recycleBinFeedback', () => ({
 }))
 vi.mock('@renderer/services/toast', () => ({
   toast: {
-    error: vi.fn(),
+    error: mocks.toastError,
     info: mocks.toastInfo
   }
 }))
@@ -127,9 +133,10 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('moves an Agent with Sessions to the Recycle Bin and offers a refreshing Undo', async () => {
+  it('moves an Agent without its Sessions by default and offers a refreshing Undo', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
+    mocks.ipcRequest.mockResolvedValueOnce({ deleted: true, deletedSessionIds: [] })
 
     render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={onClose} />)
 
@@ -140,9 +147,10 @@ describe('ResourceDeleteConfirmDialog', () => {
     await waitFor(() =>
       expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
         agentId: 'agent-1',
-        deleteSessions: true
+        deleteSessions: false
       })
     )
+    expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'agent name',
       onUndo: expect.any(Function)
@@ -154,6 +162,24 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     expect(mocks.invalidate).toHaveBeenCalledWith('/agents')
     expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
+  })
+
+  it('moves only the returned Agent Sessions when cascade is selected', async () => {
+    const user = userEvent.setup()
+    mocks.ipcRequest.mockResolvedValueOnce({ deleted: true, deletedSessionIds: ['session-2'] })
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('agent')} onClose={vi.fn()} />)
+
+    await user.click(screen.getByLabelText('Also move related sessions to the Recycle Bin'))
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() =>
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.delete', {
+        agentId: 'agent-1',
+        deleteSessions: true
+      })
+    )
+    expect(mocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-2'])
   })
 
   it('treats an Agent restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
@@ -176,7 +202,9 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: ['session-1', 'session-2'] })
 
     render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete all sessions without deleting the Agent.')
+    await user.click(screen.getByRole('button', { name: 'Delete all sessions' }))
 
     await waitFor(() =>
       expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
@@ -204,7 +232,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     mocks.ipcRequest.mockResolvedValueOnce({ deletedIds: [] })
 
     render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Delete all sessions' }))
 
     await waitFor(() => expect(mocks.toastInfo).toHaveBeenCalledWith('Already in Recycle Bin'))
     expect(mocks.ipcRequest).toHaveBeenCalledWith('ai.agent.sessions.delete', { agentId: 'agent-1' })
@@ -215,14 +243,15 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.invalidate).toHaveBeenCalledWith('/agent-sessions')
   })
 
-  it('moves an Assistant with Topics to the Recycle Bin and offers a refreshing Undo', async () => {
+  it('moves an Assistant without its Topics by default and offers a refreshing Undo', async () => {
     const user = userEvent.setup()
+    mocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: [] })
 
     render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
 
-    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))
-    expect(mocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: false }))
+    expect(mocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(mocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'assistant name',
       onUndo: expect.any(Function)
@@ -233,6 +262,37 @@ describe('ResourceDeleteConfirmDialog', () => {
     expect(mocks.restoreAssistant).toHaveBeenCalledWith({ params: { id: 'assistant-1' } })
     expect(mocks.invalidate).toHaveBeenCalledWith('/assistants')
     expect(mocks.invalidate).toHaveBeenCalledWith('/topics')
+  })
+
+  it('moves only the returned Assistant Topics when cascade is selected', async () => {
+    const user = userEvent.setup()
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={vi.fn()} />)
+
+    await user.click(screen.getByLabelText('Also move related topics to the Recycle Bin'))
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() => expect(mocks.deleteAssistant).toHaveBeenCalledWith({ deleteTopics: true }))
+    expect(mocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1'])
+  })
+
+  it('keeps the owner dialog open after a failed delete and allows retry', async () => {
+    const user = userEvent.setup()
+    mocks.deleteAssistant.mockRejectedValueOnce(new Error('delete failed')).mockResolvedValueOnce({
+      deleted: true,
+      deletedTopicIds: []
+    })
+    const onClose = vi.fn()
+
+    render(<ResourceDeleteConfirmDialog resource={createResource('assistant')} onClose={onClose} />)
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalled())
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
   it('treats an Assistant restore NOT_FOUND as complete only when refresh confirms it is active', async () => {
@@ -276,7 +336,7 @@ describe('ResourceDeleteConfirmDialog', () => {
     )
 
     render(<ResourceDeleteConfirmDialog resource={createProtectedAgentResource()} onClose={vi.fn()} />)
-    await user.click(screen.getByRole('button', { name: 'Move to Recycle Bin' }))
+    await user.click(screen.getByRole('button', { name: 'Delete all sessions' }))
     await waitFor(() => expect(mocks.showRecycleBinBatchUndo).toHaveBeenCalled())
 
     await expect(mocks.showRecycleBinBatchUndo.mock.calls.at(-1)?.[0].onUndo()).resolves.toEqual({

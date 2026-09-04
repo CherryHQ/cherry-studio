@@ -3,6 +3,7 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import {
   ResourceEditDialogHost,
@@ -55,6 +56,7 @@ const UNLINKED_ASSISTANT_ENTITY_ID = 'assistant-entity:unlinked'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
+  activeTopicId?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
   manageAssistantsActive?: boolean
@@ -76,6 +78,7 @@ type AssistantResourceListProps = {
 
 export function AssistantResourceList({
   activeAssistantId,
+  activeTopicId,
   dataEnabled = true,
   historyRecordsActive = false,
   manageAssistantsActive = false,
@@ -431,86 +434,80 @@ export function AssistantResourceList({
     async (assistantId: string) => {
       if (deletingAssistantId) return
 
-      setDeletingAssistantId(assistantId)
-      try {
-        const assistantName = assistants.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
-        const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          okButtonProps: {
-            danger: true
-          }
-        })
-        if (!confirmed) return
-
-        let result
+      const assistantName = assistants.find((assistant) => assistant.id === assistantId)?.name ?? t('common.unnamed')
+      const performDelete = async (deleteTopics: boolean) => {
+        setDeletingAssistantId(assistantId)
         try {
-          result = await deleteAssistant(assistantId, { deleteTopics: true })
-        } catch (err) {
-          if (!isDataApiNotFoundError(err)) throw err
-          await Promise.allSettled([refreshAssistants(), refreshTopics()])
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-        if (!result.deleted) {
-          await Promise.allSettled([refreshAssistants(), refreshTopics()])
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-        closeConversationTabs('assistants', result.deletedTopicIds ?? [])
-        if (activeAssistantId === assistantId) {
+          let result
           try {
-            await onActiveAssistantDeleted?.(assistantId)
+            result = await deleteAssistant(assistantId, { deleteTopics })
           } catch (err) {
-            logger.warn('Failed to reconcile active Assistant after deletion from classic-layout rail', {
+            if (!isDataApiNotFoundError(err)) throw err
+            await Promise.allSettled([refreshAssistants(), refreshTopics()])
+            toast.info(t('recycle_bin.already_moved'))
+            return
+          }
+          if (!result.deleted) {
+            await Promise.allSettled([refreshAssistants(), refreshTopics()])
+            toast.info(t('recycle_bin.already_moved'))
+            return
+          }
+          const deletedTopicIds = result.deletedTopicIds ?? []
+          if (deletedTopicIds.length > 0) closeConversationTabs('assistants', deletedTopicIds)
+          if (activeTopicId && deletedTopicIds.includes(activeTopicId)) {
+            try {
+              await onActiveAssistantDeleted?.(assistantId)
+            } catch (err) {
+              logger.warn('Failed to reconcile active Assistant after deletion from classic-layout rail', {
+                assistantId,
+                err
+              })
+            }
+          }
+
+          try {
+            await refreshAssistants()
+          } catch (err) {
+            logger.warn('Failed to refresh Assistants after deletion from classic-layout rail', { assistantId, err })
+          }
+          try {
+            await refreshTopics()
+          } catch (err) {
+            logger.warn('Failed to refresh Topics after Assistant deletion from classic-layout rail', {
               assistantId,
               err
             })
           }
-        }
-
-        try {
-          await refreshAssistants()
-        } catch (err) {
-          logger.warn('Failed to refresh Assistants after deletion from classic-layout rail', { assistantId, err })
-        }
-        try {
-          await refreshTopics()
-        } catch (err) {
-          logger.warn('Failed to refresh Topics after Assistant deletion from classic-layout rail', {
-            assistantId,
-            err
-          })
-        }
-        showRecycleBinUndo({
-          itemName: assistantName,
-          onUndo: async () => {
-            try {
-              await restoreAssistant(assistantId)
-            } catch (err) {
-              if (!isDataApiNotFoundError(err)) throw err
-              await refreshAfterRestore()
+          showRecycleBinUndo({
+            itemName: assistantName,
+            onUndo: async () => {
               try {
-                await dataApiService.get(`/assistants/${assistantId}`)
-                return
-              } catch {
-                throw err
+                await restoreAssistant(assistantId)
+              } catch (err) {
+                if (!isDataApiNotFoundError(err)) throw err
+                await refreshAfterRestore()
+                try {
+                  await dataApiService.get(`/assistants/${assistantId}`)
+                  return
+                } catch {
+                  throw err
+                }
               }
+              await refreshAfterRestore()
             }
-            await refreshAfterRestore()
-          }
-        })
-      } catch (err) {
-        logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
-        toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
-      } finally {
-        setDeletingAssistantId(null)
+          })
+        } catch (err) {
+          logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
+          throw err
+        } finally {
+          setDeletingAssistantId(null)
+        }
       }
+
+      await deleteConversationOwnerPopup.show({ type: 'assistant', action: performDelete })
     },
     [
-      activeAssistantId,
+      activeTopicId,
       assistants,
       closeConversationTabs,
       deleteAssistant,

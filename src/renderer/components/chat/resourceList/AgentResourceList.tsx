@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import {
   ResourceEditDialogHost,
@@ -51,6 +52,7 @@ type SessionListItem = AgentSessionEntity & {
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  activeSessionId?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
   manageAgentsActive?: boolean
@@ -72,6 +74,7 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  activeSessionId,
   dataEnabled = true,
   historyRecordsActive = false,
   manageAgentsActive = false,
@@ -250,16 +253,121 @@ export function AgentResourceList({
     async (agentId: string) => {
       if (deletingAgentId) return
 
-      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+      const deleteSessionsOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === agentId)?.configuration?.builtin_role
       )
       const agentName = agents.find((agent) => agent.id === agentId)?.name ?? t('common.unnamed')
 
-      setDeletingAgentId(agentId)
-      try {
+      const performDelete = async (deleteSessions: boolean) => {
+        setDeletingAgentId(agentId)
+        try {
+          let deletedSessionIds: string[] = []
+          let deletionChangedState = false
+          if (deleteSessionsOnly) {
+            const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
+            deletedSessionIds = result.deletedIds
+            deletionChangedState = deletedSessionIds.length > 0
+          } else {
+            const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions })
+            deletionChangedState = result.deleted
+            deletedSessionIds = result.deletedSessionIds ?? []
+          }
+          if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
+
+          const invalidateOutcomes = await Promise.allSettled(
+            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+              invalidate(key)
+            )
+          )
+          if (invalidateOutcomes.some((outcome) => outcome.status === 'rejected')) {
+            logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId })
+          }
+          const reloadResources = async () => {
+            try {
+              await Promise.all([...(deleteSessionsOnly ? [] : [refetchAgents()]), reload()])
+            } catch (err) {
+              logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
+            }
+          }
+          if (!deletionChangedState) {
+            await reloadResources()
+            toast.info(t('recycle_bin.already_moved'))
+            return
+          }
+
+          if (activeSessionId && deletedSessionIds.includes(activeSessionId)) {
+            try {
+              await onActiveAgentDeleted?.(agentId)
+            } catch (err) {
+              logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
+            }
+          }
+
+          await reloadResources()
+          if (deleteSessionsOnly) {
+            showRecycleBinBatchUndo({
+              itemCount: deletedSessionIds.length,
+              onUndo: async () => {
+                const outcomes = await Promise.allSettled(
+                  deletedSessionIds.map((sessionId) => restoreSession({ params: { sessionId } }))
+                )
+                await refreshAfterRestore()
+                const activeAfterNotFound = await Promise.all(
+                  outcomes.map(async (outcome, index) => {
+                    if (outcome.status === 'fulfilled' || !isDataApiNotFoundError(outcome.reason)) return false
+                    try {
+                      await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
+                      return true
+                    } catch {
+                      return false
+                    }
+                  })
+                )
+                return outcomes.reduce(
+                  (result, outcome, index) => {
+                    const sessionId = deletedSessionIds[index]
+                    if (outcome.status === 'fulfilled' || activeAfterNotFound[index]) result.restored.push(sessionId)
+                    else result.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
+                    return result
+                  },
+                  { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
+                )
+              }
+            })
+          } else {
+            showRecycleBinUndo({
+              itemName: agentName,
+              onUndo: async () => {
+                try {
+                  await restoreAgent({ params: { agentId } })
+                } catch (err) {
+                  if (!isDataApiNotFoundError(err)) throw err
+                  await refreshAfterRestore()
+                  try {
+                    await dataApiService.get(`/agents/${agentId}`)
+                    return
+                  } catch {
+                    throw err
+                  }
+                }
+                await refreshAfterRestore()
+              }
+            })
+          }
+        } catch (err) {
+          logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
+          if (!deleteSessionsOnly) throw err
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+        } finally {
+          setDeletingAgentId(null)
+        }
+      }
+
+      if (deleteSessionsOnly) {
         const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
+          title: t('agent.session.agent.delete.title'),
+          content: t('agent.session.agent.delete.content'),
+          okText: t('agent.session.agent.delete.trigger'),
           cancelText: t('common.cancel'),
           centered: true,
           okButtonProps: {
@@ -267,110 +375,14 @@ export function AgentResourceList({
           }
         })
         if (!confirmed) return
-
-        let deletedSessionIds: string[] = []
-        let deletionChangedState = false
-        if (deleteTasksOnly) {
-          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-          deletedSessionIds = result.deletedIds
-          deletionChangedState = deletedSessionIds.length > 0
-          if (deletionChangedState) closeConversationTabs('agents', deletedSessionIds)
-        } else {
-          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          deletionChangedState = result.deleted
-          deletedSessionIds = result.deletedSessionIds ?? []
-          if (deletionChangedState) closeConversationTabs('agents', deletedSessionIds)
-        }
-        try {
-          await Promise.all(
-            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
-              invalidate(key)
-            )
-          )
-        } catch (err) {
-          logger.warn('Failed to refresh after deleting Agent from classic-layout rail', { agentId, err })
-        }
-        const reloadResources = async () => {
-          try {
-            await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload()])
-          } catch (err) {
-            logger.warn('Failed to reload resources after deleting Agent from classic-layout rail', { agentId, err })
-          }
-        }
-        if (!deletionChangedState) {
-          await reloadResources()
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-
-        if (activeAgentId === agentId) {
-          try {
-            await onActiveAgentDeleted?.(agentId)
-          } catch (err) {
-            logger.warn('Failed to reconcile active Agent after deletion from classic-layout rail', { agentId, err })
-          }
-        }
-
-        await reloadResources()
-        if (deleteTasksOnly) {
-          showRecycleBinBatchUndo({
-            itemCount: deletedSessionIds.length,
-            onUndo: async () => {
-              const outcomes = await Promise.allSettled(
-                deletedSessionIds.map((sessionId) => restoreSession({ params: { sessionId } }))
-              )
-              await refreshAfterRestore()
-              const activeAfterNotFound = await Promise.all(
-                outcomes.map(async (outcome, index) => {
-                  if (outcome.status === 'fulfilled' || !isDataApiNotFoundError(outcome.reason)) return false
-                  try {
-                    await dataApiService.get(`/agent-sessions/${deletedSessionIds[index]}`)
-                    return true
-                  } catch {
-                    return false
-                  }
-                })
-              )
-              return outcomes.reduce(
-                (result, outcome, index) => {
-                  const sessionId = deletedSessionIds[index]
-                  if (outcome.status === 'fulfilled' || activeAfterNotFound[index]) result.restored.push(sessionId)
-                  else result.failed.push({ id: sessionId, error: getErrorMessage(outcome.reason) })
-                  return result
-                },
-                { restored: [] as string[], failed: [] as Array<{ id: string; error: string }> }
-              )
-            }
-          })
-        } else {
-          showRecycleBinUndo({
-            itemName: agentName,
-            onUndo: async () => {
-              try {
-                await restoreAgent({ params: { agentId } })
-              } catch (err) {
-                if (!isDataApiNotFoundError(err)) throw err
-                await refreshAfterRestore()
-                try {
-                  await dataApiService.get(`/agents/${agentId}`)
-                  return
-                } catch {
-                  throw err
-                }
-              }
-              await refreshAfterRestore()
-            }
-          })
-        }
-      } catch (err) {
-        logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
-        toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
-      } finally {
-        setDeletingAgentId(null)
+        await performDelete(true)
+        return
       }
+
+      await deleteConversationOwnerPopup.show({ type: 'agent', action: performDelete })
     },
     [
-      activeAgentId,
+      activeSessionId,
       agents,
       closeConversationTabs,
       deletingAgentId,
@@ -389,7 +401,7 @@ export function AgentResourceList({
     (item: ResourceEntityRailItem): ResolvedAction[] => {
       const pinned = agentPinnedIdSet.has(item.id)
       const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
-      const deleteTasksOnly = isProtectedBuiltinAgentRole(
+      const deleteSessionsOnly = isProtectedBuiltinAgentRole(
         agents.find((agent) => agent.id === item.id)?.configuration?.builtin_role
       )
 
@@ -423,7 +435,7 @@ export function AgentResourceList({
         ),
         buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_DELETE_ACTION_ID,
-          label: t(deleteTasksOnly ? 'agent.session.agent.delete.trigger' : 'agent.delete.title'),
+          label: t(deleteSessionsOnly ? 'agent.session.agent.delete.trigger' : 'agent.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
           group: 'danger',
           order: 30,

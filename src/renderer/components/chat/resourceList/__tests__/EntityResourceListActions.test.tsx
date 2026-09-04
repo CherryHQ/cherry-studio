@@ -75,6 +75,12 @@ const tabsContextMocks = vi.hoisted(() => ({
   closeConversationTabs: vi.fn()
 }))
 
+const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
+vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
+  deleteConversationOwnerPopup: conversationOwnerPopupMocks
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   BlurCancelPointerSensor: class BlurCancelPointerSensor {},
   Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
@@ -496,6 +502,13 @@ describe('classic layout entity resource list actions', () => {
     vi.mocked(toast.success).mockClear()
     recycleBinFeedbackMocks.showRecycleBinBatchUndo.mockClear()
     recycleBinFeedbackMocks.showRecycleBinUndo.mockClear()
+    conversationOwnerPopupMocks.show.mockClear()
+    conversationOwnerPopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
   })
 
   it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
@@ -505,6 +518,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
         onSelectTopic={vi.fn()}
         onCreateTopic={onCreateTopic}
         onActiveAssistantDeleted={onActiveAssistantDeleted}
@@ -519,20 +533,10 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'recycle_bin.move.confirm_title',
-          okText: 'recycle_bin.move.confirm_action'
-        })
-      )
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: false })
     )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
-    await waitFor(() =>
-      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
-    )
-    // Classic layout resets via the dedicated callback (page settles to the latest
-    // remaining topic) and must NOT open the modern layout draft compose.
-    await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(onCreateTopic).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Assistant 1',
@@ -546,9 +550,47 @@ describe('classic layout entity resource list actions', () => {
     expect(assistantDataMocks.refreshTopics).toHaveBeenCalled()
   })
 
+  it('cascades an Assistant delete only to returned Topics and reconciles the returned active Topic', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    conversationOwnerPopupMocks.show.mockImplementationOnce(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantDataMocks.deleteAssistant.mockResolvedValueOnce({
+      deleted: true,
+      deletedTopicIds: ['topic-1', 'topic-not-loaded']
+    })
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        activeTopicId="topic-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={vi.fn()}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
+
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
+    )
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-1', 'topic-not-loaded'])
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+  })
+
   it.each(['selection reconciliation', 'Assistant refresh', 'Topic refresh'] as const)(
     'offers Assistant Undo when post-delete %s fails',
     async (failureStage) => {
+      conversationOwnerPopupMocks.show.mockImplementationOnce(
+        async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+          await action(true)
+          return true
+        }
+      )
+      assistantDataMocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: ['topic-1'] })
       const onActiveAssistantDeleted = vi.fn().mockResolvedValue(undefined)
       if (failureStage === 'selection reconciliation') {
         onActiveAssistantDeleted.mockRejectedValueOnce(new Error('selection failed'))
@@ -561,6 +603,7 @@ describe('classic layout entity resource list actions', () => {
       render(
         <TestAssistantResourceList
           activeAssistantId="assistant-1"
+          activeTopicId="topic-1"
           onSelectTopic={vi.fn()}
           onCreateTopic={vi.fn()}
           onActiveAssistantDeleted={onActiveAssistantDeleted}
@@ -871,6 +914,7 @@ describe('classic layout entity resource list actions', () => {
     rerender(
       <AgentResourceList
         activeAgentId="agent-1"
+        activeSessionId="session-1"
         agentSessionsSource={createAgentSessionsSource({ isValidating: true })}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
@@ -1044,22 +1088,13 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
 
     await waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'recycle_bin.move.confirm_title',
-          okText: 'recycle_bin.move.confirm_action'
-        })
-      )
-    )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
-    await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
-        query: { deleteSessions: true }
+        query: { deleteSessions: false }
       })
     )
-    // Classic layout resets via the dedicated callback, never the draft compose.
-    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
+    expect(onActiveAgentDeleted).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Agent 1',
@@ -1070,6 +1105,42 @@ describe('classic layout entity resource list actions', () => {
 
     expect(agentDataMocks.restoreAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     expect(agentDataMocks.refetchAgents).toHaveBeenCalled()
+  })
+
+  it('cascades an Agent delete only to returned Sessions and reconciles the returned active Session', async () => {
+    const onActiveAgentDeleted = vi.fn()
+    conversationOwnerPopupMocks.show.mockImplementationOnce(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    agentDataMocks.deleteAgent.mockResolvedValueOnce({
+      deleted: true,
+      deletedSessionIds: ['session-1', 'session-not-loaded']
+    })
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        activeSessionId="session-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+        onActiveAgentDeleted={onActiveAgentDeleted}
+      />
+    )
+    fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
+
+    await waitFor(() =>
+      expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        query: { deleteSessions: true }
+      })
+    )
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')
   })
 
   it('does not fail Agent Undo when restore succeeds but follow-up refreshes reject', async () => {
@@ -1116,7 +1187,7 @@ describe('classic layout entity resource list actions', () => {
     expect(agentDataMocks.getActiveResource).toHaveBeenCalledWith('/agents/agent-1')
   })
 
-  it('deletes only tasks for the built-in Cherry Assistant in the classic layout', async () => {
+  it('deletes only sessions for the built-in Cherry Assistant in the classic layout', async () => {
     agentDataMocks.agents = [
       {
         id: 'agent-1',
@@ -1133,6 +1204,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        activeSessionId="session-1"
         agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
@@ -1149,15 +1221,16 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() =>
       expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'recycle_bin.move.confirm_title',
-          okText: 'recycle_bin.move.confirm_action'
+          content: 'agent.session.agent.delete.content',
+          title: 'agent.session.agent.delete.title',
+          okText: 'agent.session.agent.delete.trigger'
         })
       )
     )
     await waitFor(() =>
       expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
     )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
+    expect(conversationOwnerPopupMocks.show).not.toHaveBeenCalled()
     expect(agentDataMocks.deleteAgent).not.toHaveBeenCalled()
     expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-1', 'session-not-loaded'])
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1')

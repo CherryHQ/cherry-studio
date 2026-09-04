@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
+import { deleteConversationOwnerPopup } from '@renderer/components/chat/DeleteConversationOwnerConfirmDialog'
 import {
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
@@ -161,7 +162,7 @@ function AgentGroupMoreMenu({
   agentId,
   assistantIconType,
   deleteAgentDisabled,
-  deleteTasksOnly,
+  deleteSessionsOnly,
   pinDisabled,
   pinned,
   onDeleteAgent,
@@ -174,7 +175,7 @@ function AgentGroupMoreMenu({
   agentId: string
   assistantIconType: AssistantIconType
   deleteAgentDisabled?: boolean
-  deleteTasksOnly?: boolean
+  deleteSessionsOnly?: boolean
   pinDisabled?: boolean
   pinned: boolean
   sidebarPinned: boolean
@@ -189,7 +190,7 @@ function AgentGroupMoreMenu({
     agentId,
     assistantIconType,
     deleteAgentDisabled,
-    deleteTasksOnly,
+    deleteSessionsOnly,
     onDeleteAgent,
     onEdit,
     onSetAgentIconType,
@@ -1247,18 +1248,104 @@ const Sessions = ({
       if (deletingAgentId) return
 
       const agent = agentById.get(agentId)
-      const deleteTasksOnly = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
+      const deleteSessionsOnly = isProtectedBuiltinAgentRole(agent?.configuration?.builtin_role)
 
-      const currentActiveSessionId = activeSessionIdRef.current
-      const currentActiveSession = currentActiveSessionId
-        ? sessionItemsRef.current.find((session) => session.id === currentActiveSessionId)
-        : undefined
+      const performDelete = async (deleteSessions: boolean) => {
+        const currentActiveSessionId = activeSessionIdRef.current
+        setDeletingAgentId(agentId)
+        try {
+          let deletedSessionIds: string[] = []
+          let deletionChangedState = false
+          if (deleteSessionsOnly) {
+            const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
+            deletedSessionIds = result.deletedIds
+            deletionChangedState = deletedSessionIds.length > 0
+          } else {
+            const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions })
+            deletionChangedState = result.deleted
+            deletedSessionIds = result.deletedSessionIds ?? []
+          }
+          if (deletedSessionIds.length > 0) closeConversationTabs('agents', deletedSessionIds)
 
-      setDeletingAgentId(agentId)
-      try {
+          const invalidateOutcomes = await Promise.allSettled(
+            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+              invalidate(key)
+            )
+          )
+          if (invalidateOutcomes.some((outcome) => outcome.status === 'rejected')) {
+            logger.warn('Failed to refresh after deleting Agent from session group', { agentId })
+          }
+
+          const reloadResources = async () => {
+            try {
+              await Promise.all([...(deleteSessionsOnly ? [] : [refetchAgents()]), reload(), refetchWorkspaces()])
+            } catch (err) {
+              logger.warn('Failed to reload resources after deleting Agent from session group', { agentId, err })
+            }
+          }
+          if (!deletionChangedState) {
+            await reloadResources()
+            toast.info(t('recycle_bin.already_moved'))
+            return
+          }
+
+          if (currentActiveSessionId && deletedSessionIds.includes(currentActiveSessionId)) {
+            try {
+              if (onActiveAgentDeleted) {
+                await onActiveAgentDeleted(agentId)
+              } else {
+                const deletedSessionIdSet = new Set(deletedSessionIds)
+                const remaining = findLatestActive(
+                  sessionItemsRef.current.filter((session) => !deletedSessionIdSet.has(session.id))
+                )
+                setActiveSessionId(remaining?.id ?? null)
+              }
+            } catch (err) {
+              logger.warn('Failed to reconcile active Agent after deletion from session group', { agentId, err })
+            }
+          }
+
+          await reloadResources()
+          if (deleteSessionsOnly) {
+            if (deletedSessionIds.length > 0) {
+              const restoredIds = [...deletedSessionIds]
+              showRecycleBinBatchUndo({
+                itemCount: restoredIds.length,
+                onUndo: () =>
+                  restoreRecycleBinItems({
+                    ids: restoredIds,
+                    restore: restoreSession,
+                    getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
+                    refresh: reload
+                  })
+              })
+            }
+          } else {
+            showRecycleBinUndo({
+              itemName: agent?.name || t('common.unnamed'),
+              onUndo: () =>
+                restoreRecycleBinItem({
+                  id: agentId,
+                  restore: (id) => restoreAgent({ params: { agentId: id } }),
+                  getActive: (id) => dataApiService.get(`/agents/${id}`),
+                  refresh: refreshAgentResources
+                })
+            })
+          }
+        } catch (err) {
+          logger.error('Failed to delete agent from session group', { agentId, err })
+          if (!deleteSessionsOnly) throw err
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+        } finally {
+          setDeletingAgentId(null)
+        }
+      }
+
+      if (deleteSessionsOnly) {
         const confirmed = await popup.confirm({
-          title: t('recycle_bin.move.confirm_title'),
-          okText: t('recycle_bin.move.confirm_action'),
+          title: t('agent.session.agent.delete.title'),
+          content: t('agent.session.agent.delete.content'),
+          okText: t('agent.session.agent.delete.trigger'),
           cancelText: t('common.cancel'),
           centered: true,
           okButtonProps: {
@@ -1266,93 +1353,11 @@ const Sessions = ({
           }
         })
         if (!confirmed) return
-
-        let deletedSessionIds: string[] = []
-        let deletionChangedState = false
-        if (deleteTasksOnly) {
-          const result = await ipcApi.request('ai.agent.sessions.delete', { agentId })
-          deletedSessionIds = result.deletedIds
-          deletionChangedState = deletedSessionIds.length > 0
-          if (deletionChangedState) closeConversationTabs('agents', deletedSessionIds)
-        } else {
-          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
-          deletionChangedState = result.deleted
-          if (deletionChangedState) closeConversationTabs('agents', result.deletedSessionIds ?? [])
-        }
-        try {
-          await Promise.all(
-            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
-              invalidate(key)
-            )
-          )
-        } catch (err) {
-          logger.warn('Failed to refresh after deleting Agent from session group', { agentId, err })
-        }
-
-        const reloadResources = async () => {
-          try {
-            await Promise.all([...(deleteTasksOnly ? [] : [refetchAgents()]), reload(), refetchWorkspaces()])
-          } catch (err) {
-            logger.warn('Failed to reload resources after deleting Agent from session group', { agentId, err })
-          }
-        }
-        if (!deletionChangedState) {
-          await reloadResources()
-          toast.info(t('recycle_bin.already_moved'))
-          return
-        }
-
-        const activeSessionWasDeleted = deleteTasksOnly
-          ? !!currentActiveSession && deletedSessionIds.includes(currentActiveSession.id)
-          : currentActiveSession?.agentId === agentId
-        if (activeSessionWasDeleted) {
-          try {
-            if (onActiveAgentDeleted) {
-              await onActiveAgentDeleted(agentId)
-            } else {
-              const remaining = findLatestActive(
-                sessionItemsRef.current.filter((session) => session.agentId !== agentId)
-              )
-              setActiveSessionId(remaining?.id ?? null)
-            }
-          } catch (err) {
-            logger.warn('Failed to reconcile active Agent after deletion from session group', { agentId, err })
-          }
-        }
-
-        await reloadResources()
-        if (deleteTasksOnly) {
-          if (deletedSessionIds.length > 0) {
-            const restoredIds = [...deletedSessionIds]
-            showRecycleBinBatchUndo({
-              itemCount: restoredIds.length,
-              onUndo: () =>
-                restoreRecycleBinItems({
-                  ids: restoredIds,
-                  restore: restoreSession,
-                  getActive: (sessionId) => dataApiService.get(`/agent-sessions/${sessionId}`),
-                  refresh: reload
-                })
-            })
-          }
-        } else {
-          showRecycleBinUndo({
-            itemName: agent?.name || t('common.unnamed'),
-            onUndo: () =>
-              restoreRecycleBinItem({
-                id: agentId,
-                restore: (id) => restoreAgent({ params: { agentId: id } }),
-                getActive: (id) => dataApiService.get(`/agents/${id}`),
-                refresh: refreshAgentResources
-              })
-          })
-        }
-      } catch (err) {
-        logger.error('Failed to delete agent from session group', { agentId, err })
-        toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
-      } finally {
-        setDeletingAgentId(null)
+        await performDelete(true)
+        return
       }
+
+      await deleteConversationOwnerPopup.show({ type: 'agent', action: performDelete })
     },
     [
       closeConversationTabs,
@@ -1750,7 +1755,9 @@ const Sessions = ({
                 agentId={agentGroupId}
                 assistantIconType={assistantIconType}
                 deleteAgentDisabled={deletingAgentId !== null}
-                deleteTasksOnly={isProtectedBuiltinAgentRole(agentById.get(agentGroupId)?.configuration?.builtin_role)}
+                deleteSessionsOnly={isProtectedBuiltinAgentRole(
+                  agentById.get(agentGroupId)?.configuration?.builtin_role
+                )}
                 pinDisabled={isAgentPinActionDisabled}
                 pinned={agentPinnedIdSet.has(agentGroupId)}
                 onDeleteAgent={handleDeleteAgent}
@@ -1919,7 +1926,7 @@ const Sessions = ({
           agentId,
           assistantIconType,
           deleteAgentDisabled: deletingAgentId !== null,
-          deleteTasksOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
+          deleteSessionsOnly: isProtectedBuiltinAgentRole(agentById.get(agentId)?.configuration?.builtin_role),
           onDeleteAgent: handleDeleteAgent,
           onEdit: openAgentEditor,
           onSetAgentIconType: setAssistantIconType,

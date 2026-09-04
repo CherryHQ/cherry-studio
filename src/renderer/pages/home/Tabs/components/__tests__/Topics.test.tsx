@@ -14,6 +14,12 @@ import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const conversationOwnerPopupMocks = vi.hoisted(() => ({ show: vi.fn() }))
+
+vi.mock('@renderer/components/chat/DeleteConversationOwnerConfirmDialog', () => ({
+  deleteConversationOwnerPopup: conversationOwnerPopupMocks
+}))
+
 const virtualMocks = vi.hoisted(() => ({
   useVirtualizer: vi.fn((options: { count: number; estimateSize: (index: number) => number }) => ({
     getVirtualItems: () =>
@@ -878,6 +884,12 @@ describe('Topics', () => {
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
+    conversationOwnerPopupMocks.show.mockImplementation(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(false)
+        return true
+      }
+    )
     mockUseQuery.mockImplementation((path, options) => {
       if (path === '/pins') {
         const entityType = (options as { query?: { entityType?: string } } | undefined)?.query?.entityType
@@ -3623,7 +3635,7 @@ describe('Topics', () => {
     )
   })
 
-  it('deletes an assistant from the left assistant group menu', async () => {
+  it('deletes an assistant without its topics by default and keeps the active topic', async () => {
     const onActiveAssistantDeleted = vi.fn()
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
@@ -3641,21 +3653,12 @@ describe('Topics', () => {
     fireEvent.click(deleteAssistantButton)
 
     await vi.waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(
-        expect.objectContaining({
-          okText: 'Move to Recycle Bin',
-          title: 'Move to Recycle Bin?'
-        })
-      )
-    )
-    expect(vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]).not.toHaveProperty('content')
-    await vi.waitFor(() =>
       expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
-        params: { id: 'assistant-1' },
-        query: { deleteTopics: true }
+        params: { id: 'assistant-1' }
       })
     )
-    await vi.waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    expect(onActiveAssistantDeleted).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(recycleBinFeedbackMocks.showRecycleBinUndo).toHaveBeenCalledWith({
       itemName: 'Alpha Assistant',
@@ -3680,7 +3683,45 @@ describe('Topics', () => {
     getActiveAssistant.mockRestore()
   })
 
+  it('cascades an assistant delete only to returned topics and switches when the active topic is returned', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    conversationOwnerPopupMocks.show.mockImplementationOnce(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantMutationMocks.deleteAssistant.mockResolvedValueOnce({
+      deleted: true,
+      deletedTopicIds: ['topic-a', 'topic-not-loaded']
+    })
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    renderTopicList({ onActiveAssistantDeleted })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+
+    await vi.waitFor(() =>
+      expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
+        params: { id: 'assistant-1' },
+        query: { deleteTopics: true }
+      })
+    )
+    await vi.waitFor(() =>
+      expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a', 'topic-not-loaded'])
+    )
+    await vi.waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+  })
+
   it('offers Assistant Undo when active reconciliation and post-delete refreshes reject', async () => {
+    conversationOwnerPopupMocks.show.mockImplementationOnce(
+      async ({ action }: { action: (deleteChildren: boolean) => void | Promise<void> }) => {
+        await action(true)
+        return true
+      }
+    )
+    assistantMutationMocks.deleteAssistant.mockResolvedValueOnce({ deleted: true, deletedTopicIds: ['topic-a'] })
     const onActiveAssistantDeleted = vi.fn().mockRejectedValue(new Error('reconcile failed'))
     assistantQueryMocks.refetchAssistants.mockRejectedValueOnce(new Error('Assistant refresh failed'))
     topicDataMocks.refreshTopics.mockRejectedValueOnce(new Error('Topic refresh failed'))
