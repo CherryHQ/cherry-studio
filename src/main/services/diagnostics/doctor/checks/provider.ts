@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { getAppEdition } from '@main/utils/appEdition'
 import { parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { isLoginBasedProvider } from '@shared/utils/provider'
 
@@ -107,6 +108,24 @@ export const defaultProviderApiKey = defineDoctorCheck({
       actions: PROVIDER_SETTINGS_ACTION,
       devMessage: 'The default model provider has no enabled API key',
       evidence: [{ key: 'providerId', value: providerId, dataClass: 'public' }]
+    }
+  },
+  fixes: {}
+})
+
+export const cherryAccount = defineDoctorCheck({
+  id: 'provider-cherry-account',
+  async run() {
+    if (getAppEdition() !== 'cn') return { status: 'pass' }
+    const status = await application.get('CherryCloudService').getStatus()
+    if (status.phase !== 'signed-out') return { status: 'pass' }
+
+    return {
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'signed_out' },
+      actions: [{ kind: 'open_cherry_account' }],
+      devMessage: 'There is no valid Cherry account session'
     }
   },
   fixes: {}

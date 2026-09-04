@@ -3,13 +3,28 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { app } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { installVersionChannel } = await import('../install')
+const services = vi.hoisted(() => ({
+  checkForUpdates: vi.fn(),
+  loadNativeCaptureBackend: vi.fn()
+}))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ AppUpdaterService: { checkForUpdates: services.checkForUpdates } } as never)
+})
+vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
+  loadNativeCaptureBackend: services.loadNativeCaptureBackend
+}))
+
+const { installNativeModules, installUpdateAvailable, installVersionChannel } = await import('../install')
 const ctx = { signal: new AbortController().signal }
 
 beforeEach(() => {
   vi.clearAllMocks()
   MockMainPreferenceServiceUtils.resetMocks()
   vi.mocked(app.getVersion).mockReturnValue('2.0.0')
+  services.checkForUpdates.mockResolvedValue({ currentVersion: '2.0.0', updateInfo: null })
+  services.loadNativeCaptureBackend.mockReturnValue({})
 })
 
 describe('install-version-channel', () => {
@@ -47,6 +62,49 @@ describe('install-version-channel', () => {
       attribution: 'user-fixable',
       detail: { variant: 'mismatch', params: { runningChannel: 'beta', selectedChannel: 'rc' } },
       actions: [{ kind: 'navigate', target: '/settings/about' }]
+    })
+  })
+})
+
+describe('install-update-available', () => {
+  it('passes when the updater reports no newer release', async () => {
+    await expect(installUpdateAvailable.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
+
+  it('warns with the available version and an in-Doctor install action', async () => {
+    services.checkForUpdates.mockResolvedValue({
+      currentVersion: '2.0.0',
+      updateInfo: { version: '2.1.0' }
+    })
+
+    await expect(installUpdateAvailable.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'available', params: { currentVersion: '2.0.0', availableVersion: '2.1.0' } },
+      actions: [{ kind: 'install_update' }]
+    })
+  })
+})
+
+describe('install-native-modules', () => {
+  it('passes when the native capture backend loads', async () => {
+    await expect(installNativeModules.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
+
+  it('reports a missing or unloadable native backend as an app bug', async () => {
+    services.loadNativeCaptureBackend.mockImplementation(() => {
+      throw new Error('dlopen failed')
+    })
+
+    await expect(installNativeModules.run(ctx)).resolves.toMatchObject({
+      status: 'fail',
+      attribution: 'app-bug',
+      detail: { variant: 'unavailable' },
+      actions: [{ kind: 'report' }],
+      evidence: [
+        { key: 'module', value: 'node-screenshots', dataClass: 'public' },
+        { key: 'error', value: 'dlopen failed', dataClass: 'consent_required' }
+      ]
     })
   })
 })
