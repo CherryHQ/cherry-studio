@@ -2,6 +2,7 @@ import {
   WEBVIEW_ANNOTATION_LIMITS,
   WEBVIEW_SHADOW_SELECTOR_SEPARATOR,
   type WebviewAnnotation,
+  type WebviewAnnotationAnchorRect,
   type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationLocale,
@@ -274,6 +275,22 @@ interface ViewportRect {
   height: number
 }
 
+const boundedAnchorCoord = (value: number, minimum: number) =>
+  Math.min(
+    WEBVIEW_ANNOTATION_LIMITS.regionCoord,
+    Math.max(minimum, Math.round(Number.isFinite(value) ? value : minimum))
+  )
+
+const toAnchorRect = (rect: ViewportRect): WebviewAnnotationAnchorRect => ({
+  x: boundedAnchorCoord(rect.left, -WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+  y: boundedAnchorCoord(rect.top, -WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+  width: boundedAnchorCoord(rect.width, 1),
+  height: boundedAnchorCoord(rect.height, 1)
+})
+
+const anchorRectsEqual = (left: WebviewAnnotationAnchorRect | null, right: WebviewAnnotationAnchorRect) =>
+  left?.x === right.x && left.y === right.y && left.width === right.width && left.height === right.height
+
 type EditorRequest =
   | { mode: 'create-element'; element: Element }
   | { mode: 'create-region'; element: Element; region: WebviewAnnotationRegion }
@@ -303,8 +320,10 @@ export class WebviewAnnotationController {
   private annotations: WebviewAnnotation[] = []
   private annotationElements = new Map<string, Element>()
   private configured = false
+  private editorAnchor: WebviewAnnotationAnchorRect | null = null
   private editorAnnotationId: string | null = null
   private editorElement: Element | null = null
+  private editorRegion: WebviewRegionRect | null = null
   private editorRequestId: string | null = null
   private enabled = false
   private highlightElement: Element | null = null
@@ -751,8 +770,15 @@ export class WebviewAnnotationController {
     this.editorElement = request.element
     this.editorAnnotationId = annotationId
     this.editorRequestId = createGuestUuid()
+    this.editorRegion = request.mode === 'create-region' ? request.region.rect : (annotation?.region?.rect ?? null)
     this.pendingRegion = request.mode === 'create-region' ? request.region : null
     this.highlightElement = request.element
+    const anchor = this.getEditorAnchorRect()
+    if (!anchor) {
+      this.closeEditor()
+      return
+    }
+    this.editorAnchor = anchor
     this.schedulePositionUpdate()
     if (this.sessionId) {
       this.onStateChange({
@@ -760,7 +786,8 @@ export class WebviewAnnotationController {
         sessionId: this.sessionId,
         requestId: this.editorRequestId,
         comment: annotation?.comment ?? '',
-        canDelete: Boolean(annotationId)
+        canDelete: Boolean(annotationId),
+        anchor
       })
     }
   }
@@ -768,8 +795,10 @@ export class WebviewAnnotationController {
   private closeEditor() {
     const requestId = this.editorRequestId
     this.editorAnnotationId = null
+    this.editorAnchor = null
     this.editorElement = null
     this.editorRequestId = null
+    this.editorRegion = null
     this.pendingRegion = null
     this.highlightElement = null
     this.schedulePositionUpdate()
@@ -1003,5 +1032,30 @@ export class WebviewAnnotationController {
     } else if (this.highlight) {
       this.highlight.style.display = 'none'
     }
+
+    const editorAnchor = this.getEditorAnchorRect()
+    if (editorAnchor && this.editorRequestId && this.sessionId && !anchorRectsEqual(this.editorAnchor, editorAnchor)) {
+      this.editorAnchor = editorAnchor
+      this.onStateChange({
+        type: 'editor_anchor_changed',
+        sessionId: this.sessionId,
+        requestId: this.editorRequestId,
+        anchor: editorAnchor
+      })
+    }
+  }
+
+  private getEditorAnchorRect(): WebviewAnnotationAnchorRect | null {
+    if (this.editorRegion) {
+      return toAnchorRect({
+        left: this.editorRegion.x - window.scrollX,
+        top: this.editorRegion.y - window.scrollY,
+        width: this.editorRegion.width,
+        height: this.editorRegion.height
+      })
+    }
+    if (!this.editorElement?.isConnected) return null
+    const rect = this.editorElement.getBoundingClientRect()
+    return toAnchorRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })
   }
 }

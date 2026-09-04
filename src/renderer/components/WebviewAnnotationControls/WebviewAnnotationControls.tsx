@@ -93,65 +93,88 @@ export function WebviewAnnotationControls({
 
   const disabled = !isWebviewReady || !isHostActive || !ready
   const annotationLabel = enabled ? t('webview.annotation.disable_mode') : t('webview.annotation.enable_mode')
+  const editorAnchorRect = editor?.anchor
+  const editorAnchor = useMemo<RefObject<{ getBoundingClientRect: () => DOMRect }> | null>(() => {
+    if (!editorAnchorRect) return null
+    return {
+      current: {
+        getBoundingClientRect: () => {
+          const webviewRect = webviewRef.current?.getBoundingClientRect()
+          if (!webviewRect) return DOMRect.fromRect()
+          return DOMRect.fromRect({
+            x: webviewRect.left + editorAnchorRect.x,
+            y: webviewRect.top + editorAnchorRect.y,
+            width: editorAnchorRect.width,
+            height: editorAnchorRect.height
+          })
+        }
+      }
+    }
+  }, [editorAnchorRect, webviewRef])
 
   return (
     <>
       <Popover open={Boolean(editor)} onOpenChange={(open) => !open && cancelEditor()}>
-        <PopoverAnchor asChild>
-          <div className="flex items-center gap-0.5">
-            <Tooltip content={annotationLabel} placement="bottom">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                disabled={disabled}
-                onClick={toggle}
-                className={controlButtonClassName(enabled)}
-                aria-label={annotationLabel}
-                aria-pressed={enabled}>
-                <MousePointer2 size={14} />
-              </Button>
-            </Tooltip>
+        <div className="flex items-center gap-0.5">
+          <Tooltip content={annotationLabel} placement="bottom">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              onClick={toggle}
+              className={controlButtonClassName(enabled)}
+              aria-label={annotationLabel}
+              aria-pressed={enabled}>
+              <MousePointer2 size={14} />
+            </Button>
+          </Tooltip>
 
-            {count > 0 && (
-              <>
-                <Badge
-                  variant="secondary"
-                  className="h-4 min-w-4 border-0 px-1 text-[10px] text-muted-foreground tabular-nums"
-                  aria-label={t('webview.annotation.count', { count })}>
-                  {count}
-                </Badge>
-                <Tooltip content={t('webview.annotation.copy')} placement="bottom">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled || copying}
-                    onClick={() => void handleCopy()}
-                    className={controlButtonClassName()}
-                    aria-label={t('webview.annotation.copy')}>
-                    {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
-                  </Button>
-                </Tooltip>
-                <Tooltip content={t('webview.annotation.clear')} placement="bottom">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    onClick={() => setClearConfirmTargetId(target.id)}
-                    className={controlButtonClassName()}
-                    aria-label={t('webview.annotation.clear')}>
-                    <Trash2 size={14} />
-                  </Button>
-                </Tooltip>
-              </>
-            )}
-          </div>
-        </PopoverAnchor>
+          {count > 0 && (
+            <>
+              <Badge
+                variant="secondary"
+                className="h-4 min-w-4 border-0 px-1 text-[10px] text-muted-foreground tabular-nums"
+                aria-label={t('webview.annotation.count', { count })}>
+                {count}
+              </Badge>
+              <Tooltip content={t('webview.annotation.copy')} placement="bottom">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={disabled || copying}
+                  onClick={() => void handleCopy()}
+                  className={controlButtonClassName()}
+                  aria-label={t('webview.annotation.copy')}>
+                  {copying ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                </Button>
+              </Tooltip>
+              <Tooltip content={t('webview.annotation.clear')} placement="bottom">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={disabled}
+                  onClick={() => setClearConfirmTargetId(target.id)}
+                  className={controlButtonClassName()}
+                  aria-label={t('webview.annotation.clear')}>
+                  <Trash2 size={14} />
+                </Button>
+              </Tooltip>
+            </>
+          )}
+        </div>
+
+        {editorAnchor && <PopoverAnchor virtualRef={editorAnchor} />}
 
         {editor && (
-          <PopoverContent align="end" className="w-80 space-y-3 p-3">
+          <PopoverContent
+            side="bottom"
+            align="center"
+            sideOffset={8}
+            collisionPadding={8}
+            className="w-80 space-y-3 p-3">
             <Textarea.Input
               autoFocus
               value={editor.draft}

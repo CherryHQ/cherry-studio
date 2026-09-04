@@ -439,14 +439,17 @@ describe('WebviewAnnotationController interactions', () => {
     const button = document.createElement('button')
     button.id = 'host-editor-target'
     document.body.appendChild(button)
+    mockRect(button, 120, 240, 80, 32)
     const internals = privateController(controller)
 
     internals.openEditor({ mode: 'create-element', element: button })
 
-    const editorRequest = emissions.find(
-      (event) => (event as { type: string }).type === 'editor_requested'
-    ) as unknown as { requestId: string; comment: string; canDelete: boolean }
-    expect(editorRequest).toMatchObject({ comment: '', canDelete: false })
+    const editorRequest = currentEditorRequest(emissions)
+    expect(editorRequest).toMatchObject({
+      comment: '',
+      canDelete: false,
+      anchor: { x: 120, y: 240, width: 80, height: 32 }
+    })
     expect('textarea' in internals).toBe(false)
 
     controller.handleCommand({
@@ -457,6 +460,40 @@ describe('WebviewAnnotationController interactions', () => {
     } as never)
 
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Host-owned draft')
+  })
+
+  it('updates the correlated host editor anchor when its element moves', () => {
+    const button = document.createElement('button')
+    button.id = 'moving-editor-target'
+    document.body.appendChild(button)
+    let left = 40
+    vi.spyOn(button, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          left,
+          top: 90,
+          right: left + 120,
+          bottom: 130,
+          width: 120,
+          height: 40,
+          x: left,
+          y: 90,
+          toJSON: () => ({})
+        }) as DOMRect
+    )
+    const internals = privateController(controller)
+
+    internals.openEditor({ mode: 'create-element', element: button })
+    const requestId = currentEditorRequest(emissions).requestId
+    left = 75
+    internals.updatePositions()
+
+    expect(emissions.at(-1)).toEqual({
+      type: 'editor_anchor_changed',
+      sessionId,
+      requestId,
+      anchor: { x: 75, y: 90, width: 120, height: 40 }
+    })
   })
 
   it('creates schema-valid IDs when randomUUID is unavailable on insecure pages', () => {
@@ -722,6 +759,9 @@ describe('WebviewAnnotationController interactions', () => {
     internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 20))
     internals.handlePointerMove(trustedPointerEvent('pointermove', document, 110, 120))
     internals.handlePointerUp(trustedPointerEvent('pointerup', container, 110, 120))
+    expect(currentEditorRequest(emissions)).toMatchObject({
+      anchor: { x: 10, y: 20, width: 100, height: 100 }
+    })
     saveEditor(controller, emissions, 'Keep this page region')
     mockRect(container, 300, 400, 50, 60)
     internals.updatePositions()
@@ -731,6 +771,11 @@ describe('WebviewAnnotationController interactions', () => {
     expect(annotation.region?.rect).toEqual({ x: 40, y: 70, width: 100, height: 100 })
     expect(pin?.style.left).toBe('10px')
     expect(pin?.style.top).toBe('20px')
+
+    internals.openEditor({ mode: 'edit', element: container, annotationId: annotation.id })
+    expect(currentEditorRequest(emissions)).toMatchObject({
+      anchor: { x: 10, y: 20, width: 100, height: 100 }
+    })
   })
 
   it('does not carry a pending region into a subsequent element annotation', () => {
