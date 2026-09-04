@@ -57,7 +57,12 @@ vi.mock('@renderer/components/feedback/DiagnosticBundleDialog', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) =>
+      key === 'settings.doctor.confirm_fix.reclaimable'
+        ? `settings.doctor.confirm_fix.reclaimable ${String(params?.size)}`
+        : key
+  })
 }))
 
 import { PopupHost } from '@renderer/components/PopupHost'
@@ -81,7 +86,7 @@ describe('DoctorPopup', () => {
     mocks.request.mockResolvedValue(undefined)
   })
 
-  it('keeps the first panel and editable draft when a second entry opens during the same flight', async () => {
+  it('keeps the first panel and editable draft without exposing permanent panel navigation', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
 
@@ -102,8 +107,10 @@ describe('DoctorPopup', () => {
       screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' }),
       ' reviewed'
     )
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.panels.checks' }))
-    await user.click(screen.getByRole('button', { name: 'settings.doctor.panels.report' }))
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.back_to_checks' }))
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.more' }))
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
 
     expect(screen.getByRole('textbox', { name: 'settings.about.diagnostics.report.description_label' })).toHaveValue(
       'safe first draft reviewed'
@@ -145,7 +152,19 @@ describe('DoctorPopup', () => {
             status: 'fail',
             durationMs: 1,
             attribution: 'user-fixable',
-            detail: { variant: 'low' },
+            detail: {
+              variant: 'low',
+              params: {
+                reclaimableBytes: 300 * 1024 * 1024,
+                normalCacheBytes: 80 * 1024 * 1024,
+                diagnosticDataBytes: 220 * 1024 * 1024
+              }
+            },
+            evidence: [
+              { key: 'reclaimableBytes', value: 300 * 1024 * 1024, dataClass: 'public' },
+              { key: 'normalCacheBytes', value: 80 * 1024 * 1024, dataClass: 'public' },
+              { key: 'diagnosticDataBytes', value: 220 * 1024 * 1024, dataClass: 'public' }
+            ],
             actions: [{ kind: 'fix', fixId: 'cleanup' }]
           },
           {
@@ -171,6 +190,10 @@ describe('DoctorPopup', () => {
     await user.click(await screen.findByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.storage_disk_space_scope')
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.reclaimable 300 MB')
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.irreversible')
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.doctor.confirm_fix.duration')
     expect(screen.queryByText('secret backend failure')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'settings.doctor.fixes.cleanup_storage' }))
