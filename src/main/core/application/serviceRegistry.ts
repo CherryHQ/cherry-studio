@@ -45,6 +45,7 @@ import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
 import { ConversationNavigationService } from '@main/services/ConversationNavigationService'
 import { DeepSeekHarnessService } from '@main/services/deepSeekHarness'
+import { DoctorService } from '@main/services/diagnostics'
 import { DirectoryTreeManager, FileManager } from '@main/services/file'
 import { HermesDashboardService } from '@main/services/HermesDashboardService'
 import { LanTransferService } from '@main/services/lanTransfer'
@@ -136,6 +137,7 @@ export const services = {
   ScreenshotOverlayService,
   ProxyService,
   StorageMonitorService,
+  DoctorService,
   LogRetentionService,
   PythonService,
   TrayService,
