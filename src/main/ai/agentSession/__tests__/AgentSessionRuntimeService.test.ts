@@ -3486,6 +3486,31 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('primeConnection — eager command load on session open', () => {
+    it('does not open a connection when session validation fails', async () => {
+      const session = {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { id: 'workspace-1', path: '/', type: 'user' }
+      }
+      const validateSession = vi.fn().mockRejectedValue(new Error('filesystem root is not allowed'))
+      const connect = vi.fn()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession,
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue(session)
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+
+      expect(validateSession).toHaveBeenCalledWith(session)
+      expect(connect).not.toHaveBeenCalled()
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const events = createAsyncQueue<any>()

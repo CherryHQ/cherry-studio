@@ -13,6 +13,7 @@
  * (`src/main/utils/file/fs.ts`) instead.
  */
 
+import { isWin } from '@renderer/utils/platform'
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { canonicalizeFilePath, parseWindowsPath, type PosixRelativeFilePath } from '@shared/utils/file'
 
@@ -21,7 +22,7 @@ import { canonicalizeFilePath, parseWindowsPath, type PosixRelativeFilePath } fr
  * is a separator. On POSIX a backslash is an ordinary filename character.
  */
 const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
-const isWindowsUncPath = (path: string) => path.startsWith('\\\\') || path.startsWith('//')
+const isWindowsUncPath = (path: string) => path.startsWith('\\\\') || (isWin && path.startsWith('//'))
 
 function resolvesToParsedRoot(segments: string[]): boolean {
   let depth = 0
