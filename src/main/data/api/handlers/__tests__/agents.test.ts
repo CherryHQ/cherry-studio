@@ -254,7 +254,7 @@ describe('agentHandlers', () => {
       // so the resource-list UI can refresh.
       deleteAgentMock.mockReturnValueOnce({ deleted: true })
       listSessionsForAgentMock.mockReturnValueOnce({
-        items: [{ session: { id: 'session-1' } }, { session: { id: 'session-2' } }]
+        items: [{ id: 'session-1' }, { id: 'session-2' }]
       })
       closeSessionMock.mockResolvedValueOnce(undefined).mockResolvedValueOnce(undefined)
 
@@ -272,7 +272,7 @@ describe('agentHandlers', () => {
       // pause/close runs. If cleanup throws, the deletion itself has committed —
       // surface the error as a warning, not a 5xx.
       deleteAgentMock.mockReturnValueOnce({ deleted: true })
-      listSessionsForAgentMock.mockReturnValueOnce({ items: [{ session: { id: 'session-1' } }] })
+      listSessionsForAgentMock.mockReturnValueOnce({ items: [{ id: 'session-1' }] })
       pauseRuntimeTurnMock.mockImplementationOnce(() => {
         throw new Error('runtime unavailable')
       })

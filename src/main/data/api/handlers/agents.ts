@@ -10,8 +10,8 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
@@ -95,12 +95,11 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       try {
         const manager = application.get('AiStreamManager')
         const sessionsResult = agentSessionService.listByCursor({ agentId: params.agentId, limit: 1000 })
-        const sessions = sessionsResult.items.map((item) => item.session)
-        for (const session of sessions) {
+        for (const session of sessionsResult.items) {
           manager.pauseRuntimeTurn(buildAgentSessionTopicId(session.id), 'target-agent-deleted')
         }
         await Promise.allSettled(
-          sessions.map((session) => application.get('AgentSessionRuntimeService').closeSession(session.id))
+          sessionsResult.items.map((session) => application.get('AgentSessionRuntimeService').closeSession(session.id))
         )
       } catch (error) {
         loggerService.withContext('DataApi:agents').warn('Agent runtime cleanup failed after row deletion', {
