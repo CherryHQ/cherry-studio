@@ -11,6 +11,10 @@ import { CPU_LOCAL_INFERENCE_PROFILE } from '../../../runtime/inferenceAccelerat
 const SHERPA_FAKE = String.raw`
 const fs = require('node:fs')
 
+function rejectExternalBuffer(enableExternalBuffer) {
+  if (enableExternalBuffer !== false) throw new Error('External buffers are not allowed')
+}
+
 class Vad {
   constructor(config) {
     this.config = config
@@ -43,7 +47,8 @@ class Vad {
   isEmpty() {
     return this.segments.length === 0
   }
-  front() {
+  front(enableExternalBuffer) {
+    rejectExternalBuffer(enableExternalBuffer)
     return this.segments[0]
   }
   pop() {
@@ -83,7 +88,8 @@ class LinearResampler {
   }
 }
 
-function readWave(filePath) {
+function readWave(filePath, enableExternalBuffer) {
+  rejectExternalBuffer(enableExternalBuffer)
   const buffer = fs.readFileSync(filePath)
   return {
     samples: new Float32Array(buffer.buffer, buffer.byteOffset, buffer.byteLength / 4),

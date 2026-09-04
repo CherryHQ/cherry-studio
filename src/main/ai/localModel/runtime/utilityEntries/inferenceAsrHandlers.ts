@@ -65,11 +65,15 @@ function toRecognizerSampleRate(samples: Float32Array, sampleRate: number): Floa
   return new LinearResampler(sampleRate, ASR_SAMPLE_RATE).flush(samples)
 }
 
+// sherpa hands back sample buffers backed by native memory unless told otherwise, and
+// Electron's V8 sandbox rejects those outright ("External buffers are not allowed").
+const COPY_SAMPLES = false
+
 function detectSpeech(detector: any, samples: Float32Array): Array<{ samples: Float32Array; start: number }> {
   const speech: Array<{ samples: Float32Array; start: number }> = []
   const drain = () => {
     while (!detector.isEmpty()) {
-      const segment = detector.front()
+      const segment = detector.front(COPY_SAMPLES)
       speech.push({ samples: segment.samples, start: segment.start })
       detector.pop()
     }
@@ -94,7 +98,7 @@ function decodeSegment(recognizer: any, samples: Float32Array): string {
 
 export const asrHandlers: UtilityProcessHandlers<AsrInferenceContract> = {
   transcribe: async ({ modelPaths, source }, { logger }) => {
-    const audio = source.kind === 'wav' ? getSherpa().readWave(source.filePath) : source
+    const audio = source.kind === 'wav' ? getSherpa().readWave(source.filePath, COPY_SAMPLES) : source
     const samples = toRecognizerSampleRate(audio.samples, audio.sampleRate)
     const recognizer = await getRecognizer(modelPaths, logger)
     const detector = await getDetector(modelPaths.voiceActivityDetector)
