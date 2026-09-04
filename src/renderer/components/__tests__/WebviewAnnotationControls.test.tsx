@@ -8,17 +8,19 @@ import type { WebviewTag } from 'electron'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { request, toastSuccess, toastError } = vi.hoisted(() => ({
-  request: vi.fn().mockResolvedValue(undefined),
+const { request, toastSuccess, toastError, randomUUID } = vi.hoisted(() => ({
+  request: vi.fn(),
   toastSuccess: vi.fn(),
-  toastError: vi.fn()
+  toastError: vi.fn(),
+  randomUUID: vi.fn(() => '00000000-0000-4000-8000-000000000010')
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
-vi.mock('@renderer/services/toast', () => ({
-  toast: { success: toastSuccess, error: toastError }
-}))
+vi.mock('@renderer/services/toast', () => ({ toast: { success: toastSuccess, error: toastError } }))
 vi.mock('@renderer/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'dark' }) }))
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => ({ debug: vi.fn(), error: vi.fn() }) }
+}))
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children, ...props }: { children: ReactNode }) => <span {...props}>{children}</span>,
   Button: ({ children, type = 'button', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -27,17 +29,7 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
-  ConfirmDialog: ({
-    open,
-    title,
-    confirmText,
-    onConfirm
-  }: {
-    open: boolean
-    title: string
-    confirmText: string
-    onConfirm: () => void
-  }) =>
+  ConfirmDialog: ({ open, title, confirmText, onConfirm }: any) =>
     open ? (
       <div role="dialog" aria-label={title}>
         <button type="button" onClick={onConfirm}>
@@ -49,305 +41,307 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import { WebviewAnnotationControls } from '../WebviewAnnotationControls'
 
+const sessionOne = '00000000-0000-4000-8000-000000000001'
+const sessionTwo = '00000000-0000-4000-8000-000000000002'
+const target = { id: 'mini-app:demo', label: 'Demo' }
 const annotation = {
-  id: '123e4567-e89b-12d3-a456-426614174000',
+  id: '123e4567-e89b-42d3-a456-426614174000',
   comment: 'Fix this button',
-  createdAt: 1,
-  element: {
-    selector: '#submit',
-    tagName: 'button',
-    text: 'Submit',
-    ariaLabel: null,
-    role: 'button'
-  }
+  element: { selector: '#submit', tagName: 'button', text: 'Submit', ariaLabel: null, role: 'button' }
 }
 
-function createWebview(webviewId = 42) {
-  const element = document.createElement('webview') as unknown as WebviewTag
+interface TestWebview extends WebviewTag {
+  emitNative: (type: string, event?: Record<string, unknown>) => void
+}
+
+function createWebview(webviewId = 42): TestWebview {
+  const element = document.createElement('webview') as unknown as TestWebview
+  const listeners = new Map<string, Set<EventListener>>()
   Object.assign(element, {
+    addEventListener: vi.fn((type: string, listener: EventListener) => {
+      const registered = listeners.get(type) ?? new Set<EventListener>()
+      registered.add(listener)
+      listeners.set(type, registered)
+    }),
+    removeEventListener: vi.fn((type: string, listener: EventListener) => listeners.get(type)?.delete(listener)),
     send: vi.fn().mockResolvedValue(undefined),
     getWebContentsId: vi.fn(() => webviewId),
-    getTitle: vi.fn(() => 'Demo page'),
-    getURL: vi.fn(() => 'https://example.com/page?secret=yes#part')
+    emitNative: (type: string, fields: Record<string, unknown> = {}) => {
+      for (const listener of listeners.get(type) ?? []) {
+        listener({ isTrusted: true, currentTarget: element, ...fields } as unknown as Event)
+      }
+    }
   })
   return element
 }
 
-function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationGuestEvent['state'], navigationRevision = 0) {
-  const event = Object.assign(new Event('ipc-message'), {
+const guestEvent = (webview: TestWebview, event: WebviewAnnotationGuestEvent, fields = {}) =>
+  webview.emitNative('ipc-message', {
     channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
-    args: [{ type: 'state_changed', navigationRevision, state } satisfies WebviewAnnotationGuestEvent]
+    args: [event],
+    ...fields
   })
-  webview.dispatchEvent(event)
-}
 
-const target = { id: 'mini-app:demo', label: 'Demo' }
+const stateChanged = (webview: TestWebview, sessionId = sessionOne, enabled = false, count = 1) =>
+  guestEvent(webview, { type: 'state_changed', sessionId, enabled, count })
+
+const sentCommands = (webview: TestWebview) =>
+  vi.mocked(webview.send).mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
 
 describe('WebviewAnnotationControls', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    request.mockImplementation((route: string) =>
-      Promise.resolve(
-        route === 'webview.get_annotations_markdown'
-          ? '## Demo\n\n> Fix this button\n\n- URL: `https://example.com/page`\n- Accessibility status: `available`'
-          : undefined
-      )
-    )
+    request.mockResolvedValue('# Resolved annotations')
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, value: randomUUID })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
   })
 
-  it('compensates for a missed guest handshake and toggles selection mode', async () => {
+  it('requests state on bind/dom-ready and configures the first live session', async () => {
     const webview = createWebview()
     render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
 
-    await waitFor(() => {
-      const commands = vi.mocked(webview.send).mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
-      expect(commands).toContainEqual(expect.objectContaining({ type: 'configure', theme: 'dark' }))
-      expect(commands).toContainEqual({ type: 'request_state' })
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: '标注页面' }))
-    expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
-      type: 'set_enabled',
-      enabled: true
-    })
-    expect(screen.getByRole('button', { name: '退出标注' })).toHaveAttribute('aria-pressed', 'true')
-  })
-
-  it('updates target presentation metadata without resetting annotation mode', async () => {
-    const webview = createWebview()
-    const { rerender } = render(
-      <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
+    expect(sentCommands(webview)).toContainEqual({ type: 'request_state' })
+    act(() => stateChanged(webview))
+    await waitFor(() =>
+      expect(sentCommands(webview)).toContainEqual(
+        expect.objectContaining({ type: 'configure', sessionId: sessionOne, theme: 'dark' })
+      )
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '标注页面' }))
     vi.mocked(webview.send).mockClear()
-    request.mockClear()
-
-    const localizedTarget = { ...target, label: '演示' }
-    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={localizedTarget} />)
-
-    expect(webview.send).not.toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
-      type: 'set_enabled',
-      enabled: false
-    })
-
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }, 4))
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-        webviewId: 42,
-        navigationRevision: 4,
-        target: localizedTarget,
-        annotations: [annotation]
-      })
-    )
+    act(() => webview.emitNative('dom-ready'))
+    expect(sentCommands(webview)).toEqual([{ type: 'request_state' }])
   })
 
-  it('keeps annotations while deactivating a host tab and resets them on navigation', async () => {
+  it('accepts only trusted events from the bound webview and valid channel/schema', () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
+
+    act(() => {
+      guestEvent(
+        webview,
+        { type: 'state_changed', sessionId: sessionOne, enabled: false, count: 3 },
+        { isTrusted: false }
+      )
+      guestEvent(
+        webview,
+        { type: 'state_changed', sessionId: sessionOne, enabled: false, count: 4 },
+        { currentTarget: null }
+      )
+      webview.emitNative('ipc-message', {
+        channel: 'wrong',
+        args: [{ type: 'state_changed', sessionId: sessionOne, enabled: false, count: 5 }]
+      })
+      webview.emitNative('ipc-message', {
+        channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
+        args: [{ type: 'state_changed', sessionId: 'invalid', enabled: false, count: 6 }]
+      })
+    })
+
+    expect(screen.queryByText(/[3-6]/)).not.toBeInTheDocument()
+    act(() => stateChanged(webview, sessionOne, false, 2))
+    expect(screen.getByText('2')).toBeInTheDocument()
+  })
+
+  it('deactivates an inactive host without discarding its committed count', () => {
     const webview = createWebview()
     const { rerender } = render(
       <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
     )
-    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
-    expect(await screen.findByText('1')).toBeInTheDocument()
+    act(() => stateChanged(webview, sessionOne, true, 1))
 
     rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive={false} target={target} />)
-    expect(screen.getByText('1')).toBeInTheDocument()
-    expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
-      type: 'set_enabled',
-      enabled: false
-    })
 
-    act(() => {
-      webview.dispatchEvent(Object.assign(new Event('did-navigate-in-page'), { isMainFrame: false }))
-    })
     expect(screen.getByText('1')).toBeInTheDocument()
-
-    act(() => {
-      webview.dispatchEvent(Object.assign(new Event('did-navigate-in-page'), { isMainFrame: true }))
-    })
-    await waitFor(() => expect(screen.queryByText('1')).not.toBeInTheDocument())
-    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-      webviewId: 42,
-      navigationRevision: 0,
-      target,
-      annotations: []
-    })
+    expect(sentCommands(webview)).toContainEqual({ type: 'deactivate', sessionId: sessionOne })
   })
 
-  it('synchronizes counts, copies Markdown, and clears after confirmation', async () => {
+  it('retires a new-document session immediately but ignores subframes and same-document navigation', () => {
     const webview = createWebview()
     render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
+    act(() => stateChanged(webview, sessionOne, true, 1))
 
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-        webviewId: 42,
-        navigationRevision: 4,
-        target,
-        annotations: [annotation]
-      })
+    act(() => webview.emitNative('did-start-navigation', { isMainFrame: false, isInPlace: false }))
+    expect(screen.getByText('1')).toBeInTheDocument()
+    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: true }))
+    expect(screen.getByText('1')).toBeInTheDocument()
+
+    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    expect(sentCommands(webview)).toEqual(
+      expect.arrayContaining([
+        { type: 'deactivate', sessionId: sessionOne },
+        { type: 'clear', sessionId: sessionOne }
+      ])
     )
-    request.mockClear()
-    fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
-    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalled())
-    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-      webviewId: 42,
-      navigationRevision: 4,
-      target,
-      annotations: [annotation]
-    })
-    const copied = vi.mocked(navigator.clipboard.writeText).mock.calls[0][0]
-    expect(copied).toContain('Fix this button')
-    expect(copied).toContain('https://example.com/page')
-    expect(copied).toContain('Accessibility status')
-    expect(request).toHaveBeenCalledWith('webview.get_annotations_markdown', { webviewId: 42 })
-    expect(toastSuccess).toHaveBeenCalledWith('已复制标注')
 
-    fireEvent.click(screen.getByRole('button', { name: '清空标注' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm 清空标注' }))
-    expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'clear' })
-    await waitFor(() => expect(screen.queryByText('1')).not.toBeInTheDocument())
-    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-      webviewId: 42,
-      navigationRevision: 4,
-      target,
-      annotations: []
-    })
+    act(() => stateChanged(webview, sessionOne, false, 1))
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+    act(() => stateChanged(webview, sessionTwo, false, 2))
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
-  it('does not assign a newer navigation revision to annotations from a stale render', async () => {
-    const webview = createWebview()
-    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
-
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
-    const copyButton = await screen.findByRole('button', { name: '复制标注 Markdown' })
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-        webviewId: 42,
-        navigationRevision: 4,
-        target,
-        annotations: [annotation]
-      })
-    )
-
-    request.mockClear()
-    const nextAnnotation = {
-      ...annotation,
-      id: '123e4567-e89b-12d3-a456-426614174001',
-      comment: 'New page annotation'
-    }
-    act(() => {
-      dispatchGuestState(webview, { enabled: false, annotations: [nextAnnotation] }, 5)
-      fireEvent.click(copyButton)
-    })
-
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('webview.get_annotations_markdown', {
-        webviewId: 42
-      })
-    )
-    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-      webviewId: 42,
-      navigationRevision: 5,
-      target,
-      annotations: [nextAnnotation]
-    })
-    expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-      webviewId: 42,
-      navigationRevision: 4,
-      target,
-      annotations: [annotation]
-    })
-    expect(request).not.toHaveBeenCalledWith('webview.replace_annotations', {
-      webviewId: 42,
-      navigationRevision: 5,
-      target,
-      annotations: [annotation]
-    })
-  })
-
-  it('ignores stale revisions for one webview while accepting revision zero from its replacement', async () => {
+  it('clears the old target but only reconfigures presentation metadata changes', () => {
     const webview = createWebview()
     const { rerender } = render(
       <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
     )
+    act(() => stateChanged(webview, sessionOne, true, 1))
+    vi.mocked(webview.send).mockClear()
 
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
-    expect(await screen.findByText('1')).toBeInTheDocument()
-    await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-        webviewId: 42,
-        navigationRevision: 4,
-        target,
-        annotations: [annotation]
-      })
-    )
-
-    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive={false} target={target} />)
-    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
-    request.mockClear()
-
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }, 3))
-    expect(screen.getByText('1')).toBeInTheDocument()
-    expect(request).not.toHaveBeenCalledWith('webview.replace_annotations', expect.anything())
-
-    const replacementWebview = createWebview(43)
     rerender(
-      <WebviewAnnotationControls webview={replacementWebview} isWebviewReady={false} isHostActive target={target} />
+      <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={{ ...target, label: '演示' }} />
     )
-    rerender(<WebviewAnnotationControls webview={replacementWebview} isWebviewReady isHostActive target={target} />)
+    expect(sentCommands(webview)).toContainEqual(expect.objectContaining({ type: 'configure', sessionId: sessionOne }))
+    expect(sentCommands(webview)).not.toContainEqual({ type: 'clear', sessionId: sessionOne })
 
-    act(() => dispatchGuestState(replacementWebview, { enabled: false, annotations: [annotation] }, 0))
+    vi.mocked(webview.send).mockClear()
+    rerender(
+      <WebviewAnnotationControls
+        webview={webview}
+        isWebviewReady
+        isHostActive
+        target={{ id: 'mini-app:other', label: 'Other' }}
+      />
+    )
+    expect(sentCommands(webview)).toContainEqual({ type: 'clear', sessionId: sessionOne })
+    expect(screen.queryByText('1')).not.toBeInTheDocument()
+  })
+
+  it('requests one correlated snapshot and exports it before copying', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
+    act(() => stateChanged(webview))
+
+    fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
+    fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
     await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('webview.replace_annotations', {
-        webviewId: 43,
-        navigationRevision: 0,
+      expect(sentCommands(webview)).toContainEqual({
+        type: 'request_snapshot',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000010'
+      })
+    )
+    expect(sentCommands(webview).filter((command) => command.type === 'request_snapshot')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: '复制标注 Markdown' })).toBeDisabled()
+
+    act(() =>
+      guestEvent(webview, {
+        type: 'snapshot_ready',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000010',
+        annotations: [annotation]
+      })
+    )
+
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('webview.export_annotations', {
+        webviewId: 42,
+        documentSessionId: sessionOne,
         target,
         annotations: [annotation]
       })
     )
-  })
-
-  it('disables repeated copies while main resolves accessibility context', async () => {
-    let resolveMarkdown: ((value: string) => void) | undefined
-    request.mockImplementation((route: string) =>
-      route === 'webview.get_annotations_markdown'
-        ? new Promise<string>((resolve) => {
-            resolveMarkdown = resolve
-          })
-        : Promise.resolve(undefined)
-    )
-    const webview = createWebview()
-    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }))
-
-    const copyButton = await screen.findByRole('button', { name: '复制标注 Markdown' })
-    fireEvent.click(copyButton)
-    await waitFor(() => expect(copyButton).toBeDisabled())
-
-    resolveMarkdown?.('# Resolved annotations')
-    await waitFor(() => expect(copyButton).not.toBeDisabled())
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('# Resolved annotations')
+    expect(toastSuccess).toHaveBeenCalledWith('已复制标注')
   })
 
-  it('shows the existing error feedback and avoids stale output when the current snapshot cannot be synchronized', async () => {
-    request.mockImplementation((route: string) =>
-      route === 'webview.replace_annotations'
-        ? Promise.reject(new Error('Synchronization failed'))
-        : Promise.resolve('')
+  it('ignores mismatched snapshots and rejects an empty matching snapshot without calling main', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
+    act(() => stateChanged(webview))
+    fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
+
+    act(() => {
+      guestEvent(webview, {
+        type: 'snapshot_ready',
+        sessionId: sessionTwo,
+        requestId: '00000000-0000-4000-8000-000000000010',
+        annotations: [annotation]
+      })
+      guestEvent(webview, {
+        type: 'snapshot_ready',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000099',
+        annotations: [annotation]
+      })
+    })
+    expect(request).not.toHaveBeenCalled()
+
+    act(() =>
+      guestEvent(webview, {
+        type: 'snapshot_ready',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000010',
+        annotations: []
+      })
+    )
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('复制标注失败'))
+    expect(request).not.toHaveBeenCalled()
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+  })
+
+  it('times out a request-scoped snapshot after two seconds', async () => {
+    vi.useFakeTimers()
+    try {
+      const webview = createWebview()
+      render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
+      act(() => stateChanged(webview))
+      fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
+
+      await act(async () => vi.advanceTimersByTimeAsync(2_001))
+
+      expect(toastError).toHaveBeenCalledWith('复制标注失败')
+      expect(request).not.toHaveBeenCalled()
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not copy a late main result after navigation invalidates the operation', async () => {
+    let resolveExport: ((markdown: string) => void) | undefined
+    request.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveExport = resolve
+        })
     )
     const webview = createWebview()
     render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
-    act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }))
+    act(() => stateChanged(webview))
+    fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
+    act(() =>
+      guestEvent(webview, {
+        type: 'snapshot_ready',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000010',
+        annotations: [annotation]
+      })
+    )
+    await waitFor(() => expect(request).toHaveBeenCalledOnce())
 
-    fireEvent.click(await screen.findByRole('button', { name: '复制标注 Markdown' }))
+    act(() => webview.emitNative('did-start-navigation', { isMainFrame: true, isInPlace: false }))
+    resolveExport?.('# stale')
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('复制标注失败'))
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
-    expect(request).not.toHaveBeenCalledWith('webview.get_annotations_markdown', expect.anything())
+  })
+
+  it('rejects pending snapshots on crash and unregisters every listener on cleanup', async () => {
+    const webview = createWebview()
+    const { unmount } = render(
+      <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
+    )
+    act(() => stateChanged(webview))
+    fireEvent.click(screen.getByRole('button', { name: '复制标注 Markdown' }))
+    act(() => webview.emitNative('render-process-gone'))
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith('复制标注失败'))
+
+    unmount()
+    expect(webview.removeEventListener).toHaveBeenCalledTimes(4)
   })
 })

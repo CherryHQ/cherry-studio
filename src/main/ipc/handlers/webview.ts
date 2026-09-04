@@ -17,10 +17,8 @@ export const webviewHandlers: IpcHandlersFor<typeof webviewRequestSchemas> = {
   'webview.set_spell_check_enabled': async ({ webviewId, isEnable }) => {
     webContents.fromId(webviewId)?.session.setSpellCheckerEnabled(isEnable)
   },
-  'webview.replace_annotations': async (input, { senderId }) =>
-    application.get('WebviewService').replaceAnnotations(input, senderId),
-  'webview.get_annotations_markdown': async ({ webviewId }, { senderId }) =>
-    application.get('WebviewService').getAnnotationsMarkdown(webviewId, senderId),
+  'webview.export_annotations': async (input, { senderId }) =>
+    application.get('WebviewService').exportAnnotations(input, senderId),
   'webview.print_to_pdf': async ({ webviewId }) => application.get('WebviewService').printWebviewToPDF(webviewId),
   'webview.save_as_html': async ({ webviewId }) => application.get('WebviewService').saveWebviewAsHTML(webviewId)
 }

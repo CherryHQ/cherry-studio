@@ -2,11 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getAppLanguage, t } from '@main/i18n'
-import { IpcError } from '@shared/ipc/errors/IpcError'
-import { webviewErrorCodes } from '@shared/ipc/errors/webview'
 import type { WindowId } from '@shared/ipc/types'
 import {
-  WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   WEBVIEW_ANNOTATION_LIMITS,
   WEBVIEW_SHADOW_SELECTOR_SEPARATOR,
   type WebviewAccessibilityContext,
@@ -16,7 +13,6 @@ import {
   type WebviewAccessibleNodeSummary,
   type WebviewAnnotation,
   type WebviewAnnotationDocument,
-  type WebviewAnnotationHostCommand,
   type WebviewAnnotationTarget,
   type WebviewResolvedAnnotation,
   type WebviewResolvedAnnotationDocument
@@ -26,20 +22,17 @@ import { existsSync, promises as fs } from 'fs'
 
 import { isSafeExternalUrl } from '../../utils/externalUrlSafety'
 import { formatWebviewAnnotations, sanitizeWebviewAnnotationUrl } from './annotationMarkdown'
+import { AnnotationSession } from './AnnotationSession'
 
 const logger = loggerService.withContext('WebviewService')
 /** The one session site mini apps share; every other partition belongs to a policy this service must not touch. */
 const WEBVIEW_PARTITION = 'persist:webview'
-const ANNOTATION_CACHE_KEY = 'webview.annotations'
 const ACCESSIBILITY_CAPTURE_TIMEOUT_MS = 5_000
 const ACCESSIBILITY_WORLD_NAME = 'cherry-webview-annotation-accessibility'
 
-type AnnotationRegistry = Record<string, WebviewAnnotationDocument>
-type AccessibilityCaptureQueue = Promise<void>
-
-interface ReplaceAnnotationsInput {
+interface ExportAnnotationsInput {
   webviewId: number
-  navigationRevision: number
+  documentSessionId: string
   target: WebviewAnnotationTarget
   annotations: WebviewAnnotation[]
 }
@@ -223,10 +216,8 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
 @Injectable('WebviewService')
 @ServicePhase(Phase.WhenReady)
 export class WebviewService extends BaseService {
-  private readonly preloadAttachedContents = new WeakSet<Electron.WebContents>()
-  private readonly initializedWebviews = new WeakSet<Electron.WebContents>()
-  private readonly accessibilityCaptureQueues = new Map<number, AccessibilityCaptureQueue>()
-  private readonly annotationNavigationRevisions = new WeakMap<Electron.WebContents, number>()
+  private readonly preloadBindings = new Map<Electron.WebContents, () => void>()
+  private readonly annotationSessions = new Map<number, AnnotationSession>()
 
   protected async onInit() {
     this.initSessionUserAgent()
@@ -234,8 +225,10 @@ export class WebviewService extends BaseService {
   }
 
   protected async onStop() {
-    application.get('CacheService').delete(ANNOTATION_CACHE_KEY)
-    this.accessibilityCaptureQueues.clear()
+    for (const cleanup of this.preloadBindings.values()) cleanup()
+    this.preloadBindings.clear()
+    for (const annotationSession of this.annotationSessions.values()) annotationSession.dispose()
+    this.annotationSessions.clear()
   }
 
   /**
@@ -276,13 +269,11 @@ export class WebviewService extends BaseService {
   }
 
   private attachWebviewPreload(contents: Electron.WebContents) {
-    if (this.preloadAttachedContents.has(contents)) return
-    this.preloadAttachedContents.add(contents)
+    if (this.preloadBindings.has(contents)) return
 
     const preloadPath = application.getPath('feature.webview.preload_file')
     if (!existsSync(preloadPath)) {
       logger.error(`Webview preload is missing, annotations and host shortcuts will not work: ${preloadPath}`)
-      this.preloadAttachedContents.delete(contents)
       return
     }
 
@@ -302,83 +293,32 @@ export class WebviewService extends BaseService {
     }
 
     contents.on('will-attach-webview', handler)
+    let cleaned = false
     const cleanup = () => {
+      if (cleaned) return
+      cleaned = true
       contents.removeListener('will-attach-webview', handler)
       contents.removeListener('destroyed', cleanup)
-      this.preloadAttachedContents.delete(contents)
+      if (this.preloadBindings.get(contents) === cleanup) this.preloadBindings.delete(contents)
     }
     contents.once('destroyed', cleanup)
-    this.registerDisposable(cleanup)
+    this.preloadBindings.set(contents, cleanup)
   }
 
   private initializeWebview(contents: Electron.WebContents) {
-    if (
-      contents.getType?.() !== 'webview' ||
-      contents.session !== session.fromPartition(WEBVIEW_PARTITION) ||
-      this.initializedWebviews.has(contents)
-    ) {
+    if (contents.getType?.() !== 'webview' || contents.session !== session.fromPartition(WEBVIEW_PARTITION)) {
       return
     }
-    this.initializedWebviews.add(contents)
-    if (!this.annotationNavigationRevisions.has(contents)) {
-      this.annotationNavigationRevisions.set(contents, 0)
-    }
+    const existing = this.annotationSessions.get(contents.id)
+    if (existing?.isFor(contents)) return
+    existing?.dispose()
 
-    const clearAnnotations = () => this.clearAnnotations(contents.id)
-    const sendNavigationReset = () => {
-      if (contents.isDestroyed()) return
-      const command: WebviewAnnotationHostCommand = {
-        type: 'reset_for_navigation',
-        navigationRevision: this.annotationNavigationRevisions.get(contents) ?? 0
+    const annotationSession = new AnnotationSession(contents, () => {
+      if (this.annotationSessions.get(contents.id) === annotationSession) {
+        this.annotationSessions.delete(contents.id)
       }
-      try {
-        contents.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command)
-      } catch (error) {
-        logger.debug('Failed to reset webview annotations after navigation', { webviewId: contents.id, error })
-      }
-    }
-    const invalidateAnnotations = (notifyGuest: boolean) => {
-      const revision = (this.annotationNavigationRevisions.get(contents) ?? 0) + 1
-      this.annotationNavigationRevisions.set(contents, revision)
-      clearAnnotations()
-      if (notifyGuest) sendNavigationReset()
-    }
-    const handleDestroyed = () => {
-      clearAnnotations()
-      this.accessibilityCaptureQueues.delete(contents.id)
-      this.annotationNavigationRevisions.delete(contents)
-      this.initializedWebviews.delete(contents)
-    }
-    const handleNavigation = (details: Electron.Event<Electron.WebContentsDidStartNavigationEventParams>) => {
-      if (details.isMainFrame) invalidateAnnotations(true)
-    }
-    const handleRenderProcessGone = () => invalidateAnnotations(false)
-
-    contents.on('did-start-navigation', handleNavigation)
-    contents.on('render-process-gone', handleRenderProcessGone)
-    contents.on('dom-ready', sendNavigationReset)
-    contents.once('destroyed', handleDestroyed)
-    this.registerDisposable(() => {
-      if (!contents.isDestroyed()) {
-        contents.removeListener('did-start-navigation', handleNavigation)
-        contents.removeListener('render-process-gone', handleRenderProcessGone)
-        contents.removeListener('dom-ready', sendNavigationReset)
-        contents.removeListener('destroyed', handleDestroyed)
-      }
-      this.initializedWebviews.delete(contents)
     })
-  }
-
-  private getAnnotationRegistry(): AnnotationRegistry {
-    return application.get('CacheService').get<AnnotationRegistry>(ANNOTATION_CACHE_KEY) ?? {}
-  }
-
-  private setAnnotationRegistry(registry: AnnotationRegistry) {
-    if (Object.keys(registry).length === 0) {
-      application.get('CacheService').delete(ANNOTATION_CACHE_KEY)
-    } else {
-      application.get('CacheService').set(ANNOTATION_CACHE_KEY, registry)
-    }
+    this.annotationSessions.set(contents.id, annotationSession)
   }
 
   private requireOwnedWebview(webviewId: number, senderId: WindowId | null) {
@@ -393,75 +333,10 @@ export class WebviewService extends BaseService {
       guest.session !== session.fromPartition(WEBVIEW_PARTITION) ||
       guest.hostWebContents !== hostWindow.webContents
     ) {
-      throw new IpcError(webviewErrorCodes.NOT_OWNED, 'The caller does not own this webview')
+      throw new Error('The caller does not own this webview')
     }
 
     return guest
-  }
-
-  replaceAnnotations(input: ReplaceAnnotationsInput, senderId: WindowId | null): void {
-    const guest = this.requireOwnedWebview(input.webviewId, senderId)
-    if (input.navigationRevision !== (this.annotationNavigationRevisions.get(guest) ?? 0)) return
-
-    const registry = { ...this.getAnnotationRegistry() }
-    const key = String(input.webviewId)
-
-    if (input.annotations.length === 0) {
-      delete registry[key]
-      this.setAnnotationRegistry(registry)
-      return
-    }
-
-    registry[key] = {
-      webviewId: input.webviewId,
-      target: input.target,
-      page: {
-        title: guest.getTitle().replace(/\s+/g, ' ').trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.pageTitle),
-        url: sanitizeWebviewAnnotationUrl(guest.getURL()).slice(0, WEBVIEW_ANNOTATION_LIMITS.pageUrl)
-      },
-      annotations: input.annotations,
-      updatedAt: Math.max(Date.now(), (registry[key]?.updatedAt ?? 0) + 1)
-    }
-    this.setAnnotationRegistry(registry)
-  }
-
-  clearAnnotations(webviewId: number): void {
-    const registry = { ...this.getAnnotationRegistry() }
-    const key = String(webviewId)
-    if (!(key in registry)) return
-    delete registry[key]
-    this.setAnnotationRegistry(registry)
-  }
-
-  private listAnnotations(): WebviewAnnotationDocument[] {
-    const registry = { ...this.getAnnotationRegistry() }
-    let changed = false
-
-    for (const [key, document] of Object.entries(registry)) {
-      const guest = webContents.fromId(document.webviewId)
-      if (!guest || guest.isDestroyed() || guest.getType?.() !== 'webview') {
-        delete registry[key]
-        changed = true
-      }
-    }
-    if (changed) this.setAnnotationRegistry(registry)
-
-    return Object.values(registry).sort((a, b) => b.updatedAt - a.updatedAt)
-  }
-
-  private enqueueAccessibilityCapture<T>(webviewId: number, task: () => Promise<T>): Promise<T> {
-    const previous = this.accessibilityCaptureQueues.get(webviewId) ?? Promise.resolve()
-    const result = previous.catch(() => undefined).then(task)
-    const tail = result.then(
-      () => undefined,
-      () => undefined
-    )
-    this.accessibilityCaptureQueues.set(webviewId, tail)
-    return result.finally(() => {
-      if (this.accessibilityCaptureQueues.get(webviewId) === tail) {
-        this.accessibilityCaptureQueues.delete(webviewId)
-      }
-    })
   }
 
   private async sendDebuggerCommand<T>(
@@ -759,74 +634,67 @@ export class WebviewService extends BaseService {
     }
   }
 
-  private async resolveStoredAnnotationDocuments(
-    documents: WebviewAnnotationDocument[]
-  ): Promise<WebviewResolvedAnnotationDocument[]> {
-    const budget: AccessibilityCaptureBudget = {
-      remaining: WEBVIEW_ANNOTATION_LIMITS.accessibilityRequestNodes
+  async exportAnnotations(input: ExportAnnotationsInput, senderId: WindowId | null): Promise<string> {
+    const guest = this.requireOwnedWebview(input.webviewId, senderId)
+    if (new Set(input.annotations.map((annotation) => annotation.id)).size !== input.annotations.length) {
+      throw new Error('Annotation ids must be unique')
     }
-    const deadline = Date.now() + ACCESSIBILITY_CAPTURE_TIMEOUT_MS
-    const resolvedDocuments: WebviewResolvedAnnotationDocument[] = []
+    const annotationSession = this.annotationSessions.get(input.webviewId)
+    if (!annotationSession?.isFor(guest)) throw new Error('Annotation document session is stale')
 
-    for (const document of documents) {
-      const guest = webContents.fromId(document.webviewId)
-      if (!guest || guest.isDestroyed() || guest.getType?.() !== 'webview') continue
-      const urlBeforeCapture = guest.getURL()
-      const annotations = await this.enqueueAccessibilityCapture(document.webviewId, () =>
-        this.captureDocumentAccessibility(guest, document, budget, deadline)
+    return annotationSession.run(input.documentSessionId, async () => {
+      const document: WebviewAnnotationDocument = {
+        webviewId: input.webviewId,
+        target: input.target,
+        page: {
+          title: guest.getTitle().replace(/\s+/g, ' ').trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.pageTitle),
+          url: sanitizeWebviewAnnotationUrl(guest.getURL()).slice(0, WEBVIEW_ANNOTATION_LIMITS.pageUrl)
+        },
+        annotations: input.annotations,
+        updatedAt: 0
+      }
+      const annotations = await this.captureDocumentAccessibility(
+        guest,
+        document,
+        { remaining: WEBVIEW_ANNOTATION_LIMITS.accessibilityRequestNodes },
+        Date.now() + ACCESSIBILITY_CAPTURE_TIMEOUT_MS
       )
-      const current = this.getAnnotationRegistry()[String(document.webviewId)]
-      if (
-        !current ||
-        current.updatedAt !== document.updatedAt ||
-        guest.isDestroyed() ||
-        guest.getURL() !== urlBeforeCapture
+      if (this.requireOwnedWebview(input.webviewId, senderId) !== guest) {
+        throw new Error('The caller does not own this webview')
+      }
+
+      const copyDocuments: WebviewResolvedAnnotationDocument[] = [
+        {
+          ...document,
+          annotations: annotations.map((annotation) => ({
+            ...annotation,
+            accessibility: { ...annotation.accessibility }
+          }))
+        }
+      ]
+      let markdown = formatWebviewAnnotations(copyDocuments, { includeSafetyNotice: true }).text
+
+      for (
+        let documentIndex = copyDocuments.length - 1;
+        markdown.length > WEBVIEW_ANNOTATION_LIMITS.exportMarkdown;
+        documentIndex--
       ) {
-        continue
+        const copyDocument = copyDocuments[documentIndex]
+        if (!copyDocument) break
+        for (let annotationIndex = copyDocument.annotations.length - 1; annotationIndex >= 0; annotationIndex--) {
+          const annotation = copyDocument.annotations[annotationIndex]
+          if (annotation.accessibility.status !== 'available') continue
+          annotation.accessibility = createAccessibilityContext('budget_exceeded')
+          markdown = formatWebviewAnnotations(copyDocuments, { includeSafetyNotice: true }).text
+          if (markdown.length <= WEBVIEW_ANNOTATION_LIMITS.exportMarkdown) break
+        }
       }
-      resolvedDocuments.push({ ...document, annotations })
-    }
 
-    return resolvedDocuments
-  }
-
-  async getAnnotationsMarkdown(webviewId: number, senderId: WindowId | null): Promise<string> {
-    this.requireOwnedWebview(webviewId, senderId)
-    const document = this.listAnnotations().find((item) => item.webviewId === webviewId)
-    if (!document) return ''
-
-    const resolvedDocuments = await this.resolveStoredAnnotationDocuments([document])
-    if (resolvedDocuments.length === 0) return ''
-
-    const copyDocuments = resolvedDocuments.map((resolvedDocument) => ({
-      ...resolvedDocument,
-      annotations: resolvedDocument.annotations.map((annotation) => ({
-        ...annotation,
-        accessibility: { ...annotation.accessibility }
-      }))
-    }))
-    let markdown = formatWebviewAnnotations(copyDocuments, { includeSafetyNotice: true }).text
-
-    for (
-      let documentIndex = copyDocuments.length - 1;
-      markdown.length > WEBVIEW_ANNOTATION_LIMITS.exportMarkdown;
-      documentIndex--
-    ) {
-      const copyDocument = copyDocuments[documentIndex]
-      if (!copyDocument) break
-      for (let annotationIndex = copyDocument.annotations.length - 1; annotationIndex >= 0; annotationIndex--) {
-        const annotation = copyDocument.annotations[annotationIndex]
-        if (annotation.accessibility.status !== 'available') continue
-        annotation.accessibility = createAccessibilityContext('budget_exceeded')
-        markdown = formatWebviewAnnotations(copyDocuments, { includeSafetyNotice: true }).text
-        if (markdown.length <= WEBVIEW_ANNOTATION_LIMITS.exportMarkdown) break
-      }
-    }
-
-    return formatWebviewAnnotations(copyDocuments, {
-      includeSafetyNotice: true,
-      maxChars: WEBVIEW_ANNOTATION_LIMITS.exportMarkdown
-    }).text
+      return formatWebviewAnnotations(copyDocuments, {
+        includeSafetyNotice: true,
+        maxChars: WEBVIEW_ANNOTATION_LIMITS.exportMarkdown
+      }).text
+    })
   }
 
   /**

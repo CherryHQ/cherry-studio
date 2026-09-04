@@ -2,10 +2,10 @@ import {
   WEBVIEW_ANNOTATION_LIMITS,
   WEBVIEW_SHADOW_SELECTOR_SEPARATOR,
   type WebviewAnnotation,
+  type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationLocale,
   type WebviewAnnotationRegion,
-  type WebviewAnnotationState,
   type WebviewAnnotationTheme,
   type WebviewElementLocator,
   type WebviewRegionRect
@@ -355,7 +355,7 @@ const findCommonAncestor = (elements: readonly Element[]): Element | null => {
   return chain.values().next().value ?? null
 }
 
-type StateListener = (state: WebviewAnnotationState, navigationRevision: number) => void
+type StateListener = (event: WebviewAnnotationGuestEvent) => void
 
 export class WebviewAnnotationController {
   private annotations: WebviewAnnotation[] = []
@@ -376,7 +376,7 @@ export class WebviewAnnotationController {
   private suppressNextClick = false
   private locale: WebviewAnnotationLocale | null = null
   private mutationObserver: MutationObserver | null = null
-  private navigationRevision = 0
+  private sessionId: string | null = null
   private observedRoots = new WeakSet<Document | ShadowRoot>()
   private overlayHost: HTMLDivElement | null = null
   private highlight: HTMLDivElement | null = null
@@ -391,6 +391,21 @@ export class WebviewAnnotationController {
   constructor(private readonly onStateChange: StateListener) {}
 
   handleCommand(command: WebviewAnnotationHostCommand) {
+    if (command.type === 'start_session') {
+      if (command.sessionId !== this.sessionId) {
+        this.sessionId = command.sessionId
+        this.configured = false
+        this.reset(false)
+      }
+      this.emitState()
+      return
+    }
+    if (command.type === 'request_state') {
+      this.emitState()
+      return
+    }
+    if (command.sessionId !== this.sessionId) return
+
     switch (command.type) {
       case 'configure':
         this.configured = true
@@ -405,34 +420,24 @@ export class WebviewAnnotationController {
       case 'clear':
         this.clearAnnotations()
         break
-      case 'reset':
-        this.reset()
+      case 'deactivate':
+        this.setEnabled(false)
         break
-      case 'reset_for_navigation':
-        this.navigationRevision = command.navigationRevision
-        this.reset()
-        break
-      case 'request_state':
-        this.emitState()
+      case 'request_snapshot':
+        this.onStateChange({
+          type: 'snapshot_ready',
+          sessionId: command.sessionId,
+          requestId: command.requestId,
+          annotations: structuredClone(this.annotations)
+        })
         break
     }
   }
 
-  getState(): WebviewAnnotationState {
+  getState() {
     return {
       enabled: this.enabled,
-      annotations: this.annotations.map((annotation) => ({
-        ...annotation,
-        element: { ...annotation.element },
-        ...(annotation.region
-          ? {
-              region: {
-                rect: { ...annotation.region.rect },
-                elements: annotation.region.elements.map((element) => ({ ...element }))
-              }
-            }
-          : {})
-      }))
+      count: this.annotations.length
     }
   }
 
@@ -470,14 +475,14 @@ export class WebviewAnnotationController {
     this.emitState()
   }
 
-  private reset() {
+  private reset(emit = true) {
     this.clearAnnotations(false)
     this.enabled = false
     this.removeSelectionListeners()
     this.cancelMarquee()
     this.stopPositionTracking()
     this.removeOverlay()
-    this.emitState()
+    if (emit) this.emitState()
   }
 
   private clearAnnotations(emit = true) {
@@ -493,7 +498,8 @@ export class WebviewAnnotationController {
   }
 
   private emitState() {
-    this.onStateChange(this.getState(), this.navigationRevision)
+    if (!this.sessionId) return
+    this.onStateChange({ type: 'state_changed', sessionId: this.sessionId, ...this.getState() })
   }
 
   private ensureOverlay() {
@@ -931,7 +937,6 @@ export class WebviewAnnotationController {
       const annotation: WebviewAnnotation = {
         id: crypto.randomUUID(),
         comment,
-        createdAt: Date.now(),
         element: locator,
         ...(this.pendingRegion ? { region: this.pendingRegion } : {})
       }

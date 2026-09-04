@@ -13,11 +13,10 @@ vi.mock('electron', () => ({ webContents: { fromId: fromIdMock } }))
 
 import { webviewHandlers } from '../webview'
 
-const replaceAnnotations = vi.fn()
+const exportAnnotations = vi.fn()
 const webviewService = {
-  getAnnotationsMarkdown: vi.fn(),
+  exportAnnotations,
   printWebviewToPDF: vi.fn(),
-  replaceAnnotations,
   saveWebviewAsHTML: vi.fn()
 }
 const setSpellCheckerEnabled = vi.fn()
@@ -57,40 +56,26 @@ describe('webviewHandlers', () => {
     expect(webviewService.printWebviewToPDF).toHaveBeenCalledWith(7)
   })
 
-  it('get_annotations_markdown validates through WebviewService and returns the resolved export', async () => {
-    webviewService.getAnnotationsMarkdown.mockResolvedValue('# Annotations')
-
-    expect(await webviewHandlers['webview.get_annotations_markdown']({ webviewId: 7 }, ctx)).toBe('# Annotations')
-    expect(webviewService.getAnnotationsMarkdown).toHaveBeenCalledWith(7, 'w1')
-  })
-
-  it('replace_annotations forwards the complete snapshot and caller identity', async () => {
+  it('export_annotations forwards the complete request and caller identity', async () => {
     const input = {
       webviewId: 7,
-      navigationRevision: 4,
+      documentSessionId: '00000000-0000-4000-8000-000000000001',
       target: { id: 'mini-app:demo', label: 'Demo' },
-      annotations: []
+      annotations: [
+        {
+          id: '123e4567-e89b-42d3-a456-426614174000',
+          comment: 'Fix this',
+          element: { selector: '#target', tagName: 'button', text: null, ariaLabel: null, role: 'button' }
+        }
+      ]
     }
 
-    const parsedInput = webviewRequestSchemas['webview.replace_annotations'].input.parse(input)
-    await webviewHandlers['webview.replace_annotations'](parsedInput, ctx)
+    exportAnnotations.mockResolvedValue('# Annotations')
+    const parsedInput = webviewRequestSchemas['webview.export_annotations'].input.parse(input)
+    expect(await webviewHandlers['webview.export_annotations'](parsedInput, ctx)).toBe('# Annotations')
 
-    expect(replaceAnnotations).toHaveBeenCalledWith(input, 'w1')
+    expect(exportAnnotations).toHaveBeenCalledWith(input, 'w1')
   })
-
-  it.each([-1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
-    'replace_annotations rejects invalid navigation revision %s',
-    (navigationRevision) => {
-      const parsed = webviewRequestSchemas['webview.replace_annotations'].input.safeParse({
-        webviewId: 7,
-        navigationRevision,
-        target: { id: 'mini-app:demo', label: 'Demo' },
-        annotations: []
-      })
-
-      expect(parsed.success).toBe(false)
-    }
-  )
 
   it('save_as_html delegates and returns null on cancel', async () => {
     webviewService.saveWebviewAsHTML.mockResolvedValue(null)
