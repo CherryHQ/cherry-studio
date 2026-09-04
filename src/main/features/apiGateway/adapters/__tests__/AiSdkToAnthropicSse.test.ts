@@ -245,6 +245,31 @@ describe('AiSdkToAnthropicSse', () => {
       )
     })
 
+    it('should preserve malformed tool input exactly', async () => {
+      const adapter = new AiSdkToAnthropicSse({ model: 'test:model' })
+      const stream = createMockStream([
+        { type: 'tool-input-start', toolCallId: 'call_malformed', toolName: 'BrokenTool' },
+        { type: 'tool-input-delta', toolCallId: 'call_malformed', inputTextDelta: '{bad' },
+        {
+          type: 'tool-input-error',
+          toolCallId: 'call_malformed',
+          toolName: 'BrokenTool',
+          input: '{bad',
+          errorText: 'Invalid JSON'
+        },
+        createFinish('stop')
+      ])
+
+      const events = await collectEvents(adapter.transform(stream))
+
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: 'content_block_delta',
+          delta: { type: 'input_json_delta', partial_json: '{bad' }
+        })
+      )
+    })
+
     it('should restore client tool names before emitting tool_use blocks', async () => {
       const adapter = new AiSdkToAnthropicSse({
         model: 'test:model',

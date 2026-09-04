@@ -293,8 +293,8 @@ describe('deepseekDsmlParserPlugin', () => {
       { type: 'reasoning-start', id: 'reasoning-0' },
       { type: 'reasoning-delta', id: 'reasoning-0', delta: `thinking\n${partialDsml}` },
       { type: 'text-start', id: 'txt-0' },
-      { type: 'reasoning-end', id: 'reasoning-0' },
       { type: 'text-delta', id: 'txt-0', delta: 'answer' },
+      { type: 'reasoning-end', id: 'reasoning-0' },
       { type: 'text-end', id: 'txt-0' },
       {
         type: 'finish',
@@ -624,14 +624,18 @@ describe('deepseekDsmlParserPlugin', () => {
   })
 
   describe('wrapGenerate (non-streaming)', () => {
-    async function runGenerate(text: string, finishReasonUnified: 'stop' | 'tool-calls' = 'stop') {
+    async function runGenerate(
+      text: string,
+      finishReasonUnified: 'stop' | 'tool-calls' = 'stop',
+      contentType: 'text' | 'reasoning' = 'text'
+    ) {
       const middleware = await getMiddleware()
       expect(middleware.wrapGenerate).toBeDefined()
 
       const result = await middleware.wrapGenerate!({
         doGenerate: async () =>
           ({
-            content: [{ type: 'text', text }],
+            content: [{ type: contentType, text }],
             finishReason: { unified: finishReasonUnified, raw: finishReasonUnified },
             usage: {} as any,
             warnings: [],
@@ -681,6 +685,28 @@ describe('deepseekDsmlParserPlugin', () => {
       expect(reconstructed).toBe('lead-in  middle  tail')
       expect(reconstructed).not.toContain('｜｜DSML｜｜')
 
+      expect(result.finishReason.unified).toBe('tool-calls')
+    })
+
+    it('extracts DSML tool calls from reasoning parts', async () => {
+      const text =
+        'thinking ' +
+        '<｜DSML｜tool_calls>' +
+        '<｜DSML｜invoke name="ToolSearch">' +
+        '<｜DSML｜parameter name="query" string="true">select:mcp__assistant__product_info</｜DSML｜parameter>' +
+        '</｜DSML｜invoke>' +
+        '</｜DSML｜tool_calls>'
+
+      const result = await runGenerate(text, 'stop', 'reasoning')
+
+      expect(result.content).toEqual([
+        { type: 'reasoning', text: 'thinking ' },
+        expect.objectContaining({
+          type: 'tool-call',
+          toolName: 'ToolSearch',
+          input: '{"query":"select:mcp__assistant__product_info"}'
+        })
+      ])
       expect(result.finishReason.unified).toBe('tool-calls')
     })
 

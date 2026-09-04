@@ -113,15 +113,36 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
       const { stream, ...rest } = await doStream()
 
       type ContentType = 'text' | 'reasoning'
+      interface ContentParserState {
+        contentBuffer: string
+        dsmlBuffer: string
+        dsmlOpenTag: string
+        inDsml: boolean
+        contentId: string
+        contentType: ContentType
+        pendingCalls: ParsedDsmlCall[]
+      }
 
-      let contentBuffer = ''
-      let dsmlBuffer = ''
-      let dsmlOpenTag: string = TOOL_CALLS_OPEN_TAGS[0]
-      let inDsml = false
-      let activeContentId: string | null = null
-      let activeContentType: ContentType = 'text'
-      let pendingReasoningCalls: ParsedDsmlCall[] = []
+      const contentStates = new Map<string, ContentParserState>()
       let extractedToolCalls = false
+
+      const getContentState = (contentType: ContentType, contentId: string): ContentParserState => {
+        const key = `${contentType}:${contentId}`
+        let state = contentStates.get(key)
+        if (!state) {
+          state = {
+            contentBuffer: '',
+            dsmlBuffer: '',
+            dsmlOpenTag: TOOL_CALLS_OPEN_TAGS[0],
+            inDsml: false,
+            contentId,
+            contentType,
+            pendingCalls: []
+          }
+          contentStates.set(key, state)
+        }
+        return state
+      }
 
       const enqueueContentDelta = (
         controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
@@ -162,73 +183,80 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
       // eslint-disable-next-line prefer-const
       let drainDsmlBuffer: (
         controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
-        contentId: string
+        state: ContentParserState
       ) => void
 
       const enqueueRemainderContent = (
         controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
-        contentId: string
+        state: ContentParserState
       ) => {
-        const open = findFirstTag(contentBuffer, DSML_OPEN_TAGS)
+        const open = findFirstTag(state.contentBuffer, DSML_OPEN_TAGS)
         if (!open) {
-          const partialIdx = findPartialPrefix(contentBuffer, DSML_OPEN_TAGS)
+          const partialIdx = findPartialPrefix(state.contentBuffer, DSML_OPEN_TAGS)
           if (partialIdx >= 0) {
-            const safe = contentBuffer.slice(0, partialIdx)
-            if (safe) enqueueContentDelta(controller, activeContentType, contentId, safe)
-            contentBuffer = contentBuffer.slice(partialIdx)
+            const safe = state.contentBuffer.slice(0, partialIdx)
+            if (safe) enqueueContentDelta(controller, state.contentType, state.contentId, safe)
+            state.contentBuffer = state.contentBuffer.slice(partialIdx)
           } else {
-            if (contentBuffer) enqueueContentDelta(controller, activeContentType, contentId, contentBuffer)
-            contentBuffer = ''
+            if (state.contentBuffer) {
+              enqueueContentDelta(controller, state.contentType, state.contentId, state.contentBuffer)
+            }
+            state.contentBuffer = ''
           }
           return
         }
         const startIdx = open.index
         if (startIdx > 0) {
-          enqueueContentDelta(controller, activeContentType, contentId, contentBuffer.slice(0, startIdx))
+          enqueueContentDelta(controller, state.contentType, state.contentId, state.contentBuffer.slice(0, startIdx))
         }
-        dsmlOpenTag = open.tag
-        dsmlBuffer = contentBuffer.slice(startIdx + open.tag.length)
-        contentBuffer = ''
-        inDsml = true
-        drainDsmlBuffer(controller, contentId)
+        state.dsmlOpenTag = open.tag
+        state.dsmlBuffer = state.contentBuffer.slice(startIdx + open.tag.length)
+        state.contentBuffer = ''
+        state.inDsml = true
+        drainDsmlBuffer(controller, state)
       }
 
       drainDsmlBuffer = (
         controller: TransformStreamDefaultController<LanguageModelV3StreamPart>,
-        contentId: string
+        state: ContentParserState
       ) => {
-        const close = findFirstTag(dsmlBuffer, getCloseTags(dsmlOpenTag))
+        const close = findFirstTag(state.dsmlBuffer, getCloseTags(state.dsmlOpenTag))
         if (!close) {
-          if (dsmlBuffer.length > SWALLOW_BUFFER_LIMIT) {
+          if (state.dsmlBuffer.length > SWALLOW_BUFFER_LIMIT) {
             logger.warn('DSML buffer exceeded limit without close tag, falling back to content')
-            enqueueContentDelta(controller, activeContentType, contentId, dsmlOpenTag + dsmlBuffer)
-            dsmlBuffer = ''
-            inDsml = false
+            enqueueContentDelta(controller, state.contentType, state.contentId, state.dsmlOpenTag + state.dsmlBuffer)
+            state.dsmlBuffer = ''
+            state.inDsml = false
           }
           return
         }
 
-        const blockContent = dsmlBuffer.slice(0, close.index)
-        const remainder = dsmlBuffer.slice(close.index + close.tag.length)
-        const calls = parseDsmlCalls(blockContent, dsmlOpenTag, params.tools).map((call) => ({
+        const blockContent = state.dsmlBuffer.slice(0, close.index)
+        const remainder = state.dsmlBuffer.slice(close.index + close.tag.length)
+        const calls = parseDsmlCalls(blockContent, state.dsmlOpenTag, params.tools).map((call) => ({
           ...call,
           toolName: resolveToolName(call.toolName, params.tools)
         }))
 
         if (calls.length === 0) {
           logger.warn('DSML block closed but no invoke blocks parsed, emitting as content')
-          enqueueContentDelta(controller, activeContentType, contentId, dsmlOpenTag + blockContent + close.tag)
-        } else if (activeContentType === 'reasoning') {
-          pendingReasoningCalls.push(...calls)
+          enqueueContentDelta(
+            controller,
+            state.contentType,
+            state.contentId,
+            state.dsmlOpenTag + blockContent + close.tag
+          )
+        } else if (state.contentType === 'reasoning') {
+          state.pendingCalls.push(...calls)
           extractedToolCalls = true
         } else {
           enqueueToolCalls(controller, calls)
         }
 
-        dsmlBuffer = ''
-        inDsml = false
-        contentBuffer = remainder
-        if (contentBuffer) enqueueRemainderContent(controller, contentId)
+        state.dsmlBuffer = ''
+        state.inDsml = false
+        state.contentBuffer = remainder
+        if (state.contentBuffer) enqueueRemainderContent(controller, state)
       }
 
       return {
@@ -239,8 +267,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               controller: TransformStreamDefaultController<LanguageModelV3StreamPart>
             ) {
               if (chunk.type === 'text-start' || chunk.type === 'reasoning-start') {
-                activeContentId = chunk.id
-                activeContentType = chunk.type === 'text-start' ? 'text' : 'reasoning'
+                getContentState(chunk.type === 'text-start' ? 'text' : 'reasoning', chunk.id)
                 controller.enqueue(chunk)
                 return
               }
@@ -248,21 +275,19 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               if (chunk.type === 'text-end' || chunk.type === 'reasoning-end') {
                 const contentId = chunk.id
                 const contentType = chunk.type === 'text-end' ? 'text' : 'reasoning'
-                if (inDsml) {
+                const key = `${contentType}:${contentId}`
+                const state = getContentState(contentType, contentId)
+                if (state.inDsml) {
                   logger.warn(`${chunk.type} with unclosed DSML block, flushing as content`)
-                  enqueueContentDelta(controller, contentType, contentId, dsmlOpenTag + dsmlBuffer)
-                  dsmlBuffer = ''
-                  inDsml = false
-                } else if (contentBuffer) {
-                  enqueueContentDelta(controller, contentType, contentId, contentBuffer)
-                  contentBuffer = ''
+                  enqueueContentDelta(controller, contentType, contentId, state.dsmlOpenTag + state.dsmlBuffer)
+                } else if (state.contentBuffer) {
+                  enqueueContentDelta(controller, contentType, contentId, state.contentBuffer)
                 }
                 controller.enqueue(chunk)
-                if (chunk.type === 'reasoning-end' && pendingReasoningCalls.length > 0) {
-                  enqueueToolCalls(controller, pendingReasoningCalls)
-                  pendingReasoningCalls = []
+                if (chunk.type === 'reasoning-end' && state.pendingCalls.length > 0) {
+                  enqueueToolCalls(controller, state.pendingCalls)
                 }
-                activeContentId = null
+                contentStates.delete(key)
                 return
               }
 
@@ -284,31 +309,34 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
               }
 
               const contentId = chunk.id
-              activeContentType = chunk.type === 'text-delta' ? 'text' : 'reasoning'
-              if (!activeContentId) activeContentId = contentId
+              const contentType = chunk.type === 'text-delta' ? 'text' : 'reasoning'
+              const state = getContentState(contentType, contentId)
 
-              if (inDsml) {
-                dsmlBuffer += chunk.delta
-                drainDsmlBuffer(controller, contentId)
+              if (state.inDsml) {
+                state.dsmlBuffer += chunk.delta
+                drainDsmlBuffer(controller, state)
                 return
               }
 
-              contentBuffer += chunk.delta
-              enqueueRemainderContent(controller, contentId)
+              state.contentBuffer += chunk.delta
+              enqueueRemainderContent(controller, state)
             },
             flush(controller: TransformStreamDefaultController<LanguageModelV3StreamPart>) {
-              const contentId = activeContentId ?? 'dsml-fallback'
-              if (inDsml) {
-                logger.warn('Stream flushed with unclosed DSML block')
-                enqueueContentDelta(controller, activeContentType, contentId, dsmlOpenTag + dsmlBuffer)
-              } else if (contentBuffer) {
-                enqueueContentDelta(controller, activeContentType, contentId, contentBuffer)
+              for (const state of contentStates.values()) {
+                if (state.inDsml) {
+                  logger.warn('Stream flushed with unclosed DSML block')
+                  enqueueContentDelta(
+                    controller,
+                    state.contentType,
+                    state.contentId,
+                    state.dsmlOpenTag + state.dsmlBuffer
+                  )
+                } else if (state.contentBuffer) {
+                  enqueueContentDelta(controller, state.contentType, state.contentId, state.contentBuffer)
+                }
+                if (state.pendingCalls.length > 0) enqueueToolCalls(controller, state.pendingCalls)
               }
-              if (pendingReasoningCalls.length > 0) enqueueToolCalls(controller, pendingReasoningCalls)
-              contentBuffer = ''
-              dsmlBuffer = ''
-              inDsml = false
-              pendingReasoningCalls = []
+              contentStates.clear()
             }
           })
         ),
@@ -322,7 +350,7 @@ function createDeepseekDsmlParserMiddleware(): LanguageModelMiddleware {
       let extracted = false
 
       for (const part of result.content) {
-        if (part.type !== 'text') {
+        if (part.type !== 'text' && part.type !== 'reasoning') {
           newContent.push(part)
           continue
         }
