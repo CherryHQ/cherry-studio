@@ -10,10 +10,14 @@
  * cleanup on stop.
  */
 
+import { IncomingMessage } from 'node:http'
+import { Socket } from 'node:net'
+
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { regionService } from '@main/services/RegionService'
+import { createHttpError, HttpError } from 'builder-util-runtime'
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -82,6 +86,16 @@ const SCHEDULE_ID = 'app-updater:auto-check'
 const INITIAL_DELAY = 5_000
 const INTERVAL = 4 * 60 * 60 * 1000
 const BACKOFF_FIRST = 5 * 60 * 1000
+
+const releaseError = (body: string, statusCode = 503) => {
+  const response = new IncomingMessage(new Socket())
+  response.statusCode = statusCode
+  response.statusMessage = 'Service Unavailable'
+  return createHttpError(
+    response,
+    `method: GET url: https://releases.cherry-ai.com/beta-cn-mac.yml\n\n          Data:\n          ${body}\n          `
+  )
+}
 
 const setPackaged = (value: boolean) => {
   ;(app as unknown as { isPackaged: boolean }).isPackaged = value
@@ -219,6 +233,56 @@ describe('AppUpdaterService — auto update-check scheduling', () => {
     expect(scheduler.has(SCHEDULE_ID)).toBe(false)
     await vi.advanceTimersByTimeAsync(INITIAL_DELAY + INTERVAL)
     expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+  })
+
+  it('checks missing manifests on the normal cadence without preventing manual retries', async () => {
+    vi.mocked(autoUpdater.checkForUpdates).mockRejectedValue(releaseError('{"error":{"code":"manifest_missing"}}'))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await appUpdater._doAllReady()
+
+    await vi.advanceTimersByTimeAsync(INITIAL_DELAY)
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    await appUpdater.checkForUpdates()
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
+    expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(INTERVAL - 60 * 60 * 1000)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(INTERVAL)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(4)
+  })
+
+  it('restarts transient backoff after an intervening missing-manifest response', async () => {
+    vi.mocked(autoUpdater.checkForUpdates)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(releaseError('{"error":{"code":"manifest_missing"}}'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue(null)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await appUpdater._doAllReady()
+
+    await vi.advanceTimersByTimeAsync(INITIAL_DELAY + BACKOFF_FIRST)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(INTERVAL)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(BACKOFF_FIRST)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(4)
+  })
+
+  it.each([
+    ['HTML mentioning the code', releaseError('<html>manifest_missing</html>')],
+    ['unknown structured code', releaseError('{"error":{"code":"upstream_timeout"}}')],
+    ['edition mismatch', releaseError('{"error":{"code":"edition_mismatch"}}', 400)],
+    ['404 without its response body', new HttpError(404, '404 Not Found', 'method: GET url: https://example.test')]
+  ])('keeps transient backoff for %s', async (_label, error) => {
+    vi.mocked(autoUpdater.checkForUpdates).mockRejectedValue(error)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await appUpdater._doAllReady()
+
+    await vi.advanceTimersByTimeAsync(INITIAL_DELAY + BACKOFF_FIRST)
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
   })
 
   it('unregisters the schedule on stop and stops checking', async () => {

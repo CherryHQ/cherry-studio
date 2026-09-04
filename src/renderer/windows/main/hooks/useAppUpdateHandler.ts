@@ -5,6 +5,7 @@ import { notificationService } from '@renderer/services/notification'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
+import { isMissingUpdateManifest } from '@shared/utils/updateError'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,7 +14,7 @@ const logger = loggerService.withContext('useAppUpdateHandler')
 /** Map updater failures to i18n keys. Never surface the raw HTTP body. */
 export function getManualUpdateErrorMessageKey(error: { message?: string } | null | undefined): string {
   const message = error?.message ?? ''
-  if (isUnpublishedReleaseError(message)) {
+  if (isMissingUpdateManifest(error) || isUnpublishedReleaseError(message)) {
     return 'settings.about.updateNotPublished'
   }
   return 'settings.about.updateError'
