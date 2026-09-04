@@ -182,6 +182,17 @@ describe('ExternalAppService', () => {
     await expect(service.openTarget('/tmp/report.pdf', 'known:wt', 'file')).rejects.toThrow('is not available')
   })
 
+  it('encodes spaces and non-ASCII directory names in editor URLs', async () => {
+    mocks.statSync.mockReturnValue({ isDirectory: () => true })
+    const { ExternalAppService } = await import('../ExternalAppService')
+
+    await new ExternalAppService().openTarget('/tmp/My Workspace/开发', 'known:vscode', 'directory')
+
+    expect(mocks.openExternal).toHaveBeenCalledWith(
+      'vscode://file//tmp/My%20Workspace/%E5%BC%80%E5%8F%91?windowId=_blank'
+    )
+  })
+
   it('validates generated editor URLs before opening them externally', async () => {
     mocks.isSafeExternalUrl.mockReturnValue(false)
     const { ExternalAppService } = await import('../ExternalAppService')
