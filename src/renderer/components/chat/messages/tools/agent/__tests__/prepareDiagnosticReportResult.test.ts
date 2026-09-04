@@ -55,6 +55,13 @@ describe('prepareDiagnosticReportResult', () => {
     ).toBeUndefined()
   })
 
+  it('normalizes a safe renderer draft and rejects descriptions beyond the IPC limit', () => {
+    expect(parsePrepareDiagnosticReportResult(result('  First line\r\nSecond line  '))).toEqual(
+      result('First line\r\nSecond line')
+    )
+    expect(parsePrepareDiagnosticReportResult(result('a'.repeat(4_097)))).toBeUndefined()
+  })
+
   it('accepts only a completed assistant prepare_diagnostic_report tool', () => {
     expect(getPrepareDiagnosticReportResult(reportResponse('complete', result('Complete draft')))).toEqual(
       result('Complete draft')
