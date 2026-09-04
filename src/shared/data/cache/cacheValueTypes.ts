@@ -1,4 +1,3 @@
-import type { ComposerSerializedToken } from '@renderer/components/composer/tokens'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
@@ -13,6 +12,7 @@ import type { ComposerQueuedMessagePayload } from '../../ai/transport'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { UniqueModelId } from '../types/model'
+import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -131,7 +131,17 @@ export interface ChatScrollAnchor {
   offset: number
 }
 
-export type CacheComposerSerializedToken = ComposerSerializedToken
+export interface CacheComposerSerializedToken {
+  id: string
+  kind: ComposerMessageTokenKind | 'promptVariable'
+  label: string
+  icon?: string
+  description?: string
+  promptText?: string
+  payload?: unknown
+  index: number
+  textOffset: number
+}
 
 export interface CacheComposerAttachment {
   fileTokenSourceId: string
