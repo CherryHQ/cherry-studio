@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "This week",
   "agent.session.group.today": "Today",
   "agent.session.group.unknown_agent": "Unlinked Agent",
-  "agent.session.group.unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. It is view-only and cannot continue running.",
+  "agent.session.group.unknown_agent_tip": "This is a historical session group without an agent, not an actual agent. Select an active agent to continue this session.",
   "agent.session.group.yesterday": "Yesterday",
   "agent.session.list.title": "Tasks",
   "agent.session.model_switch_confirm.confirm": "Switch model",

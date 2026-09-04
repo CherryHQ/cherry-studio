@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "Bu Hafta",
   "agent.session.group.today": "Bugün",
   "agent.session.group.unknown_agent": "Bağlantısız Ajan",
-  "agent.session.group.unknown_agent_tip": "Bu, ajanı olmayan geçmiş bir oturum grubudur; gerçek bir ajan değildir. Yalnızca görüntülenebilir ve çalışmaya devam edemez.",
+  "agent.session.group.unknown_agent_tip": "Bu, ajanı olmayan geçmiş bir oturum grubudur; gerçek bir ajan değildir. Bu oturuma devam etmek için etkin bir ajan seçin.",
   "agent.session.group.yesterday": "Dün",
   "agent.session.list.title": "Görevler",
   "agent.session.model_switch_confirm.confirm": "Modeli değiştir",

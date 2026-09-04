@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   pagesByPath: new Map<string, Array<{ items: unknown[]; nextCursor?: string }>>(),
   paginatedItemsByPath: new Map<string, unknown[]>(),
   mutate: vi.fn(),
+  mutationOptions: new Map<string, { refresh?: (context: { args?: any }) => string[] }>(),
   refresh: vi.fn().mockResolvedValue(undefined),
   invalidate: vi.fn().mockResolvedValue(undefined),
   ipcRequest: vi.fn()
@@ -49,9 +50,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   }),
   useDataChange: vi.fn(),
   useInvalidateCache: () => mocks.invalidate,
-  useMutation: (method: string, path: string) => ({
-    trigger: (args?: unknown) => mocks.mutate(method, path, args)
-  })
+  useMutation: (method: string, path: string, options?: { refresh?: (context: { args?: any }) => string[] }) => {
+    mocks.mutationOptions.set(`${method} ${path}`, options ?? {})
+    return { trigger: (args?: unknown) => mocks.mutate(method, path, args) }
+  }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -145,6 +147,7 @@ beforeEach(async () => {
   mocks.pagesByPath.clear()
   mocks.paginatedItemsByPath.clear()
   mocks.mutate.mockReset().mockResolvedValue(undefined)
+  mocks.mutationOptions.clear()
   mocks.refresh.mockReset().mockResolvedValue(undefined)
   mocks.invalidate.mockReset().mockResolvedValue(undefined)
   mocks.ipcRequest.mockReset()
@@ -152,6 +155,25 @@ beforeEach(async () => {
 })
 
 describe('Trash domain batch adapters', () => {
+  it('refreshes topics when restoring an assistant', () => {
+    render(
+      <AssistantTrashSection
+        retentionDays={30}
+        isBatchMode={false}
+        isPermanentDeleting={false}
+        onRequestDelete={vi.fn()}
+      />
+    )
+
+    const refresh = mocks.mutationOptions.get('POST /assistants/:id/restore')?.refresh
+
+    expect(refresh?.({ args: { params: { id: 'assistant-1' } } })).toEqual([
+      '/assistants',
+      '/assistants/assistant-1',
+      '/topics'
+    ])
+  })
+
   it.each(dataDomainCases)(
     '$label batch permanent delete uses its direct route, refreshes once, and keeps a stale failure selected',
     async (testCase) => {

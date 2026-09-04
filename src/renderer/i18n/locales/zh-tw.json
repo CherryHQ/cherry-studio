@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "本週",
   "agent.session.group.today": "今天",
   "agent.session.group.unknown_agent": "未連結的 Agent",
-  "agent.session.group.unknown_agent_tip": "這是一個沒有 Agent 的歷史工作階段群組，並非實際的 Agent。此群組僅供檢視，無法繼續執行。",
+  "agent.session.group.unknown_agent_tip": "這是未關聯 Agent 的歷史工作階段群組，並非實際的 Agent。選擇一個已啟用的 Agent 後即可繼續此工作階段。",
   "agent.session.group.yesterday": "昨天",
   "agent.session.list.title": "任務",
   "agent.session.model_switch_confirm.confirm": "切換模型",

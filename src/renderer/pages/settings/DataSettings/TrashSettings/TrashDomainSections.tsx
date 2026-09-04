@@ -444,7 +444,7 @@ export const AssistantTrashSection: FC<TrashDomainSectionProps> = ({
   useDataChange('/assistants', () => void refresh())
 
   const restoreMutation = useMutation('POST', '/assistants/:id/restore', {
-    refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`]
+    refresh: ({ args }) => ['/assistants', `/assistants/${args!.params.id}`, '/topics']
   })
   const deleteMutation = useMutation('DELETE', '/assistants/:id')
 

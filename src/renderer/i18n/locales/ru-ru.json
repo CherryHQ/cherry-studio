@@ -200,7 +200,7 @@
   "agent.session.group.this_week": "На этой неделе",
   "agent.session.group.today": "Сегодня",
   "agent.session.group.unknown_agent": "Неизвестный агент",
-  "agent.session.group.unknown_agent_tip": "Это историческая группа сеансов без агента, а не фактический агент. Она доступна только для просмотра и не может продолжить работу.",
+  "agent.session.group.unknown_agent_tip": "Это историческая группа сеансов без агента, а не фактический агент. Выберите активного агента, чтобы продолжить этот сеанс.",
   "agent.session.group.yesterday": "Вчера",
   "agent.session.list.title": "Задачи",
   "agent.session.model_switch_confirm.confirm": "Переключить модель",
