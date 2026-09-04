@@ -50,8 +50,13 @@ export interface DoctorFixMeta {
 }
 
 export const DOCTOR_CHECK_IDS = [
+  'install-version-channel',
+  'permission-screen-capture',
+  'permission-accessibility',
   'config-boot-config-valid',
   'storage-userdata-location',
+  'provider-default-model',
+  'provider-api-key-present',
   'network-online',
   'network-dns-resolution',
   'network-tls-handshake',
@@ -59,7 +64,9 @@ export const DOCTOR_CHECK_IDS = [
   'network-endpoint-update',
   'network-endpoint-registry',
   'network-endpoint-cloud',
-  'network-endpoint-diagnostics'
+  'network-endpoint-diagnostics',
+  'runtime-managed-tools',
+  'logs-recent-findings'
 ] as const
 export type DoctorCheckId = (typeof DOCTOR_CHECK_IDS)[number]
 
@@ -80,6 +87,27 @@ export interface DoctorCheckMeta<Id extends DoctorCheckId> {
 const ENDPOINT_DETAILS = ['reachable', 'untrusted_tls', 'unreachable', 'proxy_auth', 'server_error', 'timeout'] as const
 
 export const DOCTOR_CHECK_CATALOG = {
+  'install-version-channel': {
+    domain: 'install',
+    tier: 'quick',
+    fixes: [],
+    details: ['mismatch'],
+    requires: []
+  },
+  'permission-screen-capture': {
+    domain: 'permission',
+    tier: 'quick',
+    fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
+    details: ['denied'],
+    requires: []
+  },
+  'permission-accessibility': {
+    domain: 'permission',
+    tier: 'quick',
+    fixes: [{ id: 'request', risk: 'low', reversible: true, relaunch: false }],
+    details: ['denied'],
+    requires: []
+  },
   'config-boot-config-valid': {
     domain: 'config',
     tier: 'quick',
@@ -93,6 +121,20 @@ export const DOCTOR_CHECK_CATALOG = {
     fixes: [],
     details: ['fallback_to_default'],
     requires: []
+  },
+  'provider-default-model': {
+    domain: 'provider',
+    tier: 'quick',
+    fixes: [],
+    details: ['not_configured', 'invalid_id', 'provider_unavailable', 'provider_disabled', 'model_unavailable'],
+    requires: []
+  },
+  'provider-api-key-present': {
+    domain: 'provider',
+    tier: 'quick',
+    fixes: [],
+    details: ['missing'],
+    requires: ['provider-default-model']
   },
   'network-online': { domain: 'network', tier: 'quick', fixes: [], details: ['offline'], requires: [] },
   'network-dns-resolution': {
@@ -143,6 +185,20 @@ export const DOCTOR_CHECK_CATALOG = {
     fixes: [],
     details: ENDPOINT_DETAILS,
     requires: ['network-dns-resolution']
+  },
+  'runtime-managed-tools': {
+    domain: 'runtime',
+    tier: 'quick',
+    fixes: [],
+    details: ['failed'],
+    requires: []
+  },
+  'logs-recent-findings': {
+    domain: 'logs',
+    tier: 'quick',
+    fixes: [],
+    details: ['findings'],
+    requires: []
   }
 } as const satisfies { readonly [Id in DoctorCheckId]: DoctorCheckMeta<Id> }
 
