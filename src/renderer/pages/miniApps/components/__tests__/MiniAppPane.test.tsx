@@ -6,16 +6,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MiniAppPane from '../MiniAppPane'
 
+interface ToolbarProbeProps {
+  webview: WebviewTag | null
+  isWebviewReady: boolean
+}
+
 const mocks = vi.hoisted(() => ({
   loaded: false,
   listeners: new Set<(loaded: boolean) => void>(),
-  toolbarRenders: [] as Array<{ webview: WebviewTag | null; isWebviewReady: boolean }>,
-  toolbarProps: null as { webview: WebviewTag | null; isWebviewReady: boolean } | null,
-  searchWebview: null as WebviewTag | null
+  toolbarRenders: [] as ToolbarProbeProps[],
+  toolbarProps: null as ToolbarProbeProps | null,
+  searchWebviewRef: null as RefObject<WebviewTag | null> | null
 }))
 
 vi.mock('../MinimalToolbar', () => ({
-  default: (props: { webview: WebviewTag | null; isWebviewReady: boolean }) => {
+  default: (props: ToolbarProbeProps) => {
     mocks.toolbarRenders.push(props)
     mocks.toolbarProps = props
     return (
@@ -30,7 +35,7 @@ vi.mock('../MinimalToolbar', () => ({
 
 vi.mock('../WebviewSearch', () => ({
   default: ({ webviewRef }: { webviewRef: RefObject<WebviewTag | null> }) => {
-    mocks.searchWebview = webviewRef.current
+    mocks.searchWebviewRef = webviewRef
     return <div data-testid="webview-search" data-webview-id={webviewRef.current?.dataset.miniAppId ?? ''} />
   }
 }))
@@ -92,7 +97,7 @@ beforeEach(() => {
   mocks.listeners.clear()
   mocks.toolbarRenders.length = 0
   mocks.toolbarProps = null
-  mocks.searchWebview = null
+  mocks.searchWebviewRef = null
 })
 
 afterEach(() => {
@@ -109,7 +114,7 @@ describe('MiniAppPane loading logo', () => {
 })
 
 describe('MiniAppPane concrete webview ownership', () => {
-  it('passes an already-loaded concrete webview to its children on the first render', () => {
+  it('keeps an already-loaded webview behind one stable ref', () => {
     mocks.loaded = true
     const webview = createWebview()
     document.body.appendChild(webview)
@@ -118,21 +123,23 @@ describe('MiniAppPane concrete webview ownership', () => {
 
     expect(mocks.toolbarRenders[0]).toMatchObject({ webview, isWebviewReady: true })
     expect(mocks.toolbarProps?.webview).toBe(webview)
-    expect(mocks.searchWebview).toBe(webview)
+    expect(mocks.searchWebviewRef?.current).toBe(webview)
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
     expect(screen.getByTestId('webview-search')).toHaveAttribute('data-webview-id', customApp.appId)
   })
 
-  it('attaches a present webview when readiness changes from false to true', async () => {
+  it('attaches a present webview without changing the ref identity', async () => {
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
+    const initialRef = mocks.searchWebviewRef
     const webview = createWebview()
     document.body.appendChild(webview)
 
-    expect(mocks.toolbarProps?.webview).toBeNull()
+    expect(initialRef?.current).toBeNull()
     emitLoaded(true)
 
     await waitFor(() => expect(mocks.toolbarProps?.webview).toBe(webview))
-    expect(mocks.searchWebview).toBe(webview)
+    expect(mocks.searchWebviewRef).toBe(initialRef)
+    expect(initialRef?.current).toBe(webview)
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
   })
 
@@ -143,31 +150,34 @@ describe('MiniAppPane concrete webview ownership', () => {
     document.body.appendChild(firstWebview)
 
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
-    await waitFor(() => expect(mocks.toolbarProps?.webview).toBe(firstWebview))
+    const stableRef = mocks.searchWebviewRef
+    await waitFor(() => expect(stableRef?.current).toBe(firstWebview))
 
     const replacementWebview = createWebview()
     act(() => {
       firstWebview.remove()
     })
 
-    await waitFor(() => expect(mocks.toolbarProps?.webview).toBeNull())
+    await waitFor(() => expect(stableRef?.current).toBeNull())
+    expect(mocks.toolbarProps?.webview).toBeNull()
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'false')
     act(() => {
       document.body.appendChild(replacementWebview)
     })
-    await waitFor(() => expect(mocks.toolbarProps?.webview).toBe(replacementWebview))
-    expect(mocks.searchWebview).toBe(replacementWebview)
+    await waitFor(() => expect(stableRef?.current).toBe(replacementWebview))
+    expect(mocks.toolbarProps?.webview).toBe(replacementWebview)
+    expect(mocks.searchWebviewRef).toBe(stableRef)
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
     expect(screen.getByTestId('webview-search')).toHaveAttribute('data-webview-id', customApp.appId)
     expect(removeEventListener).toHaveBeenCalledWith('did-navigate-in-page', expect.any(Function))
     expect(removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function))
 
     emitLoaded(false)
-    expect(mocks.toolbarProps?.webview).toBeNull()
+    expect(stableRef?.current).toBeNull()
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'false')
 
     emitLoaded(true)
-    await waitFor(() => expect(mocks.toolbarProps?.webview).toBe(replacementWebview))
+    await waitFor(() => expect(stableRef?.current).toBe(replacementWebview))
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
   })
 })
