@@ -179,13 +179,40 @@ describe('useWebviewAnnotationSession', () => {
         sessionId: sessionOne,
         requestId: '00000000-0000-4000-8000-000000000020',
         comment: '',
-        canDelete: false
-      } as never)
+        canDelete: false,
+        anchor: { x: 120, y: 240, width: 80, height: 32 }
+      })
     )
 
-    expect(result.current.editor).toMatchObject({ draft: '', canDelete: false, error: null })
+    expect(result.current.editor).toMatchObject({
+      draft: '',
+      canDelete: false,
+      error: null,
+      anchor: { x: 120, y: 240, width: 80, height: 32 }
+    })
     act(() => result.current.setEditorDraft('Host-owned draft'))
     expect(result.current.editor?.draft).toBe('Host-owned draft')
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_anchor_changed',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000020',
+        anchor: { x: 140, y: 260, width: 80, height: 32 }
+      })
+    )
+    expect(result.current.editor).toMatchObject({
+      draft: 'Host-owned draft',
+      anchor: { x: 140, y: 260, width: 80, height: 32 }
+    })
+    act(() =>
+      guestEvent(webview, {
+        type: 'editor_anchor_changed',
+        sessionId: sessionOne,
+        requestId: '00000000-0000-4000-8000-000000000099',
+        anchor: { x: 0, y: 0, width: 1, height: 1 }
+      })
+    )
+    expect(result.current.editor?.anchor).toEqual({ x: 140, y: 260, width: 80, height: 32 })
     act(() => void result.current.saveEditor())
     expect(sentCommands(webview)).toContainEqual({
       type: 'save_editor',

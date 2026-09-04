@@ -9,12 +9,13 @@ import type { WebviewTag } from 'electron'
 import type { ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loggerError, request, toastSuccess, toastError, randomUUID } = vi.hoisted(() => ({
+const { loggerError, request, toastSuccess, toastError, randomUUID, readPopoverAnchorRect } = vi.hoisted(() => ({
   loggerError: vi.fn(),
   request: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
-  randomUUID: vi.fn(() => '00000000-0000-4000-8000-000000000010')
+  randomUUID: vi.fn(() => '00000000-0000-4000-8000-000000000010'),
+  readPopoverAnchorRect: vi.fn()
 }))
 
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request } }))
@@ -32,7 +33,16 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
-  PopoverAnchor: ({ children }: { children: ReactNode }) => <>{children}</>,
+  PopoverAnchor: ({
+    children,
+    virtualRef
+  }: {
+    children?: ReactNode
+    virtualRef?: RefObject<{ getBoundingClientRect: () => DOMRect }>
+  }) => {
+    if (virtualRef?.current) readPopoverAnchorRect(virtualRef.current.getBoundingClientRect())
+    return <>{children}</>
+  },
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Textarea: {
     Input: ({
@@ -149,6 +159,9 @@ describe('WebviewAnnotationControls', () => {
   it('collects annotation text in the trusted host UI and saves it to the guest', async () => {
     const user = userEvent.setup()
     const webview = createWebview()
+    vi.spyOn(webview, 'getBoundingClientRect').mockReturnValue(
+      DOMRect.fromRect({ x: 300, y: 180, width: 900, height: 700 })
+    )
     renderControls(webview)
     act(() => stateChanged(webview, true, 0))
 
@@ -161,13 +174,17 @@ describe('WebviewAnnotationControls', () => {
             sessionId,
             requestId: '00000000-0000-4000-8000-000000000020',
             comment: '',
-            canDelete: false
+            canDelete: false,
+            anchor: { x: 120, y: 240, width: 80, height: 32 }
           }
         ]
       })
     )
 
     const editor = screen.getByRole('textbox')
+    expect(readPopoverAnchorRect).toHaveBeenLastCalledWith(
+      expect.objectContaining({ x: 420, y: 420, width: 80, height: 32 })
+    )
     await user.type(editor, 'Host-owned draft')
     await user.click(screen.getByRole('button', { name: '保存' }))
 

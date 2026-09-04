@@ -52,6 +52,15 @@ export const WebviewRegionRectSchema = z
   })
   .strict()
 
+export const WebviewAnnotationAnchorRectSchema = z
+  .object({
+    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    width: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    height: z.number().int().min(1).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord)
+  })
+  .strict()
+
 /**
  * A marquee-selected page region. `rect` is in page coordinates (viewport +
  * scroll at capture); `elements` are the locators contained in the box. The
@@ -136,7 +145,16 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
       sessionId: z.uuid(),
       requestId: z.uuid(),
       comment: z.string().max(WEBVIEW_ANNOTATION_LIMITS.comment),
-      canDelete: z.boolean()
+      canDelete: z.boolean(),
+      anchor: WebviewAnnotationAnchorRectSchema
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('editor_anchor_changed'),
+      sessionId: z.uuid(),
+      requestId: z.uuid(),
+      anchor: WebviewAnnotationAnchorRectSchema
     })
     .strict(),
   z.object({ type: z.literal('editor_closed'), sessionId: z.uuid(), requestId: z.uuid() }).strict(),
@@ -153,6 +171,7 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
 export type WebviewAnnotationTarget = z.infer<typeof WebviewAnnotationTargetSchema>
 export type WebviewElementLocator = z.infer<typeof WebviewElementLocatorSchema>
 export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
+export type WebviewAnnotationAnchorRect = z.infer<typeof WebviewAnnotationAnchorRectSchema>
 export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
 export type WebviewAnnotationSnapshot = z.infer<typeof WebviewAnnotationSnapshotSchema>

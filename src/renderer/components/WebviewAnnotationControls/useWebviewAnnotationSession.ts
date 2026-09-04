@@ -3,6 +3,7 @@ import { ipcApi } from '@renderer/ipc'
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotation,
+  type WebviewAnnotationAnchorRect,
   WebviewAnnotationGuestEventSchema,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationLocale,
@@ -28,6 +29,7 @@ interface EditorState {
   draft: string
   canDelete: boolean
   error: 'element_unavailable' | null
+  anchor: WebviewAnnotationAnchorRect
 }
 
 type SessionStateUpdate = SessionState | ((current: SessionState) => SessionState)
@@ -206,9 +208,20 @@ export function useWebviewAnnotationSession({
             requestId: guestEvent.requestId,
             draft: guestEvent.comment,
             canDelete: guestEvent.canDelete,
-            error: null
+            error: null,
+            anchor: guestEvent.anchor
           }
         }))
+        return
+      }
+
+      if (guestEvent.type === 'editor_anchor_changed') {
+        if (sessionRef.current !== guestEvent.sessionId) return
+        store.setState((current) =>
+          current.editor?.requestId === guestEvent.requestId
+            ? { ...current, editor: { ...current.editor, anchor: guestEvent.anchor } }
+            : current
+        )
         return
       }
 
