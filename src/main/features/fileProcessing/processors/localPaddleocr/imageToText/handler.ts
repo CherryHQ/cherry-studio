@@ -1,5 +1,4 @@
 import { application } from '@application'
-import { localModelService } from '@main/ai/localModel'
 import { FILE_TYPE } from '@shared/types/file'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
@@ -17,7 +16,7 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     if (file.type !== FILE_TYPE.IMAGE) {
       throw new Error('Local PaddleOCR only supports image files')
     }
-    if (!localModelService.isReady('ocr')) {
+    if (!application.get('LocalModelService').isCapabilityReady('ocr')) {
       throw new Error('Local PaddleOCR model is not downloaded')
     }
 
