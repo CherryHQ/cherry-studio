@@ -225,6 +225,14 @@ export interface AiGenerateRequest extends AiBaseRequest {
   system?: string
   prompt?: string
   messages?: ModelMessage[]
+  /**
+   * Topic or agent-session id that scopes this request to a specific conversation.
+   * In-process only: forwarded as `sessionId` to provider config so transports
+   * like OpenCode Go can attach stable identity headers (e.g. `x-opencode-session`)
+   * to background jobs (e.g. auto title generation) that otherwise reach the
+   * provider without conversation affinity.
+   */
+  chatId?: string
 }
 
 // ── SDK extensions ─────────────────────────────────────────────────

@@ -205,7 +205,15 @@ export class TopicNamingService {
       ]
 
       const uniqueModelId = this.resolveNamingModelId()
-      const title = await this.generateSummaryTitle(uniqueModelId, buildStructuredConversation(structuredConversation))
+      // Forward topicId as chatId so providers with conversation-scoped identity
+      // (OpenCode Go's x-opencode-session, see issue #19938) attach the header
+      // to this background request — without it the auto-title call reaches the
+      // operator as an untracked request and may fail once enforcement starts.
+      const title = await this.generateSummaryTitle(
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation),
+        topicId
+      )
       if (!title) return
 
       this.renameTopicIfStillAuto(topic.id, title, userText)
@@ -304,7 +312,11 @@ export class TopicNamingService {
         { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
       ]
 
-      const title = await this.generateSummaryTitle(uniqueModelId, buildStructuredConversation(structuredConversation))
+      const title = await this.generateSummaryTitle(
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation),
+        sessionId
+      )
       if (!title) return
 
       const nextName = sanitizeConversationTitle(title)
@@ -352,7 +364,11 @@ export class TopicNamingService {
     }
   }
 
-  private async generateSummaryTitle(uniqueModelId: UniqueModelId, prompt: string): Promise<string | null> {
+  private async generateSummaryTitle(
+    uniqueModelId: UniqueModelId,
+    prompt: string,
+    chatId?: string
+  ): Promise<string | null> {
     const systemPrompt = this.resolveNamingPrompt()
     // A title is a throwaway 10-word summary: never carry the source assistant /
     // agent id, or buildAgentParams resolves its tool configuration (MCP tools,
@@ -366,7 +382,10 @@ export class TopicNamingService {
       // fall back to the source assistant's saved `reasoning_effort` (buildAgentParams precedence is
       // `request.reasoningEffort ?? assistant.settings.reasoning_effort ?? 'default'`), which would
       // otherwise leak a `high`/`xhigh`/`max` thinking budget onto this throwaway request.
-      reasoningEffort: 'none'
+      reasoningEffort: 'none',
+      // Forward the originating topic / agent session so the SDK config receives
+      // a sessionId; OpenCode Go's transport uses it to attach x-opencode-session.
+      ...(chatId ? { chatId } : {})
     }
 
     try {

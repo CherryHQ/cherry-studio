@@ -127,7 +127,10 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        uniqueModelId: 'openai::gpt-4o-mini'
+        uniqueModelId: 'openai::gpt-4o-mini',
+        // Forward topicId so providers with conversation-scoped identity
+        // (OpenCode Go's x-opencode-session, see issue #19938) attach the header.
+        chatId: 'topic-1'
       })
     )
     // A naming request must never carry the assistant id — buildAgentParams would
@@ -246,7 +249,9 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        uniqueModelId: 'openai::gpt-4o-mini'
+        uniqueModelId: 'openai::gpt-4o-mini',
+        // Forward sessionId so OpenCode Go attaches x-opencode-session (issue #19938).
+        chatId: 'session-1'
       })
     )
     expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
