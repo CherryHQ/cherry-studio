@@ -64,7 +64,7 @@ function createWebview(webviewId = 42): TestWebview {
     getWebContentsId: vi.fn(() => webviewId),
     emitNative: (type: string, fields: Record<string, unknown> = {}) => {
       for (const listener of listeners.get(type) ?? []) {
-        listener({ isTrusted: true, currentTarget: element, ...fields } as unknown as Event)
+        listener({ isTrusted: false, currentTarget: element, ...fields } as unknown as Event)
       }
     }
   })
@@ -109,6 +109,15 @@ describe('useWebviewAnnotationSession', () => {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
+  })
+
+  it('accepts an Electron guest event emitted by the bound webview', () => {
+    const webview = createWebview()
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+
+    act(() => stateChanged(webview, sessionOne, true, 3))
+
+    expect(result.current).toMatchObject({ ready: true, enabled: true, count: 3 })
   })
 
   it('rebinds to a concrete replacement and ignores the detached webview', () => {
@@ -213,16 +222,11 @@ describe('useWebviewAnnotationSession', () => {
     expect(sentCommands(webview)).toContainEqual({ type: 'deactivate', sessionId: sessionOne })
   })
 
-  it('ignores untrusted, foreign, malformed, and mismatched snapshot events', async () => {
+  it('ignores foreign, malformed, and mismatched snapshot events', async () => {
     const webview = createWebview()
     const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
 
     act(() => {
-      guestEvent(
-        webview,
-        { type: 'state_changed', sessionId: sessionOne, enabled: false, count: 3 },
-        { isTrusted: false }
-      )
       guestEvent(
         webview,
         { type: 'state_changed', sessionId: sessionOne, enabled: false, count: 4 },

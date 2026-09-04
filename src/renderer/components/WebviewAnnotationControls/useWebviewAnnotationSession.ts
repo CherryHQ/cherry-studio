@@ -118,7 +118,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
       sendCommand(attachedWebview, { type: 'configure', sessionId, ...configurationRef.current })
 
     const handleGuestMessage = (event: Electron.IpcMessageEvent) => {
-      if (!event.isTrusted || event.currentTarget !== attachedWebview) return
+      if (event.currentTarget !== attachedWebview) return
       if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
       const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
       if (!parsed.success) return
