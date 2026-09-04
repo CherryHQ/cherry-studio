@@ -1,3 +1,4 @@
+import type { SettingsPath } from '../data/types/settingsPath'
 import type { AppEdition } from './appEdition'
 
 /**
@@ -347,6 +348,18 @@ export function projectDoctorReport(
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
   return { ...report, basics, results }
+}
+
+export type DoctorPanel = 'checks' | 'export' | 'report'
+
+/**
+ * The dialog is opened from outside the renderer (Help menu, protocol links) by navigating to
+ * the About settings route with this query param; the About page mounts the dialog on it.
+ */
+export const DOCTOR_OPEN_QUERY_PARAM = 'doctor'
+
+export function doctorSettingsPath(panel: DoctorPanel = 'checks'): SettingsPath {
+  return `/settings/about?${DOCTOR_OPEN_QUERY_PARAM}=${panel}`
 }
 
 export function doctorCheckTitleKey<Id extends DoctorCheckId>(id: Id) {
