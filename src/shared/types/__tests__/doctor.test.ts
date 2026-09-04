@@ -42,7 +42,7 @@ describe('isDoctorFixRequest', () => {
   })
 
   it('rejects a declared fix id aimed at a check that does not offer it', () => {
-    expect(isDoctorFixRequest({ ...valid, checkId: 'storage-userdata-writable' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, checkId: 'storage-userdata-location' })).toBe(false)
   })
 
   it('rejects requests without a run identity, unknown checks and malformed payloads', () => {
@@ -76,10 +76,10 @@ describe('projectDoctorReport', () => {
     },
     results: [
       {
-        id: 'storage-userdata-writable',
-        status: 'fail',
+        id: 'storage-userdata-location',
+        status: 'warn',
         attribution: 'user-fixable',
-        detail: { variant: 'not_writable' },
+        detail: { variant: 'fallback_to_default' },
         actions: [],
         durationMs: 1,
         evidence: [
@@ -89,7 +89,7 @@ describe('projectDoctorReport', () => {
         ]
       }
     ],
-    summary: { pass: 0, warn: 0, fail: 1, skip: 0, error: 0 }
+    summary: { pass: 0, warn: 1, fail: 0, skip: 0, error: 0 }
   }
   const classes = (view: Parameters<typeof projectDoctorReport>[1], consent = false) =>
     projectDoctorReport(report, view, { consentToSensitive: consent }).results[0].evidence?.map((e) => e.dataClass)
