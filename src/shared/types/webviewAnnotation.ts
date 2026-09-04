@@ -78,87 +78,6 @@ export const WebviewAnnotationSnapshotSchema = z
   .array(WebviewAnnotationSchema)
   .max(WEBVIEW_ANNOTATION_LIMITS.annotations)
 
-export const WebviewAnnotationPageSchema = z
-  .object({
-    title: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.pageTitle),
-    url: z.string().max(WEBVIEW_ANNOTATION_LIMITS.pageUrl)
-  })
-  .strict()
-
-export const WebviewAnnotationDocumentSchema = z
-  .object({
-    webviewId: z.number().int().positive(),
-    target: WebviewAnnotationTargetSchema,
-    page: WebviewAnnotationPageSchema,
-    annotations: z.array(WebviewAnnotationSchema).min(1).max(WEBVIEW_ANNOTATION_LIMITS.annotations),
-    updatedAt: z.number().int().nonnegative()
-  })
-  .strict()
-
-export const WebviewAccessibilityStatusSchema = z.enum([
-  'available',
-  'selector_not_found',
-  'debugger_unavailable',
-  'timeout',
-  'capture_failed',
-  'budget_exceeded'
-])
-
-export const WebviewAccessibilityStateNameSchema = z.enum([
-  'disabled',
-  'expanded',
-  'checked',
-  'pressed',
-  'selected',
-  'required',
-  'invalid',
-  'readonly'
-])
-
-export const WebviewAccessibilityStateSchema = z
-  .object({
-    name: WebviewAccessibilityStateNameSchema,
-    value: z.union([z.boolean(), z.string().trim().max(64)])
-  })
-  .strict()
-
-export const WebviewAccessibleNodeSummarySchema = z
-  .object({
-    role: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.role),
-    name: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.accessibilityText).nullable(),
-    description: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.accessibilityText).nullable(),
-    states: z.array(WebviewAccessibilityStateSchema).max(WEBVIEW_ANNOTATION_LIMITS.accessibilityStates)
-  })
-  .strict()
-
-export type WebviewAccessibleNodeSummary = z.infer<typeof WebviewAccessibleNodeSummarySchema>
-export type WebviewAccessibleNode = WebviewAccessibleNodeSummary & {
-  children: WebviewAccessibleNode[]
-}
-
-export const WebviewAccessibleNodeSchema: z.ZodType<WebviewAccessibleNode> = z.lazy(() =>
-  WebviewAccessibleNodeSummarySchema.extend({
-    children: z.array(WebviewAccessibleNodeSchema).max(WEBVIEW_ANNOTATION_LIMITS.accessibilityNodes)
-  }).strict()
-)
-
-export const WebviewAccessibilityContextSchema = z
-  .object({
-    status: WebviewAccessibilityStatusSchema,
-    path: z.array(WebviewAccessibleNodeSummarySchema).max(WEBVIEW_ANNOTATION_LIMITS.accessibilityPath),
-    tree: WebviewAccessibleNodeSchema.nullable(),
-    truncated: z.boolean()
-  })
-  .strict()
-
-export const WebviewResolvedAnnotationSchema = WebviewAnnotationSchema.extend({
-  accessibility: WebviewAccessibilityContextSchema
-}).strict()
-
-export const WebviewResolvedAnnotationDocumentSchema = WebviewAnnotationDocumentSchema.extend({
-  annotations: z.array(WebviewResolvedAnnotationSchema).min(1).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
-}).strict()
-
 export const WebviewAnnotationLocaleSchema = z
   .object({
     placeholder: z.string().max(200),
@@ -214,12 +133,6 @@ export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
 export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
 export type WebviewAnnotationSnapshot = z.infer<typeof WebviewAnnotationSnapshotSchema>
-export type WebviewAnnotationDocument = z.infer<typeof WebviewAnnotationDocumentSchema>
-export type WebviewAccessibilityStatus = z.infer<typeof WebviewAccessibilityStatusSchema>
-export type WebviewAccessibilityState = z.infer<typeof WebviewAccessibilityStateSchema>
-export type WebviewAccessibilityContext = z.infer<typeof WebviewAccessibilityContextSchema>
-export type WebviewResolvedAnnotation = z.infer<typeof WebviewResolvedAnnotationSchema>
-export type WebviewResolvedAnnotationDocument = z.infer<typeof WebviewResolvedAnnotationDocumentSchema>
 export type WebviewAnnotationLocale = z.infer<typeof WebviewAnnotationLocaleSchema>
 export type WebviewAnnotationTheme = z.infer<typeof WebviewAnnotationThemeSchema>
 export type WebviewAnnotationHostCommand = z.infer<typeof WebviewAnnotationHostCommandSchema>
