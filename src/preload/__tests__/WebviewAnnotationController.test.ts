@@ -28,7 +28,16 @@ const privateController = (controller: WebviewAnnotationController) =>
     editorAnnotationId: string | null
     editorElement: Element | null
     editorError: HTMLDivElement | null
+    handlePointerCancel: (event: PointerEvent) => void
+    handlePointerDown: (event: PointerEvent) => void
+    handlePointerMove: (event: PointerEvent) => void
+    handlePointerUp: (event: PointerEvent) => void
+    highlightElement: Element | null
+    marqueeOrigin: { x: number; y: number } | null
+    marqueePointerCapture: { target: Element; pointerId: number } | null
+    marqueePointerId: number | null
     marqueeRect: unknown
+    overlayHost: HTMLDivElement | null
     pendingRegion: unknown
     pinLayer: HTMLDivElement | null
     openEditor: (
@@ -54,10 +63,27 @@ const mockRect = (element: Element, left: number, top: number, width: number, he
   } as DOMRect)
 }
 
-const pointerEvent = (type: string, clientX: number, clientY: number, pointerId = 1) =>
-  Object.assign(new MouseEvent(type, { bubbles: true, cancelable: true, composed: true, clientX, clientY }), {
-    pointerId
-  })
+const trustedPointerEvent = (
+  type: string,
+  target: EventTarget,
+  clientX: number,
+  clientY: number,
+  pointerId = 1,
+  options: { button?: number; isPrimary?: boolean; path?: EventTarget[] } = {}
+) =>
+  ({
+    button: options.button ?? 0,
+    clientX,
+    clientY,
+    composedPath: () => options.path ?? [target, document.body, document.documentElement, document, window],
+    isPrimary: options.isPrimary ?? true,
+    isTrusted: true,
+    pointerId,
+    preventDefault: vi.fn(),
+    stopImmediatePropagation: vi.fn(),
+    target,
+    type
+  }) as unknown as PointerEvent
 
 describe('WebviewAnnotationController selectors', () => {
   it('prefers a unique id and resolves it', () => {
@@ -123,18 +149,147 @@ describe('WebviewAnnotationController interactions', () => {
     vi.unstubAllGlobals()
   })
 
+  it('leaves editable composed paths to the guest page', () => {
+    const internals = privateController(controller)
+    const editableTargets = ['input', 'textarea', 'select'].map((tagName) => document.createElement(tagName))
+    const shadowHost = document.createElement('div')
+    const shadowRoot = shadowHost.attachShadow({ mode: 'open' })
+    const contenteditable = document.createElement('div')
+    contenteditable.setAttribute('contenteditable', '')
+    const contenteditableChild = document.createElement('span')
+    contenteditable.appendChild(contenteditableChild)
+    shadowRoot.appendChild(contenteditable)
+    document.body.append(...editableTargets, shadowHost)
+
+    for (const target of editableTargets) {
+      const pageClick = vi.fn()
+      target.addEventListener('click', pageClick)
+      const pointerDown = trustedPointerEvent('pointerdown', target, 10, 20)
+
+      internals.handlePointerDown(pointerDown)
+      const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true, composed: true })
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+
+      expect(pointerDown.preventDefault).not.toHaveBeenCalled()
+      expect(target.dispatchEvent(mouseDown)).toBe(true)
+      expect(target.dispatchEvent(click)).toBe(true)
+      expect(pageClick).toHaveBeenCalledOnce()
+      expect(internals.editorElement).toBeNull()
+      expect(internals.marqueePointerId).toBeNull()
+    }
+
+    const shadowClick = vi.fn()
+    contenteditableChild.addEventListener('click', shadowClick)
+    const pointerDown = trustedPointerEvent('pointerdown', shadowHost, 30, 40, 2, {
+      path: [
+        contenteditableChild,
+        contenteditable,
+        shadowRoot,
+        shadowHost,
+        document.body,
+        document.documentElement,
+        document
+      ]
+    })
+    internals.handlePointerDown(pointerDown)
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
+
+    expect(pointerDown.preventDefault).not.toHaveBeenCalled()
+    expect(contenteditableChild.dispatchEvent(click)).toBe(true)
+    expect(shadowClick).toHaveBeenCalledOnce()
+    expect(internals.editorElement).toBeNull()
+    expect(internals.marqueePointerId).toBeNull()
+  })
+
+  it('does not treat the annotation overlay as a guest page target', () => {
+    const internals = privateController(controller)
+    const overlayHost = internals.overlayHost!
+    const pointerDown = trustedPointerEvent('pointerdown', overlayHost, 10, 20, 3, {
+      path: [overlayHost, document.documentElement, document]
+    })
+
+    internals.handlePointerDown(pointerDown)
+
+    expect(pointerDown.preventDefault).not.toHaveBeenCalled()
+    expect(internals.marqueePointerId).toBeNull()
+  })
+
+  it('ignores synthetic, secondary, and non-primary pointer starts', () => {
+    const button = document.createElement('button')
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+
+    const synthetic = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, composed: true, button: 0 })
+    expect(button.dispatchEvent(synthetic)).toBe(true)
+    expect(synthetic.defaultPrevented).toBe(false)
+
+    const secondary = trustedPointerEvent('pointerdown', button, 10, 20, 4, { button: 2 })
+    internals.handlePointerDown(secondary)
+    expect(secondary.preventDefault).not.toHaveBeenCalled()
+
+    const nonPrimary = trustedPointerEvent('pointerdown', button, 10, 20, 5, { isPrimary: false })
+    internals.handlePointerDown(nonPrimary)
+    expect(nonPrimary.preventDefault).not.toHaveBeenCalled()
+    expect(internals.marqueeOrigin).toBeNull()
+    expect(internals.marqueePointerId).toBeNull()
+  })
+
+  it('tracks only the trusted pointer that started the active marquee', () => {
+    const button = document.createElement('button')
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    const pointerDown = trustedPointerEvent('pointerdown', button, 10, 20, 7)
+    internals.handlePointerDown(pointerDown)
+
+    const secondPointerDown = trustedPointerEvent('pointerdown', button, 30, 40, 8)
+    internals.handlePointerDown(secondPointerDown)
+    expect(secondPointerDown.preventDefault).not.toHaveBeenCalled()
+    expect(internals.marqueePointerId).toBe(7)
+
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 100, 120, 8))
+    expect(internals.marqueeRect).toBeNull()
+    internals.handlePointerUp(trustedPointerEvent('pointerup', document, 100, 120, 8))
+    expect(internals.marqueePointerId).toBe(7)
+    internals.handlePointerCancel(trustedPointerEvent('pointercancel', document, 100, 120, 8))
+    expect(internals.marqueePointerId).toBe(7)
+
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 100, 120, 7))
+    expect(internals.marqueeRect).not.toBeNull()
+    const untrustedUp = trustedPointerEvent('pointerup', document, 100, 120, 7)
+    Object.defineProperty(untrustedUp, 'isTrusted', { value: false })
+    internals.handlePointerUp(untrustedUp)
+    expect(internals.marqueePointerId).toBe(7)
+    const untrustedCancel = trustedPointerEvent('lostpointercapture', document, 100, 120, 7)
+    Object.defineProperty(untrustedCancel, 'isTrusted', { value: false })
+    internals.handlePointerCancel(untrustedCancel)
+    expect(internals.marqueePointerId).toBe(7)
+
+    internals.handlePointerCancel(trustedPointerEvent('pointercancel', document, 100, 120, 7))
+    expect(internals.marqueeOrigin).toBeNull()
+    expect(internals.marqueePointerId).toBeNull()
+    expect(internals.marqueeRect).toBeNull()
+  })
+
+  it('updates hover only for trusted pointer events', () => {
+    const button = document.createElement('button')
+    document.body.appendChild(button)
+    const internals = privateController(controller)
+    const untrustedMove = trustedPointerEvent('pointermove', button, 10, 20)
+    Object.defineProperty(untrustedMove, 'isTrusted', { value: false })
+
+    internals.handlePointerMove(untrustedMove)
+    expect(internals.highlightElement).toBeNull()
+
+    internals.handlePointerMove(trustedPointerEvent('pointermove', button, 10, 20))
+    expect(internals.highlightElement).toBe(button)
+  })
+
   it('intercepts page clicks and supports add, edit, and delete', () => {
     const pageClick = vi.fn()
-    const pagePointerUp = vi.fn()
     const button = document.createElement('button')
     button.id = 'buy'
     button.addEventListener('click', pageClick)
-    button.addEventListener('pointerup', pagePointerUp)
     document.body.appendChild(button)
-
-    const pointerUp = new MouseEvent('pointerup', { bubbles: true, cancelable: true, composed: true })
-    expect(button.dispatchEvent(pointerUp)).toBe(false)
-    expect(pagePointerUp).not.toHaveBeenCalled()
 
     const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
     expect(button.dispatchEvent(click)).toBe(false)
@@ -219,11 +374,11 @@ describe('WebviewAnnotationController interactions', () => {
     mockRect(overlapA, 20, 20, 100, 100)
     mockRect(overlapB, 80, 80, 100, 100)
 
-    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 200, 200))
-    container.dispatchEvent(pointerEvent('pointerup', 200, 200))
-
     const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 200, 200))
+
     internals.textarea.value = 'Region note'
     internals.saveEditor()
     const annotationId = controller.getState().annotations[0].id
@@ -310,15 +465,15 @@ describe('WebviewAnnotationController interactions', () => {
     mockRect(card, 130, 20, 60, 60)
     mockRect(cardChild, 135, 25, 20, 20)
 
-    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 200, 200))
-    container.dispatchEvent(pointerEvent('pointerup', 200, 200))
+    const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 200, 200))
 
     // The click fired after a completed drag must not open the element editor.
     const click = new MouseEvent('click', { bubbles: true, cancelable: true, composed: true })
     expect(container.dispatchEvent(click)).toBe(false)
 
-    const internals = privateController(controller)
     internals.textarea.value = 'Untangle this overlap'
     internals.saveEditor()
 
@@ -333,6 +488,30 @@ describe('WebviewAnnotationController interactions', () => {
     ])
   })
 
+  it('stores region geometry in page coordinates and projects pins back to the viewport', () => {
+    vi.spyOn(window, 'scrollX', 'get').mockReturnValue(30)
+    vi.spyOn(window, 'scrollY', 'get').mockReturnValue(50)
+    const container = document.createElement('div')
+    container.id = 'scrolled-canvas'
+    document.body.appendChild(container)
+    mockRect(container, 0, 0, 400, 400)
+    const internals = privateController(controller)
+
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 20))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 110, 120))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 110, 120))
+    internals.textarea.value = 'Keep this page region'
+    internals.saveEditor()
+    mockRect(container, 300, 400, 50, 60)
+    internals.updatePositions()
+
+    const annotation = controller.getState().annotations[0]
+    const pin = internals.pinLayer?.querySelector<HTMLElement>(`[data-annotation-id="${annotation.id}"]`)
+    expect(annotation.region?.rect).toEqual({ x: 40, y: 70, width: 100, height: 100 })
+    expect(pin?.style.left).toBe('10px')
+    expect(pin?.style.top).toBe('20px')
+  })
+
   it('does not carry a pending region into a subsequent element annotation', () => {
     const regionTarget = document.createElement('div')
     regionTarget.id = 'region-target'
@@ -341,13 +520,13 @@ describe('WebviewAnnotationController interactions', () => {
     document.body.append(regionTarget, elementTarget)
     mockRect(regionTarget, 0, 0, 400, 400)
 
-    regionTarget.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 200, 200))
-    regionTarget.dispatchEvent(pointerEvent('pointerup', 200, 200))
+    const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', regionTarget, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 200, 200))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', regionTarget, 200, 200))
     regionTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
 
     elementTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
-    const internals = privateController(controller)
     internals.textarea.value = 'Annotate only this element'
     internals.saveEditor()
 
@@ -366,12 +545,12 @@ describe('WebviewAnnotationController interactions', () => {
     })
     document.body.appendChild(button)
 
-    button.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 12, 13))
-    button.dispatchEvent(pointerEvent('pointerup', 12, 13))
+    const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', button, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 12, 13))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', button, 12, 13))
     button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }))
 
-    const internals = privateController(controller)
     expect(internals.pendingRegion).toBeNull()
     expect(internals.editorElement).toBe(button)
 
@@ -386,15 +565,15 @@ describe('WebviewAnnotationController interactions', () => {
     container.id = 'escape-zone'
     document.body.appendChild(container)
 
-    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 120, 120))
+    const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 120, 120))
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
 
-    const internals = privateController(controller)
     expect(internals.marqueeRect).toBeNull()
     expect(controller.getState().enabled).toBe(true)
 
-    container.dispatchEvent(pointerEvent('pointerup', 120, 120))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 120, 120))
     expect(internals.pendingRegion).toBeNull()
   })
 
@@ -403,12 +582,12 @@ describe('WebviewAnnotationController interactions', () => {
     container.id = 'cancel-zone'
     document.body.appendChild(container)
 
-    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 120, 120))
-    document.dispatchEvent(pointerEvent('pointercancel', 120, 120))
-    container.dispatchEvent(pointerEvent('pointerup', 120, 120))
-
     const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 120, 120))
+    internals.handlePointerCancel(trustedPointerEvent('pointercancel', document, 120, 120))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 120, 120))
+
     expect(internals.marqueeRect).toBeNull()
     expect(internals.pendingRegion).toBeNull()
   })
@@ -418,13 +597,13 @@ describe('WebviewAnnotationController interactions', () => {
     container.id = 'reset-zone'
     document.body.appendChild(container)
 
-    container.dispatchEvent(pointerEvent('pointerdown', 10, 10))
-    document.dispatchEvent(pointerEvent('pointermove', 120, 120))
+    const internals = privateController(controller)
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10))
+    internals.handlePointerMove(trustedPointerEvent('pointermove', document, 120, 120))
     controller.handleCommand({ type: 'reset' })
     controller.handleCommand({ type: 'set_enabled', enabled: true })
-    container.dispatchEvent(pointerEvent('pointerup', 120, 120))
+    internals.handlePointerUp(trustedPointerEvent('pointerup', container, 120, 120))
 
-    const internals = privateController(controller)
     expect(internals.marqueeRect).toBeNull()
     expect(internals.pendingRegion).toBeNull()
   })
@@ -432,8 +611,14 @@ describe('WebviewAnnotationController interactions', () => {
   it('releases pointer capture when reset interrupts a marquee', () => {
     const container = document.createElement('div')
     container.id = 'captured-zone'
+    const internals = privateController(controller)
     const setPointerCapture = vi.fn()
-    const releasePointerCapture = vi.fn()
+    const releasePointerCapture = vi.fn(() => {
+      expect(internals.marqueeOrigin).toBeNull()
+      expect(internals.marqueePointerCapture).toBeNull()
+      expect(internals.marqueePointerId).toBeNull()
+      expect(internals.marqueeRect).toBeNull()
+    })
     Object.assign(container, {
       setPointerCapture,
       hasPointerCapture: vi.fn(() => true),
@@ -441,7 +626,7 @@ describe('WebviewAnnotationController interactions', () => {
     })
     document.body.appendChild(container)
 
-    container.dispatchEvent(pointerEvent('pointerdown', 10, 10, 7))
+    internals.handlePointerDown(trustedPointerEvent('pointerdown', container, 10, 10, 7))
     controller.handleCommand({ type: 'reset' })
 
     expect(setPointerCapture).toHaveBeenCalledWith(7)
