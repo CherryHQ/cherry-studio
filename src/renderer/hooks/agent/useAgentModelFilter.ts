@@ -19,17 +19,24 @@ import { isManagedCherryCloudModel } from '@shared/data/presets/cherryai'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CherryCloudModelSyncResult } from '@shared/ipc/schemas/cherryCloud'
 import { isNonChatModel } from '@shared/utils/model'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 const CHERRY_CLOUD_AVAILABILITY_KEY = 'cherry-cloud/model-availability'
 const CHERRY_CLOUD_AVAILABILITY_REFRESH_INTERVAL_MS = 60_000
-const EMPTY_CHERRY_CLOUD_AVAILABILITY = {
+const EMPTY_CHERRY_CLOUD_AVAILABILITY: CherryCloudModelSyncResult = {
   entitledModelIds: [],
   quotaExhaustedModelIds: []
 }
 
 type ModelPredicate = (model: Model, provider?: Provider) => boolean
+type AgentModelQuotaStatus = 'available' | 'exhausted'
+
+type AgentModelAvailability = {
+  getModelQuotaStatus: (model: Model) => AgentModelQuotaStatus | undefined
+  isModelDisabled: ModelPredicate
+}
 
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
@@ -45,8 +52,8 @@ export function useAgentModelFilter(agentType: AgentType | undefined): ModelPred
   }, [agentType])
 }
 
-/** Returns the Agent selector rule for models that stay visible but cannot be selected. */
-export function useAgentModelDisabled(enabled = true): ModelPredicate {
+/** Returns Cherry Cloud availability for model selectors in the Work module. */
+export function useAgentModelAvailability(enabled = true): AgentModelAvailability {
   const { data: cloudAvailability, mutate } = useSWR(
     enabled ? CHERRY_CLOUD_AVAILABILITY_KEY : null,
     () => ipcApi.request('cherry_cloud.models.sync'),
@@ -66,8 +73,21 @@ export function useAgentModelDisabled(enabled = true): ModelPredicate {
   return useMemo(() => {
     const entitledModelIds = new Set(cloudAvailability?.entitledModelIds)
     const quotaExhaustedModelIds = new Set(cloudAvailability?.quotaExhaustedModelIds)
-    return (model: Model) =>
-      isManagedCherryCloudModel(model.providerId) &&
-      (!cloudAvailability || !entitledModelIds.has(model.id) || quotaExhaustedModelIds.has(model.id))
+    return {
+      getModelQuotaStatus: (model: Model) => {
+        if (!isManagedCherryCloudModel(model.providerId) || !cloudAvailability || !entitledModelIds.has(model.id)) {
+          return undefined
+        }
+        return quotaExhaustedModelIds.has(model.id) ? 'exhausted' : 'available'
+      },
+      isModelDisabled: (model: Model) =>
+        isManagedCherryCloudModel(model.providerId) &&
+        (!cloudAvailability || !entitledModelIds.has(model.id) || quotaExhaustedModelIds.has(model.id))
+    }
   }, [cloudAvailability])
+}
+
+/** Returns the Agent selector rule for models that stay visible but cannot be selected. */
+export function useAgentModelDisabled(enabled = true): ModelPredicate {
+  return useAgentModelAvailability(enabled).isModelDisabled
 }
