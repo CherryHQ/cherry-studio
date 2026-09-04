@@ -8,12 +8,16 @@ import {
 } from '@renderer/components/chat/actions/topicContextMenuActions'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
+import { type PreparedTopicExport, prepareTopicExport } from '@renderer/services/branchExportFlow'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { chooseImageExportMode } from '@renderer/services/imageExportModeChooser'
 import { toast } from '@renderer/services/toast'
+import type { ExportArtifact } from '@renderer/services/topicTreeExport'
+import { buildTreeNotionBlocks } from '@renderer/services/topicTreeExport'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { markdownToPlainText } from '@renderer/utils/markdown'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
@@ -44,6 +48,10 @@ export interface TopicMenuActionOptions {
   topicsLength: number
 }
 
+/** Single-document markdown of a tree-prepared export; empty for file-set artifacts. */
+const singleMarkdownOf = (prepared: PreparedTopicExport & { path: 'tree' }): string =>
+  prepared.artifact.kind === 'single' ? prepared.artifact.markdown : ''
+
 export function createTopicActionContext({
   exportMenuOptions,
   isActiveInCurrentTab,
@@ -66,6 +74,16 @@ export function createTopicActionContext({
   topic,
   topicsLength
 }: TopicMenuActionOptions): TopicActionContext {
+  /**
+   * Branch-aware gate for every topic-level export handler: `legacy` (no branches,
+   * untouched pipeline), `tree` (pre-rendered artifact + tree), or null on cancel.
+   */
+  const gate = (
+    topic: Topic,
+    opts: { supportsFileSet: boolean; exportReasoning?: boolean; variantStyle?: 'details' | 'blockquote' }
+  ) => prepareTopicExport({ topicId: topic.id, ...opts })
+  const artifactDocs = (artifact: Extract<ExportArtifact, { kind: 'fileSet' }>) => [artifact.main, ...artifact.branches]
+
   return {
     exportMenuOptions,
     isActiveInCurrentTab,
@@ -73,48 +91,138 @@ export function createTopicActionContext({
     onAutoRename,
     onClearMessages,
     onCopyImage: onCopyImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)),
-    onCopyMarkdown: copyTopicAsMarkdown,
-    onCopyPlainText: copyTopicAsPlainText,
+    onCopyMarkdown: async (topic) => {
+      const prepared = await gate(topic, { supportsFileSet: false })
+      if (!prepared) return
+      if (prepared.path === 'legacy') {
+        return copyTopicAsMarkdown(topic)
+      }
+      await navigator.clipboard.writeText(singleMarkdownOf(prepared))
+    },
+    onCopyPlainText: async (topic) => {
+      const prepared = await gate(topic, { supportsFileSet: false })
+      if (!prepared) return
+      if (prepared.path === 'legacy') {
+        return copyTopicAsPlainText(topic)
+      }
+      await navigator.clipboard.writeText(markdownToPlainText(singleMarkdownOf(prepared)))
+    },
     onDelete,
     onExportImage: onExportImage ?? ((topic) => void EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)),
     onExportJoplin: async (topic) => {
+      const prepared = await gate(topic, { supportsFileSet: true })
+      if (!prepared) return
       const { exportMarkdownToJoplin } = await import('@renderer/services/ExportService')
-      const topicMessages = await getTopicMessages(topic.id)
-      void exportMarkdownToJoplin(topic.name, topicMessages)
+      if (prepared.path === 'legacy') {
+        const topicMessages = await getTopicMessages(topic.id)
+        void exportMarkdownToJoplin(topic.name, topicMessages)
+        return
+      }
+      if (prepared.artifact.kind === 'single') {
+        void exportMarkdownToJoplin(topic.name, prepared.artifact.markdown)
+      } else {
+        for (const doc of artifactDocs(prepared.artifact)) {
+          // Sequential awaits keep the shared export mutex happy
+          await exportMarkdownToJoplin(doc.title, doc.markdown)
+        }
+      }
     },
     onExportMarkdown: async (topic) => {
-      const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
+      const prepared = await gate(topic, { supportsFileSet: true })
+      if (!prepared) return
+      const { exportMarkdownFileSet, exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
+      if (prepared.path === 'legacy') {
+        return exportTopicAsMarkdown(topic, false, undefined, chooseImageExportMode)
+      }
+      if (prepared.artifact.kind === 'single') {
+        const { saveMarkdownToDisk } = await import('@renderer/services/ExportService')
+        return saveMarkdownToDisk(topic.name, prepared.artifact.markdown)
+      }
+      return exportMarkdownFileSet(artifactDocs(prepared.artifact))
     },
     onExportMarkdownReason: async (topic) => {
-      const { exportTopicAsMarkdown } = await import('@renderer/services/ExportService')
-      return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
+      const prepared = await gate(topic, { supportsFileSet: true, exportReasoning: true })
+      if (!prepared) return
+      const { exportMarkdownFileSet, exportTopicAsMarkdown, saveMarkdownToDisk } = await import(
+        '@renderer/services/ExportService'
+      )
+      if (prepared.path === 'legacy') {
+        return exportTopicAsMarkdown(topic, true, undefined, chooseImageExportMode)
+      }
+      if (prepared.artifact.kind === 'single') {
+        return saveMarkdownToDisk(topic.name, prepared.artifact.markdown)
+      }
+      return exportMarkdownFileSet(artifactDocs(prepared.artifact))
     },
     onExportNotion: async (topic) => {
-      const { exportTopicToNotion } = await import('@renderer/services/ExportService')
-      await exportTopicToNotion(topic)
+      const prepared = await gate(topic, { supportsFileSet: false })
+      if (!prepared) return
+      const { exportNotionBlocks, exportTopicToNotion } = await import('@renderer/services/ExportService')
+      if (prepared.path === 'legacy') {
+        await exportTopicToNotion(topic)
+        return
+      }
+      const blocks = await buildTreeNotionBlocks(prepared.tree, prepared.mode)
+      await exportNotionBlocks(topic.name, blocks)
     },
     onExportObsidian: async (topic) => {
+      const prepared = await gate(topic, { supportsFileSet: false })
+      if (!prepared) return
       const { default: ObsidianExportPopup } = await import('@renderer/components/ObsidianExportPopup')
-      await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
+      if (prepared.path === 'legacy') {
+        await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
+        return
+      }
+      await ObsidianExportPopup.show({
+        title: topic.name,
+        topic,
+        processingMethod: '3',
+        rawContent: singleMarkdownOf(prepared)
+      })
     },
     onExportSiyuan: async (topic) => {
-      const { exportMarkdownToSiyuan, topicToMarkdown } = await import('@renderer/services/ExportService')
-      const markdown = await topicToMarkdown(topic)
-      void exportMarkdownToSiyuan(topic.name, markdown)
+      const prepared = await gate(topic, { supportsFileSet: true })
+      if (!prepared) return
+      const { exportMarkdownFileSetToSiyuan, exportMarkdownToSiyuan, topicToMarkdown } = await import(
+        '@renderer/services/ExportService'
+      )
+      if (prepared.path === 'legacy') {
+        const markdown = await topicToMarkdown(topic)
+        void exportMarkdownToSiyuan(topic.name, markdown)
+        return
+      }
+      if (prepared.artifact.kind === 'single') {
+        void exportMarkdownToSiyuan(topic.name, prepared.artifact.markdown)
+      } else {
+        void exportMarkdownFileSetToSiyuan(artifactDocs(prepared.artifact))
+      }
     },
     onExportWord: async (topic) => {
+      const prepared = await gate(topic, { supportsFileSet: false, variantStyle: 'blockquote' })
+      if (!prepared) return
       const { topicToMarkdown } = await import('@renderer/services/ExportService')
-      const markdown = await topicToMarkdown(topic)
+      const markdown = prepared.path === 'legacy' ? await topicToMarkdown(topic) : singleMarkdownOf(prepared)
       void ipcApi.request('export.word.from_markdown', {
         markdown,
         fileName: removeSpecialCharactersForFileName(topic.name)
       })
     },
     onExportYuque: async (topic) => {
+      const prepared = await gate(topic, { supportsFileSet: true })
+      if (!prepared) return
       const { exportMarkdownToYuque, topicToMarkdown } = await import('@renderer/services/ExportService')
-      const markdown = await topicToMarkdown(topic)
-      void exportMarkdownToYuque(topic.name, markdown)
+      if (prepared.path === 'legacy') {
+        const markdown = await topicToMarkdown(topic)
+        void exportMarkdownToYuque(topic.name, markdown)
+        return
+      }
+      if (prepared.artifact.kind === 'single') {
+        void exportMarkdownToYuque(topic.name, prepared.artifact.markdown)
+      } else {
+        for (const doc of artifactDocs(prepared.artifact)) {
+          await exportMarkdownToYuque(doc.title, doc.markdown)
+        }
+      }
     },
     assistantMoveTargets: assistantMoveTargets.filter((target) => target.id !== topic.assistantId),
     onMoveToAssistant,
@@ -124,8 +232,11 @@ export function createTopicActionContext({
     onSetPanePosition,
     onSaveToKnowledge: async (topic) => {
       try {
+        const prepared = await gate(topic, { supportsFileSet: false })
+        if (!prepared) return
         const { default: SaveToKnowledgePopup } = await import('@renderer/components/SaveToKnowledgePopup')
-        const result = await SaveToKnowledgePopup.showForTopic(topic)
+        const branchMarkdown = prepared.path === 'tree' ? singleMarkdownOf(prepared) : undefined
+        const result = await SaveToKnowledgePopup.showForTopic(topic, undefined, branchMarkdown)
         if (result?.success) {
           toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
@@ -134,8 +245,18 @@ export function createTopicActionContext({
       }
     },
     onSaveToNotes: async (topic) => {
-      const { exportTopicToNotes } = await import('@renderer/services/ExportService')
-      return exportTopicToNotes(topic, notesPath)
+      const prepared = await gate(topic, { supportsFileSet: true })
+      if (!prepared) return
+      const { exportContentToNotes, exportTopicToNotes } = await import('@renderer/services/ExportService')
+      if (prepared.path === 'legacy') {
+        return exportTopicToNotes(topic, notesPath)
+      }
+      if (prepared.artifact.kind === 'single') {
+        return exportContentToNotes(topic.name, prepared.artifact.markdown, notesPath)
+      }
+      for (const doc of artifactDocs(prepared.artifact)) {
+        await exportContentToNotes(doc.title, doc.markdown, notesPath)
+      }
     },
     onStartRename,
     panePosition,
