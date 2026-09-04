@@ -117,10 +117,6 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
   return or(nameMatch, descriptionMatch)
 }
 
-function activeSessionOwnerPredicate(): SQL {
-  return or(isNull(sessionsTable.agentId), isNotNull(agentsTable.id))!
-}
-
 export function agentSessionReadModelEffects(
   sessionIds: readonly string[],
   kind: 'membership' | 'projection'
@@ -192,7 +188,7 @@ export class AgentSessionService {
   }): SessionMetadataSearchResult[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = [isNull(sessionsTable.deletedAt), activeSessionOwnerPredicate()]
+    const filters: SQL[] = [isNull(sessionsTable.deletedAt)]
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
@@ -334,8 +330,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt), activeSessionOwnerPredicate()))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -487,10 +482,10 @@ export class AgentSessionService {
     const db = application.get('DbService').getDb()
     const ownerFilter =
       query.agentId === 'unlinked'
-        ? isNull(sessionsTable.agentId)
+        ? or(isNull(sessionsTable.agentId), isNull(agentsTable.id))
         : query.agentId
           ? eq(agentsTable.id, query.agentId)
-          : activeSessionOwnerPredicate()
+          : undefined
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -654,6 +649,7 @@ export class AgentSessionService {
     const cursor = decodePinnedListCursor(query.cursor, 'agent-session')
     const agentFilter = query.agentId ? eq(sessionsTable.agentId, query.agentId) : undefined
     const inTrash = query.inTrash === true
+    const activeAgentFilter = !inTrash && query.agentId ? isNotNull(agentsTable.id) : undefined
 
     const items: Array<{ session: AgentSessionEntity; pinOrderKey?: string }> = []
 
@@ -670,7 +666,7 @@ export class AgentSessionService {
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'session'), eq(pinTable.entityId, sessionsTable.id)))
-        .where(and(agentFilter, isNull(sessionsTable.deletedAt), activeSessionOwnerPredicate(), pinAfter))
+        .where(and(agentFilter, activeAgentFilter, isNull(sessionsTable.deletedAt), pinAfter))
         .orderBy(asc(pinTable.orderKey), asc(sessionsTable.id))
         .limit(limit + 1)
         .all()
@@ -721,8 +717,8 @@ export class AgentSessionService {
       .where(
         and(
           agentFilter,
+          activeAgentFilter,
           inTrash ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt),
-          inTrash ? undefined : activeSessionOwnerPredicate(),
           notInArray(sessionsTable.id, pinnedSubquery),
           sessionAfter
         )
@@ -781,6 +777,7 @@ export class AgentSessionService {
       .limit(1)
       .all()
     if (!current) return { row: undefined, clearedTaskScheduleIds: [] }
+    if (patch.agentId !== undefined) this.assertAgentExistsTx(tx, patch.agentId)
 
     const reassigned = patch.agentId !== undefined && patch.agentId !== current.agentId
     const clearedTaskScheduleIds = reassigned && current.taskScheduleId ? [current.taskScheduleId] : []
@@ -1048,23 +1045,6 @@ export class AgentSessionService {
 
   restore(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
-
-    // A session under a trashed agent restores into an unusable state: it shows up
-    // in the list but cannot run. Refuse it — restoring the agent brings its sessions
-    // back anyway, so that is the operation the caller actually wants.
-    const [orphaned] = db
-      .select({ agentId: agentsTable.id })
-      .from(sessionsTable)
-      .innerJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
-      .where(and(eq(sessionsTable.id, id), isNotNull(agentsTable.deletedAt)))
-      .limit(1)
-      .all()
-    if (orphaned) {
-      throw DataApiErrorFactory.invalidOperation(
-        'restore session',
-        'its agent is in the Recycle Bin — restore the agent instead, which restores its sessions'
-      )
-    }
 
     const [row] = db
       .update(sessionsTable)

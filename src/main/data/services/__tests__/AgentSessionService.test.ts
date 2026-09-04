@@ -253,7 +253,7 @@ describe('AgentSessionService', () => {
     ).toEqual([])
   })
 
-  it('hides retained sessions while their agent is trashed without hiding true orphans', async () => {
+  it('keeps retained history visible for a trashed owner but excludes it from addressable queries', async () => {
     const workspace = await createWorkspace('trashed-owner-visibility')
     await dbh.db.insert(agentTable).values({
       id: 'agent-trashed-owner',
@@ -282,20 +282,34 @@ describe('AgentSessionService', () => {
       }
     ])
 
-    expect(agentSessionService.search({ q: 'owner evidence', limit: 5 })).toEqual([])
-    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual(['session-true-orphan'])
-    expect(agentSessionService.getLatestActive()?.id).toBe('session-true-orphan')
-    expect(captureError(() => agentSessionService.getById('session-trashed-owner'))).toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    expect(agentSessionService.search({ q: 'owner evidence', limit: 5 })).toEqual([
+      expect.objectContaining({
+        id: 'session-trashed-owner',
+        subtitle: undefined,
+        target: { sessionId: 'session-trashed-owner', agentId: 'agent-trashed-owner' }
+      })
+    ])
+    expect(
+      agentSessionService.searchWithMetadataEvidence({ q: 'owner evidence', limit: 5, addressableOnly: true })
+    ).toEqual([])
+    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+      'session-trashed-owner',
+      'session-true-orphan'
+    ])
+    expect(agentSessionService.listByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
+    expect(agentSessionService.listAddressableByCursor({ agentId: 'agent-trashed-owner' }).items).toEqual([])
+    expect(agentSessionService.getLatestActive()?.id).toBe('session-trashed-owner')
+    expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-trashed-owner')
+    expect(agentSessionService.getLatestActive({ agentId: 'agent-trashed-owner' })).toBeNull()
+    expect(agentSessionService.getById('session-trashed-owner').id).toBe('session-trashed-owner')
     expect(agentSessionService.getById('session-true-orphan').id).toBe('session-true-orphan')
 
-    await dbh.db.update(agentTable).set({ deletedAt: null }).where(eq(agentTable.id, 'agent-trashed-owner'))
-
-    expect(agentSessionService.search({ q: 'owner evidence', limit: 5 }).map((item) => item.id)).toEqual([
-      'session-trashed-owner'
-    ])
-    expect(agentSessionService.getById('session-trashed-owner').id).toBe('session-trashed-owner')
+    await dbh.db
+      .update(agentSessionTable)
+      .set({ deletedAt: 400 })
+      .where(eq(agentSessionTable.id, 'session-trashed-owner'))
+    const trash = agentSessionService.listByCursor({ agentId: 'agent-trashed-owner', inTrash: true })
+    expect(trash.items.map((session) => session.id)).toEqual(['session-trashed-owner'])
   })
 
   it('pages only Sessions whose active Agent can receive a delivery', async () => {
@@ -438,7 +452,7 @@ describe('AgentSessionService', () => {
       ])
 
       expect(agentSessionService.getLatestActive({ agentId: 'agent-session-test' })?.id).toBe('session-scoped')
-      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-unassigned')
+      expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-deleted-owner')
     })
 
     it('does not treat task relation changes as session activity', async () => {
@@ -1252,6 +1266,23 @@ describe('AgentSessionService', () => {
     expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
   })
 
+  it('rejects reassignment to a trashed agent', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-trashed-target',
+      type: 'claude-code',
+      name: 'Trashed target',
+      instructions: '',
+      orderKey: 'z0',
+      deletedAt: 100
+    })
+    const session = await createSession('Active session')
+
+    expect(
+      captureError(() => agentSessionService.update(session.id, { agentId: 'agent-session-trashed-target' }))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(agentSessionService.getById(session.id).agentId).toBe('agent-session-test')
+  })
+
   it('keeps a binding and emits nothing when an outer transaction rolls back session deletion', async () => {
     const task = createTaskSchedule()
     const session = await createSession('Rollback bound task')
@@ -1338,6 +1369,35 @@ describe('AgentSessionService', () => {
         .map((row) => row.id)
         .sort()
     ).toEqual(['msg-trash-1', 'msg-trash-2'])
+  })
+
+  it('restores a session independently while its owner remains in the Recycle Bin', async () => {
+    const workspace = await createWorkspace('independent-session-restore')
+    await dbh.db.update(agentTable).set({ deletedAt: 500 }).where(eq(agentTable.id, 'agent-session-test'))
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-independent-restore',
+      agentId: 'agent-session-test',
+      name: 'Restore independently',
+      workspaceId: workspace.id,
+      orderKey: 'a0',
+      lastActivityAt: 600,
+      deletedAt: 500
+    })
+    await insertSessionMessage('session-independent-restore', 'message-independent-restore')
+
+    const restored = agentSessionService.restore('session-independent-restore')
+
+    expect(restored).toMatchObject({
+      id: 'session-independent-restore',
+      agentId: 'agent-session-test',
+      workspaceId: workspace.id,
+      deletedAt: undefined
+    })
+    expect(agentSessionService.getLatestActive({ agentId: 'unlinked' })?.id).toBe('session-independent-restore')
+    expect(agentSessionService.listByCursor().items.map((session) => session.id)).toEqual([
+      'session-independent-restore'
+    ])
+    expect(await dbh.db.select().from(agentSessionMessageTable)).toHaveLength(1)
   })
 
   it('rejects permanent deletion of an active session and keeps it active', async () => {
