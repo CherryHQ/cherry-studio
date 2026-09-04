@@ -4,7 +4,7 @@ import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@rende
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import type { FC, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -29,6 +29,26 @@ interface Props {
   className?: string
 }
 
+function useConcreteWebview(appId: string, isReady: boolean): WebviewTag | null {
+  const selector = useMemo(() => `webview[data-mini-app-id="${CSS.escape(appId)}"]`, [appId])
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      if (!isReady) return () => {}
+
+      const observer = new MutationObserver(() => listener())
+      observer.observe(document.body, { childList: true, subtree: true })
+      return () => observer.disconnect()
+    },
+    [isReady]
+  )
+  const getSnapshot = useCallback(
+    () => (isReady ? document.querySelector<WebviewTag>(selector) : null),
+    [isReady, selector]
+  )
+
+  return useSyncExternalStore(subscribe, getSnapshot, () => null)
+}
+
 /**
  * One mini app pane: toolbar, in-page search and loading mask laid over the
  * `<webview>` that {@link MiniAppTabsPool} renders underneath. The pane itself
@@ -46,7 +66,6 @@ const MiniAppPane: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const displayName = app.nameKey ? t(app.nameKey) : app.name
-  const [webview, setWebview] = useState<WebviewTag | null>(null)
   // Read through a ref so attaching the webview listener does not depend on a
   // callback identity that changes every render.
   const onActivateRef = useRef(onActivate)
@@ -55,27 +74,7 @@ const MiniAppPane: FC<Props> = ({
   // over an already-loaded webview must not flash the mask, which reads as a reload.
   const [isReady, setIsReady] = useState<boolean>(() => getWebviewLoaded(app.appId))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
-
-  useEffect(() => {
-    if (!isReady) {
-      setWebview(null)
-      return
-    }
-
-    const selector = `webview[data-mini-app-id="${CSS.escape(app.appId)}"]`
-    const reconcileWebview = () => setWebview(document.querySelector<WebviewTag>(selector))
-    reconcileWebview()
-
-    // The pool can replace a concrete element without changing its loaded flag.
-    // Keep reconciling identity for as long as this pane is ready.
-    const observer = new MutationObserver(reconcileWebview)
-    observer.observe(document.body, { childList: true, subtree: true })
-
-    return () => {
-      observer.disconnect()
-      setWebview(null)
-    }
-  }, [app.appId, isReady])
+  const webview = useConcreteWebview(app.appId, isReady)
 
   useEffect(() => {
     if (!webview) return
