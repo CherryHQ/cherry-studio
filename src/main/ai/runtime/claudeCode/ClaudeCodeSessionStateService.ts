@@ -120,28 +120,37 @@ export class ClaudeCodeSessionStateService extends BaseService {
     return this.toolPolicySnapshots.get(sessionId)
   }
 
-  recordBashOutcome(sessionId: string, command: string, output: unknown, failed: boolean): void {
-    const normalized = normalizeBashCommand(command)
-    if (!normalized) return
-    const history = this.bashOutcomes.get(sessionId) ?? []
-    history.push({ command: normalized, fingerprint: fingerprintBashOutput(output, failed) })
-    if (history.length > BASH_HISTORY_LIMIT) history.shift()
-    this.bashOutcomes.set(sessionId, history)
+  /**
+   * Bash outcome history is scoped per agent within the session: subagent (Task) hook events carry
+   * `agent_id`, and a child's repeated calls must not poison the parent's run detection.
+   */
+  private bashScopeKey(sessionId: string, agentId?: string): string {
+    return agentId ? `${sessionId} ${agentId}` : sessionId
   }
 
-  getBashNoProgressRun(sessionId: string, command: string): number | undefined {
-    const history = this.bashOutcomes.get(sessionId)
+  recordBashOutcome(sessionId: string, command: string, output: unknown, failed: boolean, agentId?: string): void {
+    const normalized = normalizeBashCommand(command)
+    if (!normalized) return
+    const key = this.bashScopeKey(sessionId, agentId)
+    const history = this.bashOutcomes.get(key) ?? []
+    history.push({ command: normalized, fingerprint: fingerprintBashOutput(output, failed) })
+    if (history.length > BASH_HISTORY_LIMIT) history.shift()
+    this.bashOutcomes.set(key, history)
+  }
+
+  getBashNoProgressRun(sessionId: string, command: string, agentId?: string): number | undefined {
+    const history = this.bashOutcomes.get(this.bashScopeKey(sessionId, agentId))
     return history ? bashNoProgressRunLength(history, command) : undefined
   }
 
   /**
    * Ends any trailing no-progress run without recording output: a mutating tool changed the
    * workspace, so an unchanged verifier output afterwards is fresh evidence, not a stuck loop.
-   * No-op when the session has no Bash history — there is no run to break, and sessions that
+   * No-op when the scope has no Bash history — there is no run to break, and scopes that
    * never touch Bash should not grow this map.
    */
-  recordBashRunBreak(sessionId: string): void {
-    const history = this.bashOutcomes.get(sessionId)
+  recordBashRunBreak(sessionId: string, agentId?: string): void {
+    const history = this.bashOutcomes.get(this.bashScopeKey(sessionId, agentId))
     if (!history?.length) return
     history.push({ command: BASH_RUN_BREAK_MARKER, fingerprint: '' })
     if (history.length > BASH_HISTORY_LIMIT) history.shift()
@@ -149,7 +158,10 @@ export class ClaudeCodeSessionStateService extends BaseService {
 
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
-    this.bashOutcomes.delete(sessionId)
+    // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
+    for (const key of [...this.bashOutcomes.keys()]) {
+      if (key === sessionId || key.startsWith(`${sessionId} `)) this.bashOutcomes.delete(key)
+    }
     this.mcpSessionCatalogStates.get(sessionId)?.subscription?.dispose()
     this.mcpSessionCatalogStates.delete(sessionId)
   }

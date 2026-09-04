@@ -92,7 +92,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       supportsImages: ctx.supportsImages,
       interaction: application.get('AgentSessionRuntimeService').getInteractionState(sessionId),
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
-      bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command)
+      bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
     if (!decision) return {}
     if (decision.effect === 'deny') {
@@ -171,22 +171,25 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
-  // Feeds the bash-repeat-no-progress guard rule. A user interrupt (Esc) is a deliberate stop, so
-  // it counts as progress and CLEARS the signal — merely skipping the recording would leave a
-  // trailing run in place and the user's next retry would still be denied. Esc surfaces either as
+  // Feeds the bash-repeat-no-progress guard rule. History is scoped per agent: subagent hook
+  // events carry agent_id, and a child's repeated calls must not poison the parent's run
+  // detection (and vice versa). A user interrupt (Esc) is a deliberate stop, so it counts as
+  // progress and CLEARS the signal — merely skipping the recording would leave a trailing run in
+  // place and the user's next retry would still be denied. Esc surfaces either as
   // PostToolUseFailure with is_interrupt, or as PostToolUse whose Bash tool_response carries
   // interrupted: true.
   const bashOutcomeHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
+    const agentId = input.agent_id
 
     if (input.tool_name !== 'Bash') {
       // A completed mutating tool changed the workspace: break the run so a verifier still printing
       // the same remaining errors is not misread as a stuck loop. Read-only tools do not break it —
       // an agent alternating Bash with Read is still looping.
       if (input.hook_event_name === 'PostToolUse' && BASH_RUN_BREAK_TOOLS.has(input.tool_name)) {
-        sessionState().recordBashRunBreak(sessionId)
+        sessionState().recordBashRunBreak(sessionId, agentId)
       }
       return {}
     }
@@ -196,10 +199,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
     if (input.hook_event_name === 'PostToolUseFailure') {
       if (input.is_interrupt === true) {
-        sessionState().recordBashRunBreak(sessionId)
+        sessionState().recordBashRunBreak(sessionId, agentId)
         return {}
       }
-      sessionState().recordBashOutcome(sessionId, command, input.error, true)
+      sessionState().recordBashOutcome(sessionId, command, input.error, true, agentId)
       return {}
     }
 
@@ -209,10 +212,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       response !== null &&
       (response as { interrupted?: unknown }).interrupted === true
     ) {
-      sessionState().recordBashRunBreak(sessionId)
+      sessionState().recordBashRunBreak(sessionId, agentId)
       return {}
     }
-    sessionState().recordBashOutcome(sessionId, command, response, false)
+    sessionState().recordBashOutcome(sessionId, command, response, false, agentId)
     return {}
   }
 

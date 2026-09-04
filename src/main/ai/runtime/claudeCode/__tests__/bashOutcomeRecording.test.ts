@@ -33,6 +33,8 @@ vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn(async () => null) }))
 vi.mock('../guardRules', () => ({ CLAUDE_TOOL_GUARD_RULES: [] }))
 vi.mock('../skillDependencies', () => ({ SKILL_TOOL_NAME: 'Skill', checkSkillRuntimeDependencies: vi.fn() }))
 
+import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
+
 import { BASH_HISTORY_LIMIT, BASH_NO_PROGRESS_THRESHOLD } from '../bashNoProgress'
 import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
 import { buildClaudeCodeHooks } from '../hooks'
@@ -94,17 +96,51 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
 
     expect(bashOutcomesOf(svc, SESSION)).toBeUndefined()
   })
+
+  it('scopes outcome history per agent: a subagent loop never reaches the main thread', () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      svc.recordBashOutcome(SESSION, 'curl x', 'same', false, 'agent-1')
+    }
+
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-1')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBeUndefined()
+  })
+
+  it('a run break in one scope leaves the other scope intact', () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      svc.recordBashOutcome(SESSION, 'curl x', 'same', false)
+      svc.recordBashOutcome(SESSION, 'curl x', 'same', false, 'agent-1')
+    }
+    svc.recordBashRunBreak(SESSION)
+
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBeUndefined()
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-1')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+  })
+
+  it('dispose sweeps subagent scopes together with the parent session', () => {
+    svc.recordBashOutcome(SESSION, 'curl x', 'same', false)
+    svc.recordBashOutcome(SESSION, 'curl x', 'same', false, 'agent-1')
+
+    svc.disposeToolPolicySnapshot(SESSION)
+
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBeUndefined()
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-1')).toBeUndefined()
+    expect((svc as unknown as { bashOutcomes: Map<string, unknown[]> }).bashOutcomes.size).toBe(0)
+  })
 })
 
 describe('bashOutcomeHook', () => {
   const svc = new ClaudeCodeSessionStateService()
   let bashOutcomeHook: HookCallback
+  let toolGuardHook: HookCallback
 
   beforeEach(() => {
     applicationMock.get.mockImplementation((name: string) => {
       if (name === 'ClaudeCodeSessionStateService') return svc
+      if (name === 'AgentSessionRuntimeService') return { getInteractionState: () => undefined }
       throw new Error(`unexpected service: ${name}`)
     })
+    vi.mocked(evaluateToolGuards).mockClear()
     svc.disposeToolPolicySnapshot(SESSION)
 
     const hooks = buildClaudeCodeHooks({
@@ -117,18 +153,21 @@ describe('bashOutcomeHook', () => {
       supportsImages: false,
       agentsMdLoader: { createPreToolUseHook: () => async () => ({}) } as never
     })
-    // [postToolTimingHook, bashOutcomeHook] — the outcome hook is the second entry.
+    // PreToolUse: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook].
+    toolGuardHook = hooks!.PreToolUse![0].hooks[0]
+    // PostToolUse: [postToolTimingHook, bashOutcomeHook] — the outcome hook is the second entry.
     bashOutcomeHook = hooks!.PostToolUse![0].hooks[1]
   })
 
   const fire = (input: Record<string, unknown>) => bashOutcomeHook(input as never, undefined, {} as never)
 
-  const bashSuccess = (response: unknown) => ({
+  const bashSuccess = (response: unknown, agentId?: string) => ({
     hook_event_name: 'PostToolUse',
     tool_name: 'Bash',
     tool_input: { command: 'npx tsc --noEmit' },
     tool_response: response,
-    tool_use_id: 'tu-1'
+    tool_use_id: 'tu-1',
+    ...(agentId ? { agent_id: agentId } : {})
   })
 
   it('records a real PostToolUse payload into the session history', async () => {
@@ -232,5 +271,43 @@ describe('bashOutcomeHook', () => {
     })
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+  })
+
+  it('records subagent outcomes under the subagent scope, never the main thread', async () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      await fire(bashSuccess({ stdout: 'error TS2322' }, 'agent-1'))
+    }
+
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit', 'agent-1')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBeUndefined()
+  })
+
+  it('the guard query reads the scope of the calling agent', async () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false, 'agent-1')
+    }
+
+    const preToolUse = (agentId?: string) =>
+      toolGuardHook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: { command: 'npx tsc --noEmit' },
+          tool_use_id: 'tu-9',
+          ...(agentId ? { agent_id: agentId } : {})
+        } as never,
+        undefined,
+        {} as never
+      )
+
+    await preToolUse('agent-1')
+    await preToolUse()
+
+    const ctxOf = (call: number) =>
+      vi.mocked(evaluateToolGuards).mock.calls[call][1] as unknown as {
+        bashNoProgressRun?: (command: string) => number | undefined
+      }
+    expect(ctxOf(0).bashNoProgressRun?.('npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+    expect(ctxOf(1).bashNoProgressRun?.('npx tsc --noEmit')).toBeUndefined()
   })
 })
