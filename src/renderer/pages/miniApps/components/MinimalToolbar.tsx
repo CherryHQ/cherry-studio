@@ -14,7 +14,7 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webviewAnnotation'
 import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, Columns2, ExternalLink, Info, LayoutGrid, Link, RotateCw, X } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v5 as uuidv5 } from 'uuid'
@@ -61,7 +61,8 @@ export type SplitMode = 'open' | 'close'
 
 interface Props {
   app: MiniApp
-  webview: WebviewTag | null
+  webviewRef: RefObject<WebviewTag | null>
+  webviewRevision: number
   currentUrl: string | null
   isWebviewReady: boolean
   isHostActive: boolean
@@ -75,7 +76,8 @@ interface Props {
 
 const MinimalToolbar: FC<Props> = ({
   app,
-  webview,
+  webviewRef,
+  webviewRevision,
   currentUrl,
   isWebviewReady,
   isHostActive,
@@ -85,6 +87,7 @@ const MinimalToolbar: FC<Props> = ({
   splitActive = false,
   onSplit
 }) => {
+  const webview = webviewRef.current
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
@@ -207,7 +210,15 @@ const MinimalToolbar: FC<Props> = ({
       webview.removeEventListener('did-navigate', handleNavigation)
       webview.removeEventListener('did-navigate-in-page', handleNavigation)
     }
-  }, [app.appId, clearNavigationUpdate, scheduleNavigationUpdate, updateCurrentPageUrl, updateNavigationState, webview])
+  }, [
+    app.appId,
+    clearNavigationUpdate,
+    scheduleNavigationUpdate,
+    updateCurrentPageUrl,
+    updateNavigationState,
+    webview,
+    webviewRevision
+  ])
 
   const handleGoBack = useCallback(() => {
     if (webview) {
@@ -401,7 +412,8 @@ const MinimalToolbar: FC<Props> = ({
 
           {app.kind === 'site' && (
             <WebviewAnnotationControls
-              webview={webview}
+              webviewRef={webviewRef}
+              webviewRevision={webviewRevision}
               isWebviewReady={isWebviewReady}
               isHostActive={isHostActive}
               target={annotationTarget}

@@ -3,11 +3,13 @@ import '@testing-library/jest-dom/vitest'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { type WebviewAnnotationTarget, WebviewAnnotationTargetSchema } from '@shared/types/webviewAnnotation'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { InputHTMLAttributes, ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  annotationTarget: undefined as WebviewAnnotationTarget | undefined
+  annotationTarget: undefined as WebviewAnnotationTarget | undefined,
+  annotationWebviewRef: undefined as RefObject<Electron.WebviewTag | null> | undefined,
+  annotationWebviewRevision: undefined as number | undefined
 }))
 
 vi.unmock('uuid')
@@ -22,8 +24,18 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
-  WebviewAnnotationControls: ({ target }: { target: WebviewAnnotationTarget }) => {
+  WebviewAnnotationControls: ({
+    target,
+    webviewRef,
+    webviewRevision
+  }: {
+    target: WebviewAnnotationTarget
+    webviewRef: RefObject<Electron.WebviewTag | null>
+    webviewRevision: number
+  }) => {
     mocks.annotationTarget = target
+    mocks.annotationWebviewRef = webviewRef
+    mocks.annotationWebviewRevision = webviewRevision
     return <button type="button" aria-label="annotation-controls" />
   }
 }))
@@ -61,7 +73,8 @@ const renderToolbar = (app: MiniAppType) =>
   render(
     <MinimalToolbar
       app={app}
-      webview={null}
+      webviewRef={{ current: null }}
+      webviewRevision={0}
       currentUrl={null}
       isWebviewReady
       isHostActive
@@ -75,6 +88,8 @@ const renderToolbar = (app: MiniAppType) =>
 afterEach(() => {
   cleanup()
   mocks.annotationTarget = undefined
+  mocks.annotationWebviewRef = undefined
+  mocks.annotationWebviewRevision = undefined
 })
 
 describe('MinimalToolbar', () => {
@@ -121,6 +136,8 @@ describe('MinimalToolbar', () => {
     renderToolbar(site)
     expect(screen.getByRole('textbox')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'annotation-controls' })).toBeInTheDocument()
+    expect(mocks.annotationWebviewRef?.current).toBeNull()
+    expect(mocks.annotationWebviewRevision).toBe(0)
   })
 
   it('preserves annotation target IDs that already fit the shared contract', () => {

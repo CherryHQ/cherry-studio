@@ -6,7 +6,7 @@ import {
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerError, request, toastSuccess, toastError, randomUUID } = vi.hoisted(() => ({
@@ -98,8 +98,15 @@ const sentCommands = (webview: TestWebview) =>
   vi.mocked(webview.send).mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
 
 function renderControls(webview: WebviewTag, isHostActive = true) {
+  const webviewRef: RefObject<WebviewTag | null> = { current: webview }
   return render(
-    <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive={isHostActive} target={target} />
+    <WebviewAnnotationControls
+      webviewRef={webviewRef}
+      webviewRevision={0}
+      isWebviewReady
+      isHostActive={isHostActive}
+      target={target}
+    />
   )
 }
 

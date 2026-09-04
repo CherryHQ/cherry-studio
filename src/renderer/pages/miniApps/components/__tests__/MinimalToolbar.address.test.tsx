@@ -5,7 +5,7 @@ import type { MiniApp } from '@shared/data/types/miniApp'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MinimalToolbar from '../MinimalToolbar'
@@ -85,19 +85,24 @@ function createWebview(initialUrl = app.url) {
 }
 
 function renderToolbar(webview: WebviewTag | null, currentUrl: string | null = app.url) {
-  return render(
-    <MinimalToolbar
-      app={app}
-      webview={webview}
-      currentUrl={currentUrl}
-      isWebviewReady
-      isHostActive
-      onReload={vi.fn()}
-      onOpenDevTools={vi.fn()}
-      splitMode="open"
-      onSplit={vi.fn()}
-    />
-  )
+  const webviewRef: RefObject<WebviewTag | null> = { current: webview }
+  return {
+    ...render(
+      <MinimalToolbar
+        app={app}
+        webviewRef={webviewRef}
+        webviewRevision={0}
+        currentUrl={currentUrl}
+        isWebviewReady
+        isHostActive
+        onReload={vi.fn()}
+        onOpenDevTools={vi.fn()}
+        splitMode="open"
+        onSplit={vi.fn()}
+      />
+    ),
+    webviewRef
+  }
 }
 
 describe('MinimalToolbar address bar', () => {
@@ -167,15 +172,17 @@ describe('MinimalToolbar address bar', () => {
   it('rebinds navigation updates when the concrete webview changes', () => {
     const first = createWebview('https://first.example')
     const second = createWebview('https://second.example')
-    const { rerender } = renderToolbar(first.webview, null)
+    const { rerender, webviewRef } = renderToolbar(first.webview, null)
 
     const address = screen.getByRole('textbox', { name: 'URL' })
     expect(address).toHaveValue('https://first.example')
 
+    webviewRef.current = second.webview
     rerender(
       <MinimalToolbar
         app={app}
-        webview={second.webview}
+        webviewRef={webviewRef}
+        webviewRevision={1}
         currentUrl={null}
         isWebviewReady
         isHostActive
