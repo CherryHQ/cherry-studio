@@ -369,6 +369,7 @@ export class WebviewAnnotationController {
   private highlightElement: Element | null = null
   private marquee: HTMLDivElement | null = null
   private marqueePointerCapture: { target: Element; pointerId: number } | null = null
+  private marqueePointerId: number | null = null
   private marqueeOrigin: { x: number; y: number } | null = null
   private marqueeRect: ViewportRect | null = null
   private pendingRegion: WebviewAnnotationRegion | null = null
@@ -669,16 +670,28 @@ export class WebviewAnnotationController {
     return Boolean(this.overlayHost && event.composedPath().includes(this.overlayHost))
   }
 
-  private eventElement(event: Event): Element | null {
+  private isEditablePath(event: Event) {
+    return event
+      .composedPath()
+      .some(
+        (target) =>
+          target instanceof Element &&
+          target.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
+      )
+  }
+
+  private pageEventElement(event: Event): Element | null {
+    if (this.isOverlayEvent(event) || this.isEditablePath(event)) return null
     for (const target of event.composedPath()) {
       if (target instanceof Element && target !== this.overlayHost) return target
     }
-    return event.target instanceof Element ? event.target : null
+    return event.target instanceof Element && event.target !== this.overlayHost ? event.target : null
   }
 
   private handlePointerMove = (event: PointerEvent) => {
-    if (!this.enabled) return
-    if (this.marqueeOrigin) {
+    if (!this.enabled || !event.isTrusted) return
+    if (this.marqueePointerId !== null) {
+      if (event.pointerId !== this.marqueePointerId || !this.marqueeOrigin) return
       const passedThreshold =
         Math.abs(event.clientX - this.marqueeOrigin.x) >= MARQUEE_DRAG_THRESHOLD_PX ||
         Math.abs(event.clientY - this.marqueeOrigin.y) >= MARQUEE_DRAG_THRESHOLD_PX
@@ -692,38 +705,39 @@ export class WebviewAnnotationController {
         this.highlightElement = null
         this.renderMarquee()
         this.schedulePositionUpdate()
-        return
       }
+      return
     }
-    if (this.isOverlayEvent(event)) return
-    this.highlightElement = this.eventElement(event)
+    this.highlightElement = this.pageEventElement(event)
     this.schedulePositionUpdate()
   }
 
   private blockSelectionEvent = (event: Event) => {
-    if (!this.enabled || this.isOverlayEvent(event) || !this.eventElement(event)) return
+    if (!this.enabled || !this.pageEventElement(event)) return
     event.preventDefault()
     event.stopImmediatePropagation()
   }
 
   private handlePointerDown = (event: PointerEvent) => {
-    const element = this.eventElement(event)
-    if (!this.enabled || this.isOverlayEvent(event) || !element) return
+    if (!this.enabled || !event.isTrusted || !event.isPrimary || event.button !== 0 || this.marqueePointerId !== null) {
+      return
+    }
+    const element = this.pageEventElement(event)
+    if (!element) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    if (event.button === 0) {
-      this.marqueeOrigin = { x: event.clientX, y: event.clientY }
-      try {
-        element.setPointerCapture(event.pointerId)
-        this.marqueePointerCapture = { target: element, pointerId: event.pointerId }
-      } catch {
-        // Document-level listeners still handle runtimes without pointer capture.
-      }
+    this.marqueePointerId = event.pointerId
+    this.marqueeOrigin = { x: event.clientX, y: event.clientY }
+    try {
+      element.setPointerCapture(event.pointerId)
+      this.marqueePointerCapture = { target: element, pointerId: event.pointerId }
+    } catch {
+      // Document-level listeners still handle runtimes without pointer capture.
     }
   }
 
   private handlePointerUp = (event: PointerEvent) => {
-    if (!this.enabled) return
+    if (!this.enabled || !event.isTrusted || event.pointerId !== this.marqueePointerId) return
     const rect = this.marqueeRect
     this.cancelMarquee()
     if (rect) {
@@ -737,8 +751,7 @@ export class WebviewAnnotationController {
   }
 
   private handlePointerCancel = (event: PointerEvent) => {
-    if (!this.enabled || (!this.marqueeOrigin && !this.marqueeRect && !this.marqueePointerCapture)) return
-    if (this.marqueePointerCapture && event.pointerId !== this.marqueePointerCapture.pointerId) return
+    if (!this.enabled || !event.isTrusted || event.pointerId !== this.marqueePointerId) return
     event.preventDefault()
     event.stopImmediatePropagation()
     this.cancelMarquee()
@@ -746,15 +759,14 @@ export class WebviewAnnotationController {
 
   private handleClick = (event: MouseEvent) => {
     if (!this.enabled) return
+    const element = this.pageEventElement(event)
+    if (!element) return
     if (this.suppressNextClick) {
       this.suppressNextClick = false
       event.preventDefault()
       event.stopImmediatePropagation()
       return
     }
-    if (this.isOverlayEvent(event)) return
-    const element = this.eventElement(event)
-    if (!element) return
     event.preventDefault()
     event.stopImmediatePropagation()
     this.openEditor({ mode: 'create-element', element })
@@ -785,6 +797,7 @@ export class WebviewAnnotationController {
   private cancelMarquee() {
     const pointerCapture = this.marqueePointerCapture
     this.marqueePointerCapture = null
+    this.marqueePointerId = null
     this.marqueeOrigin = null
     this.marqueeRect = null
     if (this.marquee) this.marquee.style.display = 'none'
