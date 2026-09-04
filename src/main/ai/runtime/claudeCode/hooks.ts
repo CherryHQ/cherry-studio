@@ -171,9 +171,11 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
-  // Feeds the bash-repeat-no-progress guard rule. User interrupts are excluded: an Esc-aborted call
-  // is a deliberate stop, not loop evidence. Esc surfaces either as PostToolUseFailure with
-  // is_interrupt, or as PostToolUse whose Bash tool_response carries interrupted: true.
+  // Feeds the bash-repeat-no-progress guard rule. A user interrupt (Esc) is a deliberate stop, so
+  // it counts as progress and CLEARS the signal — merely skipping the recording would leave a
+  // trailing run in place and the user's next retry would still be denied. Esc surfaces either as
+  // PostToolUseFailure with is_interrupt, or as PostToolUse whose Bash tool_response carries
+  // interrupted: true.
   const bashOutcomeHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
@@ -193,7 +195,10 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
     if (typeof command !== 'string') return {}
 
     if (input.hook_event_name === 'PostToolUseFailure') {
-      if (input.is_interrupt === true) return {}
+      if (input.is_interrupt === true) {
+        sessionState().recordBashRunBreak(sessionId)
+        return {}
+      }
       sessionState().recordBashOutcome(sessionId, command, input.error, true)
       return {}
     }
@@ -204,6 +209,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       response !== null &&
       (response as { interrupted?: unknown }).interrupted === true
     ) {
+      sessionState().recordBashRunBreak(sessionId)
       return {}
     }
     sessionState().recordBashOutcome(sessionId, command, response, false)

@@ -5,7 +5,8 @@
  * break-marker when a mutating tool completes; the `bash-repeat-no-progress` guard rule denies the
  * next identical call once the trailing run of the same normalized command reaches the threshold
  * with a single unchanged fingerprint. Output that changes at all — new bytes, different error
- * text — counts as progress and resets the signal, as does any completed workspace mutation.
+ * text — counts as progress and resets the signal, as does any completed workspace mutation or a
+ * user interrupt (Esc).
  */
 
 import { createHash } from 'node:crypto'
@@ -29,6 +30,12 @@ export interface BashOutcome {
   readonly fingerprint: string
 }
 
+/**
+ * Collapses all whitespace — including inside shell syntax and quoted arguments — so formatting
+ * variants count as the same command. Two genuinely distinct commands can therefore alias onto one
+ * run; that is acceptable because the guard only fires when the OUTPUT is also byte-identical,
+ * in which case the retry carries no new information either way.
+ */
 export function normalizeBashCommand(command: string): string {
   return command.trim().replace(/\s+/g, ' ')
 }

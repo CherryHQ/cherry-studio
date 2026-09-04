@@ -39,15 +39,15 @@ import { buildClaudeCodeHooks } from '../hooks'
 
 const SESSION = 'session-1'
 
+const bashOutcomesOf = (svc: ClaudeCodeSessionStateService, sessionId: string) =>
+  (svc as unknown as { bashOutcomes: Map<string, unknown[]> }).bashOutcomes.get(sessionId)
+
 describe('ClaudeCodeSessionStateService bash outcome recording', () => {
   let svc: ClaudeCodeSessionStateService
 
   beforeEach(() => {
     svc = new ClaudeCodeSessionStateService()
   })
-
-  const bashOutcomesOf = (sessionId: string) =>
-    (svc as unknown as { bashOutcomes: Map<string, unknown[]> }).bashOutcomes.get(sessionId)
 
   it('records outcomes and reports the trailing no-progress run', () => {
     for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
@@ -66,7 +66,7 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
     svc.recordBashOutcome(SESSION, 'curl x', 'same', false)
 
     // The 17th entry drops the oldest filler; the trailing run survives and keeps growing.
-    expect(bashOutcomesOf(SESSION)).toHaveLength(BASH_HISTORY_LIMIT)
+    expect(bashOutcomesOf(svc, SESSION)).toHaveLength(BASH_HISTORY_LIMIT)
     expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBe(BASH_NO_PROGRESS_THRESHOLD + 1)
   })
 
@@ -77,7 +77,7 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
     svc.disposeToolPolicySnapshot(SESSION)
 
     expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBeUndefined()
-    expect(bashOutcomesOf(SESSION)).toBeUndefined()
+    expect(bashOutcomesOf(svc, SESSION)).toBeUndefined()
   })
 
   it('ends the trailing run on a recorded run break', () => {
@@ -92,7 +92,7 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
   it('run break is a no-op when the session has no Bash history', () => {
     svc.recordBashRunBreak(SESSION)
 
-    expect(bashOutcomesOf(SESSION)).toBeUndefined()
+    expect(bashOutcomesOf(svc, SESSION)).toBeUndefined()
   })
 })
 
@@ -153,27 +153,48 @@ describe('bashOutcomeHook', () => {
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
   })
 
-  it('skips a PostToolUseFailure carrying is_interrupt — an Esc is a deliberate stop', async () => {
+  it('clears an existing run on a PostToolUseFailure carrying is_interrupt — an Esc is a deliberate stop', async () => {
     for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
-      await fire({
-        hook_event_name: 'PostToolUseFailure',
-        tool_name: 'Bash',
-        tool_input: { command: 'npx tsc --noEmit' },
-        tool_use_id: 'tu-1',
-        error: 'interrupted',
-        is_interrupt: true
-      })
+      await fire(bashSuccess({ stdout: 'error TS2322' }))
     }
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+
+    await fire({
+      hook_event_name: 'PostToolUseFailure',
+      tool_name: 'Bash',
+      tool_input: { command: 'npx tsc --noEmit' },
+      tool_use_id: 'tu-1',
+      error: 'interrupted',
+      is_interrupt: true
+    })
+
+    // Merely skipping the recording would leave the run in place and deny the user's next retry.
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBeUndefined()
+  })
+
+  it('clears an existing run on a PostToolUse whose Bash response reports interrupted', async () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      await fire(bashSuccess({ stdout: 'error TS2322' }))
+    }
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+
+    await fire(bashSuccess({ stdout: 'partial', interrupted: true }))
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBeUndefined()
   })
 
-  it('skips a PostToolUse whose Bash response reports interrupted', async () => {
-    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
-      await fire(bashSuccess({ stdout: 'partial', interrupted: true }))
-    }
+  it('an interrupt with no prior history records nothing', async () => {
+    await fire({
+      hook_event_name: 'PostToolUseFailure',
+      tool_name: 'Bash',
+      tool_input: { command: 'npx tsc --noEmit' },
+      tool_use_id: 'tu-1',
+      error: 'interrupted',
+      is_interrupt: true
+    })
 
     expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBeUndefined()
+    expect(bashOutcomesOf(svc, SESSION)).toBeUndefined()
   })
 
   it('breaks the run when a mutating tool completes between verifier runs', async () => {
