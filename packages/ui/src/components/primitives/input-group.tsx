@@ -1,6 +1,8 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
+import type { InputNumberProps } from '@cherrystudio/ui/components/primitives/input-number'
+import { InputNumber } from '@cherrystudio/ui/components/primitives/input-number'
 import type { TextareaInputProps } from '@cherrystudio/ui/components/primitives/textarea'
 import * as Textarea from '@cherrystudio/ui/components/primitives/textarea'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -142,6 +144,19 @@ function InputGroupInput({ className, ...props }: InputProps) {
   )
 }
 
+function InputGroupInputNumber({ className, ...props }: InputNumberProps) {
+  return (
+    <InputNumber
+      data-slot="input-group-control"
+      className={cn(
+        'h-full flex-1 rounded-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
 function InputGroupTextarea({ className, ...props }: TextareaInputProps) {
   return (
     <Textarea.Input
@@ -155,4 +170,12 @@ function InputGroupTextarea({ className, ...props }: TextareaInputProps) {
   )
 }
 
-export { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextarea }
+export {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupInputNumber,
+  InputGroupText,
+  InputGroupTextarea
+}

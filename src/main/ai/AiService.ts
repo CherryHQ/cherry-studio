@@ -546,7 +546,11 @@ export class AiService extends BaseService {
       model,
       sdkModelId: sdkConfig.modelId,
       credentialReceipt,
-      source: request.usageContext ? request.usageContext.source : sourceSnapshotForAssistant(assistant),
+      // Agent turns win FIRST, `null` included — `usageContext` means "already decided", so a
+      // `??` here would attribute a deliberately-anonymous agent turn to some assistant.
+      source: request.usageContext
+        ? request.usageContext.source
+        : (request.source ?? sourceSnapshotForAssistant(assistant)),
       messageRef: request.usageContext
         ? { kind: 'agent-session', id: request.usageContext.assistantMessageId }
         : request.messageId
@@ -613,6 +617,7 @@ export class AiService extends BaseService {
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
+      errorContext: { providerId: provider.id, modelId: model.apiModelId ?? model.id },
       messageId: request.messageId,
       plugins: [...plugins, usagePlugin],
       wrapModel,
@@ -772,8 +777,11 @@ export class AiService extends BaseService {
     // the job handler is the single selection owner for this path. A transport
     // builds its own request envelope per model, so it receives the canonical
     // camelCase `vendorBag` directly (native n/size/seed travel via the job
-    // payload → `input.*`). No wire-naming, no casing probes.
-    if (request.uniqueModelId && hasImageTransport(provider.id, model.apiModelId ?? model.id)) {
+    // payload → `input.*`). No wire-naming, no casing probes. Keyed by preset,
+    // not `provider.id`: a user-added instance carries a UUID id and would fall
+    // through to the direct image model, which never passes `modelDescriptor`.
+    const transportProviderId = provider.presetProviderId ?? provider.id
+    if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, source)
     }
 
@@ -924,6 +932,7 @@ export class AiService extends BaseService {
         prompt: request.prompt,
         n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
+        ...(structured.aspectRatio && { aspectRatio: structured.aspectRatio }),
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),

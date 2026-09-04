@@ -31,7 +31,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { formatGatewayModelId, gatewayClientOrigin } from '@shared/utils/apiGateway'
 import { isVisionModel, supportsDynamicallyLoadedTools } from '@shared/utils/model'
 import {
   isExternalCliProvider,
@@ -42,7 +42,7 @@ import {
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import { getExtraHeaders } from '../../utils/provider'
-import { gatewayStateTag, resolveApiGatewayRuntime } from '../agentApiGateway'
+import { gatewayCredentialsFingerprint, requiresAgentGateway, resolveApiGatewayRuntime } from '../agentApiGateway'
 import type { AgentSessionUsageCapture } from '../types'
 import {
   createAgentProxyEnvironmentFingerprint,
@@ -692,7 +692,10 @@ function deriveRouteFacts(
   }
 
   const shouldUseGateway = modelRefs.some(
-    (ref) => ref.providerId !== primaryProvider.id || !usesAnthropicMessagesEndpoint(ref)
+    (ref) =>
+      requiresAgentGateway(ref.providerId) ||
+      ref.providerId !== primaryProvider.id ||
+      !usesAnthropicMessagesEndpoint(ref)
   )
 
   if (shouldUseGateway) {
@@ -700,17 +703,10 @@ function deriveRouteFacts(
     const config = apiGatewayService.getCurrentConfig()
     const host = config.host || '127.0.0.1'
     const port = config.port || 23333
-    // Fingerprint the persisted gateway key WITHOUT `ensureValidApiKey` (which would generate and
-    // persist one). Before the gateway's first activation the preference is empty — the signature
-    // changes once when the key is generated, costing a single extra rebuild. Accepted.
-    const gatewayKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
     return {
       branch: 'gateway',
-      baseUrl: `http://${host}:${port}`,
-      credentialsFingerprint: fingerprintCredentials([
-        typeof gatewayKey === 'string' ? gatewayKey : '',
-        gatewayStateTag(config.enabled, apiGatewayService.isRunning())
-      ]),
+      baseUrl: gatewayClientOrigin(host, port),
+      credentialsFingerprint: gatewayCredentialsFingerprint(),
       toolSearchCompatible,
       modelIds: {
         primary: toGatewayModelId(primaryRef),
@@ -791,7 +787,7 @@ async function resolveClaudeCodeRuntimeRoute(
         customHeaders: gateway.usageHeaders,
         usageCapture: { owner: 'provider-calls' },
         internalRequestToken: gateway.internalRequestToken,
-        credentialsFingerprint: fingerprintCredentials([gateway.apiKey, gateway.stateTag])
+        credentialsFingerprint: gatewayCredentialsFingerprint()
       }
     }
     case 'direct': {
@@ -938,6 +934,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
+    connectionRebuildSignature: request.connectionConfig.rebuildSignature,
     credentialsFingerprint: request.credentialsFingerprint,
     usageCapture: request.usageCapture,
     knowledgeBaseIds: request.knowledgeBaseIds,

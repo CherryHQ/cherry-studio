@@ -174,9 +174,11 @@ interface MockBrowserWindow extends EventEmitter {
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: {
+    id: number
     reload: ReturnType<typeof vi.fn>
     setZoomFactor: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
+    once: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
   }
 }
@@ -197,10 +199,12 @@ function createMockWindow(): MockBrowserWindow {
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
+    id: 1,
     reload: vi.fn(),
     setZoomFactor: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
+    once: vi.fn(),
     setWindowOpenHandler: vi.fn()
   }
   return win

@@ -102,7 +102,7 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
 
   return (
     <>
-      <ApiHostSection>
+      <ApiHostSection id="setting-provider-api-host">
         {!isAnthropicPrimaryEndpoint ? (
           <ApiHostField
             providerIdForSettings={provider.id}

@@ -42,6 +42,7 @@ const adjustableModels = [
 export default defineProvider({
   id: 'together',
   name: 'Together',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {

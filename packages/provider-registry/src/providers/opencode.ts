@@ -32,6 +32,7 @@ const qwenBudgetWire: ReasoningWireProfile = {
 const chatFixedModels = [
   'glm-5',
   'glm-5-1',
+  'hy4-preview',
   'kimi-k2-5',
   'kimi-k2-6',
   'kimi-k2-7-code',
@@ -76,6 +77,7 @@ const qwenBudgetModels = [
   { max: 81_920, modelId: 'qwen3-6-plus' },
   { max: 262_144, modelId: 'qwen3-7-max' },
   { max: 262_144, modelId: 'qwen3-7-plus' },
+  { max: 262_144, modelId: 'qwen3-8-flash' },
   { max: 262_144, modelId: 'qwen3-8-max' }
 ]
 
@@ -159,6 +161,7 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
 export default defineProvider({
   id: 'opencode',
   name: 'OpenCode Go',
+  availableInEditions: ['global'],
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {

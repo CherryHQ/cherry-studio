@@ -1,148 +1,167 @@
+import { cacheService } from '@data/CacheService'
+import {
+  LOCAL_MODEL_STATUS_CACHE_KEY,
+  type LocalModelBundleId,
+  type LocalModelStatusSnapshot
+} from '@shared/data/presets/localModel'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useLocalModel } from '../useLocalModel'
 
-type ProgressPayload = { model: 'embedding' | 'ocr'; status: string; percent: number }
+// Exercise the production read-only Shared Cache hook against the reactive CacheService mock.
+vi.unmock('@data/hooks/useCache')
 
-const { mockRequest, progressHandler } = vi.hoisted(() => ({
-  mockRequest: vi.fn(),
-  progressHandler: { current: undefined as ((payload: ProgressPayload) => void) | undefined }
-}))
+const EMBEDDING = 'qwen3-embedding-0.6b'
+const OCR = 'pp-ocrv6-medium'
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
-  useIpcOn: (_event: string, handler: (payload: ProgressPayload) => void) => {
-    progressHandler.current = handler
-  }
-}))
+const mockRequest = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mockRequest } }))
+
+function publish(id: LocalModelBundleId, snapshot: LocalModelStatusSnapshot): void {
+  const snapshots = cacheService.getSharedSnapshot(LOCAL_MODEL_STATUS_CACHE_KEY) ?? {}
+  cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, { ...snapshots, [id]: snapshot })
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 
 describe('useLocalModel', () => {
   beforeEach(() => {
+    MockCacheUtils.resetMocks()
     mockRequest.mockReset()
-    progressHandler.current = undefined
+    mockRequest.mockResolvedValue(undefined)
   })
 
-  it('keeps status unresolved until the platform probe completes', async () => {
-    let resolveStatus: ((value: { status: 'unsupported' }) => void) | undefined
-    mockRequest.mockImplementation(
-      () =>
-        new Promise<{ status: 'unsupported' }>((resolve) => {
-          resolveStatus = resolve
-        })
-    )
-    const { result } = renderHook(() => useLocalModel('embedding'))
+  it('stays unresolved until Main publishes a snapshot and ignores the RPC response body', async () => {
+    const statusResponse = deferred<{ status: 'not_downloaded' }>()
+    mockRequest.mockReturnValueOnce(statusResponse.promise)
+    const { result } = renderHook(() => useLocalModel(EMBEDDING))
 
-    expect(result.current.isStatusResolved).toBe(false)
-    act(() => resolveStatus?.({ status: 'unsupported' }))
-
-    await waitFor(() => expect(result.current.isStatusResolved).toBe(true))
-    expect(result.current.status).toBe('unsupported')
-  })
-
-  it('tracks matching progress and external ready events', async () => {
-    mockRequest.mockResolvedValue({ status: 'not_downloaded' })
-    const { result } = renderHook(() => useLocalModel('embedding'))
-
-    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
-
-    act(() => progressHandler.current?.({ model: 'ocr', status: 'downloading', percent: 20 }))
-    expect(result.current.percent).toBe(0)
-
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'downloading', percent: 45 }))
-    expect(result.current.status).toBe('downloading')
-    expect(result.current.percent).toBe(45)
-
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'ready', percent: 100 }))
-    expect(result.current.status).toBe('ready')
-  })
-
-  it('returns to not downloaded when another page cancels the download', async () => {
-    mockRequest.mockResolvedValue({ status: 'downloading' })
-    const { result } = renderHook(() => useLocalModel('embedding'))
-    await waitFor(() => expect(result.current.status).toBe('downloading'))
-
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'downloading', percent: 45 }))
-    act(() => progressHandler.current?.({ model: 'embedding', status: 'not_downloaded', percent: 0 }))
-
-    expect(result.current.status).toBe('not_downloaded')
-    expect(result.current.percent).toBe(0)
-  })
-
-  it('reports a successful embedding download', async () => {
-    mockRequest.mockImplementation((route: string) => {
-      if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download') return Promise.resolve({ result: 'ready' })
-      return Promise.resolve()
+    expect(result.current).toMatchObject({
+      status: 'not_downloaded',
+      errorCode: null,
+      isStatusResolved: false,
+      percent: 0
     })
-    const { result } = renderHook(() => useLocalModel('embedding'))
-    await waitFor(() => expect(result.current.status).toBe('not_downloaded'))
 
-    let completed = false
+    act(() => publish(EMBEDDING, { status: 'downloading', percent: 35 }))
+    expect(result.current).toMatchObject({ status: 'downloading', isStatusResolved: true, percent: 35 })
+
     await act(async () => {
-      completed = await result.current.download()
+      statusResponse.resolve({ status: 'not_downloaded' })
+      await statusResponse.promise
     })
-
-    expect(completed).toBe(true)
-    expect(result.current.status).toBe('ready')
-    expect(result.current.percent).toBe(100)
+    expect(result.current).toMatchObject({ status: 'downloading', percent: 35 })
   })
 
-  it('returns to idle when another hook instance cancels the shared download', async () => {
-    let resolveDownload: ((result: { result: 'cancelled' }) => void) | undefined
-    mockRequest.mockImplementation((route: string) => {
-      if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download') {
-        return new Promise<{ result: 'cancelled' }>((resolve) => {
-          resolveDownload = resolve
-        })
-      }
-      if (route === 'local_model.cancel') {
-        resolveDownload?.({ result: 'cancelled' })
-      }
-      return Promise.resolve()
-    })
-    const downloader = renderHook(() => useLocalModel('embedding'))
-    const canceller = renderHook(() => useLocalModel('embedding'))
-    await waitFor(() => expect(downloader.result.current.status).toBe('not_downloaded'))
-    await waitFor(() => expect(canceller.result.current.status).toBe('not_downloaded'))
+  it('updates every hook instance from the same shared snapshot', () => {
+    const first = renderHook(() => useLocalModel(EMBEDDING))
+    const second = renderHook(() => useLocalModel(EMBEDDING))
 
-    let downloadPromise: Promise<boolean>
+    act(() => publish(EMBEDDING, { status: 'downloading', percent: 48 }))
+
+    expect(first.result.current).toMatchObject({ status: 'downloading', percent: 48 })
+    expect(second.result.current).toMatchObject({ status: 'downloading', percent: 48 })
+
+    act(() => publish(EMBEDDING, { status: 'ready', percent: 100 }))
+    expect(first.result.current.status).toBe('ready')
+    expect(second.result.current.status).toBe('ready')
+  })
+
+  it('projects the matching map entry when the observed bundle changes', () => {
     act(() => {
-      downloadPromise = downloader.result.current.download()
+      cacheService.setShared(LOCAL_MODEL_STATUS_CACHE_KEY, {
+        [EMBEDDING]: { status: 'ready', percent: 100 },
+        [OCR]: { status: 'error', percent: 0, errorCode: 'incomplete_cache' }
+      })
     })
-    await waitFor(() => expect(downloader.result.current.status).toBe('downloading'))
-
-    await act(async () => {
-      await canceller.result.current.cancel()
-      await downloadPromise
+    const { result, rerender } = renderHook(({ id }: { id: LocalModelBundleId }) => useLocalModel(id), {
+      initialProps: { id: EMBEDDING as LocalModelBundleId }
     })
 
-    await expect(downloadPromise!).resolves.toBe(false)
-    expect(downloader.result.current.status).toBe('not_downloaded')
-    expect(canceller.result.current.status).toBe('not_downloaded')
+    expect(result.current).toMatchObject({ status: 'ready', errorCode: null, percent: 100 })
+
+    rerender({ id: OCR })
+
+    expect(result.current).toMatchObject({
+      status: 'error',
+      errorCode: 'incomplete_cache',
+      isStatusResolved: true,
+      percent: 0
+    })
   })
 
-  it('keeps a genuine download failure retryable and rethrows it to the caller', async () => {
-    const failure = new Error('download failed')
+  it('does not optimistically change status while commands are pending or complete', async () => {
+    act(() => publish(EMBEDDING, { status: 'ready', percent: 100 }))
+    const downloadResponse = deferred<{ result: 'ready' }>()
     mockRequest.mockImplementation((route: string) => {
-      if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download') return Promise.reject(failure)
-      return Promise.resolve()
+      if (route === 'local_model.download') return downloadResponse.promise
+      if (route === 'local_model.remove') return Promise.resolve({ removed: true })
+      return Promise.resolve(undefined)
     })
-    const { result } = renderHook(() => useLocalModel('embedding'))
-    await waitFor(() => expect(result.current.status).toBe('not_downloaded'))
+    const { result } = renderHook(() => useLocalModel(EMBEDDING))
 
-    let caught: unknown
+    let download!: Promise<boolean>
+    act(() => {
+      download = result.current.download()
+    })
+    expect(result.current.status).toBe('ready')
+
     await act(async () => {
-      try {
-        await result.current.download()
-      } catch (error) {
-        caught = error
-      }
+      downloadResponse.resolve({ result: 'ready' })
+      await expect(download).resolves.toBe(true)
+    })
+    expect(result.current).toMatchObject({ status: 'ready', percent: 100 })
+
+    await act(async () => {
+      await expect(result.current.cancel()).resolves.toBeUndefined()
+    })
+    expect(result.current).toMatchObject({ status: 'ready', percent: 100 })
+
+    await act(async () => {
+      await expect(result.current.remove()).resolves.toEqual({ removed: true })
+    })
+    expect(result.current).toMatchObject({ status: 'ready', percent: 100 })
+  })
+
+  it('returns false for cancellation and preserves genuine command failures', async () => {
+    const failure = new Error('download failed')
+    act(() => publish(EMBEDDING, { status: 'error', percent: 0, errorCode: 'download_failed' }))
+    mockRequest.mockImplementation((route: string) => {
+      if (route === 'local_model.download') return Promise.resolve({ result: 'cancelled' })
+      return Promise.resolve(undefined)
+    })
+    const { result } = renderHook(() => useLocalModel(EMBEDDING))
+
+    await act(async () => {
+      await expect(result.current.download()).resolves.toBe(false)
+    })
+    expect(result.current.errorCode).toBe('download_failed')
+
+    mockRequest.mockRejectedValueOnce(failure)
+    await act(async () => {
+      await expect(result.current.download()).rejects.toBe(failure)
+    })
+    expect(result.current.errorCode).toBe('download_failed')
+  })
+
+  it('asks Main to refresh each newly observed bundle', async () => {
+    const { rerender } = renderHook(({ id }: { id: LocalModelBundleId }) => useLocalModel(id), {
+      initialProps: { id: EMBEDDING as LocalModelBundleId }
     })
 
-    expect(caught).toBe(failure)
-    expect(result.current.status).toBe('error')
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { id: EMBEDDING }))
+    rerender({ id: OCR })
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { id: OCR }))
   })
 })

@@ -125,7 +125,7 @@ Encoders consume this result. They do not perform model/provider detection thems
 | Standard Responses summary compatibility override | Endpoint dialect | User-provider endpoint delta |
 | Native-protocol generational dialect | `reasoning.wireDialect` (creator `reasoningFamilies`) | Generated `models.json`; **not** persisted on the runtime row |
 | Exact provider-model capability/wire exception | `ProviderModelOverride.reasoningContracts[endpoint]` | Generated `provider-models.json` |
-| User's default selection | Assistant settings | DataApi/SQLite |
+| User's default selection | Assistant settings, or a feature's own preference (translate) | DataApi/SQLite, or Preference |
 | Selection for one send | Request/queue snapshot | In-memory transport payload |
 
 Provider connection rows persist connection facts such as base URL and adapter family. A custom provider may
@@ -245,7 +245,7 @@ next normalized write. They do not require a SQLite migration or compatibility w
 
 ### Selection and persistence
 
-1. `ThinkingButton` renders from `runtimeModel.reasoning.selectableEfforts` and adds `default`.
+1. `ModelSpeedControl` renders from `runtimeModel.reasoning.selectableEfforts` and adds `default`. The translate page reuses the same component, persisting to `feature.translate.reasoning_effort` instead of the steps below.
 2. A selection updates `assistant.settings.reasoning_effort` through the existing assistant DataApi mutation. This
    is the default for future messages.
 3. Composer submission also snapshots the current value into

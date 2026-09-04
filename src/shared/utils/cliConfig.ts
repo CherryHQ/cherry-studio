@@ -42,12 +42,15 @@ export const QWEN_CONFIG_PATH = '~/.qwen/settings.json'
 export const KIMI_CONFIG_PATH = '~/.kimi-code/config.toml'
 export const PI_MODELS_PATH = '~/.pi/agent/models.json'
 export const PI_SETTINGS_PATH = '~/.pi/agent/settings.json'
-export const HERMES_CONFIG_PATH = '~/.hermes/config.yaml'
-export const HERMES_ENV_PATH = '~/.hermes/.env'
+
+// Unlike the `~/…` paths above, these are relative to the runtime-resolved Hermes
+// home (HERMES_HOME or platform default) — see `pathBase: 'hermes-home'` below.
+export const HERMES_CONFIG_PATH = 'config.yaml'
+export const HERMES_ENV_PATH = '.env'
 
 export const CLI_CONFIG_FILE_SPECS: Record<
   CliConfigTarget,
-  { label: string; path: string; language: CliConfigLanguage }
+  { label: string; path: string; language: CliConfigLanguage; pathBase?: 'hermes-home' }
 > = {
   'claude-settings': { label: 'Claude settings.json', path: CLAUDE_SETTINGS_PATH, language: 'json' },
   'codex-config': { label: 'Codex config.toml', path: CODEX_CONFIG_PATH, language: 'toml' },
@@ -59,8 +62,13 @@ export const CLI_CONFIG_FILE_SPECS: Record<
   'kimi-config': { label: 'Kimi config.toml', path: KIMI_CONFIG_PATH, language: 'toml' },
   'pi-models': { label: 'Pi models.json', path: PI_MODELS_PATH, language: 'json' },
   'pi-settings': { label: 'Pi settings.json', path: PI_SETTINGS_PATH, language: 'json' },
-  'hermes-config': { label: 'Hermes config.yaml', path: HERMES_CONFIG_PATH, language: 'yaml' },
-  'hermes-env': { label: 'Hermes .env', path: HERMES_ENV_PATH, language: 'dotenv' }
+  'hermes-config': {
+    label: 'Hermes config.yaml',
+    pathBase: 'hermes-home',
+    path: HERMES_CONFIG_PATH,
+    language: 'yaml'
+  },
+  'hermes-env': { label: 'Hermes .env', pathBase: 'hermes-home', path: HERMES_ENV_PATH, language: 'dotenv' }
 }
 
 /** The file-based CLI tools, as a tuple so IPC schemas can `z.enum` it. */

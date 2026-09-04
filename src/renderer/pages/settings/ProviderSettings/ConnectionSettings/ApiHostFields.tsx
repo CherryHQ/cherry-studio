@@ -315,6 +315,6 @@ export function AnthropicApiHostField({
   )
 }
 
-export function ApiHostSection({ children }: { children: React.ReactNode }) {
-  return <ProviderSection>{children}</ProviderSection>
+export function ApiHostSection({ children, id }: { children: React.ReactNode; id?: string }) {
+  return <ProviderSection id={id}>{children}</ProviderSection>
 }
