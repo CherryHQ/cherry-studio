@@ -53,12 +53,12 @@ export function resolveProxyConfig({
 
 export interface ProxyAppliedSnapshot {
   readonly mode: ProxyMode
-  readonly configuredUrl: string
-  readonly bypassRules: string
-  /** Electron config actually applied last (null before the first apply). */
-  readonly applied: ProxyConfig | null
+  readonly hasConfiguredUrl: boolean
   /** `system` mode only: the OS proxy read failed and bare system mode was applied instead. */
   readonly systemProxyReadFailed: boolean
+  /** The config in effect is the one the preferences ask for; when false `lastError` says why not. */
+  readonly converged: boolean
+  readonly lastError?: string
 }
 
 @Injectable('ProxyService')
@@ -66,7 +66,7 @@ export interface ProxyAppliedSnapshot {
 export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
-  private appliedConfig: ProxyConfig | null = null
+  private desiredKey: string | null = null
   private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
 
@@ -93,12 +93,15 @@ export class ProxyService extends BaseService {
   async getAppliedSnapshot(): Promise<ProxyAppliedSnapshot> {
     await this.proxyReconciler.flush()
     const preferenceService = application.get('PreferenceService')
+    const converged = this.desiredKey === this.appliedKey
+    // `getLastError()` only clears on a successful apply, so it is meaningful solely while unconverged.
+    const error = converged ? null : this.proxyReconciler.getLastError()
     return {
       mode: preferenceService.get('app.proxy.mode'),
-      configuredUrl: preferenceService.get('app.proxy.url'),
-      bypassRules: preferenceService.get('app.proxy.bypass_rules'),
-      applied: this.appliedConfig,
-      systemProxyReadFailed: this.systemProxyReadFailed
+      hasConfiguredUrl: preferenceService.get('app.proxy.url') !== '',
+      systemProxyReadFailed: this.systemProxyReadFailed,
+      converged,
+      ...(error != null && { lastError: error instanceof Error ? error.message : String(error) })
     }
   }
 
@@ -154,6 +157,7 @@ export class ProxyService extends BaseService {
         logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
       }
     }
+    this.desiredKey = proxyConfigKey(config)
     return config
   }
 
@@ -165,7 +169,6 @@ export class ProxyService extends BaseService {
 
     await this.setGlobalProxy(config)
     this.appliedKey = proxyConfigKey(config)
-    this.appliedConfig = config
   }
 
   private ensureSystemProxyMonitor(): void {
