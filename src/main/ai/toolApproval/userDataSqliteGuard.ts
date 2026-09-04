@@ -54,8 +54,14 @@ export interface UserDataSqliteGuardInput {
 interface GuardRoots {
   userData: string
   databaseFiles: readonly string[]
+  databaseIdentities: readonly FileIdentity[]
   workspace: string
   workspaceIsUserDataChild: boolean
+}
+
+interface FileIdentity {
+  device: bigint
+  inode: bigint
 }
 
 type PathClassification = 'protected' | 'safe' | 'invalid'
@@ -123,9 +129,16 @@ async function resolveGuardRoots(workspacePath: string, signal?: AbortSignal): P
   ])
   if (!userData || !database || !workspace) return undefined
 
+  const databaseFiles = [database, ...DATABASE_SIDECARS.map((suffix) => `${database}${suffix}`)]
+  const [databaseIdentity, ...sidecarIdentities] = await Promise.all(
+    databaseFiles.map((databasePath) => getFileIdentity(databasePath, signal))
+  )
+  if (!databaseIdentity) return undefined
+
   return {
     userData,
-    databaseFiles: [database, ...DATABASE_SIDECARS.map((suffix) => `${database}${suffix}`)],
+    databaseFiles,
+    databaseIdentities: [databaseIdentity, ...sidecarIdentities.filter(isFileIdentity)],
     workspace,
     workspaceIsUserDataChild: !pathsEqual(workspace, userData) && isSameOrInsidePath(workspace, userData)
   }
@@ -143,6 +156,10 @@ async function classifyPath(
   if (!target) return 'invalid'
 
   if (roots.databaseFiles.some((databaseFile) => pathsEqual(target, databaseFile))) return 'protected'
+  const targetIdentity = await getFileIdentity(target, signal)
+  if (targetIdentity && roots.databaseIdentities.some((identity) => sameFileIdentity(targetIdentity, identity))) {
+    return 'protected'
+  }
   if (!SQLITE_FILE_PATTERN.test(path.basename(target))) return 'safe'
   if (!isSameOrInsidePath(target, roots.userData)) return 'safe'
   if (roots.workspaceIsUserDataChild && isSameOrInsidePath(target, roots.workspace)) return 'safe'
@@ -211,6 +228,25 @@ async function canonicalizeExistingDirectory(targetPath: string, signal?: AbortS
   } catch {
     return undefined
   }
+}
+
+async function getFileIdentity(targetPath: string, signal?: AbortSignal): Promise<FileIdentity | undefined> {
+  if (signal?.aborted) return undefined
+  try {
+    const targetStat = await stat(targetPath, { bigint: true })
+    if (signal?.aborted) return undefined
+    return { device: targetStat.dev, inode: targetStat.ino }
+  } catch {
+    return undefined
+  }
+}
+
+function isFileIdentity(identity: FileIdentity | undefined): identity is FileIdentity {
+  return identity !== undefined
+}
+
+function sameFileIdentity(left: FileIdentity, right: FileIdentity): boolean {
+  return left.device === right.device && left.inode === right.inode
 }
 
 async function pathExistsOrIsAmbiguous(targetPath: string): Promise<boolean> {

@@ -437,6 +437,8 @@ an unavailable bridge or invalid cwd fails closed. This does not add to or chang
 sandbox configuration.
 
 The main application database and its `-wal`, `-shm`, and `-journal` sidecars are always protected.
+Existing symlink and hard-link aliases to those files are protected by canonical path and file
+identity checks.
 Other `.db` and `.sqlite` files and their sidecars below `userData` are protected unless the session
 workspace is a strict descendant of `userData` and the target stays inside that workspace. A
 workspace equal to or above `userData` creates no exception, and the Agent data directory is not an

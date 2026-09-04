@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { link, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -139,6 +139,16 @@ describe('evaluateUserDataSqliteGuard', () => {
 
     await expect(evaluate({ args: { file_path: path.join(directoryLink, 'new.sqlite') } })).resolves.toEqual(DENIAL)
     await expect(evaluate({ args: { file_path: databaseLink } })).resolves.toEqual(DENIAL)
+  })
+
+  it.each(['', '-wal', '-shm', '-journal'])('denies hard-link aliases to the main database%s', async (suffix) => {
+    const source = `${databaseFile}${suffix}`
+    const databaseLink = path.join(workspacePath, `workspace-artifact${suffix}`)
+    if (suffix) await writeFile(source, '')
+    await link(source, databaseLink)
+
+    await expect(evaluate({ args: { file_path: databaseLink } })).resolves.toEqual(DENIAL)
+    await expect(evaluate({ toolName: 'Bash', args: { command: `cat > "${databaseLink}"` } })).resolves.toEqual(DENIAL)
   })
 
   it.runIf(process.platform !== 'win32')('fails closed for dangling and cyclic symlinks', async () => {
