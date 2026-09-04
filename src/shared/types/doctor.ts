@@ -50,6 +50,8 @@ export interface DoctorFixMeta {
 
 export const DOCTOR_CHECK_IDS = [
   'install-version-channel',
+  'install-update-available',
+  'install-native-modules',
   'permission-screen-capture',
   'permission-accessibility',
   'storage-userdata-location',
@@ -59,6 +61,7 @@ export const DOCTOR_CHECK_IDS = [
   'config-hardware-acceleration',
   'provider-default-model',
   'provider-api-key-present',
+  'provider-cherry-account',
   'network-online',
   'network-dns-resolution',
   'network-tls-handshake',
@@ -70,6 +73,7 @@ export const DOCTOR_CHECK_IDS = [
   'mcp-servers-connected',
   'mcp-launch-commands',
   'runtime-managed-tools',
+  'runtime-claude-login',
   'logs-recent-findings'
 ] as const
 export type DoctorCheckId = (typeof DOCTOR_CHECK_IDS)[number]
@@ -96,6 +100,20 @@ export const DOCTOR_CHECK_CATALOG = {
     tier: 'quick',
     fixes: [],
     details: ['mismatch'],
+    requires: []
+  },
+  'install-update-available': {
+    domain: 'install',
+    tier: 'live',
+    fixes: [],
+    details: ['available'],
+    requires: ['network-endpoint-update']
+  },
+  'install-native-modules': {
+    domain: 'install',
+    tier: 'quick',
+    fixes: [],
+    details: ['unavailable'],
     requires: []
   },
   'permission-screen-capture': {
@@ -160,6 +178,13 @@ export const DOCTOR_CHECK_CATALOG = {
     fixes: [],
     details: ['missing'],
     requires: ['provider-default-model']
+  },
+  'provider-cherry-account': {
+    domain: 'provider',
+    tier: 'quick',
+    fixes: [],
+    details: ['signed_out'],
+    requires: []
   },
   'network-online': { domain: 'network', tier: 'quick', fixes: [], details: ['offline'], requires: [] },
   'network-dns-resolution': {
@@ -232,6 +257,13 @@ export const DOCTOR_CHECK_CATALOG = {
     details: ['failed'],
     requires: []
   },
+  'runtime-claude-login': {
+    domain: 'runtime',
+    tier: 'quick',
+    fixes: [],
+    details: ['not_logged_in'],
+    requires: []
+  },
   'logs-recent-findings': {
     domain: 'logs',
     tier: 'quick',
@@ -256,6 +288,7 @@ export type DoctorNavigateTarget =
   | '/settings/general'
   | '/settings/mcp'
   | '/settings/provider'
+  | '/settings/provider?id=claude-code'
 
 export type DoctorAction<Id extends DoctorCheckId = DoctorCheckId> =
   | ([DoctorFixId<Id>] extends [never]
@@ -265,6 +298,8 @@ export type DoctorAction<Id extends DoctorCheckId = DoctorCheckId> =
   /** Absolute path already resolved by main; the renderer only forwards it to `system.shell.open_path`. */
   | { readonly kind: 'open_path'; readonly path: string }
   | { readonly kind: 'open_external'; readonly url: string }
+  | { readonly kind: 'open_cherry_account' }
+  | { readonly kind: 'install_update' }
   | { readonly kind: 'relaunch' }
   | { readonly kind: 'report' }
 

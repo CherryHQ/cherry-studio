@@ -42,6 +42,12 @@ describe('DOCTOR_CHECK_CATALOG', () => {
   it('runs the API-key check only after the default model is valid', () => {
     expect(DOCTOR_CHECK_CATALOG['provider-api-key-present'].requires).toEqual(['provider-default-model'])
   })
+
+  it('keeps network update discovery in the live tier and the other install checks local', () => {
+    expect(DOCTOR_CHECK_CATALOG['install-update-available'].tier).toBe('live')
+    expect(DOCTOR_CHECK_CATALOG['install-update-available'].requires).toEqual(['network-endpoint-update'])
+    expect(DOCTOR_CHECK_CATALOG['install-native-modules'].tier).toBe('quick')
+  })
 })
 
 describe('isDoctorFixRequest', () => {

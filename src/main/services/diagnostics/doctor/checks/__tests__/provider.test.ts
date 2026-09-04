@@ -3,15 +3,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const services = vi.hoisted(() => ({
   getByProviderId: vi.fn(),
-  getByKey: vi.fn()
+  getByKey: vi.fn(),
+  getCherryCloudStatus: vi.fn(),
+  edition: 'cn' as 'cn' | 'global'
 }))
 
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    CherryCloudService: { getStatus: services.getCherryCloudStatus }
+  } as never)
+})
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: { getByProviderId: services.getByProviderId }
 }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: services.getByKey } }))
+vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => services.edition }))
 
-const { defaultModel, defaultProviderApiKey } = await import('../provider')
+const { cherryAccount, defaultModel, defaultProviderApiKey } = await import('../provider')
 const ctx = { signal: new AbortController().signal }
 
 function provider(overrides: Record<string, unknown> = {}) {
@@ -31,6 +40,8 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', 'openai::gpt-4o')
   services.getByProviderId.mockReturnValue(provider())
   services.getByKey.mockReturnValue({ id: 'openai::gpt-4o' })
+  services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-in', displayName: 'Cherry User' })
+  services.edition = 'cn'
 })
 
 describe('provider-default-model', () => {
@@ -118,5 +129,32 @@ describe('provider-api-key-present', () => {
       actions: [{ kind: 'navigate', target: '/settings/provider' }]
     })
     expect(JSON.stringify(result)).not.toContain('sk-sensitive-value')
+  })
+})
+
+describe('provider-cherry-account', () => {
+  it('does not require an account where Cherry Cloud login is unavailable', async () => {
+    services.edition = 'global'
+    await expect(cherryAccount.run(ctx)).resolves.toEqual({ status: 'pass' })
+    expect(services.getCherryCloudStatus).not.toHaveBeenCalled()
+  })
+
+  it.each(['signed-in', 'authorizing'] as const)('passes while the Cherry account is %s', async (phase) => {
+    services.getCherryCloudStatus.mockResolvedValue({
+      phase,
+      displayName: phase === 'signed-in' ? 'Cherry User' : null
+    })
+    await expect(cherryAccount.run(ctx)).resolves.toEqual({ status: 'pass' })
+  })
+
+  it('warns and links to sign-in when there is no valid Cherry account session', async () => {
+    services.getCherryCloudStatus.mockResolvedValue({ phase: 'signed-out', displayName: null })
+
+    await expect(cherryAccount.run(ctx)).resolves.toMatchObject({
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'signed_out' },
+      actions: [{ kind: 'open_cherry_account' }]
+    })
   })
 })

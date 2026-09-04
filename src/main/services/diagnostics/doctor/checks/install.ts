@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loadNativeCaptureBackend } from '@main/services/screenshot'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { app } from 'electron'
 
@@ -32,6 +33,54 @@ export const installVersionChannel = defineDoctorCheck({
         { key: 'runningChannel', value: runningChannel, dataClass: 'public' },
         { key: 'selectedChannel', value: selectedChannel, dataClass: 'public' }
       ]
+    }
+  },
+  fixes: {}
+})
+
+export const installUpdateAvailable = defineDoctorCheck({
+  id: 'install-update-available',
+  async run() {
+    const { currentVersion, updateInfo } = await application.get('AppUpdaterService').checkForUpdates()
+    if (!updateInfo) return { status: 'pass' }
+
+    const runningVersion = String(currentVersion)
+    return {
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: {
+        variant: 'available',
+        params: { currentVersion: runningVersion, availableVersion: updateInfo.version }
+      },
+      actions: [{ kind: 'install_update' }],
+      devMessage: `Update ${updateInfo.version} is available for ${runningVersion}`,
+      evidence: [
+        { key: 'currentVersion', value: runningVersion, dataClass: 'public' },
+        { key: 'availableVersion', value: updateInfo.version, dataClass: 'public' }
+      ]
+    }
+  },
+  fixes: {}
+})
+
+export const installNativeModules = defineDoctorCheck({
+  id: 'install-native-modules',
+  async run() {
+    try {
+      loadNativeCaptureBackend()
+      return { status: 'pass' }
+    } catch (error) {
+      return {
+        status: 'fail',
+        attribution: 'app-bug',
+        detail: { variant: 'unavailable' },
+        actions: [{ kind: 'report' }],
+        devMessage: 'The node-screenshots native module is unavailable',
+        evidence: [
+          { key: 'module', value: 'node-screenshots', dataClass: 'public' },
+          { key: 'error', value: error instanceof Error ? error.message : String(error), dataClass: 'consent_required' }
+        ]
+      }
     }
   },
   fixes: {}
