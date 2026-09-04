@@ -208,7 +208,11 @@ export class TopicNamingService {
       ]
 
       const uniqueModelId = this.resolveNamingModelId()
-      const title = await this.generateSummaryTitle(uniqueModelId, buildStructuredConversation(structuredConversation))
+      const title = await this.generateSummaryTitle(
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation),
+        topicId
+      )
       if (!title) return
 
       this.renameTopicIfStillAuto(topic.id, title, userText)
@@ -307,7 +311,11 @@ export class TopicNamingService {
         { role: finalMessage.role, mainText: cleanMarkdownImages(getMainTextContentFromUiMessage(finalMessage)) }
       ]
 
-      const title = await this.generateSummaryTitle(uniqueModelId, buildStructuredConversation(structuredConversation))
+      const title = await this.generateSummaryTitle(
+        uniqueModelId,
+        buildStructuredConversation(structuredConversation),
+        sessionId
+      )
       if (!title) return
 
       const nextName = sanitizeConversationTitle(title)
@@ -355,7 +363,11 @@ export class TopicNamingService {
     }
   }
 
-  private async generateSummaryTitle(uniqueModelId: UniqueModelId, prompt: string): Promise<string | null> {
+  private async generateSummaryTitle(
+    uniqueModelId: UniqueModelId,
+    prompt: string,
+    chatId: string
+  ): Promise<string | null> {
     const systemPrompt = this.resolveNamingPrompt()
     // A title is a throwaway 10-word summary: never carry the source assistant /
     // agent id, or buildAgentParams resolves its tool configuration (MCP tools,
@@ -363,6 +375,7 @@ export class TopicNamingService {
     // the renderer omits assistantId for the same reason.
     const request: AiGenerateRequest = {
       uniqueModelId,
+      chatId,
       system: systemPrompt,
       prompt,
       // A title is 10 words: never reason. Set this explicitly so the request builder does not

@@ -129,7 +129,8 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        uniqueModelId: 'openai::gpt-4o-mini'
+        uniqueModelId: 'openai::gpt-4o-mini',
+        chatId: 'topic-1'
       })
     )
     // A naming request must never carry the assistant id — buildAgentParams would
@@ -279,7 +280,8 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        uniqueModelId: 'openai::gpt-4o-mini'
+        uniqueModelId: 'openai::gpt-4o-mini',
+        chatId: 'session-1'
       })
     )
     expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
