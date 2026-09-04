@@ -7,7 +7,7 @@ import {
 } from '@shared/types/webviewAnnotation'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
-import { Activity, useLayoutEffect } from 'react'
+import { Activity, startTransition, Suspense, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { request, randomUUID } = vi.hoisted(() => ({
@@ -107,9 +107,26 @@ function SessionHarness({ webview, onCommit }: { webview: WebviewTag; onCommit: 
   return null
 }
 
+function SuspendedSibling({ suspend }: { suspend: Promise<never> }) {
+  const [blocked, setBlocked] = useState(false)
+  useLayoutEffect(() => {
+    startSuspendingSibling = () => setBlocked(true)
+  }, [])
+  if (blocked) throw suspend
+  return null
+}
+
+function SessionStateHarness({ webview }: { webview: WebviewTag }) {
+  const session = useWebviewAnnotationSession(initialProps(webview))
+  return <output aria-label="Annotation state">{`${session.ready}:${session.enabled}:${session.count}`}</output>
+}
+
+let startSuspendingSibling: (() => void) | undefined
+
 describe('useWebviewAnnotationSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    startSuspendingSibling = undefined
     request.mockResolvedValue('# Resolved annotations')
     Object.defineProperty(globalThis.crypto, 'randomUUID', { configurable: true, value: randomUUID })
     Object.defineProperty(navigator, 'clipboard', {
@@ -146,6 +163,30 @@ describe('useWebviewAnnotationSession', () => {
     act(() => stateChanged(webview, sessionOne, true, 3))
 
     expect(result.current).toMatchObject({ ready: true, enabled: true, count: 3 })
+  })
+
+  it('commits guest state ahead of unrelated suspended Activity work', () => {
+    const webview = createWebview()
+    const suspend = new Promise<never>(() => {})
+    const view = render(
+      <Suspense fallback={<span>Pending</span>}>
+        <Activity mode="visible">
+          <SuspendedSibling suspend={suspend} />
+          <SessionStateHarness webview={webview} />
+        </Activity>
+      </Suspense>
+    )
+
+    expect(view.getByRole('status', { name: 'Annotation state' })).toHaveTextContent('false:false:0')
+    act(() => {
+      startTransition(() => {
+        startSuspendingSibling?.()
+        stateChanged(webview, sessionOne, true, 3)
+      })
+    })
+
+    expect(sentCommands(webview)).toContainEqual(expect.objectContaining({ type: 'configure', sessionId: sessionOne }))
+    expect(view.getByRole('status', { name: 'Annotation state' })).toHaveTextContent('true:true:3')
   })
 
   it('rebinds to a concrete replacement and ignores the detached webview', () => {
