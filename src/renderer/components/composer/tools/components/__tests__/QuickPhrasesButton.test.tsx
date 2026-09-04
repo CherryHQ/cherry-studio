@@ -1,5 +1,5 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as LucideReact from 'lucide-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelClose: vi.fn(),
   quickPanelOpen: vi.fn(),
   quickPanelUpdateList: vi.fn(),
+  renderPromptEditDialog: vi.fn(),
   setTimeoutTimer: vi.fn(),
   useMutation: vi.fn(),
   useQuery: vi.fn()
@@ -42,8 +43,9 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
     open: boolean
     onCancel: () => void
     onSave: (data: { title: string; content: string; visibility: 'global' | 'restricted' }) => Promise<void>
-  }) =>
-    open ? (
+  }) => {
+    mocks.renderPromptEditDialog()
+    return open ? (
       <div data-testid="prompt-edit-dialog">
         <button
           type="button"
@@ -57,6 +59,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
         </button>
       </div>
     ) : null
+  }
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   openResourceEditDialog: (...args: unknown[]) => mocks.openResourceEditDialog(...args)
@@ -124,6 +127,12 @@ describe('QuickPhrasesToolRuntime', () => {
   afterEach(() => {
     restoreRequestAnimationFrame?.()
     restoreRequestAnimationFrame = undefined
+  })
+
+  it('does not mount the prompt editor while the add dialog is closed', () => {
+    render(<QuickPhrasesToolRuntime launcher={createLauncherApi()} setInputValue={vi.fn()} />)
+
+    expect(mocks.renderPromptEditDialog).not.toHaveBeenCalled()
   })
 
   it('opens the quick phrases panel with the global fallback when no binding context exists', async () => {
@@ -261,10 +270,10 @@ describe('QuickPhrasesToolRuntime', () => {
     ])
 
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
-    act(() => {
+    await act(async () => {
       addItem.action({} as never)
     })
-    screen.getByRole('button', { name: 'save prompt' }).click()
+    fireEvent.click(await screen.findByRole('button', { name: 'save prompt' }))
 
     await waitFor(() =>
       expect(mocks.createPrompt).toHaveBeenCalledWith({
@@ -345,11 +354,11 @@ describe('QuickPhrasesToolRuntime', () => {
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
-    act(() => {
+    await act(async () => {
       addItem.action({ inputAdapter } as never)
     })
     act(() => {
-      screen.getByText('close prompt edit').click()
+      screen.getByRole('button', { name: 'close prompt edit' }).click()
     })
 
     expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
@@ -376,10 +385,10 @@ describe('QuickPhrasesToolRuntime', () => {
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
     const addItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.add')
 
-    act(() => {
+    await act(async () => {
       addItem.action({} as never)
     })
-    screen.getByRole('button', { name: 'save prompt' }).click()
+    fireEvent.click(await screen.findByRole('button', { name: 'save prompt' }))
 
     await waitFor(() =>
       expect(mocks.createPrompt).toHaveBeenCalledWith({

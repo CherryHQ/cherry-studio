@@ -1,9 +1,10 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as ResourceCreateDialogModule from '@renderer/components/resourceCatalog/dialogs/create'
 import type * as UseModelModule from '@renderer/hooks/useModel'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,6 +14,7 @@ const {
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
+  renderResourceCreateWizardMock,
   togglePinMock,
   updateAgentMock,
   useMutationMock,
@@ -25,6 +27,7 @@ const {
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
+  renderResourceCreateWizardMock: vi.fn(),
   togglePinMock: vi.fn(),
   updateAgentMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -64,6 +67,17 @@ vi.mock('@renderer/components/ModelSelector', async (importOriginal) => ({
     </div>
   )
 }))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/create', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResourceCreateDialogModule>()
+  return {
+    ...actual,
+    ResourceCreateWizard: (props: ComponentProps<typeof actual.ResourceCreateWizard>) => {
+      renderResourceCreateWizardMock()
+      return <actual.ResourceCreateWizard {...props} />
+    }
+  }
+})
 
 // Stub the capability step: it pulls in MCP-runtime + skills hooks not mocked
 // here. The wizard's own test covers it; this test only needs to reach submit.
@@ -258,7 +272,7 @@ const AGENTS_RESPONSE = {
   page: 1
 } as const
 
-beforeAll(() => {
+beforeAll(async () => {
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
@@ -274,6 +288,9 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
+
+  // These integration cases exercise the real wizard; warm its lazy module outside per-test timeouts.
+  await import('@renderer/components/resourceCatalog/dialogs/create')
 })
 
 beforeEach(() => {
@@ -350,8 +367,10 @@ function openPopover() {
 
 async function openCreateDialog() {
   openPopover()
-  fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
-  await screen.findByRole('dialog')
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Create agent' }))
+  })
+  await screen.findByRole('dialog', {}, { timeout: 5000 })
 }
 
 describe('AgentSelector', () => {
@@ -484,6 +503,12 @@ describe('AgentSelector', () => {
     expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
     expect(screen.getByText('Model')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
+  })
+
+  it('does not mount the create wizard while it is closed', () => {
+    renderSelector()
+
+    expect(renderResourceCreateWizardMock).not.toHaveBeenCalled()
   })
 
   it('calls the dialog-close autofocus callback when the create dialog closes', async () => {

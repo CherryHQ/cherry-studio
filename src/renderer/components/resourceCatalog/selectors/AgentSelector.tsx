@@ -1,8 +1,5 @@
 import { loggerService } from '@logger'
-import {
-  ResourceCreateWizard,
-  type ResourceCreateWizardValues
-} from '@renderer/components/resourceCatalog/dialogs/create'
+import type { ResourceCreateWizardValues } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
@@ -18,6 +15,11 @@ import { useTranslation } from 'react-i18next'
 import { ResourceSelectorShell, type ResourceSelectorShellItem } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AgentSelector')
+const ResourceCreateWizard = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/create').then((module) => ({
+    default: module.ResourceCreateWizard
+  }))
+)
 const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
@@ -189,15 +191,17 @@ export function AgentSelector(props: AgentSelectorProps) {
     [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
-  const createDialog = (
-    <ResourceCreateWizard
-      kind="agent"
-      open={createDialogOpen}
-      isSubmitting={isCreatingAgent}
-      onOpenChange={handleCreateDialogOpenChange}
-      onSubmit={handleSubmitCreate}
-    />
-  )
+  const createDialog = createDialogOpen ? (
+    <Suspense fallback={null}>
+      <ResourceCreateWizard
+        kind="agent"
+        open={createDialogOpen}
+        isSubmitting={isCreatingAgent}
+        onOpenChange={handleCreateDialogOpenChange}
+        onSubmit={handleSubmitCreate}
+      />
+    </Suspense>
+  ) : null
 
   const editDialog = editDialogTarget ? (
     <Suspense fallback={null}>

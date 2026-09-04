@@ -1,8 +1,5 @@
 import { loggerService } from '@logger'
-import {
-  ResourceCreateWizard,
-  type ResourceCreateWizardValues
-} from '@renderer/components/resourceCatalog/dialogs/create'
+import type { ResourceCreateWizardValues } from '@renderer/components/resourceCatalog/dialogs/create'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useGroups } from '@renderer/hooks/useGroups'
@@ -22,6 +19,11 @@ import {
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
+const ResourceCreateWizard = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/create').then((module) => ({
+    default: module.ResourceCreateWizard
+  }))
+)
 const ResourceEditDialogHost = lazy(() =>
   import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
@@ -233,16 +235,18 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
-  const createDialog = (
-    <ResourceCreateWizard
-      kind="assistant"
-      open={createDialogOpen}
-      isSubmitting={isCreatingAssistant}
-      onOpenChange={handleCreateDialogOpenChange}
-      onSubmit={handleSubmitCreate}
-      modelFilter={(candidate) => !isNonChatModel(candidate)}
-    />
-  )
+  const createDialog = createDialogOpen ? (
+    <Suspense fallback={null}>
+      <ResourceCreateWizard
+        kind="assistant"
+        open={createDialogOpen}
+        isSubmitting={isCreatingAssistant}
+        onOpenChange={handleCreateDialogOpenChange}
+        onSubmit={handleSubmitCreate}
+        modelFilter={(candidate) => !isNonChatModel(candidate)}
+      />
+    </Suspense>
+  ) : null
 
   const editDialog = editDialogTarget ? (
     <Suspense fallback={null}>
