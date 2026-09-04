@@ -30,6 +30,16 @@ describe('resolveDefaultApplication', () => {
     })
   })
 
+  it('decodes a Base64 application name from NUL-interleaved PowerShell output', async () => {
+    const encodedName = Buffer.from('写字板', 'utf8').toString('base64')
+    mocks.execFileAsync.mockResolvedValue({ stdout: Buffer.from(`${encodedName}\r\n`, 'utf16le').toString('utf8') })
+    const { resolveDefaultApplication } = await import('../defaultApplication')
+
+    await expect(resolveDefaultApplication('C:\\Users\\Cherry\\报告.docx' as AbsoluteFilePath)).resolves.toEqual({
+      name: '写字板'
+    })
+  })
+
   it('does not expose replacement characters for invalid UTF-8 application names', async () => {
     mocks.execFileAsync.mockResolvedValue({ stdout: Buffer.from([0xff]).toString('base64') })
     const { resolveDefaultApplication } = await import('../defaultApplication')

@@ -149,6 +149,6 @@ async function execute(command: string, args: string[]): Promise<string | null> 
     timeout: LOOKUP_TIMEOUT_MS,
     windowsHide: true
   })
-  const value = stdout.trim().replaceAll('\0', '')
+  const value = stdout.replaceAll('\0', '').trim()
   return value || null
 }
