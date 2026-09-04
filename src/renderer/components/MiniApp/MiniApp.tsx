@@ -7,17 +7,14 @@ import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { PendingPermissionsDialog } from '@renderer/components/MiniApp/PendingPermissionsDialog'
 import { UpdateReviewDialog } from '@renderer/components/MiniApp/UpdateReviewDialog'
-import { useTabs } from '@renderer/hooks/tab'
 import { useMiniAppAttentionFor } from '@renderer/hooks/useMiniAppAttention'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useMiniAppUpdate } from '@renderer/hooks/useMiniAppUpdate'
-import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
-import type { MiniApp } from '@shared/data/types/miniApp'
+import type { MiniApp, MiniAppStatus } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import MiniAppDetailPanel from './MiniAppDetailPanel'
@@ -25,8 +22,16 @@ import MiniAppDetailPanel from './MiniAppDetailPanel'
 interface Props {
   app: MiniApp
   onClick?: () => void
-  onOpen?: (app: MiniApp, displayName: string) => void
-  onEditCustom?: (app: MiniApp) => void
+  onOpen: (appId: string, displayName: string, icon?: string) => void
+  onEditCustom?: (appId: string) => void
+  onUpdateStatus: (appId: string, status: MiniAppStatus) => Promise<unknown>
+  onHide: (appId: string) => Promise<unknown>
+  onRemoveCustom: (appId: string) => Promise<unknown>
+  onToggleSidebarFavorite: (appId: string) => void
+  isPinned: boolean
+  isSidebarFavorite: boolean
+  isOpened: boolean
+  isActive: boolean
   size?: number
   isLast?: boolean
   variant?: 'default' | 'launchpad'
@@ -41,26 +46,20 @@ const MiniApp: FC<Props> = ({
   onClick,
   onOpen,
   onEditCustom,
+  onUpdateStatus,
+  onHide,
+  onRemoveCustom,
+  onToggleSidebarFavorite,
+  isPinned,
+  isSidebarFavorite,
+  isOpened,
+  isActive,
   size = 60,
   isLast,
   variant = 'default',
   disabled = false
 }) => {
   const { t } = useTranslation()
-  const {
-    miniApps,
-    pinned,
-    openedKeepAliveMiniApps,
-    currentMiniAppId,
-    miniAppShow,
-    splitMiniAppId,
-    setOpenedKeepAliveMiniApps,
-    setSplitOpen,
-    setSplitMiniAppId,
-    updateAppStatus,
-    removeCustomMiniApp
-  } = useMiniApps()
-  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   // The dot WITH its reasons: hover says why, the menu offers the action.
   const attention = useMiniAppAttentionFor(app.appId)
   const updating = attention?.updating ?? null
@@ -89,32 +88,15 @@ const MiniApp: FC<Props> = ({
   const update = useMiniAppUpdate(app.appId, { name: app.name })
   const [pendingOpen, setPendingOpen] = useState(false)
   const [pendingBusy, setPendingBusy] = useState(false)
-  const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
-  const isPinned = pinned.some((p) => p.appId === app.appId)
-  const isSidebarFavorite = miniAppFavoriteIds.includes(app.appId)
-  const isVisible = miniApps.some((m) => m.appId === app.appId)
-  // Pinned apps should always be visible regardless of region/locale filtering
-  const shouldShow = isVisible || isPinned
-  const isActive = miniAppShow && currentMiniAppId === app.appId
-  const isOpened = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
-
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
     if (disabled) return
-    if (onOpen) {
-      onOpen(app, displayName)
-    } else {
-      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
-      openTab(`/app/mini-app/${app.appId}`, {
-        title: displayName,
-        icon: app.logoSrc ?? app.logo
-      })
-    }
+    onOpen(app.appId, displayName, app.logoSrc ?? app.logo)
     onClick?.()
   }
 
@@ -151,35 +133,21 @@ const MiniApp: FC<Props> = ({
 
   const handleTogglePin = () => {
     const nextStatus = isPinned ? 'enabled' : 'pinned'
-    updateAppStatus(app.appId, nextStatus).catch(
-      reportFailure(isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed')
-    )
+    onUpdateStatus(app.appId, nextStatus).catch(reportFailure(isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'))
   }
 
   const handleToggleSidebarFavorite = () => {
-    toggleMiniApp(app.appId)
+    onToggleSidebarFavorite(app.appId)
   }
 
   const handleHide = () => {
-    updateAppStatus(app.appId, 'disabled')
-      .then(() => {
-        // Functional update: resolve against the latest list so a mini app opened
-        // during the status mutation's await is not clobbered by a stale snapshot.
-        setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== app.appId))
-        // Hiding unmounts the app's webview, so a split pane still pointing at it
-        // would sit on its loading mask forever.
-        if (splitMiniAppId === app.appId) {
-          setSplitMiniAppId('')
-          setSplitOpen(false)
-        }
-      })
-      .catch(reportFailure('miniApp.hide_failed'))
+    onHide(app.appId).catch(reportFailure('miniApp.hide_failed'))
   }
 
   const handleRemoveCustom = async () => {
     setRemovingCustom(true)
     try {
-      await removeCustomMiniApp(app.appId)
+      await onRemoveCustom(app.appId)
       toast.success(t('settings.miniApps.custom.remove_success'))
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -191,10 +159,6 @@ const MiniApp: FC<Props> = ({
     } finally {
       setRemovingCustom(false)
     }
-  }
-
-  if (!shouldShow) {
-    return null
   }
 
   const isLaunchpad = variant === 'launchpad'
@@ -278,7 +242,7 @@ const MiniApp: FC<Props> = ({
                   type: 'item',
                   id: 'mini-app.edit-custom',
                   label: t('common.edit'),
-                  onSelect: () => onEditCustom(app)
+                  onSelect: () => onEditCustom(app.appId)
                 }
               ] satisfies CommandContextMenuExtraItem[])
             : []),
@@ -420,4 +384,29 @@ const MiniApp: FC<Props> = ({
   )
 }
 
-export default MiniApp
+const arePropsEqual = (previous: Props, next: Props) =>
+  previous.app.appId === next.app.appId &&
+  previous.app.name === next.app.name &&
+  previous.app.nameKey === next.app.nameKey &&
+  previous.app.logo === next.app.logo &&
+  previous.app.logoSrc === next.app.logoSrc &&
+  previous.app.background === next.app.background &&
+  previous.app.kind === next.app.kind &&
+  previous.app.presetMiniAppId === next.app.presetMiniAppId &&
+  previous.onClick === next.onClick &&
+  previous.onOpen === next.onOpen &&
+  previous.onEditCustom === next.onEditCustom &&
+  previous.onUpdateStatus === next.onUpdateStatus &&
+  previous.onHide === next.onHide &&
+  previous.onRemoveCustom === next.onRemoveCustom &&
+  previous.onToggleSidebarFavorite === next.onToggleSidebarFavorite &&
+  previous.isPinned === next.isPinned &&
+  previous.isSidebarFavorite === next.isSidebarFavorite &&
+  previous.isOpened === next.isOpened &&
+  previous.isActive === next.isActive &&
+  previous.size === next.size &&
+  previous.isLast === next.isLast &&
+  previous.variant === next.variant &&
+  previous.disabled === next.disabled
+
+export default memo(MiniApp, arePropsEqual)
