@@ -10,7 +10,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import { FeedbackDialog } from '@renderer/components/feedback/FeedbackDialog'
+import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { ReleaseNotes } from '@renderer/components/ReleaseNotes'
@@ -36,18 +36,16 @@ import {
   Briefcase,
   Bug,
   Building2,
-  FileArchive,
   Github,
   Globe,
   Mail,
   MessageSquareText,
-  Rss
+  Rss,
+  Stethoscope
 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import DiagnosticBundleDialog from './DiagnosticBundleDialog'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -56,8 +54,6 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
-  const [isDiagnosticDialogOpen, setIsDiagnosticDialogOpen] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const showReleases = useOpenReleaseNotes()
@@ -348,9 +344,9 @@ const AboutSettings: FC = () => {
         <Divider className="my-3" />
         <AboutActionRow
           icon={<MessageSquareText className="size-4.5" />}
-          title={t('settings.about.feedback.title')}
-          actionLabel={t('settings.about.feedback.button')}
-          onAction={() => setFeedbackOpen(true)}
+          title={t('settings.doctor.panels.report')}
+          actionLabel={t('settings.doctor.actions.report_problem')}
+          onAction={() => void DoctorPopup.show({ initialPanel: 'report' })}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -376,10 +372,10 @@ const AboutSettings: FC = () => {
         <Divider className="my-3" />
         <AboutActionRow
           id="setting-about-diagnostics"
-          icon={<FileArchive className="size-4.5" />}
-          title={t('settings.about.diagnostics.entry.title')}
-          actionLabel={t('settings.about.diagnostics.entry.button')}
-          onAction={() => setIsDiagnosticDialogOpen(true)}
+          icon={<Stethoscope className="size-4.5" />}
+          title={t('settings.doctor.entry.title')}
+          actionLabel={t('settings.doctor.actions.run_basic')}
+          onAction={() => void DoctorPopup.show({ initialPanel: 'checks' })}
         />
         <Divider className="my-3" />
         <AboutActionRow
@@ -390,12 +386,6 @@ const AboutSettings: FC = () => {
           onAction={debug}
         />
       </SettingGroup>
-      <DiagnosticBundleDialog
-        appVersion={version}
-        open={isDiagnosticDialogOpen}
-        onOpenChange={setIsDiagnosticDialogOpen}
-      />
-      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </SettingsContentColumn>
   )
 }

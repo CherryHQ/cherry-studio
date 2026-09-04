@@ -1,13 +1,15 @@
 import '@testing-library/jest-dom/vitest'
 
+import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   ipcRequest: vi.fn(),
   loggerError: vi.fn(),
   openRoute: vi.fn(),
+  showDoctor: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -35,8 +37,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/feedback/DiagnosticUploadDialog', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div role="dialog">diagnostic-upload-dialog</div> : null)
+vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
+  default: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 import { FEEDBACK_GITHUB_URL, FeedbackDialog, getFeedbackAgentRoute } from '../FeedbackDialog'
@@ -50,6 +52,10 @@ describe('FeedbackDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ipcRequest.mockResolvedValue({ sessionId: 'feedback-session' })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('shows diagnostics, Cherry Support, and GitHub in the requested order', () => {
@@ -82,13 +88,18 @@ describe('FeedbackDialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('opens the one-step diagnostic upload dialog', async () => {
+  it('closes before opening the shared problem-report panel', async () => {
+    vi.useFakeTimers()
     render(<ControlledFeedbackDialog />)
 
     fireEvent.click(screen.getByRole('button', { name: /settings.about.feedback.diagnostics.title/ }))
 
-    await waitFor(() => expect(screen.getByText('diagnostic-upload-dialog')).toBeInTheDocument())
-    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('diagnostics.bundle.upload', expect.anything())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mocks.showDoctor).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(POPUP_EXIT_MS)
+
+    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' })
   })
 
   it('reports feedback-session creation failures without opening an empty Agent route', async () => {

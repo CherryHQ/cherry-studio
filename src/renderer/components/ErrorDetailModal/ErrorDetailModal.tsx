@@ -1,10 +1,11 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
+import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
 import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
-import { createPopup, POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup'
+import { POPUP_EXIT_MS } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
@@ -35,14 +36,12 @@ import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/err
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { CheckCircle, Copy, FileUp, Loader2, Stethoscope } from 'lucide-react'
-import React, { lazy, memo, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Scrollbar from '../Scrollbar'
 import AiDiagnosisSectionWithStatus from './AiDiagnosisSection'
 import { buildDiagnosticReportDescription, type DiagnosticReportConfig } from './diagnosticReportDescription'
-
-const DiagnosticUploadDialog = lazy(() => import('@renderer/components/feedback/DiagnosticUploadDialog'))
 
 interface ErrorDetailContentProps {
   error?: SerializedError
@@ -53,25 +52,6 @@ interface ErrorDetailContentProps {
   onOpenDiagnosticReport?: (description: string) => void
   cachedDiagnosis?: DiagnosisResult
 }
-
-interface DiagnosticUploadPopupProps {
-  initialDescription: string
-}
-
-const DiagnosticUploadPopup = createPopup<DiagnosticUploadPopupProps, void>(
-  ({ initialDescription, open, resolve }: DiagnosticUploadPopupProps & PopupInjectedProps<void>) => (
-    <Suspense fallback={null}>
-      <DiagnosticUploadDialog
-        fixedRange="24h"
-        initialDescription={initialDescription}
-        open={open}
-        onOpenChange={(nextOpen) => {
-          if (!nextOpen) resolve()
-        }}
-      />
-    </Suspense>
-  )
-)
 
 const truncateLargeData = (
   data: string,
@@ -676,7 +656,7 @@ export function showErrorDetailPopup(params: Omit<ErrorDetailContentProps, 'onOp
         onOpenDiagnosticReport={(initialDescription) => {
           ContentPopup.hide()
           setTimeout(() => {
-            void DiagnosticUploadPopup.show({ initialDescription })
+            void DoctorPopup.show({ initialPanel: 'report', initialDescription })
           }, POPUP_EXIT_MS)
         }}
       />

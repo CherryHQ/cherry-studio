@@ -85,7 +85,7 @@ describe('HelpMenu', () => {
     render(<HelpMenu layout="icon" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
-    const actions = ['help.whats_new', 'help.guide', 'help.feedback', 'help.star'].map((name) =>
+    const actions = ['help.whats_new', 'help.guide', 'settings.doctor.panels.report', 'help.star'].map((name) =>
       screen.getByRole('button', { name })
     )
     expect(actions).toHaveLength(4)
@@ -133,7 +133,7 @@ describe('HelpMenu', () => {
     render(<HelpMenu layout="full" onFeedbackClick={mocks.openFeedback} />)
     const user = await openMenu()
 
-    await user.click(screen.getByRole('button', { name: 'help.feedback' }))
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.panels.report' }))
 
     await waitFor(() => expect(mocks.openFeedback).toHaveBeenCalledOnce())
   })

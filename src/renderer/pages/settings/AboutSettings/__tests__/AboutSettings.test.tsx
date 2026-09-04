@@ -5,7 +5,12 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  request: vi.fn()
+  request: vi.fn(),
+  showDoctor: vi.fn()
+}))
+
+vi.mock('@renderer/components/doctor/DoctorPopup', () => ({
+  default: { show: (...args: unknown[]) => mocks.showDoctor(...args) }
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -50,14 +55,6 @@ vi.mock('streamdown', () => ({
   Streamdown: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('../DiagnosticBundleDialog', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div>diagnostic-dialog-open</div> : null)
-}))
-
-vi.mock('../../FeedbackDialog', () => ({
-  FeedbackDialog: () => null
-}))
-
 // Forwards alt so empty-alt decorative logos stay hidden even without the wrapper.
 vi.mock('@renderer/components/icons/LogoAvatar', () => ({
   default: ({ logo, alt }: { logo: string; alt?: string }) => <img src={logo} alt={alt} />
@@ -81,17 +78,26 @@ describe('AboutSettings diagnostics entry', () => {
     })
   })
 
-  it('places diagnostics next to the debug panel and opens the export dialog', async () => {
+  it('places system diagnostics next to the debug panel and opens the shared Doctor', async () => {
     const user = userEvent.setup()
     await renderAboutSettings()
 
-    const diagnostics = screen.getByRole('button', { name: 'settings.about.diagnostics.entry.button' })
+    const diagnostics = screen.getByRole('button', { name: 'settings.doctor.actions.run_basic' })
     const debug = screen.getByRole('button', { name: 'settings.about.debug.open' })
     const buttons = screen.getAllByRole('button')
     expect(buttons.indexOf(debug)).toBe(buttons.indexOf(diagnostics) + 1)
 
     await user.click(diagnostics)
-    expect(screen.getByText('diagnostic-dialog-open')).toBeInTheDocument()
+    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'checks' })
+  })
+
+  it('opens the existing feedback entry on the Doctor problem-report panel', async () => {
+    const user = userEvent.setup()
+    await renderAboutSettings()
+
+    await user.click(screen.getByRole('button', { name: 'settings.doctor.actions.report_problem' }))
+
+    expect(mocks.showDoctor).toHaveBeenCalledWith({ initialPanel: 'report' })
   })
 })
 

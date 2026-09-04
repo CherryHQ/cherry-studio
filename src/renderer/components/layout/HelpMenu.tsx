@@ -136,7 +136,7 @@ export function HelpMenu({
               size="sm"
               className="h-8"
               icon={<MessageSquareText size={16} />}
-              label={t('help.feedback')}
+              label={t('settings.doctor.panels.report')}
               onClick={() => runAfterClose(onFeedbackClick)}
             />
             <MenuItem
