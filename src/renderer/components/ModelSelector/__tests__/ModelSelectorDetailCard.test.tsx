@@ -186,6 +186,18 @@ describe('ModelSelectorDetailCard', () => {
     expect(screen.getByText('Limited-time free, available only in the Work module')).toBeInTheDocument()
   })
 
+  it('renders numeric zero descriptions', () => {
+    const model = makeModel()
+
+    render(
+      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} description={0}>
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(screen.getByText('0')).toBeInTheDocument()
+  })
+
   it('constrains the hover card to Radix available space', () => {
     const model = makeModel()
 

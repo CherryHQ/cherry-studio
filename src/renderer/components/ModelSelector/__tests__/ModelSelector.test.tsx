@@ -128,8 +128,11 @@ vi.mock('@renderer/components/SelectorShell', () => ({
             {search ? (
               <input
                 aria-label={search.placeholder}
+                aria-activedescendant={search.activeDescendant}
+                aria-controls={search.ariaControls}
                 value={search.value}
                 onChange={(event) => search.onChange(event.target.value)}
+                onKeyDown={search.onKeyDown}
               />
             ) : null}
             {filterContent}
@@ -335,19 +338,33 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('renders model detail descriptions supplied by the caller', () => {
+  it('associates descriptions with keyboard-focused model options', async () => {
+    const user = userEvent.setup()
+
     render(
       <ModelSelector
         open
         multiple={false}
-        getModelDetailDescription={(model) => `Status: ${model.name}`}
+        getModelDetailDescription={(model) => (model.name === 'gpt-4' ? 0 : 'Free quota exhausted')}
+        isModelDisabled={(model) => model.name === 'gpt-3.5'}
         trigger={<button type="button">open</button>}
         onSelect={vi.fn()}
       />
     )
 
-    expect(screen.getByText('Status: gpt-4')).toBeInTheDocument()
-    expect(screen.getByText('Status: gpt-3.5')).toBeInTheDocument()
+    const searchInput = screen.getByRole('textbox', { name: 'models.search.placeholder' })
+    const listbox = screen.getByRole('listbox')
+    const [firstOption, secondOption] = screen.getAllByRole('option')
+
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', firstOption.id))
+    expect(searchInput).toHaveAttribute('aria-controls', listbox.id)
+    expect(firstOption).toHaveAccessibleDescription('0')
+
+    await user.keyboard('{ArrowDown}')
+
+    await waitFor(() => expect(searchInput).toHaveAttribute('aria-activedescendant', secondOption.id))
+    expect(secondOption).toHaveAttribute('aria-disabled', 'true')
+    expect(secondOption).toHaveAccessibleDescription('Free quota exhausted')
   })
 
   it('honors the explicitly supplied disabled state', async () => {
