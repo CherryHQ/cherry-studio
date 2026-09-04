@@ -2,9 +2,12 @@ import type { StreamChunkPayload } from './stream'
 
 export const MAX_ATTACH_REPLAY_CHUNKS = 1000
 
-// Renderer-side, count-bounded attach-replay cap. Main owns byte-bounded
+// Renderer-only, count-bounded attach-replay cap. Main owns byte-bounded
 // buildCompactReplay (ring buffer + delta merge/synthesis); this helper only
 // bounds synchronous replay work during attach before the live stream handoff.
+// Lives in `shared/ai/transport` alongside the stream types so both renderer
+// call sites (IpcChatTransport, TopicStreamSubscription) share one cap path;
+// it is not used from Main.
 
 function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
   return JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, `${kind}:${id}`])
@@ -72,14 +75,17 @@ export function capAttachReplayChunks(
 
   const tail = buildTail(chunks, max)
 
-  // Collect authoritative toolName per toolCallId from the retained tail
-  // so orphan deltas don't synthesize `unknown` and pollute the part type.
-  const toolNameByKey = new Map<string, string>()
-  for (const payload of tail) {
-    const c = payload.chunk as { type: string; toolCallId?: string; id?: string; toolName?: string }
+  // Collect authoritative tool identity per toolCallId. Scanning the full
+  // buffer (not just the retained tail) keeps the attach→live handoff from
+  // losing its opener when the cap falls inside an active tool-input run: a
+  // tail-starting delta can still synthesize with the real name/dynamic flag.
+  const toolInfoByKey = new Map<string, { toolName: string; dynamic?: boolean }>()
+  for (const payload of chunks) {
+    const c = payload.chunk as { type: string; toolCallId?: string; id?: string; toolName?: string; dynamic?: boolean }
     if ((c.type === 'tool-input-start' || c.type === 'tool-input-available') && c.toolName) {
       const tid = toolCallIdOf(c)
-      if (tid) toolNameByKey.set(scopedPartKey(payload, 'tool-input', tid), c.toolName)
+      if (tid)
+        toolInfoByKey.set(scopedPartKey(payload, 'tool-input', tid), { toolName: c.toolName, dynamic: c.dynamic })
     }
   }
 
@@ -129,17 +135,18 @@ export function capAttachReplayChunks(
         }
         const key = scopedPartKey(payload, 'tool-input', tid)
         if (!openParts.has(key)) {
-          const knownName = toolNameByKey.get(key)
+          const known = toolInfoByKey.get(key)
           // No authoritative name — dropping avoids `tool-unknown` pollution
           // and the orphan delta would still be orphaned without its start.
-          if (!knownName) break
+          if (!known) break
           openParts.add(key)
           seenToolInput.add(key)
           const startChunk: Record<string, unknown> = {
             type: 'tool-input-start',
             toolCallId: tid,
             id: tid,
-            toolName: knownName
+            toolName: known.toolName,
+            ...(known.dynamic ? { dynamic: true } : {})
           }
           out.push({ ...payload, chunk: startChunk } as unknown as StreamChunkPayload)
         } else {
@@ -189,7 +196,7 @@ export function capAttachReplayChunks(
           const tid = toolCallIdOf(chunk as { id?: string; toolCallId?: string })
           if (tid) {
             const key = scopedPartKey(payload, 'tool-input', tid)
-            if (!seenToolInput.has(key) && !openParts.has(key) && !toolNameByKey.has(key)) break
+            if (!seenToolInput.has(key) && !openParts.has(key) && !toolInfoByKey.has(key)) break
           }
         }
         out.push(payload)

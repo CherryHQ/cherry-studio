@@ -199,6 +199,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         unsubscribers.push(
           ipcApi.on('ai.stream.error', (data) => {
             if (!matchesStream(data)) return
+            if (executionId && data.executionId !== executionId) return
+            if (!executionId && isPerExecutionOnly(data)) return
             errorStream(new Error(data.error.message ?? 'Unknown stream error'))
           })
         )
