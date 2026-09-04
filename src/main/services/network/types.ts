@@ -70,8 +70,11 @@ export interface ProxyInUse {
 export const NETWORK_ENDPOINT_IDS = ['update', 'registry', 'cloud', 'diagnostics'] as const
 export type NetworkEndpointId = (typeof NETWORK_ENDPOINT_IDS)[number]
 
+/** Built-in ids plus ad-hoc targets (a provider's API host, a user-supplied URL). */
+export type NetworkEndpointRef = NetworkEndpointId | `provider:${string}` | 'custom'
+
 export interface NetworkEndpoint {
-  readonly id: NetworkEndpointId
+  readonly id: NetworkEndpointRef
   readonly url: string
   readonly method?: 'HEAD' | 'GET'
 }
@@ -82,7 +85,7 @@ export interface TlsPeerInfo {
 }
 
 export interface EndpointDiagnosis {
-  readonly endpointId: NetworkEndpointId | `provider:${string}` | 'custom'
+  readonly endpointId: NetworkEndpointRef
   /** Hostname only; `local_only` when it leaves the machine. */
   readonly host: string
   readonly dns: NetworkLayerResult<{ readonly addresses: readonly string[] }>
