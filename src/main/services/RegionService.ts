@@ -51,12 +51,18 @@ class RegionService {
     }
   }
 
-  private async getDetectedCountry(): Promise<string> {
+  /** The cached country for the proxy in effect, or null; never detects. */
+  getCachedCountry(): string | null {
     const proxyKey = application.get('ProxyService').appliedProxyKey
     const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
-    if (cached && cached.proxyKey === proxyKey) {
-      return cached.country
-    }
+    return cached && cached.proxyKey === proxyKey ? cached.country : null
+  }
+
+  private async getDetectedCountry(): Promise<string> {
+    const cached = this.getCachedCountry()
+    if (cached) return cached
+
+    const proxyKey = application.get('ProxyService').appliedProxyKey
 
     // Dedup concurrent detections for the active proxy — callers share one in-flight request.
     const current = this.inflight.get(proxyKey)

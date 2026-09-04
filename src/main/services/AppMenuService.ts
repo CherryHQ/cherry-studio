@@ -10,6 +10,7 @@ import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
+import { doctorSettingsPath } from '@shared/types/doctor'
 import {
   type CommandId,
   evaluateContextExpr,
@@ -168,6 +169,13 @@ export class AppMenuService extends BaseService {
                 .get('MainWindowService')
                 .openWebsite('https://cherry-ai.com/docs')
                 .catch((error) => logger.warn('Failed to open website', { error }))
+            }
+          },
+          {
+            type: 'custom',
+            label: t('appMenu.doctor'),
+            click: () => {
+              openSettingsInMainWindow(doctorSettingsPath('checks'))
             }
           },
           {

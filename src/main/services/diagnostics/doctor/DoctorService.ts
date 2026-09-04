@@ -27,15 +27,31 @@ import { collectDiagnosticSystemInfo } from '../systemInfo'
 import type { DiagnosticWarning } from '../types'
 import { type EngineCheck, runDoctorChecks } from './engine'
 import { doctorCheckRegistry } from './registry'
-import type { DoctorCheckDefinition, DoctorFixOutcome, DoctorProbeOutcome } from './types'
+import type { DoctorCheckDefinition, DoctorContext, DoctorFixOutcome, DoctorProbeOutcome } from './types'
 
 const DEFAULT_TIMEOUT_MS: Record<DoctorTier, number> = { quick: 1000, live: 15000, deep: 60000 }
 const LANE_LIMITS = { live: 3 }
 const TIERS_FOR_RUN: Record<DoctorRunTier, readonly DoctorTier[]> = { quick: ['quick'], live: ['quick', 'live'] }
 
 type DoctorEngineCheck = EngineCheck<DoctorCheckId, DoctorProbeOutcome<DoctorCheckId>>
+/** Probes shared between the checks of one run (`DoctorContext.share`); the first caller's signal drives them. */
+type RunMemo = Map<string, Promise<unknown>>
 
-function toEngineCheck(id: DoctorCheckId): DoctorEngineCheck {
+function runContext(signal: AbortSignal, memo: RunMemo): DoctorContext {
+  return {
+    signal,
+    share: (key, factory) => {
+      let shared = memo.get(key)
+      if (!shared) {
+        shared = factory(signal)
+        memo.set(key, shared)
+      }
+      return shared as ReturnType<typeof factory>
+    }
+  }
+}
+
+function toEngineCheck(id: DoctorCheckId, memo: RunMemo): DoctorEngineCheck {
   const meta = DOCTOR_CHECK_CATALOG[id]
   // The registry is keyed by Id so this lookup is exhaustive; widen once for the engine.
   const definition = doctorCheckRegistry[id] as DoctorCheckDefinition<DoctorCheckId>
@@ -44,7 +60,7 @@ function toEngineCheck(id: DoctorCheckId): DoctorEngineCheck {
     requires: meta.requires,
     timeoutMs: definition.timeoutMs ?? DEFAULT_TIMEOUT_MS[meta.tier],
     lane: meta.tier,
-    run: (signal) => definition.run({ signal })
+    run: (signal) => definition.run(runContext(signal, memo))
   }
 }
 
@@ -143,7 +159,7 @@ export class DoctorService extends BaseService {
 
     let outcome: DoctorFixOutcome
     try {
-      outcome = await fixHandler(request.checkId, request.fixId)({ signal: new AbortController().signal })
+      outcome = await fixHandler(request.checkId, request.fixId)(runContext(new AbortController().signal, new Map()))
     } catch (error) {
       outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
     }
@@ -166,8 +182,9 @@ export class DoctorService extends BaseService {
     onProgress?: (settled: readonly DoctorCheckResult[]) => void
   ): Promise<DoctorCheckResult[]> {
     const settled: DoctorCheckResult[] = []
+    const memo: RunMemo = new Map()
     const results = (await runDoctorChecks({
-      checks: ids.map(toEngineCheck),
+      checks: ids.map((id) => toEngineCheck(id, memo)),
       signal,
       laneLimits: LANE_LIMITS,
       onResult: (result) => {

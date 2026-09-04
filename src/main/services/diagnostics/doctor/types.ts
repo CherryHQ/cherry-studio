@@ -3,6 +3,8 @@ import type { DoctorCheckId, DoctorCheckOutcome, DoctorEvidenceItem, DoctorFixId
 export interface DoctorContext {
   /** Aborted on the check's timeout or when the whole run is canceled; long probes should honour it. */
   readonly signal: AbortSignal
+  /** Memoizes `factory` under `key` for the current run, so checks in different layers reuse one probe. */
+  share<T>(key: string, factory: (signal: AbortSignal) => Promise<T>): Promise<T>
 }
 
 export type DoctorProbeOutcome<Id extends DoctorCheckId> = DoctorCheckOutcome<Id> & {
