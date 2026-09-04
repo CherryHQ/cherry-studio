@@ -39,6 +39,7 @@ function resolvesToParsedRoot(segments: string[]): boolean {
 
 /** True iff `candidate` resolves to a POSIX, Windows drive, or UNC share root. */
 export const isFilesystemRoot = (candidate: AbsoluteFilePath): boolean => {
+  if (!isWin && candidate.startsWith('//')) return canonicalizeFilePath(candidate) === '/'
   if (isWindowsDrivePath(candidate) || isWindowsUncPath(candidate)) {
     const parsed = parseWindowsPath(candidate.startsWith('//') ? `\\\\${candidate.slice(2)}` : candidate)
     return parsed.isAbsolute && resolvesToParsedRoot(parsed.segments)

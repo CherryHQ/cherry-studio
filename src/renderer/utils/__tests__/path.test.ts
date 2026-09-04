@@ -8,12 +8,19 @@ import { getRelativePath, isFilesystemRoot, isPathInside, isSamePath } from '../
 const p = (value: string) => value as AbsoluteFilePath
 
 describe('isFilesystemRoot', () => {
-  it.each(['/', '/./', '/tmp/..', 'C:\\', 'C:/', 'C:\\tmp\\..', '\\\\server\\share', '\\\\server\\share\\'])(
-    'identifies a path that resolves to a filesystem root: %s',
-    (value) => {
-      expect(isFilesystemRoot(p(value))).toBe(true)
-    }
-  )
+  it.each([
+    '/',
+    '/./',
+    '/tmp/..',
+    '//tmp/..',
+    'C:\\',
+    'C:/',
+    'C:\\tmp\\..',
+    '\\\\server\\share',
+    '\\\\server\\share\\'
+  ])('identifies a path that resolves to a filesystem root: %s', (value) => {
+    expect(isFilesystemRoot(p(value))).toBe(true)
+  })
 
   it.each(['/tmp/project', 'C:\\work', '\\\\server\\share\\project', '//server/share/project'])(
     'does not reject a nested directory: %s',
