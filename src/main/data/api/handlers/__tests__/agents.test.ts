@@ -67,11 +67,7 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 
-const {
-  pauseRuntimeTurnMock,
-  closeSessionMock,
-  warnMock
-} = vi.hoisted(() => ({
+const { pauseRuntimeTurnMock, closeSessionMock, warnMock } = vi.hoisted(() => ({
   pauseRuntimeTurnMock: vi.fn(),
   closeSessionMock: vi.fn(),
   warnMock: vi.fn()
