@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, SegmentedControl } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import type { DiagnosticUploadDialogHandle } from '@renderer/components/feedback/DiagnosticUploadDialog'
 import { loggerService } from '@renderer/services/LoggerService'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -6,7 +6,8 @@ import { POPUP_EXIT_MS, type PopupInjectedProps } from '@renderer/services/popup
 import { toast } from '@renderer/services/toast'
 import type { DoctorNavigateTarget } from '@shared/types/doctor'
 import type { UpdateInfo } from 'builder-util-runtime'
-import { lazy, Suspense, useCallback, useMemo, useRef } from 'react'
+import { ArrowLeft } from 'lucide-react'
+import { lazy, Suspense, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DoctorChecksPanel } from './DoctorChecksPanel'
@@ -42,9 +43,8 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
       if (reportPanelRef.current) {
         const canClose = await reportPanelRef.current.requestClose()
         if (!canClose) return
-      } else {
-        resolve({})
       }
+      resolve({})
       window.setTimeout(action, POPUP_EXIT_MS)
     },
     [resolve]
@@ -78,11 +78,21 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
   const close = useCallback(async () => {
     if (controller.isCloseBlocked) return
     if (reportPanelRef.current) {
-      await reportPanelRef.current.requestClose()
-      return
+      const canClose = await reportPanelRef.current.requestClose()
+      if (!canClose) return
     }
     resolve({})
   }, [controller.isCloseBlocked, resolve])
+
+  const returnToChecks = useCallback(async () => {
+    if (!controller.canChangePanel) return
+    if (controller.session.activePanel === 'report' && reportPanelRef.current) {
+      const canClose = await reportPanelRef.current.requestClose()
+      if (canClose) controller.setPanel('checks')
+      return
+    }
+    controller.setPanel('checks')
+  }, [controller])
 
   const setBundleBusy = useCallback(
     (busy: boolean) => setPanelInteraction('bundle-operation', busy),
@@ -93,14 +103,6 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
     [setPanelInteraction]
   )
 
-  const panelOptions = useMemo(
-    () => [
-      { value: 'checks' as const, label: t('settings.doctor.panels.checks') },
-      { value: 'export' as const, label: t('settings.doctor.panels.export') },
-      { value: 'report' as const, label: t('settings.doctor.panels.report') }
-    ],
-    [t]
-  )
   const panelDescription = t(PANEL_DESCRIPTION_KEYS[controller.session.activePanel])
 
   return (
@@ -114,45 +116,52 @@ export function DoctorDialog({ initialDescription, initialPanel, open, resolve }
         onEscapeKeyDown={(event) => {
           if (controller.isCloseBlocked) event.preventDefault()
         }}>
-        <DialogHeader className="gap-3 border-border border-b px-6 pt-6 pr-12 pb-4">
-          <div className="space-y-1">
+        <DialogHeader className="flex-row items-start gap-3 border-border border-b px-6 pt-6 pr-12 pb-4">
+          {controller.session.activePanel !== 'checks' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!controller.canChangePanel}
+              onClick={() => void returnToChecks()}>
+              <ArrowLeft className="size-4" />
+              {t('settings.doctor.actions.back_to_checks')}
+            </Button>
+          ) : null}
+          <div className="min-w-0 flex-1 space-y-1">
             <DialogTitle>{t('settings.doctor.title')}</DialogTitle>
             <DialogDescription>{panelDescription}</DialogDescription>
           </div>
-          <SegmentedControl<DoctorPanel>
-            value={controller.session.activePanel}
-            options={panelOptions}
-            disabled={!controller.canChangePanel}
-            onValueChange={controller.setPanel}
-            className="w-full"
-          />
         </DialogHeader>
 
         <div hidden={controller.session.activePanel !== 'checks'} className="contents">
           <DoctorChecksPanel controller={controller} />
         </div>
 
-        <Suspense fallback={controller.session.activePanel === 'export' ? <PanelLoading /> : null}>
-          <DiagnosticBundleDialog
-            appVersion={controller.viewModel.report?.basics.version ?? ''}
-            embedded
-            open={controller.session.activePanel === 'export'}
-            onBusyChange={setBundleBusy}
-            onOpenChange={(nextOpen) => !nextOpen && void close()}
-          />
-        </Suspense>
+        {controller.session.activePanel === 'export' ? (
+          <Suspense fallback={<PanelLoading />}>
+            <DiagnosticBundleDialog
+              appVersion={controller.viewModel.report?.basics.version ?? ''}
+              embedded
+              open
+              onBusyChange={setBundleBusy}
+              onOpenChange={(nextOpen) => !nextOpen && controller.setPanel('checks')}
+            />
+          </Suspense>
+        ) : null}
 
-        <Suspense fallback={controller.session.activePanel === 'report' ? <PanelLoading /> : null}>
-          <DiagnosticUploadDialog
-            ref={reportPanelRef}
-            description={controller.session.descriptionDraft}
-            embedded
-            open={controller.session.activePanel === 'report'}
-            onBusyChange={setReportBusy}
-            onDescriptionChange={controller.setDescription}
-            onOpenChange={(nextOpen) => !nextOpen && resolve({})}
-          />
-        </Suspense>
+        {controller.session.activePanel === 'report' ? (
+          <Suspense fallback={<PanelLoading />}>
+            <DiagnosticUploadDialog
+              ref={reportPanelRef}
+              description={controller.session.descriptionDraft}
+              embedded
+              open
+              onBusyChange={setReportBusy}
+              onDescriptionChange={controller.setDescription}
+              onOpenChange={(nextOpen) => !nextOpen && controller.setPanel('checks')}
+            />
+          </Suspense>
+        ) : null}
       </DialogContent>
     </Dialog>
   )
