@@ -1,3 +1,4 @@
+import type { DoctorState } from '@shared/types/doctor'
 import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
@@ -225,3 +226,6 @@ export type CacheMiniAppAttention = {
   /** An update in flight: the version landing, and how far its download is (`null` = not measurable yet). */
   updating: { version: string; fraction: number | null } | null
 }
+
+/** System Doctor run state; see `@shared/types/doctor`. */
+export type CacheDoctorState = DoctorState
