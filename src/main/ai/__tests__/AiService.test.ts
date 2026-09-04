@@ -1642,7 +1642,7 @@ describe('AiService tool approval', () => {
   // Edit-only image models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
   // `generate` mode — the bare default leaves the job path without a transport
   // descriptor and the check failed before any provider request.
-  it('probes edit-only image models with their declared mode and an inline input image', async () => {
+  it('probes edit-only image models with their declared mode, an inline input image, and materialized param defaults', async () => {
     const service = createService()
     const imageSpy = vi.spyOn(service, 'generateImage').mockResolvedValue({ files: [] })
     mockModelGetByKey.mockReturnValue({
@@ -1655,8 +1655,20 @@ describe('AiService tool approval', () => {
       isEnabled: true,
       isHidden: false
     })
+    // Defaults must be materialized main-side: qwen-mt-image's source/target langs and
+    // wanx2.1-imageedit's function are REQUIRED vendor params the transport omits
+    // when the bag is empty, so a bare `paramValues: {}` probe still fails server-side.
     mockGetImageGenerationSupport.mockReturnValueOnce({
-      modes: { edit: { vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation' } } }
+      modes: {
+        edit: {
+          supports: {
+            addWatermark: { default: false, type: 'switch' },
+            sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' },
+            targetLang: { default: 'en', options: ['en', 'zh'], type: 'enum' }
+          },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/image2image/image-synthesis' }
+        }
+      }
     })
 
     await service.checkModel({ uniqueModelId: 'test-provider::test-edit-image' })
@@ -1665,7 +1677,8 @@ describe('AiService tool approval', () => {
     expect(imageSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: 'edit',
-        inputImages: [expect.stringContaining('data:image/png;base64,')]
+        inputImages: [expect.stringContaining('data:image/png;base64,')],
+        paramValues: { addWatermark: false, sourceLang: 'auto', targetLang: 'en' }
       })
     )
   })

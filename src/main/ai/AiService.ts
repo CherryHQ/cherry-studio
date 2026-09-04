@@ -1178,17 +1178,24 @@ export class AiService extends BaseService {
       // Edit-only models (qwen-image-edit / wan2.5-i2i / qwen-mt-image …) serve no
       // `generate` mode: the bare default leaves the job path without a transport
       // descriptor, failing before any provider request. Probe their first declared
-      // mode with a tiny inline PNG instead.
+      // mode with a tiny inline PNG and the mode's registry defaults instead — the
+      // vendor bag must carry required params (qwen-mt-image langs, wanx2.1 function)
+      // that main never materializes on its own.
       const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
       const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
+      const probeMode = editOnly ? (Object.keys(imageSupport!.modes)[0] as ImageGenerationMode) : undefined
+      const probeSupports = probeMode ? imageSupport!.modes[probeMode]?.supports : undefined
+      const probeParams: ParamValues = {}
+      for (const [key, spec] of Object.entries(probeSupports ?? {})) {
+        if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
+          probeParams[key] = spec.default
+        }
+      }
       probe = this.generateImage({
         ...probeRequest,
         prompt: 'a red circle',
-        ...(editOnly && {
-          mode: Object.keys(imageSupport!.modes)[0] as ImageGenerationMode,
-          inputImages: [PROBE_INPUT_IMAGE_DATA_URL]
-        }),
-        paramValues: {},
+        ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
+        paramValues: probeParams,
         cleanupPolicy: 'delete_when_unreferenced'
       })
     } else {
