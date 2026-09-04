@@ -126,6 +126,7 @@ describe('createRetryableWrap API key failover', () => {
     vi.useFakeTimers()
     try {
       const attempts: string[] = []
+      const onRetryEvent = vi.fn()
       const secondKeyGenerate = vi
         .fn<() => Promise<typeof okResult>>()
         .mockImplementationOnce(async () => {
@@ -139,6 +140,7 @@ describe('createRetryableWrap API key failover', () => {
       const wrap = createRetryableWrap({
         apiKeyFallbacks: [fallbackOf(makeFakeLanguageModel('same-model', secondKeyGenerate))],
         fallbacks: [],
+        onRetryEvent,
         retryPolicy: policy(true)
       })
       const primaryGenerate = vi.fn(async () => {
@@ -151,6 +153,16 @@ describe('createRetryableWrap API key failover', () => {
       await pending
 
       expect(attempts).toEqual(['key-1', 'key-2', 'key-2'])
+      expect(onRetryEvent).toHaveBeenCalledTimes(3)
+      expect(onRetryEvent).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ state: 'retrying', modelId: 'same-model', attempt: 2, reason: 'http 401: http 401' })
+      )
+      expect(onRetryEvent).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ state: 'retrying', modelId: 'same-model', attempt: 2, reason: 'http 503: http 503' })
+      )
+      expect(onRetryEvent).toHaveBeenLastCalledWith({ state: 'settled' })
     } finally {
       vi.useRealTimers()
     }

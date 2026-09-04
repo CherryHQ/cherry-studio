@@ -145,6 +145,17 @@ function sourceSnapshotForAssistant(assistant: Assistant | undefined): SourceSna
     : undefined
 }
 
+function resolveTextRetryPolicy(
+  configured: ReturnType<typeof readRetryPolicy>,
+  requestMaxRetries: number | undefined,
+  hasApiKeyFallbacks: boolean
+): ReturnType<typeof readRetryPolicy> {
+  if (configured.enabled || !hasApiKeyFallbacks || requestMaxRetries === undefined || requestMaxRetries <= 0) {
+    return configured
+  }
+  return { ...configured, enabled: true, maxAttempts: requestMaxRetries, fallbackModelIds: [] }
+}
+
 function createCaptureContext(input: {
   provider: Provider
   model: Model
@@ -615,7 +626,11 @@ export class AiService extends BaseService {
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
       })
-      const retryPolicy = readRetryPolicy()
+      const retryPolicy = resolveTextRetryPolicy(
+        readRetryPolicy(),
+        request.requestOptions?.maxRetries,
+        apiKeyFallbacks.length > 0
+      )
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,
@@ -731,7 +746,11 @@ export class AiService extends BaseService {
         createUsagePlugin: (fallbackReceipt) =>
           createAiUsagePlugin(createAiUsageCaptureContext({ ...usageContext, credentialReceipt: fallbackReceipt }))
       })
-      const retryPolicy = readRetryPolicy()
+      const retryPolicy = resolveTextRetryPolicy(
+        readRetryPolicy(),
+        request.requestOptions?.maxRetries,
+        apiKeyFallbacks.length > 0
+      )
       wrapModel = createRetryableWrap({
         apiKeyFallbacks,
         retryPolicy,

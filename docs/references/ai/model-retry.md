@@ -152,8 +152,9 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
 
 - **AI SDK `maxRetries`** is forced to `0` whenever the chat wrapper is active,
   so ai-retry alone owns retries and attempts cannot multiply. With the global
-  feature disabled, an explicit non-zero per-request value still uses the SDK's
-  native retry behavior.
+  feature disabled, an explicit non-zero per-request value uses the SDK's native
+  retry behavior unless API-key failover activates the wrapper; in that case the
+  wrapper applies the same retry count without enabling configured model fallbacks.
 - **Per-request opt-out:** an explicit `requestOptions.maxRetries === 0` on a
   chat request disables the entire ai-retry wrapper for that request (no API-key
   failover, same-model retry, or cross-model fallback), so the per-request

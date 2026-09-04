@@ -157,10 +157,6 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
     delay: RETRY_BASE_DELAY_MS,
     ...(backoffEnabled && { backoffFactor: 2 })
   })
-  const wrapApiKeyFallback: WrapLanguageModel | undefined = options.retryPolicy.enabled
-    ? (model) => createRetryableModel({ model, retries: [transientRetry] })
-    : undefined
-
   const retries: Retries<LanguageModel> = [
     // Same-model transient retry on retryable errors: honors Retry-After headers,
     // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
@@ -188,6 +184,19 @@ export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLa
       retryActive = false
       options.onRetryEvent?.({ state: 'settled' })
     }
+    const wrapApiKeyFallback: WrapLanguageModel | undefined = options.retryPolicy.enabled
+      ? (model) =>
+          createRetryableModel({
+            model,
+            retries: [transientRetry],
+            onRetry: (context) => {
+              const event = describeAttempt(context)
+              logger.info('retrying model call', { ...options.diagnosticContext, ...event })
+              retryActive = true
+              options.onRetryEvent?.(event)
+            }
+          })
+      : undefined
 
     const keyPoolModel =
       apiKeyFallbacks.length > 0
