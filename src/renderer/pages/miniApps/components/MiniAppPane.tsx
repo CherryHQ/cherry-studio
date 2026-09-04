@@ -52,8 +52,8 @@ function useConcreteWebview(appId: string, isReady: boolean) {
     return revisionRef.current
   }, [isReady, selector])
 
-  useSyncExternalStore(subscribe, getSnapshot, () => 0)
-  return webviewRef
+  const webviewRevision = useSyncExternalStore(subscribe, getSnapshot, () => 0)
+  return { webviewRef, webviewRevision }
 }
 
 /**
@@ -81,7 +81,7 @@ const MiniAppPane: FC<Props> = ({
   // over an already-loaded webview must not flash the mask, which reads as a reload.
   const [isReady, setIsReady] = useState<boolean>(() => getWebviewLoaded(app.appId))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
-  const webviewRef = useConcreteWebview(app.appId, isReady)
+  const { webviewRef, webviewRevision } = useConcreteWebview(app.appId, isReady)
   const webview = webviewRef.current
 
   useEffect(() => {
@@ -130,7 +130,8 @@ const MiniAppPane: FC<Props> = ({
       <div className="shrink-0">
         <MinimalToolbar
           app={app}
-          webview={webview}
+          webviewRef={webviewRef}
+          webviewRevision={webviewRevision}
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
           isWebviewReady={isWebviewReady}

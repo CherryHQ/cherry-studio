@@ -9,6 +9,7 @@ import {
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
 import type { WebviewTag } from 'electron'
+import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('useWebviewAnnotationSession')
@@ -53,7 +54,8 @@ function createSessionStore() {
 }
 
 interface Options {
-  webview: WebviewTag | null
+  webviewRef: RefObject<WebviewTag | null>
+  webviewRevision: number
   isHostActive: boolean
   target: WebviewAnnotationTarget
   locale: WebviewAnnotationLocale
@@ -79,7 +81,15 @@ interface CopyOperation extends Binding {
   generation: number
 }
 
-export function useWebviewAnnotationSession({ webview, isHostActive, target, locale, theme }: Options) {
+export function useWebviewAnnotationSession({
+  webviewRef,
+  webviewRevision,
+  isHostActive,
+  target,
+  locale,
+  theme
+}: Options) {
+  const webview = webviewRef.current
   const storeRef = useRef<ReturnType<typeof createSessionStore> | null>(null)
   if (!storeRef.current) storeRef.current = createSessionStore()
   const store = storeRef.current
@@ -230,7 +240,7 @@ export function useWebviewAnnotationSession({ webview, isHostActive, target, loc
       attachedWebview.removeEventListener('render-process-gone', handleRenderProcessGone)
       attachedWebview.removeEventListener('dom-ready', requestState)
     }
-  }, [invalidateOperation, sendCommand, store, webview])
+  }, [invalidateOperation, sendCommand, store, webview, webviewRef, webviewRevision])
 
   const previousTargetIdRef = useRef(target.id)
   useEffect(() => {

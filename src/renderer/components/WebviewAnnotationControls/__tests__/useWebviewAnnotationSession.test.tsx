@@ -7,6 +7,7 @@ import {
 } from '@shared/types/webviewAnnotation'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
+import type { RefObject } from 'react'
 import { Activity, startTransition, Suspense, useLayoutEffect, useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,7 +45,8 @@ interface TestWebview extends WebviewTag {
 }
 
 interface HookProps {
-  webview: WebviewTag | null
+  webviewRef: RefObject<WebviewTag | null>
+  webviewRevision: number
   isHostActive: boolean
   target: WebviewAnnotationTarget
   locale: WebviewAnnotationLocale
@@ -92,8 +94,11 @@ const snapshotReady = (
 const sentCommands = (webview: TestWebview) =>
   vi.mocked(webview.send).mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
 
-const initialProps = (webview: WebviewTag | null, overrides: Partial<HookProps> = {}): HookProps => ({
-  webview,
+const createWebviewRef = (webview: WebviewTag | null): RefObject<WebviewTag | null> => ({ current: webview })
+
+const initialProps = (webviewRef: RefObject<WebviewTag | null>, overrides: Partial<HookProps> = {}): HookProps => ({
+  webviewRef,
+  webviewRevision: 0,
   isHostActive: true,
   target,
   locale,
@@ -101,8 +106,8 @@ const initialProps = (webview: WebviewTag | null, overrides: Partial<HookProps> 
   ...overrides
 })
 
-function SessionHarness({ webview, onCommit }: { webview: WebviewTag; onCommit: () => void }) {
-  useWebviewAnnotationSession(initialProps(webview))
+function SessionHarness({ webviewRef, onCommit }: { webviewRef: RefObject<WebviewTag | null>; onCommit: () => void }) {
+  useWebviewAnnotationSession(initialProps(webviewRef))
   useLayoutEffect(onCommit, [onCommit])
   return null
 }
@@ -116,8 +121,8 @@ function SuspendedSibling({ suspend }: { suspend: Promise<never> }) {
   return null
 }
 
-function SessionStateHarness({ webview }: { webview: WebviewTag }) {
-  const session = useWebviewAnnotationSession(initialProps(webview))
+function SessionStateHarness({ webviewRef }: { webviewRef: RefObject<WebviewTag | null> }) {
+  const session = useWebviewAnnotationSession(initialProps(webviewRef))
   return <output aria-label="Annotation state">{`${session.ready}:${session.enabled}:${session.count}`}</output>
 }
 
@@ -137,12 +142,13 @@ describe('useWebviewAnnotationSession', () => {
 
   it('binds the guest during a visible Activity commit before native events can fire', () => {
     const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
     let boundDuringCommit = false
 
     render(
       <Activity mode="visible">
         <SessionHarness
-          webview={webview}
+          webviewRef={webviewRef}
           onCommit={() => {
             boundDuringCommit =
               ['ipc-message', 'did-start-navigation', 'render-process-gone', 'dom-ready'].every((type) =>
@@ -158,7 +164,8 @@ describe('useWebviewAnnotationSession', () => {
 
   it('accepts an Electron guest event emitted by the bound webview', () => {
     const webview = createWebview()
-    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
 
     act(() => stateChanged(webview, sessionOne, true, 3))
 
@@ -167,12 +174,13 @@ describe('useWebviewAnnotationSession', () => {
 
   it('commits guest state ahead of unrelated suspended Activity work', () => {
     const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
     const suspend = new Promise<never>(() => {})
     const view = render(
       <Suspense fallback={<span>Pending</span>}>
         <Activity mode="visible">
           <SuspendedSibling suspend={suspend} />
-          <SessionStateHarness webview={webview} />
+          <SessionStateHarness webviewRef={webviewRef} />
         </Activity>
       </Suspense>
     )
@@ -192,8 +200,9 @@ describe('useWebviewAnnotationSession', () => {
   it('rebinds to a concrete replacement and ignores the detached webview', () => {
     const first = createWebview(41)
     const second = createWebview(42)
+    const webviewRef = createWebviewRef(first)
     const { result, rerender } = renderHook((props: HookProps) => useWebviewAnnotationSession(props), {
-      initialProps: initialProps(first)
+      initialProps: initialProps(webviewRef)
     })
 
     expect(result.current.ready).toBe(false)
@@ -204,7 +213,8 @@ describe('useWebviewAnnotationSession', () => {
       expect.objectContaining({ type: 'configure', sessionId: sessionOne, locale, theme: 'dark' })
     )
 
-    rerender(initialProps(second))
+    webviewRef.current = second
+    rerender(initialProps(webviewRef, { webviewRevision: 1 }))
     expect(result.current).toMatchObject({ ready: false, enabled: false, count: 0 })
     act(() => stateChanged(first, sessionOne, true, 5))
     expect(result.current.count).toBe(0)
@@ -215,7 +225,8 @@ describe('useWebviewAnnotationSession', () => {
 
   it('retires only a new main-frame document and accepts only its next session', () => {
     const webview = createWebview()
-    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview, sessionOne, true, 1))
 
     act(() => webview.emitNative('did-start-navigation', { isMainFrame: false, isInPlace: false }))
@@ -246,13 +257,14 @@ describe('useWebviewAnnotationSession', () => {
         })
     )
     const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
     const { result, rerender } = renderHook((props: HookProps) => useWebviewAnnotationSession(props), {
-      initialProps: initialProps(webview)
+      initialProps: initialProps(webviewRef)
     })
     act(() => stateChanged(webview, sessionOne, true, 1))
     vi.mocked(webview.send).mockClear()
 
-    rerender(initialProps(webview, { target: { ...target, label: '演示' }, theme: 'light' }))
+    rerender(initialProps(webviewRef, { target: { ...target, label: '演示' }, theme: 'light' }))
     expect(sentCommands(webview)).toContainEqual(
       expect.objectContaining({ type: 'configure', sessionId: sessionOne, theme: 'light' })
     )
@@ -266,7 +278,7 @@ describe('useWebviewAnnotationSession', () => {
     await waitFor(() => expect(request).toHaveBeenCalledOnce())
 
     vi.mocked(webview.send).mockClear()
-    rerender(initialProps(webview, { target: { id: 'mini-app:other', label: 'Other' }, theme: 'light' }))
+    rerender(initialProps(webviewRef, { target: { id: 'mini-app:other', label: 'Other' }, theme: 'light' }))
     expect(sentCommands(webview)).toContainEqual({ type: 'clear', sessionId: sessionOne })
     expect(result.current).toMatchObject({ enabled: false, count: 0 })
 
@@ -280,12 +292,13 @@ describe('useWebviewAnnotationSession', () => {
 
   it('deactivates an inactive host while retaining its committed count', () => {
     const webview = createWebview()
+    const webviewRef = createWebviewRef(webview)
     const { result, rerender } = renderHook((props: HookProps) => useWebviewAnnotationSession(props), {
-      initialProps: initialProps(webview)
+      initialProps: initialProps(webviewRef)
     })
     act(() => stateChanged(webview, sessionOne, true, 2))
 
-    rerender(initialProps(webview, { isHostActive: false }))
+    rerender(initialProps(webviewRef, { isHostActive: false }))
 
     expect(result.current).toMatchObject({ ready: true, enabled: false, count: 2 })
     expect(sentCommands(webview)).toContainEqual({ type: 'deactivate', sessionId: sessionOne })
@@ -293,7 +306,8 @@ describe('useWebviewAnnotationSession', () => {
 
   it('ignores foreign, malformed, and mismatched snapshot events', async () => {
     const webview = createWebview()
-    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
 
     act(() => {
       guestEvent(
@@ -336,7 +350,8 @@ describe('useWebviewAnnotationSession', () => {
     vi.useFakeTimers()
     try {
       const webview = createWebview()
-      const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+      const webviewRef = createWebviewRef(webview)
+      const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
       act(() => stateChanged(webview))
       let copyResult: Promise<void>
       act(() => {
@@ -357,7 +372,8 @@ describe('useWebviewAnnotationSession', () => {
 
   it('rejects a pending snapshot on unmount and ignores its late response', async () => {
     const webview = createWebview()
-    const { result, unmount } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+    const webviewRef = createWebviewRef(webview)
+    const { result, unmount } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview))
     let copyResult: Promise<void>
     act(() => {
@@ -382,7 +398,8 @@ describe('useWebviewAnnotationSession', () => {
         })
     )
     const webview = createWebview()
-    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview))
     let copyResult: Promise<void>
     act(() => {
@@ -402,7 +419,8 @@ describe('useWebviewAnnotationSession', () => {
 
   it('allows only one copy operation until its snapshot is resolved', async () => {
     const webview = createWebview()
-    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webview)))
+    const webviewRef = createWebviewRef(webview)
+    const { result } = renderHook(() => useWebviewAnnotationSession(initialProps(webviewRef)))
     act(() => stateChanged(webview))
     let firstCopy: Promise<void>
     let secondCopy: Promise<void>

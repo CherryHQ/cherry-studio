@@ -7,6 +7,7 @@ import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { WebviewAnnotationLocale, WebviewAnnotationTarget } from '@shared/types/webviewAnnotation'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import type { RefObject } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,13 +16,20 @@ import { useWebviewAnnotationSession } from './useWebviewAnnotationSession'
 const logger = loggerService.withContext('WebviewAnnotationControls')
 
 interface Props {
-  webview: WebviewTag | null
+  webviewRef: RefObject<WebviewTag | null>
+  webviewRevision: number
   isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
 }
 
-export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActive, target }: Props) {
+export function WebviewAnnotationControls({
+  webviewRef,
+  webviewRevision,
+  isWebviewReady,
+  isHostActive,
+  target
+}: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
@@ -37,7 +45,8 @@ export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActiv
     [t]
   )
   const { enabled, count, ready, copying, toggle, clear, copy } = useWebviewAnnotationSession({
-    webview,
+    webviewRef,
+    webviewRevision,
     isHostActive,
     target,
     locale,

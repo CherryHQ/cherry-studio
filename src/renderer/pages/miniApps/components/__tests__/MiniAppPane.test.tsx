@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MiniAppPane from '../MiniAppPane'
 
 interface ToolbarProbeProps {
-  webview: WebviewTag | null
+  webview?: WebviewTag | null
+  webviewRef?: RefObject<WebviewTag | null>
+  webviewRevision?: number
   isWebviewReady: boolean
 }
 
@@ -27,7 +29,7 @@ vi.mock('../MinimalToolbar', () => ({
       <div
         data-testid="minimal-toolbar"
         data-ready={String(props.isWebviewReady)}
-        data-webview-id={props.webview?.dataset.miniAppId ?? ''}
+        data-webview-id={(props.webviewRef?.current ?? props.webview)?.dataset.miniAppId ?? ''}
       />
     )
   }
@@ -121,8 +123,13 @@ describe('MiniAppPane concrete webview ownership', () => {
 
     render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
 
-    expect(mocks.toolbarRenders[0]).toMatchObject({ webview, isWebviewReady: true })
-    expect(mocks.toolbarProps?.webview).toBe(webview)
+    expect(mocks.toolbarRenders[0]).toMatchObject({
+      webviewRef: expect.objectContaining({ current: webview }),
+      webviewRevision: expect.any(Number),
+      isWebviewReady: true
+    })
+    expect(mocks.toolbarProps).not.toHaveProperty('webview')
+    expect(mocks.toolbarProps?.webviewRef).toBe(mocks.searchWebviewRef)
     expect(mocks.searchWebviewRef?.current).toBe(webview)
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
     expect(screen.getByTestId('webview-search')).toHaveAttribute('data-webview-id', customApp.appId)
@@ -137,7 +144,7 @@ describe('MiniAppPane concrete webview ownership', () => {
     expect(initialRef?.current).toBeNull()
     emitLoaded(true)
 
-    await waitFor(() => expect(mocks.toolbarProps?.webview).toBe(webview))
+    await waitFor(() => expect(mocks.toolbarProps?.webviewRef?.current).toBe(webview))
     expect(mocks.searchWebviewRef).toBe(initialRef)
     expect(initialRef?.current).toBe(webview)
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
@@ -159,13 +166,13 @@ describe('MiniAppPane concrete webview ownership', () => {
     })
 
     await waitFor(() => expect(stableRef?.current).toBeNull())
-    expect(mocks.toolbarProps?.webview).toBeNull()
+    expect(mocks.toolbarProps?.webviewRef?.current).toBeNull()
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'false')
     act(() => {
       document.body.appendChild(replacementWebview)
     })
     await waitFor(() => expect(stableRef?.current).toBe(replacementWebview))
-    expect(mocks.toolbarProps?.webview).toBe(replacementWebview)
+    expect(mocks.toolbarProps?.webviewRef?.current).toBe(replacementWebview)
     expect(mocks.searchWebviewRef).toBe(stableRef)
     expect(screen.getByTestId('minimal-toolbar')).toHaveAttribute('data-ready', 'true')
     expect(screen.getByTestId('webview-search')).toHaveAttribute('data-webview-id', customApp.appId)
