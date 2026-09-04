@@ -185,6 +185,39 @@ import { Button } from '@cherrystudio/ui/components'
 import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
+### Direction and bidirectional content
+
+Direction is application-wide. Every renderer document applies the same application-owned value to
+`document.documentElement.dir` for native layout and logical CSS, then mounts one `DirectionProvider` at its root
+for Radix and direction-aware component behavior. Nested direction overrides are not supported. Use logical
+`start` / `end` for reading-order layout. Keep spatial geometry physical: Tooltip sides, Drawer direction, and
+PageSidePanel side continue to use `left` / `right` because changing the reading direction must not move a surface
+to the opposite side of its trigger or container. Tooltip alignment suffixes retain their logical `start` / `end`
+meaning along the selected side.
+
+```tsx
+import { DirectionProvider, DirectionalIcon } from '@cherrystudio/ui/components'
+import { ArrowRight } from 'lucide-react'
+
+document.documentElement.dir = localeDirection
+
+root.render(
+  <DirectionProvider dir={localeDirection}>
+    <DirectionalIcon>
+      <ArrowRight />
+    </DirectionalIcon>
+  </DirectionProvider>
+)
+```
+
+Use `DirectionalIcon` only for arrows whose meaning follows the application reading direction; never wrap logos,
+check marks, or physical media controls. Its mirror composes with any rotation on the same icon, so a chevron that
+also rotates open must counter-rotate under `rtl:` rather than rely on the mirror alone.
+
+Text inputs default to `dir="auto"`, while technical input types such as email, number, password, telephone, and
+URL default to LTR. Keyboard-shortcut slots default to LTR. Callers may explicitly override `dir` on any of these
+when their content contract is more specific.
+
 ## Development
 
 ```bash
@@ -337,6 +370,7 @@ The Shadcn-compatible native input primitive.
 **Props:**
 
 - accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- natural-language text inputs default to `dir="auto"`; technical input types default to `dir="ltr"` and callers may override the native `dir`
 - use `aria-invalid` for invalid-state styling
 - use `className` for supported layout composition
 

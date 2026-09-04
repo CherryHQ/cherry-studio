@@ -226,7 +226,7 @@ export const NavigationDrawer: Story = {
             <button
               type="button"
               key={item}
-              className="rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+              className="rounded-md px-3 py-2 text-start text-sm hover:bg-accent hover:text-accent-foreground">
               {item}
             </button>
           ))}
