@@ -9,7 +9,6 @@ const electronMock = vi.hoisted(() => ({
 }))
 vi.mock('electron', () => electronMock)
 
-const getRoutingSnapshot = vi.hoisted(() => vi.fn())
 const utilityProcessManager = vi.hoisted(() => ({ current: null as unknown }))
 
 vi.mock('@application', async () => {
@@ -17,7 +16,6 @@ vi.mock('@application', async () => {
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'ProxyService') return { getRoutingSnapshot }
     if (name === 'UtilityProcessManager') return utilityProcessManager.current
     return originalGet(name)
   })
@@ -42,15 +40,14 @@ import { createMemoryProcessAdapter, waitUntil } from '@main/core/utilityProcess
 import { SERVICE_NAME_PREFIX } from '@main/core/utilityProcess/protocol/constants'
 import type { UtilityProcessDefinition } from '@main/core/utilityProcess/types'
 import { UtilityProcessManager } from '@main/core/utilityProcess/UtilityProcessManager'
-import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
 
 import { InferenceServiceBase } from '../InferenceServiceBase'
 import type { InferenceInitData } from '../protocol'
 
 /**
  * The base owns three things after the process machinery moved into `core/utilityProcess`:
- * one-at-a-time dispatch, relaunching when the proxy routing or the hardware profile the
- * live process was launched with no longer applies, and keeping the caller's error the
+ * one-at-a-time dispatch, relaunching when the hardware profile the live process was
+ * launched with no longer applies, and keeping the caller's error the
  * child's error. Everything else — generations, idle release, the stop barrier — is
  * ProcessHost's, and is tested there.
  *
@@ -58,7 +55,6 @@ import type { InferenceInitData } from '../protocol'
  * transformers and onnxruntime in for no added coverage.
  */
 
-const DIRECT_ROUTING: ProxyRoutingSnapshot = { version: 1, mode: 'direct' }
 const HARDWARE_KEY = 'feature.local_model.hardware_acceleration.enabled'
 
 const initDataSeen: unknown[] = []
@@ -119,7 +115,6 @@ beforeEach(() => {
   BaseService.resetInstances()
   MockMainPreferenceServiceUtils.resetMocks()
   MockMainPreferenceServiceUtils.setPreferenceValue(HARDWARE_KEY, false)
-  getRoutingSnapshot.mockResolvedValue(DIRECT_ROUTING)
   initDataSeen.length = 0
   definition = echoDefinition({
     createInitData: () => ({ appPath: '/app' }) as unknown as InferenceInitData
@@ -187,24 +182,13 @@ describe('InferenceServiceBase dispatch', () => {
 })
 
 describe('InferenceServiceBase runtime staleness', () => {
-  it('reuses the running process while the routing version and profile are unchanged', async () => {
+  it('reuses the running process while the resolved profile is unchanged', async () => {
     const { service, adapter } = await createService()
 
     await service.ping()
     await service.ping()
 
     expect(adapter.spawns).toHaveLength(1)
-  })
-
-  it('relaunches with a fresh snapshot when the proxy routing version advances', async () => {
-    const { service, adapter } = await createService()
-    await service.ping()
-
-    getRoutingSnapshot.mockResolvedValue({ version: 2, mode: 'direct' } satisfies ProxyRoutingSnapshot)
-    await service.ping()
-
-    expect(adapter.spawns).toHaveLength(2)
-    expect(initDataSeen).toHaveLength(2)
   })
 
   it('relaunches when the hardware acceleration preference changes the resolved profile', async () => {

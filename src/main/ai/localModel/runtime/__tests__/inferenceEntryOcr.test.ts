@@ -66,8 +66,7 @@ beforeAll(async () => {
     await loadInferenceEntries({
       appPath: appRoot,
       artifactPaths: {},
-      runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE,
-      proxyRouting: { version: 1, mode: 'direct' }
+      runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE
     })
   ).ocr
 })

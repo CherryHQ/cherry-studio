@@ -7,6 +7,9 @@
 const FORBIDDEN = [
   /src[\\/]main[\\/]core[\\/](logger|application|lifecycle|paths)[\\/]/,
   /src[\\/]main[\\/](data|ipc)[\\/]/,
+  // The inference children are offline; a proxy policy in the child would only be a way to
+  // hand it credentials it has no use for.
+  /src[\\/]main[\\/]services[\\/]proxy[\\/]/,
   /utilityProcess[\\/]host[\\/]/,
   /utilityProcess[\\/]UtilityProcessManager\./
 ]

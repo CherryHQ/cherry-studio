@@ -114,7 +114,6 @@ async function start(runtimeProfile: LocalInferenceRuntimeProfile = DIRECTML_PRO
   const initData: InferenceInitData = {
     appPath,
     artifactPaths: {},
-    proxyRouting: { version: 0, mode: 'direct' },
     runtimeProfile
   }
   const loaded = await loadInferenceEntries(initData)

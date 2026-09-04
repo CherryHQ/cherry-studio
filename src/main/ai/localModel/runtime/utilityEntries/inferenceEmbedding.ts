@@ -11,7 +11,7 @@ import { applyInitData, disposeCachedResources } from './inferenceRuntime'
 
 serveUtilityProcess<EmbeddingInferenceContract, InferenceInitData>({
   id: 'inference.embedding',
-  initialize: (initData, { logger }) => applyInitData(initData, logger),
+  initialize: (initData) => applyInitData(initData),
   handlers: embeddingHandlers,
   dispose: ({ logger }) => disposeCachedResources(logger)
 })

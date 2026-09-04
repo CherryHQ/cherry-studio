@@ -1,6 +1,7 @@
-import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
-
-/** Structured-clone-safe data shared by the main process and inference utility processes. */
+/**
+ * Structured-clone-safe data shared by the main process and inference utility processes.
+ * Inference is offline, so nothing here may carry a credential or a network policy.
+ */
 
 export type LocalInferenceProfileId = 'cpu' | 'directml' | 'coreml'
 export type LocalInferenceDevice = 'cpu' | 'dml' | 'coreml'
@@ -24,5 +25,4 @@ export interface InferenceInitData {
   /** Absolute entry paths keyed by catalog artifact id. */
   artifactPaths: Record<string, string>
   runtimeProfile: LocalInferenceRuntimeProfile
-  proxyRouting: ProxyRoutingSnapshot
 }

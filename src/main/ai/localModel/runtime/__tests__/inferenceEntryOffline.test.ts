@@ -82,8 +82,7 @@ async function startProcess(): Promise<void> {
   const loaded = await loadInferenceEntries({
     appPath: process.cwd(),
     artifactPaths: {},
-    runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE,
-    proxyRouting: { version: 0, mode: 'direct' }
+    runtimeProfile: CPU_LOCAL_INFERENCE_PROFILE
   })
   embedding = loaded.embedding
   logs = loaded.logs

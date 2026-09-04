@@ -2,9 +2,11 @@
  * Shared child-side runtime for both inference entries: package loading, the hardware
  * fallback policy, and error formatting.
  *
- * Child-safe — no lifecycle container, no logger, no database. `@huggingface/transformers`
- * and `ppu-paddle-ocr` are resolved through `createRequire` off the app root (not a static
- * import) so the bundler leaves them alone and resolution matches the packaged app.
+ * Child-safe — no lifecycle container, no logger, no database. Also no network: models are
+ * loaded by absolute path and downloading stays in the main process, so this side needs no
+ * proxy policy and must never be handed one. `@huggingface/transformers` and `ppu-paddle-ocr`
+ * are resolved through `createRequire` off the app root (not a static import) so the bundler
+ * leaves them alone and resolution matches the packaged app.
  */
 
 import { createRequire } from 'node:module'
@@ -13,14 +15,11 @@ import { pathToFileURL } from 'node:url'
 import { CPU_LOCAL_INFERENCE_PROFILE } from '@main/ai/localModel/runtime/inferenceAcceleration'
 import type { InferenceInitData, LocalInferenceRuntimeProfile } from '@main/ai/localModel/runtime/protocol'
 import type { UtilityProcessLogger } from '@main/core/utilityProcess/runtime/serveUtilityProcess'
-import { createProxyBypassMatcher } from '@main/services/proxy/bypassRules'
-import { configureWorkerProxy } from '@main/services/proxy/workerProxy'
 
 type DisposableResource = { dispose?: () => unknown; destroy?: () => unknown }
 
 let appPath: string | undefined
 let runtimeProfile: LocalInferenceRuntimeProfile = CPU_LOCAL_INFERENCE_PROFILE
-let proxyStatus = 'not-initialized'
 let transformers: any = null
 let ppu: any = null
 
@@ -49,20 +48,10 @@ export function describeError(error: unknown): string {
   return details.join(' <- caused by ')
 }
 
-/** Applies the connect-time init data: proxy dispatchers, native binding path, profile. */
-export function applyInitData(initData: InferenceInitData, logger: UtilityProcessLogger): void {
+/** Applies the connect-time init data: native binding path and hardware profile. */
+export function applyInitData(initData: InferenceInitData): void {
   appPath = initData.appPath
   runtimeProfile = initData.runtimeProfile
-
-  const proxy = configureWorkerProxy(appPath, initData.proxyRouting, createProxyBypassMatcher)
-  proxyStatus = proxy.status
-  if (proxy.status === 'configured') {
-    logger.info('network proxy configured', { origin: proxy.proxyOrigin, bypassRules: proxy.bypassRuleCount })
-  } else if (proxy.status === 'direct') {
-    logger.info('network proxy not configured; remote model requests use a direct connection')
-  } else {
-    logger.error(`network proxy configuration failed: ${proxy.error}`)
-  }
 
   // Must be set before the first lazy require of @huggingface/transformers / ppu-paddle-ocr,
   // both of which transitively require onnxruntime-node — see patches/onnxruntime-node@1.25.1.patch.
@@ -134,7 +123,7 @@ export async function withHardwareFallback<T>(
     if (context.retryOnHardwareFailure === false || runtimeProfile.id === 'cpu') throw hardwareError
     const provider = runtimeProfile.id
     context.logger.warn(
-      `hardware inference failed provider=${provider} ${context.describeRequest()} proxy=${proxyStatus} error=${describeError(hardwareError)}; falling back to cpu`
+      `hardware inference failed provider=${provider} ${context.describeRequest()} error=${describeError(hardwareError)}; falling back to cpu`
     )
     await disposeCachedResources(context.logger)
     runtimeProfile = CPU_LOCAL_INFERENCE_PROFILE

@@ -22,13 +22,13 @@ import type { InferenceInitData } from './protocol'
  *
  * Process spawning, cancellation, idle release and maintenance barriers belong to
  * `core/utilityProcess`. This layer serializes native inference calls, checks platform
- * support and restarts a process when its proxy or hardware profile becomes stale.
+ * support and restarts a process when its hardware profile becomes stale.
  */
 // Inherited by the concrete services; a subclass declaring its own @DependsOn would replace it.
 @DependsOn(['UtilityProcessManager'])
 export abstract class InferenceServiceBase<Contract extends UtilityProcessContract> extends BaseService {
   private readonly queue = new PQueue({ concurrency: 1 })
-  private launchedWith: string | null = null
+  private launchedProfileId: string | null = null
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   protected constructor(
@@ -84,16 +84,14 @@ export abstract class InferenceServiceBase<Contract extends UtilityProcessContra
   }
 
   private async restartIfRuntimeChanged(): Promise<void> {
-    const routing = await application.get('ProxyService').getRoutingSnapshot()
     const profile = resolveLocalInferenceProfile(
       application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
     )
-    const key = `${routing.version}|${profile.id}`
-    if (this.launchedWith !== null && this.launchedWith !== key) {
+    if (this.launchedProfileId !== null && this.launchedProfileId !== profile.id) {
       this.logger.info('inference runtime configuration changed; restarting process')
       await this.client.stop()
     }
-    this.launchedWith = key
+    this.launchedProfileId = profile.id
   }
 
   async terminate(): Promise<void> {

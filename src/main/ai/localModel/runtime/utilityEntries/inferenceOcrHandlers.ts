@@ -4,7 +4,7 @@
  * the parent port.
  */
 
-import fs from 'node:fs'
+import { readFileSync } from 'node:fs'
 
 import type { OcrModelPaths } from '@main/ai/localModel/capabilities/ocr/protocol'
 import type { OcrInferenceContract } from '@main/ai/localModel/runtime/inferenceProcess'
@@ -49,7 +49,7 @@ export const ocrHandlers: UtilityProcessHandlers<OcrInferenceContract> = {
   recognize: async ({ modelPaths, source }, { logger }) => {
     // Reading the image is request preparation, not a provider failure: keep it outside
     // the fallback so a missing file cannot be misread as broken hardware.
-    const bytes = source.kind === 'bytes' ? source.imageBytes : fs.readFileSync(source.imagePath)
+    const bytes = source.kind === 'bytes' ? source.imageBytes : readFileSync(source.imagePath)
     const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
     return withHardwareFallback(
       async () => {

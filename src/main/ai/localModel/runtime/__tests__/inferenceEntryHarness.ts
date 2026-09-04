@@ -43,7 +43,7 @@ export async function loadInferenceEntries(initData: InferenceInitData): Promise
   const runtime = await import('../utilityEntries/inferenceRuntime')
   const { embeddingHandlers } = await import('../utilityEntries/inferenceEmbeddingHandlers')
   const { ocrHandlers } = await import('../utilityEntries/inferenceOcrHandlers')
-  runtime.applyInitData(initData, logger)
+  runtime.applyInitData(initData)
 
   const context = <Event>(emit: (event: Event) => void = () => {}) => ({
     signal: new AbortController().signal,

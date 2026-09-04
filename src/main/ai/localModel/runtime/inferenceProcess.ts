@@ -25,15 +25,14 @@ export type OcrInferenceContract = {
 
 const INFERENCE_IDLE_TIMEOUT_MS = 60 * 1000
 
-async function createInferenceInitData(capability: LocalModelCapability): Promise<InferenceInitData> {
+function createInferenceInitData(capability: LocalModelCapability): InferenceInitData {
   const bundle = bundleForCapability(capability)
   return {
     appPath: application.getPath('app.root'),
     artifactPaths: Object.fromEntries(bundle.requires.map((id) => [id, localModelStorageService.artifactPath(id)])),
     runtimeProfile: resolveLocalInferenceProfile(
       application.get('PreferenceService').get('feature.local_model.hardware_acceleration.enabled')
-    ),
-    proxyRouting: await application.get('ProxyService').getRoutingSnapshot()
+    )
   }
 }
 

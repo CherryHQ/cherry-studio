@@ -11,7 +11,7 @@ import { applyInitData, disposeCachedResources } from './inferenceRuntime'
 
 serveUtilityProcess<OcrInferenceContract, InferenceInitData>({
   id: 'inference.ocr',
-  initialize: (initData, { logger }) => applyInitData(initData, logger),
+  initialize: (initData) => applyInitData(initData),
   handlers: ocrHandlers,
   dispose: ({ logger }) => disposeCachedResources(logger)
 })
