@@ -258,12 +258,8 @@ describe('Model drawers', () => {
 
     await user.click(endpointSelect)
     await user.click(await screen.findByRole('option', { name: 'endpoint_type.anthropic' }))
-    // The pin left the supported set, so it must not survive to the create payload.
-    expect(
-      within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
-        name: /settings\.models\.add\.preferred_endpoint\.inherit/
-      })
-    ).toBeChecked()
+    // One protocol left: nothing to choose between, and the pin must not survive to the payload.
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
 
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-model')
     await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
@@ -296,6 +292,17 @@ describe('Model drawers', () => {
 
     render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
 
+    // Nothing is declared yet, so there is no route to choose between.
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
+
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai' }))
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai-response' }))
+    await user.keyboard('{Escape}')
+
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
     expect(
       screen.getByRole('img', {
@@ -321,7 +328,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('labels inheritance with the endpoint selected by runtime routing', async () => {
+  it('labels inheritance with the route the declared set resolves to, not the provider default', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: {
@@ -339,9 +346,18 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'custom-model')
 
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai' }))
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai-response' }))
+    await user.keyboard('{Escape}')
+
     expect(
       within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
-        name: `settings.models.add.preferred_endpoint.inherit_resolved (endpoint_type.openai-response)`
+        // Chat completions leads the declared set, so it wins over the provider's Responses default.
+        name: `settings.models.add.preferred_endpoint.inherit_resolved (endpoint_type.openai)`
       })
     ).toBeChecked()
   })
@@ -452,6 +468,14 @@ describe('Model drawers', () => {
 
     render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
 
+    const endpointSelect = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
+      'combobox'
+    )
+    await user.click(endpointSelect)
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai' }))
+    await user.click(await screen.findByRole('option', { name: 'endpoint_type.openai-response' }))
+    await user.keyboard('{Escape}')
+
     const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
     await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
     await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'chat-only-preset,custom-model')
@@ -469,7 +493,7 @@ describe('Model drawers', () => {
     }
   })
 
-  it('uses the same endpoint controls when the provider serves a single chat endpoint', () => {
+  it('offers no route pin when the provider serves a single chat endpoint', () => {
     useProviderMock.mockReturnValue({
       provider: {
         id: 'anthropic',
@@ -483,11 +507,7 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="anthropic" open prefill={null} onClose={vi.fn()} />)
 
     expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
-    expect(
-      within(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).getByRole('radio', {
-        name: /settings\.models\.add\.preferred_endpoint\.inherit/
-      })
-    ).toBeChecked()
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
   })
 
   it('shows operation-compatible endpoint controls for a custom provider', () => {
@@ -504,8 +524,9 @@ describe('Model drawers', () => {
 
     const addDrawer = render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
 
+    // Adding declares what the model speaks; the pin appears once that declaration offers a choice.
     expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-settings-model-preferred-endpoint-field')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
     addDrawer.unmount()
 
     render(
