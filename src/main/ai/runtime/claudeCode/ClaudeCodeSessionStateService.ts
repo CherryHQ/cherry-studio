@@ -23,6 +23,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 
 import {
   BASH_HISTORY_LIMIT,
+  BASH_RUN_BREAK_MARKER,
   bashNoProgressRunLength,
   type BashOutcome,
   fingerprintBashOutput,
@@ -131,6 +132,19 @@ export class ClaudeCodeSessionStateService extends BaseService {
   getBashNoProgressRun(sessionId: string, command: string): number | undefined {
     const history = this.bashOutcomes.get(sessionId)
     return history ? bashNoProgressRunLength(history, command) : undefined
+  }
+
+  /**
+   * Ends any trailing no-progress run without recording output: a mutating tool changed the
+   * workspace, so an unchanged verifier output afterwards is fresh evidence, not a stuck loop.
+   * No-op when the session has no Bash history — there is no run to break, and sessions that
+   * never touch Bash should not grow this map.
+   */
+  recordBashRunBreak(sessionId: string): void {
+    const history = this.bashOutcomes.get(sessionId)
+    if (!history?.length) return
+    history.push({ command: BASH_RUN_BREAK_MARKER, fingerprint: '' })
+    if (history.length > BASH_HISTORY_LIMIT) history.shift()
   }
 
   disposeToolPolicySnapshot(sessionId: string): void {

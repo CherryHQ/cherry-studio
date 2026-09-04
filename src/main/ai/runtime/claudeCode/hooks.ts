@@ -20,6 +20,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
+import { BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
@@ -171,18 +172,41 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
   // Feeds the bash-repeat-no-progress guard rule. User interrupts are excluded: an Esc-aborted call
-  // is a deliberate stop, not loop evidence.
+  // is a deliberate stop, not loop evidence. Esc surfaces either as PostToolUseFailure with
+  // is_interrupt, or as PostToolUse whose Bash tool_response carries interrupted: true.
   const bashOutcomeHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
-    const event = input as unknown as Record<string, unknown>
-    if (event.tool_name !== 'Bash' || event.is_interrupt === true) return {}
-    const command = (event.tool_input as Record<string, unknown> | undefined)?.command
+
+    if (input.tool_name !== 'Bash') {
+      // A completed mutating tool changed the workspace: break the run so a verifier still printing
+      // the same remaining errors is not misread as a stuck loop. Read-only tools do not break it —
+      // an agent alternating Bash with Read is still looping.
+      if (input.hook_event_name === 'PostToolUse' && BASH_RUN_BREAK_TOOLS.has(input.tool_name)) {
+        sessionState().recordBashRunBreak(sessionId)
+      }
+      return {}
+    }
+
+    const command = (input.tool_input as { command?: unknown } | undefined)?.command
     if (typeof command !== 'string') return {}
 
-    const failed = input.hook_event_name === 'PostToolUseFailure'
-    sessionState().recordBashOutcome(sessionId, command, failed ? event.error : event.tool_response, failed)
+    if (input.hook_event_name === 'PostToolUseFailure') {
+      if (input.is_interrupt === true) return {}
+      sessionState().recordBashOutcome(sessionId, command, input.error, true)
+      return {}
+    }
+
+    const response = input.tool_response
+    if (
+      typeof response === 'object' &&
+      response !== null &&
+      (response as { interrupted?: unknown }).interrupted === true
+    ) {
+      return {}
+    }
+    sessionState().recordBashOutcome(sessionId, command, response, false)
     return {}
   }
 

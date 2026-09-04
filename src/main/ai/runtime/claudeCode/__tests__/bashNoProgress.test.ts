@@ -46,6 +46,17 @@ describe('bashNoProgressRunLength', () => {
     expect(bashNoProgressRunLength(history, 'curl x')).toBeUndefined()
   })
 
+  it('ends the scan at an older differing fingerprint instead of discarding the trailing run', () => {
+    // The ordinary loop: one different output (a first attempt, an earlier success), then the wedge.
+    const history = [
+      outcome('curl x', 'ok:a'),
+      outcome('curl x', 'ok:b'),
+      outcome('curl x', 'ok:b'),
+      outcome('curl x', 'ok:b')
+    ]
+    expect(bashNoProgressRunLength(history, 'curl x')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+  })
+
   it('is broken by an interleaved different command', () => {
     const history = [outcome('curl x', 'ok:a'), outcome('ls', 'ok:a'), outcome('curl x', 'ok:a')]
     expect(bashNoProgressRunLength(history, 'curl x')).toBeUndefined()

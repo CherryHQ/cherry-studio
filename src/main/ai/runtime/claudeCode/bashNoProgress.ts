@@ -1,10 +1,11 @@
 /**
  * Stuck-loop detection for repeated Bash calls that never produce new output.
  *
- * The recorder (a PostToolUse/PostToolUseFailure hook) appends one entry per Bash execution; the
- * `bash-repeat-no-progress` guard rule denies the next identical call once the trailing run of the
- * same normalized command reaches the threshold with a single unchanged fingerprint. Output that
- * changes at all — new bytes, different error text — counts as progress and resets the signal.
+ * The recorder (a PostToolUse/PostToolUseFailure hook) appends one entry per Bash execution, plus a
+ * break-marker when a mutating tool completes; the `bash-repeat-no-progress` guard rule denies the
+ * next identical call once the trailing run of the same normalized command reaches the threshold
+ * with a single unchanged fingerprint. Output that changes at all — new bytes, different error
+ * text — counts as progress and resets the signal, as does any completed workspace mutation.
  */
 
 import { createHash } from 'node:crypto'
@@ -13,6 +14,15 @@ import { createHash } from 'node:crypto'
 export const BASH_NO_PROGRESS_THRESHOLD = 3
 /** Per-session ring size; only the tail matters, so old entries are dropped. */
 export const BASH_HISTORY_LIMIT = 16
+
+/**
+ * Sentinel command for break-marker entries: a mutating tool changed the workspace, so any run in
+ * progress ends here. The NUL prefix can never equal a normalized real command.
+ */
+export const BASH_RUN_BREAK_MARKER = '\0tool-mutation'
+
+/** Claude Code tools whose successful completion mutates the workspace and therefore breaks a run. */
+export const BASH_RUN_BREAK_TOOLS: ReadonlySet<string> = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
 export interface BashOutcome {
   readonly command: string
@@ -44,7 +54,8 @@ export function bashNoProgressRunLength(history: readonly BashOutcome[], command
     const entry = history[i]
     if (entry.command !== normalized) break
     fingerprint ??= entry.fingerprint
-    if (entry.fingerprint !== fingerprint) return undefined
+    // An older differing fingerprint ends the trailing run; it does not abort the scan.
+    if (entry.fingerprint !== fingerprint) break
     run++
   }
   return run >= BASH_NO_PROGRESS_THRESHOLD ? run : undefined
