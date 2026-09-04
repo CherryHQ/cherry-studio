@@ -1733,7 +1733,7 @@ describe('AiService tool approval', () => {
     })
 
     expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
-    expect(mockResolveImageTransport).toHaveBeenCalled()
+    expect(mockResolveImageTransport).toHaveBeenCalledWith('ppio', 'qwen-image-edit', expect.anything())
     expect(submit).toHaveBeenCalledTimes(1)
     expect(submit).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1765,13 +1765,20 @@ describe('AiService tool approval', () => {
       isHidden: false
     })
     mockGetImageGenerationSupport.mockReturnValueOnce({
-      modes: { generate: { vendorTransport: { endpoint: '/v1/images/generations' } } }
+      modes: {
+        generate: {
+          supports: { numImages: { default: 1, max: 4, min: 1, type: 'range' } },
+          vendorTransport: { endpoint: '/v1/images/generations' }
+        }
+      }
     })
 
     await service.checkModel({ uniqueModelId: 'test-provider::test-image' })
 
     expect(imageSpy).toHaveBeenCalledWith(expect.not.objectContaining({ mode: expect.anything() }))
     expect(imageSpy).toHaveBeenCalledWith(expect.not.objectContaining({ inputImages: expect.anything() }))
+    // Generate-capable models still materialize their generate-mode defaults.
+    expect(imageSpy).toHaveBeenCalledWith(expect.objectContaining({ paramValues: { numImages: 1 } }))
   })
 
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
