@@ -1023,7 +1023,7 @@ describe('MainWindowService', () => {
       expect(win.webContents.send).not.toHaveBeenCalled()
     })
 
-    it('delivers quotes arriving through the registered App_QuoteToMain IPC handler', () => {
+    it('forwards event.sender from the registered IPC handler and routes the quote to the originating SubWindow', () => {
       ;(svc as any).registerIpcHandlers()
 
       // Exercise the actual wiring instead of the method directly: a wrong
@@ -1033,10 +1033,25 @@ describe('MainWindowService', () => {
       )
       expect(registered, 'handler must be registered under App_QuoteToMain').toBeDefined()
 
+      const subWindow = createMockWindow()
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-window-1')
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+      windowManagerMock.getWindow.mockReturnValue(subWindow)
+
       const [, handler] = registered!
-      handler({ sender: { id: 1000 } }, 'Selected text')
+      const senderWebContents = { id: 9001 }
+      handler({ sender: senderWebContents }, 'Selected text')
+
+      // Regression guard for the original bug: if the handler drops event.sender,
+      // the sender is never resolved and the quote silently falls back to the
+      // main window — the two assertions below catch exactly that.
+      expect(windowManagerMock.getWindowIdByWebContents).toHaveBeenCalledWith(senderWebContents)
+      expect(subWindow.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+
       vi.advanceTimersByTime(100)
-      expect(win.webContents.send).toHaveBeenCalledWith(IpcChannel.App_QuoteToMain, 'Selected text')
+      expect(win.show).not.toHaveBeenCalled()
+      expect(win.focus).not.toHaveBeenCalled()
+      expect(win.webContents.send).not.toHaveBeenCalled()
     })
   })
 })
