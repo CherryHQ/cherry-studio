@@ -51,11 +51,13 @@ import { createAiUsagePlugin } from './hooks/billingHook'
 import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
-import { hasImageTransport } from './provider/custom/imageTransportRegistry'
+import { resolveProviderAiSdkConfig } from './provider/config'
+import { hasImageTransport, resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
+import { resolveEffectiveEndpoint, resolveWireModelId } from './provider/endpoint'
 import { listModels as listModelsFromProvider, probeOllamaModel } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
 import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
@@ -90,6 +92,10 @@ const NO_NATIVE_FILE_REQUIREMENTS: NativeFileSupport = { image: false, pdf: fals
 /** 64x64 white PNG — edit-mode health-check input so the probe needs no user image. */
 const PROBE_INPUT_IMAGE_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAXklEQVR4nO3PMQ0AMAzAsPInvYLYYVWKESTzjhsd8KsBrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BbQHKU9LC7/CP1AAAAABJRU5ErkJggg=='
+const PROBE_INPUT_IMAGE_BASE64 = PROBE_INPUT_IMAGE_DATA_URL.slice('data:image/png;base64,'.length)
+
+/** Edit-only probes pick the first mode the model declares, in painting-tab preference order. */
+const EDIT_ONLY_PROBE_FALLBACK_MODES: readonly ImageGenerationMode[] = ['edit', 'remix', 'upscale', 'merge']
 type MutableNativeFileSupport = { -readonly [K in keyof NativeFileSupport]: NativeFileSupport[K] }
 
 /** Native attachment shapes preserved for the primary and therefore replayed unchanged to a fallback. */
@@ -1183,21 +1189,58 @@ export class AiService extends BaseService {
       // that main never materializes on its own.
       const imageSupport = providerRegistryService.getImageGenerationSupport(provider.id, model.apiModelId ?? model.id)
       const editOnly = imageSupport != null && !('generate' in imageSupport.modes)
-      const probeMode = editOnly ? (Object.keys(imageSupport!.modes)[0] as ImageGenerationMode) : undefined
-      const probeSupports = probeMode ? imageSupport!.modes[probeMode]?.supports : undefined
+      const probeMode: ImageGenerationMode = editOnly
+        ? (EDIT_ONLY_PROBE_FALLBACK_MODES.find((mode) => mode in imageSupport.modes) ?? 'edit')
+        : 'generate'
+      const probeSupports = imageSupport?.modes?.[probeMode]?.supports
       const probeParams: ParamValues = {}
       for (const [key, spec] of Object.entries(probeSupports ?? {})) {
         if (spec && typeof spec === 'object' && 'default' in spec && spec.default !== undefined) {
           probeParams[key] = spec.default
         }
       }
-      probe = this.generateImage({
-        ...probeRequest,
-        prompt: 'a red circle',
-        ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
-        paramValues: probeParams,
-        cleanupPolicy: 'delete_when_unreferenced'
-      })
+      const transportProviderId = provider.presetProviderId ?? provider.id
+      if (request.uniqueModelId && hasImageTransport(transportProviderId, model.apiModelId ?? model.id)) {
+        // Transport models run their submit/poll loop on the job system, whose
+        // handler re-selects a serving key — dropping the health check's
+        // `apiKeyOverride` and possibly probing a different rotated credential
+        // than the one being reported. A check needs no restart survival, so
+        // probe inline: one submit (accepted = credential + endpoint + model OK)
+        // with the caller's key, no job row, no result download.
+        const vendorTransport = imageSupport?.modes?.[probeMode]?.vendorTransport
+        probe = (async () => {
+          const { config } = await resolveProviderAiSdkConfig(provider, model, {
+            apiKeyOverride: request.apiKeyOverride
+          })
+          const wireModelId = resolveWireModelId(model, resolveEffectiveEndpoint(provider, model).endpointType)
+          const transport = resolveImageTransport(config.providerId, wireModelId, config.providerSettings)
+          if (!transport) {
+            throw new Error(`Image health check: no transport for '${config.providerId}' (model '${wireModelId}')`)
+          }
+          await transport.submit({
+            modelId: wireModelId,
+            prompt: 'a red circle',
+            n: 1,
+            size: undefined,
+            seed: undefined,
+            files: editOnly ? [{ type: 'file', mediaType: 'image/png', data: PROBE_INPUT_IMAGE_BASE64 }] : undefined,
+            mask: undefined,
+            modelDescriptor: vendorTransport
+              ? { id: wireModelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode: probeMode }
+              : undefined,
+            providerParams: probeParams,
+            signal: controller.signal
+          })
+        })()
+      } else {
+        probe = this.generateImage({
+          ...probeRequest,
+          prompt: 'a red circle',
+          ...(editOnly && { mode: probeMode, inputImages: [PROBE_INPUT_IMAGE_DATA_URL] }),
+          paramValues: probeParams,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+      }
     } else {
       // Latency is the probe's measured output — thinking tokens would pollute it
       // for reasoning-capable models whose provider default enables reasoning.

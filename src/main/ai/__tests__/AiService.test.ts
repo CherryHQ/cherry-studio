@@ -3,6 +3,7 @@ import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/
 import { isGatewayRoutableModel } from '@shared/utils/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as ImageTransportRegistryModule from '../provider/custom/imageTransportRegistry'
 import type * as ListModelsModule from '../provider/listModels'
 import { makeProvider } from './fixtures/provider'
 
@@ -36,6 +37,7 @@ const mockReadRetryPolicy = vi.fn(() => ({
   fallbackModelIds: ['fallback::model']
 }))
 const mockGetImageGenerationSupport = vi.fn()
+const mockResolveImageTransport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 const mockInstallBuiltinSkills = vi.fn()
@@ -79,7 +81,10 @@ vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
 }))
 
 vi.mock('../utils/customFetch', () => ({
-  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor()
+  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor(),
+  // The inline health-check probe resolves the real provider config, which
+  // defaults providerSettings.fetch to customFetch — a stub keeps it inert.
+  customFetch: vi.fn()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -102,6 +107,17 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
     listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
   }
 }))
+
+// Inline health-check probes resolve the transport through this module. Keep
+// `hasImageTransport` real (routing tests depend on the true registry) and stub
+// only the transport resolution so submit never reaches the network.
+vi.mock('../provider/custom/imageTransportRegistry', async (importOriginal) => {
+  const actual = await importOriginal<typeof ImageTransportRegistryModule>()
+  return {
+    ...actual,
+    resolveImageTransport: (...args: unknown[]) => mockResolveImageTransport(...args)
+  }
+})
 
 vi.mock('../provider/listModels', async (importOriginal) => {
   const actual = await importOriginal<typeof ListModelsModule>()
@@ -1679,6 +1695,57 @@ describe('AiService tool approval', () => {
         mode: 'edit',
         inputImages: [expect.stringContaining('data:image/png;base64,')],
         paramValues: { addWatermark: false, sourceLang: 'auto', targetLang: 'en' }
+      })
+    )
+  })
+
+  // Transport models route their job through a handler that re-selects a serving
+  // key, dropping the health check's apiKeyOverride — the probe could run with a
+  // different rotated credential than the one being reported. The check probes
+  // inline instead, resolving the config WITH the caller's key.
+  it('probes transport image models inline with the caller API-key override', async () => {
+    const service = createService()
+    mockProviderGetByProviderId.mockReturnValueOnce(makeProvider({ id: 'ppio', name: 'PPIO' }))
+    mockModelGetByKey.mockReturnValue({
+      id: 'ppio::qwen-image-edit',
+      providerId: 'ppio',
+      apiModelId: 'qwen-image-edit',
+      name: 'Qwen Image Edit',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: {
+          supports: { sourceLang: { default: 'auto', options: ['auto', 'en'], type: 'enum' } },
+          vendorTransport: { endpoint: '/api/v1/services/aigc/multimodal-generation/generation', isSync: true }
+        }
+      }
+    })
+    const submit = vi.fn().mockResolvedValue({ imageUrls: ['https://example.test/img.png'] })
+    mockResolveImageTransport.mockReturnValueOnce({ submit })
+
+    await service.checkModel({
+      uniqueModelId: 'ppio::qwen-image-edit',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(mockProviderResolveApiKey).toHaveBeenCalledWith('ppio', 'sk-selected')
+    expect(mockResolveImageTransport).toHaveBeenCalled()
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'qwen-image-edit',
+        modelDescriptor: {
+          id: 'qwen-image-edit',
+          endpoint: '/api/v1/services/aigc/multimodal-generation/generation',
+          isSync: true,
+          mode: 'edit'
+        },
+        providerParams: { sourceLang: 'auto' },
+        files: [{ type: 'file', mediaType: 'image/png', data: expect.any(String) }]
       })
     )
   })
