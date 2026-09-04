@@ -20,11 +20,19 @@ interface SessionState {
   count: number
   copying: boolean
   documentSessionId: string | null
+  editor: EditorState | null
+}
+
+interface EditorState {
+  requestId: string
+  draft: string
+  canDelete: boolean
+  error: 'element_unavailable' | null
 }
 
 type SessionStateUpdate = SessionState | ((current: SessionState) => SessionState)
 
-const EMPTY_STATE: SessionState = { enabled: false, count: 0, copying: false, documentSessionId: null }
+const EMPTY_STATE: SessionState = { enabled: false, count: 0, copying: false, documentSessionId: null, editor: null }
 
 function createSessionStore() {
   let snapshot = EMPTY_STATE
@@ -42,7 +50,8 @@ function createSessionStore() {
       (snapshot.enabled === next.enabled &&
         snapshot.count === next.count &&
         snapshot.copying === next.copying &&
-        snapshot.documentSessionId === next.documentSessionId)
+        snapshot.documentSessionId === next.documentSessionId &&
+        snapshot.editor === next.editor)
     ) {
       return
     }
@@ -189,6 +198,38 @@ export function useWebviewAnnotationSession({
         return
       }
 
+      if (guestEvent.type === 'editor_requested') {
+        if (sessionRef.current !== guestEvent.sessionId || !hostActiveRef.current) return
+        store.setState((current) => ({
+          ...current,
+          editor: {
+            requestId: guestEvent.requestId,
+            draft: guestEvent.comment,
+            canDelete: guestEvent.canDelete,
+            error: null
+          }
+        }))
+        return
+      }
+
+      if (guestEvent.type === 'editor_closed') {
+        if (sessionRef.current !== guestEvent.sessionId) return
+        store.setState((current) =>
+          current.editor?.requestId === guestEvent.requestId ? { ...current, editor: null } : current
+        )
+        return
+      }
+
+      if (guestEvent.type === 'editor_error') {
+        if (sessionRef.current !== guestEvent.sessionId) return
+        store.setState((current) =>
+          current.editor?.requestId === guestEvent.requestId
+            ? { ...current, editor: { ...current.editor, error: guestEvent.reason } }
+            : current
+        )
+        return
+      }
+
       if (retiredSessionsRef.current.has(guestEvent.sessionId)) return
       const currentSessionId = sessionRef.current
       if (currentSessionId !== guestEvent.sessionId) {
@@ -208,7 +249,8 @@ export function useWebviewAnnotationSession({
         ...current,
         enabled,
         count: guestEvent.count,
-        documentSessionId: guestEvent.sessionId
+        documentSessionId: guestEvent.sessionId,
+        editor: enabled ? current.editor : null
       }))
       if (!hostActiveRef.current && guestEvent.enabled) {
         sendCommand(attachedWebview, { type: 'deactivate', sessionId: guestEvent.sessionId })
@@ -251,7 +293,7 @@ export function useWebviewAnnotationSession({
     const binding = bindingRef.current
     const sessionId = sessionRef.current
     if (binding && sessionId) sendCommand(binding.webview, { type: 'clear', sessionId })
-    store.setState((current) => ({ ...current, enabled: false, count: 0 }))
+    store.setState((current) => ({ ...current, enabled: false, count: 0, editor: null }))
   }, [invalidateOperation, sendCommand, store, target.id])
 
   useEffect(() => {
@@ -267,7 +309,7 @@ export function useWebviewAnnotationSession({
     if (!binding || !sessionId) return
     if (!isHostActive) {
       sendCommand(binding.webview, { type: 'deactivate', sessionId })
-      store.setState((current) => ({ ...current, enabled: false }))
+      store.setState((current) => ({ ...current, enabled: false, editor: null }))
     } else {
       sendCommand(binding.webview, { type: 'request_state' })
     }
@@ -279,8 +321,49 @@ export function useWebviewAnnotationSession({
     if (!binding || !sessionId) return
     const enabled = !state.enabled
     if (!sendCommand(binding.webview, { type: 'set_enabled', sessionId, enabled })) return
-    store.setState((current) => ({ ...current, enabled }))
+    store.setState((current) => ({ ...current, enabled, editor: enabled ? current.editor : null }))
   }, [sendCommand, state.enabled, store])
+
+  const setEditorDraft = useCallback(
+    (draft: string) =>
+      store.setState((current) =>
+        current.editor ? { ...current, editor: { ...current.editor, draft, error: null } } : current
+      ),
+    [store]
+  )
+
+  const saveEditor = useCallback(() => {
+    const binding = bindingRef.current
+    const sessionId = sessionRef.current
+    const editor = store.getSnapshot().editor
+    const comment = editor?.draft.trim()
+    if (!binding || !sessionId || !editor || !comment) return false
+    return sendCommand(binding.webview, {
+      type: 'save_editor',
+      sessionId,
+      requestId: editor.requestId,
+      comment
+    })
+  }, [sendCommand, store])
+
+  const cancelEditor = useCallback(() => {
+    const binding = bindingRef.current
+    const sessionId = sessionRef.current
+    const editor = store.getSnapshot().editor
+    if (!editor) return
+    store.setState((current) => ({ ...current, editor: null }))
+    if (binding && sessionId) {
+      sendCommand(binding.webview, { type: 'cancel_editor', sessionId, requestId: editor.requestId })
+    }
+  }, [sendCommand, store])
+
+  const deleteEditor = useCallback(() => {
+    const binding = bindingRef.current
+    const sessionId = sessionRef.current
+    const editor = store.getSnapshot().editor
+    if (!binding || !sessionId || !editor?.canDelete) return false
+    return sendCommand(binding.webview, { type: 'delete_editor', sessionId, requestId: editor.requestId })
+  }, [sendCommand, store])
 
   const requestSnapshot = useCallback(
     (operation: CopyOperation) =>
@@ -359,7 +442,7 @@ export function useWebviewAnnotationSession({
     const sessionId = sessionRef.current
     if (!binding || !sessionId || !sendCommand(binding.webview, { type: 'clear', sessionId })) return false
     invalidateOperation('Annotations cleared')
-    store.setState((current) => ({ ...current, count: 0 }))
+    store.setState((current) => ({ ...current, count: 0, editor: null }))
     return true
   }, [invalidateOperation, sendCommand, store])
 
@@ -368,7 +451,12 @@ export function useWebviewAnnotationSession({
     count: state.count,
     ready: Boolean(webview && state.documentSessionId),
     copying: state.copying,
+    editor: state.editor,
     toggle,
+    setEditorDraft,
+    saveEditor,
+    cancelEditor,
+    deleteEditor,
     clear,
     copy
   }

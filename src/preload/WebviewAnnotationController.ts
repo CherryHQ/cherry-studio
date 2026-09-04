@@ -12,7 +12,8 @@ import {
 } from '@shared/types/webviewAnnotation'
 
 const TEST_ATTRIBUTES = ['data-testid', 'data-test', 'data-cy'] as const
-const FORM_ELEMENTS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'OPTION'])
+const SENSITIVE_EDITABLE_SELECTOR =
+  'input, textarea, select, option, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"]'
 const MARQUEE_DRAG_THRESHOLD_PX = 5
 /** An element counts as inside the marquee when this share of its area overlaps the box. */
 const REGION_CONTAINMENT_RATIO = 0.6
@@ -72,85 +73,6 @@ const OVERLAY_CSS = `
     outline-offset: 2px;
   }
 
-  .editor {
-    position: fixed;
-    display: none;
-    width: min(320px, calc(100vw - 24px));
-    padding: 12px;
-    border: 1px solid var(--annotation-border);
-    border-radius: 10px;
-    background: var(--annotation-surface);
-    color: var(--annotation-text);
-    box-shadow: 0 12px 40px color-mix(in srgb, black 28%, transparent);
-    pointer-events: auto;
-  }
-
-  textarea {
-    display: block;
-    width: 100%;
-    min-height: 88px;
-    max-height: 240px;
-    resize: vertical;
-    padding: 9px 10px;
-    border: 1px solid var(--annotation-border);
-    border-radius: 7px;
-    background: var(--annotation-input);
-    color: var(--annotation-text);
-    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
-  textarea:focus {
-    border-color: var(--annotation-accent);
-    outline: 2px solid color-mix(in srgb, var(--annotation-accent) 30%, transparent);
-    outline-offset: 1px;
-  }
-
-  .editor-error {
-    display: none;
-    margin: 8px 2px 0;
-    color: var(--annotation-danger);
-    font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  button.action {
-    min-height: 30px;
-    padding: 5px 10px;
-    border: 1px solid var(--annotation-border);
-    border-radius: 7px;
-    background: var(--annotation-input);
-    color: var(--annotation-text);
-    cursor: pointer;
-    font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
-  button.action.primary {
-    border-color: var(--annotation-accent);
-    background: var(--annotation-accent);
-    color: white;
-  }
-
-  button.action.danger {
-    margin-right: auto;
-    border-color: var(--annotation-danger);
-    color: var(--annotation-danger);
-  }
-
-  button.action:disabled {
-    cursor: default;
-    opacity: 0.45;
-  }
-
-  button.action:focus-visible {
-    outline: 2px solid var(--annotation-focus);
-    outline-offset: 2px;
-  }
 `
 
 const cssEscape = (value: string) => {
@@ -296,8 +218,31 @@ export function resolveWebviewElementSelector(selector: string): Element | null 
   return current
 }
 
+const composedParent = (element: Element): Element | null => {
+  if (element.parentElement) return element.parentElement
+  const root = element.getRootNode()
+  return root instanceof ShadowRoot ? root.host : null
+}
+
+const containsSensitiveEditableContent = (element: Element) => {
+  for (let current: Element | null = element; current; current = composedParent(current)) {
+    if (current.matches(SENSITIVE_EDITABLE_SELECTOR)) return true
+  }
+
+  const pending = [element]
+  let visited = 0
+  while (pending.length > 0) {
+    const current = pending.pop()!
+    if (++visited > REGION_WALK_BUDGET) return true
+    if (current.matches(SENSITIVE_EDITABLE_SELECTOR)) return true
+    if (current.shadowRoot) pending.push(...Array.from(current.shadowRoot.children))
+    pending.push(...Array.from(current.children))
+  }
+  return false
+}
+
 const summarizeText = (element: Element) => {
-  if (FORM_ELEMENTS.has(element.tagName)) return null
+  if (containsSensitiveEditableContent(element)) return null
   const text = element instanceof HTMLElement ? element.innerText : element.textContent
   const normalized = text?.replace(/\s+/g, ' ').trim() ?? ''
   return normalized ? normalized.slice(0, WEBVIEW_ANNOTATION_LIMITS.text) : null
@@ -331,12 +276,6 @@ type EditorRequest =
   | { mode: 'create-region'; element: Element; region: WebviewAnnotationRegion }
   | { mode: 'edit'; element: Element; annotationId: string }
 
-const composedParent = (element: Element): Element | null => {
-  if (element.parentElement) return element.parentElement
-  const root = element.getRootNode()
-  return root instanceof ShadowRoot ? root.host : null
-}
-
 const findCommonAncestor = (elements: readonly Element[]): Element | null => {
   if (elements.length === 0) return null
   const chain = new Set<Element>()
@@ -363,8 +302,7 @@ export class WebviewAnnotationController {
   private configured = false
   private editorAnnotationId: string | null = null
   private editorElement: Element | null = null
-  /** Page-coordinate rect anchoring the editor/highlight while a region is being created or edited. */
-  private editorRegion: WebviewRegionRect | null = null
+  private editorRequestId: string | null = null
   private enabled = false
   private highlightElement: Element | null = null
   private marquee: HTMLDivElement | null = null
@@ -376,15 +314,13 @@ export class WebviewAnnotationController {
   private suppressNextClick = false
   private locale: WebviewAnnotationLocale | null = null
   private mutationObserver: MutationObserver | null = null
+  private resizeObserver: ResizeObserver | null = null
+  private resizeObservedElements = new Set<Element>()
   private sessionId: string | null = null
   private observedRoots = new WeakSet<Document | ShadowRoot>()
   private overlayHost: HTMLDivElement | null = null
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
-  private editor: HTMLDivElement | null = null
-  private editorError: HTMLDivElement | null = null
-  private textarea: HTMLTextAreaElement | null = null
-  private saveButton: HTMLButtonElement | null = null
   private theme: WebviewAnnotationTheme = 'light'
   private updateFrame: number | null = null
 
@@ -393,9 +329,9 @@ export class WebviewAnnotationController {
   handleCommand(command: WebviewAnnotationHostCommand) {
     if (command.type === 'start_session') {
       if (command.sessionId !== this.sessionId) {
+        this.reset(false)
         this.sessionId = command.sessionId
         this.configured = false
-        this.reset(false)
       }
       this.emitState()
       return
@@ -412,7 +348,6 @@ export class WebviewAnnotationController {
         this.locale = command.locale
         this.theme = command.theme
         this.applyTheme()
-        this.updateEditorLabels()
         break
       case 'set_enabled':
         this.setEnabled(command.enabled)
@@ -422,6 +357,15 @@ export class WebviewAnnotationController {
         break
       case 'deactivate':
         this.setEnabled(false)
+        break
+      case 'save_editor':
+        this.saveEditor(command.requestId, command.comment)
+        break
+      case 'cancel_editor':
+        if (command.requestId === this.editorRequestId) this.closeEditor()
+        break
+      case 'delete_editor':
+        this.deleteEditorAnnotation(command.requestId)
         break
       case 'request_snapshot':
         this.onStateChange({
@@ -519,16 +463,13 @@ export class WebviewAnnotationController {
     const marquee = document.createElement('div')
     marquee.className = 'marquee'
     const pinLayer = document.createElement('div')
-    const editor = this.createEditor()
-
-    shadowRoot.append(highlight, marquee, pinLayer, editor)
+    shadowRoot.append(highlight, marquee, pinLayer)
     document.documentElement?.appendChild(host)
 
     this.overlayHost = host
     this.highlight = highlight
     this.marquee = marquee
     this.pinLayer = pinLayer
-    this.editor = editor
     this.applyTheme()
     this.renderPins()
   }
@@ -554,12 +495,8 @@ export class WebviewAnnotationController {
     if (!this.overlayHost) return
     const dark = this.theme === 'dark'
     this.overlayHost.style.setProperty('--annotation-accent', dark ? '#818cf8' : '#4f46e5', 'important')
-    this.overlayHost.style.setProperty('--annotation-border', dark ? '#475569' : '#cbd5e1', 'important')
-    this.overlayHost.style.setProperty('--annotation-danger', dark ? '#fca5a5' : '#dc2626', 'important')
     this.overlayHost.style.setProperty('--annotation-focus', dark ? '#c7d2fe' : '#3730a3', 'important')
-    this.overlayHost.style.setProperty('--annotation-input', dark ? '#1e293b' : '#f8fafc', 'important')
     this.overlayHost.style.setProperty('--annotation-surface', dark ? '#0f172a' : '#ffffff', 'important')
-    this.overlayHost.style.setProperty('--annotation-text', dark ? '#f8fafc' : '#0f172a', 'important')
   }
 
   private removeOverlay() {
@@ -572,80 +509,6 @@ export class WebviewAnnotationController {
     this.highlight = null
     this.marquee = null
     this.pinLayer = null
-    this.editor = null
-    this.editorError = null
-    this.textarea = null
-    this.saveButton = null
-  }
-
-  private createEditor() {
-    const editor = document.createElement('div')
-    editor.className = 'editor'
-
-    const textarea = document.createElement('textarea')
-    textarea.maxLength = WEBVIEW_ANNOTATION_LIMITS.comment
-    textarea.addEventListener('input', () => {
-      if (this.saveButton) this.saveButton.disabled = textarea.value.trim().length === 0
-    })
-    textarea.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        this.closeEditor()
-      } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault()
-        event.stopPropagation()
-        this.saveEditor()
-      }
-    })
-
-    const actions = document.createElement('div')
-    actions.className = 'actions'
-
-    const editorError = document.createElement('div')
-    editorError.className = 'editor-error'
-    editorError.setAttribute('role', 'alert')
-
-    const deleteButton = document.createElement('button')
-    deleteButton.type = 'button'
-    deleteButton.className = 'action danger'
-    deleteButton.dataset.action = 'delete'
-    deleteButton.addEventListener('click', () => this.deleteEditorAnnotation())
-
-    const cancelButton = document.createElement('button')
-    cancelButton.type = 'button'
-    cancelButton.className = 'action'
-    cancelButton.dataset.action = 'cancel'
-    cancelButton.addEventListener('click', () => this.closeEditor())
-
-    const saveButton = document.createElement('button')
-    saveButton.type = 'button'
-    saveButton.className = 'action primary'
-    saveButton.dataset.action = 'save'
-    saveButton.addEventListener('click', () => this.saveEditor())
-
-    actions.append(deleteButton, cancelButton, saveButton)
-    editor.append(textarea, editorError, actions)
-    this.editorError = editorError
-    this.textarea = textarea
-    this.saveButton = saveButton
-    this.updateEditorLabels(editor)
-    return editor
-  }
-
-  private updateEditorLabels(editor = this.editor) {
-    if (!editor || !this.locale) return
-    if (this.textarea) {
-      this.textarea.placeholder = this.locale.placeholder
-      this.textarea.setAttribute('aria-label', this.locale.placeholder)
-    }
-    if (this.editorError) this.editorError.textContent = this.locale.elementUnavailable
-    const deleteButton = editor.querySelector<HTMLButtonElement>('[data-action="delete"]')
-    const cancelButton = editor.querySelector<HTMLButtonElement>('[data-action="cancel"]')
-    const saveButton = editor.querySelector<HTMLButtonElement>('[data-action="save"]')
-    if (deleteButton) deleteButton.textContent = this.locale.delete
-    if (cancelButton) cancelButton.textContent = this.locale.cancel
-    if (saveButton) saveButton.textContent = this.locale.save
   }
 
   private addSelectionListeners() {
@@ -679,11 +542,7 @@ export class WebviewAnnotationController {
   private isEditablePath(event: Event) {
     return event
       .composedPath()
-      .some(
-        (target) =>
-          target instanceof Element &&
-          target.matches('input, textarea, select, [contenteditable]:not([contenteditable="false"])')
-      )
+      .some((target) => target instanceof Element && target.matches(SENSITIVE_EDITABLE_SELECTOR))
   }
 
   private pageEventElement(event: Event): Element | null {
@@ -719,7 +578,7 @@ export class WebviewAnnotationController {
   }
 
   private blockSelectionEvent = (event: Event) => {
-    if (!this.enabled || !this.pageEventElement(event)) return
+    if (!this.enabled || !event.isTrusted || !this.pageEventElement(event)) return
     event.preventDefault()
     event.stopImmediatePropagation()
   }
@@ -764,7 +623,7 @@ export class WebviewAnnotationController {
   }
 
   private handleClick = (event: MouseEvent) => {
-    if (!this.enabled) return
+    if (!this.enabled || !event.isTrusted) return
     const element = this.pageEventElement(event)
     if (!element) return
     if (this.suppressNextClick) {
@@ -779,7 +638,7 @@ export class WebviewAnnotationController {
   }
 
   private handleDocumentKeyDown = (event: KeyboardEvent) => {
-    if (!this.enabled || event.key !== 'Escape' || this.isOverlayEvent(event)) return
+    if (!this.enabled || !event.isTrusted || event.key !== 'Escape' || this.isOverlayEvent(event)) return
     event.preventDefault()
     event.stopImmediatePropagation()
     if (this.marqueeOrigin || this.marqueeRect) {
@@ -883,38 +742,42 @@ export class WebviewAnnotationController {
     const annotationId = request.mode === 'edit' ? request.annotationId : null
     if (!this.locale || (!annotationId && this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations)) return
     this.ensureOverlay()
-    if (!this.editor || !this.textarea || !this.saveButton) return
 
     const annotation = annotationId ? this.annotations.find((item) => item.id === annotationId) : undefined
+    this.closeEditor()
     this.editorElement = request.element
     this.editorAnnotationId = annotationId
+    this.editorRequestId = crypto.randomUUID()
     this.pendingRegion = request.mode === 'create-region' ? request.region : null
-    this.editorRegion = request.mode === 'create-region' ? request.region.rect : (annotation?.region?.rect ?? null)
-    if (this.editorError) this.editorError.style.display = 'none'
-    this.textarea.value = annotation?.comment ?? ''
-    this.textarea.placeholder = this.locale.placeholder
-    this.saveButton.disabled = this.textarea.value.trim().length === 0
-    const deleteButton = this.editor.querySelector<HTMLButtonElement>('[data-action="delete"]')
-    if (deleteButton) deleteButton.style.display = annotationId ? '' : 'none'
-    this.editor.style.display = 'block'
     this.highlightElement = request.element
     this.schedulePositionUpdate()
-    this.textarea.focus()
+    if (this.sessionId) {
+      this.onStateChange({
+        type: 'editor_requested',
+        sessionId: this.sessionId,
+        requestId: this.editorRequestId,
+        comment: annotation?.comment ?? '',
+        canDelete: Boolean(annotationId)
+      })
+    }
   }
 
   private closeEditor() {
+    const requestId = this.editorRequestId
     this.editorAnnotationId = null
     this.editorElement = null
-    this.editorRegion = null
+    this.editorRequestId = null
     this.pendingRegion = null
-    if (this.editorError) this.editorError.style.display = 'none'
-    if (this.editor) this.editor.style.display = 'none'
+    this.highlightElement = null
     this.schedulePositionUpdate()
+    if (requestId && this.sessionId) {
+      this.onStateChange({ type: 'editor_closed', sessionId: this.sessionId, requestId })
+    }
   }
 
-  private saveEditor() {
-    if (!this.editorElement || !this.textarea) return
-    const comment = this.textarea.value.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
+  private saveEditor(requestId: string, draft: string) {
+    if (requestId !== this.editorRequestId || !this.editorElement) return
+    const comment = draft.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
     if (!comment) return
 
     if (this.editorAnnotationId) {
@@ -931,7 +794,14 @@ export class WebviewAnnotationController {
     } else {
       const locator = createWebviewElementLocator(this.editorElement)
       if (!locator) {
-        if (this.editorError) this.editorError.style.display = 'block'
+        if (this.sessionId) {
+          this.onStateChange({
+            type: 'editor_error',
+            sessionId: this.sessionId,
+            requestId,
+            reason: 'element_unavailable'
+          })
+        }
         return
       }
       const annotation: WebviewAnnotation = {
@@ -950,8 +820,8 @@ export class WebviewAnnotationController {
     this.emitState()
   }
 
-  private deleteEditorAnnotation() {
-    if (!this.editorAnnotationId) return
+  private deleteEditorAnnotation(requestId: string) {
+    if (requestId !== this.editorRequestId || !this.editorAnnotationId) return
     const annotationId = this.editorAnnotationId
     this.annotations = this.annotations.filter((annotation) => annotation.id !== annotationId)
     this.annotationElements.delete(annotationId)
@@ -992,7 +862,11 @@ export class WebviewAnnotationController {
         this.schedulePositionUpdate()
       })
     }
+    if (!this.resizeObserver && typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(this.schedulePositionUpdate)
+    }
     this.observeRoot(document)
+    this.syncResizeObservedElements()
     window.addEventListener('scroll', this.schedulePositionUpdate, true)
     window.addEventListener('resize', this.schedulePositionUpdate)
     window.visualViewport?.addEventListener('scroll', this.schedulePositionUpdate)
@@ -1004,6 +878,9 @@ export class WebviewAnnotationController {
     this.mutationObserver?.disconnect()
     this.mutationObserver = null
     this.observedRoots = new WeakSet<Document | ShadowRoot>()
+    this.resizeObserver?.disconnect()
+    this.resizeObserver = null
+    this.resizeObservedElements.clear()
     window.removeEventListener('scroll', this.schedulePositionUpdate, true)
     window.removeEventListener('resize', this.schedulePositionUpdate)
     window.visualViewport?.removeEventListener('scroll', this.schedulePositionUpdate)
@@ -1017,8 +894,28 @@ export class WebviewAnnotationController {
   }
 
   private observeElementRoot(element: Element) {
-    const root = element.getRootNode()
-    if (root instanceof Document || root instanceof ShadowRoot) this.observeRoot(root)
+    for (let current: Element | null = element; current; current = composedParent(current)) {
+      const root = current.getRootNode()
+      if (root instanceof Document || root instanceof ShadowRoot) this.observeRoot(root)
+    }
+  }
+
+  private syncResizeObservedElements() {
+    if (!this.resizeObserver) return
+    const next = new Set<Element>()
+    const collect = (element: Element | null) => {
+      for (let current = element; current?.isConnected; current = composedParent(current)) next.add(current)
+    }
+    for (const element of this.annotationElements.values()) collect(element)
+    collect(this.editorElement)
+
+    for (const element of this.resizeObservedElements) {
+      if (!next.has(element)) this.resizeObserver.unobserve(element)
+    }
+    for (const element of next) {
+      if (!this.resizeObservedElements.has(element)) this.resizeObserver.observe(element)
+    }
+    this.resizeObservedElements = next
   }
 
   private schedulePositionUpdate = () => {
@@ -1071,16 +968,10 @@ export class WebviewAnnotationController {
       pin.style.left = `${Math.max(4, rect.left)}px`
       pin.style.top = `${Math.max(4, rect.top)}px`
     })
+    this.syncResizeObservedElements()
 
-    const anchorRect = this.getEditorAnchorRect()
     const highlightedElement = this.highlightElement
-    if (this.highlight && anchorRect) {
-      this.highlight.style.display = anchorRect.width > 0 && anchorRect.height > 0 ? 'block' : 'none'
-      this.highlight.style.left = `${anchorRect.left}px`
-      this.highlight.style.top = `${anchorRect.top}px`
-      this.highlight.style.width = `${anchorRect.width}px`
-      this.highlight.style.height = `${anchorRect.height}px`
-    } else if (this.highlight && highlightedElement?.isConnected) {
+    if (this.highlight && highlightedElement?.isConnected) {
       const rect = highlightedElement.getBoundingClientRect()
       this.highlight.style.display = rect.width > 0 && rect.height > 0 ? 'block' : 'none'
       this.highlight.style.left = `${rect.left}px`
@@ -1090,38 +981,5 @@ export class WebviewAnnotationController {
     } else if (this.highlight) {
       this.highlight.style.display = 'none'
     }
-
-    if (this.editor && anchorRect) {
-      const editorRect = this.editor.getBoundingClientRect()
-      const margin = 8
-      const left = Math.min(
-        Math.max(margin, anchorRect.left),
-        Math.max(margin, window.innerWidth - editorRect.width - margin)
-      )
-      const belowTop = anchorRect.top + anchorRect.height + margin
-      const top =
-        belowTop + editorRect.height <= window.innerHeight - margin
-          ? belowTop
-          : Math.max(margin, anchorRect.top - editorRect.height - margin)
-      this.editor.style.left = `${left}px`
-      this.editor.style.top = `${top}px`
-    }
-  }
-
-  /** Viewport rect the editor and highlight anchor to: the region box when set, else the editor element. */
-  private getEditorAnchorRect(): ViewportRect | null {
-    if (this.editorRegion) {
-      return {
-        left: this.editorRegion.x - window.scrollX,
-        top: this.editorRegion.y - window.scrollY,
-        width: this.editorRegion.width,
-        height: this.editorRegion.height
-      }
-    }
-    if (this.editorElement?.isConnected) {
-      const rect = this.editorElement.getBoundingClientRect()
-      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-    }
-    return null
   }
 }

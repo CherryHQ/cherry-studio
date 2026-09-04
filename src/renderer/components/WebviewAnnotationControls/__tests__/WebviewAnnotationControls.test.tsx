@@ -31,6 +31,17 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
+  PopoverAnchor: ({ children }: { children: ReactNode }) => <>{children}</>,
+  PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Textarea: {
+    Input: ({
+      onValueChange,
+      ...props
+    }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+      onValueChange?: (value: string) => void
+    }) => <textarea {...props} onChange={(event) => onValueChange?.(event.target.value)} />
+  },
   ConfirmDialog: ({ open, title, confirmText, onConfirm }: any) =>
     open ? (
       <div role="dialog" aria-label={title}>
@@ -135,6 +146,39 @@ describe('WebviewAnnotationControls', () => {
     expect(screen.getByRole('button', { name: '退出标注' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('collects annotation text in the trusted host UI and saves it to the guest', async () => {
+    const user = userEvent.setup()
+    const webview = createWebview()
+    renderControls(webview)
+    act(() => stateChanged(webview, true, 0))
+
+    act(() =>
+      webview.emitNative('ipc-message', {
+        channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
+        args: [
+          {
+            type: 'editor_requested',
+            sessionId,
+            requestId: '00000000-0000-4000-8000-000000000020',
+            comment: '',
+            canDelete: false
+          }
+        ]
+      })
+    )
+
+    const editor = screen.getByRole('textbox')
+    await user.type(editor, 'Host-owned draft')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    expect(sentCommands(webview)).toContainEqual({
+      type: 'save_editor',
+      sessionId,
+      requestId: '00000000-0000-4000-8000-000000000020',
+      comment: 'Host-owned draft'
+    })
+  })
+
   it('disables copy while pending, writes the result, and reports success', async () => {
     const user = userEvent.setup()
     const webview = createWebview()
@@ -181,6 +225,48 @@ describe('WebviewAnnotationControls', () => {
     expect(dialog).not.toBeInTheDocument()
     expect(screen.queryByLabelText('2 条标注')).not.toBeInTheDocument()
     expect(sentCommands(webview)).toContainEqual({ type: 'clear', sessionId })
+  })
+
+  it('closes a clear confirmation when the target identity changes', async () => {
+    const user = userEvent.setup()
+    const webview = createWebview()
+    const webviewRef: RefObject<WebviewTag | null> = { current: webview }
+    const view = render(
+      <WebviewAnnotationControls
+        webviewRef={webviewRef}
+        webviewRevision={0}
+        isWebviewReady
+        isHostActive
+        target={target}
+      />
+    )
+    act(() => stateChanged(webview, false, 2))
+    await user.click(screen.getByRole('button', { name: '清空标注' }))
+    expect(screen.getByRole('dialog', { name: '清空全部标注？' })).toBeInTheDocument()
+
+    view.rerender(
+      <WebviewAnnotationControls
+        webviewRef={webviewRef}
+        webviewRevision={0}
+        isWebviewReady
+        isHostActive
+        target={{ id: 'mini-app:other', label: 'Other' }}
+      />
+    )
+
+    expect(screen.queryByRole('dialog', { name: '清空全部标注？' })).not.toBeInTheDocument()
+
+    view.rerender(
+      <WebviewAnnotationControls
+        webviewRef={webviewRef}
+        webviewRevision={0}
+        isWebviewReady
+        isHostActive
+        target={target}
+      />
+    )
+
+    expect(screen.queryByRole('dialog', { name: '清空全部标注？' })).not.toBeInTheDocument()
   })
 
   it('retains the count but disables every action while the host is inactive', () => {
