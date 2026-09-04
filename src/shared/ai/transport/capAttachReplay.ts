@@ -6,11 +6,7 @@ export const MAX_ATTACH_REPLAY_CHUNKS = 1000
 // buildCompactReplay (ring buffer + delta merge/synthesis); this helper only
 // bounds synchronous replay work during attach before the live stream handoff.
 
-function scopedPartKey(
-  payload: StreamChunkPayload,
-  kind: 'text' | 'reasoning' | 'tool-input',
-  id: string
-): string {
+function scopedPartKey(payload: StreamChunkPayload, kind: 'text' | 'reasoning' | 'tool-input', id: string): string {
   return JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, `${kind}:${id}`])
 }
 
@@ -18,10 +14,7 @@ function toolCallIdOf(chunk: { id?: string; toolCallId?: string }): string | und
   return (chunk as { toolCallId?: string }).toolCallId ?? (chunk as { id?: string }).id
 }
 
-function buildTail(
-  chunks: readonly StreamChunkPayload[],
-  max: number
-): StreamChunkPayload[] {
+function buildTail(chunks: readonly StreamChunkPayload[], max: number): StreamChunkPayload[] {
   if (chunks.length <= max) return [...chunks]
   const scopes = new Map<string, number>()
   for (const p of chunks) {
@@ -56,7 +49,7 @@ function buildTail(
     const take = Math.min(idxs.length, perScope)
     for (const i of idxs.slice(-take)) keep.add(i)
   }
-  const merged = [...keep].sort((a, b) => a - b).map((i) => chunks[i]!)
+  const merged = [...keep].sort((a, b) => a - b).map((i) => chunks[i])
   return merged.length > max ? merged.slice(-max) : merged
 }
 
