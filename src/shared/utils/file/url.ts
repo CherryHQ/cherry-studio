@@ -240,6 +240,23 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
 }
 
 /**
+ * Tolerant {@link fileUrlToPath} for display / best-effort call sites: returns
+ * `undefined` instead of throwing when the input is not a parseable `file:` URL.
+ *
+ * @param fileUrl `file://` URL, as a string or a parsed `URL`.
+ * @returns The decoded filesystem path, or `undefined` when the input is not a
+ *   `file:` URL or carries malformed percent-encoding (`file:///tmp/100%.png`,
+ *   which `new URL()` accepts but `decodeURIComponent` rejects).
+ */
+export function tryFileUrlToPath(fileUrl: string | URL): string | undefined {
+  try {
+    return fileUrlToPath(typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl)
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * `file://` URL with danger-file safety wrap.
  *
  * For `<img src>` / `<video src>` / `<embed>` synchronous rendering — if

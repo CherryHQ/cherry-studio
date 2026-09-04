@@ -5,7 +5,7 @@ import { projectRuntimeReasoning, providerRegistryService } from '@data/services
 import { loggerService } from '@logger'
 import { resolveRequestedMaxOutputTokens } from '@main/ai/contextBuild/resolveOutputReservation'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
-import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { getProviderById, getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
   FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
@@ -15,7 +15,6 @@ import {
 } from '@shared/ai/builtinTools'
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
-import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
 import {
   type Assistant,
   DEFAULT_ASSISTANT_SETTINGS,
@@ -26,6 +25,7 @@ import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
+import { getWebSearchFallbackProviderIds, resolveReadyWebSearchProvider } from '@shared/utils/webSearch'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
@@ -68,7 +68,7 @@ import {
   resolveServiceTierWireValue
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { normalizeRequestedSelection, resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
 import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
@@ -228,10 +228,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType
   )
   const requestedReasoningSelection = request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default'
-  const reasoningSelection =
-    requestedReasoningSelection === 'auto' && !invocationModel.reasoning?.selectableEfforts.includes('auto')
-      ? 'default'
-      : requestedReasoningSelection
+  const reasoningSelection = normalizeRequestedSelection(requestedReasoningSelection, invocationModel)
   const reasoning = resolveReasoningInvocation({
     selection: reasoningSelection,
     model: invocationModel,
@@ -524,13 +521,13 @@ async function resolveRequestWebToolRoutes(
         resolveClientWebCapabilityAvailability('fetchUrls')
       ])
     : [false, false]
-  const clientToolsPreferred = preferenceService.get('chat.web_search.client_tools_preferred')
+  const modelToolsPreferred = preferenceService.get('chat.web_search.model_tools_preferred')
 
   return resolveWebToolRoutes(model, provider, {
     webSearchEnabled: clientWebToolsEnabled,
     clientSearchAvailable,
     clientFetchAvailable,
-    clientToolsPreferred,
+    modelToolsPreferred,
     endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort
@@ -539,7 +536,13 @@ async function resolveRequestWebToolRoutes(
   async function resolveClientWebCapabilityAvailability(capability: WebSearchCapability): Promise<boolean> {
     try {
       const clientProvider = await getProviderForCapability(undefined, capability, preferenceService)
-      return isWebSearchProviderReady(clientProvider, capability)
+      const fallbackProviders = await Promise.all(
+        getWebSearchFallbackProviderIds(clientProvider.id, capability).map((providerId) =>
+          getProviderById(providerId, preferenceService)
+        )
+      )
+
+      return Boolean(resolveReadyWebSearchProvider([clientProvider, ...fallbackProviders], clientProvider, capability))
     } catch (error) {
       if (!isPermanentWebSearchConfigError(error)) {
         logger.warn(`Failed to resolve the client ${capability} provider; falling back to the server tool`, { error })
@@ -611,8 +614,8 @@ function buildAgentOptions(
   )
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
-    const temperature = getTemperature(assistant, model, reasoning)
-    const topP = getTopP(assistant, model, reasoning)
+    const temperature = getTemperature(assistant.settings, model, reasoning)
+    const topP = getTopP(assistant.settings, model, reasoning)
     standardParams = {
       ...(temperature !== undefined && { temperature }),
       ...(topP !== undefined && { topP }),

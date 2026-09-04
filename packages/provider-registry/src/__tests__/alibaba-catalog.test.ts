@@ -51,7 +51,9 @@ describe('Alibaba Qwen catalog', () => {
         },
         'openai-responses': {
           support: {
-            controls: [{ default: 'xhigh', kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'] }]
+            controls: [
+              { default: 'xhigh', kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] }
+            ]
           }
         }
       }
