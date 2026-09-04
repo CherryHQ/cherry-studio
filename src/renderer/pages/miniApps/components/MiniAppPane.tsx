@@ -3,8 +3,8 @@ import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
-import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import type { FC, RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 
@@ -46,7 +46,6 @@ const MiniAppPane: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const displayName = app.nameKey ? t(app.nameKey) : app.name
-  const webviewRef = useRef<WebviewTag | null>(null)
   const [webview, setWebview] = useState<WebviewTag | null>(null)
   // Read through a ref so attaching the webview listener does not depend on a
   // callback identity that changes every render.
@@ -57,62 +56,43 @@ const MiniAppPane: FC<Props> = ({
   const [isReady, setIsReady] = useState<boolean>(() => getWebviewLoaded(app.appId))
   const [currentUrl, setCurrentUrl] = useState<string | null>(app.url)
 
-  const webviewCleanupRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (!isReady) {
+      setWebview(null)
+      return
+    }
 
-  const detachWebview = useCallback(() => {
-    webviewCleanupRef.current?.()
-    webviewCleanupRef.current = null
-    webviewRef.current = null
-    setWebview(null)
-  }, [])
-
-  const attachWebview = useCallback(() => {
     const selector = `webview[data-mini-app-id="${CSS.escape(app.appId)}"]`
-    const el = document.querySelector<WebviewTag>(selector)
-    if (!el) return false
+    const reconcileWebview = () => setWebview(document.querySelector<WebviewTag>(selector))
+    reconcileWebview()
 
-    if (webviewRef.current === el) return true // Already attached
+    // The pool can replace a concrete element without changing its loaded flag.
+    // Keep reconciling identity for as long as this pane is ready.
+    const observer = new MutationObserver(reconcileWebview)
+    observer.observe(document.body, { childList: true, subtree: true })
 
-    detachWebview()
-    webviewRef.current = el
-    setWebview(el)
+    return () => {
+      observer.disconnect()
+      setWebview(null)
+    }
+  }, [app.appId, isReady])
+
+  useEffect(() => {
+    if (!webview) return
+
     const handleInPageNav = (event: DidNavigateInPageEvent) => {
       if (event.isMainFrame) setCurrentUrl(event.url)
     }
     // Clicking into the page focuses the webview element itself; that is the
     // only signal the host gets, since events inside the guest never bubble out.
     const handleFocus = () => onActivateRef.current?.()
-    el.addEventListener('did-navigate-in-page', handleInPageNav)
-    el.addEventListener('focus', handleFocus)
-    webviewCleanupRef.current = () => {
-      el.removeEventListener('did-navigate-in-page', handleInPageNav)
-      el.removeEventListener('focus', handleFocus)
-    }
-    return true
-  }, [app.appId, detachWebview])
-
-  useEffect(() => {
-    if (!isReady) {
-      detachWebview()
-      return
-    }
-
-    // Try immediate attachment first
-    if (attachWebview()) return detachWebview
-
-    // If not yet created, observe DOM changes (lightweight + auto-disconnect)
-    const observer = new MutationObserver(() => {
-      if (attachWebview()) {
-        observer.disconnect()
-      }
-    })
-    observer.observe(document.body, { childList: true, subtree: true })
-
+    webview.addEventListener('did-navigate-in-page', handleInPageNav)
+    webview.addEventListener('focus', handleFocus)
     return () => {
-      observer.disconnect()
-      detachWebview()
+      webview.removeEventListener('did-navigate-in-page', handleInPageNav)
+      webview.removeEventListener('focus', handleFocus)
     }
-  }, [attachWebview, detachWebview, isReady])
+  }, [webview])
 
   // Keep local readiness synchronized across load, LRU eviction, and recreation.
   useEffect(() => {
@@ -123,19 +103,19 @@ const MiniAppPane: FC<Props> = ({
 
   const handleReload = useCallback(() => {
     if (!isReady || !getWebviewLoaded(app.appId)) return
-    const webview = webviewRef.current
     if (!webview?.isConnected) return
 
     setWebviewLoaded(app.appId, false)
     setIsReady(false)
     webview.reload()
-  }, [app.appId, isReady])
+  }, [app.appId, isReady, webview])
 
   const handleOpenDevTools = useCallback(() => {
-    webviewRef.current?.openDevTools()
-  }, [])
+    webview?.openDevTools()
+  }, [webview])
 
   const isWebviewReady = isReady && webview !== null
+  const webviewRef = useMemo<RefObject<WebviewTag | null>>(() => ({ current: webview }), [webview])
 
   return (
     <div
