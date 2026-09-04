@@ -478,7 +478,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 在 QuickJS 里这些约束是天然的：引擎里没有 `Request`、没有 `Response` 类，宿主注入什么扩展就只有什么。子集写进 SDK 类型是为了让 `cherry-ext build` 的类型检查在开发期就报错，而不是装上后才发现。
 - 纪律：只加载 `feature.extension.packages` 下用户显式安装的目录；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
-- 加载：`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联并且**只能内联不依赖 Node 内建的包**（构建期检查，`node:*` / `require` 出现即失败）；宿主把文件内容喂给引擎，不解析任何 `node_modules`。扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
+- 加载：`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联并且**只能内联不依赖 Node 内建的包**（构建期检查，`node:*` / `require` 出现即失败——**这是给作者的早期报错，不是安全边界**：宿主收到的只是字节，无法证明它经过了我们的构建；而 JS 静态扫描也证明不了拿不到能力，`ctx.fetch.constructor.constructor("return process")()` 一步就从宿主传入的任何函数拿到宿主 realm 的 `Function`，vm2 就是死在这条路上）；宿主把文件内容喂给引擎，不解析任何 `node_modules`。**边界只在运行时：扩展所在的 realm 里 Node 必须不存在，而不是被藏起来。**扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
 
 ### 5.1 设计对象是能力面，不是运行时
 
