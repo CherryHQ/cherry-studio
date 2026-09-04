@@ -11,10 +11,13 @@ import type {
   ReasoningWireProfile,
   ReasoningWireTarget
 } from '@cherrystudio/provider-registry'
+import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@main/ai/constants'
 import { nearestThinkingOption, resolveBudgetTokens } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+
+const logger = loggerService.withContext('reasoningSerializers')
 
 export type CanonicalReasoningSelection = ReasoningEffortOption
 
@@ -47,7 +50,40 @@ const OMIT: ResolvedReasoningInvocation = {
   emissions: []
 }
 
-function resolveSelection(
+// Only a selection the user made is worth a line: it is otherwise invisible, and not inert — the
+// resulting kind is what the sampling gates read. 'default' asked for nothing and is ordinary traffic.
+function omit(reason: string, model: Model, selection: CanonicalReasoningSelection): ResolvedReasoningInvocation {
+  if (selection !== 'default') logger.info(`Reasoning '${selection}' not sent for ${model.id}: ${reason}`)
+  return { ...OMIT, selection }
+}
+
+/**
+ * Degrade a requested `auto` the model's vocabulary does not offer.
+ *
+ * `auto` is synthesized per model — a budget model never declares it, a toggle
+ * model declares nothing else — so a selection stored against one model can
+ * arrive at another that cannot express it. There it means `default`: let the
+ * provider decide, rather than push `auto` onto an effort wire with no such
+ * tier. Runs before {@link resolveSelection}, which deliberately passes `auto`
+ * through for cross-dialect requests carrying it canonically.
+ */
+export function normalizeRequestedSelection(
+  selection: CanonicalReasoningSelection,
+  model: Model
+): CanonicalReasoningSelection {
+  if (selection !== 'auto') return selection
+  return (model.reasoning?.selectableEfforts ?? []).includes(selection) ? selection : 'default'
+}
+
+/**
+ * Project a selection onto what this model declares: the value itself, the
+ * nearest effort it does declare, or `undefined` when it declares none.
+ *
+ * Exported for a caller that must know whether reasoning will be active before
+ * the pipeline resolves the invocation. That is only the model half of the
+ * answer — the wire profile can still omit a mode this returns.
+ */
+export function resolveSelection(
   selection: ResolveReasoningInvocationInput['selection'],
   model: Model
 ): CanonicalReasoningSelection | undefined {
@@ -119,13 +155,16 @@ function resolveModeBudget(
 }
 
 export function resolveReasoningInvocation(input: ResolveReasoningInvocationInput): ResolvedReasoningInvocation {
-  if (!input.model.reasoning || input.profile.disabled) return OMIT
+  const requested = input.selection ?? 'default'
+  if (!input.model.reasoning || input.profile.disabled) {
+    return omit('the model declares no reasoning, or its profile is disabled', input.model, requested)
+  }
 
   const selection = resolveSelection(input.selection, input.model)
-  if (!selection) return OMIT
+  if (!selection) return omit('the model does not declare this effort', input.model, requested)
 
   const mode = resolveMode(selection, input.profile)
-  if (!mode) return { ...OMIT, selection }
+  if (!mode) return omit('the profile has no wire mode for this effort', input.model, selection)
 
   const effort = resolveModeEffort(selection, mode)
   const budgetTokens =
@@ -134,10 +173,12 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
   // `null` means the request's output cap cannot satisfy the wire contract
   // (for example Anthropic requires budget_tokens < max_tokens). Omit the
   // whole mode instead of emitting an invalid or partially enabled request.
-  if (budgetTokens === null) return { ...OMIT, selection }
+  if (budgetTokens === null) {
+    return omit("the request's output cap cannot satisfy the wire's budget contract", input.model, selection)
+  }
 
   if ('budget' in mode && mode.budget.missing.type === 'omit-mode' && budgetTokens === undefined) {
-    return { ...OMIT, selection }
+    return omit('the wire requires a thinking budget and none could be derived', input.model, selection)
   }
 
   const emissions: ResolvedReasoningEmission[] = []
@@ -160,7 +201,7 @@ export function resolveReasoningInvocation(input: ResolveReasoningInvocationInpu
     if (value !== undefined) emissions.push({ target: operation.target, value })
   }
 
-  if (emissions.length === 0) return { ...OMIT, selection }
+  if (emissions.length === 0) return omit('the mode produced no wire values', input.model, selection)
 
   const kind: ResolvedReasoningKind =
     budgetTokens !== undefined ? 'budget' : selection === 'none' ? 'off' : selection === 'auto' ? 'auto' : 'effort'
