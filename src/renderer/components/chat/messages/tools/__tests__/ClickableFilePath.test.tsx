@@ -16,13 +16,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof Cher
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
 const mockNotifyError = vi.fn()
-const mockGetMetadata = vi.fn()
-
-vi.stubGlobal('api', {
-  file: {
-    getMetadata: mockGetMetadata
-  }
-})
 const { externalOpenTargets, mockOpenTarget, mockUseExternalOpenTargets } = vi.hoisted(() => {
   const targets = [
     { id: 'system_default', name: 'TextEdit', kind: 'system_default' },
@@ -98,14 +91,6 @@ describe('ClickableFilePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setInlineFilePathHomePath(undefined)
-    mockGetMetadata.mockResolvedValue({
-      kind: 'file',
-      type: 'other',
-      size: 1,
-      createdAt: 1,
-      modifiedAt: 1,
-      mime: 'text/plain'
-    })
   })
 
   it('should render displayName when provided', () => {
@@ -127,7 +112,6 @@ describe('ClickableFilePath', () => {
     await waitFor(() => {
       expect(mockOpenArtifactFile).toHaveBeenCalledWith('src/renderer/index.tsx')
     })
-    expect(mockGetMetadata).not.toHaveBeenCalled()
   })
 
   it('should keep home-relative paths readable and open the resolved file path', async () => {
@@ -155,17 +139,19 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should delegate directory-looking paths to the artifact pane', async () => {
+  it('opens directories in the system file manager', async () => {
+    const isDirectory = vi.fn().mockResolvedValue(true)
     renderWithProvider(<ClickableFilePath path="/Users/foo/essays/" />, {
       openArtifactFile: mockOpenArtifactFile,
-      openPath: mockOpenPath
+      openPath: mockOpenPath,
+      isDirectory
     })
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/essays/' }))
     await waitFor(() => {
-      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/essays/')
+      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/essays/')
     })
-    expect(mockGetMetadata).not.toHaveBeenCalled()
-    expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(isDirectory).toHaveBeenCalledWith('/Users/foo/essays/')
+    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
   })
 
   it('should open via openPath when only openPath is available (no preview pane)', async () => {
