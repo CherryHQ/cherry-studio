@@ -1,40 +1,51 @@
 import { application } from '@application'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { EndpointDiagnosis, NetworkLayerResult, ProxyInUse } from '@shared/types/network'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { net, session } from 'electron'
 
-import { builtinEndpoints, type NetworkEndpoint } from './endpoints'
+import { builtinEndpoints } from './endpoints'
 import { httpReach, resolveHost, tlsHandshake } from './probes'
+import type { EndpointDiagnosis, NetworkEndpoint, NetworkLayerResult, ProxyInUse } from './types'
 
 const ONLINE_POLL_MS = 30_000
-const SKIPPED: NetworkLayerResult<never> = { status: 'skipped', durationMs: 0 }
+const skipped = (skippedBecause: 'proxy_in_use' | 'dns_failed' | 'not_https'): NetworkLayerResult<never> => ({
+  status: 'skipped',
+  durationMs: 0,
+  skippedBecause
+})
 
 function proxyHost(effective: string): string | null {
-  // Chromium PAC-style: `PROXY host:port; DIRECT` — take the first proxy entry.
+  // Chromium PAC-style: `PROXY host:port; DIRECT` — take the first proxy entry; IPv6 hosts are bracketed.
   const first = effective.split(';')[0]?.trim()
-  const match = /^(?:PROXY|HTTPS|SOCKS5?|SOCKS4)\s+([^:\s]+)/i.exec(first ?? '')
-  return match?.[1] ?? null
+  const match = /^(?:PROXY|HTTPS|SOCKS5?|SOCKS4)\s+(\[[^\]]+\]|[^:\s]+)/i.exec(first ?? '')
+  return match?.[1].replace(/^\[|\]$/g, '') ?? null
 }
 
 /**
  * Network state and probes for the whole app: online/offline (published on the shared
  * cache key `network.online`), the proxy actually in use, and layered reachability of
- * an endpoint. Consumers: System Doctor, the assistant's diagnose tool, proxy settings.
+ * an endpoint. System Doctor is the first consumer.
  */
 @Injectable('NetworkService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['ProxyService'])
 export class NetworkService extends BaseService {
   private online = true
 
   protected onReady(): void {
     // Electron exposes no main-process online/offline event, so poll and publish transitions.
-    this.refreshOnline()
-    this.registerInterval(() => this.refreshOnline(), ONLINE_POLL_MS)
+    this.isOnline()
+    this.registerInterval(() => {
+      this.isOnline()
+    }, ONLINE_POLL_MS)
   }
 
+  /** Reads through so a check never answers from a stale poll; publishes the transition if any. */
   isOnline(): boolean {
-    return this.online
+    const next = net.isOnline()
+    if (next !== this.online || application.get('CacheService').getShared('network.online') !== next) {
+      this.online = next
+      application.get('CacheService').setShared('network.online', next)
+    }
+    return next
   }
 
   builtinEndpoints(): readonly NetworkEndpoint[] {
@@ -42,14 +53,12 @@ export class NetworkService extends BaseService {
   }
 
   async effectiveProxy(url: string): Promise<ProxyInUse> {
-    const [effective, snapshot] = await Promise.all([
-      session.defaultSession.resolveProxy(url),
-      application.get('ProxyService').getAppliedSnapshot()
-    ])
+    const snapshot = await application.get('ProxyService').getAppliedSnapshot()
+    const effective = await session.defaultSession.resolveProxy(url)
     let mismatch: ProxyInUse['mismatch']
-    if (snapshot.mode === 'custom' && !snapshot.configuredUrl) mismatch = 'custom_without_url'
+    if (!snapshot.converged) mismatch = 'apply_failed'
+    else if (snapshot.mode === 'custom' && !snapshot.hasConfiguredUrl) mismatch = 'custom_without_url'
     else if (snapshot.mode === 'system' && snapshot.systemProxyReadFailed) mismatch = 'system_read_failed'
-    else if (snapshot.mode === 'none' && effective !== 'DIRECT') mismatch = 'system_proxy_ignored'
     return { effective, configuredMode: snapshot.mode, mismatch }
   }
 
@@ -66,25 +75,16 @@ export class NetworkService extends BaseService {
     const dns = await resolveHost(viaProxy ?? target.hostname, signal)
     const tls =
       dns.status !== 'ok'
-        ? { ...SKIPPED, skippedBecause: 'dns_failed' as const }
+        ? skipped('dns_failed')
         : viaProxy
-          ? { ...SKIPPED, skippedBecause: 'proxy_in_use' as const }
+          ? skipped('proxy_in_use')
           : target.protocol !== 'https:'
-            ? { ...SKIPPED, skippedBecause: 'not_https' as const }
+            ? skipped('not_https')
             : await tlsHandshake(target.hostname, Number(target.port) || 443, signal)
     const http =
-      dns.status !== 'ok'
-        ? { ...SKIPPED, skippedBecause: 'dns_failed' as const }
-        : await httpReach(endpoint.url, { method: endpoint.method, signal })
-    const verdict =
-      http.status === 'ok' ? (tls.status === 'failed' ? 'reachable_via_proxy_only' : 'reachable') : 'unreachable'
+      dns.status !== 'ok' ? skipped('dns_failed') : await httpReach(endpoint.url, { method: endpoint.method, signal })
+    const untrustedTls = tls.status === 'failed' && tls.kind === 'tls_cert'
+    const verdict = http.status !== 'ok' ? 'unreachable' : untrustedTls ? 'reachable_untrusted_tls' : 'reachable'
     return { endpointId: endpoint.id, host: target.hostname, dns, tls, proxy, http, verdict }
-  }
-
-  private refreshOnline(): void {
-    const next = net.isOnline()
-    if (next === this.online && application.get('CacheService').getShared('network.online') === next) return
-    this.online = next
-    application.get('CacheService').setShared('network.online', next)
   }
 }

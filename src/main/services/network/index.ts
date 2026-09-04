@@ -1,3 +1,9 @@
-export type { NetworkEndpoint } from './endpoints'
 export { NetworkService } from './NetworkService'
-export { classifyNetworkError } from './probes'
+export type {
+  EndpointDiagnosis,
+  NetworkEndpoint,
+  NetworkEndpointId,
+  NetworkFailureKind,
+  NetworkLayerResult,
+  ProxyInUse
+} from './types'

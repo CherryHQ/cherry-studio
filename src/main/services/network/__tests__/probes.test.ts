@@ -39,10 +39,23 @@ describe('classifyNetworkError', () => {
     expect(classifyNetworkError(undefined, 404)).toEqual({ kind: 'http_client', code: 'HTTP 404' })
   })
 
-  it('maps aborts to timeout and everything else to unknown', () => {
+  it('maps the caller-side abort (signal reason) to timeout', () => {
+    expect(classifyNetworkError(new DOMException('The operation timed out', 'TimeoutError'))).toEqual({
+      kind: 'timeout',
+      code: 'TimeoutError'
+    })
     expect(
-      classifyNetworkError(Object.assign(new Error('The operation was aborted'), { code: 'ABORT_ERR' }))
-    ).toMatchObject({ kind: 'timeout' })
-    expect(classifyNetworkError(new Error('something odd'))).toEqual({ kind: 'unknown', code: undefined })
+      classifyNetworkError(
+        Object.assign(new Error('The operation was aborted'), { name: 'AbortError', code: 'ABORT_ERR' })
+      )
+    ).toEqual({ kind: 'timeout', code: 'ABORT_ERR' })
+  })
+
+  it('keeps a peer-side abort as a reset with its own code, not a caller timeout', () => {
+    expect(classifyNetworkError(new Error('net::ERR_CONNECTION_ABORTED'))).toEqual({
+      kind: 'reset',
+      code: 'ERR_CONNECTION_ABORTED'
+    })
+    expect(classifyNetworkError(new Error('request aborted by something odd'))).toEqual({ kind: 'unknown' })
   })
 })

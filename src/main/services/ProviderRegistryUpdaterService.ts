@@ -32,6 +32,9 @@ const REMOTE_SUBPATH = `v${REGISTRY_SCHEMA_VERSION}`
 export const REGISTRY_URL_GITHUB = `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/${REMOTE_BRANCH}/${REMOTE_SUBPATH}`
 export const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-studio/raw/${encodeURIComponent(REMOTE_BRANCH)}/${REMOTE_SUBPATH}`
 
+/** The mirror an update cycle fetches from; the network doctor probes the same one. */
+export const resolveRegistryBaseUrl = (inCn: boolean): string => (inCn ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB)
+
 const MANIFEST_FILE = 'manifest.json'
 
 // Validators keyed by file — the SAME schemas RegistryLoader validates with on
@@ -114,8 +117,7 @@ export class ProviderRegistryUpdaterService extends BaseService {
     manifest: CatalogManifest
     manifestBody: string
   } | null> {
-    const inCn = (await regionService.getCountry()).toLowerCase() === 'cn'
-    const baseUrl = inCn ? REGISTRY_URL_GITCODE : REGISTRY_URL_GITHUB
+    const baseUrl = resolveRegistryBaseUrl(await regionService.isInChina())
     const headers = {
       'User-Agent': generateUserAgent(),
       'Cache-Control': 'no-cache',

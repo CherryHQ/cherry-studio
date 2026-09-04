@@ -12,12 +12,12 @@ export interface TestHttpServer {
   close(): Promise<void>
 }
 
-const FIXTURES = join(import.meta.dirname, 'fixtures')
+const FIXTURES = join(import.meta.dirname, '../../../src/main/services/__tests__/fixtures')
 
-/** Self-signed leaf for `localhost` / `127.0.0.1`; every verifier rejects it, which is the point. */
-export const TEST_TLS_CREDENTIALS = {
-  key: readFileSync(join(FIXTURES, 'localhost.key')),
-  cert: readFileSync(join(FIXTURES, 'localhost.crt'))
+/** Self-signed leaf for `127.0.0.1`; every verifier rejects it, which is the point. */
+const TEST_TLS_CREDENTIALS = {
+  key: readFileSync(join(FIXTURES, 'self-signed-key.pem')),
+  cert: readFileSync(join(FIXTURES, 'self-signed-cert.pem'))
 }
 
 function listen(server: Server, scheme: 'http' | 'https'): Promise<TestHttpServer> {

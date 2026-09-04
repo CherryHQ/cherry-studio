@@ -24,7 +24,6 @@ import { localModelHandlers } from './localModel'
 import { mcpHandlers } from './mcp'
 import { miniAppHandlers } from './miniApp'
 import { navigationHandlers } from './navigation'
-import { networkHandlers } from './network'
 import { notificationHandlers } from './notification'
 import { oauthHandlers } from './oauth'
 import { openclawHandlers } from './openclaw'
@@ -76,7 +75,6 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...mcpHandlers,
   ...miniAppHandlers,
   ...navigationHandlers,
-  ...networkHandlers,
   ...notificationHandlers,
   ...oauthHandlers,
   ...openclawHandlers,

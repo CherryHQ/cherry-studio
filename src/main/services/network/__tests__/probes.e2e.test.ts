@@ -60,12 +60,22 @@ describe('httpReach against a real server', () => {
 })
 
 describe('tlsHandshake against a real TLS server', () => {
-  it('rejects the self-signed test certificate as a tls_cert failure', async () => {
+  it('rejects the self-signed test certificate as tls_cert and still names its issuer', async () => {
     const server = await startTestHttpsServer()
     try {
       const result = await tlsHandshake(server.host, server.port, signal())
-      expect(result).toMatchObject({ status: 'failed', kind: 'tls_cert' })
-      expect(result.code).toMatch(/SELF_SIGNED|DEPTH_ZERO/)
+      expect(result).toMatchObject({ status: 'failed', kind: 'tls_cert', data: { issuer: '127.0.0.1' } })
+      if (result.status === 'failed') expect(result.code).toMatch(/SELF_SIGNED|DEPTH_ZERO/)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it('reports an elapsed timeout signal as timeout, not as a certificate problem', async () => {
+    const server = await startTestHttpsServer()
+    try {
+      const result = await tlsHandshake(server.host, server.port, AbortSignal.timeout(0))
+      expect(result).toMatchObject({ status: 'failed', kind: 'timeout' })
     } finally {
       await server.close()
     }

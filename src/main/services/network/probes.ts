@@ -1,8 +1,9 @@
 import { lookup } from 'node:dns/promises'
 import { connect as tlsConnect } from 'node:tls'
 
-import { NETWORK_ERROR_CODES, type NetworkFailureKind, type NetworkLayerResult } from '@shared/types/network'
 import { net } from 'electron'
+
+import { NETWORK_ERROR_CODES, type NetworkFailureKind, type NetworkLayerResult, type TlsPeerInfo } from './types'
 
 const CODE_TO_KIND: ReadonlyMap<string, NetworkFailureKind> = new Map(
   (Object.entries(NETWORK_ERROR_CODES) as Array<[NetworkFailureKind, readonly string[]]>).flatMap(([kind, codes]) =>
@@ -40,7 +41,11 @@ export function classifyNetworkError(
     // Chromium has dozens of cert codes; the table lists the common ones, the prefix catches the rest.
     if (code.startsWith('ERR_CERT_') || code.startsWith('ERR_SSL_')) return { kind: 'tls_cert', code }
   }
-  if (nodeCode === 'ABORT_ERR' || /aborted/i.test(message)) return { kind: 'timeout', code: nodeCode ?? 'ABORTED' }
+  // An abort is the caller's deadline (`AbortSignal.timeout`, run cancel), never the network's verdict.
+  const abort = chain
+    .map((e) => (e as { name?: unknown } | null)?.name)
+    .find((n) => n === 'AbortError' || n === 'TimeoutError')
+  if (abort) return { kind: 'timeout', code: nodeCode ?? abort }
   return { kind: 'unknown', code: nodeCode ?? chromiumCode }
 }
 
@@ -62,26 +67,34 @@ export async function resolveHost(
   }
 }
 
-/** Opens a TLS connection, reads the peer certificate and closes; never sends application data. */
+/**
+ * Opens a TLS connection, reads the peer certificate and closes; never sends application data.
+ * Verification is checked after the handshake (`authorized`) rather than left to reject it, so a
+ * rejected certificate still reports who issued it — the one fact that identifies an interceptor.
+ */
 export function tlsHandshake(
   host: string,
   port: number,
   signal: AbortSignal
-): Promise<NetworkLayerResult<{ readonly issuer: string; readonly validTo: string }>> {
+): Promise<NetworkLayerResult<TlsPeerInfo>> {
   const started = performance.now()
   return new Promise((resolve) => {
-    const socket = tlsConnect({ host, port, servername: host })
-    const finish = (result: NetworkLayerResult<{ readonly issuer: string; readonly validTo: string }>) => {
+    const socket = tlsConnect({ host, port, servername: host, rejectUnauthorized: false })
+    const finish = (result: NetworkLayerResult<TlsPeerInfo>) => {
       signal.removeEventListener('abort', onAbort)
       socket.destroy()
       resolve(result)
     }
-    const onAbort = () => finish(failed(started, new Error('aborted')))
+    const onAbort = () => finish(failed(started, signal.reason))
     signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
     socket.once('secureConnect', () => {
       const cert = socket.getPeerCertificate()
       const issuer = [cert.issuer?.O, cert.issuer?.CN].filter(Boolean).join(' / ') || 'unknown'
-      finish({ status: 'ok', durationMs: performance.now() - started, data: { issuer, validTo: cert.valid_to ?? '' } })
+      const data = { issuer, validTo: cert.valid_to ?? '' }
+      const durationMs = performance.now() - started
+      if (socket.authorized) return finish({ status: 'ok', durationMs, data })
+      finish({ status: 'failed', durationMs, kind: 'tls_cert', code: String(socket.authorizationError), data })
     })
     socket.once('error', (error) => finish(failed(started, error)))
   })
@@ -102,13 +115,13 @@ export async function httpReach(
     if (response.status === 407 || response.status >= 500) return failed(started, undefined, response.status)
     return { status: 'ok', durationMs, data: { status: response.status } }
   } catch (error) {
-    return failed(started, error)
+    return failed(started, init.signal.aborted ? init.signal.reason : error)
   }
 }
 
 function abortedPromise<T>(signal: AbortSignal): Promise<T> {
   return new Promise((_, reject) => {
-    if (signal.aborted) reject(new Error('aborted'))
-    signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+    if (signal.aborted) reject(signal.reason)
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true })
   })
 }
