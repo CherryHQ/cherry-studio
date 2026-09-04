@@ -4,7 +4,8 @@ const bootConfig = vi.hoisted(() => ({ getLoadError: vi.fn(), repair: vi.fn() })
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: bootConfig }))
 
 const { bootConfigValid } = await import('../config')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: (_key: string, factory: (signal: AbortSignal) => Promise<never>) => factory(signal) }
 
 beforeEach(() => vi.clearAllMocks())
 

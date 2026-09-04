@@ -6,22 +6,36 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const registryMocks = vi.hoisted(() => ({
   bootConfigRun: vi.fn(),
   bootConfigRepair: vi.fn(),
-  userDataRun: vi.fn()
+  userDataRun: vi.fn(),
+  sharedProbe: vi.fn()
 }))
 
-vi.mock('../registry', () => ({
-  doctorCheckRegistry: {
-    'config-boot-config-valid': {
-      id: 'config-boot-config-valid',
-      run: registryMocks.bootConfigRun,
-      fixes: { repair: registryMocks.bootConfigRepair }
-    },
-    'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} }
+vi.mock('../registry', async () => {
+  const { sharedProbe } = registryMocks
+  // Two network checks in different prerequisite layers that both read one shared probe.
+  const sharing = async (ctx: import('../types').DoctorContext) => {
+    await ctx.share('network:diagnoses', sharedProbe)
+    return { status: 'pass' }
   }
-}))
+  return {
+    doctorCheckRegistry: {
+      'config-boot-config-valid': {
+        id: 'config-boot-config-valid',
+        run: registryMocks.bootConfigRun,
+        fixes: { repair: registryMocks.bootConfigRepair }
+      },
+      'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} },
+      'network-online': { id: 'network-online', run: sharing, fixes: {} },
+      'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} }
+    }
+  }
+})
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 const { DoctorService } = await import('../DoctorService')
+
+// The registry mock implements only a few checks; the catalog lists more.
+const MOCKED = ['config-boot-config-valid', 'storage-userdata-location'] as const
 
 const state = () => application.get('CacheService').getShared('doctor.state')
 const warnWithRepair = {
@@ -37,12 +51,33 @@ beforeEach(() => {
   BaseService.resetInstances()
   registryMocks.bootConfigRun.mockResolvedValue({ status: 'pass' })
   registryMocks.userDataRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.sharedProbe.mockResolvedValue([])
+})
+
+describe('DoctorContext.share', () => {
+  const SHARING = ['network-online', 'network-dns-resolution'] as const
+
+  it('runs a shared probe once per run even for checks in different layers', async () => {
+    const service = new DoctorService()
+    const outcome = await service.run({ tier: 'live', checkIds: SHARING })
+    expect(outcome.status).toBe('completed')
+    if (outcome.status !== 'completed') return
+    expect(outcome.report.summary).toMatchObject({ pass: 2 })
+    expect(registryMocks.sharedProbe).toHaveBeenCalledTimes(1)
+  })
+
+  it('probes afresh for every new run', async () => {
+    const service = new DoctorService()
+    await service.run({ tier: 'live', checkIds: SHARING })
+    await service.run({ tier: 'live', checkIds: SHARING })
+    expect(registryMocks.sharedProbe).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('DoctorService.run', () => {
   it('publishes running progress and then the completed report on the shared cache', async () => {
     const service = new DoctorService()
-    const outcome = await service.run({ tier: 'quick' })
+    const outcome = await service.run({ tier: 'quick', checkIds: MOCKED })
 
     expect(outcome.status).toBe('completed')
     if (outcome.status !== 'completed') return
@@ -69,8 +104,8 @@ describe('DoctorService.run', () => {
     registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
     const service = new DoctorService()
 
-    const first = service.run({ tier: 'quick' })
-    const busy = await service.run({ tier: 'quick' })
+    const first = service.run({ tier: 'quick', checkIds: MOCKED })
+    const busy = await service.run({ tier: 'quick', checkIds: MOCKED })
     expect(busy.status).toBe('busy')
     if (busy.status !== 'busy') return
     expect(service.cancel('someone-else')).toEqual({ status: 'not_running' })
@@ -86,7 +121,7 @@ describe('DoctorService.fix', () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockResolvedValue({ status: 'requires_relaunch' })
     const service = new DoctorService()
-    const run = await service.run({ tier: 'quick' })
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
@@ -100,7 +135,7 @@ describe('DoctorService.fix', () => {
 
   it('refuses a fix bound to a superseded run', async () => {
     const service = new DoctorService()
-    await service.run({ tier: 'quick' })
+    await service.run({ tier: 'quick', checkIds: MOCKED })
     await expect(
       service.fix({ runId: 'old-run', checkId: 'config-boot-config-valid', fixId: 'repair' })
     ).resolves.toEqual({
@@ -113,7 +148,7 @@ describe('DoctorService.fix', () => {
   it('refuses a fix when a fresh probe no longer offers it', async () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair)
     const service = new DoctorService()
-    const run = await service.run({ tier: 'quick' })
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
@@ -125,7 +160,7 @@ describe('DoctorService.fix', () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockRejectedValue(new Error('disk is read-only'))
     const service = new DoctorService()
-    const run = await service.run({ tier: 'quick' })
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })

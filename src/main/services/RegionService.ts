@@ -33,17 +33,22 @@ class RegionService {
 
   /** Egress country code (e.g. 'CN', 'US'); defaults to 'CN' on any failure. */
   async getCountry(): Promise<string> {
+    const cached = this.getCachedCountry()
+    if (cached) return cached
     const proxyKey = application.get('ProxyService').appliedProxyKey
-    const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
-    if (cached && cached.proxyKey === proxyKey) {
-      return cached.country
-    }
 
     // Dedup concurrent detections — callers share one in-flight request.
     this.inflight ??= this.detectAndCache(proxyKey).finally(() => {
       this.inflight = null
     })
     return this.inflight
+  }
+
+  /** The cached country for the proxy in effect, or null; never detects. */
+  getCachedCountry(): string | null {
+    const proxyKey = application.get('ProxyService').appliedProxyKey
+    const cached = application.get('CacheService').get<CachedEgressRegion>(CACHE_KEY)
+    return cached && cached.proxyKey === proxyKey ? cached.country : null
   }
 
   /** True when the egress country resolves to China. */

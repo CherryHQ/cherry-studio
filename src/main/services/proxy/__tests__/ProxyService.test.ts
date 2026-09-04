@@ -231,6 +231,39 @@ describe('ProxyService — preference wiring', () => {
     )
   })
 
+  it('reports an apply that threw as unconverged with the reason, until a later apply succeeds', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'custom')
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', '127.0.0.1:7890')
+    nodeProxyConfigureMock.mockRejectedValueOnce(new TypeError('Invalid URL'))
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+
+    await expect(manager.getAppliedSnapshot()).resolves.toEqual({
+      mode: 'custom',
+      hasConfiguredUrl: true,
+      systemProxyReadFailed: false,
+      converged: false,
+      lastError: 'Invalid URL'
+    })
+
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.url', 'http://127.0.0.1:7890')
+    await expect(manager.getAppliedSnapshot()).resolves.toMatchObject({ converged: true })
+    await expect(manager.getAppliedSnapshot()).resolves.not.toHaveProperty('lastError')
+  })
+
+  it('flags a failed OS proxy read while still converging on bare system mode', async () => {
+    getSystemProxyMock.mockRejectedValue(new Error('scutil exited with 1'))
+    const manager = new ProxyService()
+    await (manager as any).onReady()
+
+    await expect(manager.getAppliedSnapshot()).resolves.toMatchObject({
+      mode: 'system',
+      systemProxyReadFailed: true,
+      converged: true
+    })
+    expect(sessionSetProxyMock).toHaveBeenCalledWith({ mode: 'system' })
+  })
+
   it('manages the system-proxy monitor across mode switches', async () => {
     const manager = new ProxyService()
     const reconciler = reconcilerOf(manager)

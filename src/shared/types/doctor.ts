@@ -1,3 +1,4 @@
+import type { SettingsPath } from '../data/types/settingsPath'
 import type { AppEdition } from './appEdition'
 
 /**
@@ -49,7 +50,18 @@ export interface DoctorFixMeta {
   readonly relaunch: boolean
 }
 
-export const DOCTOR_CHECK_IDS = ['config-boot-config-valid', 'storage-userdata-location'] as const
+export const DOCTOR_CHECK_IDS = [
+  'config-boot-config-valid',
+  'storage-userdata-location',
+  'network-online',
+  'network-dns-resolution',
+  'network-tls-handshake',
+  'network-proxy-applied',
+  'network-endpoint-update',
+  'network-endpoint-registry',
+  'network-endpoint-cloud',
+  'network-endpoint-diagnostics'
+] as const
 export type DoctorCheckId = (typeof DOCTOR_CHECK_IDS)[number]
 
 /** The domain a check id is prefixed with — enforced on the catalog at compile time. */
@@ -66,6 +78,8 @@ export interface DoctorCheckMeta<Id extends DoctorCheckId> {
   readonly requires: readonly Exclude<DoctorCheckId, Id>[]
 }
 
+const ENDPOINT_DETAILS = ['reachable', 'untrusted_tls', 'unreachable', 'proxy_auth', 'server_error', 'timeout'] as const
+
 export const DOCTOR_CHECK_CATALOG = {
   'config-boot-config-valid': {
     domain: 'config',
@@ -80,6 +94,56 @@ export const DOCTOR_CHECK_CATALOG = {
     fixes: [],
     details: ['fallback_to_default'],
     requires: []
+  },
+  'network-online': { domain: 'network', tier: 'quick', fixes: [], details: ['offline'], requires: [] },
+  'network-dns-resolution': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ['resolved', 'via_proxy', 'unresolved', 'no_response'],
+    requires: ['network-online']
+  },
+  'network-tls-handshake': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ['ok', 'skipped_proxy', 'certificate', 'unreachable'],
+    requires: ['network-dns-resolution']
+  },
+  'network-proxy-applied': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed'],
+    requires: []
+  },
+  'network-endpoint-update': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-dns-resolution']
+  },
+  'network-endpoint-registry': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-dns-resolution']
+  },
+  'network-endpoint-cloud': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-dns-resolution']
+  },
+  'network-endpoint-diagnostics': {
+    domain: 'network',
+    tier: 'live',
+    fixes: [],
+    details: ENDPOINT_DETAILS,
+    requires: ['network-dns-resolution']
   }
 } as const satisfies { readonly [Id in DoctorCheckId]: DoctorCheckMeta<Id> }
 
@@ -284,6 +348,18 @@ export function projectDoctorReport(
     return { ...result, evidence: result.evidence.filter((item) => allowed.has(item.dataClass)) }
   })
   return { ...report, basics, results }
+}
+
+export type DoctorPanel = 'checks' | 'export' | 'report'
+
+/**
+ * The dialog is opened from outside the renderer (Help menu, protocol links) by navigating to
+ * the About settings route with this query param; the About page mounts the dialog on it.
+ */
+export const DOCTOR_OPEN_QUERY_PARAM = 'doctor'
+
+export function doctorSettingsPath(panel: DoctorPanel = 'checks'): SettingsPath {
+  return `/settings/about?${DOCTOR_OPEN_QUERY_PARAM}=${panel}`
 }
 
 export function doctorCheckTitleKey<Id extends DoctorCheckId>(id: Id) {

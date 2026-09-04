@@ -6,6 +6,7 @@ import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
+import { doctorSettingsPath } from '@shared/types/doctor'
 import {
   type CommandId,
   evaluateContextExpr,
@@ -158,6 +159,13 @@ export class AppMenuService extends BaseService {
             label: t('appMenu.documentation'),
             click: () => {
               void shell.openExternal('https://cherry-ai.com/docs')
+            }
+          },
+          {
+            type: 'custom',
+            label: t('appMenu.doctor'),
+            click: () => {
+              openSettingsInMainWindow(doctorSettingsPath('checks'))
             }
           },
           {

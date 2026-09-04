@@ -9,7 +9,7 @@ import type { AbsoluteFilePath } from '@shared/types/file'
 import { normalizeDiagnosticDescription } from '@shared/utils/diagnostics'
 import { net } from 'electron'
 
-const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
+export const DIAGNOSTIC_UPLOAD_URL = 'https://api.cherry-ai.com/diagnostics'
 const MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 const MAX_RESPONSE_BYTES = 64 * 1024
 const REQUEST_TIMEOUT_MS = 15 * 60 * 1000

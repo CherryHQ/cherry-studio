@@ -32,6 +32,7 @@
   "appMenu.copy": "复制",
   "appMenu.cut": "剪切",
   "appMenu.delete": "删除",
+  "appMenu.doctor": "系统诊断",
   "appMenu.documentation": "文档",
   "appMenu.edit": "编辑",
   "appMenu.feedback": "反馈",
