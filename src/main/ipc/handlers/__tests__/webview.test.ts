@@ -8,7 +8,7 @@ const { appGetMock, setOpenLinkExternalMock, fromIdMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/WebviewService', () => ({ setOpenLinkExternal: setOpenLinkExternalMock }))
+vi.mock('@main/services/webview', () => ({ setOpenLinkExternal: setOpenLinkExternalMock }))
 vi.mock('electron', () => ({ webContents: { fromId: fromIdMock } }))
 
 import { webviewHandlers } from '../webview'
