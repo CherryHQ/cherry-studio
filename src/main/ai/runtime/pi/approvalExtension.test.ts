@@ -230,6 +230,17 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     }
   )
 
+  it('blocks an interpreter inline reference to protected SQLite before bypass handling', async () => {
+    const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+    await expect(
+      handler(toolEvent('bash', { command: `node -e "require('better-sqlite3')('${databaseFile}')"` }), extCtx)
+    ).resolves.toEqual({
+      block: true,
+      reason: expect.stringContaining('SQLite')
+    })
+    expect(emitted).toHaveLength(0)
+  })
+
   it('applies the same SQLite guard through the reusable nested authorizer', async () => {
     const { authorizeTool, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
     const execute = vi.fn<ToolDefinition['execute']>(async () => ({

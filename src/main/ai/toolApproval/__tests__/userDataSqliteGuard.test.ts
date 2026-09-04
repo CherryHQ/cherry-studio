@@ -186,6 +186,30 @@ describe('evaluateUserDataSqliteGuard', () => {
       }
     })
 
+    it.each([
+      ['claude-code', 'Bash', (target: string) => `python -c "import sqlite3; sqlite3.connect('${target}')"`],
+      ['pi', 'bash', (target: string) => `node -e "require('better-sqlite3')('${target}')"`],
+      ['dsh', 'bash', (target: string) => `echo ready; bun -e "new Database('${target}')"`],
+      ['dsh', 'pwsh', (target: string) => `python3.12 -c "open('${target}', 'wb')"`]
+    ] as const)(
+      'checks protected SQLite literals inside %s %s interpreter code',
+      async (runtime, toolName, command) => {
+        await expect(evaluate({ runtime, toolName, args: { command: command(databaseFile) } })).resolves.toEqual(DENIAL)
+      }
+    )
+
+    it('allows bundled interpreters when their command does not reference protected SQLite', async () => {
+      const localDatabase = path.join(workspacePath, 'artifacts.sqlite')
+      for (const command of [
+        'python script.py',
+        'node scripts/build.mjs',
+        'bun run test',
+        `python -c "import sqlite3; sqlite3.connect('${localDatabase}')"`
+      ]) {
+        await expect(evaluate({ toolName: 'Bash', args: { command } })).resolves.toBeUndefined()
+      }
+    })
+
     it('recognizes home literals, SQLite file URIs, and option values', async () => {
       const homeRelative = path.relative(homePath, databaseFile)
       const uri = pathToFileURL(databaseFile).toString()

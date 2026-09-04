@@ -444,9 +444,11 @@ exception by itself. Structured read tools are unaffected.
 
 Shell inspection is deliberately best-effort. It recognizes literal quoted or unquoted tokens,
 control separators, paths relative to the initial cwd, absolute and literal home paths, SQLite
-`file:` URIs, sidecars, and option values after `=`. It does not model `cd`, expand arbitrary
-variables or globs, inspect substitutions or nested interpreters, or read script contents. A literal
-match is denied even when the command appears read-only.
+`file:` URIs, sidecars, and option values after `=`. For direct Python, Node.js, and Bun commands,
+it also checks path literals embedded in inline code; ordinary interpreter use in the workspace
+remains available. It does not model `cd`, expand arbitrary variables or globs, inspect
+substitutions, evaluate constructed interpreter paths, or read script contents. A literal match is
+denied even when the command appears read-only.
 
 This hook is a tool-call policy boundary, not a sandbox or an operating-system security boundary.
 It does not inspect third-party MCP argument schemas, constrain child processes, or promise safety

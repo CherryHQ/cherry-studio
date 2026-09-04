@@ -7,6 +7,7 @@ import type { AgentType } from '@shared/data/api/schemas/agents'
 
 const SQLITE_FILE_PATTERN = /\.(?:db|sqlite)(?:-(?:journal|shm|wal))?$/i
 const DATABASE_SIDECARS = ['-wal', '-shm', '-journal'] as const
+const BUNDLED_INTERPRETER_PATTERN = /^(?:python(?:\d+(?:\.\d+)*)?|node|bun)(?:\.exe)?$/i
 
 interface ToolBinding {
   readonly pathFields: Readonly<Record<string, string>>
@@ -82,7 +83,18 @@ export async function evaluateUserDataSqliteGuard(
     return classification === 'safe' ? undefined : deny()
   }
 
-  const candidates = tokenizeShellCommand(rawValue).flatMap(shellPathCandidates)
+  const shellTokens = parseShellTokens(rawValue)
+  const interpreterSegments = new Set(
+    shellTokens
+      .filter(({ commandStart, value }) => commandStart && isBundledInterpreter(value))
+      .map(({ segment }) => segment)
+  )
+  const candidates = [
+    ...shellTokens.flatMap(({ value }) => shellPathCandidates(value)),
+    ...shellTokens
+      .filter(({ segment }) => interpreterSegments.has(segment))
+      .flatMap(({ value }) => extractQuotedLiterals(value))
+  ]
   const [roots, cwd] = await Promise.all([
     resolveGuardRoots(input.workspacePath, input.signal),
     canonicalizeExistingDirectory(path.resolve(input.cwd), input.signal)
@@ -234,12 +246,27 @@ function normalizeForComparison(value: string, platform: NodeJS.Platform): strin
   return platform === 'darwin' || platform === 'win32' ? normalized.toLowerCase() : normalized
 }
 
+interface ShellToken {
+  value: string
+  commandStart: boolean
+  segment: number
+}
+
 export function tokenizeShellCommand(command: string): string[] {
-  const words: string[] = []
+  return parseShellTokens(command).map(({ value }) => value)
+}
+
+function parseShellTokens(command: string): ShellToken[] {
+  const tokens: ShellToken[] = []
   let current = ''
   let quote: '"' | "'" | undefined
+  let commandStart = true
+  let segment = 0
   const pushCurrent = () => {
-    if (current) words.push(current)
+    if (current) {
+      tokens.push({ value: current, commandStart, segment })
+      if (!isPosixAssignment(current)) commandStart = false
+    }
     current = ''
   }
 
@@ -263,12 +290,47 @@ export function tokenizeShellCommand(command: string): string[] {
       quote = character
     } else if (/\s|[;&|<>]/.test(character)) {
       pushCurrent()
+      if (character === '\n' || /[;&|]/.test(character)) {
+        commandStart = true
+        segment++
+      }
     } else {
       current += character
     }
   }
   pushCurrent()
-  return words
+  return tokens
+}
+
+function isPosixAssignment(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*=/.test(value)
+}
+
+function isBundledInterpreter(value: string): boolean {
+  return [path.posix.basename(value), path.win32.basename(value)].some((name) => BUNDLED_INTERPRETER_PATTERN.test(name))
+}
+
+function extractQuotedLiterals(value: string): string[] {
+  const literals: string[] = []
+  for (let index = 0; index < value.length; index++) {
+    const quote = value[index]
+    if (quote !== "'" && quote !== '"' && quote !== '`') continue
+
+    let literal = ''
+    for (index++; index < value.length; index++) {
+      const character = value[index]
+      if (character === quote) {
+        if (literal) literals.push(literal)
+        break
+      }
+      if (character === '\\' && (value[index + 1] === quote || value[index + 1] === '\\')) {
+        literal += value[++index]
+      } else {
+        literal += character
+      }
+    }
+  }
+  return literals
 }
 
 function shellPathCandidates(word: string): string[] {
