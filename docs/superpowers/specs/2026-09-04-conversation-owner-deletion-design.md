@@ -2,7 +2,7 @@
 
 ## Status
 
-Design decisions approved on 2026-09-04; written specification pending review.
+Approved on 2026-09-04.
 
 ## Context
 
