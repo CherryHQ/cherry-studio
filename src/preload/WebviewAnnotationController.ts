@@ -108,7 +108,7 @@ const cssEscape = (value: string) => {
   return escaped
 }
 
-const escapeAttributeValue = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+const escapeAttributeValue = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/>/g, '\\3e ')
 
 const queryAll = (root: Document | ShadowRoot, selector: string): Element[] => {
   try {
