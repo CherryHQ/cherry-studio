@@ -154,10 +154,11 @@ export function createHost(
 
 /** Resolves to the rejection of `promise`; fails loudly if it resolves instead. */
 export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  let value: unknown
   try {
-    const value = await promise
-    throw new Error(`expected rejection, got ${JSON.stringify(value)}`)
+    value = await promise
   } catch (error) {
     return error
   }
+  throw new Error(`expected rejection, got ${JSON.stringify(value)}`)
 }

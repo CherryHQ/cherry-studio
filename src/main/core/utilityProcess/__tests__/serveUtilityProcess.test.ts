@@ -328,6 +328,21 @@ describe('serveUtilityProcess runtime', () => {
     expect(t.kinds()).not.toContain('result')
   })
 
+  it('still exits 73 when the crash value itself cannot be serialized', async () => {
+    const t = setup()
+    await t.ready()
+    t.send({ kind: 'request', requestId: 1, method: 'wait', input: undefined })
+    await waitUntil(() => t.contexts.length === 1, 'handler started')
+    // Circular and prototype-less: both JSON.stringify and String() throw on it. Rendering the
+    // crash must not itself throw, or the abort-and-exit sequence never runs.
+    const unrenderable = Object.create(null) as { self?: unknown }
+    unrenderable.self = unrenderable
+    t.child().triggerFatal(unrenderable)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(t.contexts[0].signal.aborted).toBe(true)
+    expect(t.child().exitCode).toBe(CHILD_EXIT_CODES.uncaught)
+  })
+
   it('shutdown waits for a handler that ignores its abort after an unclonable event before running dispose', async () => {
     const order: string[] = []
     let release!: () => void

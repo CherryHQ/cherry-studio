@@ -85,7 +85,7 @@ type UtilityProcessDefinition<Contract, InitData = void> = Readonly<{
   cancellation: 'terminate' | 'cooperative'
   idleTimeoutMs?: number           // positive integer; absent = live until stop/app quit
   createEnv?: () => Readonly<Record<string, string>>   // per generation, additive only
-  createInitData?: () => InitData                      // per generation, opaque to core
+  createInitData?: () => InitData | Promise<InitData>  // per generation, opaque to core
 }>
 
 interface UtilityProcessClient<Contract> {
@@ -465,9 +465,11 @@ available on request.
     no replay, no eager restart;
   - stop barrier, serialized concurrent maintenance, operation failure, stop timeout, late exit,
     no-dual-instance quarantine, reset success conditions.
-- **Real-Electron smoke harness**: windowless main harness driving the production manager with a
-  test-only definitions and the E1-style fixture (never in normal builds, production entries,
-  or releases): request/event, 4 MB TypedArray, both cancellations, dispose/kill,
+- **Real-Electron smoke harness**: windowless main harness driving `ProcessHost` directly — the
+  manager and the lifecycle container are out of scope, so registration, host retention, and
+  service wiring stay covered by the in-memory suite alone. With a test-only definition and the
+  E1-style fixture (never in normal builds, production entries, or releases): request/event,
+  4 MB TypedArray, both cancellations, dispose/kill, stop before the spawn event,
   `process.abort()` recovery, `electron.net` through a local proxy via `app.setProxy`,
   stdout/stderr + structured logs, entry loading from a temporary ASAR.
 - **CI: deliberately deferred.** The repo currently has *no* real-Electron CI at all (the
