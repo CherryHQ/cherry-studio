@@ -4,7 +4,6 @@ import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder
 import { CherryAssistantSeeder } from './seeders/cherryAssistantSeeder'
 import { CherrySupportSeeder } from './seeders/cherrySupportSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
-import { InvalidJsonPreferenceRepairSeeder } from './seeders/InvalidJsonPreferenceRepairSeeder'
 import { LocalModelSeeder } from './seeders/LocalModelSeeder'
 import { LongTextPastePreferenceUpgradeSeeder } from './seeders/longTextPastePreferenceUpgradeSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
@@ -16,10 +15,6 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
 /**
  * All seeders in execution order.
  *
- * Preference upgrade seeders run before defaults are inserted so they can
- * distinguish existing installations. Invalid JSON repair then runs before
- * typed preference reads.
- *
  * Keep CherryAiDefaultModelSeeder before DefaultAssistantSeeder because the
  * seeded assistant references the CherryAI default model (FK to user_model).
  *
@@ -27,13 +22,12 @@ import { WebSearchPreferenceUpgradeSeeder } from './seeders/WebSearchPreferenceU
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
-  new LongTextPastePreferenceUpgradeSeeder(),
-  new WebSearchPreferenceUpgradeSeeder(),
-  new InvalidJsonPreferenceRepairSeeder(),
   new CherryAiDefaultModelSeeder(),
   new CherryAssistantSeeder(),
   new CherrySupportSeeder(),
   new DefaultAssistantSeeder(),
+  new LongTextPastePreferenceUpgradeSeeder(),
+  new WebSearchPreferenceUpgradeSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
