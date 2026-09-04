@@ -1501,14 +1501,19 @@ describe('Sessions', () => {
   it('renders orphan sessions under the unlinked agent group without a virtual agent icon', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setupSessions({
-      sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: null })]
+      sessions: [createSession({ id: 'session-orphan', name: 'Orphan session', agentId: 'deleted-agent' })]
     })
 
-    render(<SessionsForTest />)
+    render(<SessionsForTest onCreateSession={vi.fn()} />)
 
     const unlinkedAgentGroup = screen.getByRole('button', { name: 'Unlinked Agent' })
     expect(unlinkedAgentGroup.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeInTheDocument()
     expect(unlinkedAgentGroup.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
+    const unlinkedAgentGroupRow = unlinkedAgentGroup.closest('[class*="group/resource-list-group"]')
+    expect(unlinkedAgentGroupRow).not.toBeNull()
+    expect(
+      within(unlinkedAgentGroupRow as HTMLElement).queryByRole('button', { name: 'New task' })
+    ).not.toBeInTheDocument()
   })
 
   it('defaults agent display groups to collapsed before the user changes expansion', () => {

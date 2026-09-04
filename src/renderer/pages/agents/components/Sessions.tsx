@@ -1742,7 +1742,10 @@ const Sessions = ({
                 workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
               }
             : null)
-      const canCreateSession = createSessionSeed !== null && !!(onCreateSession || onShowMissingAgentSelection)
+      const canCreateSession =
+        group.id !== SESSION_UNKNOWN_AGENT_GROUP_ID &&
+        createSessionSeed !== null &&
+        !!(onCreateSession || onShowMissingAgentSelection)
       const canManageAgentGroup = !!agentGroupId && agentById.has(agentGroupId)
 
       if (!canCreateSession && !workdirPath && !canManageAgentGroup) return null
