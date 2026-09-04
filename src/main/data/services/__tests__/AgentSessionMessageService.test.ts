@@ -428,7 +428,7 @@ describe('AgentSessionMessageService', () => {
         outcome: 'interrupted',
         error: { code: 'TARGET_AGENT_DELETED' }
       })
-      expect(() => agentSessionService.getById('target')).toThrow(/not found/i)
+      expect(agentSessionService.getById('target')).toMatchObject({ id: 'target', agentId: 'agent-b' })
       const [retained] = await dbh.db
         .select({ agentId: agentSessionTable.agentId })
         .from(agentSessionTable)
