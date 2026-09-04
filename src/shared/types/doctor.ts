@@ -49,7 +49,7 @@ export interface DoctorFixMeta {
   readonly relaunch: boolean
 }
 
-export const DOCTOR_CHECK_IDS = ['config-boot-config-valid', 'storage-userdata-writable'] as const
+export const DOCTOR_CHECK_IDS = ['config-boot-config-valid', 'storage-userdata-location'] as const
 export type DoctorCheckId = (typeof DOCTOR_CHECK_IDS)[number]
 
 /** The domain a check id is prefixed with — enforced on the catalog at compile time. */
@@ -74,11 +74,11 @@ export const DOCTOR_CHECK_CATALOG = {
     details: ['invalid_keys', 'parse_error', 'read_error'],
     requires: []
   },
-  'storage-userdata-writable': {
+  'storage-userdata-location': {
     domain: 'storage',
     tier: 'quick',
     fixes: [],
-    details: ['not_writable'],
+    details: ['fallback_to_default'],
     requires: []
   }
 } as const satisfies { readonly [Id in DoctorCheckId]: DoctorCheckMeta<Id> }

@@ -46,6 +46,9 @@ Runs health checks in main and publishes progress + the final report on the shar
    ```
 3. **Registry** — add the line in `registry.ts`. Until you do, the build fails.
 
+Reference implementations: `checks/config.ts` (a check with a fix) and `checks/storage.ts` (a silent-fallback
+detector). A check must be able to fail at runtime — anything preboot already guarantees is a dead check.
+
 Then add i18n keys `settings.doctor.checks.<id>.title` and `.detail.<variant>` to `en-us.json` and run `pnpm i18n:sync`.
 
 Rules the types enforce: a `fix` action can only name a fix the catalog declares; `detail.variant` must be declared;
