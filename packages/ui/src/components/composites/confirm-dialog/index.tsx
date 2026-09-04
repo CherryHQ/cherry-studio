@@ -25,6 +25,8 @@ interface ConfirmDialogProps {
   confirmText?: string
   /** Cancel button text */
   cancelText?: string
+  /** Disabled state for cancel button */
+  cancelDisabled?: boolean
   /** Callback when confirm button is clicked */
   onConfirm?: () => void | Promise<void>
   /** Whether this is a destructive action (e.g., delete) */
@@ -47,6 +49,7 @@ function ConfirmDialog({
   content,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
+  cancelDisabled = false,
   onConfirm,
   destructive = false,
   confirmLoading = false,
@@ -73,7 +76,9 @@ function ConfirmDialog({
         {content}
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline">{cancelText}</Button>
+            <Button variant="outline" disabled={cancelDisabled}>
+              {cancelText}
+            </Button>
           </DialogClose>
           <Button
             variant={destructive ? 'destructive' : 'default'}

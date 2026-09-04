@@ -53,6 +53,7 @@ export function DeleteConversationOwnerConfirmDialog({
       title={t('recycle_bin.move.confirm_title')}
       confirmText={t('recycle_bin.move.confirm_action')}
       cancelText={t('common.cancel')}
+      cancelDisabled={pending}
       destructive
       confirmLoading={pending}
       confirmDisabled={pending}

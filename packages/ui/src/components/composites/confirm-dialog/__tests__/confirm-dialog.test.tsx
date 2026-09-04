@@ -35,10 +35,27 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancelButton).toBeEnabled()
+
+    await user.click(cancelButton)
 
     expect(onOpenChange).toHaveBeenCalledTimes(1)
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('disables cancellation when requested', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+
+    render(<ConfirmDialog open cancelDisabled title="Confirm action" cancelText="Cancel" onOpenChange={onOpenChange} />)
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancelButton).toBeDisabled()
+
+    await user.click(cancelButton)
+
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 
   it('uses fade-scale motion without directional translation', () => {

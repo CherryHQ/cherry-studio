@@ -201,8 +201,10 @@ describe('DeleteConversationOwnerConfirmDialog', () => {
     })
     expect(checkbox).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Move to Recycle Bin' })).toBeDisabled()
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+    expect(cancelButton).toBeDisabled()
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(cancelButton)
     await user.keyboard('{Escape}')
 
     // The Radix overlay has no semantic role; data-slot is the maintained primitive contract.
