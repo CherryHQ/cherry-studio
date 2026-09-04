@@ -72,6 +72,7 @@ type ServiceInternals = {
     disposable: { dispose: ReturnType<typeof vi.fn> }
   }>
   health: { level: string; freeBytes: number; totalBytes: number; checkedAt: number }
+  refreshHealth: () => Promise<{ level: string; freeBytes: number; totalBytes: number; checkedAt: number }>
 }
 
 function createService() {
@@ -215,5 +216,14 @@ describe('StorageMonitorService', () => {
     const handler = ipcHandle.mock.calls.find((c) => c[0] === IpcChannel.StorageMonitor_GetHealth)?.[1]
     expect(handler).toBeDefined()
     expect(handler()).toEqual(expect.objectContaining({ level: 'low', freeBytes: 0.5 * GB }))
+  })
+
+  it('refreshes disk health on demand for main-process diagnostics', async () => {
+    const svc = createService()
+    queueDisk(3 * GB)
+
+    await expect(svc.refreshHealth()).resolves.toEqual(
+      expect.objectContaining({ level: 'ok', freeBytes: 3 * GB, totalBytes: 500 * GB })
+    )
   })
 })

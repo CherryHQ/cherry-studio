@@ -60,6 +60,12 @@ export class StorageMonitorService extends BaseService {
     void this.check()
   }
 
+  public async refreshHealth(): Promise<StorageHealth> {
+    await this.check()
+    if (this.health.checkedAt === 0) throw new Error('Disk health is unavailable')
+    return this.health
+  }
+
   private async check(): Promise<void> {
     try {
       const stats = await statfs(application.getPath('app.userdata'))

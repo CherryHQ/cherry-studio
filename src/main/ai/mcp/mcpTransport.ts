@@ -1,4 +1,3 @@
-import { application } from '@application'
 import type { LoggerService } from '@logger'
 import {
   createInMemoryMcpServer,
@@ -8,7 +7,6 @@ import {
 } from '@main/ai/mcp/servers/factory'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { StreamableHTTPClientTransportOptions } from '@modelcontextprotocol/sdk/client/streamableHttp'
@@ -18,7 +16,8 @@ import { redactDeep } from '@shared/utils/redaction'
 import { net } from 'electron'
 
 import type { McpClientSdk, McpTransport } from './mcpClientSdk'
-import { buildStdioEnvironment, resolveLaunchCommand } from './mcpLaunch'
+import { buildStdioEnvironment } from './mcpLaunch'
+import { resolveStdioLaunch } from './mcpStdioLaunch'
 import type { McpOAuthClientProvider } from './oauth/provider'
 
 type CreateTransportInput = {
@@ -149,40 +148,12 @@ async function createStdio(
   { sdk, server, args, logger, onServerLog }: CreateTransportInput,
   configuredCommand: string
 ): Promise<McpTransport> {
-  let command = configuredCommand
-  let launchArgs = args
-
-  // Build a local env for the transport instead of mutating `server.env`. getServerKey(server)
-  // serializes server.env, so mutating it here would shift the key after connect — connect-time
-  // logs (emitServerLog) and list-changed cache invalidations would then land under a key that
-  // getServerLogs / the caches (which see the un-mutated server) never query. Keep server.env
-  // untouched so the key stays stable everywhere; see the "deep-copy don't mutate" pattern.
-  const connectEnv: Record<string, string> = { ...server.env }
-
-  // Note: getShellEnv() is memoized, so subsequent calls are fast
-  const loginShellEnv = await getShellEnv()
-
-  // For package servers, use resolved configuration with platform overrides and variable substitution
-  if (server.dxtPath) {
-    const resolvedConfig = application.get('McpPackageService').getResolvedMcpConfig(server.dxtPath)
-    if (resolvedConfig) {
-      command = resolvedConfig.command
-      launchArgs = resolvedConfig.args
-      Object.assign(connectEnv, resolvedConfig.env)
-      logger.debug(`Using resolved package config`, { command, args: launchArgs })
-    } else {
-      logger.warn(`Failed to resolve package config, falling back to manifest values`)
-    }
-  }
-
-  const launch = await resolveLaunchCommand({
-    command,
-    args: launchArgs,
-    registryUrl: server.registryUrl,
-    loginShellEnv,
+  const { launch, loginShellEnv, serverEnv } = await resolveStdioLaunch({
+    server: { ...server, command: configuredCommand },
+    args,
     logger
   })
-  Object.assign(connectEnv, launch.env, getBuiltinRegistryEnv(server))
+  Object.assign(serverEnv, launch.env, getBuiltinRegistryEnv(server))
 
   logger.debug(`Starting server`, { command: launch.command, args: launch.args })
 
@@ -196,7 +167,7 @@ async function createStdio(
     args: launch.args,
     // On Windows the SDK prepends process.env.PATH before this object, so use
     // one canonical key to ensure our fresh shell PATH replaces the stale value.
-    env: buildStdioEnvironment(loginShellEnv, connectEnv),
+    env: buildStdioEnvironment(loginShellEnv, serverEnv),
     stderr: 'pipe'
   }
 

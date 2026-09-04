@@ -99,6 +99,18 @@ describe('resolveLaunchCommand', () => {
     expect(logger.warn).toHaveBeenCalled()
   })
 
+  it('rejects an unresolved custom command when a diagnostic dry-run requires certainty', async () => {
+    await expect(
+      resolveLaunchCommand({
+        command: 'missing-server',
+        args: [],
+        loginShellEnv: { PATH: '/usr/bin' },
+        logger,
+        requireResolvable: true
+      })
+    ).rejects.toThrow(/missing-server could not be resolved/)
+  })
+
   it('normalizes surrounding whitespace before resolving or falling back', async () => {
     const launch = await resolve('  my-server  ', ['--stdio'])
 

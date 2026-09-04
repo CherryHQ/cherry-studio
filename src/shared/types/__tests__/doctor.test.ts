@@ -49,6 +49,9 @@ describe('isDoctorFixRequest', () => {
 
   it('accepts a fix the catalog declares for that check, bound to a run', () => {
     expect(isDoctorFixRequest(valid)).toBe(true)
+    expect(
+      isDoctorFixRequest({ runId: 'run-1', checkId: 'mcp-servers-connected', fixId: 'restart', target: 'server-1' })
+    ).toBe(true)
   })
 
   it('rejects a declared fix id aimed at a check that does not offer it', () => {
@@ -59,6 +62,8 @@ describe('isDoctorFixRequest', () => {
     expect(isDoctorFixRequest({ checkId: valid.checkId, fixId: valid.fixId })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, runId: '' })).toBe(false)
     expect(isDoctorFixRequest({ ...valid, checkId: 'nope' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: '' })).toBe(false)
+    expect(isDoctorFixRequest({ ...valid, target: 1 })).toBe(false)
     expect(isDoctorFixRequest(null)).toBe(false)
     expect(isDoctorFixRequest('config-boot-config-valid')).toBe(false)
   })

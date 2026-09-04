@@ -243,3 +243,23 @@ export async function removeCleanupTarget(target: CleanupTarget): Promise<Cleanu
     return { state: 'failed' }
   }
 }
+
+/** Clears an active directory without removing the root that its owner may still be using. */
+export async function removeCleanupDirectoryContents(target: CleanupTarget): Promise<CleanupStepResult[]> {
+  const status = await inspectTarget(target.path, target.item, 'directory')
+  if (status === 'missing') return [{ state: 'not_found' }]
+  if (status === 'invalid') return [{ state: 'skipped' }]
+
+  let entries: string[]
+  try {
+    entries = await fs.readdir(target.path)
+  } catch (error) {
+    logger.error('Failed to list cleanup directory', { item: target.item, path: target.path, error })
+    return [{ state: 'failed' }]
+  }
+  if (entries.length === 0) return [{ state: 'not_found' }]
+
+  return Promise.all(
+    entries.map((entry) => captureStep(target.item, () => fs.rm(path.join(target.path, entry), { recursive: true })))
+  )
+}

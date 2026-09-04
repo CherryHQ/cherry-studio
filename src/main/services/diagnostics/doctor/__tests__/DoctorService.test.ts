@@ -6,6 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const registryMocks = vi.hoisted(() => ({
   bootConfigRun: vi.fn(),
   bootConfigRepair: vi.fn(),
+  hardwareAccelerationRun: vi.fn(),
+  hardwareAccelerationEnable: vi.fn(),
+  mcpConnectedRun: vi.fn(),
+  mcpRestart: vi.fn(),
   userDataRun: vi.fn(),
   sharedProbe: vi.fn()
 }))
@@ -25,6 +29,16 @@ vi.mock('../registry', async () => {
         fixes: { repair: registryMocks.bootConfigRepair }
       },
       'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} },
+      'config-hardware-acceleration': {
+        id: 'config-hardware-acceleration',
+        run: registryMocks.hardwareAccelerationRun,
+        fixes: { enable: registryMocks.hardwareAccelerationEnable }
+      },
+      'mcp-servers-connected': {
+        id: 'mcp-servers-connected',
+        run: registryMocks.mcpConnectedRun,
+        fixes: { restart: registryMocks.mcpRestart }
+      },
       'network-online': { id: 'network-online', run: sharing, fixes: {} },
       'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} }
     }
@@ -50,6 +64,8 @@ beforeEach(() => {
   MockMainCacheServiceUtils.resetMocks()
   BaseService.resetInstances()
   registryMocks.bootConfigRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.hardwareAccelerationRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.mcpConnectedRun.mockResolvedValue({ status: 'pass' })
   registryMocks.userDataRun.mockResolvedValue({ status: 'pass' })
   registryMocks.sharedProbe.mockResolvedValue([])
 })
@@ -117,6 +133,80 @@ describe('DoctorService.run', () => {
 })
 
 describe('DoctorService.fix', () => {
+  it('runs a fix offered as informational guidance on a passing check', async () => {
+    registryMocks.hardwareAccelerationRun
+      .mockResolvedValueOnce({
+        status: 'pass',
+        detail: { variant: 'disabled_without_recent_crash' },
+        actions: [{ kind: 'fix', fixId: 'enable' }]
+      })
+      .mockResolvedValueOnce({
+        status: 'pass',
+        detail: { variant: 'disabled_without_recent_crash' },
+        actions: [{ kind: 'fix', fixId: 'enable' }]
+      })
+    registryMocks.hardwareAccelerationEnable.mockResolvedValue({ status: 'requires_relaunch' })
+    const service = new DoctorService()
+    const run = await service.run({ tier: 'quick', checkIds: ['config-hardware-acceleration'] })
+    if (run.status !== 'completed') throw new Error('expected a report')
+
+    const fixed = await service.fix({
+      runId: run.report.runId,
+      checkId: 'config-hardware-acceleration',
+      fixId: 'enable'
+    })
+
+    expect(fixed).toMatchObject({ status: 'requires_relaunch', result: { status: 'pass' } })
+    expect(registryMocks.hardwareAccelerationEnable).toHaveBeenCalledOnce()
+  })
+
+  it('passes only a target that the fresh finding offered to its fix handler', async () => {
+    const finding = {
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'server_errors', params: { count: 1 } },
+      actions: [{ kind: 'fix', fixId: 'restart', target: 'server-1' }]
+    }
+    registryMocks.mcpConnectedRun.mockResolvedValueOnce(finding).mockResolvedValueOnce(finding)
+    registryMocks.mcpRestart.mockResolvedValue({ status: 'fixed' })
+    const service = new DoctorService()
+    const run = await service.run({ tier: 'quick', checkIds: ['mcp-servers-connected'] })
+    if (run.status !== 'completed') throw new Error('expected a report')
+
+    const fixed = await service.fix({
+      runId: run.report.runId,
+      checkId: 'mcp-servers-connected',
+      fixId: 'restart',
+      target: 'server-1'
+    })
+
+    expect(fixed).toMatchObject({ status: 'fixed', result: { status: 'pass' } })
+    expect(registryMocks.mcpRestart).toHaveBeenCalledWith(expect.objectContaining({ target: 'server-1' }))
+  })
+
+  it('refuses a targeted fix that the fresh finding did not offer', async () => {
+    const finding = {
+      status: 'warn',
+      attribution: 'user-fixable',
+      detail: { variant: 'server_errors', params: { count: 1 } },
+      actions: [{ kind: 'fix', fixId: 'restart', target: 'server-1' }]
+    }
+    registryMocks.mcpConnectedRun.mockResolvedValue(finding)
+    const service = new DoctorService()
+    const run = await service.run({ tier: 'quick', checkIds: ['mcp-servers-connected'] })
+    if (run.status !== 'completed') throw new Error('expected a report')
+
+    await expect(
+      service.fix({
+        runId: run.report.runId,
+        checkId: 'mcp-servers-connected',
+        fixId: 'restart',
+        target: 'server-2'
+      })
+    ).resolves.toMatchObject({ status: 'stale', reason: 'finding_changed' })
+    expect(registryMocks.mcpRestart).not.toHaveBeenCalled()
+  })
+
   it('re-validates the finding, runs the fix, re-probes and patches the report', async () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockResolvedValue({ status: 'requires_relaunch' })

@@ -6,6 +6,7 @@ const inMemoryServerMock = vi.hoisted(() => ({ connect: vi.fn().mockResolvedValu
 const createInMemoryMcpServer = vi.hoisted(() => vi.fn().mockResolvedValue(inMemoryServerMock))
 const getBuiltinHttpHeaders = vi.hoisted(() => vi.fn<() => Record<string, string>>(() => ({})))
 const hasInMemoryImplementation = vi.hoisted(() => vi.fn<(name: string) => boolean>(() => true))
+const getResolvedMcpConfig = vi.hoisted(() => vi.fn())
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer,
   getBuiltinRegistryEnv: () => ({}),
@@ -15,7 +16,7 @@ vi.mock('@main/ai/mcp/servers/factory', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({} as Record<string, unknown>)
+  return mockApplicationFactory({ McpPackageService: { getResolvedMcpConfig } } as Record<string, unknown>)
 })
 vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
 vi.mock('@main/utils/shellEnv', () => ({ getShellEnv: async () => ({ PATH: '/shell/bin' }) }))
@@ -63,7 +64,10 @@ const create = (config: Partial<McpServer>, extra: Partial<Parameters<typeof cre
   })
 
 describe('createTransport', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getResolvedMcpConfig.mockReturnValue(null)
+  })
 
   it('starts an in-process server and hands back its side of the pipe', async () => {
     const transport = await create({ type: 'inMemory', name: '@cherry/memory', env: { MEMORY_FILE_PATH: '/tmp/m' } })
@@ -149,6 +153,25 @@ describe('createTransport', () => {
     expect(transport.params.env.NPM_CONFIG_REGISTRY).toBe('https://registry.example')
     expect(transport.params.env.PATH).toBe('/shell/bin')
     expect(transport.params.stderr).toBe('pipe')
+  })
+
+  it('uses the resolved DXT command, args, and environment', async () => {
+    getResolvedMcpConfig.mockReturnValue({
+      command: 'npx',
+      args: ['-y', 'resolved-package'],
+      env: { PACKAGE_HOME: '/resolved' }
+    })
+
+    const transport = (await create({
+      type: 'stdio',
+      command: 'manifest-command',
+      dxtPath: '/packages/server'
+    })) as unknown as FakeStdioTransport
+
+    expect(getResolvedMcpConfig).toHaveBeenCalledWith('/packages/server')
+    expect(transport.params.command).toBe('/usr/local/bin/npx')
+    expect(transport.params.args).toEqual(['-y', 'resolved-package'])
+    expect(transport.params.env.PACKAGE_HOME).toBe('/resolved')
   })
 
   it('forwards stdio stderr to the server log, skipping empty chunks', async () => {
