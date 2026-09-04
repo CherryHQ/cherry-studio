@@ -253,27 +253,22 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
   if (endpointCount < 2 || !currentBranch) return anchor
 
   const currentBranchName = getBranchName(currentBranch)
-  const currentBranchPosition = branches.findIndex((branch) => branch.nodeId === currentBranch.nodeId) + 1
-  const compactBranchName = currentBranch.isMain
-    ? currentBranchName
-    : t('chat.branch_switcher.fallback', { number: currentBranchPosition })
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverAnchor asChild>
-        <div className="flex w-fit min-w-0 max-w-full shrink items-center overflow-hidden [-webkit-app-region:no-drag]">
+        <div className="flex w-fit min-w-0 max-w-[60%] shrink items-center overflow-hidden [-webkit-app-region:no-drag]">
           {anchor}
           <PopoverTrigger asChild>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="ml-1 h-7 max-w-48 shrink-0 gap-1.5 px-2 text-foreground-secondary shadow-none"
+              className="ms-1 h-7 min-w-20 max-w-48 shrink gap-1.5 px-2 text-foreground-secondary shadow-none"
               title={currentBranchName}
               aria-label={t('chat.branch_switcher.trigger', { name: currentBranchName, count: branches.length })}>
               <GitBranch className="size-3.5 shrink-0" />
-              <span>{compactBranchName}</span>
-              <span className="shrink-0 text-foreground-tertiary">· {branches.length}</span>
+              <span className="min-w-0 truncate">{currentBranchName}</span>
             </Button>
           </PopoverTrigger>
         </div>
@@ -315,7 +310,7 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
                     <button
                       ref={branch.isActive ? activeButtonRef : undefined}
                       type="button"
-                      className="flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2.5 py-2 text-left outline-none"
+                      className="flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2.5 py-2 text-start outline-none"
                       aria-current={branch.isActive ? 'true' : undefined}
                       disabled={isBranchWritePending}
                       onClick={() => void handleBranchSelect(branch)}>
@@ -328,8 +323,8 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
                         aria-hidden="true"
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] text-foreground">{name}</span>
-                        <span className="mt-0.5 block overflow-hidden text-[11px] text-foreground-tertiary leading-4 [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]">
+                        <span className="block truncate font-medium text-foreground text-sm leading-5">{name}</span>
+                        <span className="mt-0.5 block overflow-hidden text-foreground-tertiary text-xs tabular-nums leading-4 [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]">
                           {getBranchDescription(branch)}
                         </span>
                       </span>
@@ -340,7 +335,7 @@ function TopicBranchSwitcher({ topic, anchor }: TopicBranchSwitcherProps) {
                           type="button"
                           variant="ghost"
                           size="icon-sm"
-                          className="mr-1 size-7 shrink-0 opacity-70 shadow-none hover:opacity-100 focus-visible:opacity-100"
+                          className="me-1 size-7 shrink-0 opacity-70 shadow-none hover:opacity-100 focus-visible:opacity-100"
                           disabled={isBranchWritePending}
                           aria-label={t('chat.branch_switcher.actions', { name })}>
                           <MoreHorizontal />

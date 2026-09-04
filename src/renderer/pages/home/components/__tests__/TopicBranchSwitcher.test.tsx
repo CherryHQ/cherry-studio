@@ -181,8 +181,7 @@ describe('TopicBranchSwitcher', () => {
     rerender(<TopicBranchSwitcher topic={topic} anchor={anchor} />)
 
     const trigger = screen.getByRole('button', { name: 'Try another model, 2 branches' })
-    expect(trigger).toHaveTextContent('Branch 2')
-    expect(trigger).not.toHaveTextContent('Try another model')
+    expect(trigger).toHaveTextContent(/^Try another model$/)
   })
 
   it('switches once, closes on success, and skips requests for the current branch', async () => {
