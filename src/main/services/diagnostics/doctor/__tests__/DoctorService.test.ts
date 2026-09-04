@@ -23,6 +23,9 @@ vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 const { DoctorService } = await import('../DoctorService')
 
+// The registry mock implements only these two; the catalog lists more.
+const MOCKED = ['config-boot-config-valid', 'storage-userdata-location'] as const
+
 const state = () => application.get('CacheService').getShared('doctor.state')
 const warnWithRepair = {
   status: 'warn',
@@ -42,7 +45,7 @@ beforeEach(() => {
 describe('DoctorService.run', () => {
   it('publishes running progress and then the completed report on the shared cache', async () => {
     const service = new DoctorService()
-    const outcome = await service.run({ tier: 'quick' })
+    const outcome = await service.run({ tier: 'quick', checkIds: MOCKED })
 
     expect(outcome.status).toBe('completed')
     if (outcome.status !== 'completed') return
@@ -69,8 +72,8 @@ describe('DoctorService.run', () => {
     registryMocks.userDataRun.mockReturnValue(new Promise((resolve) => (release = () => resolve({ status: 'pass' }))))
     const service = new DoctorService()
 
-    const first = service.run({ tier: 'quick' })
-    const busy = await service.run({ tier: 'quick' })
+    const first = service.run({ tier: 'quick', checkIds: MOCKED })
+    const busy = await service.run({ tier: 'quick', checkIds: MOCKED })
     expect(busy.status).toBe('busy')
     if (busy.status !== 'busy') return
     expect(service.cancel('someone-else')).toEqual({ status: 'not_running' })
@@ -86,7 +89,7 @@ describe('DoctorService.fix', () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockResolvedValue({ status: 'requires_relaunch' })
     const service = new DoctorService()
-    const run = await service.run({ tier: 'quick' })
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
@@ -100,7 +103,7 @@ describe('DoctorService.fix', () => {
 
   it('refuses a fix bound to a superseded run', async () => {
     const service = new DoctorService()
-    await service.run({ tier: 'quick' })
+    await service.run({ tier: 'quick', checkIds: MOCKED })
     await expect(
       service.fix({ runId: 'old-run', checkId: 'config-boot-config-valid', fixId: 'repair' })
     ).resolves.toEqual({
@@ -113,7 +116,7 @@ describe('DoctorService.fix', () => {
   it('refuses a fix when a fresh probe no longer offers it', async () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair)
     const service = new DoctorService()
-    const run = await service.run({ tier: 'quick' })
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })
@@ -125,7 +128,7 @@ describe('DoctorService.fix', () => {
     registryMocks.bootConfigRun.mockResolvedValueOnce(warnWithRepair).mockResolvedValueOnce(warnWithRepair)
     registryMocks.bootConfigRepair.mockRejectedValue(new Error('disk is read-only'))
     const service = new DoctorService()
-    const run = await service.run({ tier: 'quick' })
+    const run = await service.run({ tier: 'quick', checkIds: MOCKED })
     if (run.status !== 'completed') throw new Error('expected a report')
 
     const fixed = await service.fix({ runId: run.report.runId, checkId: 'config-boot-config-valid', fixId: 'repair' })

@@ -51,11 +51,23 @@ export function resolveProxyConfig({
   }
 }
 
+export interface ProxyAppliedSnapshot {
+  readonly mode: ProxyMode
+  readonly configuredUrl: string
+  readonly bypassRules: string
+  /** Electron config actually applied last (null before the first apply). */
+  readonly applied: ProxyConfig | null
+  /** `system` mode only: the OS proxy read failed and bare system mode was applied instead. */
+  readonly systemProxyReadFailed: boolean
+}
+
 @Injectable('ProxyService')
 @ServicePhase(Phase.WhenReady)
 export class ProxyService extends BaseService {
   private systemProxyInterval: Disposable | null = null
   private appliedKey: string | null = null
+  private appliedConfig: ProxyConfig | null = null
+  private systemProxyReadFailed = false
   private nodeProxyController: NodeProxyController | null = null
 
   // Latest-wins reconciler: rapid proxy-preference toggles (or system-proxy changes) collapse
@@ -75,6 +87,19 @@ export class ProxyService extends BaseService {
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  /** Read-only view of intent vs. what is in effect, for diagnostics. */
+  async getAppliedSnapshot(): Promise<ProxyAppliedSnapshot> {
+    await this.proxyReconciler.flush()
+    const preferenceService = application.get('PreferenceService')
+    return {
+      mode: preferenceService.get('app.proxy.mode'),
+      configuredUrl: preferenceService.get('app.proxy.url'),
+      bypassRules: preferenceService.get('app.proxy.bypass_rules'),
+      applied: this.appliedConfig,
+      systemProxyReadFailed: this.systemProxyReadFailed
+    }
   }
 
   /** Routing policy for isolated runtimes. All proxy/bypass semantics stay in main. */
@@ -114,6 +139,7 @@ export class ProxyService extends BaseService {
       url: preferenceService.get('app.proxy.url'),
       bypassRules: preferenceService.get('app.proxy.bypass_rules')
     })
+    this.systemProxyReadFailed = false
     if (config.mode === 'system') {
       // A failed OS read must not abort the apply — fall back to bare system mode so Electron
       // still applies something instead of leaving the proxy unconfigured.
@@ -124,6 +150,7 @@ export class ProxyService extends BaseService {
           config.proxyBypassRules = currentProxy.noProxy.join(',')
         }
       } catch (error) {
+        this.systemProxyReadFailed = true
         logger.warn('Failed to read OS system proxy; applying bare system mode', error as Error)
       }
     }
@@ -138,6 +165,7 @@ export class ProxyService extends BaseService {
 
     await this.setGlobalProxy(config)
     this.appliedKey = proxyConfigKey(config)
+    this.appliedConfig = config
   }
 
   private ensureSystemProxyMonitor(): void {

@@ -29,8 +29,8 @@ const logger = loggerService.withContext('ProviderRegistryUpdaterService')
 // x-files/app-upgrade-config so the same GitCode repo mirror serves CN clients.
 const REMOTE_BRANCH = 'x-files/provider-registry'
 const REMOTE_SUBPATH = `v${REGISTRY_SCHEMA_VERSION}`
-const REGISTRY_URL_GITHUB = `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/${REMOTE_BRANCH}/${REMOTE_SUBPATH}`
-const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-studio/raw/${encodeURIComponent(REMOTE_BRANCH)}/${REMOTE_SUBPATH}`
+export const REGISTRY_URL_GITHUB = `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/${REMOTE_BRANCH}/${REMOTE_SUBPATH}`
+export const REGISTRY_URL_GITCODE = `https://raw.gitcode.com/CherryHQ/cherry-studio/raw/${encodeURIComponent(REMOTE_BRANCH)}/${REMOTE_SUBPATH}`
 
 const MANIFEST_FILE = 'manifest.json'
 
