@@ -21447,45 +21447,6 @@
       }
     },
     {
-      "apiModelId": "muse-spark-1.3-contributor",
-      "modelId": "muse-spark-1-3-contributor",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.002
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        }
-      },
-      "providerId": "opencode"
-    },
-    {
-      "apiModelId": "omen-alpha",
-      "modelId": "omen-alpha",
-      "name": "Omen Alpha",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.04
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.66
-        }
-      },
-      "providerId": "opencode"
-    },
-    {
       "apiModelId": "ox-alpha-free",
       "endpointTypes": ["openai-chat-completions"],
       "modelId": "ox-alpha",

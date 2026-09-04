@@ -101,7 +101,7 @@ export const ReasoningWireModeSchema = z.union([
         message: 'reasoning budget mode must contain a budget operation'
       }),
     effortMap: ReasoningEffortMapSchema,
-    budget: ReasoningBudgetPolicySchema.optional()
+    budget: ReasoningBudgetPolicySchema
   })
 ])
 export type ReasoningWireMode = z.infer<typeof ReasoningWireModeSchema>
