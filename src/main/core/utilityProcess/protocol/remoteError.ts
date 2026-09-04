@@ -6,14 +6,20 @@ import type { RemoteErrorShape } from './frames'
 
 /** Flattens any thrown value into the clone-safe subset the wire carries. */
 export function toRemoteError(error: unknown): RemoteErrorShape {
-  if (error instanceof Error) {
-    const code = (error as { code?: unknown }).code
-    const shape: RemoteErrorShape = { name: error.name || 'Error', message: error.message }
-    if (typeof error.stack === 'string') shape.stack = error.stack
-    if (typeof code === 'string' || typeof code === 'number') shape.code = code
-    return shape
+  try {
+    if (error instanceof Error) {
+      const code = (error as { code?: unknown }).code
+      const shape: RemoteErrorShape = { name: error.name || 'Error', message: error.message }
+      if (typeof error.stack === 'string') shape.stack = error.stack
+      if (typeof code === 'string' || typeof code === 'number') shape.code = code
+      return shape
+    }
+    return { name: 'Error', message: typeof error === 'string' ? error : safeStringify(error) }
+  } catch {
+    // Throwing getters and null prototypes are rare, but this also runs inside the child's
+    // uncaughtException handler, where a throw would skip the abort-and-exit sequence entirely.
+    return { name: 'Error', message: 'error could not be serialized' }
   }
-  return { name: 'Error', message: typeof error === 'string' ? error : safeStringify(error) }
 }
 
 function safeStringify(value: unknown): string {

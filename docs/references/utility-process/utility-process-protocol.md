@@ -90,6 +90,8 @@ A child that exits cleanly without being asked is a defect, not a graceful shutd
 
 `terminate` — main kills the generation. The canceller's promise settles with its own reason only after the exit is observed (so "cancelled" means the native call is really gone), and every other in-flight request fails with `PROCESS_EXITED { intentional: true }`. Terminate cancellations do not count against the breaker.
 
+Both policies describe a request that already reached the child. A signal that aborts earlier — while the caller waits on a cold start, on the shared stop barrier, or before anything is spawned — only detaches that caller: it rejects with `signal.reason` and leaves the generation alone. There is no child-side work to terminate yet, and the cold-start barrier is shared, so killing on one caller's abort would take down every other waiter. An unused generation is reclaimed by the idle timeout or the next `stop()`.
+
 An `onEvent` callback that throws cancels its own request under the same policy, with the thrown error as the reason.
 
 ## Circuit breaker
