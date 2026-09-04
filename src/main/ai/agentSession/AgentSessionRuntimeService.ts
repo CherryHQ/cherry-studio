@@ -2432,20 +2432,37 @@ export class AgentSessionRuntimeService extends BaseService {
   private async admitTurn(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
     if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
     if (isAgentSessionRuntimeTurnAdmitted(entry.runtimeState, turn)) return
-    const connection = this.currentConnection(entry)
-    const cancelInputReservation = connection?.reserveInput?.()
     this.applyRuntimeStateEvent(entry, { type: 'turn-admitted', turn })
     // A fresh request starts clean — drop any retry status left over from the previous turn.
     this.clearApiRetry(entry)
-    try {
-      await this.refreshTurnTraceContext(entry, turn)
-      await connection?.send({
-        message: turn.userMessage,
-        systemReminder: turn.systemReminder === true
-      })
-    } catch (error) {
-      cancelInputReservation?.()
-      throw error
+    while (this.isCurrentEntry(entry) && this.currentTurn(entry) === turn && this.isTurnLive(entry, turn)) {
+      const connection = this.currentConnection(entry)
+      if (!connection) {
+        if (!(await this.ensureConnection(entry))) return
+        continue
+      }
+
+      const cancelInputReservation = connection.reserveInput?.()
+      try {
+        await this.refreshTurnTraceContext(entry, turn, connection)
+        if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) {
+          cancelInputReservation?.()
+          return
+        }
+        if (this.currentConnection(entry) !== connection) {
+          cancelInputReservation?.()
+          continue
+        }
+        await connection.send({
+          message: turn.userMessage,
+          systemReminder: turn.systemReminder === true
+        })
+        return
+      } catch (error) {
+        cancelInputReservation?.()
+        if (this.currentConnection(entry) !== connection) continue
+        throw error
+      }
     }
   }
 
@@ -2488,10 +2505,20 @@ export class AgentSessionRuntimeService extends BaseService {
     turn.activeToolIds.clear()
   }
 
-  private async refreshTurnTraceContext(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): Promise<void> {
-    if (!this.isCurrentEntry(entry) || this.currentTurn(entry) !== turn || !this.isTurnLive(entry, turn)) return
+  private async refreshTurnTraceContext(
+    entry: AgentSessionRuntimeEntry,
+    turn: AgentSessionTurn,
+    connection = this.currentConnection(entry)
+  ): Promise<void> {
+    if (
+      !this.isCurrentEntry(entry) ||
+      this.currentTurn(entry) !== turn ||
+      !this.isTurnLive(entry, turn) ||
+      this.currentConnection(entry) !== connection
+    )
+      return
     const traceContext = this.sessionTraceContext(entry, turn.modelId)
-    if (traceContext) await this.currentConnection(entry)?.refreshTraceContext?.(traceContext)
+    if (traceContext) await connection?.refreshTraceContext?.(traceContext)
   }
 
   private requestRuntimeLaunch(entry: AgentSessionRuntimeEntry, target: AgentSessionRuntimeLaunchTarget): void {

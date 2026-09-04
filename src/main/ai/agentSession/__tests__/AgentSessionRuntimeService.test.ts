@@ -3558,6 +3558,45 @@ describe('AgentSessionRuntimeService', () => {
       await reader.cancel().catch(() => undefined)
     })
 
+    it('sends an admitted turn through the replacement connection after trace refresh', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const entry = getEntry(service)
+      const refreshed = createDeferred<void>()
+      const cancelStaleReservation = vi.fn()
+      const staleConnection = {
+        events: [],
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => cancelStaleReservation),
+        refreshTraceContext: vi.fn(() => refreshed.promise)
+      }
+      const replacementConnection = {
+        events: [],
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current'),
+        reserveInput: vi.fn(() => vi.fn()),
+        refreshTraceContext: vi.fn()
+      }
+      entry.connection = staleConnection
+
+      const admitting = (service as any).admitTurn(entry, entry.currentTurn)
+      await vi.waitFor(() => expect(staleConnection.refreshTraceContext).toHaveBeenCalledOnce())
+      entry.connection = replacementConnection
+      refreshed.resolve()
+      await admitting
+
+      expect(cancelStaleReservation).toHaveBeenCalledOnce()
+      expect(staleConnection.send).not.toHaveBeenCalled()
+      expect(replacementConnection.reserveInput).toHaveBeenCalledOnce()
+      expect(replacementConnection.send).toHaveBeenCalledWith({
+        message: userMessage('user-1'),
+        systemReminder: false
+      })
+    })
+
     it('is a no-op for a session whose agent was deleted', async () => {
       mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: null })
       const service = new AgentSessionRuntimeService()

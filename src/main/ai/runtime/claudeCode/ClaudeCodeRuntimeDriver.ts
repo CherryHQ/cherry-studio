@@ -521,6 +521,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         supportsAttachmentReads: this.assistantFileToolsEnabled,
         supportsImages: resolveModelImageSupport(this.input.modelId)
       })
+      sdkMessage = { ...sdkMessage, session_id: this.resumeToken ?? '' }
     } catch (error) {
       if (requiresInputClaim) this.pendingInputClaims -= 1
       throw error

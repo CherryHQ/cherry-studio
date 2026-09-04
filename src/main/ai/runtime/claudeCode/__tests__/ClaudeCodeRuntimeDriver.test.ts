@@ -2813,6 +2813,59 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('clears a discarded resume token when pending input finishes materializing after recovery', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const prepared = createDeferred<any[]>()
+    mocks.prepareChatMessages.mockReturnValueOnce(prepared.promise)
+    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(freshQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const message = {
+      ...userMessage(),
+      data: {
+        parts: [
+          { type: 'text', text: 'inspect this image' },
+          {
+            type: 'file',
+            url: 'file:///tmp/pixel.png',
+            mediaType: 'image/png',
+            filename: 'pixel.png',
+            providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+          }
+        ]
+      }
+    }
+
+    connection.reserveInput?.()
+    const sending = connection.send({ message })
+    await vi.waitFor(() => expect(mocks.prepareChatMessages).toHaveBeenCalledOnce())
+    staleQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    prepared.resolve([{ id: message.id, role: 'user', parts: [{ type: 'text', text: 'inspect this image' }] }])
+    await sending
+
+    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
+    await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
+      value: { type: 'user', session_id: '' },
+      done: false
+    })
+    void connection.close()
+  })
+
   it('recovers corrupt resumed tool history before any non-metadata activity', async () => {
     const corruptQueue = createAsyncQueue<any>()
     const freshQueue = createAsyncQueue<any>()
