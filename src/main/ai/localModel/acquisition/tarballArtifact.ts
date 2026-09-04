@@ -149,7 +149,7 @@ async function installExtractedFiles(
 
 /** Where {@link installArtifact} stages the tarball and its extracted files. */
 export function artifactStagingDir(artifact: SharedArtifact): string {
-  return path.join(application.getPath(artifact.installDirKey), '.tmp')
+  return application.getPath(artifact.installDirKey, '.tmp')
 }
 
 /** Deletes every installed copy of the artifact, including other platforms' leftovers. */

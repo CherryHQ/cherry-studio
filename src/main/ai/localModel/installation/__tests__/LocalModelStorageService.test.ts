@@ -243,14 +243,46 @@ describe('shared artifact installation', () => {
     const first = ensureArtifact(firstController.signal)
     await vi.waitFor(() => expect(installArtifact).toHaveBeenCalledOnce())
     firstController.abort(new Error('first caller cancelled'))
-    await expect(first).rejects.toThrow('first caller cancelled')
+    await vi.waitFor(() => expect(finishDrain).toBeDefined())
 
     const late = ensureArtifact(lateController.signal)
     expect(installArtifact).toHaveBeenCalledOnce()
 
     finishDrain?.()
+    await expect(first).rejects.toThrow('first caller cancelled')
     await expect(late).resolves.toBeUndefined()
     expect(installArtifact).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not release the last caller until the install it cancelled has drained', async () => {
+    let finishDrain: (() => void) | undefined
+    installArtifact.mockImplementationOnce(
+      (_artifact, signal: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => {
+              finishDrain = () => reject(signal.reason)
+            },
+            { once: true }
+          )
+        })
+    )
+    const controller = new AbortController()
+
+    const only = ensureArtifact(controller.signal)
+    await vi.waitFor(() => expect(installArtifact).toHaveBeenCalledOnce())
+    let settled = false
+    only.catch(() => {
+      settled = true
+    })
+    controller.abort(new Error('cancelled'))
+    await vi.waitFor(() => expect(finishDrain).toBeDefined())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(settled).toBe(false)
+
+    finishDrain?.()
+    await expect(only).rejects.toThrow('cancelled')
   })
 })
 

@@ -381,10 +381,7 @@ export class LocalModelStorageService {
     signal: AbortSignal,
     onProgress?: (fraction: number) => void
   ): Promise<void> {
-    if (signal.aborted) {
-      if (install.waiters === 0) install.controller.abort(this.abortError(signal))
-      return Promise.reject(this.abortError(signal))
-    }
+    if (signal.aborted) return this.abandonArtifactInstall(install, signal)
 
     const listener = onProgress ? (fraction: number) => onProgress(fraction) : undefined
     install.waiters += 1
@@ -404,8 +401,7 @@ export class LocalModelStorageService {
       }
       const onAbort = () => {
         cleanup()
-        if (install.waiters === 0) install.controller.abort(this.abortError(signal))
-        reject(this.abortError(signal))
+        this.abandonArtifactInstall(install, signal).catch(reject)
       }
 
       signal.addEventListener('abort', onAbort, { once: true })
@@ -420,6 +416,16 @@ export class LocalModelStorageService {
         }
       )
     })
+  }
+
+  /** The last waiter to leave aborts the install and waits for it to drain, so a cancel
+   * does not return while the staging directory is still being written or removed. */
+  private async abandonArtifactInstall(install: ArtifactInstall, signal: AbortSignal): Promise<never> {
+    if (install.waiters === 0) {
+      install.controller.abort(this.abortError(signal))
+      await install.promise.catch(() => {})
+    }
+    throw this.abortError(signal)
   }
 
   private abortError(signal: AbortSignal): Error {
