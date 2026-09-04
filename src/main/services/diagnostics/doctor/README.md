@@ -69,9 +69,11 @@ const state = useSharedCacheValue('doctor.state')   // idle | running | complete
 await ipcApi.request('diagnostics.doctor.run', { tier: 'quick' })      // then, on user click:
 await ipcApi.request('diagnostics.doctor.run', { tier: 'live' })       // live = quick + live checks
 await ipcApi.request('diagnostics.doctor.cancel', { runId })
-await ipcApi.request('diagnostics.doctor.fix', { runId, checkId, fixId })
+await ipcApi.request('diagnostics.doctor.fix', { runId, checkId, fixId, target: optionalTarget })
 ```
 
 `run` returns `busy` with the in-flight `runId` while a run is active. `fix` is bound to the report's `runId`
 and re-probes before executing; it answers `stale` when the run was superseded or the finding changed.
+Targeted fixes are accepted only when the fresh probe offers the same `fixId` and `target`. Passing checks may
+also offer informational fixes, such as re-enabling a disabled boot option.
 Reports carry `expiresAt`; after that the dialog should ask for a re-run before offering fixes.

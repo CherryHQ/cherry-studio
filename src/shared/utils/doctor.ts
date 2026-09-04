@@ -25,9 +25,15 @@ export function doctorFixMeta<Id extends DoctorCheckId>(checkId: Id, fixId: Doct
 /** Untrusted-input guard for `diagnostics.doctor.fix`: the check must exist and declare that fix. */
 export function isDoctorFixRequest(value: unknown): value is DoctorFixRequest {
   if (typeof value !== 'object' || value === null) return false
-  const { runId, checkId, fixId } = value as { runId?: unknown; checkId?: unknown; fixId?: unknown }
+  const { runId, checkId, fixId, target } = value as {
+    runId?: unknown
+    checkId?: unknown
+    fixId?: unknown
+    target?: unknown
+  }
   if (typeof runId !== 'string' || runId.length === 0) return false
   if (!isDoctorCheckId(checkId) || typeof fixId !== 'string') return false
+  if (target !== undefined && (typeof target !== 'string' || target.length === 0)) return false
   return (DOCTOR_CHECK_CATALOG[checkId].fixes as readonly DoctorFixMeta[]).some((fix) => fix.id === fixId)
 }
 

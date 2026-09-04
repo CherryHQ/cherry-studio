@@ -91,11 +91,9 @@ function summarize(results: readonly DoctorCheckResult[]): Record<DoctorCheckSta
   return summary
 }
 
-function offersFix(result: DoctorCheckResult, fixId: string): boolean {
-  return (
-    (result.status === 'warn' || result.status === 'fail') &&
-    result.actions.some((action) => action.kind === 'fix' && action.fixId === fixId)
-  )
+function offersFix(result: DoctorCheckResult, fixId: string, target?: string): boolean {
+  if (result.status === 'skip' || result.status === 'error' || !result.actions) return false
+  return result.actions.some((action) => action.kind === 'fix' && action.fixId === fixId && action.target === target)
 }
 
 /**
@@ -184,11 +182,16 @@ export class DoctorService extends BaseService {
     this.activeRun = { runId: request.runId, controller }
     try {
       const before = await this.probeOne(request.checkId, controller.signal)
-      if (!offersFix(before, request.fixId)) return { status: 'stale', reason: 'finding_changed', result: before }
+      if (!offersFix(before, request.fixId, request.target)) {
+        return { status: 'stale', reason: 'finding_changed', result: before }
+      }
 
       let outcome: DoctorFixOutcome
       try {
-        outcome = await fixHandler(request.checkId, request.fixId)(runContext(controller.signal, new Map()))
+        outcome = await fixHandler(request.checkId, request.fixId)({
+          ...runContext(controller.signal, new Map()),
+          target: request.target
+        })
       } catch (error) {
         outcome = { status: 'failed', message: error instanceof Error ? error.message : String(error) }
       }

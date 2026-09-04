@@ -55,13 +55,16 @@ export async function resolveLaunchCommand({
   args,
   registryUrl,
   loginShellEnv,
-  logger
+  logger,
+  requireResolvable = false
 }: {
   command: string
   args: string[]
   registryUrl?: string
   loginShellEnv: Record<string, string>
   logger: LoggerService
+  /** Diagnostic dry-runs reject custom commands that cannot be found in the launch environment. */
+  requireResolvable?: boolean
 }): Promise<LaunchCommand> {
   const normalizedCommand = command.trim()
   if (!normalizedCommand) {
@@ -74,6 +77,7 @@ export async function resolveLaunchCommand({
   if (!runner) {
     const resolved = await findCommandInShellEnv(normalizedCommand, loginShellEnv)
     if (!resolved) {
+      if (requireResolvable) throw new Error(`${normalizedCommand} could not be resolved in the launch environment`)
       logger.warn(
         `Could not resolve command '${normalizedCommand}' to a full path. ` +
           `If the server fails to start, try providing the full path in the command field.`

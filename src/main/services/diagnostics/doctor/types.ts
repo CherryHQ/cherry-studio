@@ -16,7 +16,12 @@ export type DoctorFixOutcome =
   | { readonly status: 'fixed' | 'requires_relaunch' }
   | { readonly status: 'failed'; readonly message: string }
 
-export type DoctorFixHandler = (ctx: DoctorContext) => Promise<DoctorFixOutcome>
+export interface DoctorFixContext extends DoctorContext {
+  /** Optional opaque target copied only from the matching action in a fresh probe. */
+  readonly target?: string
+}
+
+export type DoctorFixHandler = (ctx: DoctorFixContext) => Promise<DoctorFixOutcome>
 
 /** A check implementation. Domain, tier, prerequisites and fix metadata live in the shared catalog. */
 export interface DoctorCheckDefinition<Id extends DoctorCheckId> {

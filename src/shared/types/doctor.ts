@@ -35,9 +35,8 @@ export type DoctorAttribution = 'user-fixable' | 'app-bug' | 'transient'
 export type DoctorDataClass = 'public' | 'local_only' | 'consent_required'
 
 /**
- * `low` runs on click and is idempotent + reversible; `confirm` needs an explicit
- * confirmation dialog first. Destructive recoveries are never fixes — they navigate
- * to their own guarded flows.
+ * `low` runs on click and is idempotent + reversible; irreversible cleanup uses `confirm`.
+ * Destructive recovery flows are not fixes and navigate to their own guarded UI.
  */
 export type DoctorFixRisk = 'low' | 'confirm'
 
@@ -53,8 +52,11 @@ export const DOCTOR_CHECK_IDS = [
   'install-version-channel',
   'permission-screen-capture',
   'permission-accessibility',
-  'config-boot-config-valid',
   'storage-userdata-location',
+  'storage-disk-space',
+  'storage-diagnostic-data-size',
+  'config-boot-config-valid',
+  'config-hardware-acceleration',
   'provider-default-model',
   'provider-api-key-present',
   'network-online',
@@ -65,6 +67,8 @@ export const DOCTOR_CHECK_IDS = [
   'network-endpoint-registry',
   'network-endpoint-cloud',
   'network-endpoint-diagnostics',
+  'mcp-servers-connected',
+  'mcp-launch-commands',
   'runtime-managed-tools',
   'logs-recent-findings'
 ] as const
@@ -108,6 +112,27 @@ export const DOCTOR_CHECK_CATALOG = {
     details: ['denied'],
     requires: []
   },
+  'storage-userdata-location': {
+    domain: 'storage',
+    tier: 'quick',
+    fixes: [],
+    details: ['fallback_to_default'],
+    requires: []
+  },
+  'storage-disk-space': {
+    domain: 'storage',
+    tier: 'quick',
+    fixes: [{ id: 'cleanup', risk: 'confirm', reversible: false, relaunch: false }],
+    details: ['critical', 'low'],
+    requires: []
+  },
+  'storage-diagnostic-data-size': {
+    domain: 'storage',
+    tier: 'quick',
+    fixes: [{ id: 'clear', risk: 'confirm', reversible: false, relaunch: false }],
+    details: ['large'],
+    requires: []
+  },
   'config-boot-config-valid': {
     domain: 'config',
     tier: 'quick',
@@ -115,11 +140,11 @@ export const DOCTOR_CHECK_CATALOG = {
     details: ['invalid_keys', 'parse_error', 'read_error'],
     requires: []
   },
-  'storage-userdata-location': {
-    domain: 'storage',
+  'config-hardware-acceleration': {
+    domain: 'config',
     tier: 'quick',
-    fixes: [],
-    details: ['fallback_to_default'],
+    fixes: [{ id: 'enable', risk: 'low', reversible: true, relaunch: true }],
+    details: ['disabled_without_recent_crash'],
     requires: []
   },
   'provider-default-model': {
@@ -186,6 +211,20 @@ export const DOCTOR_CHECK_CATALOG = {
     details: ENDPOINT_DETAILS,
     requires: ['network-dns-resolution']
   },
+  'mcp-servers-connected': {
+    domain: 'mcp',
+    tier: 'quick',
+    fixes: [{ id: 'restart', risk: 'low', reversible: true, relaunch: false }],
+    details: ['server_errors'],
+    requires: []
+  },
+  'mcp-launch-commands': {
+    domain: 'mcp',
+    tier: 'quick',
+    fixes: [],
+    details: ['unresolved'],
+    requires: []
+  },
   'runtime-managed-tools': {
     domain: 'runtime',
     tier: 'quick',
@@ -219,7 +258,9 @@ export type DoctorNavigateTarget =
   | '/settings/provider'
 
 export type DoctorAction<Id extends DoctorCheckId = DoctorCheckId> =
-  | ([DoctorFixId<Id>] extends [never] ? never : { readonly kind: 'fix'; readonly fixId: DoctorFixId<Id> })
+  | ([DoctorFixId<Id>] extends [never]
+      ? never
+      : { readonly kind: 'fix'; readonly fixId: DoctorFixId<Id>; readonly target?: string })
   | { readonly kind: 'navigate'; readonly target: DoctorNavigateTarget }
   /** Absolute path already resolved by main; the renderer only forwards it to `system.shell.open_path`. */
   | { readonly kind: 'open_path'; readonly path: string }
@@ -241,7 +282,7 @@ export interface DoctorEvidenceItem {
 
 /** What a probe itself decides. `skip` and `error` are assigned by the engine, never by a check. */
 export type DoctorCheckOutcome<Id extends DoctorCheckId = DoctorCheckId> =
-  | { readonly status: 'pass'; readonly detail?: DoctorDetail<Id> }
+  | { readonly status: 'pass'; readonly detail?: DoctorDetail<Id>; readonly actions?: readonly DoctorAction<Id>[] }
   | {
       readonly status: 'warn' | 'fail'
       readonly attribution: DoctorAttribution
@@ -329,7 +370,12 @@ export type DoctorRunResult =
 export type DoctorCancelResult = { readonly status: 'canceled' | 'not_running' }
 
 export type DoctorFixRequest = {
-  [Id in DoctorFixableCheckId]: { readonly runId: string; readonly checkId: Id; readonly fixId: DoctorFixId<Id> }
+  [Id in DoctorFixableCheckId]: {
+    readonly runId: string
+    readonly checkId: Id
+    readonly fixId: DoctorFixId<Id>
+    readonly target?: string
+  }
 }[DoctorFixableCheckId]
 
 /**
