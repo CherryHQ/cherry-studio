@@ -193,7 +193,10 @@ export function resolveUniqueModelId(
 ): UniqueModelId | undefined {
   if (isUniqueModelId(modelId)) return modelId
   if (!modelSnapshot) return undefined
-  if (isUniqueModelId(modelSnapshot.id)) return modelSnapshot.id
+  const parsedSnapshotId = UniqueModelIdSchema.safeParse(modelSnapshot.id)
+  if (parsedSnapshotId.success && parseUniqueModelId(parsedSnapshotId.data).providerId === modelSnapshot.provider) {
+    return parsedSnapshotId.data
+  }
 
   try {
     return createUniqueModelId(modelSnapshot.provider, modelSnapshot.id)

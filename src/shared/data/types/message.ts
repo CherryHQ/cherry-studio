@@ -541,7 +541,7 @@ export const MessageSchema = z.strictObject({
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,
-  /** Siblings group ID (0 = normal branch, >0 = multi-model response group) */
+  /** Siblings group ID (0 = normal branch; non-zero groups contain multi-model or regeneration alternatives) */
   siblingsGroupId: z.number(),
   // Assistant info is derived via topic → assistant FK chain; not stored on message.
   /** Model identifier */
@@ -592,7 +592,7 @@ export interface TreeNode {
 
 /**
  * Group of sibling nodes with same parentId and siblingsGroupId
- * Used for multi-model responses in tree view
+ * Used for multi-model and regeneration alternatives in tree view
  */
 export interface SiblingsGroup {
   /** Parent message ID — the virtual root for first-turn groups, else a content message */
@@ -609,7 +609,7 @@ export interface SiblingsGroup {
 export interface TreeResponse {
   /** Regular nodes (siblingsGroupId = 0) */
   nodes: TreeNode[]
-  /** Multi-model response groups (siblingsGroupId != 0) */
+  /** Alternative response groups (siblingsGroupId != 0) */
   siblingsGroups: SiblingsGroup[]
   /** Current active node ID */
   activeNodeId: string | null

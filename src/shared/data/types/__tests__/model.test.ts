@@ -3,8 +3,14 @@ import { describe, expect, it } from 'vitest'
 
 describe('resolveUniqueModelId', () => {
   it('reuses a pre-composed model ID from a persisted snapshot', () => {
-    expect(resolveUniqueModelId(null, { provider: 'legacy-provider', id: 'provider-a::model-a' })).toBe(
+    expect(resolveUniqueModelId(null, { provider: 'provider-a', id: 'provider-a::model-a' })).toBe(
       'provider-a::model-a'
+    )
+  })
+
+  it('keeps the snapshot provider when a raw model ID contains the unique-ID separator', () => {
+    expect(resolveUniqueModelId(null, { provider: 'provider-b', id: 'provider-a::model-a' })).toBe(
+      'provider-b::provider-a::model-a'
     )
   })
 
