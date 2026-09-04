@@ -61,7 +61,12 @@ vi.mock('@renderer/components/tags/Model', () => ({
 }))
 
 vi.mock('../ModelSelectorDetailCard', () => ({
-  ModelSelectorDetailCard: ({ children }: { children: ReactNode }) => <>{children}</>
+  ModelSelectorDetailCard: ({ children, description }: { children: ReactNode; description?: ReactNode }) => (
+    <>
+      {children}
+      {description}
+    </>
+  )
 }))
 
 vi.mock('@renderer/components/VirtualList', async () => {
@@ -328,6 +333,21 @@ describe('ModelSelector', () => {
 
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::gpt-4' }))
     expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('renders model detail descriptions supplied by the caller', () => {
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        getModelDetailDescription={(model) => `Status: ${model.name}`}
+        trigger={<button type="button">open</button>}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Status: gpt-4')).toBeInTheDocument()
+    expect(screen.getByText('Status: gpt-3.5')).toBeInTheDocument()
   })
 
   it('honors the explicitly supplied disabled state', async () => {

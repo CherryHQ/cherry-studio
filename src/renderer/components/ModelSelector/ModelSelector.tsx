@@ -15,6 +15,7 @@ import { first } from 'es-toolkit/compat'
 import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
+  type ReactNode,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -156,6 +157,7 @@ function modelsFromSelectedIds(
 function ModelRow({
   item,
   disabled,
+  description,
   isFocused,
   onPin,
   onSelect,
@@ -168,6 +170,7 @@ function ModelRow({
 }: {
   item: ModelSelectorModelItem
   disabled: boolean
+  description?: ReactNode
   isFocused: boolean
   onPin: (modelId: UniqueModelId) => void
   onSelect: (item: ModelSelectorModelItem) => void
@@ -237,7 +240,11 @@ function ModelRow({
   ) : null
 
   return (
-    <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
+    <ModelSelectorDetailCard
+      item={item}
+      provider={item.provider}
+      portalContainer={detailPortalContainer}
+      description={description}>
       <ModelSelectorRow
         disabled={disabled}
         selected={isSelected}
@@ -341,6 +348,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     showPinnedModels = true,
     showPinActions = true,
     isModelDisabled,
+    getModelDetailDescription,
     includeAgentOnlyModels = false,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
@@ -842,6 +850,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           <ModelRow
             item={item}
             disabled={isSelectionDisabled(item.model, item.provider)}
+            description={getModelDetailDescription?.(item.model, item.provider)}
             isFocused={focusedItemKey === item.key}
             isPinActionDisabled={isPinActionDisabled}
             isSelected={visibleSelectedModelIdSet.has(item.modelId)}
@@ -860,6 +869,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
+      getModelDetailDescription,
       isPinActionDisabled,
       isSelectionDisabled,
       multiple,

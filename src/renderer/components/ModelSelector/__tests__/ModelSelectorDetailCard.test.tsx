@@ -171,6 +171,21 @@ describe('ModelSelectorDetailCard', () => {
     expect(screen.queryByText('/')).not.toBeInTheDocument()
   })
 
+  it('renders a caller-provided model description', () => {
+    const model = makeModel()
+
+    render(
+      <ModelSelectorDetailCard
+        item={makeItem(model)}
+        provider={provider}
+        description="Limited-time free, available only in the Work module">
+        <button type="button">GPT-4o mini</button>
+      </ModelSelectorDetailCard>
+    )
+
+    expect(screen.getByText('Limited-time free, available only in the Work module')).toBeInTheDocument()
+  })
+
   it('constrains the hover card to Radix available space', () => {
     const model = makeModel()
 

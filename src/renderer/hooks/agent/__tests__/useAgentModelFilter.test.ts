@@ -5,7 +5,7 @@ import { createElement, type PropsWithChildren } from 'react'
 import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAgentModelDisabled, useAgentModelFilter } from '../useAgentModelFilter'
+import { useAgentModelAvailability, useAgentModelDisabled, useAgentModelFilter } from '../useAgentModelFilter'
 
 const mocks = vi.hoisted(() => ({
   availability: {
@@ -152,10 +152,13 @@ describe('useAgentModelDisabled', () => {
       entitledModelIds: [available.id, exhausted.id],
       quotaExhaustedModelIds: [exhausted.id]
     }
-    const { result } = renderHook(() => useAgentModelDisabled(), { wrapper: wrapper() })
+    const { result } = renderHook(() => useAgentModelAvailability(), { wrapper: wrapper() })
 
-    await waitFor(() => expect(result.current(available)).toBe(false))
-    expect(result.current(exhausted)).toBe(true)
+    await waitFor(() => expect(result.current.isModelDisabled(available)).toBe(false))
+    expect(result.current.isModelDisabled(exhausted)).toBe(true)
+    expect(result.current.getModelQuotaStatus(available)).toBe('available')
+    expect(result.current.getModelQuotaStatus(exhausted)).toBe('exhausted')
+    expect(result.current.getModelQuotaStatus(model())).toBeUndefined()
   })
 
   it('does not synchronize while disabled', async () => {

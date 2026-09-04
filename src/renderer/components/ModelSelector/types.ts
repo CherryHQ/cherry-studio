@@ -10,6 +10,7 @@ export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
 export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
 export type ModelSelectorFilter = (model: Model, provider?: Provider) => boolean
+export type ModelSelectorDetailDescriptionResolver = (model: Model, provider: Provider) => ReactNode
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
@@ -20,6 +21,7 @@ interface ModelSelectorCommonProps {
   showPinnedModels?: boolean
   showPinActions?: boolean
   isModelDisabled?: ModelSelectorFilter
+  getModelDetailDescription?: ModelSelectorDetailDescriptionResolver
   includeAgentOnlyModels?: boolean
   prioritizedProviderIds?: readonly string[]
   side?: ModelSelectorSide

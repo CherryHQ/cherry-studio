@@ -126,11 +126,13 @@ function DetailRow({ label, value }: { label: ReactNode; value?: ReactNode }) {
 function ModelSelectorDetailCardBody({
   item,
   provider,
-  providerName
+  providerName,
+  description
 }: {
   item: ModelSelectorModelItem
   provider: Provider
   providerName: string
+  description?: ReactNode
 }) {
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
@@ -149,6 +151,7 @@ function ModelSelectorDetailCardBody({
         <div className="truncate font-medium text-foreground text-sm" title={model.name}>
           {model.name}
         </div>
+        {description ? <div className="text-muted-foreground text-xs">{description}</div> : null}
       </div>
 
       <dl className="mt-3 space-y-1.5 border-border border-t pt-3">
@@ -193,11 +196,13 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   item,
   provider,
   portalContainer,
+  description,
   children
 }: {
   item: ModelSelectorModelItem
   provider: Provider
   portalContainer?: HoverCardPortalContainer | null
+  description?: ReactNode
   children: ReactNode
 }) {
   const providerName = getProviderDisplayName(provider)
@@ -228,7 +233,12 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
         collisionPadding={DETAIL_CARD_COLLISION_PADDING}
         portalContainer={portalContainer ?? undefined}
         className="w-84 max-w-(--radix-hover-card-content-available-width) p-0">
-        <ModelSelectorDetailCardBody item={item} provider={provider} providerName={providerName} />
+        <ModelSelectorDetailCardBody
+          item={item}
+          provider={provider}
+          providerName={providerName}
+          description={description}
+        />
       </HoverCardContent>
     </HoverCard>
   )
