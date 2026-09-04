@@ -12,7 +12,7 @@
 | 扩展包是什么 | zip，根目录 `manifest.json`，可选 `main.js`（主进程代码，单文件 ESM）。**复用 mini app 安装代码的实现**：归档检查、同意账本、staging、下载校验、崩溃日志、锁抽到 `services/packageInstall/`，两边共用（§3.2 / §3.3） |
 | 一个扩展能贡献什么 | `contributes: { <kind>: [...] }`，kind 对应仓库里已有的注册表：`providers` / `webSearchProviders` / `fileProcessors` / `channels` / `agentRuntimes` / `mcpServers` / `skills` / `codeCliTools`。v1 只实现 `providers` |
 | 宿主与贡献点的分工 | 宿主管信封、安装、生命周期、加载代码；**每个 kind 的 schema 与注册/注销由该子系统自己拥有**（VS Code contribution point 模型） |
-| 开发方式 | `@cherrystudio/extension-sdk` 写 TypeScript（`defineExtension` / `defineProvider`），`cherry-ext build` 生成 `manifest.json` + 单文件 `main.js`；开发者不手写 manifest |
+| 开发方式 | `@cherrystudio/extension-sdk` 写 TypeScript（`defineExtension` / `defineProvider`），`cherry-ext build` 生成 `manifest.json`；开发者不手写 manifest。**但 SDK 排在最后**：声明式 schema 归 `provider-registry`，先让内置 provider 吃它定型，SDK 只是套壳（§4.1） |
 | Provider 贡献点的稳定 API | **全部 Cherry 自有类型，不暴露 AI SDK**。L0 数据 = registry `ProviderConfig` + `headers` / `configuration` / `models`；**L1 先做声明式**（模型发现映射、认证流程模板、body merge patch）；L1 代码钩子与 L2 模型接口形状先冻结，**等能力沙箱再启用**（§4.4 / §5.1） |
 | id | 扩展 id 反向域名；贡献项 id 局部且必填，宿主恒合成 `扩展id.局部id`；内置 id 无 `.` 故永不冲突 |
 | 安全的根 | **能力面，不是市场手段**。签名要中心服务器逐包签，开源形态做不了，而且旁装绕过一切市场门。判据：扩展最坏能做的 ≤ 用户手动加一个自定义 provider（deeplink 今天就能做）。扩展永不许调用 Cherry 的 AI（§5.1） |
@@ -235,6 +235,8 @@ export default defineExtension({
 
 manifest 仍然是**安装时契约**：宿主校验它、同意卡展示它、`extension_installation.manifestJson` 存它。开发者永远不手写它。长期看，`packages/provider-registry/src/providers/*.ts` 里的内置 provider 就是"恰好随 app 打包的扩展"——同一个 `defineProvider`，同一个抽取器。
 
+**顺序约束：基础设施先于 SDK。** 既然 L1 是声明式的（§4.4），"API"就不再是几个函数签名，而是一份 schema——它的好坏决定一切，而 schema 只有一种可靠的定型方式：**先让内置 provider 吃它**。所以 `modelDiscovery` / `auth` / `requestPatch` 三个 schema 归 `packages/provider-registry` 所有（内置 provider 是第一消费者），宿主里的解释器先落地、先替换掉 `listModels.ts` 的 fetcher 与 `config.ts` 的整形分支、先在 15 个 fetcher 和 5 种认证上跑通，**之后**才轮到 SDK——那时 `defineExtension` 只是给一份已经定型的 schema套一层类型，`cherry-ext build` 只是把它序列化。反过来做（先出 SDK 再补解释器）会让第一批扩展作者替我们试错 schema，然后我们靠 `…V2` 来擦屁股。P1 阶段 TokenDance 的 manifest 由我们手写当测试夹具，不违反"开发者不手写 manifest"。
+
 ### 4.2 id 命名空间
 
 - 扩展 id：反向域名（`space.tokendance.cherry`），与 mini app 同一规则；索引/市场保证唯一，本地安装遇同 id 走升级或重装流程。
@@ -273,6 +275,13 @@ manifest item = registry `ProviderConfigSchema` + 以下新增字段（都要加
 | IAM 表单 | `configuration`（§4.3，已经是数据） | bedrock / vertex / azure |
 
 这不是"纯信息"。`cherrystudio://providers/api-keys` 那个 deeplink 今天只能导入 `{ id, baseUrl, apiKey, name, type }`——它表达不了 endpoint 矩阵与方言、带能力的模型清单、图标、模型发现、认证流程、更新与卸载。PR #19882 的 49 个文件里，除了那两个钩子，其余全部落在上面这张表里。**声明式 L0+L1 就能让 TokenDance 类 provider 主仓库零改动，而且不执行任何扩展代码。**
+
+这份 schema 就是 API，按 API 的标准设计——四条硬规则：
+
+1. **路径不是表达式。** `itemsPath` / `idField` 这类字段只接受点路径（`data.models[*].id`），不接受任何求值语言——JSONata、模板字符串、`${}` 一概不要。一旦 schema 里出现能算东西的字段，代码执行就从后门回来了，§5.1 的判据随之失效；需要算的就是 P3 的代码钩子，不要在数据里硬撑。
+2. **闭集枚举，不用裸 `string`。** `auth.flow`、`method`、`capabilitiesFrom` 的取值都是 zod 枚举（评审第一轮的规则）；每加一个值都是有意识的 schema 变更，走 `…V2` 纪律（§4.6）。
+3. **归属 `packages/provider-registry`，与 `ProviderConfigSchema` 同级、同 `REGISTRY_SCHEMA_VERSION`。** 内置 provider 是第一消费者，SDK 只是再导出。schema 放进 SDK 包就会出现"内置用一套、扩展用一套"，然后两套漂移。
+4. **每个字段对应一个已删除的内置分支。** 加字段的门槛是"它替换了 `listModels.ts` / `config.ts` / launcher 表里的某个现有特判"，不是"某个第三方可能需要"。openclaw 64 字段的教训（§7.3）。
 
 代价与未知，必须在 P1 用真实样本量出来，不能拍脑袋：15 个 fetcher 逐个试，记下哪些声明不了。已知会溢出的形状——vertex 的 publisher 路径拼装、ark 的响应归一化、dmxapi 的 embedding 按模型分族——是长尾，它们等的是下面这半。
 
@@ -411,12 +420,12 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
    config.ts：generic 之前一条 `match: (_, id) => extensionHost.ownsProviderFamily(id)`；transformRequest 挂在 customFetch 包装上
    → verify: endpoint.test / config.test 各加一例
 
-4. listModels.ts：fetchers[] 首位加 extensionFetcher（扩展有 listModels ⇒ 调用；结果是 ProviderModelOverride[]，经现有 resolve 逻辑）
-   → verify: 扩展 fetcher 优先；返回值走 registry schema 校验
+4. listModels.ts：加 declarativeFetcher，读 provider 的 `modelDiscovery` 声明（内置与扩展同源）；能被声明表达的内置 fetcher 逐个删掉
+   → verify: 每删一个 fetcher，该 provider 的 listModels 测试不改仍绿；删不掉的进 P3 溢出清单
 
-5. 凭证：IpcApi `provider.acquire_credential { providerId } → Credential`；宿主实现 AuthContext（loopback 复用 OAuth runtime 的 LoopbackCallbackTransport；authWindow 用 BrowserWindow + preload 转发 postMessage）
-   渲染层 OauthButton：`isProviderSupportAuth` 改为读 provider 行的 `supportsAcquireCredential`；launcher 表退化为一条通用调用
-   → verify: 现有 5 个弹窗 provider 不回归（先保留各自 launcher，迁移是后续 PR）
+5. 凭证：IpcApi `provider.acquire_credential { providerId } → Credential`，宿主按 provider 的 `auth.flow` 声明跑对应流程（五种流程的实现都已存在，只是改成读参数）；现有 5 个弹窗 provider + tokendance + codex / grok / copilot 逐个改成声明，launcher 表与 `API_KEY_OAUTH_PROVIDER_IDS` 随之删除
+   渲染层 OauthButton：`isProviderSupportAuth` 改为读 provider 行的 `auth` 声明
+   → verify: 每迁一个 provider，它的登录流程手测通过；全部迁完后 launcher 表为空
 
 6. extensionAdapter.ts：Cherry 模型接口 → AI SDK V3；P1 只接 imageModel
    → verify: PPIO 扩展的图像生成走 submit/poll 通过
@@ -642,9 +651,9 @@ Figma 的插件走的就是 QuickJS，而且它的分工和我们一样：计算
 | 阶段 | 交付 | 验证 |
 |---|---|---|
 | P0-a | **行为保持的抽取 PR**：`services/packageInstall/` + `shared/types/packageManifest.ts`，mini app 改为薄包装（§3.3 第 1、2 步） | mini app 的 8 个安装测试文件一行不改全绿 |
-| P0-b | SDK 包（类型 + `defineExtension` + `cherry-ext build`）+ `ExtensionManifestSchema` + `ExtensionHostService` + extension 安装流程（§3.3 第 3 步）+ `providers` L0（§4.7 第 1、2、7、8 项）；本文迁到 `docs/references/ai/` | 一个纯数据扩展装上后，设置页出现该 provider，聊天与 pi/dsh 都带上 manifest headers；`pnpm docs:check` 过 |
-| P1 | **声明式 L1**（§4.4）：模型发现映射 + 五种认证流程模板 + `requestPatch`；`configuration` 声明式表单 | **TokenDance 作为扩展包通过，且包里没有可执行代码**；15 个 fetcher 逐个试声明式覆盖率，溢出的记录成清单 |
-| P2 | 能力面（§5.1）：把 `MINI_APP_METHODS` 那套"逐方法门 + 配额 + host 白名单 + SSRF"落到 extension 上，先服务声明式流程；第二个 kind（建议 `webSearchProviders`），此时抽出 `ContributionPoint` 接口 | 声明式扩展只能连 `network` 里声明过的 host；两个 kind 共用一套安装/启停/卸载 |
+| P0-b | **基础设施，无 SDK、无扩展**：registry schema 加 L0 字段（`headers` / `credits` / `activity` / `configuration` / `models`）与 L1 声明式 schema（`modelDiscovery` / `auth` / `requestPatch`，§4.4）；宿主解释器落地并**替换内置 provider 的现有分支**——`listModels.ts` 的 fetcher、`config.ts` 的整形分支、`getExtraHeaders` 特判、OAuth launcher 表 | 内置 provider 行为不变（现有测试全绿）；15 个 fetcher / 5 种认证里有多少个被声明式吃掉，剩下的就是 P3 的溢出清单 |
+| P1 | `ExtensionManifestSchema` + `ExtensionHostService` + extension 安装流程（§3.3 第 3 步）+ `providers` 贡献点接 P0-b 的解释器（§4.7 第 1、7、8 项）；TokenDance 的 manifest **手写**当测试夹具；本文迁到 `docs/references/ai/` | **TokenDance 作为扩展包通过，且包里没有可执行代码**；设置页出现该 provider，聊天与 pi/dsh 都带上 manifest headers；`pnpm docs:check` 过 |
+| P2 | SDK 包（`defineExtension` / `defineProvider` 类型 + `cherry-ext build`）——给已在内置 provider 上定型的 schema 套壳；能力面（§5.1）：把 `MINI_APP_METHODS` 那套"逐方法门 + 配额 + host 白名单 + SSRF"落到 extension 上；第二个 kind（建议 `webSearchProviders`），此时抽出 `ContributionPoint` 接口 | `cherry-ext build` 从 TokenDance 源码生成的 manifest 与 P1 手写的逐字节相等；声明式扩展只能连 `network` 里声明过的 host；两个 kind 共用一套安装/启停/卸载 |
 | P3 | 代码执行：沙箱运行时（`utilityProcess` + QuickJS，§5.1）+ L1 代码钩子 + L2 `imageModel` | P1 清单里溢出的那些 provider 能写出来；PPIO 搬出主仓库；沙箱里 `fs` / `child_process` / 未声明 host 全部拿不到 |
 | P4 | 索引 + 一键安装 | 索引安装的扩展只在沙箱下运行；旁装路径的能力面与索引安装完全一致（市场不是安全边界） |
 | 之后 | 页面/行为 kind（渲染层：只暴露 Cherry 特定 API 与钩子，无 node / fs / 网络 / AI）→ `channels` → `fileProcessors` → `agentRuntimes` | 先定能力面再定 API；各自子系统的合同测试 |
@@ -679,6 +688,7 @@ P1 不含任何扩展代码执行是硬约束：代码执行排在能力面（P2
 | 2026-09-04 | 扩展永不许调用 Cherry 的 AI，所有 kind 都不许 | 评审（@fullex）：mini app 的 `cherry.ai` 槽位化 + 并发 2 + 每分钟 60 + 隐藏预算 5 就是防"把 Cherry 当 AI 中转站"的现成平衡（§5.1 ⑤） | 已定 |
 | 2026-09-04 | P0–P2 不执行任何扩展代码：L1 先做声明式（模型发现映射 + 五种认证流程模板 + `requestPatch`） | 评审（@fullex：能力可控就是 extension 的主要难题本身；@苏垚：要设计的是如何暴露有限能力，API 反而次要）。15 个 fetcher 的差异只是 URL + 字段映射，5 种认证是闭集且宿主已全部实现——这些是参数不是逻辑，且不等于"纯信息"（deeplink 只能表达 id/baseUrl/apiKey）（§4.4） | 已定 |
 | 2026-09-04 | 能力面照抄 mini app：逐方法的门（声明 vs 授予分开存）+ 配额 + 限流 + host 白名单 + SSRF `BlockList` + 禁改头名单 | 评审；`grants.ts` / `capabilities/*` 已是完整实现，extension 不重造。mini app 能做成是因为 webview 天然沙箱，extension 没这个便宜可占（§5.1） | 已定 |
+| 2026-09-04 | 基础设施先于 SDK：声明式 schema 归 `provider-registry`，解释器先替换内置 provider 的分支，SDK 排到 P2 只做套壳 | 评审（@苏垚）：L1 成了声明式之后 API 就是那份 schema，只有让内置 provider 先吃它才能定型；先出 SDK 等于让扩展作者替我们试错。四条 schema 规则（无表达式 / 闭集枚举 / 归属 registry / 每个字段对应一个删掉的内置分支）见 §4.4 | 已定 |
 | 2026-09-04 | 下一个要研究的 kind 是"页面/行为 extension"：纯 JS 运行时，无 node / fs / 网络 / AI，只能改 Cherry 特定页面与行为 | 评审（@fullex）方向；先定能力面再定 API（§8） | 待定 |
 | 2026-09-04 | 局部 id 必填，运行时 id 恒为 `扩展id.局部id`，没有"单贡献省后缀"的捷径 | 评审；捷径会让"1 个 provider → 2 个"的升级改掉已持久化的 providerId，用户的 key / 模型 / 历史引用全部悬空（§4.2） | 已定 |
 | 2026-09-04 | manifest 数据项与模块内实现按 `kind + 局部 id` 对齐，对不上就拒绝启用 | 评审；`hooks` 是函数、序列化不进 manifest，没有对齐规则就等于运行时可以超出用户同意过的那份 manifest（§4.1） | 已定 |
