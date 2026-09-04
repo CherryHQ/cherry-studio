@@ -146,6 +146,7 @@ function ModelSelectorDetailCardBody({
   const imageModes = formatImageGenerationModes(model, t)
   const hasTokenDetails = model.contextWindow != null || model.maxInputTokens != null || model.maxOutputTokens != null
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)
+  const hasDescription = description != null && description !== '' && typeof description !== 'boolean'
 
   return (
     <div className="max-h-[min(420px,70vh,var(--radix-hover-card-content-available-height,70vh))] overflow-auto p-3">
@@ -153,7 +154,7 @@ function ModelSelectorDetailCardBody({
         <div className="truncate text-sm font-medium text-foreground" title={model.name}>
           {model.name}
         </div>
-        {description ? <div className="text-muted-foreground text-xs">{description}</div> : null}
+        {hasDescription ? <div className="text-muted-foreground text-xs">{description}</div> : null}
       </div>
 
       <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
