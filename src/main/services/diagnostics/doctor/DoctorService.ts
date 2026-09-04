@@ -159,7 +159,10 @@ export class DoctorService extends BaseService {
 
     let outcome: DoctorFixOutcome
     try {
-      outcome = await fixHandler(request.checkId, request.fixId)({
+      outcome = await fixHandler(
+        request.checkId,
+        request.fixId
+      )({
         ...runContext(new AbortController().signal, new Map()),
         target: request.target
       })

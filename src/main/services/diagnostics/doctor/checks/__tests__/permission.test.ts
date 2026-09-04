@@ -13,7 +13,8 @@ vi.mock('@main/utils/screenCapturePermission', () => capture)
 vi.mock('electron', () => ({ systemPreferences: accessibility }))
 
 const { accessibilityPermission, screenCapturePermission } = await import('../permission')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
 
 beforeEach(() => {
   vi.clearAllMocks()

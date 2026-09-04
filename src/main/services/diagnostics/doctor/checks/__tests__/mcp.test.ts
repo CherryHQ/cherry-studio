@@ -14,7 +14,8 @@ vi.mock('@logger', () => ({
 }))
 
 const { mcpLaunchCommands, mcpServersConnected } = await import('../mcp')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
 
 function server(id: string, overrides: Partial<McpServer> = {}): McpServer {
   return { id, name: id, type: 'stdio', command: 'npx', isActive: true, ...overrides } as McpServer

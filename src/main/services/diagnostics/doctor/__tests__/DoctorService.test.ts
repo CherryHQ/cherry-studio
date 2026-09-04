@@ -3,6 +3,8 @@ import { BaseService } from '@main/core/lifecycle'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { DoctorContext } from '../types'
+
 const registryMocks = vi.hoisted(() => ({
   bootConfigRun: vi.fn(),
   bootConfigRepair: vi.fn(),
@@ -17,7 +19,7 @@ const registryMocks = vi.hoisted(() => ({
 vi.mock('../registry', async () => {
   const { sharedProbe } = registryMocks
   // Two network checks in different prerequisite layers that both read one shared probe.
-  const sharing = async (ctx: import('../types').DoctorContext) => {
+  const sharing = async (ctx: DoctorContext) => {
     await ctx.share('network:diagnoses', sharedProbe)
     return { status: 'pass' }
   }

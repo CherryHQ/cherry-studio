@@ -17,7 +17,8 @@ vi.mock('@main/services/screenshot/nativeCaptureBackend', () => ({
 }))
 
 const { installNativeModules, installUpdateAvailable, installVersionChannel } = await import('../install')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: <T>(_key: string, factory: (signal: AbortSignal) => Promise<T>) => factory(signal) }
 
 beforeEach(() => {
   vi.clearAllMocks()
