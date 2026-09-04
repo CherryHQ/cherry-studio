@@ -10,6 +10,7 @@ import {
   type WebviewElementLocator,
   type WebviewRegionRect
 } from '@shared/types/webviewAnnotation'
+import { v4 as uuidv4 } from 'uuid'
 
 const TEST_ATTRIBUTES = ['data-testid', 'data-test', 'data-cy'] as const
 const SENSITIVE_EDITABLE_SELECTOR =
@@ -20,6 +21,8 @@ const REGION_CONTAINMENT_RATIO = 0.6
 // ponytail: flat visit cap instead of spatial pruning — absolutely positioned
 // children can escape their parent's box, so subtree pruning would miss them.
 const REGION_WALK_BUDGET = 5_000
+
+const createGuestUuid = () => uuidv4({ random: crypto.getRandomValues(new Uint8Array(16)) })
 
 const OVERLAY_CSS = `
   :host {
@@ -747,7 +750,7 @@ export class WebviewAnnotationController {
     this.closeEditor()
     this.editorElement = request.element
     this.editorAnnotationId = annotationId
-    this.editorRequestId = crypto.randomUUID()
+    this.editorRequestId = createGuestUuid()
     this.pendingRegion = request.mode === 'create-region' ? request.region : null
     this.highlightElement = request.element
     this.schedulePositionUpdate()
@@ -805,7 +808,7 @@ export class WebviewAnnotationController {
         return
       }
       const annotation: WebviewAnnotation = {
-        id: crypto.randomUUID(),
+        id: createGuestUuid(),
         comment,
         element: locator,
         ...(this.pendingRegion ? { region: this.pendingRegion } : {})

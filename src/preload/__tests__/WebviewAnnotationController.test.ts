@@ -1,4 +1,8 @@
-import { WEBVIEW_ANNOTATION_LIMITS, type WebviewAnnotationGuestEvent } from '@shared/types/webviewAnnotation'
+import {
+  WEBVIEW_ANNOTATION_LIMITS,
+  type WebviewAnnotationGuestEvent,
+  WebviewAnnotationGuestEventSchema
+} from '@shared/types/webviewAnnotation'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -435,6 +439,27 @@ describe('WebviewAnnotationController interactions', () => {
     } as never)
 
     expect(readSnapshot(controller, emissions)[0].comment).toBe('Host-owned draft')
+  })
+
+  it('creates schema-valid IDs when randomUUID is unavailable on insecure pages', () => {
+    vi.stubGlobal('crypto', {
+      getRandomValues: vi.fn((bytes: Uint8Array) => {
+        bytes.set(Array.from({ length: bytes.length }, (_, index) => index + 1))
+        return bytes
+      })
+    })
+    const button = document.createElement('button')
+    button.id = 'http-page-target'
+    document.body.appendChild(button)
+
+    privateController(controller).openEditor({ mode: 'create-element', element: button })
+    const editorRequest = currentEditorRequest(emissions)
+    expect(WebviewAnnotationGuestEventSchema.safeParse(editorRequest).success).toBe(true)
+
+    saveEditor(controller, emissions, 'Works on HTTP')
+    expect(readSnapshot(controller, emissions)[0].id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
   })
 
   it('accepts a host save and exits selection mode with Escape', () => {
