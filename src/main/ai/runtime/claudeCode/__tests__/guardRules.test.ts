@@ -227,14 +227,19 @@ describe('CLAUDE_TOOL_GUARD_RULES', () => {
       bashNoProgressRun: () => run
     })
 
-    it('denies a stuck loop in every mode, bypass included', async () => {
+    it('denies a stuck loop at the hard threshold in every mode, bypass included', async () => {
       for (const mode of ['default', 'bypassPermissions'] as const) {
-        const decision = await evaluate(makeCtx({ ...loopingCtx(3), permissionMode: mode }))
+        const decision = await evaluate(makeCtx({ ...loopingCtx(5), permissionMode: mode }))
         expect(decision?.ruleId).toBe('bash-repeat-no-progress')
         expect(decision?.effect).toBe('deny')
-        expect(decision?.reason).toContain('3 times')
+        expect(decision?.reason).toContain('5 times')
         expect(decision?.reason).toContain('byte-identical')
       }
+    })
+
+    it('leaves the soft-threshold runs to the hook-plane warning instead of denying', async () => {
+      await expect(evaluate(makeCtx(loopingCtx(3)))).resolves.toBeUndefined()
+      await expect(evaluate(makeCtx(loopingCtx(4)))).resolves.toBeUndefined()
     })
 
     it('stays silent while the run is still forming or the session has no Bash history', async () => {

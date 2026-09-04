@@ -2,17 +2,21 @@
  * Stuck-loop detection for repeated Bash calls that never produce new output.
  *
  * The recorder (a PostToolUse/PostToolUseFailure hook) appends one entry per Bash execution, plus a
- * break-marker when a mutating tool completes; the `bash-repeat-no-progress` guard rule denies the
- * next identical call once the trailing run of the same normalized command reaches the threshold
- * with a single unchanged fingerprint. Output that changes at all — new bytes, different error
- * text — counts as progress and resets the signal, as does any completed workspace mutation or a
- * user interrupt (Esc).
+ * break-marker when a mutating tool completes; the response is two-tiered (the same shape as
+ * Cline's soft/hard loop guard): once the trailing run of one normalized command reaches
+ * BASH_NO_PROGRESS_THRESHOLD with a single unchanged fingerprint, the next identical call is
+ * allowed with a warning so the model can self-correct; only at BASH_NO_PROGRESS_HARD_THRESHOLD
+ * does the `bash-repeat-no-progress` guard rule deny it outright. Output that changes at all — new
+ * bytes, different error text — counts as progress and resets the signal, as does any completed
+ * workspace mutation or a user interrupt (Esc).
  */
 
 import { createHash } from 'node:crypto'
 
-/** Consecutive identical-output runs of one command that must be recorded before the next is denied. */
+/** Identical-output runs at which the next identical call is allowed with a soft warning. */
 export const BASH_NO_PROGRESS_THRESHOLD = 3
+/** Identical-output runs at which the next identical call is denied outright. */
+export const BASH_NO_PROGRESS_HARD_THRESHOLD = 5
 /** Per-session ring size; only the tail matters, so old entries are dropped. */
 export const BASH_HISTORY_LIMIT = 16
 

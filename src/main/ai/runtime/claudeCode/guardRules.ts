@@ -27,6 +27,7 @@ import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { claudeToolRequiresUserInteraction } from '@shared/ai/claudecode/toolRegistry'
 import { imageExts } from '@shared/utils/file'
 
+import { BASH_NO_PROGRESS_HARD_THRESHOLD } from './bashNoProgress'
 import { isPathWithinAllowedRoots } from './pathContainment'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 
@@ -105,7 +106,9 @@ const bashRepeatWithoutProgress = (ctx: ToolGuardContext): GuardHit | null => {
   const command = bashCommand(ctx)
   if (!command) return null
   const run = ctx.bashNoProgressRun?.(command)
-  return run !== undefined ? { evidence: String(run) } : null
+  // Hard tier only: the soft tier (a one-shot warning at BASH_NO_PROGRESS_THRESHOLD) lives in the
+  // hook plane, the same split as skill-dependency's deny/advisory halves.
+  return run !== undefined && run >= BASH_NO_PROGRESS_HARD_THRESHOLD ? { evidence: String(run) } : null
 }
 
 const matchesRequiredApproval = (ctx: ToolGuardContext, bypassApproval: 'lift' | 'enforce'): GuardHit | null => {

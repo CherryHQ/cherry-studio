@@ -35,7 +35,7 @@ vi.mock('../skillDependencies', () => ({ SKILL_TOOL_NAME: 'Skill', checkSkillRun
 
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
 
-import { BASH_HISTORY_LIMIT, BASH_NO_PROGRESS_THRESHOLD } from '../bashNoProgress'
+import { BASH_HISTORY_LIMIT, BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD } from '../bashNoProgress'
 import { ClaudeCodeSessionStateService } from '../ClaudeCodeSessionStateService'
 import { buildClaudeCodeHooks } from '../hooks'
 
@@ -325,6 +325,56 @@ describe('bashOutcomeHook', () => {
       }
     expect(ctxOf(0).bashNoProgressRun?.('npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
     expect(ctxOf(1).bashNoProgressRun?.('npx tsc --noEmit')).toBeUndefined()
+  })
+
+  it('warns once at the soft threshold instead of denying, in the calling agent scope', async () => {
+    const preToolUse = () =>
+      toolGuardHook(
+        {
+          hook_event_name: 'PreToolUse',
+          tool_name: 'Bash',
+          tool_input: { command: 'npx tsc --noEmit' },
+          tool_use_id: 'tu-9'
+        } as never,
+        undefined,
+        {} as never
+      )
+
+    // Below the soft threshold: no warning.
+    svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false)
+    svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false)
+    let result = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(result.hookSpecificOutput?.additionalContext).toBeUndefined()
+
+    // Exactly at the soft threshold: one warning that names the hard threshold.
+    svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false)
+    result = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(result.hookSpecificOutput?.additionalContext).toContain('3 times')
+    expect(result.hookSpecificOutput?.additionalContext).toContain(String(BASH_NO_PROGRESS_HARD_THRESHOLD))
+
+    // Past the soft threshold the warning does not repeat; the hard deny is the rule's job.
+    svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false)
+    result = (await preToolUse()) as { hookSpecificOutput?: { additionalContext?: string } }
+    expect(result.hookSpecificOutput?.additionalContext).toBeUndefined()
+  })
+
+  it('does not warn when the run belongs to a different agent scope', async () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      svc.recordBashOutcome(SESSION, 'npx tsc --noEmit', 'same', false, 'agent-1')
+    }
+
+    const result = (await toolGuardHook(
+      {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: 'npx tsc --noEmit' },
+        tool_use_id: 'tu-9'
+      } as never,
+      undefined,
+      {} as never
+    )) as { hookSpecificOutput?: { additionalContext?: string } }
+
+    expect(result.hookSpecificOutput?.additionalContext).toBeUndefined()
   })
 
   it('breaks the run when an assistant-files MCP tool mutates the workspace', async () => {

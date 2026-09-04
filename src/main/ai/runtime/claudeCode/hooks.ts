@@ -23,7 +23,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
 import type { AgentsMdLoader } from './AgentsMdLoader'
-import { BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
+import { BASH_NO_PROGRESS_HARD_THRESHOLD, BASH_NO_PROGRESS_THRESHOLD, BASH_RUN_BREAK_TOOLS } from './bashNoProgress'
 import { CLAUDE_TOOL_GUARD_RULES } from './guardRules'
 import { checkSkillRuntimeDependencies, SKILL_TOOL_NAME } from './skillDependencies'
 import type { ClaudeCodeSettings } from './types'
@@ -105,7 +105,23 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       isDisabled: (name) => snapshot?.isDisabled(name) ?? false,
       bashNoProgressRun: (command) => sessionState().getBashNoProgressRun(sessionId, command, input.agent_id)
     })
-    if (!decision) return {}
+    if (!decision) {
+      // Soft tier of the bash-repeat-no-progress guard (the hard deny is the guard rule): the
+      // first call past the soft threshold is allowed with a one-shot warning so the model can
+      // self-correct; exactly-at-threshold fires it once, before the run grows past it.
+      if (toolName === 'Bash' && typeof toolInput?.command === 'string') {
+        const run = sessionState().getBashNoProgressRun(sessionId, toolInput.command, input.agent_id)
+        if (run === BASH_NO_PROGRESS_THRESHOLD) {
+          return {
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              additionalContext: `Loop warning: this exact Bash command has already run ${run} times in a row with byte-identical output, and is denied outright once the run reaches ${BASH_NO_PROGRESS_HARD_THRESHOLD}. If you are waiting for a change, make the edit first; if you are stuck, diagnose the cause or report the blocker instead of retrying.`
+            }
+          }
+        }
+      }
+      return {}
+    }
     if (decision.effect === 'deny') {
       logger.info('Tool guard denied a tool call', { sessionId, toolName, ruleId: decision.ruleId })
     }
