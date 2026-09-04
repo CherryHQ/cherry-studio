@@ -8,6 +8,7 @@ const {
   deleteAgentMock,
   reorderMock,
   reorderBatchMock,
+  agentExistsMock,
   listAllTasksMock,
   getTaskByIdMock,
   listTasksMock,
@@ -21,6 +22,7 @@ const {
   deleteAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
+  agentExistsMock: vi.fn(),
   listAllTasksMock: vi.fn(),
   getTaskByIdMock: vi.fn(),
   listTasksMock: vi.fn(),
@@ -36,7 +38,8 @@ vi.mock('@data/services/AgentService', () => ({
     updateAgent: updateAgentMock,
     deleteAgent: deleteAgentMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    agentExists: agentExistsMock
   }
 }))
 
@@ -96,6 +99,7 @@ const mockSkill = { id: SKILL_ID, name: 'my-skill', isEnabled: true }
 describe('agentHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    agentExistsMock.mockReturnValueOnce(true)
   })
 
   // ── /agents ──────────────────────────────────────────────────────────────
@@ -234,7 +238,7 @@ describe('agentHandlers', () => {
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
-      deliveryServiceMock.mockResolvedValueOnce({ deleted: false })
+      agentExistsMock.mockReturnValueOnce(false)
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)

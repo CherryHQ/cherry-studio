@@ -78,6 +78,12 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
+      // Pre-check existence: if the agent is not found, throw 404 before
+      // touching delivery service so that pre-write errors (e.g. assertWritesAvailable)
+      // are surfaced as errors, not swallowed by the post-commit cleanup catch below.
+      if (!agentService.agentExists(params.agentId)) {
+        throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      }
       // Route through AgentSessionDeliveryService so active turns are paused and
       // their runtimes are closed before the row goes away. agentService.deleteAgent
       // only removes the DB row, which lets an active session keep streaming
@@ -90,9 +96,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
         // before the async pause/close runs; if cleanup throws, the deletion has
         // already committed. Surface the cleanup failure as a warning rather than
         // reporting the deletion as failed — the row is gone, which is the only
-        // contract the resource-list UI checks. Cherry Review flagged this as a
-        // "timeout or retryable cleanup failure can therefore report failure or
-        // retry after the deletion has already committed" risk on the second pass.
+        // contract the resource-list UI checks.
         loggerService.withContext('DataApi:agents').warn('Agent runtime cleanup failed after row deletion', {
           agentId: params.agentId,
           error: error instanceof Error ? error.message : String(error)
