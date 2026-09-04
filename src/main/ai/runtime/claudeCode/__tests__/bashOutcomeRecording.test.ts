@@ -117,6 +117,20 @@ describe('ClaudeCodeSessionStateService bash outcome recording', () => {
     expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-1')).toBe(BASH_NO_PROGRESS_THRESHOLD)
   })
 
+  it('disposeBashScope drops only the named subagent scope', () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      svc.recordBashOutcome(SESSION, 'curl x', 'same', false)
+      svc.recordBashOutcome(SESSION, 'curl x', 'same', false, 'agent-1')
+      svc.recordBashOutcome(SESSION, 'curl x', 'same', false, 'agent-2')
+    }
+
+    svc.disposeBashScope(SESSION, 'agent-1')
+
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-1')).toBeUndefined()
+    expect(svc.getBashNoProgressRun(SESSION, 'curl x', 'agent-2')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+  })
+
   it('dispose sweeps subagent scopes together with the parent session', () => {
     svc.recordBashOutcome(SESSION, 'curl x', 'same', false)
     svc.recordBashOutcome(SESSION, 'curl x', 'same', false, 'agent-1')
@@ -133,6 +147,7 @@ describe('bashOutcomeHook', () => {
   const svc = new ClaudeCodeSessionStateService()
   let bashOutcomeHook: HookCallback
   let toolGuardHook: HookCallback
+  let subagentStopHook: HookCallback
 
   beforeEach(() => {
     applicationMock.get.mockImplementation((name: string) => {
@@ -157,6 +172,7 @@ describe('bashOutcomeHook', () => {
     toolGuardHook = hooks!.PreToolUse![0].hooks[0]
     // PostToolUse: [postToolTimingHook, bashOutcomeHook] — the outcome hook is the second entry.
     bashOutcomeHook = hooks!.PostToolUse![0].hooks[1]
+    subagentStopHook = hooks!.SubagentStop![0].hooks[0]
   })
 
   const fire = (input: Record<string, unknown>) => bashOutcomeHook(input as never, undefined, {} as never)
@@ -309,5 +325,40 @@ describe('bashOutcomeHook', () => {
       }
     expect(ctxOf(0).bashNoProgressRun?.('npx tsc --noEmit')).toBe(BASH_NO_PROGRESS_THRESHOLD)
     expect(ctxOf(1).bashNoProgressRun?.('npx tsc --noEmit')).toBeUndefined()
+  })
+
+  it('breaks the run when an assistant-files MCP tool mutates the workspace', async () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      await fire(bashSuccess({ stdout: 'error TS2322' }))
+    }
+    await fire({
+      hook_event_name: 'PostToolUse',
+      tool_name: 'mcp__assistant-files__save_attachment',
+      tool_input: {},
+      tool_response: {},
+      tool_use_id: 'tu-4'
+    })
+
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit')).toBeUndefined()
+  })
+
+  it('drops the subagent scope when the subagent stops', async () => {
+    for (let i = 0; i < BASH_NO_PROGRESS_THRESHOLD; i++) {
+      await fire(bashSuccess({ stdout: 'error TS2322' }, 'agent-1'))
+    }
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit', 'agent-1')).toBe(BASH_NO_PROGRESS_THRESHOLD)
+
+    await subagentStopHook(
+      {
+        hook_event_name: 'SubagentStop',
+        agent_id: 'agent-1',
+        agent_type: 'general-purpose',
+        stop_hook_active: false
+      } as never,
+      undefined,
+      {} as never
+    )
+
+    expect(svc.getBashNoProgressRun(SESSION, 'npx tsc --noEmit', 'agent-1')).toBeUndefined()
   })
 })

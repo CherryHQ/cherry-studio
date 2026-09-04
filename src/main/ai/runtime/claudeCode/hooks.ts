@@ -15,7 +15,10 @@ import type { HookCallback, HookJSONOutput } from '@anthropic-ai/claude-agent-sd
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
+import { CHERRY_MCP_SERVER, toMcpRuntimeName } from '@main/ai/toolApproval/builtinToolPolicy'
 import { evaluateToolGuards } from '@main/ai/toolApproval/toolGuards'
+import { MOVE_TO_TRASH_TOOL_NAME } from '@main/ai/tools/moveToTrash'
+import { SAVE_ATTACHMENT_TOOL_NAME } from '@main/ai/tools/saveAttachment'
 import { rtkRewrite } from '@main/utils/rtk'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -27,6 +30,14 @@ import type { ClaudeCodeSettings } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeHooks')
 const EXIT_PLAN_MODE_TOOL_NAME = 'ExitPlanMode'
+
+// Tools whose successful completion mutates the workspace and therefore breaks a no-progress run:
+// the native edit tools, plus the assistant-files MCP tools (referenced by runtime name).
+const RUN_BREAK_TOOLS: ReadonlySet<string> = new Set([
+  ...BASH_RUN_BREAK_TOOLS,
+  toMcpRuntimeName({ serverName: CHERRY_MCP_SERVER.ASSISTANT_FILES, toolName: SAVE_ATTACHMENT_TOOL_NAME }),
+  toMcpRuntimeName({ serverName: CHERRY_MCP_SERVER.ASSISTANT_FILES, toolName: MOVE_TO_TRASH_TOOL_NAME })
+])
 
 const sessionState = () => application.get('ClaudeCodeSessionStateService')
 
@@ -171,6 +182,14 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
 
   const agentsMdHook = ctx.agentsMdLoader.createPreToolUseHook()
 
+  // Subagent Bash history is scoped per agent_id; when the subagent stops, its scope is dropped so
+  // long-lived sessions don't retain every completed child's history until whole-session disposal.
+  const subagentStopHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'SubagentStop') return {}
+    sessionState().disposeBashScope(sessionId, input.agent_id)
+    return {}
+  }
+
   // Feeds the bash-repeat-no-progress guard rule. History is scoped per agent: subagent hook
   // events carry agent_id, and a child's repeated calls must not poison the parent's run
   // detection (and vice versa). A user interrupt (Esc) is a deliberate stop, so it counts as
@@ -188,7 +207,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
       // A completed mutating tool changed the workspace: break the run so a verifier still printing
       // the same remaining errors is not misread as a stuck loop. Read-only tools do not break it —
       // an agent alternating Bash with Read is still looping.
-      if (input.hook_event_name === 'PostToolUse' && BASH_RUN_BREAK_TOOLS.has(input.tool_name)) {
+      if (input.hook_event_name === 'PostToolUse' && RUN_BREAK_TOOLS.has(input.tool_name)) {
         sessionState().recordBashRunBreak(sessionId, agentId)
       }
       return {}
@@ -247,6 +266,7 @@ export function buildClaudeCodeHooks(ctx: ClaudeCodeHookContext): ClaudeCodeSett
   return {
     PreToolUse: [{ hooks: [toolGuardHook, skillDependencyAdvisoryHook, agentsMdHook, rtkRewriteHook, steerHook] }],
     PostToolUse: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
-    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }]
+    PostToolUseFailure: [{ hooks: [postToolTimingHook, bashOutcomeHook] }],
+    SubagentStop: [{ hooks: [subagentStopHook] }]
   }
 }

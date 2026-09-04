@@ -156,6 +156,11 @@ export class ClaudeCodeSessionStateService extends BaseService {
     if (history.length > BASH_HISTORY_LIMIT) history.shift()
   }
 
+  /** Drops a subagent's Bash history when the subagent stops; the parent scope is untouched. */
+  disposeBashScope(sessionId: string, agentId: string): void {
+    this.bashOutcomes.delete(this.bashScopeKey(sessionId, agentId))
+  }
+
   disposeToolPolicySnapshot(sessionId: string): void {
     this.toolPolicySnapshots.delete(sessionId)
     // Subagent scopes key as `${sessionId} ${agentId}` — sweep them with the parent.
