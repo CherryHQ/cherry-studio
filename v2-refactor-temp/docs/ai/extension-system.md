@@ -16,8 +16,9 @@
 | Provider 贡献点的稳定 API | **全部 Cherry 自有类型，不暴露 AI SDK**。L0 数据 = registry `ProviderConfig` + `headers` / `configuration` / `models`；**L1 先做声明式**（模型发现映射、认证流程模板、body merge patch）；L1 代码钩子与 L2 模型接口形状先冻结，**等能力沙箱再启用**（§4.4 / §5.1） |
 | id | 扩展 id 反向域名；贡献项 id 局部且必填，宿主恒合成 `扩展id.局部id`；内置 id 无 `.` 故永不冲突 |
 | 安全的根 | **能力面，不是市场手段**。签名要中心服务器逐包签，开源形态做不了，而且旁装绕过一切市场门。判据：扩展最坏能做的 ≤ 用户手动加一个自定义 provider（deeplink 今天就能做）。扩展永不许调用 Cherry 的 AI（§5.1） |
-| P0–P2 怎么落地 | **不执行扩展代码**：L0 + 声明式 L1 就能让 TokenDance 类 provider 主仓库零改动。同时只装自选/自维护的扩展，同意卡说人话 + 安装时扫描（抬门槛，不是保证） |
-| 代码执行的前置条件 | 一张 mini app 式的能力表（逐方法的门 + 配额 + host 白名单 + SSRF 防护，`grants.ts` / `capabilities/*` 已有实现）+ 真沙箱运行时。`utilityProcess` 只买崩溃隔离，**不是沙箱**；真沙箱只有嵌入式 JS 引擎（QuickJS）拿得掉 Node 权限（§5.1） |
+| 扩展代码的原则 | **不是禁止执行，是只能通过 `cherry.*` API 执行**——与 mini app 的 `window.cherry` 同一个模型。运行时全局只有 `cherry` 与 ECMAScript 标准库，没有 `process` / `require` / `fetch` / 动态 `import`；每个 `cherry.*` 方法有门、配额、host 白名单（`MINI_APP_METHODS` 那张表的形状，§5.1） |
+| 运行时 | 能落实这条原则的只有嵌入式 JS 引擎（QuickJS，跑在 `utilityProcess` 里）。主进程内 `import()` 拿不掉 Node 权限，**不作为任何阶段的代码运行时**；`utilityProcess` 单独用只买崩溃隔离（§5） |
+| P0–P1 怎么落地 | 大头不需要代码：L0 + 声明式 L1 就能让 TokenDance 类 provider 主仓库零改动，而且 pi / dsh 那条路本来就只吃数据（§2）。代码钩子等 `cherry.*` 运行时（P3）再开 |
 | 版本 | manifest `apiVersion: 1` + `minAppVersion`；SDK 类型只增不改，破坏性变更走 `…V2`；AI SDK 版本对扩展不可见，升级只改宿主 adapter |
 
 ## 1. 仓库里已经存在的"扩展形状"
@@ -140,7 +141,7 @@ export interface ExtensionRef { id: string; version: string; dir: string }
 | 步骤 | 复用 | extension 自己的 |
 |---|---|---|
 | 归档检查 | `packageInstall/archive` + 参数 | `requiredFiles = manifest.main ? [main] : []`；无保留目录 |
-| 预览 → 同意卡 → 确认 | 账本 + `assertManifestUnchanged` + hash 重算 | 同意卡摘要：贡献 kind 列表、`network` 主机、**是否含 `main`（"将以应用权限运行"）**、`main.js` 的安装时扫描结论（§5.1） |
+| 预览 → 同意卡 → 确认 | 账本 + `assertManifestUnchanged` + hash 重算 | 同意卡摘要：贡献 kind 列表、`network` 主机、**是否含 `main` 以及它声明要用的 `cherry.*` 方法**、`main.js` 的安装时扫描结论（§5.1） |
 | 落盘 | staging + 三棵树轮换 | 新增三个路径键（照抄 mini app 的分法，`pathRegistry.ts`）：`feature.extension.packages` = `{userData}/Data/Extensions/packages`（每个扩展一个 `<id>@<version>/` 目录——带版本是因为 ESM `import()` 按 URL 永久缓存）、`feature.extension.snapshots` = `…/Extensions/snapshots`（回滚快照，与 packages 平级）、`feature.extension.publish_journal` = `…/Extensions/.publish-journal`。一律经 `application.getPath()` 取，代码里不拼路径 |
 | 记录 | — | 新表 `extension` + `extension_installation`，字段抄 `mini_app_installation`（`manifestJson` / `contentHash` / `source` / `previous*` 回滚）+ **`isEnabled`**；无 `grant` 表——v1 的权限只是同意卡上的披露，没有运行时门（§5） |
 | 崩溃恢复 | journal 机制 + 参数 | `committedHashOf` 查 `extension_installation` |
@@ -285,7 +286,7 @@ manifest item = registry `ProviderConfigSchema` + 以下新增字段（都要加
 
 代价与未知，必须在 P1 用真实样本量出来，不能拍脑袋：15 个 fetcher 逐个试，记下哪些声明不了。已知会溢出的形状——vertex 的 publisher 路径拼装、ark 的响应归一化、dmxapi 的 embedding 按模型分族——是长尾，它们等的是下面这半。
 
-**代码钩子（L1-code）与 L2 模型实现推迟到能力沙箱之后。** 接口按下面这样冻结（形状不变，只是启用时机推后），因为它决定了沙箱要注入哪些能力：入参只有纯数据 + 四个宿主能力，出参只有纯对象。等 §5.1 的能力表（门 + 配额 + 白名单）落地，这段代码才允许跑。
+**代码钩子（L1-code）与 L2 模型实现不是被禁止，而是只能通过 `cherry.*` API 执行。** 下面 `ProviderContext` / `AuthContext` 里的能力函数，就是 `cherry.*` 在 provider 这个 kind 下的投影（`cherry.network.fetch` / `cherry.shell.openExternal` / `cherry.auth.awaitLoopbackCallback` / `cherry.auth.openWindow`）；运行时全局只有 `cherry` 与 ECMAScript 标准库，扩展代码能产生的每一个副作用都经过这张表上的一个方法，每个方法有门与配额（§5.1）。接口现在冻结，因为它就是要注入的能力清单；启用时机是 §5 的 `cherry.*` 运行时落地（P3）。
 
 ```ts
 // @cherrystudio/extension-sdk —— provider 钩子的全部公开面
@@ -453,17 +454,17 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 | 方案 | fetch 接缝 | 流搬运 | 崩溃隔离 | **权限沙箱** | 实现量 | 备注 |
 |---|---|---|---|---|---|---|
-| **A. 主进程内 `import()`** | 直接注入 | 无 | 无 | **无** | ~300 行 | Obsidian / opencode / n8n 的模型；扩展与 app 同权，还能改 app 自己的模块 |
+| ~~A. 主进程内 `import()`~~ | 直接注入 | 无 | 无 | **无** | ~300 行 | Obsidian / opencode / n8n 的模型；扩展与 app 同权，还能改 app 自己的模块。**否决**："只能通过 `cherry.*`"在这里无法成立 |
 | B. `worker_threads` | 要桥；worker 里没有 Electron `net` | 要 | 弱 | **无**（worker 里 Node 内建全在） | ~800 行 | localModel worker 是"拿代理快照自建 dispatcher"，对 provider 不可接受（丢 UA / trace） |
 | **C. `utilityProcess`** | 反向 RPC：扩展 `fetch` 等四个宿主能力 → MessagePort → 宿主执行 | §4.5 的 `ChatStreamPart` 全是纯对象，可搬（`signal` 换 id、`Uint8Array` 走 transfer） | 强 | **无** | ~1200 行 | `workerProxy.ts` 注释已预留入口。它是一个**带完整 Node 的子进程**，没有 `sandbox` 开关；`fs` / `child_process` / 原生模块一个不少 |
 | D. 子进程 + JSON-RPC（MCP 式） | 同 C | 同 C，自定义协议 | 强 | 无（除非再叠 OS 级沙箱） | ~1500 行 | 唯一优势是非 JS 扩展；本体系不需要 |
 | E. WASM | 宿主提供 | 要 | 强 | **强** | 大 | AI SDK 包编译不进 WASM；Zed 走这条是因为扩展面窄且是 Rust |
-| **F. C + 嵌入式 JS 引擎（QuickJS）** | 宿主注入 | 同 C | 强（外层还是 `utilityProcess`） | **强**（引擎里根本没有 Node 内建，能力全靠宿主注入） | C + ~600 行 | Figma 插件走的就是 QuickJS。性能远低于 V8，npm 生态受限 |
+| **F. C + 嵌入式 JS 引擎（QuickJS）** | 宿主注入为 `cherry.network.fetch` | 同 C | 强（外层还是 `utilityProcess`） | **强**（引擎里根本没有 Node 内建，全局只有 `cherry`） | C + ~600 行 | **唯一的代码运行时。** Figma 插件走的就是 QuickJS。性能远低于 V8，npm 生态受限 |
 | ~~G. 隐藏渲染进程（`sandbox: true`）~~ | 同 C | 同 C | 强 | 强（Chromium OS 级沙箱） | ~1200 行 | **否决**：provider 扩展是后端能力，拿 UI 构件当计算宿主要背窗口生命周期、后台节流、以及 Blink 的 2GB 内存分区（#18435 的崩溃类）。理由见 §5.1 |
 
-**决定：v1 用 A，API 按"跨进程可搬"设计（C / F 通用）；真沙箱选 F；索引的前置条件是能力面（§5.1），不是隔离方案，也不是签名。**
+**决定：代码运行时只有 F——`utilityProcess` 里的 QuickJS，全局只注入 `cherry`。A 不作为任何阶段的代码运行时；声明式扩展（P0–P1）根本不需要运行时。索引的前置条件是能力面（§5.1），不是隔离方案，也不是签名。**
 
-- 选 A：目标是最简实现；provider 的工作就是发 HTTP，宿主网络策略全收敛在 `customFetch`，进程内注入零成本。
+- 否决 A：它是最简实现，但"扩展代码只能通过 `cherry.*` 执行"在进程内 `import()` 下无法成立——模块拿得到 `process`、`createRequire`、动态 `import`，任何门都是摆设。省下的 ~900 行不值这个原则。
 - 按跨进程设计：§4.4 / §4.5 的入参除四个宿主能力函数（`fetch` / `openExternal` / `awaitLoopbackCallback` / `openAuthWindow`）外全是纯数据，出参（`Credential` / `ProviderModelOverride[]` / `ChatStreamPart` 流）全是纯对象。换成 C / F 时扩展代码零改动，宿主把 `extensionAdapter.ts` 的输入端从"进程内对象"换成"MessagePort 代理"。§4.0 排除服务端工具正是为了不在 API 里放函数值。
 
 **"零改动"不是自动成立的，它由下面这条线上契约保证**（现在就写进类型，否则 P3 会发现 API 里躺着搬不动的值）：
@@ -475,10 +476,9 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 | `fetch` | 请求/响应 + 响应体分块推流；扩展侧是一个真的 `fetch` 实现（签名不变） | 支持的子集：`input` 为 URL 字符串、`init` 为普通对象（`method` / `headers` / `body: string \| Uint8Array \| URLSearchParams` / `signal`），响应以 `{ status, headers, body: 分块 Uint8Array }` 回传后在扩展侧重建 `Response`。**不支持** `Request` 对象入参、请求体流式上传（`duplex: 'half'`）、`fetch` 上的自定义 agent |
 | 钩子返回值 / `ChatStreamPart` | 一次响应或一条流通道 | 全是纯对象；`Uint8Array` 走 transfer；`AbortSignal` 换 id，宿主侧 abort 转成通道消息 |
 
-这四条在 v1（方案 A，进程内）下同样成立——A 只是把桥换成直接调用。谁写了一个 `Request` 入参的 fetch 调用，A 下能跑、C 下崩，所以子集从第一天就是 SDK 类型的一部分，而不是 P3 的迁移说明。
-- A 的边界：只覆盖用户自选文件 / URL 安装。
-- A 的纪律：只加载 `feature.extension.packages` 下用户显式安装的目录；同意卡写明"含代码，以应用权限运行"；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
-- 加载：`import(pathToFileURL(main).href)`；`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联，宿主**不**给扩展解析自己的 `node_modules`——版本由宿主决定的依赖就是隐式 API。扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
+在 QuickJS 里这些约束是天然的：引擎里没有 `Request`、没有 `Response` 类，宿主注入什么扩展就只有什么。子集写进 SDK 类型是为了让 `cherry-ext build` 的类型检查在开发期就报错，而不是装上后才发现。
+- 纪律：只加载 `feature.extension.packages` 下用户显式安装的目录；manifest zod 严格模式；id 冲突拒绝；扩展抛错 ⇒ `ProviderCreationError`，只标记该 provider 不可用；不自动更新。
+- 加载：`main.js` 单文件 ESM，`cherry-ext build` 把依赖全部内联并且**只能内联不依赖 Node 内建的包**（构建期检查，`node:*` / `require` 出现即失败）；宿主把文件内容喂给引擎，不解析任何 `node_modules`。扩展对宿主的唯一编译期依赖是 `@cherrystudio/extension-sdk` 的类型。
 
 ### 5.1 设计对象是能力面，不是运行时
 
@@ -504,7 +504,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 
 **过渡期（P0–P2，无市场、只装自己维护的扩展）的三件事**，定位是抬门槛，不是保证：
 
-1. **同意卡说人话**：不写"需要 network 权限"，写"这个扩展包含代码，运行后可以访问你的文件和网络，和 Cherry Studio 本身权限相同。只安装你信任的来源"。含 `main` 与不含 `main` 的扩展必须长得明显不一样。
+1. **同意卡说人话**：展示的是它声明要用的 `cherry.*` 方法与 `network` host——和 mini app 的同意卡一样——而不是权限术语。没有"以应用权限运行"这种状态，因为没有任何扩展以应用权限运行。
 2. **安装时扫一遍**：解压后、落盘前，对 `main.js` 做静态检查（`child_process` / `fs` 写入 / `eval` / 动态 `import` / 混淆特征 / manifest `network` 之外的域名字面量）加一次 agent 阅读，结论摆在同意卡上。**拦不住分阶段下载的 payload 和运行时拼出来的字符串**，所以文案只能写"扫描发现了什么"，绝不能写"已扫描，安全"。
 3. **不自动更新**：更新和首装走同一条同意 + 扫描路径。
 
@@ -516,7 +516,7 @@ export interface RerankModel { rerank(query: string, documents: string[], ctx: P
 - **后台节流**。隐藏/被遮挡的渲染进程会被 Chromium 降优先级并节流定时器，得靠 `backgroundThrottling: false` 关掉——一个必须记住否则会偶发慢的坑。
 - **Blink 的内存天花板**。这条最硬：#18435 已经实锤，流式响应在渲染进程里累积会打爆 Blink 的 PartitionAlloc 分区（约 2GB，144 秒可复现崩溃）。provider 的流式路径正是那条路径，把它塞回渲染进程等于把一个已经查清的崩溃类请回来。Node 侧没有这个分区限制。
 
-**所以真沙箱只有 F：把扩展代码放进嵌入式 JS 引擎（QuickJS，`quickjs-emscripten`），引擎跑在 `utilityProcess` 里。** 引擎里没有 `fs` / `child_process` / 裸 `fetch`，能力全部由宿主注入——这正是 §4.4 / §4.5 已经写好的四个。外层的 `utilityProcess` 负责崩溃与内存边界，内层的引擎负责权限，两件事各归各。已知代价：性能远低于 V8（provider 的活是 I/O 密集，解析 SSE 分块够用，但 L2 里做重计算的扩展不适合）；PKCE 要的 SHA-256 / 随机数得宿主注入；npm 生态里依赖 Node 内建的包全部不可用。`isolated-vm` 不选——原生插件，每次 Electron 升级都要跟着重编（`better-sqlite3` 的 ABI 问题已经够烦了）。
+**所以代码运行时只有 F：把扩展代码放进嵌入式 JS 引擎（QuickJS，`quickjs-emscripten`），引擎跑在 `utilityProcess` 里，全局只注入一个 `cherry` 对象。** 这就是"只能通过 cherry API 执行"的字面实现：引擎里没有 `fs` / `child_process` / 裸 `fetch` / `process`，扩展想做任何事都得调 `cherry.*`，而 `cherry.*` 的每个方法都过 `MINI_APP_METHODS` 式的门与配额。外层的 `utilityProcess` 负责崩溃与内存边界，内层的引擎负责权限，两件事各归各。已知代价：性能远低于 V8（provider 的活是 I/O 密集，解析 SSE 分块够用，但 L2 里做重计算的扩展不适合）；PKCE 要的 SHA-256 / 随机数得宿主注入；npm 生态里依赖 Node 内建的包全部不可用。`isolated-vm` 不选——原生插件，每次 Electron 升级都要跟着重编（`better-sqlite3` 的 ABI 问题已经够烦了）。
 
 Figma 的插件走的就是 QuickJS，而且它的分工和我们一样：计算在引擎里、UI 在别处。VS Code 的 web extension（Web Worker，无 Node）是同一个思路的另一种壳。
 
@@ -654,11 +654,11 @@ Figma 的插件走的就是 QuickJS，而且它的分工和我们一样：计算
 | P0-b | **基础设施，无 SDK、无扩展**：registry schema 加 L0 字段（`headers` / `credits` / `activity` / `configuration` / `models`）与 L1 声明式 schema（`modelDiscovery` / `auth` / `requestPatch`，§4.4）；宿主解释器落地并**替换内置 provider 的现有分支**——`listModels.ts` 的 fetcher、`config.ts` 的整形分支、`getExtraHeaders` 特判、OAuth launcher 表 | 内置 provider 行为不变（现有测试全绿）；15 个 fetcher / 5 种认证里有多少个被声明式吃掉，剩下的就是 P3 的溢出清单 |
 | P1 | `ExtensionManifestSchema` + `ExtensionHostService` + extension 安装流程（§3.3 第 3 步）+ `providers` 贡献点接 P0-b 的解释器（§4.7 第 1、7、8 项）；TokenDance 的 manifest **手写**当测试夹具；本文迁到 `docs/references/ai/` | **TokenDance 作为扩展包通过，且包里没有可执行代码**；设置页出现该 provider，聊天与 pi/dsh 都带上 manifest headers；`pnpm docs:check` 过 |
 | P2 | SDK 包（`defineExtension` / `defineProvider` 类型 + `cherry-ext build`）——给已在内置 provider 上定型的 schema 套壳；能力面（§5.1）：把 `MINI_APP_METHODS` 那套"逐方法门 + 配额 + host 白名单 + SSRF"落到 extension 上；第二个 kind（建议 `webSearchProviders`），此时抽出 `ContributionPoint` 接口 | `cherry-ext build` 从 TokenDance 源码生成的 manifest 与 P1 手写的逐字节相等；声明式扩展只能连 `network` 里声明过的 host；两个 kind 共用一套安装/启停/卸载 |
-| P3 | 代码执行：沙箱运行时（`utilityProcess` + QuickJS，§5.1）+ L1 代码钩子 + L2 `imageModel` | P1 清单里溢出的那些 provider 能写出来；PPIO 搬出主仓库；沙箱里 `fs` / `child_process` / 未声明 host 全部拿不到 |
+| P3 | `cherry.*` 运行时：`utilityProcess` + QuickJS，全局只有 `cherry`（§5.1）；L1 代码钩子 + L2 `imageModel` 经它执行 | P1 清单里溢出的那些 provider 能写出来；PPIO 搬出主仓库；引擎里 `process` / `require` / 裸 `fetch` 不存在，未声明 host 被 `cherry.network.fetch` 拒绝 |
 | P4 | 索引 + 一键安装 | 索引安装的扩展只在沙箱下运行；旁装路径的能力面与索引安装完全一致（市场不是安全边界） |
 | 之后 | 页面/行为 kind（渲染层：只暴露 Cherry 特定 API 与钩子，无 node / fs / 网络 / AI）→ `channels` → `fileProcessors` → `agentRuntimes` | 先定能力面再定 API；各自子系统的合同测试 |
 
-P1 不含任何扩展代码执行是硬约束：代码执行排在能力面（P2）与沙箱（P3）之后。P3 排在 P4 前也是硬约束，不是偏好。P2 之前不抽 `ContributionPoint` 接口是纪律，不是遗漏。P0–P2 只有"用户自选安装 + 同意卡 + 安装扫描"这一层门（§5.1），这是明知的取舍，不是待补的 TODO。
+代码钩子排在 `cherry.*` 运行时（P3）之后是硬约束：在那之前没有任何扩展代码在任何进程里执行。P3 排在 P4 前也是硬约束，不是偏好。P2 之前不抽 `ContributionPoint` 接口是纪律，不是遗漏。P0–P2 只有"用户自选安装 + 同意卡 + 安装扫描"这一层门（§5.1），这是明知的取舍，不是待补的 TODO。
 
 ## 9. 决策记录
 
@@ -686,9 +686,10 @@ P1 不含任何扩展代码执行是硬约束：代码执行排在能力面（P2
 | 2026-09-04 | ~~索引的前置条件是签名 + 审核 + 吊销~~ → **推翻**：安全的根是能力面，市场手段只是补充 | 评审（@fullex）：签名要中心服务器逐包签，纯开源无中心管理做不到；且旁装路径绕过一切市场门（§5.1 ①） | 已定 |
 | 2026-09-04 | 判据定为"扩展最坏 ≤ 用户手动加一个自定义 provider" | 评审：`cherrystudio://providers/api-keys` 今天就能导入 `{id,baseUrl,apiKey}`，那是产品已接受的风险；沙箱买不到"provider 看不见对话"（那是 provider 的定义），买得到的是挡掉 fs / exec / 未声明 host（§5.1 ④） | 已定 |
 | 2026-09-04 | 扩展永不许调用 Cherry 的 AI，所有 kind 都不许 | 评审（@fullex）：mini app 的 `cherry.ai` 槽位化 + 并发 2 + 每分钟 60 + 隐藏预算 5 就是防"把 Cherry 当 AI 中转站"的现成平衡（§5.1 ⑤） | 已定 |
-| 2026-09-04 | P0–P2 不执行任何扩展代码：L1 先做声明式（模型发现映射 + 五种认证流程模板 + `requestPatch`） | 评审（@fullex：能力可控就是 extension 的主要难题本身；@苏垚：要设计的是如何暴露有限能力，API 反而次要）。15 个 fetcher 的差异只是 URL + 字段映射，5 种认证是闭集且宿主已全部实现——这些是参数不是逻辑，且不等于"纯信息"（deeplink 只能表达 id/baseUrl/apiKey）（§4.4） | 已定 |
+| 2026-09-04 | P0–P1 不需要扩展代码：L1 先做声明式（模型发现映射 + 五种认证流程模板 + `requestPatch`） | 评审（@fullex：能力可控就是 extension 的主要难题本身；@苏垚：要设计的是如何暴露有限能力，API 反而次要）。15 个 fetcher 的差异只是 URL + 字段映射，5 种认证是闭集且宿主已全部实现——这些是参数不是逻辑，且不等于"纯信息"（deeplink 只能表达 id/baseUrl/apiKey）（§4.4） | 已定 |
 | 2026-09-04 | 能力面照抄 mini app：逐方法的门（声明 vs 授予分开存）+ 配额 + 限流 + host 白名单 + SSRF `BlockList` + 禁改头名单 | 评审；`grants.ts` / `capabilities/*` 已是完整实现，extension 不重造。mini app 能做成是因为 webview 天然沙箱，extension 没这个便宜可占（§5.1） | 已定 |
 | 2026-09-04 | 基础设施先于 SDK：声明式 schema 归 `provider-registry`，解释器先替换内置 provider 的分支，SDK 排到 P2 只做套壳 | 评审（@苏垚）：L1 成了声明式之后 API 就是那份 schema，只有让内置 provider 先吃它才能定型；先出 SDK 等于让扩展作者替我们试错。四条 schema 规则（无表达式 / 闭集枚举 / 归属 registry / 每个字段对应一个删掉的内置分支）见 §4.4 | 已定 |
+| 2026-09-04 | 原则修正：不是"不许执行代码"，是"代码只能通过 `cherry.*` API 执行"；据此 A（进程内 `import()`）不作为任何阶段的代码运行时，F（QuickJS，全局只有 `cherry`）是唯一代码运行时 | 评审（@苏垚）；与 mini app 的 `window.cherry` 同一个模型。声明式 L1 仍先做——它不是替代品，而是 pi / dsh 只吃数据这条硬约束（§2）下的必需品（§4.4 / §5） | 已定 |
 | 2026-09-04 | 下一个要研究的 kind 是"页面/行为 extension"：纯 JS 运行时，无 node / fs / 网络 / AI，只能改 Cherry 特定页面与行为 | 评审（@fullex）方向；先定能力面再定 API（§8） | 待定 |
 | 2026-09-04 | 局部 id 必填，运行时 id 恒为 `扩展id.局部id`，没有"单贡献省后缀"的捷径 | 评审；捷径会让"1 个 provider → 2 个"的升级改掉已持久化的 providerId，用户的 key / 模型 / 历史引用全部悬空（§4.2） | 已定 |
 | 2026-09-04 | manifest 数据项与模块内实现按 `kind + 局部 id` 对齐，对不上就拒绝启用 | 评审；`hooks` 是函数、序列化不进 manifest，没有对齐规则就等于运行时可以超出用户同意过的那份 manifest（§4.1） | 已定 |
