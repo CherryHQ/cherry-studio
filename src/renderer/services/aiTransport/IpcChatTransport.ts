@@ -169,7 +169,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         function matchesStream(data: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean }) {
           if (data.topicId !== topicId) return false
           if (executionId) return data.executionId === executionId || !!data.isTopicDone
-          return !data.executionId || !!data.isTopicDone
+          return true
         }
 
         unsubscribers.push(
@@ -183,7 +183,6 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           ipcApi.on('ai.stream.chunk', (data) => {
             if (data.topicId !== topicId || isStreamClosed) return
             if (executionId && data.executionId !== executionId) return
-            if (!executionId && data.executionId) return
             if (isStreamClosed || !matchesStream(data)) return
             schedulePending(data.chunk)
           })
