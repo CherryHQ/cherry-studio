@@ -38,6 +38,8 @@ import type {
 
 const PROVIDER_PRESET_MODEL_FIELDS = ['models'] as const
 
+const EMPTY_ENDPOINT_OPTIONS: readonly EndpointType[] = []
+
 function getCommonPresetEndpointTypes(
   modelIds: readonly string[],
   presetModels: readonly Model[] | undefined
@@ -120,11 +122,14 @@ export default function AddModelFormPanel({
         : (enteredPresetEndpointTypes ?? formState.endpointTypes ?? []),
     [endpointTypesTouched, enteredPresetEndpointTypes, formState.endpointTypes, hasInitialEndpointDeclaration]
   )
-  const preferredEndpointOptions = resolvePreferredEndpointOptions(
-    provider,
-    effectiveEndpointTypes,
-    classification.operationCapabilities
-  )
+  // Unlike the edit drawer, this form already states the protocol in the endpoint-type field above,
+  // so the pin only says something the user cannot already read there once two or more servable
+  // protocols are declared. Below that it is a second endpoint selector with one option.
+  const declaredPreferredEndpoints = effectiveEndpointTypes.length
+    ? resolvePreferredEndpointOptions(provider, effectiveEndpointTypes, classification.operationCapabilities)
+    : EMPTY_ENDPOINT_OPTIONS
+  const preferredEndpointOptions =
+    declaredPreferredEndpoints.length > 1 ? declaredPreferredEndpoints : EMPTY_ENDPOINT_OPTIONS
   const pinnedPreferredEndpoint = preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType)
   const inheritedOperation = resolveInheritedOperationCapability(
     effectiveEndpointTypes,
@@ -313,16 +318,9 @@ export default function AddModelFormPanel({
     [classification, effectiveEndpointTypes, provider]
   )
 
-  const handlePreferredEndpointTypeChange = useCallback(
-    (next: EndpointType | undefined) => {
-      if (next && effectiveEndpointTypes.length === 0) {
-        setEndpointTypesTouched(true)
-        setFormState((current) => ({ ...current, endpointTypes: [...preferredEndpointOptions] }))
-      }
-      setPreferredEndpointType(next)
-    },
-    [effectiveEndpointTypes.length, preferredEndpointOptions]
-  )
+  const handlePreferredEndpointTypeChange = useCallback((next: EndpointType | undefined) => {
+    setPreferredEndpointType(next)
+  }, [])
 
   const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
     setClassificationTouched(true)
