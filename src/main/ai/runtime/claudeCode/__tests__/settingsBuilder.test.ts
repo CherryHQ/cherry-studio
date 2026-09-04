@@ -10,7 +10,10 @@ import {
   toMcpRuntimeName
 } from '@main/ai/toolApproval/builtinToolPolicy'
 import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const REAL_PLATFORM = process.platform
+const REAL_ARCH = process.arch
 
 const APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({ approval: 'required' }).map(toMcpRuntimeName)
 const BYPASSABLE_APPROVAL_REQUIRED_RUNTIME_NAMES = listBuiltinToolPolicies({
@@ -283,6 +286,11 @@ function systemPromptText(systemPrompt: unknown): string {
 }
 
 describe('buildClaudeCodeSessionSettings', () => {
+  afterEach(() => {
+    Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true })
+    Object.defineProperty(process, 'arch', { value: REAL_ARCH, configurable: true })
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.approvalRegister.mockReturnValue(true)
@@ -369,10 +377,15 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('directs packaged installs to the official installer when the unpacked Claude executable is missing', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    Object.defineProperty(process, 'arch', { value: 'x64', configurable: true })
     mocks.isWin = true
     mocks.resolveRequire.mockImplementation((specifier: string) => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return 'C:\\app\\resources\\app.asar\\node_modules\\sdk.mjs'
-      return 'C:\\app\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+      if (specifier === '@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe') {
+        return 'C:\\app\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+      }
+      throw new Error(`Unexpected specifier: ${specifier}`)
     })
     mocks.toAsarUnpackedPath.mockImplementation((input: string) => input.replace('app.asar', 'app.asar.unpacked'))
     mocks.existsSync.mockReturnValue(false)
@@ -383,10 +396,15 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('returns an existing unpacked Claude executable', () => {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+    Object.defineProperty(process, 'arch', { value: 'x64', configurable: true })
     mocks.isWin = true
     mocks.resolveRequire.mockImplementation((specifier: string) => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return 'C:\\app\\resources\\app.asar\\node_modules\\sdk.mjs'
-      return 'C:\\app\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+      if (specifier === '@anthropic-ai/claude-agent-sdk-win32-x64/claude.exe') {
+        return 'C:\\app\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe'
+      }
+      throw new Error(`Unexpected specifier: ${specifier}`)
     })
     mocks.toAsarUnpackedPath.mockImplementation((input: string) => input.replace('app.asar', 'app.asar.unpacked'))
 
