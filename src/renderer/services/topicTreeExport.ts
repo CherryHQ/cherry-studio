@@ -24,6 +24,7 @@ import type {
   ExportBranchNode,
   ExportTreeResponse,
   ExportTurnNode,
+  ExportVariantLeaf,
   ExportVariantSource,
   Message
 } from '@shared/data/types/message'
@@ -534,4 +535,70 @@ async function chainText(turns: ExportTurnNode[], renderer: TurnRenderer): Promi
     sections.push(await renderer.turnSection(turn))
   }
   return sections.filter(Boolean).join(TURN_SEPARATOR)
+}
+
+// ============================================================================
+// Notion blocks assembly (martian drops raw HTML, so `<details>` folds must
+// become native toggle blocks instead)
+// ============================================================================
+
+/** Build the branch-aware Notion block list for the given export mode. */
+export async function buildTreeNotionBlocks(tree: ExportTreeResponse, mode: BranchExportMode): Promise<any[]> {
+  const { convertMarkdownToNotionBlocks } = await import('./ExportService')
+
+  const titleBlocks = await convertMarkdownToNotionBlocks(`# ${tree.topicName}`)
+
+  const variantToggle = async (
+    source: ExportVariantSource,
+    chain: ExportTurnNode,
+    variant: ExportVariantLeaf
+  ): Promise<any> => {
+    const children = await convertMarkdownToNotionBlocks(await messageToMarkdown(toExportView(variant.message)))
+    return {
+      object: 'block',
+      type: 'toggle',
+      toggle: {
+        rich_text: [
+          {
+            type: 'text',
+            text: { content: variantSummaryText(source, chain) },
+            annotations: { bold: true }
+          }
+        ],
+        children
+      }
+    }
+  }
+
+  const turnBlocks = async (turn: ExportTurnNode): Promise<any[]> => {
+    const blocks = await convertMarkdownToNotionBlocks(await messageToMarkdown(toExportView(turn.message)))
+    const toggles =
+      turn.variants.length > 0 ? await Promise.all(turn.variants.map((v) => variantToggle(v.source, turn, v))) : []
+    return [...blocks, ...toggles]
+  }
+
+  const chainBlocks = async (turns: ExportTurnNode[]): Promise<any[]> =>
+    (await Promise.all(turns.map(turnBlocks))).flat()
+
+  const branchBlocks = async (branch: ExportBranchNode): Promise<any[]> => {
+    const heading = await convertMarkdownToNotionBlocks(
+      `## 🌿 ${i18n.t('export.branch.appendix_item', {
+        index: branch.index,
+        preview: branch.firstUserQuestionPreview
+      })}`
+    )
+    const note = branch.forkMessageId
+      ? await convertMarkdownToNotionBlocks(`> ↩ ${i18n.t('export.branch.return_to_fork')} · ${branch.forkPreview}`)
+      : []
+    const body = await chainBlocks(branch.turns)
+    const children = (await Promise.all(branch.children.map(branchBlocks))).flat()
+    return [...heading, ...note, ...body, ...children]
+  }
+
+  const trunkBlocks = await chainBlocks(tree.trunk)
+  if (mode === 'trunk') {
+    return [...titleBlocks, ...trunkBlocks]
+  }
+  const branches = (await Promise.all(tree.branches.map(branchBlocks))).flat()
+  return [...titleBlocks, ...trunkBlocks, ...branches]
 }

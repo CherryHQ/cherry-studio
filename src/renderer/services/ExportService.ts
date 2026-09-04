@@ -817,7 +817,7 @@ export const rewriteAlertQuotesToCallouts = (blocks: any[], markdown: string): a
   return blocks.map(rewriteBlock)
 }
 
-const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
+export const convertMarkdownToNotionBlocks = async (markdown: string): Promise<any[]> => {
   const { markdownToBlocks } = await loadNotionDependencies()
   return rewriteAlertQuotesToCallouts(markdownToBlocks(markdown), markdown)
 }
@@ -1421,6 +1421,147 @@ async function createSiyuanDoc(
 
   return data.data
 }
+
+/** One branch-export document bound for a target (structural twin of the renderer's ExportedDoc). */
+export interface ExportDocPayload {
+  fileName: string
+  title: string
+  markdown: string
+}
+
+/**
+ * Persist a single pre-rendered branch-export document to disk.
+ *
+ * Mirrors `exportTopicAsMarkdown`'s destination behavior (picker vs
+ * preconfigured path with timestamped name) but takes ready markdown — the
+ * image-mode chooser does not apply to branch-aware renders.
+ */
+export const saveMarkdownToDisk = async (topicName: string, markdown: string): Promise<void> => {
+  if (getExportState()) {
+    toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+  setExportingState(true)
+  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
+  try {
+    if (!markdownExportPath) {
+      const fileName = removeSpecialCharactersForFileName(topicName) + '.md'
+      const result = await window.api.file.save(fileName, markdown)
+      if (result) {
+        toast.success(i18n.t('message.success.markdown.export.specified'))
+      }
+    } else {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(topicName) + ` ${timestamp}.md`
+      await window.api.file.write(`${markdownExportPath}/${fileName}`, markdown)
+      toast.success(i18n.t('message.success.markdown.export.preconf'))
+    }
+  } catch (error) {
+    toast.error(i18n.t('message.error.markdown.export.specified'))
+    logger.error('Failed to save branch export markdown:', error as Error)
+  } finally {
+    setExportingState(false)
+  }
+}
+
+/**
+ * Export a branch file set to SiYuan as parent-child documents.
+ *
+ * One lock acquisition, one connection test and one Sprig render for the whole
+ * set — the per-document path derives from the shared rendered root.
+ */
+export const exportMarkdownFileSetToSiyuan = async (docs: ExportDocPayload[]): Promise<void> => {
+  if (docs.length === 0) return
+  const { siyuanApiUrl, siyuanToken, siyuanBoxId, siyuanRootPath } = await preferenceService.getMultiple({
+    siyuanApiUrl: 'data.integration.siyuan.api_url',
+    siyuanToken: 'data.integration.siyuan.token',
+    siyuanBoxId: 'data.integration.siyuan.box_id',
+    siyuanRootPath: 'data.integration.siyuan.root_path'
+  })
+
+  if (getExportState()) {
+    toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  if (!siyuanApiUrl || !siyuanToken || !siyuanBoxId) {
+    toast.error(i18n.t('message.error.siyuan.no_config'))
+    return
+  }
+
+  setExportingState(true)
+
+  try {
+    const testResponse = await fetch(`${siyuanApiUrl}/api/notebook/lsNotebooks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Token ${siyuanToken}`
+      }
+    })
+    if (!testResponse.ok) {
+      throw new Error('API请求失败')
+    }
+    const testData = await testResponse.json()
+    if (testData.code !== 0) {
+      throw new Error(`${testData.msg || i18n.t('message.error.unknown')}`)
+    }
+
+    const rootPath = siyuanRootPath?.startsWith('/') ? siyuanRootPath : `/${siyuanRootPath || 'CherryStudio'}`
+    const renderedRootPath = await renderSprigTemplate(siyuanApiUrl, siyuanToken, rootPath)
+
+    // First document lands at the root; the rest become its children via path nesting
+    const mainTitle = docs[0].title.replace(/[#|\\^\\[\]]/g, '')
+    for (const [index, doc] of docs.entries()) {
+      const docTitle = doc.title.replace(/[#|\\^\\[\]]/g, '')
+      const docPath = index === 0 ? `${renderedRootPath}/${docTitle}` : `${renderedRootPath}/${mainTitle}/${docTitle}`
+      await createSiyuanDoc(siyuanApiUrl, siyuanToken, siyuanBoxId, docPath, doc.markdown)
+    }
+
+    toast.success(i18n.t('message.success.siyuan.export'))
+  } catch (error) {
+    logger.error('Failed to export file set to Siyuan:', error as Error)
+    toast.error(i18n.t('message.error.siyuan.export') + (error instanceof Error ? `: ${error.message}` : ''))
+  } finally {
+    setExportingState(false)
+  }
+}
+
+/**
+ * Export a branch file set to the local filesystem.
+ *
+ * With a preconfigured export path the set lands there directly; otherwise a
+ * folder picker decides the destination. Branch documents go into a subfolder
+ * named after the main document.
+ */
+export const exportMarkdownFileSet = async (docs: ExportDocPayload[]): Promise<void> => {
+  if (docs.length === 0) return
+  const mdPath = await preferenceService.get('data.export.markdown.path')
+
+  let baseDir: string | null
+  if (mdPath) {
+    baseDir = mdPath
+  } else {
+    baseDir = await window.api.file.selectFolder()
+    if (!baseDir) {
+      return
+    }
+  }
+
+  const subfolderName = docs[0].fileName.replace(/\.md$/, '')
+  const targetDir = `${baseDir}/${subfolderName}`
+  await window.api.file.mkdir(targetDir)
+
+  for (const doc of docs) {
+    await window.api.file.write(`${targetDir}/${doc.fileName}`, doc.markdown)
+  }
+
+  toast.success(i18n.t('message.success.markdown.export'))
+}
+
+/** Public alias so branch-aware callers can reuse the notion page pipeline with pre-built blocks. */
+export const exportNotionBlocks = async (title: string, blocks: any[]): Promise<boolean> =>
+  executeNotionExport(title, blocks)
 
 const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
   await addNote(title, content, folderPath)

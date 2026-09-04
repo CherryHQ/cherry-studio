@@ -100,6 +100,8 @@ interface ShowParams {
   dialogTitle?: string
   source: ContentSource
   sourceTitle?: string
+  /** Pre-rendered branch-aware markdown; when set, topic mode skips its own content pipeline */
+  branchMarkdown?: string
 }
 
 interface SaveResult {
@@ -131,7 +133,7 @@ const getNoteSource = async (source: ContentSource, fallbackConversationTitle: s
   return getMessageTitle(source.data)
 }
 
-const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, open, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, branchMarkdown, open, resolve }) => {
   const [loading, setLoading] = useState(false)
   const [analysisLoading, setAnalysisLoading] = useState(true)
   const [selectedBaseId, setSelectedBaseId] = useState<string>()
@@ -338,11 +340,14 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, ope
         savedCount = 1
       } else {
         // 原有的消息或主题处理逻辑
-        const result = isTopicMode
-          ? await processTopicContent(source?.data, selectedTypes)
-          : isMessagesMode
-            ? processMessagesContent(source.data.title, source.data.messages, selectedTypes)
-            : processMessageContent(source?.data, selectedTypes)
+        const result =
+          branchMarkdown && isTopicMode
+            ? { text: branchMarkdown, files: [] }
+            : isTopicMode
+              ? await processTopicContent(source?.data, selectedTypes)
+              : isMessagesMode
+                ? processMessagesContent(source.data.title, source.data.messages, selectedTypes)
+                : processMessageContent(source?.data, selectedTypes)
 
         logger.debug('Processed content:', result)
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
@@ -543,8 +548,8 @@ const SaveToKnowledgePopup = {
     popup.show({ dialogTitle: title, source: { type: 'message', data: message }, sourceTitle: title }),
   showForMessages: (messages: ExportableMessage[], title: string): Promise<SaveResult | null> =>
     popup.show({ source: { type: 'messages', data: { title, messages } }, sourceTitle: title }),
-  showForTopic: (topic: Topic, title?: string): Promise<SaveResult | null> =>
-    popup.show({ dialogTitle: title, source: { type: 'topic', data: topic }, sourceTitle: title }),
+  showForTopic: (topic: Topic, title?: string, branchMarkdown?: string): Promise<SaveResult | null> =>
+    popup.show({ dialogTitle: title, source: { type: 'topic', data: topic }, sourceTitle: title, branchMarkdown }),
   showForNote: (note: NotesTreeNode, title?: string): Promise<SaveResult | null> =>
     popup.show({ dialogTitle: title, source: { type: 'note', data: note }, sourceTitle: title })
 }
