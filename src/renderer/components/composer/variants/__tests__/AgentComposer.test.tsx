@@ -2,6 +2,7 @@ import { basename } from 'node:path'
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
+import type * as ModelSpeedControlModule from '@renderer/components/ModelSpeedControl'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
@@ -31,7 +32,6 @@ import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
 } from '../AgentComposer'
-import type * as ComposerSpeedControlModule from '../shared/ComposerSpeedControl'
 
 const mocks = vi.hoisted(() => ({
   draftText: 'hello',
@@ -477,11 +477,11 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
-vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
-  const actual = await importOriginal<typeof ComposerSpeedControlModule>()
+vi.mock('@renderer/components/ModelSpeedControl', async (importOriginal) => {
+  const actual = await importOriginal<typeof ModelSpeedControlModule>()
   return {
     ...actual,
-    ComposerSpeedControl: (props: {
+    ModelSpeedControl: (props: {
       model: Model
       reasoningEffort: string
       serviceTier: string

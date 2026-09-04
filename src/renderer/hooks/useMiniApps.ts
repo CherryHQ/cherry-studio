@@ -217,12 +217,20 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
+  const currentMiniAppIdRef = useRef(currentMiniAppId)
+  currentMiniAppIdRef.current = currentMiniAppId
   const [splitOpen, setSplitOpen] = useCache('mini_app.split_open')
   const [splitMiniAppId, setSplitMiniAppId] = useCache('mini_app.split_id')
+  const splitMiniAppIdRef = useRef(splitMiniAppId)
+  splitMiniAppIdRef.current = splitMiniAppId
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const openedOneOffMiniAppRef = useRef(openedOneOffMiniApp)
+  openedOneOffMiniAppRef.current = openedOneOffMiniApp
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
+  const tabsContextRef = useRef(tabsContext)
+  tabsContextRef.current = tabsContext
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -277,6 +285,19 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     [invalidate, patchAppTrigger, readCache]
   )
 
+  const hideMiniApp = useCallback(
+    async (appId: string) => {
+      const updated = await updateAppStatus(appId, 'disabled')
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== appId))
+      if (splitMiniAppIdRef.current === appId) {
+        setSplitMiniAppId('')
+        setSplitOpen(false)
+      }
+      return updated
+    },
+    [setOpenedKeepAliveMiniApps, setSplitMiniAppId, setSplitOpen, updateAppStatus]
+  )
+
   /**
    * Batch status flip. Each entry names a row, its status, and optionally its
    * target position in the destination partition.
@@ -323,7 +344,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // so an app opened concurrently during the edit's await is seen here and
       // picks up the new url instead of being missed.
       const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
-      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
+      const openedOneOffApp =
+        openedOneOffMiniAppRef.current?.appId === updated.appId ? openedOneOffMiniAppRef.current : null
       const urlChanged =
         (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
         (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
@@ -343,13 +365,13 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = updated.logoSrc ?? updated.logo
-      for (const tab of tabsContext?.tabs ?? []) {
+      for (const tab of tabsContextRef.current?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContext?.updateTab(tab.id, { title, icon })
+          tabsContextRef.current?.updateTab(tab.id, { title, icon })
         }
       }
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
@@ -359,44 +381,40 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
       // no-op the cache short-circuits via isEqual.
       setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
 
-      if (openedOneOffMiniApp?.appId === appId) {
+      if (openedOneOffMiniAppRef.current?.appId === appId) {
         setOpenedOneOffMiniApp(null)
       }
 
-      if (currentMiniAppId === appId) {
+      if (currentMiniAppIdRef.current === appId) {
         setCurrentMiniAppId('')
         setMiniAppShow(false)
       }
 
       // The split pane's app is gone; leaving the pane open would replace it
       // with a picker the user never asked for.
-      if (splitMiniAppId === appId) {
+      if (splitMiniAppIdRef.current === appId) {
         setSplitMiniAppId('')
         setSplitOpen(false)
       }
 
       clearWebviewState(appId)
 
-      for (const tab of tabsContext?.tabs ?? []) {
+      for (const tab of tabsContextRef.current?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === appId) {
-          tabsContext?.closeTab(tab.id)
+          tabsContextRef.current?.closeTab(tab.id)
         }
       }
 
       removeSidebarFavoriteMiniApp(appId)
     },
     [
-      currentMiniAppId,
-      splitMiniAppId,
-      openedOneOffMiniApp,
       setCurrentMiniAppId,
       setSplitMiniAppId,
       setSplitOpen,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
-      removeSidebarFavoriteMiniApp,
-      tabsContext
+      removeSidebarFavoriteMiniApp
     ]
   )
 
@@ -440,6 +458,8 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     async (appId: string) => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
+        // The row is already gone; a cleanup failure must not report the
+        // delete itself as failed.
         try {
           cleanupOpenedCustomMiniApp(appId)
         } catch (syncError) {
@@ -531,6 +551,7 @@ export const useMiniApps = (options: { enabled?: boolean } = {}) => {
     error,
     refetch,
     updateAppStatus,
+    hideMiniApp,
     setAppStatusBulk,
     createCustomMiniApp,
     updateCustomMiniApp,

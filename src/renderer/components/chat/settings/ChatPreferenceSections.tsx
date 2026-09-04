@@ -1,6 +1,6 @@
 import {
-  EditableNumber,
   Flex,
+  InputNumber,
   Select,
   SelectContent,
   SelectItem,
@@ -308,7 +308,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
-                <EditableNumber
+                <InputNumber
                   size="small"
                   className="w-20 text-sm"
                   aria-label={t('settings.messages.input.paste_long_text_threshold')}
@@ -316,7 +316,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                   max={10000}
                   step={100}
                   value={pasteLongTextThreshold}
-                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
+                  onBlur={(value) => setPasteLongTextThreshold(value ?? 500)}
                 />
               </SettingRow>
             </>

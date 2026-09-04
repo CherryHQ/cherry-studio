@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, InputNumber, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DefaultModelSelector } from '@renderer/components/DefaultModelSelector'
@@ -383,18 +383,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 inlineWhenCompact
                 icon={null}
                 title={t('settings.models.retry.max_attempts')}>
-                <Input
-                  type="number"
+                <InputNumber
                   min={1}
                   max={10}
+                  step={1}
                   className={compact ? 'h-7 w-16 px-2' : 'w-24'}
                   aria-label={t('settings.models.retry.max_attempts')}
                   value={retryMaxAttempts}
-                  // Clamp on change: an empty field gives Number('') === 0, which a
-                  // range guard would reject — trapping the edit. Clamp instead.
-                  onChange={(e) =>
-                    void setRetryMaxAttempts(Math.min(10, Math.max(1, Math.trunc(Number(e.target.value)) || 1)))
-                  }
+                  onBlur={(value) => void setRetryMaxAttempts(value ?? 1)}
                 />
               </ModelSettingRow>
               <SettingDivider />
