@@ -167,7 +167,9 @@ export class MainWindowService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.App_QuoteToMain, (_, text: string) => this.quoteToMainWindow(text))
+    this.ipcHandle(IpcChannel.App_QuoteToMain, (event, text: string) => {
+      this.quoteToMainWindow(text, event.sender)
+    })
   }
 
   /** Set the main window's minimum size (window.main.set_minimum_size). */
@@ -625,21 +627,60 @@ export class MainWindowService extends BaseService {
   }
 
   /**
-   * 引用文本到主窗口
+   * 引用文本到发起窗口（子窗口）或主窗口
    * @param text 原始文本（未格式化）
+   * @param sourceWebContents 发起引用的 webContents（IPC 调用方）。当它属于一个
+   *   detached SubWindow（独立标签窗口）时，引用插入该子窗口自己的输入框，避免
+   *   内容总是落到主窗口；其余情况（主窗口、selection toolbar 等）保持发往主窗口。
    */
-  public quoteToMainWindow(text: string): void {
+  public quoteToMainWindow(text: string, sourceWebContents?: Electron.WebContents): void {
+    // Track the intended landing spot so a failure log names the right window:
+    // quotes either go to a detached SubWindow (identified by id) or fall back
+    // to the main window — debugging them requires telling the two paths apart.
+    let quoteTarget = 'main window'
     try {
+      const sourceWindow = this.resolveQuoteSourceWindow(sourceWebContents)
+      if (sourceWindow) {
+        quoteTarget = `sub window ${sourceWindow.id}`
+        // SubWindow already has a composer mounted with the same App_QuoteToMain
+        // listener, so sending here inserts the quote into the detached window.
+        // Deliberately no Dock-visibility side effects: quoting into a detached
+        // window must not undo the user's close-to-tray choice (macOS keeps the
+        // Dock icon hidden while Main stays hidden; the tray still shows the app).
+        sourceWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+        return
+      }
+
       this.showMainWindow()
 
       const mainWindow = this.mainWindow
       if (mainWindow && !mainWindow.isDestroyed()) {
         setTimeout(() => {
-          mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+          // Re-check at fire time: the window can be destroyed during the 100ms
+          // gap (e.g. user quits via tray), and sending to destroyed webContents
+          // would throw outside the enclosing try/catch.
+          if (!mainWindow.isDestroyed()) {
+            mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+          }
         }, 100)
       }
     } catch (error) {
-      logger.error('Failed to quote to main window:', error as Error)
+      logger.error(`Failed to quote to ${quoteTarget}:`, error as Error)
     }
+  }
+
+  /**
+   * Resolve the BrowserWindow that hosts a quote IPC sender, when it is a detached
+   * SubWindow. Returns null otherwise — including when that window is already
+   * destroyed — so callers need no further liveness check on the result.
+   */
+  private resolveQuoteSourceWindow(sourceWebContents?: Electron.WebContents): BrowserWindow | null {
+    if (!sourceWebContents) return null
+    const windowManager = application.get('WindowManager')
+    const sourceWindowId = windowManager.getWindowIdByWebContents(sourceWebContents)
+    if (!sourceWindowId) return null
+    if (windowManager.getWindowType(sourceWindowId) !== WindowType.SubWindow) return null
+    const sourceWindow = windowManager.getWindow(sourceWindowId)
+    return sourceWindow && !sourceWindow.isDestroyed() ? sourceWindow : null
   }
 }

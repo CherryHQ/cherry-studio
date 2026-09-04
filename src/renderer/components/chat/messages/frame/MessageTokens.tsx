@@ -44,7 +44,7 @@ function AssistantMessageTokens({
   const contentId = useId()
   const messageKind = useMessageListMeta().aiUsageMessageKind ?? 'chat'
   const { pages, isLoading, isRefreshing, hasNext, loadNext } = useInfiniteQuery('/ai-usage-records', {
-    enabled: showMoreDetails && isDetailsOpen && message.stats?.runtimeTiming !== undefined,
+    enabled: isDetailsOpen && message.stats?.runtimeTiming !== undefined,
     query: {
       messageKind,
       messageId: message.id,

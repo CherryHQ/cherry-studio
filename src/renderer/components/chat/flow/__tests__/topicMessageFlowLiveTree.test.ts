@@ -11,6 +11,7 @@ function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>
     // Roots hang off the unrendered virtual root; use a non-node sentinel id.
     parentId: 'vroot',
     role: 'user',
+    hasContent: true,
     preview: id,
     modelId: null,
     status: 'success',

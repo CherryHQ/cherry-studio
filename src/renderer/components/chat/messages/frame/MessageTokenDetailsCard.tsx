@@ -275,6 +275,13 @@ const MessageTokenDetailsCard = ({
           value: formatTokens(noCacheTokens)
         }
       : undefined,
+    performance.timeFirstTokenMs !== undefined
+      ? {
+          id: 'time-to-first-token',
+          label: t('chat.message.token_details.time_to_first_token'),
+          value: formatMilliseconds(performance.timeFirstTokenMs)
+        }
+      : undefined,
     performance.endToEndTokensPerSecond !== undefined
       ? {
           id: 'end-to-end-throughput',

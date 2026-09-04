@@ -52,6 +52,7 @@ const translations: Record<string, string> = {
   'chat.message.token_details.runtime_breakdown': 'Runtime breakdown',
   'chat.message.token_details.text_generation': 'Text generation',
   'chat.message.token_details.text_output': 'Text output',
+  'chat.message.token_details.time_to_first_token': 'Time to first token',
   'chat.message.token_details.tokens': '{{value}} Tokens',
   'chat.message.token_details.tokens_per_second_value': '{{value}} Tokens/s',
   'chat.message.token_details.total_duration': 'End-to-end duration',
@@ -184,7 +185,7 @@ describe('MessageTokens', () => {
     expect(screen.getByRole('button', { name: '3.3K Tokens' })).toHaveClass('message-tokens')
   })
 
-  it('loads invocation details only after the user explicitly expands more information', () => {
+  it('loads the first invocation page when the card opens and defers full pagination until expansion', () => {
     renderWithProvider(
       createMessage(
         'assistant',
@@ -205,7 +206,13 @@ describe('MessageTokens', () => {
     openDetails()
     expect(dataApiMocks.useInfiniteQuery).toHaveBeenLastCalledWith(
       '/ai-usage-records',
-      expect.objectContaining({ enabled: false })
+      expect.objectContaining({
+        enabled: true,
+        query: expect.objectContaining({
+          messageKind: 'agent-session',
+          messageId: 'agent-message-1'
+        })
+      })
     )
 
     expandMoreDetails()
@@ -263,6 +270,7 @@ describe('MessageTokens', () => {
     expect(screen.getByTestId('message-metric-input')).toHaveTextContent('Input100 Tokens')
     expect(screen.getByTestId('message-metric-output')).toHaveTextContent('Output100 Tokens')
     expect(screen.getByTestId('message-metric-speed')).toHaveTextContent('Model generation TPS10 Tokens/s')
+    expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('Time to first token4s')
     expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('End-to-end throughput7.1 Tokens/s')
     expect(screen.getByTestId('message-secondary-metrics')).toHaveTextContent('End-to-end duration14s')
     expect(screen.queryByTestId('message-performance-breakdown')).not.toBeInTheDocument()

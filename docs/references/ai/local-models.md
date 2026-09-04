@@ -82,7 +82,7 @@ Two words, deliberately distinct, both declared in `src/shared/data/presets/loca
 so the renderer can speak them too:
 
 - A **capability** is what a feature needs (`ocr`). Features gate on
-  `localModelService.isReady(capability)` and never name a bundle.
+  `application.get('LocalModelService').isCapabilityReady(capability)` and never name a bundle.
 - A **bundle id** is what a user installs (`pp-ocrv6-medium`). It is the addressing key of
   the whole management plane — status, download, cancel, remove and shared status snapshots.
 
@@ -127,7 +127,10 @@ One path is then used by model files and runtime tarballs alike:
 
 1. **Mirror fallback** (`withMirrorFallback`) — try each mirror in region order.
 2. **Stream and verify** (`streamToFileVerified`) — hash while the bytes stream by.
-3. **Atomic install** — write `${dest}.tmp`, rename only after the digest matches.
+3. **Atomic install** — write `${dest}.tmp-<uuid>`, rename only after the digest matches.
+   A writer that is aborted unlinks its own tmp file; one that dies with the process cannot,
+   so `LocalModelService` cancels in-flight downloads and waits for in-flight removals in
+   `onStop()`, and sweeps leftover partials from every bundle directory in `onInit()`.
 
 Two properties are worth stating because they are easy to break:
 

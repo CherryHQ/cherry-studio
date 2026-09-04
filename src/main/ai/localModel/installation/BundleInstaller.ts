@@ -259,6 +259,12 @@ export class BundleInstaller {
     await attempt.promise.catch(() => {})
   }
 
+  /** Wait until nothing is touching the bundle's files: abort a download, let a removal finish. */
+  async settle(): Promise<void> {
+    await this.cancel()
+    await this.removalInFlight?.catch(() => {})
+  }
+
   private waitForSourcePreference(
     resolvePreference: ResolveDownloadSourcePreference,
     signal: AbortSignal
