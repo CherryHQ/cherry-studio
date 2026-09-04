@@ -1,12 +1,13 @@
 import { arrayMove } from '@dnd-kit/sortable'
 import { CircleOff, LoaderCircle, WifiOff } from 'lucide-react'
 import type { Ref } from 'react'
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { startTransition, useOptimistic } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSidebarShortcuts } from '@renderer/hooks/useSidebarShortcuts'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
@@ -32,8 +33,6 @@ import {
   useSidebarNavigationSnapshot,
   useSidebarShortcutRegistry
 } from './sidebarShortcuts'
-
-const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
 function applyEntryOrder(entries: ResolvedSidebarEntry[], orderedKeys: readonly string[]): ResolvedSidebarEntry[] {
   const byKey = new Map(entries.map((entry) => [entry.key, entry]))
@@ -64,8 +63,6 @@ export default function Sidebar({
 
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
   const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
-  const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
@@ -184,8 +181,7 @@ export default function Sidebar({
 
   const handleOpenSettingsTab = useCallback(() => openSettingsTab(), [])
   const handleOpenFeedback = useCallback(() => {
-    setFeedbackDialogMounted(true)
-    setFeedbackOpen(true)
+    void DoctorPopup.show({ initialPanel: 'report' })
   }, [])
 
   const sidebarProps = {
@@ -223,11 +219,6 @@ export default function Sidebar({
           {...sidebarProps}
         />
       )}
-      {feedbackDialogMounted ? (
-        <Suspense fallback={null}>
-          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
-        </Suspense>
-      ) : null}
     </div>
   )
 }

@@ -27,7 +27,7 @@ import {
   type AgentComposerLaunchOptions,
   MissingAgentHomeComposer
 } from '@renderer/components/composer/variants/AgentComposer'
-import DiagnosticUploadDialog from '@renderer/components/feedback/DiagnosticUploadDialog'
+import DoctorPopup from '@renderer/components/doctor/DoctorPopup'
 import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelDisabled, useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -69,11 +69,6 @@ interface ModelSwitchTarget {
 interface CitationPanelState {
   sessionId: string
   citations: Citation[]
-}
-
-interface DiagnosticReportDraft {
-  sessionId: string
-  description: string
 }
 
 function getNewSessionWorkspaceDefaults(
@@ -201,7 +196,6 @@ const AgentChat = ({
   const [modelSwitchTarget, setModelSwitchTarget] = useState<ModelSwitchTarget>()
   const [modelSwitchConfirmOpen, setModelSwitchConfirmOpen] = useState(false)
   const [skipModelSwitchConfirmation, setSkipModelSwitchConfirmation] = useState(false)
-  const [diagnosticReportDraft, setDiagnosticReportDraft] = useState<DiagnosticReportDraft | null>(null)
   const [sessionAgentChanging, setSessionAgentChanging] = useState(false)
 
   const sessionSnapshot = conversationBootstrap.session
@@ -224,8 +218,6 @@ const AgentChat = ({
   const workspaceWarning = useAgentWorkspaceWarning(workspacePath)
   const citationPanelCitations =
     citationPanelState && citationPanelState.sessionId === currentSessionId ? citationPanelState.citations : null
-  const activeDiagnosticReportDraft =
-    diagnosticReportDraft?.sessionId === currentSessionId ? diagnosticReportDraft : null
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -235,9 +227,6 @@ const AgentChat = ({
   }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
   useEffect(() => {
     setCitationPanelState(null)
-  }, [currentSessionId])
-  useEffect(() => {
-    setDiagnosticReportDraft((current) => (current?.sessionId === currentSessionId ? current : null))
   }, [currentSessionId])
 
   const handleOpenCitationsPanel = useCallback(
@@ -278,7 +267,7 @@ const AgentChat = ({
   const openDiagnosticReport = useCallback(
     (description = '') => {
       if (!currentSessionId) return
-      setDiagnosticReportDraft({ sessionId: currentSessionId, description })
+      void DoctorPopup.show({ initialPanel: 'report', initialDescription: description })
     },
     [currentSessionId]
   )
@@ -554,19 +543,6 @@ const AgentChat = ({
   return (
     <>
       <AgentChatLayout {...layoutProps} />
-      {canReviewDiagnosticReport && activeDiagnosticReportDraft ? (
-        <DiagnosticUploadDialog
-          key={activeDiagnosticReportDraft.sessionId}
-          initialDescription={activeDiagnosticReportDraft.description}
-          open
-          onOpenChange={(nextOpen) => {
-            if (nextOpen) return
-            setDiagnosticReportDraft((current) =>
-              current?.sessionId === activeDiagnosticReportDraft.sessionId ? null : current
-            )
-          }}
-        />
-      ) : null}
       <ConfirmDialog
         open={modelSwitchConfirmOpen}
         onOpenChange={setModelSwitchConfirmOpen}
