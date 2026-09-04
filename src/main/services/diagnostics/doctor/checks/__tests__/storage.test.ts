@@ -10,7 +10,8 @@ vi.mock('@main/core/preboot/userDataLocation', () => preboot)
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: bootConfig }))
 
 const { userDataLocation } = await import('../storage')
-const ctx = { signal: new AbortController().signal }
+const signal = new AbortController().signal
+const ctx = { signal, share: (_key: string, factory: (signal: AbortSignal) => Promise<never>) => factory(signal) }
 
 beforeEach(() => {
   vi.clearAllMocks()

@@ -6,24 +6,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const registryMocks = vi.hoisted(() => ({
   bootConfigRun: vi.fn(),
   bootConfigRepair: vi.fn(),
-  userDataRun: vi.fn()
+  userDataRun: vi.fn(),
+  sharedProbe: vi.fn()
 }))
 
-vi.mock('../registry', () => ({
-  doctorCheckRegistry: {
-    'config-boot-config-valid': {
-      id: 'config-boot-config-valid',
-      run: registryMocks.bootConfigRun,
-      fixes: { repair: registryMocks.bootConfigRepair }
-    },
-    'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} }
+vi.mock('../registry', async () => {
+  const { sharedProbe } = registryMocks
+  // Two network checks in different prerequisite layers that both read one shared probe.
+  const sharing = async (ctx: import('../types').DoctorContext) => {
+    await ctx.share('network:diagnoses', sharedProbe)
+    return { status: 'pass' }
   }
-}))
+  return {
+    doctorCheckRegistry: {
+      'config-boot-config-valid': {
+        id: 'config-boot-config-valid',
+        run: registryMocks.bootConfigRun,
+        fixes: { repair: registryMocks.bootConfigRepair }
+      },
+      'storage-userdata-location': { id: 'storage-userdata-location', run: registryMocks.userDataRun, fixes: {} },
+      'network-online': { id: 'network-online', run: sharing, fixes: {} },
+      'network-dns-resolution': { id: 'network-dns-resolution', run: sharing, fixes: {} }
+    }
+  }
+})
 vi.mock('@main/utils/appEdition', () => ({ getAppEdition: () => 'global' }))
 
 const { DoctorService } = await import('../DoctorService')
 
-// The registry mock implements only these two; the catalog lists more.
+// The registry mock implements only a few checks; the catalog lists more.
 const MOCKED = ['config-boot-config-valid', 'storage-userdata-location'] as const
 
 const state = () => application.get('CacheService').getShared('doctor.state')
@@ -40,6 +51,27 @@ beforeEach(() => {
   BaseService.resetInstances()
   registryMocks.bootConfigRun.mockResolvedValue({ status: 'pass' })
   registryMocks.userDataRun.mockResolvedValue({ status: 'pass' })
+  registryMocks.sharedProbe.mockResolvedValue([])
+})
+
+describe('DoctorContext.share', () => {
+  const SHARING = ['network-online', 'network-dns-resolution'] as const
+
+  it('runs a shared probe once per run even for checks in different layers', async () => {
+    const service = new DoctorService()
+    const outcome = await service.run({ tier: 'live', checkIds: SHARING })
+    expect(outcome.status).toBe('completed')
+    if (outcome.status !== 'completed') return
+    expect(outcome.report.summary).toMatchObject({ pass: 2 })
+    expect(registryMocks.sharedProbe).toHaveBeenCalledTimes(1)
+  })
+
+  it('probes afresh for every new run', async () => {
+    const service = new DoctorService()
+    await service.run({ tier: 'live', checkIds: SHARING })
+    await service.run({ tier: 'live', checkIds: SHARING })
+    expect(registryMocks.sharedProbe).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('DoctorService.run', () => {

@@ -77,14 +77,7 @@ export interface DoctorCheckMeta<Id extends DoctorCheckId> {
   readonly requires: readonly Exclude<DoctorCheckId, Id>[]
 }
 
-const ENDPOINT_DETAILS = [
-  'reachable',
-  'via_proxy_only',
-  'unreachable',
-  'proxy_auth',
-  'server_error',
-  'timeout'
-] as const
+const ENDPOINT_DETAILS = ['reachable', 'untrusted_tls', 'unreachable', 'proxy_auth', 'server_error', 'timeout'] as const
 
 export const DOCTOR_CHECK_CATALOG = {
   'config-boot-config-valid': {
@@ -120,7 +113,7 @@ export const DOCTOR_CHECK_CATALOG = {
     domain: 'network',
     tier: 'live',
     fixes: [],
-    details: ['direct', 'proxy', 'custom_without_url', 'system_proxy_ignored', 'system_read_failed'],
+    details: ['direct', 'proxy', 'custom_without_url', 'system_read_failed', 'apply_failed'],
     requires: []
   },
   'network-endpoint-update': {

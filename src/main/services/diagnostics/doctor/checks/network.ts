@@ -1,35 +1,30 @@
 import { application } from '@application'
+import type {
+  EndpointDiagnosis,
+  NetworkEndpointId,
+  NetworkFailureKind,
+  NetworkLayerResult
+} from '@main/services/network'
 import type { DoctorCheckId, DoctorEvidenceItem } from '@shared/types/doctor'
-import type { EndpointDiagnosis, NetworkFailureKind, NetworkLayerResult } from '@shared/types/network'
 
 import { defineDoctorCheck, type DoctorContext, type DoctorProbeOutcome } from '../types'
 
-/**
- * One diagnosis pass feeds every network check of a run: all callers within a short window
- * share the same in-flight promise instead of resolving the same hosts eight times.
- */
-let inflight: { readonly at: number; readonly promise: Promise<readonly EndpointDiagnosis[]> } | null = null
-const SHARE_WINDOW_MS = 5_000
-
+/** One diagnosis pass per run: every network check reads it instead of resolving the same hosts again. */
 function diagnoseAll(ctx: DoctorContext): Promise<readonly EndpointDiagnosis[]> {
-  if (inflight && Date.now() - inflight.at < SHARE_WINDOW_MS) return inflight.promise
-  const network = application.get('NetworkService')
-  const promise = Promise.all(
-    network.builtinEndpoints().map((endpoint) => network.diagnoseEndpoint(endpoint, ctx.signal))
-  )
-  inflight = { at: Date.now(), promise }
-  promise.finally(() => {
-    if (inflight?.promise === promise) inflight = null
+  return ctx.share('network:diagnoses', (signal) => {
+    const network = application.get('NetworkService')
+    return Promise.all(network.builtinEndpoints().map((endpoint) => network.diagnoseEndpoint(endpoint, signal)))
   })
-  return promise
+}
+
+function layerValue(result: NetworkLayerResult<unknown>): string {
+  if (result.status === 'ok') return `ok ${Math.round(result.durationMs)}ms`
+  if (result.status === 'failed') return result.code ?? result.kind
+  return `skipped (${result.skippedBecause})`
 }
 
 const layerEvidence = (diagnoses: readonly EndpointDiagnosis[], layer: 'dns' | 'tls' | 'http'): DoctorEvidenceItem[] =>
-  diagnoses.map((d) => {
-    const result: NetworkLayerResult<unknown> = d[layer]
-    const value = result.status === 'ok' ? `ok ${Math.round(result.durationMs)}ms` : (result.code ?? result.status)
-    return { key: `${d.endpointId}:${d.host}`, value, dataClass: 'local_only' }
-  })
+  diagnoses.map((d) => ({ key: `${d.endpointId}:${d.host}`, value: layerValue(d[layer]), dataClass: 'local_only' }))
 
 const NAVIGATE_PROXY = { kind: 'navigate', target: '/settings/general' } as const
 const REPORT = { kind: 'report' } as const
@@ -53,7 +48,7 @@ export const dnsResolution = defineDoctorCheck({
       const viaProxy = diagnoses.some((d) => d.proxy.effective !== 'DIRECT')
       return { status: 'pass', detail: { variant: viaProxy ? 'via_proxy' : 'resolved' }, evidence }
     }
-    const slow = failing.every((d) => d.dns.kind === 'timeout')
+    const slow = failing.every((d) => d.dns.status === 'failed' && d.dns.kind === 'timeout')
     return {
       status: 'fail',
       attribution: 'user-fixable',
@@ -74,18 +69,16 @@ export const tlsHandshake = defineDoctorCheck({
     if (diagnoses.every((d) => d.tls.status === 'skipped' && d.tls.skippedBecause === 'proxy_in_use')) {
       return { status: 'pass', detail: { variant: 'skipped_proxy' }, evidence }
     }
-    const cert = diagnoses.find((d) => d.tls.kind === 'tls_cert')
-    if (cert) {
+    const cert = diagnoses.find((d) => d.tls.status === 'failed' && d.tls.kind === 'tls_cert')
+    if (cert?.tls.status === 'failed') {
+      const issuer = cert.tls.data?.issuer
       return {
         status: 'fail',
         attribution: 'user-fixable',
-        detail: { variant: 'certificate', params: { host: cert.host, code: cert.tls.code ?? '' } },
+        detail: { variant: 'certificate', params: { code: cert.tls.code ?? '' } },
         actions: [REPORT],
         devMessage: `TLS certificate rejected for ${cert.host}: ${cert.tls.code}`,
-        evidence: [
-          ...evidence,
-          ...(cert.tls.data ? [{ key: 'issuer', value: cert.tls.data.issuer, dataClass: 'public' as const }] : [])
-        ]
+        evidence: [...evidence, ...(issuer ? [{ key: 'issuer', value: issuer, dataClass: 'local_only' as const }] : [])]
       }
     }
     const failing = diagnoses.filter((d) => d.tls.status === 'failed')
@@ -105,9 +98,9 @@ export const tlsHandshake = defineDoctorCheck({
 
 export const proxyApplied = defineDoctorCheck({
   id: 'network-proxy-applied',
-  async run(ctx): Promise<DoctorProbeOutcome<'network-proxy-applied'>> {
-    const [first] = await diagnoseAll(ctx)
-    const proxy = first?.proxy ?? (await application.get('NetworkService').effectiveProxy('https://cherry-ai.com'))
+  async run(): Promise<DoctorProbeOutcome<'network-proxy-applied'>> {
+    const network = application.get('NetworkService')
+    const proxy = await network.effectiveProxy(network.builtinEndpoints()[0].url)
     const evidence: DoctorEvidenceItem[] = [
       { key: 'effective', value: proxy.effective, dataClass: 'local_only' },
       { key: 'configuredMode', value: proxy.configuredMode, dataClass: 'public' }
@@ -132,27 +125,31 @@ const HTTP_VARIANT: Partial<Record<NetworkFailureKind, 'proxy_auth' | 'server_er
   timeout: 'timeout'
 }
 
-function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${string}`>>(id: Id, endpointId: string) {
+function endpointCheck<Id extends Extract<DoctorCheckId, `network-endpoint-${string}`>>(
+  id: Id,
+  endpointId: NetworkEndpointId
+) {
   return defineDoctorCheck({
     id,
     async run(ctx): Promise<DoctorProbeOutcome<Id>> {
       const diagnosis = (await diagnoseAll(ctx)).find((d) => d.endpointId === endpointId)
-      if (!diagnosis) return { status: 'pass' }
+      if (!diagnosis) throw new Error(`Endpoint "${endpointId}" was not probed`)
       const evidence = layerEvidence([diagnosis], 'http')
       if (diagnosis.http.status === 'ok') {
         return {
           status: 'pass',
-          detail: { variant: diagnosis.verdict === 'reachable_via_proxy_only' ? 'via_proxy_only' : 'reachable' },
+          detail: { variant: diagnosis.verdict === 'reachable_untrusted_tls' ? 'untrusted_tls' : 'reachable' },
           evidence
         }
       }
-      const variant = HTTP_VARIANT[diagnosis.http.kind ?? 'unknown'] ?? 'unreachable'
+      const failure = diagnosis.http.status === 'failed' ? diagnosis.http : undefined
+      const variant = (failure && HTTP_VARIANT[failure.kind]) ?? 'unreachable'
       return {
         status: variant === 'server_error' ? 'warn' : 'fail',
         attribution: variant === 'server_error' ? 'transient' : 'user-fixable',
-        detail: { variant, params: { host: diagnosis.host, code: diagnosis.http.code ?? '' } },
+        detail: { variant, params: { code: failure?.code ?? '' } },
         actions: [NAVIGATE_PROXY],
-        devMessage: `${endpointId} (${diagnosis.host}) ${diagnosis.http.kind}: ${diagnosis.http.code}`,
+        devMessage: `${endpointId} (${diagnosis.host}) ${failure?.kind ?? 'skipped'}: ${failure?.code}`,
         evidence
       }
     },
