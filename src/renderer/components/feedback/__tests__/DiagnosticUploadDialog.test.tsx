@@ -146,6 +146,26 @@ describe('DiagnosticUploadDialog', () => {
     })
   })
 
+  it('embeds the controlled problem-report form without creating another dialog', async () => {
+    const onDescriptionChange = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <DiagnosticUploadDialog
+        description="Reviewed issue"
+        embedded
+        open
+        onDescriptionChange={onDescriptionChange}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    const description = screen.getByRole('textbox', { name: 'Problem description' })
+    expect(description).toHaveValue('Reviewed issue')
+    await user.type(description, '!')
+    expect(onDescriptionChange).toHaveBeenLastCalledWith('Reviewed issue!')
+  })
+
   it('shows no description validation state when an empty dialog opens', async () => {
     render(<DiagnosticUploadDialog open onOpenChange={vi.fn()} />)
 

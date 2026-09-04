@@ -5,17 +5,18 @@ import {
   type DoctorCheckId,
   type DoctorCheckResult,
   type DoctorCheckStatus,
-  type DoctorDomain,
   type DoctorReport,
+  type DoctorRunTier,
   type DoctorState
 } from '@shared/types/doctor'
 
+export type DisplayedDoctorDomain = (typeof DOCTOR_CHECK_CATALOG)[DoctorCheckId]['domain']
 export type DoctorRowStatus = DoctorCheckStatus | 'pending'
 export type DoctorGroupStatus = 'pass' | 'warn' | 'fail' | 'running' | 'neutral'
 
 export interface DoctorRowViewModel {
   readonly id: DoctorCheckId
-  readonly domain: DoctorDomain
+  readonly domain: DisplayedDoctorDomain
   readonly status: DoctorRowStatus
   readonly result?: DoctorCheckResult
   readonly actions: readonly DoctorAction[]
@@ -23,17 +24,27 @@ export interface DoctorRowViewModel {
 }
 
 export interface DoctorGroupViewModel {
-  readonly domain: DoctorDomain
+  readonly domain: DisplayedDoctorDomain
   readonly status: DoctorGroupStatus
   readonly rows: readonly DoctorRowViewModel[]
 }
 
 export interface DoctorViewModel {
   readonly status: DoctorState['status']
+  readonly tier?: DoctorRunTier
   readonly report?: DoctorReport
   readonly rows: readonly DoctorRowViewModel[]
   readonly groups: readonly DoctorGroupViewModel[]
   readonly problemCount: number
+  readonly summary: {
+    readonly userFixable: number
+    readonly appBug: number
+    readonly transient: number
+    readonly error: number
+    readonly skip: number
+    readonly optional: number
+  }
+  readonly canCancel: boolean
   readonly isStale: boolean
 }
 
@@ -56,14 +67,22 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   if (state.status === 'idle' || state.status === 'canceled') return []
 
   if (state.status === 'completed') {
-    return state.report.results.map((result) => ({
-      id: result.id,
-      domain: DOCTOR_CHECK_CATALOG[result.id].domain,
-      status: result.status,
-      result,
-      actions: resultActions(result),
-      actionsDisabled: isStale
-    }))
+    const resultById = new Map(state.report.results.map((result) => [result.id, result]))
+    return DOCTOR_CHECK_IDS.flatMap((id) => {
+      const result = resultById.get(id)
+      return result
+        ? [
+            {
+              id,
+              domain: DOCTOR_CHECK_CATALOG[id].domain,
+              status: result.status,
+              result,
+              actions: resultActions(result),
+              actionsDisabled: isStale
+            }
+          ]
+        : []
+    })
   }
 
   const resultById = new Map(state.results.map((result) => [result.id, result]))
@@ -82,6 +101,23 @@ function rowsForState(state: DoctorState, isStale: boolean): readonly DoctorRowV
   )
 }
 
+export function defaultExpandedDoctorDomains(
+  groups: readonly DoctorGroupViewModel[]
+): readonly DisplayedDoctorDomain[] {
+  return groups
+    .filter((group) =>
+      group.rows.some(
+        (row) =>
+          row.status === 'warn' ||
+          row.status === 'fail' ||
+          row.status === 'error' ||
+          row.status === 'skip' ||
+          (row.status === 'pass' && row.actions.length > 0)
+      )
+    )
+    .map((group) => group.domain)
+}
+
 export function buildDoctorViewModel(state: DoctorState, now = Date.now()): DoctorViewModel {
   const report = state.status === 'completed' ? state.report : undefined
   const isStale = report ? Date.parse(report.expiresAt) <= now : false
@@ -90,13 +126,39 @@ export function buildDoctorViewModel(state: DoctorState, now = Date.now()): Doct
     const domainRows = rows.filter((row) => row.domain === domain)
     return domainRows.length > 0 ? [{ domain, status: groupStatus(domainRows), rows: domainRows }] : []
   })
+  const summary = rows.reduce(
+    (counts, row) => {
+      const result = row.result
+      if (!result) return counts
+      if (result.status === 'warn' || result.status === 'fail') {
+        const key =
+          result.attribution === 'user-fixable'
+            ? 'userFixable'
+            : result.attribution === 'app-bug'
+              ? 'appBug'
+              : 'transient'
+        counts[key] += 1
+      } else if (result.status === 'error') {
+        counts.error += 1
+      } else if (result.status === 'skip') {
+        counts.skip += 1
+      } else if (result.actions && result.actions.length > 0) {
+        counts.optional += 1
+      }
+      return counts
+    },
+    { userFixable: 0, appBug: 0, transient: 0, error: 0, skip: 0, optional: 0 }
+  )
 
   return {
     status: state.status,
+    tier: state.status === 'running' ? state.tier : report?.tier,
     report,
     rows,
     groups,
     problemCount: rows.filter((row) => row.status === 'warn' || row.status === 'fail' || row.status === 'error').length,
+    summary,
+    canCancel: state.status === 'running' && state.tier === 'live',
     isStale
   }
 }
