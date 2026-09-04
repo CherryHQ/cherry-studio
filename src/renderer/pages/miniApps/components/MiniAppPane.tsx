@@ -47,6 +47,7 @@ const MiniAppPane: FC<Props> = ({
   const { t } = useTranslation()
   const displayName = app.nameKey ? t(app.nameKey) : app.name
   const webviewRef = useRef<WebviewTag | null>(null)
+  const [webview, setWebview] = useState<WebviewTag | null>(null)
   // Read through a ref so attaching the webview listener does not depend on a
   // callback identity that changes every render.
   const onActivateRef = useRef(onActivate)
@@ -62,6 +63,7 @@ const MiniAppPane: FC<Props> = ({
     webviewCleanupRef.current?.()
     webviewCleanupRef.current = null
     webviewRef.current = null
+    setWebview(null)
   }, [])
 
   const attachWebview = useCallback(() => {
@@ -73,6 +75,7 @@ const MiniAppPane: FC<Props> = ({
 
     detachWebview()
     webviewRef.current = el
+    setWebview(el)
     const handleInPageNav = (event: DidNavigateInPageEvent) => {
       if (event.isMainFrame) setCurrentUrl(event.url)
     }
@@ -132,6 +135,8 @@ const MiniAppPane: FC<Props> = ({
     webviewRef.current?.openDevTools()
   }, [])
 
+  const isWebviewReady = isReady && webview !== null
+
   return (
     <div
       className={cn('pointer-events-none relative flex h-full min-h-0 flex-col *:pointer-events-auto', className)}
@@ -139,10 +144,10 @@ const MiniAppPane: FC<Props> = ({
       <div className="shrink-0">
         <MinimalToolbar
           app={app}
-          webviewRef={webviewRef}
+          webview={webview}
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
-          isWebviewReady={isReady}
+          isWebviewReady={isWebviewReady}
           isHostActive={isHostActive}
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
@@ -153,7 +158,7 @@ const MiniAppPane: FC<Props> = ({
       </div>
       <WebviewSearch
         webviewRef={webviewRef}
-        isWebviewReady={isReady}
+        isWebviewReady={isWebviewReady}
         appId={app.appId}
         hostShortcutEnabled={hostShortcutEnabled}
       />

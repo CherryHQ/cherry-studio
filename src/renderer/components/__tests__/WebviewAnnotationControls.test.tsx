@@ -101,7 +101,7 @@ describe('WebviewAnnotationControls', () => {
 
   it('compensates for a missed guest handshake and toggles selection mode', async () => {
     const webview = createWebview()
-    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
 
     await waitFor(() => {
       const commands = vi.mocked(webview.send).mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
@@ -119,9 +119,8 @@ describe('WebviewAnnotationControls', () => {
 
   it('updates target presentation metadata without resetting annotation mode', async () => {
     const webview = createWebview()
-    const webviewRef = { current: webview }
     const { rerender } = render(
-      <WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />
+      <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '标注页面' }))
@@ -129,7 +128,7 @@ describe('WebviewAnnotationControls', () => {
     request.mockClear()
 
     const localizedTarget = { ...target, label: '演示' }
-    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={localizedTarget} />)
+    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={localizedTarget} />)
 
     expect(webview.send).not.toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
       type: 'set_enabled',
@@ -150,19 +149,12 @@ describe('WebviewAnnotationControls', () => {
   it('keeps annotations while deactivating a host tab and resets them on navigation', async () => {
     const webview = createWebview()
     const { rerender } = render(
-      <WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />
+      <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
     )
     act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
     expect(await screen.findByText('1')).toBeInTheDocument()
 
-    rerender(
-      <WebviewAnnotationControls
-        webviewRef={{ current: webview }}
-        isWebviewReady
-        isHostActive={false}
-        target={target}
-      />
-    )
+    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive={false} target={target} />)
     expect(screen.getByText('1')).toBeInTheDocument()
     expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
       type: 'set_enabled',
@@ -188,7 +180,7 @@ describe('WebviewAnnotationControls', () => {
 
   it('synchronizes counts, copies Markdown, and clears after confirmation', async () => {
     const webview = createWebview()
-    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
     act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
 
     await waitFor(() =>
@@ -229,7 +221,7 @@ describe('WebviewAnnotationControls', () => {
 
   it('does not assign a newer navigation revision to annotations from a stale render', async () => {
     const webview = createWebview()
-    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
 
     act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
     const copyButton = await screen.findByRole('button', { name: '复制标注 Markdown' })
@@ -280,9 +272,8 @@ describe('WebviewAnnotationControls', () => {
 
   it('ignores stale revisions for one webview while accepting revision zero from its replacement', async () => {
     const webview = createWebview()
-    const webviewRef = { current: webview }
     const { rerender } = render(
-      <WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />
+      <WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />
     )
 
     act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }, 4))
@@ -296,8 +287,8 @@ describe('WebviewAnnotationControls', () => {
       })
     )
 
-    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive={false} target={target} />)
-    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />)
+    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive={false} target={target} />)
+    rerender(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
     request.mockClear()
 
     act(() => dispatchGuestState(webview, { enabled: false, annotations: [] }, 3))
@@ -305,9 +296,10 @@ describe('WebviewAnnotationControls', () => {
     expect(request).not.toHaveBeenCalledWith('webview.replace_annotations', expect.anything())
 
     const replacementWebview = createWebview(43)
-    webviewRef.current = replacementWebview
-    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady={false} isHostActive target={target} />)
-    rerender(<WebviewAnnotationControls webviewRef={webviewRef} isWebviewReady isHostActive target={target} />)
+    rerender(
+      <WebviewAnnotationControls webview={replacementWebview} isWebviewReady={false} isHostActive target={target} />
+    )
+    rerender(<WebviewAnnotationControls webview={replacementWebview} isWebviewReady isHostActive target={target} />)
 
     act(() => dispatchGuestState(replacementWebview, { enabled: false, annotations: [annotation] }, 0))
     await waitFor(() =>
@@ -330,7 +322,7 @@ describe('WebviewAnnotationControls', () => {
         : Promise.resolve(undefined)
     )
     const webview = createWebview()
-    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
     act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }))
 
     const copyButton = await screen.findByRole('button', { name: '复制标注 Markdown' })
@@ -349,7 +341,7 @@ describe('WebviewAnnotationControls', () => {
         : Promise.resolve('')
     )
     const webview = createWebview()
-    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    render(<WebviewAnnotationControls webview={webview} isWebviewReady isHostActive target={target} />)
     act(() => dispatchGuestState(webview, { enabled: false, annotations: [annotation] }))
 
     fireEvent.click(await screen.findByRole('button', { name: '复制标注 Markdown' }))

@@ -24,10 +24,9 @@ interface AnnotationState extends WebviewAnnotationState {
 }
 
 const EMPTY_STATE: AnnotationState = { enabled: false, annotations: [], navigationRevision: 0 }
-const WEBVIEW_ATTACH_MAX_ATTEMPTS = 300
 
 interface Props {
-  webviewRef: React.RefObject<WebviewTag | null>
+  webview: WebviewTag | null
   isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
@@ -39,7 +38,7 @@ interface AnnotationSource {
   navigationRevision: number
 }
 
-export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostActive, target }: Props) {
+export function WebviewAnnotationControls({ webview, isWebviewReady, isHostActive, target }: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [state, setState] = useState<AnnotationState>(EMPTY_STATE)
@@ -72,10 +71,10 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   }
 
   const sendCommand = useCallback(
-    (command: WebviewAnnotationHostCommand, webview = webviewRef.current): boolean => {
-      if (!webview || !isWebviewReady) return false
+    (command: WebviewAnnotationHostCommand, attachedWebview = webview): boolean => {
+      if (!attachedWebview || !isWebviewReady) return false
       try {
-        void webview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command).catch((error) => {
+        void attachedWebview.send(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, command).catch((error) => {
           logger.debug('Failed to send webview annotation command', { targetId: target.id, error })
         })
         return true
@@ -84,19 +83,19 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
         return false
       }
     },
-    [isWebviewReady, target.id, webviewRef]
+    [isWebviewReady, target.id, webview]
   )
 
   const replaceMainSnapshot = useCallback(
-    async (annotations: WebviewAnnotation[], webview = webviewRef.current, navigationRevision?: number) => {
-      if (!webview) return false
+    async (annotations: WebviewAnnotation[], attachedWebview = webview, navigationRevision?: number) => {
+      if (!attachedWebview) return false
       const currentTarget = targetRef.current
       try {
-        const webviewId = webview.getWebContentsId()
+        const webviewId = attachedWebview.getWebContentsId()
         if (!webviewId) return false
         const source = annotationSourceRef.current
         const currentRevision =
-          source?.webview === webview && source.webviewId === webviewId ? source.navigationRevision : 0
+          source?.webview === attachedWebview && source.webviewId === webviewId ? source.navigationRevision : 0
         await ipcApi.request('webview.replace_annotations', {
           webviewId,
           navigationRevision: navigationRevision ?? currentRevision,
@@ -109,7 +108,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
         return false
       }
     },
-    [webviewRef]
+    [webview]
   )
 
   useEffect(() => {
@@ -117,10 +116,8 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   }, [target.id])
 
   useEffect(() => {
-    let attachedWebview: WebviewTag | null = null
-    let retryTimer: ReturnType<typeof setTimeout> | null = null
-    let disposed = false
-    let attachAttempts = 0
+    if (!webview) return
+    const attachedWebview = webview
 
     const synchronizeAnnotationSource = (webview: WebviewTag) => {
       const webviewId = webview.getWebContentsId()
@@ -137,7 +134,6 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
       const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
       if (!parsed.success) return
-      if (!attachedWebview) return
       const source = synchronizeAnnotationSource(attachedWebview)
       if (parsed.data.navigationRevision < source.navigationRevision) return
       annotationSourceRef.current = { ...source, navigationRevision: parsed.data.navigationRevision }
@@ -181,39 +177,21 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       attachedWebview.removeEventListener('did-navigate', resetForNavigation)
       attachedWebview.removeEventListener('did-navigate-in-page', handleInPageNavigation)
       attachedWebview.removeEventListener('dom-ready', configureGuest)
-      attachedWebview = null
     }
 
-    const attach = () => {
-      if (disposed) return
-      const webview = webviewRef.current
-      if (!webview) {
-        attachAttempts++
-        if (!isHostActive || attachAttempts >= WEBVIEW_ATTACH_MAX_ATTEMPTS) return
-        retryTimer = setTimeout(attach, 100)
-        return
-      }
-      if (attachedWebview === webview) return
+    synchronizeAnnotationSource(attachedWebview)
+    attachedWebview.addEventListener('ipc-message', handleGuestMessage)
+    attachedWebview.addEventListener('did-start-loading', resetForNavigation)
+    attachedWebview.addEventListener('did-navigate', resetForNavigation)
+    attachedWebview.addEventListener('did-navigate-in-page', handleInPageNavigation)
+    attachedWebview.addEventListener('dom-ready', configureGuest)
+    configureGuest()
 
-      detach()
-      attachedWebview = webview
-      synchronizeAnnotationSource(webview)
-      webview.addEventListener('ipc-message', handleGuestMessage)
-      webview.addEventListener('did-start-loading', resetForNavigation)
-      webview.addEventListener('did-navigate', resetForNavigation)
-      webview.addEventListener('did-navigate-in-page', handleInPageNavigation)
-      webview.addEventListener('dom-ready', configureGuest)
-      configureGuest()
-    }
-
-    attach()
     return () => {
-      disposed = true
-      if (retryTimer) clearTimeout(retryTimer)
-      if (attachedWebview) sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
+      sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
       detach()
     }
-  }, [isHostActive, replaceMainSnapshot, sendCommand, webviewRef])
+  }, [isHostActive, replaceMainSnapshot, sendCommand, webview])
 
   useEffect(() => {
     if (!isWebviewReady) return
@@ -238,7 +216,6 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   }
 
   const handleCopy = async () => {
-    const webview = webviewRef.current
     if (!webview || state.annotations.length === 0) return
     setIsCopying(true)
     try {
@@ -262,7 +239,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
     if (!sendCommand({ type: 'clear' })) return
     setClearConfirmOpen(false)
     setState((current) => ({ ...current, annotations: [] }))
-    void replaceMainSnapshot([], webviewRef.current, state.navigationRevision)
+    void replaceMainSnapshot([], webview, state.navigationRevision)
   }
 
   const count = state.annotations.length

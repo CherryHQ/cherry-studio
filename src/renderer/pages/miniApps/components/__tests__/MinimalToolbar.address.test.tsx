@@ -84,11 +84,11 @@ function createWebview(initialUrl = app.url) {
   return { navigate, webview }
 }
 
-function renderToolbar(webview: WebviewTag, currentUrl: string | null = app.url) {
+function renderToolbar(webview: WebviewTag | null, currentUrl: string | null = app.url) {
   return render(
     <MinimalToolbar
       app={app}
-      webviewRef={{ current: webview }}
+      webview={webview}
       currentUrl={currentUrl}
       isWebviewReady
       isHostActive
@@ -162,6 +162,36 @@ describe('MinimalToolbar address bar', () => {
 
     fireEvent.blur(address)
     expect(address).toHaveValue('https://example.com/account#profile')
+  })
+
+  it('rebinds navigation updates when the concrete webview changes', () => {
+    const first = createWebview('https://first.example')
+    const second = createWebview('https://second.example')
+    const { rerender } = renderToolbar(first.webview, null)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    expect(address).toHaveValue('https://first.example')
+
+    rerender(
+      <MinimalToolbar
+        app={app}
+        webview={second.webview}
+        currentUrl={null}
+        isWebviewReady
+        isHostActive
+        onReload={vi.fn()}
+        onOpenDevTools={vi.fn()}
+        splitMode="open"
+        onSplit={vi.fn()}
+      />
+    )
+    expect(address).toHaveValue('https://second.example')
+
+    act(() => first.navigate('did-navigate', 'https://stale.example'))
+    expect(address).toHaveValue('https://second.example')
+
+    act(() => second.navigate('did-navigate', 'https://current.example'))
+    expect(address).toHaveValue('https://current.example')
   })
 
   it('rejects unsupported protocols and restores the current page after a load failure', async () => {
