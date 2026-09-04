@@ -197,15 +197,19 @@ describe('IpcChatTransport', () => {
     expect(secondDone).toBe(true)
   })
 
-  it('primary stream ignores execution-scoped chunks', async () => {
+  it('primary stream receives execution-scoped chunks', async () => {
     const stream = await transport.sendMessages(baseOptions)
     const reader = stream.getReader()
 
     mock.emitChunk(topicId, { type: 'text-start', id: 'exec' } as UIMessageChunk, 'provider-a::model-a')
     mock.emitDone(topicId, undefined, true)
 
-    const { done } = await reader.read()
-    expect(done).toBe(true)
+    const first = await reader.read()
+    expect(first.done).toBe(false)
+    expect(first.value).toEqual({ type: 'text-start', id: 'exec' })
+
+    const second = await reader.read()
+    expect(second.done).toBe(true)
   })
 
   it('errors stream on error event', async () => {
