@@ -6,6 +6,7 @@
  * to the appropriate service method.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
@@ -76,8 +77,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      const { deleted } = agentService.deleteAgent(params.agentId, { deleteSessions: false })
-      if (!deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
+      // Route through AgentSessionDeliveryService so active turns are paused and
+      // their runtimes are closed before the row goes away. agentService.deleteAgent
+      // only removes the DB row, which lets an active session keep streaming
+      // against a deleted agent.
+      const result = await application
+        .get('AgentSessionDeliveryService')
+        .deleteAgent(params.agentId, false)
+      if (!result.deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
   },

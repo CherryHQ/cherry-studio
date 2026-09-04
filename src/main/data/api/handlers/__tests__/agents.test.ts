@@ -58,6 +58,19 @@ vi.mock('@data/services/AgentGlobalSkillService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: {} }))
 
+const { deliveryServiceMock } = vi.hoisted(() => ({
+  deliveryServiceMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'AgentSessionDeliveryService') return { deleteAgent: deliveryServiceMock }
+      return undefined
+    })
+  }
+}))
+
 import { agentHandlers } from '../agents'
 import { skillHandlers } from '../skills'
 
@@ -189,16 +202,17 @@ describe('agentHandlers', () => {
     })
 
     it('delegates DELETE and returns undefined on success', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: true })
+      deliveryServiceMock.mockResolvedValueOnce({ deleted: true })
 
       const result = await agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
 
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(deliveryServiceMock).toHaveBeenCalledOnce()
+      expect(deliveryServiceMock).toHaveBeenCalledWith(AGENT_ID, false)
       expect(result).toBeUndefined()
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce({ deleted: false })
+      deliveryServiceMock.mockResolvedValueOnce({ deleted: false })
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
