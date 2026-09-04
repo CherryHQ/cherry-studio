@@ -5,8 +5,9 @@ import {
   type WebviewAnnotationLocale,
   type WebviewAnnotationTarget
 } from '@shared/types/webviewAnnotation'
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
+import { Activity, useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { request, randomUUID } = vi.hoisted(() => ({
@@ -100,6 +101,12 @@ const initialProps = (webview: WebviewTag | null, overrides: Partial<HookProps> 
   ...overrides
 })
 
+function SessionHarness({ webview, onCommit }: { webview: WebviewTag; onCommit: () => void }) {
+  useWebviewAnnotationSession(initialProps(webview))
+  useLayoutEffect(onCommit, [onCommit])
+  return null
+}
+
 describe('useWebviewAnnotationSession', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -109,6 +116,27 @@ describe('useWebviewAnnotationSession', () => {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
+  })
+
+  it('binds the guest during a visible Activity commit before native events can fire', () => {
+    const webview = createWebview()
+    let boundDuringCommit = false
+
+    render(
+      <Activity mode="visible">
+        <SessionHarness
+          webview={webview}
+          onCommit={() => {
+            boundDuringCommit =
+              ['ipc-message', 'did-start-navigation', 'render-process-gone', 'dom-ready'].every((type) =>
+                vi.mocked(webview.addEventListener).mock.calls.some(([registeredType]) => registeredType === type)
+              ) && sentCommands(webview).some((command) => command.type === 'request_state')
+          }}
+        />
+      </Activity>
+    )
+
+    expect(boundDuringCommit).toBe(true)
   })
 
   it('accepts an Electron guest event emitted by the bound webview', () => {
