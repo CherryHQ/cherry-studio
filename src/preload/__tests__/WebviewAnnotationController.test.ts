@@ -50,9 +50,11 @@ const privateController = (controller: WebviewAnnotationController) =>
     marqueePointerCapture: { target: Element; pointerId: number } | null
     marqueePointerId: number | null
     marqueeRect: unknown
+    observedRoots: { has: (root: Document | ShadowRoot) => boolean }
     overlayHost: HTMLDivElement | null
     pendingRegion: unknown
     pinLayer: HTMLDivElement | null
+    updateFrame: number | null
     openEditor: (
       request: { mode: 'create-element'; element: Element } | { mode: 'edit'; element: Element; annotationId: string }
     ) => void
@@ -622,6 +624,26 @@ describe('WebviewAnnotationController interactions', () => {
     left = 90
     notifyResize?.()
     await vi.waitFor(() => expect(pin?.style.left).toBe('90px'))
+  })
+
+  it('stops observing a detached shadow root after its annotation is disconnected', async () => {
+    const host = document.createElement('section')
+    host.id = 'detached-observer-host'
+    const shadowRoot = host.attachShadow({ mode: 'open' })
+    const button = document.createElement('button')
+    button.id = 'detached-observer-target'
+    shadowRoot.appendChild(button)
+    document.body.appendChild(host)
+    const internals = privateController(controller)
+    internals.openEditor({ mode: 'create-element', element: button })
+    saveEditor(controller, emissions, 'Release the old root')
+    await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
+
+    host.remove()
+    await vi.waitFor(() => expect(internals.updateFrame).toBeNull())
+    internals.updatePositions()
+
+    expect(internals.observedRoots.has(shadowRoot)).toBe(false)
   })
 
   it('keeps the comment and explains when the selected element cannot be located', () => {
