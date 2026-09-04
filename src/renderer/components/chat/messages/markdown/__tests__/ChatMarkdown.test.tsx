@@ -1,19 +1,29 @@
+import { remarkLatexMath } from '@renderer/components/markdown'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatMarkdown from '../ChatMarkdownRuntime'
 import { remarkHtmlArtifact } from '../plugins/remarkHtmlArtifact'
-import { remarkLatexMath } from '../plugins/remarkLatexMath'
 import { remarkLiteralAutolinkFix } from '../plugins/remarkLiteralAutolinkFix'
 
 const mocks = vi.hoisted(() => ({
+  actions: undefined as
+    | {
+        notifyError?: (message: string) => void
+        openArtifactFile?: (path: string) => void | Promise<void>
+        openPath?: (path: string) => void | Promise<void>
+        isDirectory?: (path: string) => Promise<boolean>
+      }
+    | undefined,
   markdown: vi.fn(),
+  renderProvider: vi.fn(),
   streamingMarkdown: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
   defaultMarkdownPlugins: {},
-  Markdown: (props: { children: string; remarkPlugins?: unknown[] }) => {
+  Markdown: (props: { children: string; preserveFileLinkHrefs?: boolean; remarkPlugins?: unknown[] }) => {
     mocks.markdown(props)
     return <div data-testid="static-markdown">{props.children}</div>
   },
@@ -21,6 +31,7 @@ vi.mock('@cherrystudio/ui', () => ({
     animated?: false
     children: string
     parseIncompleteMarkdown?: boolean
+    preserveFileLinkHrefs?: boolean
     remarkPlugins?: unknown[]
   }) => {
     mocks.streamingMarkdown(props)
@@ -37,7 +48,15 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false })
+  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageListActions: () => mocks.actions
+}))
+
+vi.mock('../ChatMarkdownRenderContext', () => ({
+  ChatMarkdownRenderProvider: (props: { children: ReactNode; openFilePath?: (path: string) => Promise<void> }) => {
+    mocks.renderProvider(props)
+    return props.children
+  }
 }))
 
 vi.mock('../ChatMarkdownRenderers', () => ({
@@ -48,6 +67,7 @@ vi.mock('../ChatMarkdownRenderers', () => ({
 describe('ChatMarkdown', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.actions = undefined
   })
 
   it('keeps the streaming renderer but disables live semantics on terminal status', () => {
@@ -117,5 +137,34 @@ ${rawHtml}
 ${fencedHtml}`
       })
     )
+  })
+
+  it('enables exact file hrefs only when the workspace opener is available', async () => {
+    const block = { id: 'message-part', content: '[README](./README.md)', status: 'success' as const }
+    const view = render(<ChatMarkdown block={block} />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: false }))
+
+    const openPath = vi.fn()
+    mocks.actions = { openPath }
+    view.rerender(<ChatMarkdown block={block} />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: false }))
+    expect(mocks.renderProvider.mock.calls.at(-1)?.[0].openFilePath).toBeUndefined()
+
+    const openArtifactFile = vi.fn()
+    const isDirectory = vi.fn().mockResolvedValue(true)
+    mocks.actions = { openArtifactFile, openPath, isDirectory }
+    view.rerender(<ChatMarkdown block={block} />)
+
+    expect(mocks.markdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: true }))
+    const provider = mocks.renderProvider.mock.calls.at(-1)?.[0]
+    await provider.openFilePath('./docs')
+    expect(isDirectory).toHaveBeenCalledWith('./docs')
+    expect(openPath).toHaveBeenCalledWith('./docs')
+    expect(openArtifactFile).not.toHaveBeenCalled()
+
+    view.rerender(<ChatMarkdown block={{ ...block, status: 'streaming' }} />)
+    expect(mocks.streamingMarkdown).toHaveBeenLastCalledWith(expect.objectContaining({ preserveFileLinkHrefs: true }))
   })
 })

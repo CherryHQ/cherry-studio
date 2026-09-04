@@ -6,9 +6,10 @@ import {
 import type * as ArtifactPanePath from '@renderer/components/chat/panes/artifactPanePath'
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { useOptionalFilePreviewNavigation } from '@renderer/components/FilePreview/useFilePreviewNavigation'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { PhysicalFileMetadata } from '@shared/types/file'
+import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -34,6 +35,7 @@ const {
   fileSessionState,
   fileTreeModelState,
   fileTreeModelStore,
+  openPathMock,
   resolveArtifactPaneFileSelectionMock,
   systemFileTreeState,
   tracePaneModuleLoadMock,
@@ -42,7 +44,8 @@ const {
   useDirectoryTreeMock,
   ipcRequestMock,
   toastErrorMock,
-  uiMockState
+  uiMockState,
+  useAgentMessageListProviderValueMock
 } = vi.hoisted(() => ({
   backgroundTasksState: { value: [] as AgentSessionBackgroundTask[] },
   buildAgentToolFlowProjectionMock: vi.fn(),
@@ -63,6 +66,7 @@ const {
     listeners: new Set<() => void>(),
     revision: 0
   },
+  openPathMock: vi.fn().mockResolvedValue(undefined),
   resolveArtifactPaneFileSelectionMock: vi.fn(),
   systemFileTreeState: {
     root: null as TreeDirRoot | null,
@@ -74,7 +78,8 @@ const {
   useDirectoryTreeMock: vi.fn(),
   ipcRequestMock: vi.fn(),
   toastErrorMock: vi.fn(),
-  uiMockState: { useRealHoverCard: false }
+  uiMockState: { useRealHoverCard: false },
+  useAgentMessageListProviderValueMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -255,43 +260,50 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
     paneTitle?: ReactNode
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     selectedFile: string | null
-  }) => (
-    <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
-      {headerVariant === 'pane' ? (
-        <div data-testid="artifact-pane-header">
-          {previewFileSelection ? (
-            <button type="button" aria-label="common.back" onClick={onPreviewClose}>
-              back
+  }) => {
+    const navigation = useOptionalFilePreviewNavigation()
+
+    return (
+      <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
+        {headerVariant === 'pane' ? (
+          <div data-testid="artifact-pane-header">
+            {previewFileSelection ? (
+              <button type="button" aria-label="common.back" onClick={onPreviewClose}>
+                back
+              </button>
+            ) : null}
+            <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+            {paneActions}
+          </div>
+        ) : null}
+        <button type="button" onClick={() => onSelectedFileChange('README.md')}>
+          select README.md
+        </button>
+        <button type="button" onClick={() => onSelectedFileChange('src/deep.ts')}>
+          select src/deep.ts
+        </button>
+        <button type="button" onClick={() => onEditModeChange?.('edit')}>
+          edit
+        </button>
+        <button type="button" onClick={() => onEditModeChange?.('preview')}>
+          preview
+        </button>
+        {previewFileSelection && (
+          <div data-testid="artifact-file-preview-overlay">
+            {previewFileSelection.filePath}
+            <button type="button" onClick={() => navigation?.openFile('/workspace/DESIGN.md' as AbsoluteFilePath)}>
+              open Markdown file link
             </button>
-          ) : null}
-          <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
-          {paneActions}
-        </div>
-      ) : null}
-      <button type="button" onClick={() => onSelectedFileChange('README.md')}>
-        select README.md
-      </button>
-      <button type="button" onClick={() => onSelectedFileChange('src/deep.ts')}>
-        select src/deep.ts
-      </button>
-      <button type="button" onClick={() => onEditModeChange?.('edit')}>
-        edit
-      </button>
-      <button type="button" onClick={() => onEditModeChange?.('preview')}>
-        preview
-      </button>
-      {previewFileSelection && (
-        <div data-testid="artifact-file-preview-overlay">
-          {previewFileSelection.filePath}
-          {headerVariant === 'pane' ? null : (
-            <button type="button" onClick={onPreviewClose}>
-              close
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  ),
+            {headerVariant === 'pane' ? null : (
+              <button type="button" onClick={onPreviewClose}>
+                close
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  },
   getArtifactPaneSelectionPath: (
     await vi.importActual<typeof ArtifactPanePath>('@renderer/components/chat/panes/artifactPanePath')
   ).getArtifactPaneSelectionPath,
@@ -404,11 +416,14 @@ vi.mock('@renderer/hooks/useIsTextFile', () => ({
 }))
 
 vi.mock('@renderer/pages/agents/messages/agentMessageListAdapter', () => ({
-  useAgentMessageListProviderValue: () => ({
-    state: {
-      renderConfig: {}
+  useAgentMessageListProviderValue: (params: unknown) => {
+    useAgentMessageListProviderValueMock(params)
+    return {
+      state: {
+        renderConfig: {}
+      }
     }
-  })
+  }
 }))
 
 vi.mock('motion/react', () => ({
@@ -564,6 +579,7 @@ describe('AgentRightPane', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    window.api.file.openPath = openPathMock
     uiMockState.useRealHoverCard = false
     ipcRequestMock.mockResolvedValue({
       kind: 'file',
@@ -785,6 +801,35 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
+  it('routes Markdown preview file links through the files pane opener', async () => {
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
+      workspacePath: '/workspace',
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open Markdown file link' }))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
+        kind: 'path',
+        path: '/workspace/DESIGN.md'
+      })
+    )
+    await waitFor(() => expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('DESIGN.md'))
+  })
+
   it('does not expose artifact opening without a workspace path', () => {
     const { rerender } = render(
       <TestAgentRightPane sessionId="session-a" messages={[]} partsByMessageId={{}}>
@@ -1001,6 +1046,36 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list-provider')).toHaveAttribute('data-message-style', 'bubble')
   })
 
+  it('omits artifact opening from tool-flow messages when the files capability is unavailable', () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: 'Inspection complete'
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ openArtifactFile: undefined })
+    )
+  })
+
   it('marks direct artifact opening as user initiated', async () => {
     resolveArtifactPaneFileSelectionMock.mockReturnValue({
       workspacePath: '/workspace',
@@ -1085,34 +1160,70 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
-  it('opens the files pane without previewing a declared directory', async () => {
+  it('ignores a stale artifact metadata resolution after the user selects another file', async () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'report.md'
+    })
+    let resolveMetadata: (metadata: PhysicalFileMetadata | null) => void = () => {}
+    ipcRequestMock.mockImplementationOnce(
+      () =>
+        new Promise<PhysicalFileMetadata | null>((resolve) => {
+          resolveMetadata = resolve
+        })
+    )
+
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select src/deep.ts' }))
+
+    await act(async () => {
+      resolveMetadata({ kind: 'file', type: 'text', size: 1, createdAt: 1, modifiedAt: 1, mime: 'text/plain' })
+    })
+
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('src/deep.ts')
+    expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('src/deep.ts')
+  })
+
+  it('opens Markdown preview directory links in the system file manager and clears the current preview', async () => {
+    const user = userEvent.setup()
     ipcRequestMock.mockResolvedValue({
       kind: 'directory',
       size: 0,
       createdAt: 1,
       modifiedAt: 1
     })
-    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+    resolveArtifactPaneFileSelectionMock.mockImplementation((_workspacePath: string, path: string) => ({
       workspacePath: '/workspace',
-      filePath: 'html in canvas'
-    })
+      filePath: path.replace(/^\/workspace\//, '')
+    }))
 
     render(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
-        <OpenArtifactButton path="html in canvas" />
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+    await user.click(screen.getByRole('button', { name: 'select README.md' }))
+    await user.click(screen.getByRole('button', { name: 'open Markdown file link' }))
 
-    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    await waitFor(() => {
-      expect(ipcRequestMock).toHaveBeenCalledWith('file.get_metadata', {
-        kind: 'path',
-        path: '/workspace/html in canvas'
-      })
-    })
+    await waitFor(() => expect(openPathMock).toHaveBeenCalledWith('/workspace/DESIGN.md'))
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })

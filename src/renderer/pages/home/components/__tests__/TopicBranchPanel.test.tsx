@@ -366,6 +366,7 @@ describe('TopicBranchPanel', () => {
               id: 'assistant-live',
               parentId: 'message-1',
               role: 'assistant',
+              hasContent: true,
               preview: 'streaming live preview',
               modelId: 'provider/model',
               status: 'pending',

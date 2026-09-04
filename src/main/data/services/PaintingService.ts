@@ -34,7 +34,7 @@ import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/s
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting, PaintingFiles } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 
 import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -43,6 +43,11 @@ import { timestampToISO } from './utils/rowMappers'
 const logger = loggerService.withContext('DataApi:PaintingService')
 
 const EMPTY_FILES: PaintingFiles = { output: [], input: [] }
+
+interface PaintingFileSnapshot {
+  files: PaintingFiles
+  fingerprint: string
+}
 
 /**
  * Mapping from UpdatePaintingDto field → DB column for the update path.
@@ -53,13 +58,14 @@ const EMPTY_FILES: PaintingFiles = { output: [], input: [] }
  */
 export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = ['providerId', 'modelId', 'prompt']
 
-function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
+function rowToPainting(row: PaintingRow, files: PaintingFiles, fileDataFingerprint?: string): Painting {
   return {
     id: row.id,
     providerId: row.providerId,
     modelId: row.modelId,
     prompt: row.prompt,
     files,
+    ...(fileDataFingerprint ? { fileDataFingerprint } : {}),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
@@ -77,30 +83,61 @@ function normalizeModelId(providerId: string, modelId: string | null | undefined
  * by painting id and role. Returns a Map from painting id → { output, input }.
  * Paintings with no refs simply don't appear in the map.
  */
-function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, PaintingFiles> {
+function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, PaintingFileSnapshot> {
   if (paintingIds.length === 0) return new Map()
   const db = application.get('DbService').getDb()
   const refs = db
     .select({
       sourceId: paintingFileRefTable.sourceId,
       fileEntryId: paintingFileRefTable.fileEntryId,
-      role: paintingFileRefTable.role
+      role: paintingFileRefTable.role,
+      entryOrigin: fileEntryTable.origin,
+      entryName: fileEntryTable.name,
+      entryExt: fileEntryTable.ext,
+      entrySize: fileEntryTable.size,
+      entryExternalPath: fileEntryTable.externalPath,
+      entryCreatedAt: fileEntryTable.createdAt,
+      entryDeletedAt: fileEntryTable.deletedAt
     })
     .from(paintingFileRefTable)
+    .innerJoin(fileEntryTable, eq(fileEntryTable.id, paintingFileRefTable.fileEntryId))
     .where(inArray(paintingFileRefTable.sourceId, [...paintingIds]))
+    // The legacy ref schema has no explicit ordinal. Every writer inserts refs
+    // in DTO order, so SQLite's persisted insertion order is the only faithful
+    // tie-breaker when a batch shares one timestamp; UUID v4 order is random.
+    .orderBy(asc(paintingFileRefTable.createdAt), asc(sql`${paintingFileRefTable}.rowid`))
     .all()
 
-  const grouped = new Map<string, PaintingFiles>()
+  const grouped = new Map<string, { files: PaintingFiles; dependencies: unknown[] }>()
   for (const ref of refs) {
     let bucket = grouped.get(ref.sourceId)
     if (!bucket) {
-      bucket = { output: [], input: [] }
+      bucket = { files: { output: [], input: [] }, dependencies: [] }
       grouped.set(ref.sourceId, bucket)
     }
-    if (ref.role === 'output') bucket.output.push(ref.fileEntryId)
-    else if (ref.role === 'input') bucket.input.push(ref.fileEntryId)
+    if (ref.role === 'output') bucket.files.output.push(ref.fileEntryId)
+    else if (ref.role === 'input') bucket.files.input.push(ref.fileEntryId)
+    // Include only data consumed by painting hydration. In particular, omit
+    // cleanup policy, content hash, and updatedAt so unrelated file maintenance
+    // does not invalidate the expensive renderer cache.
+    bucket.dependencies.push([
+      ref.role,
+      ref.fileEntryId,
+      ref.entryOrigin,
+      ref.entryName,
+      ref.entryExt,
+      ref.entrySize,
+      ref.entryExternalPath,
+      ref.entryCreatedAt,
+      ref.entryDeletedAt
+    ])
   }
-  return grouped
+  return new Map(
+    [...grouped].map(([paintingId, snapshot]) => [
+      paintingId,
+      { files: snapshot.files, fingerprint: JSON.stringify(snapshot.dependencies) }
+    ])
+  )
 }
 
 class PaintingService {
@@ -153,7 +190,10 @@ class PaintingService {
     const filesByPainting = loadFilesForPaintings(pageRows.map((r) => r.id))
 
     return {
-      items: pageRows.map((row) => rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)),
+      items: pageRows.map((row) => {
+        const snapshot = filesByPainting.get(row.id)
+        return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
+      }),
       total: countResult[0]?.count ?? 0,
       nextCursor:
         rows.length > limit
@@ -176,7 +216,8 @@ class PaintingService {
     }
 
     const filesByPainting = loadFilesForPaintings([row.id])
-    return rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)
+    const snapshot = filesByPainting.get(row.id)
+    return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
   create(dto: CreatePaintingDto): Painting {
@@ -257,7 +298,8 @@ class PaintingService {
 
     if (Object.keys(updates).length === 0 && !filesDirty) {
       const filesByPainting = loadFilesForPaintings([existing.id])
-      return rowToPainting(existing, filesByPainting.get(existing.id) ?? EMPTY_FILES)
+      const snapshot = filesByPainting.get(existing.id)
+      return rowToPainting(existing, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
     }
 
     const row = withSqliteErrors(
@@ -293,8 +335,9 @@ class PaintingService {
     // On a files write, echo the requested `dto.files` for the same reason as
     // `create` (transition-era ids aren't in `file_entry` yet, so the persisted
     // refs would under-report). Otherwise hydrate from the stored refs.
-    const files = filesDirty ? dto.files! : (loadFilesForPaintings([row.id]).get(row.id) ?? EMPTY_FILES)
-    return rowToPainting(row, files)
+    if (filesDirty) return rowToPainting(row, dto.files!)
+    const snapshot = loadFilesForPaintings([row.id]).get(row.id)
+    return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
   /**
@@ -361,8 +404,8 @@ class PaintingService {
 
     this.notifyReadModelChange([id], 'membership')
     logger.info('Restored painting', { id })
-    const filesByPainting = loadFilesForPaintings([row.id])
-    return rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)
+    const snapshot = loadFilesForPaintings([row.id]).get(row.id)
+    return rowToPainting(row, snapshot?.files ?? EMPTY_FILES, snapshot?.fingerprint)
   }
 
   /**

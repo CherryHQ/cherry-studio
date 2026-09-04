@@ -1316,6 +1316,50 @@ describe('MessageService', () => {
       expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
     })
 
+    it('projects content presence independently from the text preview', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-content', activeNodeId: 'm-file', orderKey: 'content' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-content', [
+          {
+            id: 'm-file',
+            parentId: null,
+            topicId: 'topic-content',
+            role: 'user',
+            data: {
+              parts: [
+                {
+                  type: 'file',
+                  mediaType: 'image/png',
+                  url: 'file:///tmp/image.png',
+                  filename: 'image.png'
+                }
+              ] as MessageData['parts']
+            },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-empty',
+            parentId: null,
+            topicId: 'topic-content',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
+
+      const result = messageService.getTree('topic-content', { depth: -1 })
+
+      expect(result.nodes.find((node) => node.id === 'm-file')).toMatchObject({ preview: '', hasContent: true })
+      expect(result.nodes.find((node) => node.id === 'm-empty')).toMatchObject({ preview: '', hasContent: false })
+    })
+
     it('projects clear-context markers into tree nodes', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-clear', activeNodeId: 'clear-1', orderKey: 'clear' })
       await dbh.db.insert(messageTable).values(
