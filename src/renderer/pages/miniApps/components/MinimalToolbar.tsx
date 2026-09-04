@@ -21,11 +21,6 @@ import { v5 as uuidv5 } from 'uuid'
 
 const logger = loggerService.withContext('MinimalToolbar')
 
-// Constants for timing delays
-const WEBVIEW_CHECK_INITIAL_MS = 100 // Initial check interval
-const WEBVIEW_CHECK_MAX_MS = 1000 // Maximum check interval (1 second)
-const WEBVIEW_CHECK_MULTIPLIER = 2 // Exponential backoff multiplier
-const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
 const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
 const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
@@ -66,7 +61,7 @@ export type SplitMode = 'open' | 'close'
 
 interface Props {
   app: MiniApp
-  webviewRef: React.RefObject<WebviewTag | null>
+  webview: WebviewTag | null
   currentUrl: string | null
   isWebviewReady: boolean
   isHostActive: boolean
@@ -80,7 +75,7 @@ interface Props {
 
 const MinimalToolbar: FC<Props> = ({
   app,
-  webviewRef,
+  webview,
   currentUrl,
   isWebviewReady,
   isHostActive,
@@ -139,177 +134,108 @@ const MinimalToolbar: FC<Props> = ({
   const restoreCurrentPageUrl = useCallback(() => {
     let url = currentPageUrl
     try {
-      url = webviewRef.current?.getURL() || url
+      url = webview?.getURL() || url
     } catch {
       // The WebView may be detaching; keep the last committed URL.
     }
     updateCurrentPageUrl(url)
     setAddressValue(url)
-  }, [currentPageUrl, updateCurrentPageUrl, webviewRef])
+  }, [currentPageUrl, updateCurrentPageUrl, webview])
 
   // Update navigation state
-  const updateNavigationState = useCallback(() => {
-    if (webviewRef.current) {
-      try {
-        setCanGoBack(webviewRef.current.canGoBack())
-        setCanGoForward(webviewRef.current.canGoForward())
-      } catch (error) {
-        logger.debug('WebView not ready for navigation state update', { appId: app.appId })
+  const updateNavigationState = useCallback(
+    (attachedWebview: WebviewTag | null) => {
+      if (attachedWebview) {
+        try {
+          setCanGoBack(attachedWebview.canGoBack())
+          setCanGoForward(attachedWebview.canGoForward())
+        } catch (error) {
+          logger.debug('WebView not ready for navigation state update', { appId: app.appId })
+          setCanGoBack(false)
+          setCanGoForward(false)
+        }
+      } else {
         setCanGoBack(false)
         setCanGoForward(false)
       }
-    } else {
-      setCanGoBack(false)
-      setCanGoForward(false)
-    }
-  }, [app.appId, webviewRef])
-
-  // Schedule navigation state update with debouncing
-  const scheduleNavigationUpdate = useCallback(
-    (delay: number) => {
-      if (navigationUpdateTimeoutRef.current) {
-        clearTimeout(navigationUpdateTimeoutRef.current)
-      }
-      navigationUpdateTimeoutRef.current = setTimeout(() => {
-        updateNavigationState()
-        navigationUpdateTimeoutRef.current = null
-      }, delay)
     },
-    [updateNavigationState]
+    [app.appId]
   )
 
-  // Cleanup navigation timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (navigationUpdateTimeoutRef.current) {
-        clearTimeout(navigationUpdateTimeoutRef.current)
-      }
+  const clearNavigationUpdate = useCallback(() => {
+    if (navigationUpdateTimeoutRef.current) {
+      clearTimeout(navigationUpdateTimeoutRef.current)
+      navigationUpdateTimeoutRef.current = null
     }
   }, [])
 
-  // Monitor webviewRef changes and update navigation state
+  // Schedule navigation state update with debouncing
+  const scheduleNavigationUpdate = useCallback(
+    (attachedWebview: WebviewTag, delay: number) => {
+      clearNavigationUpdate()
+      navigationUpdateTimeoutRef.current = setTimeout(() => {
+        updateNavigationState(attachedWebview)
+        navigationUpdateTimeoutRef.current = null
+      }, delay)
+    },
+    [clearNavigationUpdate, updateNavigationState]
+  )
+
+  // Bind navigation state to the concrete webview identity.
   useEffect(() => {
-    let checkTimeout: NodeJS.Timeout | null = null
-    let navigationListener: (() => void) | null = null
-    let listenersAttached = false
-    let currentInterval = WEBVIEW_CHECK_INITIAL_MS
-    let attemptCount = 0
+    clearNavigationUpdate()
+    updateNavigationState(webview)
+    if (!webview) return
 
-    const attachListeners = () => {
-      if (webviewRef.current && !listenersAttached) {
-        const attachedWebview = webviewRef.current
-        // Update state immediately
-        updateNavigationState()
-        try {
-          updateCurrentPageUrl(attachedWebview.getURL())
-        } catch {
-          logger.debug('WebView not ready for URL state update', { appId: app.appId })
-        }
-
-        // Add navigation event listeners
-        const handleNavigation = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
-          if ('isMainFrame' in event && !event.isMainFrame) return
-          updateCurrentPageUrl(event.url)
-          scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
-        }
-
-        attachedWebview.addEventListener('did-navigate', handleNavigation)
-        attachedWebview.addEventListener('did-navigate-in-page', handleNavigation)
-        listenersAttached = true
-
-        navigationListener = () => {
-          attachedWebview.removeEventListener('did-navigate', handleNavigation)
-          attachedWebview.removeEventListener('did-navigate-in-page', handleNavigation)
-          listenersAttached = false
-        }
-
-        if (checkTimeout) {
-          clearTimeout(checkTimeout)
-          checkTimeout = null
-        }
-
-        logger.debug('Navigation listeners attached', { appId: app.appId, attempts: attemptCount })
-        return true
-      }
-      return false
+    try {
+      updateCurrentPageUrl(webview.getURL())
+    } catch {
+      logger.debug('WebView not ready for URL state update', { appId: app.appId })
     }
 
-    const scheduleCheck = () => {
-      checkTimeout = setTimeout(() => {
-        // Use requestAnimationFrame to avoid blocking the main thread
-        requestAnimationFrame(() => {
-          attemptCount++
-          if (!attachListeners()) {
-            // Stop checking after max attempts to prevent infinite loops
-            if (attemptCount >= WEBVIEW_CHECK_MAX_ATTEMPTS) {
-              logger.warn('WebView attachment timeout', {
-                appId: app.appId,
-                attempts: attemptCount,
-                totalTimeMs: currentInterval * attemptCount
-              })
-              return
-            }
-
-            // Exponential backoff: double the interval up to the maximum
-            currentInterval = Math.min(currentInterval * WEBVIEW_CHECK_MULTIPLIER, WEBVIEW_CHECK_MAX_MS)
-
-            // Log only on first few attempts or when interval changes significantly
-            if (attemptCount <= 3 || attemptCount % 10 === 0) {
-              logger.debug('WebView not ready, scheduling next check', {
-                appId: app.appId,
-                nextCheckMs: currentInterval,
-                attempt: attemptCount
-              })
-            }
-
-            scheduleCheck()
-          }
-        })
-      }, currentInterval)
+    const handleNavigation = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
+      if ('isMainFrame' in event && !event.isMainFrame) return
+      updateCurrentPageUrl(event.url)
+      scheduleNavigationUpdate(webview, NAVIGATION_UPDATE_DELAY_MS)
     }
 
-    // Check for webview attachment
-    if (!webviewRef.current) {
-      scheduleCheck()
-    } else {
-      attachListeners()
-    }
+    webview.addEventListener('did-navigate', handleNavigation)
+    webview.addEventListener('did-navigate-in-page', handleNavigation)
 
-    // Cleanup
     return () => {
-      if (checkTimeout) clearTimeout(checkTimeout)
-      if (navigationListener) navigationListener()
+      clearNavigationUpdate()
+      webview.removeEventListener('did-navigate', handleNavigation)
+      webview.removeEventListener('did-navigate-in-page', handleNavigation)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app.appId, scheduleNavigationUpdate, updateCurrentPageUrl, updateNavigationState]) // webviewRef excluded as it's a ref object
+  }, [app.appId, clearNavigationUpdate, scheduleNavigationUpdate, updateCurrentPageUrl, updateNavigationState, webview])
 
   const handleGoBack = useCallback(() => {
-    if (webviewRef.current) {
+    if (webview) {
       try {
-        if (webviewRef.current.canGoBack()) {
-          webviewRef.current.goBack()
+        if (webview.canGoBack()) {
+          webview.goBack()
           // Delay update to ensure navigation completes
-          scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
+          scheduleNavigationUpdate(webview, NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
         logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goBack' })
       }
     }
-  }, [app.appId, webviewRef, scheduleNavigationUpdate])
+  }, [app.appId, scheduleNavigationUpdate, webview])
 
   const handleGoForward = useCallback(() => {
-    if (webviewRef.current) {
+    if (webview) {
       try {
-        if (webviewRef.current.canGoForward()) {
-          webviewRef.current.goForward()
+        if (webview.canGoForward()) {
+          webview.goForward()
           // Delay update to ensure navigation completes
-          scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
+          scheduleNavigationUpdate(webview, NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
         logger.debug('WebView not ready for navigation', { appId: app.appId, action: 'goForward' })
       }
     }
-  }, [app.appId, webviewRef, scheduleNavigationUpdate])
+  }, [app.appId, scheduleNavigationUpdate, webview])
 
   const handleTogglePin = useCallback(() => {
     const fallbackKey = isPinned ? 'miniApp.unpin_failed' : 'miniApp.pin_failed'
@@ -343,7 +269,6 @@ const MinimalToolbar: FC<Props> = ({
         return
       }
 
-      const webview = webviewRef.current
       if (!webview) {
         toast.error(t('miniApp.error.load_failed'))
         restoreCurrentPageUrl()
@@ -366,7 +291,7 @@ const MinimalToolbar: FC<Props> = ({
         toast.error(t('miniApp.error.load_failed'))
       }
     },
-    [addressValue, restoreCurrentPageUrl, t, webviewRef]
+    [addressValue, restoreCurrentPageUrl, t, webview]
   )
 
   const handleAddressFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
@@ -476,7 +401,7 @@ const MinimalToolbar: FC<Props> = ({
 
           {app.kind === 'site' && (
             <WebviewAnnotationControls
-              webviewRef={webviewRef}
+              webview={webview}
               isWebviewReady={isWebviewReady}
               isHostActive={isHostActive}
               target={annotationTarget}

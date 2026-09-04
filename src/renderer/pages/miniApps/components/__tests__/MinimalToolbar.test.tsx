@@ -61,7 +61,7 @@ const renderToolbar = (app: MiniAppType) =>
   render(
     <MinimalToolbar
       app={app}
-      webviewRef={{ current: null }}
+      webview={null}
       currentUrl={null}
       isWebviewReady
       isHostActive
@@ -78,6 +78,16 @@ afterEach(() => {
 })
 
 describe('MinimalToolbar', () => {
+  it('does not schedule attachment polling while no concrete webview exists', () => {
+    vi.useFakeTimers()
+    try {
+      renderToolbar(site)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('opens the same detail panel the launcher tile offers, for a local app only', () => {
     renderToolbar(localApp)
     fireEvent.click(screen.getByRole('button', { name: /view details|查看详情/i }))
