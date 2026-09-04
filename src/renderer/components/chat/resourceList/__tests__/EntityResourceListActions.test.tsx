@@ -5,6 +5,7 @@ import { popup } from '@renderer/services/popup'
 import type * as RecycleBinFeedback from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -28,7 +29,9 @@ const assistantDataMocks = vi.hoisted(() => ({
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
+  error: null as Error | null,
   getActiveResource: vi.fn(),
+  isLoading: false,
   agents: [
     {
       id: 'agent-1',
@@ -155,22 +158,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: () => null
 }))
 
-vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
-  useResourceEntityRail: ({
-    activeEntityId,
-    entities
-  }: {
-    activeEntityId?: string | null
-    entities: ResourceEntityRailItem[]
-  }) => ({
-    handleReorder: vi.fn(),
-    handleSelect: vi.fn(),
-    items: entities,
-    listStatus: 'idle',
-    selectedId: activeEntityId ?? null
-  })
-}))
-
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
     collapsedState,
@@ -182,8 +169,11 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onContextMenuAction,
     onGroupReorder,
     onReorder,
+    onSelect,
+    onSelectedClick,
     reorderEnabled = true,
     selectedId,
+    selectedClickId,
     selectionSuppressed
   }: {
     collapsedState?: readonly string[]
@@ -195,8 +185,11 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onGroupReorder?: (groupId: string, anchor: { before: string }) => void | Promise<void>
     onReorder?: unknown
+    onSelect: (item: ResourceEntityRailItem) => void | Promise<void>
+    onSelectedClick?: (item: ResourceEntityRailItem) => void | Promise<void>
     reorderEnabled?: boolean
     selectedId?: string | null
+    selectedClickId?: string | null
     selectionSuppressed?: boolean
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
@@ -212,6 +205,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         data-sortable-container={onReorder || onGroupReorder ? 'enabled' : 'disabled'}
         data-collapsed-state={collapsedState?.join(',') ?? 'uncontrolled'}
         data-selected-id={selectionSuppressed ? '' : (selectedId ?? '')}
+        data-selected-click-id={selectedClickId ?? ''}
         data-selection-suppressed={String(!!selectionSuppressed)}>
         <button
           type="button"
@@ -225,6 +219,13 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
 
           return (
             <section key={item.id} aria-label={item.name} title={item.tooltip}>
+              <button
+                type="button"
+                aria-label={`Select ${item.name}`}
+                onClick={() =>
+                  selectedClickId === item.id && onSelectedClick ? onSelectedClick(item) : onSelect(item)
+                }
+              />
               {item.icon}
               <div data-testid={`${item.id}-context-menu`}>
                 {renderedActions.map((action) => (
@@ -296,8 +297,8 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: agentDataMocks.agents,
     deleteAgent: agentDataMocks.deleteAgent,
-    error: null,
-    isLoading: false,
+    error: agentDataMocks.error,
+    isLoading: agentDataMocks.isLoading,
     refetch: agentDataMocks.refetchAgents
   })
 }))
@@ -346,6 +347,32 @@ function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {})
     total: 1,
     ...overrides
   } as unknown as AgentSessionsSource
+}
+
+function createAgentSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
+  const timestamp = '2026-09-04T00:00:00.000Z'
+
+  return {
+    id: 'session-1',
+    agentId: 'agent-1',
+    name: 'Session 1',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-1',
+    workspace: {
+      id: 'workspace-1',
+      name: 'Workspace 1',
+      path: '/tmp/workspace-1',
+      type: 'system',
+      orderKey: 'a',
+      createdAt: timestamp,
+      updatedAt: timestamp
+    },
+    orderKey: 'a',
+    lastActivityAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...overrides
+  }
 }
 
 function createAssistantTopicsSource(overrides: Partial<AssistantTopicsSource> = {}): AssistantTopicsSource {
@@ -423,6 +450,7 @@ vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
 }))
 
 vi.mock('@renderer/utils/chat/sessionListHelpers', () => ({
+  SESSION_UNKNOWN_AGENT_GROUP_ID: 'session:agent:unknown',
   sortSessionsForDisplayGroups: (sessions: unknown[]) => sessions
 }))
 
@@ -448,6 +476,8 @@ describe('classic layout entity resource list actions', () => {
         modelName: 'Claude Sonnet 4'
       }
     ]
+    agentDataMocks.error = null
+    agentDataMocks.isLoading = false
     preferenceMocks.sortType = 'list'
     preferenceMocks.values.clear()
     preferenceMocks.setPreference.mockClear()
@@ -1012,6 +1042,98 @@ describe('classic layout entity resource list actions', () => {
     expect(onManageAssistants).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selection-suppressed', 'true')
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
+  })
+
+  it('keeps retained sessions accessible under a non-actionable unlinked Agent entry', async () => {
+    const user = userEvent.setup()
+    const latestSession = createAgentSession({
+      id: 'session-latest-unlinked',
+      agentId: null,
+      name: 'Latest unlinked Session'
+    })
+    const loadLatestSession = vi.fn().mockResolvedValueOnce(latestSession).mockResolvedValueOnce(null)
+    const onCreateSession = vi.fn().mockResolvedValue(null)
+    const onSelectSession = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="missing-agent"
+        agentSessionsSource={createAgentSessionsSource({
+          loadLatestSession,
+          sessions: [
+            createAgentSession({
+              id: 'session-stale-owner',
+              agentId: 'missing-agent',
+              name: 'Stale owner Session'
+            }),
+            createAgentSession({ id: 'session-null-owner', agentId: null, name: 'Null owner Session' })
+          ]
+        })}
+        onSelectSession={onSelectSession}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    const unlinkedAgentRegion = screen.getByRole('region', { name: 'agent.session.group.unknown_agent' })
+
+    expect(unlinkedAgentRegion).toHaveAttribute('title', 'agent.session.group.unknown_agent_tip')
+    expect(within(unlinkedAgentRegion).getByTestId('session:agent:unknown-context-menu')).toBeEmptyDOMElement()
+    expect(within(unlinkedAgentRegion).getByTestId('session:agent:unknown-more-menu')).toBeEmptyDOMElement()
+    expect(within(unlinkedAgentRegion).queryByRole('button', { name: 'agent.session.new' })).toBeNull()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', 'session:agent:unknown')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute(
+      'data-selected-click-id',
+      'session:agent:unknown'
+    )
+
+    await user.click(
+      within(unlinkedAgentRegion).getByRole('button', { name: 'Select agent.session.group.unknown_agent' })
+    )
+
+    await waitFor(() => expect(loadLatestSession).toHaveBeenCalledExactlyOnceWith(null))
+    expect(onSelectSession).toHaveBeenCalledExactlyOnceWith(latestSession.id, latestSession)
+
+    await user.click(
+      within(unlinkedAgentRegion).getByRole('button', { name: 'Select agent.session.group.unknown_agent' })
+    )
+
+    await waitFor(() => expect(loadLatestSession).toHaveBeenCalledTimes(2))
+    expect(loadLatestSession).toHaveBeenLastCalledWith(null)
+    expect(onCreateSession).not.toHaveBeenCalled()
+  })
+
+  it('does not classify a non-null Session owner as unlinked before Agent metadata loads successfully', () => {
+    agentDataMocks.isLoading = true
+    const props = {
+      activeAgentId: 'agent-arriving',
+      agentSessionsSource: createAgentSessionsSource({
+        sessions: [
+          createAgentSession({
+            id: 'session-arriving-agent',
+            agentId: 'agent-arriving',
+            name: 'Arriving Agent Session'
+          })
+        ]
+      }),
+      onSelectSession: vi.fn(),
+      onCreateSession: vi.fn(),
+      onShowMissingAgentSelection: vi.fn()
+    }
+    const { rerender } = render(<AgentResourceList {...props} />)
+
+    expect(screen.queryByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeNull()
+
+    agentDataMocks.isLoading = false
+    agentDataMocks.error = new Error('Agent metadata failed')
+    rerender(<AgentResourceList {...props} />)
+
+    expect(screen.queryByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeNull()
+
+    agentDataMocks.error = null
+    rerender(<AgentResourceList {...props} />)
+
+    expect(screen.getByRole('region', { name: 'agent.session.group.unknown_agent' })).toBeInTheDocument()
   })
 
   it('does not report a pin failure when the post-success agent refresh fails', async () => {

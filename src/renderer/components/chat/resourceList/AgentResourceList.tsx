@@ -19,6 +19,7 @@ import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { showRecycleBinBatchUndo, showRecycleBinUndo } from '@renderer/services/recycleBinFeedback'
 import { toast } from '@renderer/services/toast'
+import { SESSION_UNKNOWN_AGENT_GROUP_ID } from '@renderer/utils/chat/sessionListHelpers'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import { isProtectedBuiltinAgentRole } from '@shared/ai/builtinAgent'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -125,12 +126,31 @@ export function AgentResourceList({
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
+  const agentIdSet = useMemo(() => new Set(agents.map((agent) => agent.id)), [agents])
+  const hasLoadedAgentMetadata = !isAgentsLoading && !agentsError
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const { agentFavoriteIds: sidebarAgentFavoriteIds, toggleAgent, removeAgent } = useSidebarFavorites()
   const sidebarAgentFavoriteIdSet = useMemo(() => new Set(sidebarAgentFavoriteIds), [sidebarAgentFavoriteIds])
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
     [pinIdBySessionId, sessions]
+  )
+  const getAgentEntityId = useCallback(
+    (agentId: string | null | undefined) => {
+      if (!agentId) return SESSION_UNKNOWN_AGENT_GROUP_ID
+      if (!hasLoadedAgentMetadata || agentIdSet.has(agentId)) return agentId
+      return SESSION_UNKNOWN_AGENT_GROUP_ID
+    },
+    [agentIdSet, hasLoadedAgentMetadata]
+  )
+  const hasUnlinkedAgentSessions = useMemo(
+    () => sessionItems.some((session) => getAgentEntityId(session.agentId) === SESSION_UNKNOWN_AGENT_GROUP_ID),
+    [getAgentEntityId, sessionItems]
+  )
+  const createSessionForAgent = useCallback(
+    (agentId: string) =>
+      agentId === SESSION_UNKNOWN_AGENT_GROUP_ID ? Promise.resolve(null) : onCreateSession(agentId),
+    [onCreateSession]
   )
   const handleActivationError = useCallback(
     (error: unknown) => {
@@ -142,18 +162,29 @@ export function AgentResourceList({
   const handleCreateSession = useCallback(
     async (agentId: string) => {
       try {
-        const session = await onCreateSession(agentId)
+        const session = await createSessionForAgent(agentId)
         if (session) onSelectSession(session.id, session)
       } catch (error) {
         handleActivationError(error)
       }
     },
-    [handleActivationError, onCreateSession, onSelectSession]
+    [createSessionForAgent, handleActivationError, onSelectSession]
   )
 
-  const entities = useMemo<ResourceEntityRailItem[]>(
-    () =>
-      agents.map((agent) => {
+  const entities = useMemo<ResourceEntityRailItem[]>(() => {
+    const unlinkedAgentEntity: ResourceEntityRailItem[] = hasUnlinkedAgentSessions
+      ? [
+          {
+            id: SESSION_UNKNOWN_AGENT_GROUP_ID,
+            name: t('agent.session.group.unknown_agent'),
+            tooltip: t('agent.session.group.unknown_agent_tip'),
+            reorderable: false
+          }
+        ]
+      : []
+
+    return [
+      ...agents.map((agent) => {
         const icon = renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
 
         return {
@@ -176,16 +207,27 @@ export function AgentResourceList({
           )
         }
       }),
-    [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, t]
-  )
+      ...unlinkedAgentEntity
+    ]
+  }, [agentPinnedIdSet, agents, assistantIconType, defaultModelId, handleCreateSession, hasUnlinkedAgentSessions, t])
 
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
+  const getSessionAgentId = useCallback(
+    (session: SessionListItem) => getAgentEntityId(session.agentId),
+    [getAgentEntityId]
+  )
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
   )
+  const loadLatestSessionForAgent = useCallback(
+    (agentId: string) => loadLatestSession(agentId === SESSION_UNKNOWN_AGENT_GROUP_ID ? null : agentId),
+    [loadLatestSession]
+  )
+  const activeAgentEntityId = getAgentEntityId(activeAgentId)
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
+      if (agentId === SESSION_UNKNOWN_AGENT_GROUP_ID) return
+
       await reorderAgent({ params: { id: agentId }, body: anchor })
     },
     [reorderAgent]
@@ -201,12 +243,12 @@ export function AgentResourceList({
     entities,
     resources: sessionItems,
     getResourceParentId: getSessionAgentId,
-    activeEntityId: activeAgentId,
+    activeEntityId: activeAgentEntityId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),
     onPickResource: handlePickSession,
-    loadResourceForEntity: loadLatestSession,
-    onCreateResource: onCreateSession,
+    loadResourceForEntity: loadLatestSessionForAgent,
+    onCreateResource: createSessionForAgent,
     onActivationError: handleActivationError,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
@@ -399,6 +441,8 @@ export function AgentResourceList({
 
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
+      if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return []
+
       const pinned = agentPinnedIdSet.has(item.id)
       const sidebarPinned = sidebarAgentFavoriteIdSet.has(item.id)
       const deleteSessionsOnly = isProtectedBuiltinAgentRole(
@@ -489,13 +533,21 @@ export function AgentResourceList({
     ]
   )
 
+  const handleSelectedEntityClick = useCallback(
+    (item: ResourceEntityRailItem) => {
+      if (item.id === SESSION_UNKNOWN_AGENT_GROUP_ID) return handleSelect(item)
+      return onSelectedAgentClick?.()
+    },
+    [handleSelect, onSelectedAgentClick]
+  )
+
   return (
     <>
       <ResourceEntityRail
         variant="agent"
         items={items}
         selectedId={selectedId}
-        selectedClickId={manageAgentsActive ? null : activeAgentId}
+        selectedClickId={manageAgentsActive ? null : activeAgentEntityId}
         selectionSuppressed={manageAgentsActive || historyRecordsActive}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
@@ -514,7 +566,7 @@ export function AgentResourceList({
           />
         }
         onSelect={handleSelect}
-        onSelectedClick={() => void onSelectedAgentClick?.()}
+        onSelectedClick={handleSelectedEntityClick}
         onReorder={handleReorder}
         reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
