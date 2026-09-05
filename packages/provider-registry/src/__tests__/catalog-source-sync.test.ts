@@ -182,23 +182,44 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     const declaredKeys = new Set<string>()
 
     for (const provider of PROVIDERS) {
+      // Same-tool declarations split the serving scope; align each with its generated entry in order.
+      const declarationsByTool = new Map<string, NonNullable<typeof provider.serverTools>>()
       for (const tool of provider.serverTools ?? []) {
         if (tool.modelScope !== 'model-dependent') continue
-        const key = `${provider.id}/${tool.id}`
-        declaredKeys.add(key)
-        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[tool.id] ?? []
-        const exactIds = new Set(tool.modelIds ?? [])
-        const prefixes = tool.modelIdPrefixes ?? []
+        declaredKeys.add(`${provider.id}/${tool.id}`)
+        const list = declarationsByTool.get(tool.id) ?? []
+        list.push(tool)
+        declarationsByTool.set(tool.id, list)
+      }
+
+      for (const [toolId, declarations] of declarationsByTool) {
+        const key = `${provider.id}/${toolId}`
+        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[toolId] ?? []
 
         if (generated.length === 0) problems.push(`${key}: no generated models`)
-        for (const id of exactIds) {
-          if (!generated.includes(id)) problems.push(`${key}: exact model ${id} was not generated`)
+        if (generated.length !== declarations.length) {
+          problems.push(`${key}: ${generated.length} generated entries vs ${declarations.length} declarations`)
         }
-        for (const id of generated) {
-          if (!exactIds.has(id) && !prefixes.some((prefix) => prefixHit(id, prefix))) {
-            problems.push(`${key}: stale generated model ${id}`)
+        declarations.forEach((tool, i) => {
+          const entry = generated[i]
+          if (!entry) return
+          const exactIds = new Set(tool.modelIds ?? [])
+          const prefixes = tool.modelIdPrefixes ?? []
+
+          for (const id of exactIds) {
+            if (!entry.ids.includes(id)) problems.push(`${key}[${i}]: exact model ${id} was not generated`)
           }
-        }
+          for (const id of entry.ids) {
+            if (!exactIds.has(id) && !prefixes.some((prefix) => prefixHit(id, prefix))) {
+              problems.push(`${key}[${i}]: stale generated model ${id}`)
+            }
+          }
+          const declaredEndpoints = [...(tool.endpointTypes ?? [])].sort().join(',')
+          const generatedEndpoints = [...(entry.endpointTypes ?? [])].sort().join(',')
+          if (declaredEndpoints !== generatedEndpoints) {
+            problems.push(`${key}[${i}]: endpoint scope mismatch (${generatedEndpoints} vs ${declaredEndpoints})`)
+          }
+        })
       }
     }
 

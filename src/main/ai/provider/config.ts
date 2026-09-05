@@ -22,7 +22,8 @@ import {
   formatOllamaApiHost,
   isBareVertexApiHost,
   isWithTrailingSharp,
-  withoutTrailingApiVersion
+  withoutTrailingApiVersion,
+  withoutTrailingSlash
 } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import {
@@ -126,8 +127,20 @@ const IMAGE_EXTENSION_PRESETS = [
   SystemProviderIds.silicon,
   SystemProviderIds.doubao,
   SystemProviderIds.dmxapi,
-  SystemProviderIds.tokenhub
+  SystemProviderIds.tokenhub,
+  SystemProviderIds.qwencloud
 ] as const
+
+/**
+ * Image-endpoint origin for AIGC transports that hang off the chat host: strip the
+ * `/compatible-mode/v1` suffix so `https://dashscope-intl.aliyuncs.com/compatible-mode/v1/`
+ * yields `https://dashscope-intl.aliyuncs.com` (intl/custom hosts track the user config).
+ */
+function deriveImageBaseURL(baseURL: string): string {
+  const normalized = withoutTrailingSlash(baseURL) ?? baseURL
+  const compatSuffix = '/compatible-mode/v1'
+  return normalized.endsWith(compatSuffix) ? normalized.slice(0, -compatSuffix.length) : normalized
+}
 
 // ── SDK Config Building ──
 
@@ -344,6 +357,11 @@ export async function resolveProviderAiSdkConfig(
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
+          // QwenCloud's AIGC transport hangs off the chat host; the other presets
+          // pin their origin inside their transport defaults.
+          ...(imageExtensionPreset === SystemProviderIds.qwencloud && {
+            imageBaseURL: deriveImageBaseURL(ctx.baseConfig.baseURL)
+          }),
           headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
         }
       }))

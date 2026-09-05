@@ -38747,7 +38747,2153 @@
       },
       "modelId": "glm-image",
       "providerId": "zhipu"
+    },
+    {
+      "modelId": "deepseek-r1",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "deepseek-v3",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "deepseek-v3.1",
+      "modelId": "deepseek-v3-1",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "deepseek-v3.2",
+      "modelId": "deepseek-v3-2",
+      "providerId": "qwencloud"
+    },
+    {
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "deepseek-v4-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "deepseek-v4-pro",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-4.7",
+      "modelId": "glm-4-7",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "glm-5",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "high",
+                "kind": "effort",
+                "values": ["none", "high", "max"]
+              }
+            ],
+            "defaultEffort": "high",
+            "supportedEfforts": ["none", "high", "max"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "modelId": "glm-5-1",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh"]
+              }
+            ],
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-5.2",
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "modelId": "glm-5-2",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+          },
+          "wire": {
+            "auto": {
+              "effortMap": {
+                "auto": "xhigh"
+              },
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoningEffort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "glm-5.3",
+      "modelId": "glm-5-3",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "kimi-k2.7-code",
+      "modelId": "kimi-k2-7-code",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "kimi-k3",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "max",
+                "kind": "effort",
+                "values": ["none", "max"]
+              }
+            ],
+            "defaultEffort": "max",
+            "supportedEfforts": ["none", "max"]
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwen-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-2.0",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-2-0",
+      "name": "Qwen Image 2.0",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-2.0-pro",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "2048x2048",
+                "options": ["2048x2048", "1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-2-0-pro",
+      "name": "Qwen Image 2.0 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-3.0",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-3-0",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-3.0-pro",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 6,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "auto",
+                "options": ["auto", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-3-0-pro",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen-image-edit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-edit",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen-omni-turbo",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen-plus",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwen-turbo",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwen-vl-max",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen-vl-plus",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen3.5-flash",
+      "modelId": "qwen3-5-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.5-plus",
+      "modelId": "qwen3-5-plus",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.6-flash",
+      "modelId": "qwen3-6-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.6-max-preview",
+      "modelId": "qwen3-6-max-preview",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.6-plus",
+      "modelId": "qwen3-6-plus",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.7-flash",
+      "modelId": "qwen3-7-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.7-max",
+      "modelId": "qwen3-7-max",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.7-plus",
+      "modelId": "qwen3-7-plus",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.8-2.4t-a95b",
+      "modelId": "qwen3-8-2-4t-a95b",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "qwen3.8-max",
+      "modelId": "qwen3-8-max",
+      "name": "Qwen3.8 Max",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["none", "low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "literal",
+                    "value": "none"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "qwen3.8-max-preview",
+      "modelId": "qwen3-8-max-preview",
+      "name": "Qwen3.8 Max Preview",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "xhigh",
+                "kind": "effort",
+                "values": ["low", "medium", "xhigh"]
+              }
+            ],
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["low", "medium", "xhigh"],
+            "thinkingTokenLimits": {
+              "max": 262144,
+              "min": 0
+            }
+          },
+          "wire": {
+            "effort": {
+              "operations": [
+                {
+                  "target": "reasoning_effort",
+                  "value": {
+                    "source": "effort"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwen3-coder-30b-a3b-instruct",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen3-coder-480b-a35b-instruct",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen3-coder-flash",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen3-coder-plus",
+      "providerId": "qwencloud"
+    },
+    {
+      "modelId": "qwen3-max",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwen3-omni-flash",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwen3-vl-plus",
+      "providerId": "qwencloud",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "wire": {
+            "auto": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "effort": {
+              "budget": {
+                "missing": {
+                  "type": "omit-value"
+                }
+              },
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": true
+                  }
+                },
+                {
+                  "target": "thinking_budget",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "enable_thinking",
+                  "value": {
+                    "source": "literal",
+                    "value": false
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "modelId": "qwq-plus",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.5-i2i-preview",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1280x1280",
+                "options": ["1280x1280", "1024x1024", "1664x928", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wan2-5-i2i-preview",
+      "name": "Wan 2.5 i2i Preview",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.6-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "enableInterleave": {
+                "default": true,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-6-image",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.7-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wan2-7-image",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "wan2.7-image-pro",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          },
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wan2-7-image-pro",
+      "providerId": "qwencloud"
+    },
+    {
+      "apiModelId": "z-image-turbo",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "promptExtend": {
+                "default": false,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1536",
+                "options": ["1024x1536", "1536x1024", "1024x1024", "1152x768", "768x1152"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "qwencloud"
     }
   ],
-  "version": "f48da95f7a82ba57"
+  "version": "ad2597093298284b"
 }

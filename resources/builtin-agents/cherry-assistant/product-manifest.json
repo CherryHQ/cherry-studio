@@ -449,8 +449,8 @@
     }
   ],
   "providers": {
-    "version": "c81369dcccb6c728",
-    "count": 61,
+    "version": "59131e948f7383f7",
+    "count": 62,
     "entries": [
       {
         "id": "cherryin",
@@ -531,6 +531,10 @@
       {
         "id": "radeon-cloud",
         "name": "AMD GPU Cloud"
+      },
+      {
+        "id": "qwencloud",
+        "name": "QwenCloud"
       },
       {
         "id": "new-api",
