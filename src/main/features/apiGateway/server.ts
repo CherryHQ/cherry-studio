@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { ApiGatewayRuntimeAddress } from '@shared/types/apiGateway'
 import type { Server } from 'elysia/universal/server'
 import type { Server as HttpServer } from 'http'
 
@@ -44,8 +45,9 @@ function settledWithin(promise: Promise<unknown>, ms: number): Promise<boolean> 
 export class ApiGateway {
   private app: ApiGatewayApp | null = null
   private serverInfo: NodeServerInfo | null = null
+  private runtimeAddress: ApiGatewayRuntimeAddress | null = null
   private running = false
-  private startPromise: Promise<void> | null = null
+  private startPromise: Promise<ApiGatewayRuntimeAddress> | null = null
   /**
    * Owned here so session lifetime is exactly server lifetime: once the socket closes every
    * session is unreachable, so `stop()` must drop them rather than leak bridges into the next
@@ -53,11 +55,13 @@ export class ApiGateway {
    */
   private readonly mcpSessions = new McpSessionStore()
 
-  async start(): Promise<void> {
+  async start(): Promise<ApiGatewayRuntimeAddress> {
     if (this.startPromise) return this.startPromise
     if (this.running) {
       logger.warn('Server already running')
-      return
+      const address = this.getRuntimeAddress()
+      if (address) return address
+      throw new Error('API Gateway runtime address is unavailable')
     }
 
     this.startPromise = this.startInternal().finally(() => {
@@ -66,22 +70,35 @@ export class ApiGateway {
     return this.startPromise
   }
 
-  private async startInternal(): Promise<void> {
+  private async startInternal(): Promise<ApiGatewayRuntimeAddress> {
     // Load config from preference service
     const preferenceService = application.get('PreferenceService')
     const port = preferenceService.get('feature.api_gateway.port')
     const host = preferenceService.get('feature.api_gateway.host')
 
     try {
-      await this.listen(host, port)
+      const boundPort = await this.listen(host, port)
+      return this.setRuntimeAddress(host, boundPort)
     } catch (error) {
       if (!this.isAddressInUseError(error) || port === 0) throw error
 
       logger.warn('Configured API gateway port is occupied; selecting an available port', { host, port })
       const fallbackPort = await this.listen(host, 0)
-      await preferenceService.set('feature.api_gateway.port', fallbackPort)
-      logger.info('API gateway port updated after conflict', { host, previousPort: port, port: fallbackPort })
+      const address = this.setRuntimeAddress(host, fallbackPort)
+      if (
+        preferenceService.get('feature.api_gateway.host') === host &&
+        preferenceService.get('feature.api_gateway.port') === port
+      ) {
+        await preferenceService.set('feature.api_gateway.port', fallbackPort)
+        logger.info('API gateway port updated after conflict', { host, previousPort: port, port: fallbackPort })
+      }
+      return address
     }
+  }
+
+  private setRuntimeAddress(host: string, port: number): ApiGatewayRuntimeAddress {
+    this.runtimeAddress = { host, port }
+    return { ...this.runtimeAddress }
   }
 
   private listen(host: string, port: number): Promise<number> {
@@ -144,6 +161,7 @@ export class ApiGateway {
     this.running = false
     this.serverInfo = null
     this.app = null
+    this.runtimeAddress = null
   }
 
   async stop(): Promise<void> {
@@ -165,6 +183,7 @@ export class ApiGateway {
       this.running = false
       this.serverInfo = null
       this.app = null
+      this.runtimeAddress = null
       logger.info('API server stopped')
     }
   }
@@ -195,5 +214,9 @@ export class ApiGateway {
     const result = this.running && (http?.listening ?? true)
     logger.debug('isRunning check', { running: this.running, listening: http?.listening, result })
     return result
+  }
+
+  getRuntimeAddress(): ApiGatewayRuntimeAddress | null {
+    return this.runtimeAddress ? { ...this.runtimeAddress } : null
   }
 }

@@ -36,7 +36,7 @@ export interface ApiGatewayProviderBundle {
  */
 export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const { t } = useTranslation()
-  const { apiGatewayConfig, apiGatewayRunning, startApiGateway } = useApiGateway()
+  const { apiGatewayConfig, apiGatewayRunning, getApiGatewayRuntimeAddress, startApiGateway } = useApiGateway()
   const host = apiGatewayConfig.host || DEFAULT_GATEWAY_HOST
   const port = apiGatewayConfig.port || DEFAULT_GATEWAY_PORT
   const apiKey = apiGatewayConfig.apiKey
@@ -44,26 +44,12 @@ export function useApiGatewayProvider(): ApiGatewayProviderBundle | null {
   const provider = useMemo(() => createApiGatewayProvider(t('code.api_gateway.title'), host, port), [host, port, t])
 
   const ensureRunning = useCallback(async (): Promise<Provider> => {
-    if (!apiGatewayRunning) {
-      // Main persists the key in `onActivate` BEFORE the server binds, and it survives a stop — so a
-      // key can exist while nothing is listening. Only proceed when the start actually confirmed the
-      // server is running; otherwise the caller must not write the CLI config or mark the gateway
-      // current against a dead port. `startApiGateway` returns false on failure (it never rejects).
-      const started = await startApiGateway()
-      if (!started) {
-        throw new Error('API gateway failed to start')
-      }
-    }
-    const [runningHost, runningPort] = await Promise.all([
-      preferenceService.get('feature.api_gateway.host'),
-      preferenceService.get('feature.api_gateway.port')
-    ])
-    return createApiGatewayProvider(
-      t('code.api_gateway.title'),
-      runningHost || DEFAULT_GATEWAY_HOST,
-      runningPort || DEFAULT_GATEWAY_PORT
-    )
-  }, [apiGatewayRunning, startApiGateway, t])
+    // Main owns the actual listener address. Renderer preferences are desired config and may lag a
+    // fallback bind; querying an already-running gateway also preserves a temporary lease's intent.
+    const address = apiGatewayRunning ? await getApiGatewayRuntimeAddress() : await startApiGateway()
+    if (!address) throw new Error('API gateway failed to start')
+    return createApiGatewayProvider(t('code.api_gateway.title'), address.host, address.port)
+  }, [apiGatewayRunning, getApiGatewayRuntimeAddress, startApiGateway, t])
 
   const getApiKey = useCallback(async (): Promise<string> => {
     const key = await preferenceService.get('feature.api_gateway.api_key')

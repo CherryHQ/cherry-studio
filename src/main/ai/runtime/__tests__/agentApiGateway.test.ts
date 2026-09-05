@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getCurrentConfig: vi.fn(),
+  getRuntimeAddress: vi.fn(),
   isRunning: vi.fn(),
-  ensureRunning: vi.fn(async () => undefined),
+  ensureRunning: vi.fn(async () => ({ host: '127.0.0.1', port: 24444 })),
   ensureValidApiKey: vi.fn(async () => 'gw-key-1'),
   getAgentSessionUsageHeaders: vi.fn(() => ({ 'x-session': 'session-1' })),
   getInternalRequestToken: vi.fn(() => 'internal-token')
@@ -15,6 +16,7 @@ vi.mock('@application', () => ({
       if (name === 'ApiGatewayService') {
         return {
           getCurrentConfig: mocks.getCurrentConfig,
+          getRuntimeAddress: mocks.getRuntimeAddress,
           isRunning: mocks.isRunning,
           ensureRunning: mocks.ensureRunning,
           ensureValidApiKey: mocks.ensureValidApiKey,
@@ -32,14 +34,13 @@ import { gatewayCredentialsFingerprint, resolveApiGatewayRuntime } from '../agen
 describe('gatewayCredentialsFingerprint', () => {
   beforeEach(() => {
     mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
+    mocks.getRuntimeAddress.mockReturnValue({ host: '127.0.0.1', port: 23333 })
     mocks.isRunning.mockReturnValue(true)
     mocks.ensureRunning.mockClear()
   })
 
   it('uses the port selected while the gateway was converging', async () => {
-    mocks.getCurrentConfig
-      .mockReturnValueOnce({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
-      .mockReturnValueOnce({ enabled: true, host: '127.0.0.1', port: 24444, apiKey: 'gw-key-1' })
+    mocks.ensureRunning.mockResolvedValueOnce({ host: '127.0.0.1', port: 24444 })
 
     await expect(resolveApiGatewayRuntime('session-1')).resolves.toMatchObject({
       baseUrl: 'http://127.0.0.1:24444'
@@ -54,10 +55,10 @@ describe('gatewayCredentialsFingerprint', () => {
 
   it('changes when the gateway address or enabled/running state changes', () => {
     const before = gatewayCredentialsFingerprint()
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.2', port: 24444, apiKey: 'gw-key-1' })
+    mocks.getRuntimeAddress.mockReturnValue({ host: '127.0.0.2', port: 24444 })
     expect(gatewayCredentialsFingerprint()).not.toBe(before)
 
-    mocks.getCurrentConfig.mockReturnValue({ enabled: true, host: '127.0.0.1', port: 23333, apiKey: 'gw-key-1' })
+    mocks.getRuntimeAddress.mockReturnValue({ host: '127.0.0.1', port: 23333 })
     mocks.isRunning.mockReturnValue(false)
     expect(gatewayCredentialsFingerprint()).not.toBe(before)
   })

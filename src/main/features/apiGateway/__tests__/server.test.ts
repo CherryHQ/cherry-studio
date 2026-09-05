@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   buildApp: vi.fn(),
   port: 0,
+  onBuildApp: undefined as ((port: number) => void) | undefined,
   setPreference: vi.fn<(key: string, value: unknown) => Promise<void>>(async () => undefined)
 }))
 
@@ -41,7 +42,10 @@ vi.mock('@logger', () => ({
 vi.mock('../app', async () => {
   const { Elysia } = await import('elysia')
   const { node } = await import('@elysia/node')
-  mocks.buildApp.mockImplementation(() => new Elysia({ adapter: node() }).get('/health', () => 'ok'))
+  mocks.buildApp.mockImplementation(({ port }: { port: number }) => {
+    mocks.onBuildApp?.(port)
+    return new Elysia({ adapter: node() }).get('/health', () => 'ok')
+  })
   return { buildApp: mocks.buildApp }
 })
 
@@ -68,6 +72,7 @@ describe('ApiGateway server lifecycle', () => {
 
   beforeEach(() => {
     mocks.port = 0
+    mocks.onBuildApp = undefined
     mocks.buildApp.mockClear()
     mocks.setPreference.mockClear()
   })
@@ -126,6 +131,24 @@ describe('ApiGateway server lifecycle', () => {
     )
   })
 
+  it('does not overwrite a newer configured port after binding a fallback', async () => {
+    const external = createServer((_request, response) => response.end('external'))
+    occupiedServers.push(external)
+    const occupiedPort = await listen(external)
+    const userSelectedPort = occupiedPort === 24444 ? 24445 : 24444
+    mocks.port = occupiedPort
+    mocks.onBuildApp = (port) => {
+      if (port === 0) mocks.port = userSelectedPort
+    }
+    gateway = new ApiGateway()
+
+    await gateway.start()
+
+    expect(portOf(gateway)).not.toBe(occupiedPort)
+    expect(mocks.setPreference).not.toHaveBeenCalled()
+    expect(mocks.port).toBe(userSelectedPort)
+  })
+
   it('does not reuse a gateway owned by another instance', async () => {
     gateway = new ApiGateway()
     await gateway.start()
@@ -154,7 +177,7 @@ describe('ApiGateway server lifecycle', () => {
     gateway = new ApiGateway()
     await gateway.start()
     await gateway.stop()
-    await expect(gateway.start()).resolves.toBeUndefined()
+    await expect(gateway.start()).resolves.toEqual({ host: '127.0.0.1', port: expect.any(Number) })
     expect(gateway.isRunning()).toBe(true)
   })
 
