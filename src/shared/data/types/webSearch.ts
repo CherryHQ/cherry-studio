@@ -17,6 +17,7 @@ export type WebSearchResult = {
   content: string
   url: string
   sourceInput: string
+  budget?: WebSearchResultBudget
 }
 
 export type WebSearchResponse = {
@@ -27,6 +28,30 @@ export type WebSearchResponse = {
   capability: WebSearchCapability
   inputs: string[]
   results: WebSearchResult[]
+  budget?: WebSearchContentBudget
+}
+
+export type WebSearchBudgetReason = 'configured_cutoff' | 'hard_limit'
+
+type WebSearchResultBudgetMetrics = {
+  originalTokens: number
+  retainedTokens: number
+  originalBytes: number
+  retainedBytes: number
+}
+
+export type WebSearchResultBudget =
+  | ({ status: 'retained' } & WebSearchResultBudgetMetrics)
+  | ({ status: 'truncated' | 'omitted'; reason: WebSearchBudgetReason } & WebSearchResultBudgetMetrics)
+
+export type WebSearchContentBudget = {
+  reason: WebSearchBudgetReason
+  tokenLimit: number
+  byteLimit: number
+  originalTokens: number
+  retainedTokens: number
+  originalBytes: number
+  retainedBytes: number
 }
 
 export type WebSearchSearchKeywordsRequest = {

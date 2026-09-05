@@ -297,6 +297,18 @@ export class WebSearchService extends BaseService {
     const filteredResponse = filterWebSearchResponseWithBlacklist(mergedResponse, context.runtimeConfig.excludeDomains)
     const postProcessed = await postProcessWebSearchResponse(filteredResponse, context.runtimeConfig)
 
+    if (postProcessed.response.budget?.reason === 'hard_limit') {
+      logger.warn('Web search content budget degraded results', {
+        providerId: context.provider.id,
+        capability: context.capability,
+        ...postProcessed.response.budget,
+        results: postProcessed.response.results.map((result, index) => ({
+          index,
+          ...result.budget
+        }))
+      })
+    }
+
     return postProcessed.response
   }
 
