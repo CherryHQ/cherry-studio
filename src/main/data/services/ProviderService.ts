@@ -481,7 +481,8 @@ class ProviderService {
             isEnabled: false
           }
           return insertWithOrderKey(tx, userProviderTable, values, {
-            pkColumn: userProviderTable.providerId
+            pkColumn: userProviderTable.providerId,
+            position: 'first'
           }) as UserProviderRow
         }),
       {
@@ -495,9 +496,8 @@ class ProviderService {
   }
 
   /**
-   * Update an existing provider. A false-to-true enabled transition moves the
-   * provider to the first position in the same transaction; redundant enabled
-   * writes preserve the user's current order.
+   * Update an existing provider. Enabling or disabling does not change
+   * `orderKey`; callers that want a new position must use `move` / `reorder`.
    */
   update(providerId: string, dto: UpdateProviderInput): Provider {
     assertManagedCherryProviderPatchAllowed(providerId, dto)
@@ -517,7 +517,6 @@ class ProviderService {
           providerId: userProviderTable.providerId,
           providerSettings: userProviderTable.providerSettings,
           endpointConfigs: userProviderTable.endpointConfigs,
-          isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
@@ -564,15 +563,6 @@ class ProviderService {
         ) as Partial<ProviderSettings>
       }
 
-      if (dto.isEnabled === true && !current.isEnabled) {
-        try {
-          applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { position: 'first' } }], {
-            pkColumn: userProviderTable.providerId
-          })
-        } catch (error) {
-          this.rethrowOrderError(error)
-        }
-      }
       if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
       const [updated] = tx

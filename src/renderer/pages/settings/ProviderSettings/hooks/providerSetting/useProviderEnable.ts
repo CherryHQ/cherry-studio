@@ -1,7 +1,7 @@
 import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import { useCallback } from 'react'
 
-/** Persists provider enable changes and moves newly enabled providers to the top. */
+/** Persists provider enable changes without changing list order. */
 export function useProviderEnable(providerId: string) {
   const { provider } = useProvider(providerId)
   const { updateProvider, enableProvider } = useProviderMutations(providerId)
