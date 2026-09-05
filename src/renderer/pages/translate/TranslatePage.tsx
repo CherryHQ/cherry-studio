@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import { cacheService } from '@data/CacheService'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -10,7 +11,13 @@ import { loggerService } from '@logger'
 import { ModelSelector, type ModelSelectorFilter } from '@renderer/components/ModelSelector'
 import { ModelSpeedControl } from '@renderer/components/ModelSpeedControl'
 import { Navbar } from '@renderer/components/Navbar'
-import { detectLanguageOrUnknown, useDetectLang, useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
+import {
+  detectLanguageOrUnknown,
+  useDetectLang,
+  useTranslate,
+  useTranslateHistory,
+  useTranslateSession
+} from '@renderer/hooks/translate'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -21,6 +28,7 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { parseTranslateRouteSearch } from '@renderer/pages/translate/routeSearch'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { toast } from '@renderer/services/toast'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
@@ -50,6 +58,7 @@ import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isGatewayRoutableModel, isNonChatModel } from '@shared/utils/model'
+import { useSearch } from '@tanstack/react-router'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, LoaderCircle, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -234,11 +243,45 @@ const TranslatePage: FC = () => {
 
   const translateReasoning = useTranslateReasoningEffort()
 
-  const [translateInput, setTranslateInput] = useCache('translate.input')
-  const [translateOutput, setTranslateOutput] = useCache('translate.output')
-  const [isDetecting, setIsDetecting] = useCache('translate.detecting')
+  // Every translate tab shares this route url, so the session id in `?tabSession=` is the only
+  // thing telling two of them apart — it keys this page's whole draft (#18879). The route mints
+  // it before the page mounts, so it is always present here.
+  const { tabSession } = parseTranslateRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
+  const session = useTranslateSession(tabSession ?? '')
 
-  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
+  const [translateInput, setTranslateInput] = useCache(`translate.input.${session.id}`)
+  const [translateOutput, setTranslateOutput] = useCache(`translate.output.${session.id}`)
+  const [, setStreamText] = useCache(`translate.stream_text.${session.id}`)
+  const [isDetecting, setIsDetecting] = useCache(`translate.detecting.${session.id}`)
+
+  // Resume the playout where the last mount left it instead of retyping the whole text: the run
+  // keeps writing `streamText` while this page is unmounted, and the effect below catches up.
+  const initialOutputRef = useRef(translateOutput)
+  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    initialText: initialOutputRef.current
+  })
+
+  // Catch the playout up once, on mount: a run that continued while this page was unmounted kept
+  // advancing `streamText`. Every later chunk arrives through `handleStreamText` instead, so
+  // re-running this on change would only replay text the page has already moved past.
+  const caughtUpRef = useRef(false)
+  useEffect(() => {
+    if (caughtUpRef.current) return
+    caughtUpRef.current = true
+    const pending = cacheService.get(`translate.stream_text.${session.id}`)
+    if (pending) smoothUpdate(pending, false)
+  }, [session.id, smoothUpdate])
+
+  const handleStreamText = useCallback(
+    (text: string, isComplete: boolean) => {
+      // Recorded first so the run keeps a durable trace even with nothing mounted, then played
+      // out directly — going only through the cache would add a render hop to every chunk.
+      setStreamText(text)
+      smoothUpdate(text, isComplete)
+    },
+    [setStreamText, smoothUpdate]
+  )
 
   const {
     translate: runTranslate,
@@ -246,7 +289,8 @@ const TranslatePage: FC = () => {
     cancel
   } = useTranslate({
     loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
+    onResponse: handleStreamText,
+    session
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
@@ -294,6 +338,9 @@ const TranslatePage: FC = () => {
     pdfTextCacheRef.current = null
     if (pdfTextFallbackActive && isTranslating) cancel()
     if (pdfTextFallbackStartedRef.current) setTranslateOutput(prePdfOutputRef.current ?? '')
+    // The fallback run's trace belongs to the mode being torn down — leaving it would let a
+    // remount replay it over the restored pre-PDF output.
+    setStreamText('')
     pdfTextFallbackStartedRef.current = false
     prePdfOutputRef.current = null
     setPdfHandleReady(false)
@@ -304,7 +351,7 @@ const TranslatePage: FC = () => {
     setIsProcessing(false)
     setPdfFile(null)
     setRestoredPdf(null)
-  }, [cancel, isTranslating, pdfTextFallbackActive, setTranslateOutput])
+  }, [cancel, isTranslating, pdfTextFallbackActive, setStreamText, setTranslateOutput])
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -332,10 +379,13 @@ const TranslatePage: FC = () => {
     (value: string) => {
       setTranslateInput(value)
       if (isEmpty(value)) {
+        // Retire the stream trace with the draft, or a remount would replay it over the
+        // cleared output.
+        setStreamText('')
         setTranslateOutput('')
       }
     },
-    [setTranslateInput, setTranslateOutput]
+    [setTranslateInput, setStreamText, setTranslateOutput]
   )
 
   const copy = useCallback(
@@ -384,6 +434,7 @@ const TranslatePage: FC = () => {
     ): Promise<TranslateHistory | undefined> => {
       if (isTranslating) return
 
+      setStreamText('')
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) {
@@ -413,7 +464,7 @@ const TranslatePage: FC = () => {
         targetLanguage: actualTargetLanguage
       })
     },
-    [addHistory, autoCopy, copy, isTranslating, runTranslate, setTimeoutTimer, smoothReset, t]
+    [addHistory, autoCopy, copy, isTranslating, runTranslate, setStreamText, setTimeoutTimer, smoothReset, t]
   )
 
   // Off the translation critical path: a failed detection or patch just leaves
@@ -588,6 +639,9 @@ const TranslatePage: FC = () => {
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
     setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
+    // The exchange replaces the output outside a run, so the old run's stream trace is stale —
+    // a remount would replay it over the swapped output.
+    setStreamText('')
   }, [
     isDetecting,
     safePersist,
@@ -595,6 +649,7 @@ const TranslatePage: FC = () => {
     setTargetLanguage,
     setTranslateInput,
     setTranslateOutput,
+    setStreamText,
     sourceLanguage,
     targetLanguage,
     translateInput,

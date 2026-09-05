@@ -2,12 +2,13 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
-import { useTabs } from '@renderer/hooks/tab'
+import { type Tab, useTabs } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { tabSessionIdFromUrl, tabSessionRegistry, withoutTabSession } from '@renderer/services/TabSessionRegistry'
 import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppKeepAlive'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
@@ -35,6 +36,18 @@ import {
 } from '../Sidebar'
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
+
+/**
+ * Whether sidebar navigation should open a new tab instead of replacing the current one.
+ *
+ * Pinning is the user saying "leave this tab alone"; a running task states the same thing as a
+ * fact — replacing the tab would destroy work the user can neither watch finish nor get back to.
+ */
+function shouldKeepActiveTab(activeTab: Tab | undefined): boolean {
+  if (!activeTab) return false
+  if (activeTab.isPinned) return true
+  return tabSessionRegistry.isBusy(tabSessionIdFromUrl(activeTab.url))
+}
 
 const FeedbackDialog = lazy(() => import('../feedback/FeedbackDialog'))
 
@@ -155,7 +168,7 @@ export default function Sidebar({
 
       if (activeTab?.url === path) return
 
-      if (activeTab?.isPinned) {
+      if (shouldKeepActiveTab(activeTab)) {
         openTab(path, { forceNew: true, title, icon: options?.icon })
         return
       }
@@ -198,7 +211,7 @@ export default function Sidebar({
           !!activeTab &&
           (app.conversationRoute
             ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
-            : activeTab.url === path)
+            : withoutTabSession(activeTab.url) === path)
         if (isActiveTarget) return
       }
 

@@ -158,15 +158,20 @@ export type UseCacheSchema = {
   // Per-session composer draft. Renderer memory only; app restart discards it.
   'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
 
-  // Translate page state management
+  // Translate page state, keyed by the session id carried in the tab's `?tabSession=` search
+  // param. Global keys made every translate tab share one draft and one run (#18879); the id
+  // is the only thing that tells two translate tabs apart, since their route url is identical.
   /** Input text */
-  'translate.input': string
-  /** Output text */
-  'translate.output': string
+  'translate.input.${tabSession}': string
+  /** Output text as displayed — the smooth-stream playout of `translate.stream_text` */
+  'translate.output.${tabSession}': string
+  /**
+   * Raw accumulated text of the in-flight stream. Written straight from the run, so it keeps
+   * advancing while the page is unmounted; the mounted page plays it out into `translate.output`.
+   */
+  'translate.stream_text.${tabSession}': string
   /** Whether detecting source language or not */
-  'translate.detecting': boolean
-  /** Whether translating input text */
-  'translate.translating': CacheValueTypes.TranslatingState
+  'translate.detecting.${tabSession}': boolean
 
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
@@ -253,13 +258,10 @@ export const DefaultUseCache: UseCacheSchema = {
   },
 
   // Translate page state management
-  'translate.input': '',
-  'translate.output': '',
-  'translate.detecting': false,
-  'translate.translating': {
-    isTranslating: false,
-    abortKey: null
-  },
+  'translate.input.${tabSession}': '',
+  'translate.output.${tabSession}': '',
+  'translate.stream_text.${tabSession}': '',
+  'translate.detecting.${tabSession}': false,
 
   'painting.generation.${paintingId}': null,
 
