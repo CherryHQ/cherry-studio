@@ -726,7 +726,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
-      const isProcessFailure = isClaudeCodeProcessFailure(error)
+      const isProcessFailure = isClaudeCodeProcessFailure(error, this.processDiagnostics)
       const surfacedError =
         isProcessFailure && this.processDiagnostics
           ? createClaudeCodeProcessExitError(error, this.processDiagnostics)

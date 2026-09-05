@@ -54,7 +54,8 @@ describe('Claude Code process exit diagnostics', () => {
     Object.assign(diagnostics, {
       terminalReason: 'first process failed',
       category: 'auth',
-      exitCode: 1
+      exitCode: 1,
+      spawnFailed: true
     })
 
     resetClaudeCodeProcessDiagnostics(diagnostics)

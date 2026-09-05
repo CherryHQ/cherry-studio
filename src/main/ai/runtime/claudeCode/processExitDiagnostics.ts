@@ -18,6 +18,7 @@ export interface ClaudeCodeProcessDiagnostics {
   category?: ClaudeCodeExitCategory
   exitCode?: number
   exitSignal?: NodeJS.Signals
+  spawnFailed?: true
 }
 
 export function createClaudeCodeProcessDiagnostics(reference: string = randomUUID()): ClaudeCodeProcessDiagnostics {
@@ -29,6 +30,7 @@ export function resetClaudeCodeProcessDiagnostics(diagnostics: ClaudeCodeProcess
   delete diagnostics.category
   delete diagnostics.exitCode
   delete diagnostics.exitSignal
+  delete diagnostics.spawnFailed
 }
 
 export function classifyClaudeCodeTerminalReason(reason: string): ClaudeCodeExitCategory {
@@ -63,14 +65,16 @@ export function recordClaudeCodeProcessExit(
 export function recordClaudeCodeSpawnError(diagnostics: ClaudeCodeProcessDiagnostics, error: Error): void {
   diagnostics.terminalReason = `Failed to spawn Claude Code process: ${error.message}`
   diagnostics.category = classifyClaudeCodeTerminalReason(diagnostics.terminalReason)
+  diagnostics.spawnFailed = true
 }
 
-export function isClaudeCodeProcessFailure(error: unknown): error is Error {
+export function isClaudeCodeProcessFailure(error: unknown, diagnostics?: ClaudeCodeProcessDiagnostics): error is Error {
   return (
     error instanceof Error &&
-    /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
-      error.message
-    )
+    (diagnostics?.spawnFailed === true ||
+      /Claude Code process (?:exited with code|terminated by signal|failed to spawn)|Failed to spawn Claude Code process/i.test(
+        error.message
+      ))
   )
 }
 

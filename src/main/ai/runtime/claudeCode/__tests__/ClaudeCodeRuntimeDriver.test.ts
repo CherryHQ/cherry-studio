@@ -452,9 +452,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       warmQuery: { query: vi.fn(() => query) },
       processDiagnostics: {
         reference: 'warm-diagnostic-ref',
-        terminalReason: 'Claude Code process exited with code 1. stderr: api_key=sk-ant-private',
+        terminalReason: 'Failed to spawn Claude Code process: spawn ENOENT; api_key=sk-ant-private',
         category: 'auth',
-        exitCode: 1
+        spawnFailed: true
       }
     })
     const connection = await new ClaudeCodeRuntimeDriver().connect({
@@ -465,15 +465,18 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     await connection.send({ message: userMessage() })
-    nextQueryResult.reject(new Error('Claude Code process exited with code 1'))
+    nextQueryResult.reject(
+      new ReferenceError(
+        'Claude Code executable not found at /missing/claude. Is options.pathToClaudeCodeExecutable set?'
+      )
+    )
 
     const event = await events.next()
     expect(event.value).toMatchObject({
       type: 'error',
       error: {
         claudeCodeExitCategory: 'auth',
-        diagnosticReference: 'warm-diagnostic-ref',
-        processExitCode: 1
+        diagnosticReference: 'warm-diagnostic-ref'
       }
     })
     expect(JSON.stringify(event.value)).not.toContain('sk-ant-private')
