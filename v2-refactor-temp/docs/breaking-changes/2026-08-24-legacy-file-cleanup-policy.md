@@ -8,7 +8,7 @@ date: 2026-08-24
 
 ## What changed
 
-Files that predate a database's one-shot v2 migration completion and are referenced by a migrated Agent Session
+Files that predate a database's one-shot v2 migration completion and are associated with a migrated Agent Session
 attachment, chat message, painting, provider logo, or mini-app logo now use `delete_when_unreferenced` instead of
 the conservative `manual` fallback. The post-migration seeder may synthesize missing Agent Session attachment
 references after that boundary, but only when both the source message and file also predate the boundary.
