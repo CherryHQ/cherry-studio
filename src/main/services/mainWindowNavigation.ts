@@ -36,8 +36,6 @@ export const isAllowedRoute = (path: string): boolean => {
   return ALLOWED_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 }
 
-let nextNavigationRequestId = 0
-
 /** Id of the live (non-destroyed) main window, or undefined when it is missing/destroyed. */
 function resolveLiveMainWindowId(): string | undefined {
   const windowManager = application.get('WindowManager')
@@ -55,16 +53,24 @@ type PendingMainWindowDelivery = { kind: 'route'; path: string } | { kind: 'tab-
  * are coalesced; repeating a route after another command is a distinct user
  * intent and must retain its place in the sequence.
  */
-const pendingMainWindowDeliveries: PendingMainWindowDelivery[] = []
-let isMainRendererReadyForDelivery = false
+/** Owns queued deliveries and readiness across individual main-window rebuilds. */
+class MainWindowNavigationService {
+  nextNavigationRequestId = 0
+  pendingMainWindowDeliveries: PendingMainWindowDelivery[] = []
+  isMainRendererReadyForDelivery = false
+}
+
+const mainWindowNavigationService = new MainWindowNavigationService()
 
 function enqueueRouteNavigation(path: string): void {
+  const { pendingMainWindowDeliveries } = mainWindowNavigationService
   const previous = pendingMainWindowDeliveries.at(-1)
   if (previous?.kind === 'route' && previous.path === path) return
   pendingMainWindowDeliveries.push({ kind: 'route', path })
 }
 
 function enqueueTabAttach(tab: Tab): void {
+  const { pendingMainWindowDeliveries } = mainWindowNavigationService
   const existingIndex = pendingMainWindowDeliveries.findIndex(
     (delivery) => delivery.kind === 'tab-attach' && delivery.tab.id === tab.id
   )
@@ -85,7 +91,7 @@ function enqueueTabAttach(tab: Tab): void {
  */
 export function markMainRendererReadyForDelivery(senderId: string): void {
   if (application.get('WindowManager').getWindowType(senderId) !== WindowType.Main) return
-  isMainRendererReadyForDelivery = true
+  mainWindowNavigationService.isMainRendererReadyForDelivery = true
   flushPendingMainWindowDeliveries()
 }
 
@@ -95,17 +101,18 @@ export function markMainRendererReadyForDelivery(senderId: string): void {
  * next ready renderer, with the target window resolved at flush time, not enqueue time.
  */
 export function resetMainRendererDelivery(): void {
-  isMainRendererReadyForDelivery = false
+  mainWindowNavigationService.isMainRendererReadyForDelivery = false
 }
 
 /** Clear readiness and discard commands when the owning service is stopped or destroyed. */
 export function clearMainWindowDeliveryState(): void {
   resetMainRendererDelivery()
-  pendingMainWindowDeliveries.splice(0)
+  mainWindowNavigationService.pendingMainWindowDeliveries.splice(0)
 }
 
 function flushPendingMainWindowDeliveries(): void {
-  if (!isMainRendererReadyForDelivery || pendingMainWindowDeliveries.length === 0) return
+  const { pendingMainWindowDeliveries } = mainWindowNavigationService
+  if (!mainWindowNavigationService.isMainRendererReadyForDelivery || pendingMainWindowDeliveries.length === 0) return
   const mainWindowId = resolveLiveMainWindowId()
   if (!mainWindowId) return
   const queued = pendingMainWindowDeliveries.splice(0)
@@ -127,11 +134,11 @@ function flushPendingMainWindowDeliveries(): void {
  * did-start-loading gap that event-driven resets cannot see.
  */
 function isMainRendererDeliveryReady(windowId: string): boolean {
-  if (!isMainRendererReadyForDelivery) return false
+  if (!mainWindowNavigationService.isMainRendererReadyForDelivery) return false
   const win = application.get('WindowManager').getWindow(windowId)
   if (!win || win.isDestroyed()) return false
   if (win.webContents.isLoadingMainFrame() || win.webContents.isCrashed()) {
-    isMainRendererReadyForDelivery = false
+    mainWindowNavigationService.isMainRendererReadyForDelivery = false
     return false
   }
   return true
@@ -191,7 +198,7 @@ export function openRouteInMainWindow(path: string): void {
     return
   }
 
-  if (pendingMainWindowDeliveries.length > 0) {
+  if (mainWindowNavigationService.pendingMainWindowDeliveries.length > 0) {
     enqueueRouteNavigation(path)
     mainWindowService.showMainWindow()
     return
@@ -200,7 +207,7 @@ export function openRouteInMainWindow(path: string): void {
   mainWindowService.showMainWindow({
     kind: 'navigation',
     to: path,
-    requestId: nextNavigationRequestId++
+    requestId: mainWindowNavigationService.nextNavigationRequestId++
   } satisfies MainWindowInitData)
 }
 
@@ -233,7 +240,7 @@ export function openTabInMainWindow(tab: Tab): void {
     return
   }
 
-  if (pendingMainWindowDeliveries.length > 0) {
+  if (mainWindowNavigationService.pendingMainWindowDeliveries.length > 0) {
     enqueueTabAttach(tab)
     mainWindowService.showMainWindow()
     return
@@ -242,7 +249,7 @@ export function openTabInMainWindow(tab: Tab): void {
   mainWindowService.showMainWindow({
     kind: 'tab-attach',
     tab,
-    requestId: nextNavigationRequestId++
+    requestId: mainWindowNavigationService.nextNavigationRequestId++
   } satisfies MainWindowInitData)
 }
 
