@@ -1,7 +1,7 @@
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentPropsWithoutRef } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FilePreviewType } from '../../../types'
@@ -44,6 +44,11 @@ vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', async (importOrig
 })
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <span>{title}</span>
@@ -51,22 +56,26 @@ vi.mock('@cherrystudio/ui', () => ({
     </div>
   ),
   SegmentedControl: ({
+    'aria-label': ariaLabel,
     disabled,
     onValueChange,
     options,
     value
   }: {
+    'aria-label'?: string
     disabled?: boolean
     onValueChange: (value: string) => void
-    options: Array<{ label: string; value: string }>
+    options: Array<{ ariaLabel?: string; disabled?: boolean; label: ReactNode; value: string }>
     value: string
   }) => (
-    <div>
+    <div role="radiogroup" aria-label={ariaLabel} aria-disabled={disabled}>
       {options.map((option) => (
         <button
           type="button"
-          aria-pressed={value === option.value}
-          disabled={disabled}
+          role="radio"
+          aria-checked={value === option.value}
+          aria-label={option.ariaLabel}
+          disabled={disabled || option.disabled}
           key={option.value}
           onClick={() => onValueChange(option.value)}>
           {option.label}
@@ -74,7 +83,8 @@ vi.mock('@cherrystudio/ui', () => ({
       ))}
     </div>
   ),
-  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>
+  Scrollbar: ({ children, ...props }: ComponentPropsWithoutRef<'div'>) => <div {...props}>{children}</div>,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -175,14 +185,14 @@ describe('HtmlFilePreview', () => {
     renderPreview()
     await screen.findByTestId('html-frame')
 
-    fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.source' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'file_preview.html.mode.source' }))
 
     expect(await screen.findByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
     expect(mocks.codeViewer).toHaveBeenLastCalledWith(
       expect.objectContaining({ language: 'html', value: '<h1>Hello</h1>', wrapped: true })
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'file_preview.html.mode.preview' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'file_preview.html.mode.preview' }))
     expect(screen.getByTestId('html-frame')).toBeInTheDocument()
   })
 
@@ -193,8 +203,8 @@ describe('HtmlFilePreview', () => {
     const props = mocks.htmlFrame.mock.calls.at(-1)?.[0]
     expect(props?.sandbox).toBe('allow-scripts allow-same-origin allow-forms')
     expect(props?.csp).toBeUndefined()
-    expect(screen.queryByRole('button', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'file_preview.html.mode.preview' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'file_preview.html.mode.source' })).not.toBeInTheDocument()
   })
 
   it('reloads when the path or refresh key changes', async () => {

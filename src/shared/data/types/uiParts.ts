@@ -24,7 +24,7 @@
  */
 
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import { type FileType, FileTypeSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -218,6 +218,8 @@ export interface CherryFileMeta {
   fileTokenSourceId?: string
   /** Safe composer-only source marker used to restore sent-message token previews. */
   composerFileKind?: 'pasted-text'
+  /** Original absolute path selected by the user before Cherry copied it into managed storage. */
+  originalPath?: AbsoluteFilePath
 }
 
 /**
@@ -309,7 +311,8 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   fileEntryId: z.string().optional(),
   fileTokenSourceId: z.string().optional(),
-  composerFileKind: z.literal('pasted-text').optional()
+  composerFileKind: z.literal('pasted-text').optional(),
+  originalPath: AbsoluteFilePathSchema.optional()
 })
 
 const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({

@@ -1,4 +1,5 @@
 export { FilePreview, type FilePreviewProps } from './FilePreview'
 export { FilePreviewNavigationProvider } from './FilePreviewNavigationProvider'
+export { FilePreviewModeToolbarPortalHost, FilePreviewModeToolbarPortalProvider } from './FilePreviewToolbar'
 export { useOpenFilePreviewTab, useOptionalOpenFilePreviewTab } from './hooks/useOpenFilePreviewTab'
 export type { FilePreviewType } from './types'

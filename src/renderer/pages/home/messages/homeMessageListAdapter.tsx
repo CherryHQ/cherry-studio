@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/chat/messages/messageListProviderBuilder'
 import {
   DEFAULT_MESSAGE_LIST_CONFIG,
+  type MessageAttachmentTarget,
   type MessageGroupRuntime,
   type MessageListActions,
   type MessageListItem,
@@ -48,12 +49,16 @@ import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { isFilePathHandle } from '@shared/utils/file'
 import { isNonChatModel } from '@shared/utils/model'
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useOptionalTopicRightPaneActions } from '../components/TopicRightPane'
 import {
   consumePendingTopicImageActions,
   rejectPendingTopicImageActions,
@@ -63,6 +68,17 @@ import {
 } from './topicImageActionBus'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
+
+const resolveAttachmentPreviewPath = async (handle: FileHandle): Promise<AbsoluteFilePath | null> => {
+  if (isFilePathHandle(handle)) return handle.path
+
+  try {
+    const path = await window.api.file.getPhysicalPath({ id: handle.entryId })
+    return AbsoluteFilePathSchema.safeParse(path).data ?? null
+  } catch {
+    return null
+  }
+}
 
 interface HomeMessageListParams {
   topic: Topic
@@ -470,6 +486,24 @@ export function useHomeMessageListProviderValue({
     return window.api.file.openPath(path)
   }, [])
 
+  const topicRightPaneActions = useOptionalTopicRightPaneActions()
+  const fallbackPreviewFile = leafCapabilities.previewFile
+  const previewFile = useCallback<NonNullable<MessageListActions['previewFile']>>(
+    async (target: MessageAttachmentTarget) => {
+      const previewInputFile = normalInteractionsEnabled ? topicRightPaneActions?.previewInputFile : undefined
+      if (!previewInputFile) return fallbackPreviewFile?.(target)
+
+      const previewPath = await resolveAttachmentPreviewPath(target.handle)
+      if (!previewPath) return fallbackPreviewFile?.(target)
+
+      return previewInputFile({
+        displayName: target.name,
+        previewPath
+      })
+    },
+    [fallbackPreviewFile, normalInteractionsEnabled, topicRightPaneActions?.previewInputFile]
+  )
+
   const showInFolder = useCallback((path: string) => {
     return window.api.file.showInFolder(path)
   }, [])
@@ -842,6 +876,8 @@ export function useHomeMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       removeMessageErrorPart,
       openPath,
+      previewFile,
+      previewInputFile: normalInteractionsEnabled ? topicRightPaneActions?.previewInputFile : undefined,
       openCitationsPanel,
       showInFolder,
       abortTool,
@@ -889,6 +925,7 @@ export function useHomeMessageListProviderValue({
       normalInteractionsEnabled,
       openCitationsPanel,
       openPath,
+      previewFile,
       regenerateMessage,
       requestTranslationLanguages,
       retryTranslationLanguages,
@@ -901,6 +938,7 @@ export function useHomeMessageListProviderValue({
       startMessageBranch,
       startNewContext,
       selectionController.actions,
+      topicRightPaneActions?.previewInputFile,
       translateMessage,
       removeMessageTranslation,
       updateRenderConfig
